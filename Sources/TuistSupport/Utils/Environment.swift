@@ -134,14 +134,47 @@ public class Environment: Environmenting {
         }
     }
 
+    /// Returns all the environment variables parsed from .env inside the Tuist directory
+    fileprivate lazy var dotEnvVariables: [String: String] = {
+        let dotEnvPath = fileHandler.locateDirectory(
+            "\(Constants.tuistDirectoryName)/\(Constants.tuistDotEnvName)",
+            traversingFrom: AbsolutePath(FileManager.default.currentDirectoryPath)
+        )
+        if let path: String = dotEnvPath?.pathString {
+            return DotEnvParser().parse(path: path)
+        } else {
+            return [:]
+        }
+    }()
+
+    /// Returns all the environment variables parsed from .env that are specific to Tuist (prefixed with TUIST_)
+    fileprivate lazy var tuistDotEnvVariables: [String: String] = {
+        dotEnvVariables.filter { $0.key.hasPrefix("TUIST_") }.filter { !$0.key.hasPrefix("TUIST_CONFIG_") }
+    }()
+
+    /// Returns all the environment variables parsed from .env that are specific to Tuist config (prefixed with TUIST_CONFIG_)
+    fileprivate lazy var tuistConfigDotEnvVariables: [String: String] = {
+        dotEnvVariables.filter { $0.key.hasPrefix("TUIST_CONFIG_") }
+    }()
+
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     public var tuistVariables: [String: String] {
-        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_") }.filter { !$0.key.hasPrefix("TUIST_CONFIG_") }
+        tuistDotEnvVariables.merging(
+            ProcessInfo.processInfo.environment.filter {
+                $0.key.hasPrefix("TUIST_")
+            }.filter {
+                !$0.key.hasPrefix("TUIST_CONFIG_")
+            }, uniquingKeysWith: { $1 }
+        )
     }
 
     /// Returns all the environment variables that are specific to Tuist config (prefixed with TUIST_CONFIG_)
     public var tuistConfigVariables: [String: String] {
-        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_CONFIG_") }
+        tuistConfigDotEnvVariables.merging(
+            ProcessInfo.processInfo.environment.filter {
+                $0.key.hasPrefix("TUIST_CONFIG_")
+            }, uniquingKeysWith: { $1 }
+        )
     }
 
     public var manifestLoadingVariables: [String: String] {
