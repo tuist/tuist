@@ -58,9 +58,9 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 
         filteredTargetsAndDependencies.forEach { target in
             if skipExternalDependencies, target.isExternal(root: graph.path) { return }
-            
+
             var leftNode = GraphViz.Node(target.target.name)
-            
+
             leftNode.applyAttributes(attributes: target.styleAttributes)
             nodes.append(leftNode)
 
