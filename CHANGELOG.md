@@ -57,6 +57,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add support for `umbrellaHeader` parameter to `Headers` to get list of public headers automatically. Also added new static functions in `Headers` for most popular cases with umbrella header [#3884](https://github.com/tuist/tuist/pull/3884) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
+- Add Support for parsing `.env` files by default [#4125](https://github.com/tuist/tuist/pull/4125) by [@jaerod95](https://github.com/jaerod95)
 
 ## 2.7.2
 
