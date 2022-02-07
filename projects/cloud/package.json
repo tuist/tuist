@@ -41,11 +41,11 @@
     "@shopify/polaris": "^6.6.0",
     "apollo-link": "^1.2.14",
     "apollo-link-http": "^1.5.17",
-    "mobx": "^6.3.12",
+    "mobx": "^6.3.13",
     "mobx-react-lite": "^3.2.3",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
-    "react-hook-form": "^7.22.5",
+    "react-hook-form": "^7.26.0",
     "react-router-dom": "^6.0.2"
   }
 }
