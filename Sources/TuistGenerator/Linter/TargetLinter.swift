@@ -105,15 +105,15 @@ class TargetLinter: TargetLinting {
     private func lintCopiedFiles(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        let infoPlists = target.settings?.configurations.infoPlists().compactMap(\.path)
+        var infoPlists = target.settings?.configurations.infoPlists().compactMap(\.path) ?? []
+        target.infoPlist.map { infoPlists.append($0) }
+
         for file in target.resources {
             if file.path.pathString.hasSuffix(".entitlements") {
                 let reason =
                     "Entitlements file at path \(file.path.pathString) being copied into the target \(target.name) product."
                 issues.append(LintingIssue(reason: reason, severity: .warning))
-            } else if file.path == target.infoPlist?.path
-                || infoPlists?.contains(file.path) == true
-            {
+            } else if infoPlists.contains(file.path) {
                 let reason =
                     "Info.plist at path \(file.path.pathString) being copied into the target \(target.name) product."
                 issues.append(LintingIssue(reason: reason, severity: .warning))
