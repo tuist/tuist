@@ -17,7 +17,7 @@ import RemoteCachePageStore from './RemoteCachePageStore';
 import { observer } from 'mobx-react-lite';
 import { useApolloClient } from '@apollo/client';
 import { HomeStoreContext } from '@/stores/HomeStore';
-import { autorun, runInAction } from 'mobx';
+import { runInAction } from 'mobx';
 
 const RemoteCachePage = observer(() => {
   const client = useApolloClient();

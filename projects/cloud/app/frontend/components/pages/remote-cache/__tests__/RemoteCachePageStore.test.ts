@@ -220,4 +220,55 @@ describe('RemoteCachePageStore', () => {
       expectedS3Bucket,
     ]);
   });
+
+  it('updates the current bucket', async () => {
+    // Given
+    projectStore.project.remoteCacheStorage = {
+      accessKeyId: 'key-id-1',
+      id: 'id-1',
+      name: 'S3 bucket one',
+      secretAccessKey: 'secret',
+    };
+    const remoteCachePageStore = new RemoteCachePageStore(
+      client,
+      projectStore,
+    );
+    const expectedS3Bucket: S3Bucket = {
+      accessKeyId: 'changed access key id',
+      id: 'id-1',
+      name: 'new name',
+      secretAccessKey: 'new secret',
+    };
+    client.mutate.mockReturnValueOnce({
+      data: {
+        updateS3Bucket: {
+          accessKeyId: expectedS3Bucket.accessKeyId,
+          accountId: 'account-id',
+          id: expectedS3Bucket.id,
+          name: expectedS3Bucket.name,
+          secretAccessKey: expectedS3Bucket.secretAccessKey,
+          __typename: 'S3Bucket',
+        },
+      },
+    });
+
+    // When
+    await remoteCachePageStore.applyChangesButtonClicked(
+      'account id',
+    );
+
+    // Then
+    expect(
+      remoteCachePageStore.projectStore.project.remoteCacheStorage,
+    ).toEqual(expectedS3Bucket);
+    expect(remoteCachePageStore.bucketName).toEqual(
+      expectedS3Bucket.name,
+    );
+    expect(remoteCachePageStore.accessKeyId).toEqual(
+      expectedS3Bucket.accessKeyId,
+    );
+    expect(remoteCachePageStore.secretAccessKey).toEqual(
+      expectedS3Bucket.secretAccessKey,
+    );
+  });
 });
