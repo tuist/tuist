@@ -81,7 +81,7 @@ List of additional options:
 
 | Case                                                                                    | Description                                                                |
 | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `automaticSchemesOptions(AutomaticSchemesOptions)`                                      | To configure automatig target schemes generation.                          |
+| `automaticSchemesOptions(AutomaticSchemesOptions)`                                      | To configure automatic target schemes generation.                          |
 | `disableSynthesizedResourceAccessors`                                                   | To disable synthesized resource accessors.                                 |
 | `disableBundleAccessors`                                                                | To disables generating Bundle accessors.                                   |
 | `textSettings(usesTabs: Bool?, indentWidth: UInt?, tabWidth: UInt?, wrapsLines: Bool?)` | [Text settings](#text-settings) to override user ones for current project. |
