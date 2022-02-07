@@ -10,7 +10,7 @@ import { ApolloClient } from '@apollo/client';
 import { SelectOption } from '@shopify/polaris';
 import { makeAutoObservable, runInAction } from 'mobx';
 import ProjectStore from '../../../stores/ProjectStore';
-import { mapS3Bucket, S3Bucket } from '@/models/S3Bucket';
+import { mapS3Bucket, S3Bucket } from '@/models';
 
 class RemoteCachePageStore {
   bucketName = '';
