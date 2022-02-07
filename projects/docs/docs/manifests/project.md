@@ -297,10 +297,10 @@ The following example shows classic way with manual declaring list for each kind
 
 ```swift
 .headers(
-            public: "Sources/public/**",
-            private: "Sources/private/**",
-            project: "Sources/project/**"
-        )
+    public: "Sources/public/**",
+    private: "Sources/private/**",
+    project: "Sources/project/**"
+)
 ```
 
 ### File List
