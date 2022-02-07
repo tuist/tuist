@@ -5,7 +5,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-/// Interface that describes a mapper that convers a project graph into a GraphViz graph.
+/// Interface that describes a mapper that converts a project graph into a GraphViz graph.
 public protocol GraphToGraphVizMapping {
     /// Maps the project graph into a dot graph representation.
     ///
@@ -57,7 +57,10 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
         )
 
         filteredTargetsAndDependencies.forEach { target in
+            if skipExternalDependencies, target.isExternal(root: graph.path) { return }
+            
             var leftNode = GraphViz.Node(target.target.name)
+            
             leftNode.applyAttributes(attributes: target.styleAttributes)
             nodes.append(leftNode)
 
@@ -94,9 +97,7 @@ extension GraphDependency {
     fileprivate func isExternal(root: AbsolutePath) -> Bool {
         switch self {
         case let .target(_, path):
-            return path.pathString.starts(
-                with: root.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name).pathString
-            )
+            return isPathToTuistDependencyDirectory(path, root: root)
         case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk:
             return true
         }
@@ -144,4 +145,18 @@ extension GraphDependency {
             return String(name.split(separator: ".").first ?? "")
         }
     }
+}
+
+extension GraphTarget {
+    fileprivate func isExternal(root: AbsolutePath) -> Bool {
+        isPathToTuistDependencyDirectory(path, root: root)
+    }
+}
+
+/// Checks if the path points to the `Tuist/Dependencies/` directory.
+private func isPathToTuistDependencyDirectory(_ path: AbsolutePath, root: AbsolutePath) -> Bool {
+    path.pathString
+        .starts(
+            with: root.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name).pathString
+        )
 }
