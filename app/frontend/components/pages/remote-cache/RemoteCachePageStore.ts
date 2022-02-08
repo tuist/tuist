@@ -5,18 +5,21 @@ import {
   CreateS3BucketMutation,
   S3BucketsDocument,
   S3BucketsQuery,
-} from '../../../graphql/types';
+  UpdateS3BucketMutation,
+  UpdateS3BucketDocument,
+} from '@/graphql/types';
 import { ApolloClient } from '@apollo/client';
 import { SelectOption } from '@shopify/polaris';
 import { makeAutoObservable, runInAction } from 'mobx';
-import ProjectStore from '../../../stores/ProjectStore';
-import { mapS3Bucket, S3Bucket } from '@/models/S3Bucket';
+import ProjectStore from '@/stores/ProjectStore';
+import { mapS3Bucket, S3Bucket } from '@/models';
 
 class RemoteCachePageStore {
   bucketName = '';
   accessKeyId = '';
   secretAccessKey = '';
   s3Buckets: S3Bucket[] = [];
+  isApplyChangesButtonLoading = false;
 
   client: ApolloClient<object>;
   projectStore: ProjectStore;
@@ -141,6 +144,7 @@ class RemoteCachePageStore {
   }
 
   async applyChangesButtonClicked(accountId: string) {
+    this.isApplyChangesButtonLoading = true;
     if (this.isCreatingBucket) {
       const { data } =
         await this.client.mutate<CreateS3BucketMutation>({
@@ -159,8 +163,42 @@ class RemoteCachePageStore {
       }
       const s3Bucket = mapS3Bucket(data.createS3Bucket);
       runInAction(() => {
+        this.isApplyChangesButtonLoading = false;
         this.projectStore.project.remoteCacheStorage = s3Bucket;
         this.s3Buckets.push(s3Bucket);
+      });
+    } else {
+      if (this.projectStore.project.remoteCacheStorage == null) {
+        return;
+      }
+      const { data } =
+        await this.client.mutate<UpdateS3BucketMutation>({
+          mutation: UpdateS3BucketDocument,
+          variables: {
+            input: {
+              id: this.projectStore.project.remoteCacheStorage.id,
+              name: this.bucketName,
+              accessKeyId: this.accessKeyId,
+              secretAccessKey: this.secretAccessKey,
+            },
+          },
+        });
+      if (data == null) {
+        return;
+      }
+      const s3Bucket = mapS3Bucket(data.updateS3Bucket);
+      runInAction(() => {
+        this.isApplyChangesButtonLoading = false;
+        if (this.projectStore.project.remoteCacheStorage == null) {
+          return;
+        }
+        const previousId =
+          this.projectStore.project.remoteCacheStorage.id;
+        this.s3Buckets = this.s3Buckets.filter(
+          (bucket) => bucket.id !== previousId,
+        );
+        this.s3Buckets.push(s3Bucket);
+        this.projectStore.project.remoteCacheStorage = s3Bucket;
       });
     }
   }
