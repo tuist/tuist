@@ -10,4 +10,8 @@ struct VersionCommand: ParsableCommand {
             abstract: "Outputs the current version of tuist env."
         )
     }
+
+    func run() throws {
+        try VersionService().run()
+    }
 }
