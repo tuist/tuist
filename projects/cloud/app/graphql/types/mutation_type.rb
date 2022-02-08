@@ -32,6 +32,11 @@ module Types
       null: false,
       description: "Create new S3 bucket",
       mutation: Mutations::CreateS3Bucket
+    field :update_s3_bucket,
+      S3BucketType,
+      null: false,
+      description: "Update S3 bucket",
+      mutation: Mutations::UpdateS3Bucket
     field :change_remote_cache_storage,
       RemoteCacheStorageType,
       null: false,

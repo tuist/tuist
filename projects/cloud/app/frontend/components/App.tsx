@@ -3,7 +3,6 @@ import GraphqlProvider from '@/networking/GraphqlProvider';
 import ErrorBoundary from '@/components/boundaries/ErrorBoundary';
 import '@shopify/polaris/dist/styles.css';
 import {
-  HashRouter,
   Routes,
   Route,
   useLocation,
