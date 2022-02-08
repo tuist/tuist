@@ -6,6 +6,7 @@ module Types
     field :name, String, null: false
     field :account, AccountType, null: false
     field :slug, String, null: false
+    field :remote_cache_storage, RemoteCacheStorageType, null: true
 
     def slug
       "#{object.account.name}/#{object.name}"

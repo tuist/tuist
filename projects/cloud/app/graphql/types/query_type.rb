@@ -57,5 +57,13 @@ module Types
     def invitation(token:)
       InvitationFetchService.call(token: token)
     end
+
+    field :s3_buckets, [S3BucketType], null: false,
+      description: "Returns S3 buckets for an account of a given name" do
+      argument :account_name, String, required: true
+    end
+    def s3_buckets(account_name:)
+      S3BucketsFetchService.call(account_name: account_name, user: context[:current_user])
+    end
   end
 end
