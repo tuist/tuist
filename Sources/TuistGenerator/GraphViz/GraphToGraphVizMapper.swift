@@ -3,15 +3,20 @@ import GraphViz
 import TSCBasic
 import TuistCore
 import TuistGraph
+import TuistSupport
 
-/// Interface that describes a mapper that convers a project graph into a GraphViz graph.
+/// Interface that describes a mapper that converts a project graph into a GraphViz graph.
 public protocol GraphToGraphVizMapping {
     /// Maps the project graph into a dot graph representation.
     ///
     /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
-    func map(graph: TuistGraph.Graph, skipTestTargets: Bool, skipExternalDependencies: Bool, targetsToFilter: [String])
-        -> GraphViz.Graph
+    func map(
+        graph: TuistGraph.Graph,
+        skipTestTargets: Bool,
+        skipExternalDependencies: Bool,
+        targetsToFilter: [String]
+    ) -> GraphViz.Graph
 }
 
 public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
@@ -21,9 +26,12 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
     ///
     /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
-    public func map(graph: TuistGraph.Graph, skipTestTargets: Bool, skipExternalDependencies: Bool,
-                    targetsToFilter: [String]) -> GraphViz.Graph
-    {
+    public func map(
+        graph: TuistGraph.Graph,
+        skipTestTargets: Bool,
+        skipExternalDependencies: Bool,
+        targetsToFilter: [String]
+    ) -> GraphViz.Graph {
         var nodes: [GraphViz.Node] = []
         var dependencies: [GraphViz.Edge] = []
         var graphVizGraph = GraphViz.Graph(directed: true)
@@ -49,7 +57,10 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
         )
 
         filteredTargetsAndDependencies.forEach { target in
+            if skipExternalDependencies, target.isExternal(root: graph.path) { return }
+
             var leftNode = GraphViz.Node(target.target.name)
+
             leftNode.applyAttributes(attributes: target.styleAttributes)
             nodes.append(leftNode)
 
@@ -58,7 +69,7 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
             else { return }
             targetDependencies
                 .filter { dependency in
-                    if skipExternalDependencies, dependency.isExternal { return false }
+                    if skipExternalDependencies, dependency.isExternal(root: graph.path) { return false }
                     return true
                 }
                 .forEach { dependency in
@@ -83,10 +94,10 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 }
 
 extension GraphDependency {
-    fileprivate var isExternal: Bool {
+    fileprivate func isExternal(root: AbsolutePath) -> Bool {
         switch self {
-        case .target:
-            return false
+        case let .target(_, path):
+            return isPathToTuistDependencyDirectory(path, root: root)
         case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk:
             return true
         }
@@ -134,4 +145,18 @@ extension GraphDependency {
             return String(name.split(separator: ".").first ?? "")
         }
     }
+}
+
+extension GraphTarget {
+    fileprivate func isExternal(root: AbsolutePath) -> Bool {
+        isPathToTuistDependencyDirectory(path, root: root)
+    }
+}
+
+/// Checks if the path points to the `Tuist/Dependencies/` directory.
+private func isPathToTuistDependencyDirectory(_ path: AbsolutePath, root: AbsolutePath) -> Bool {
+    path.pathString
+        .starts(
+            with: root.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name).pathString
+        )
 }

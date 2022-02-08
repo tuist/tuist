@@ -34,6 +34,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
   - **Motivation**: A struct better represents the semantic of the type
 - Add support for configuring code coverage and testing options at the project level [#4090](https://github.com/tuist/tuist/pull/4090) by [@danyf90](https://github.com/danyf90)
 - Add more detailed messaging for errors during manifest loading [#4076](https://github.com/tuist/tuist/pull/4076) by [@luispadron](https://github.com/luispadron)
+- Deprecate legacy SPM support via Project.packages [#4112](https://github.com/tuist/tuist/pull/4112) by [@danyf90](https://github.com/danyf90)
 
 ### Removed
 
@@ -51,7 +52,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix dependencies not fetching using Swift Package Manager 5.6 [#4078](https://github.com/tuist/tuist/pull/4078) by [mikchmie](https://github.com/mikchmie)
 - Fix clean `tuist test` for project with resources [#4091](https://github.com/tuist/tuist/pull/4091) by [@adellibovi](https://github.com/adellibovi)
+- Fix `tuist graph --skip-external-dependencies` for `Dependencies.swift` dependencies [#4115](https://github.com/tuist/tuist/pull/4115) by [@danyf90](https://github.com/danyf90) & [#4124](https://github.com/tuist/tuist/pull/4124) by [@laxmorek](https://github.com/laxmorek)
 - Fix `envversion` command not printing the tuist env version [#4126](https://github.com/tuist/tuist/pull/4126) by [@takinwande](https://github.com/takinwande)
+
+### Added
+
+- Add support for `umbrellaHeader` parameter to `Headers` to get list of public headers automatically. Also added new static functions in `Headers` for most popular cases with umbrella header [#3884](https://github.com/tuist/tuist/pull/3884) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
 
 ## 2.7.2
 
