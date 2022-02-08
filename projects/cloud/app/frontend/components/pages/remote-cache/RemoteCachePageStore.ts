@@ -19,6 +19,7 @@ class RemoteCachePageStore {
   accessKeyId = '';
   secretAccessKey = '';
   s3Buckets: S3Bucket[] = [];
+  isApplyChangesButtonLoading = false;
 
   client: ApolloClient<object>;
   projectStore: ProjectStore;
@@ -143,6 +144,7 @@ class RemoteCachePageStore {
   }
 
   async applyChangesButtonClicked(accountId: string) {
+    this.isApplyChangesButtonLoading = true;
     if (this.isCreatingBucket) {
       const { data } =
         await this.client.mutate<CreateS3BucketMutation>({
@@ -161,6 +163,7 @@ class RemoteCachePageStore {
       }
       const s3Bucket = mapS3Bucket(data.createS3Bucket);
       runInAction(() => {
+        this.isApplyChangesButtonLoading = false;
         this.projectStore.project.remoteCacheStorage = s3Bucket;
         this.s3Buckets.push(s3Bucket);
       });
@@ -185,6 +188,7 @@ class RemoteCachePageStore {
       }
       const s3Bucket = mapS3Bucket(data.updateS3Bucket);
       runInAction(() => {
+        this.isApplyChangesButtonLoading = false;
         if (this.projectStore.project.remoteCacheStorage == null) {
           return;
         }

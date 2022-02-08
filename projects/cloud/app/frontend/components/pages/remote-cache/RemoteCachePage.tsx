@@ -117,6 +117,7 @@ const RemoteCachePage = observer(() => {
           </Stack>
           <Button
             primary
+            loading={remoteCachePageStore.isApplyChangesButtonLoading}
             disabled={
               remoteCachePageStore.isApplyChangesButtonDisabled
             }
