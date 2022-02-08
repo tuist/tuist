@@ -35,6 +35,13 @@ If you don't have any experience with Swift,
 we recommend [Apple's official book](https://docs.swift.org/swift-book/).
 With it you'll also get familiar with the most used elements from the Foundation's API.
 
+### Minimum requirements
+
+To contribute to Tuist, minimum requirements are:
+
+- `macOS 12.0+`
+- `Xcode 13.2+`
+
 ### Set up the project locally
 
 To start working on the project, we can follow the steps below:
