@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-class S3BucketCreateServiceTest < ActiveSupport::TestCase
+class S3BucketUpdateServiceTest < ActiveSupport::TestCase
   test "updates an S3 bucket" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
