@@ -38,7 +38,6 @@ public struct Config: Equatable, Hashable {
                 xcodeProjectName: nil,
                 organizationName: nil,
                 developmentRegion: nil,
-                disableShowEnvironmentVarsInScriptPhases: false,
                 templateMacros: nil,
                 resolveDependenciesWithSystemScm: false,
                 disablePackageVersionLocking: false,

@@ -254,6 +254,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             options: .init(
                 automaticSchemesOptions: .disabled,
                 disableBundleAccessors: true,
+                disableShowEnvironmentVarsInScriptPhases: false,
                 disableSynthesizedResourceAccessors: true,
                 textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
             ),
@@ -345,6 +346,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             options: .init(
                 automaticSchemesOptions: .disabled,
                 disableBundleAccessors: true,
+                disableShowEnvironmentVarsInScriptPhases: false,
                 disableSynthesizedResourceAccessors: true,
                 textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
             ),

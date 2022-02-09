@@ -82,8 +82,9 @@ List of additional options:
 | Case                                                                                    | Description                                                                |
 | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | `automaticSchemesOptions(AutomaticSchemesOptions)`                                      | To configure automatic target schemes generation.                          |
-| `disableSynthesizedResourceAccessors`                                                   | To disable synthesized resource accessors.                                 |
 | `disableBundleAccessors`                                                                | To disables generating Bundle accessors.                                   |
+| `disableShowEnvironmentVarsInScriptPhases`                                              | To suppress logging of environment in Run Script build phases.             |
+| `disableSynthesizedResourceAccessors`                                                   | To disable synthesized resource accessors.                                 |
 | `textSettings(usesTabs: Bool?, indentWidth: UInt?, tabWidth: UInt?, wrapsLines: Bool?)` | [Text settings](#text-settings) to override user ones for current project. |
 
 ## AutomaticSchemesOptions

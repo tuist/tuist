@@ -63,7 +63,6 @@ extension TuistGraph.Config.GenerationOptions {
             xcodeProjectName: manifest.xcodeProjectName?.description,
             organizationName: manifest.organizationName,
             developmentRegion: manifest.developmentRegion,
-            disableShowEnvironmentVarsInScriptPhases: manifest.disableShowEnvironmentVarsInScriptPhases,
             templateMacros: nil, // TODO: ?
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: manifest.disablePackageVersionLocking,

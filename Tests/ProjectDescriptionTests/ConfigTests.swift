@@ -10,7 +10,6 @@ final class ConfigTests: XCTestCase {
                 xcodeProjectName: "someprefix-\(.projectName)",
                 organizationName: "TestOrg",
                 developmentRegion: "de",
-                disableShowEnvironmentVarsInScriptPhases: true,
                 resolveDependenciesWithSystemScm: false,
                 disablePackageVersionLocking: true, lastXcodeUpgradeCheck: .init(12, 5, 1)
             )

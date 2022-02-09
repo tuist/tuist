@@ -12,9 +12,6 @@ extension Config {
         /// Tuist generates the project with the specific development region.
         public let developmentRegion: String?
 
-        /// Tuist disables echoing the ENV in shell script build phases
-        public let disableShowEnvironmentVarsInScriptPhases: Bool
-
         /// When passed, Xcode will resolve its Package Manager dependencies using the system-defined
         /// accounts (for example, git) instead of the Xcode-defined accounts
         public let resolveDependenciesWithSystemScm: Bool
@@ -34,7 +31,6 @@ extension Config {
             xcodeProjectName: String?,
             organizationName: String?,
             developmentRegion: String?,
-            disableShowEnvironmentVarsInScriptPhases: Bool,
             templateMacros: IDETemplateMacros?,
             resolveDependenciesWithSystemScm: Bool,
             disablePackageVersionLocking: Bool,
@@ -43,7 +39,6 @@ extension Config {
             self.xcodeProjectName = xcodeProjectName
             self.organizationName = organizationName
             self.developmentRegion = developmentRegion
-            self.disableShowEnvironmentVarsInScriptPhases = disableShowEnvironmentVarsInScriptPhases
             self.templateMacros = templateMacros
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking

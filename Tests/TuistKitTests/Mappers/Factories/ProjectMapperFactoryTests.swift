@@ -36,28 +36,13 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, SynthesizedResourceInterfaceProjectMapper.self)
     }
 
-    func test_default_when_showing_env_variables_in_scripts_is_disabled() {
-        // Given
-        let config = Config.test(generationOptions: .test(disableShowEnvironmentVarsInScriptPhases: true))
-
+    func test_default_contains_target_mapper() {
         // When
-        let got = subject.default(config: config)
+        let got = subject.default(config: .default)
 
         // Then
 
-        XCTAssertContainsElementOfType(got, TargetProjectMapper.self)
-    }
-
-    func test_default_when_showing_env_variables_in_scripts_is_enabled() {
-        // Given
-        let config = Config.default
-
-        // When
-        let got = subject.default(config: config)
-
-        // Then
-
-        XCTAssertDoesntContainElementOfType(got, TargetProjectMapper.self)
+        XCTAssertContainsElementOfType(got, TargetActionDisableShowEnvVarsProjectMapper.self)
     }
 
     func test_default_when_bundle_accessors_are_enabled() {
