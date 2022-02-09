@@ -101,7 +101,7 @@ public final class CarthageController: CarthageControlling {
             throw CarthageControllerError.carthageNotFound
         }
 
-        guard let version = Version(output) else {
+        guard let version = Version(string: output) else {
             throw CarthageControllerError.unrecognizedCarthageVersion
         }
 

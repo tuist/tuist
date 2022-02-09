@@ -12,7 +12,7 @@ extension Version {
 
         let formattedVersionComponents = versionComponents + (versionComponents.count ..< 3).map { _ in "0" }
 
-        self.init(formattedVersionComponents.joined(separator: "."))
+        self.init(string: formattedVersionComponents.joined(separator: "."))
     }
 
     public var xcodeStringValue: String {

@@ -84,9 +84,9 @@ extension String {
 
     public func version() -> Version? {
         if components(separatedBy: ".").count == 2 {
-            return Version(self + ".0")
+            return Version(string: self + ".0")
         } else {
-            return Version(self)
+            return Version(string: self)
         }
     }
 

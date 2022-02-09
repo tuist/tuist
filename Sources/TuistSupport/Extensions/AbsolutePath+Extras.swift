@@ -90,7 +90,7 @@ extension AbsolutePath {
         var ancestorPath = AbsolutePath("/")
         for component in components.dropFirst() {
             let nextPath = ancestorPath.appending(component: component)
-            if path.isDescendantOfOrEqual(to: nextPath) {
+            if path.contains(nextPath) {
                 ancestorPath = nextPath
             } else {
                 break
