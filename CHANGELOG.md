@@ -34,6 +34,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
   - **Motivation**: A struct better represents the semantic of the type
 - **Breaking** refactor `Config.generationOptions` to be a `struct` instead of an `enum` [#4109](https://github.com/tuist/tuist/pull/4109) by [@danyf90](https://github.com/danyf90)
   - **Motivation**: A struct better represents the semantic of the type
+- **Breaking** remove `xcodeProjectName`, `organizationName`, and `developmentRegion` from `Config.GenerationOptions` [#4131](https://github.com/tuist/tuist/pull/4131) by [@danyf90](https://github.com/danyf90)
+  - **Migration**: Configure them in `Project` instead or define helpers to share the value across projects
+- **Breaking** move `Config.GenerationOptions.disableShowEnvironmentVarsInScriptPhases` to `Project.Options` [#4131](https://github.com/tuist/tuist/pull/4131) by [@danyf90](https://github.com/danyf90)
+  - **Motivation**: It is related to the project generation
+  - **Migration**: Configure it in `Project.Options` instead
+- **Breaking** move `Config.GenerationOptions.lastXcodeUpgradeCheck` to `Workspace.GenerationOptions` [#4131](https://github.com/tuist/tuist/pull/4131) by [@danyf90](https://github.com/danyf90)
+  - **Motivation**: It is related to the workspace generation
+  - **Migration**: Configure it in `Worksapace.GenerrationOptions` instead
 - Add support for configuring code coverage and testing options at the project level [#4090](https://github.com/tuist/tuist/pull/4090) by [@danyf90](https://github.com/danyf90)
 - Add more detailed messaging for errors during manifest loading [#4076](https://github.com/tuist/tuist/pull/4076) by [@luispadron](https://github.com/luispadron)
 - Deprecate legacy SPM support via Project.packages [#4112](https://github.com/tuist/tuist/pull/4112) by [@danyf90](https://github.com/danyf90)
