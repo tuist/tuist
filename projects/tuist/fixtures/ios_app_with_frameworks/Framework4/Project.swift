@@ -2,7 +2,6 @@ import ProjectDescription
 
 let project = Project(
     name: "Framework4",
-    options: .options(xcodeProjectName: "AwesomePrefix-Framework4-AwesomeSuffix"),
     targets: [
         Target(
             name: "Framework4",

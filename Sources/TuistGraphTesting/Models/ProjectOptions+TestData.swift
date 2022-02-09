@@ -14,15 +14,13 @@ extension Project.Options {
         ),
         disableBundleAccessors: Bool = false,
         disableSynthesizedResourceAccessors: Bool = false,
-        textSettings: TextSettings = .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil),
-        xcodeProjectName: String? = nil
+        textSettings: TextSettings = .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
     ) -> Self {
         .init(
             automaticSchemesOptions: automaticSchemesOptions,
             disableBundleAccessors: disableBundleAccessors,
             disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
-            textSettings: textSettings,
-            xcodeProjectName: xcodeProjectName
+            textSettings: textSettings
         )
     }
 }

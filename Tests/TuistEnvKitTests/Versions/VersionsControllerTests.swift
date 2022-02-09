@@ -9,7 +9,7 @@ import XCTest
 final class InstalledVersionTests: XCTestCase {
     func test_description() {
         XCTAssertEqual(InstalledVersion.reference("ref").description, "ref")
-        XCTAssertEqual(InstalledVersion.semver(Version("3.2.1")).description, "3.2.1")
+        XCTAssertEqual(InstalledVersion.semver(Version(string: "3.2.1")!).description, "3.2.1")
     }
 }
 
@@ -51,7 +51,7 @@ final class VersionsControllerTests: TuistUnitTestCase {
         let versions = subject.versions()
 
         XCTAssertTrue(versions.contains(.reference("ref")))
-        XCTAssertTrue(versions.contains(.semver(Version("3.2.1"))))
+        XCTAssertTrue(versions.contains(.semver(Version(string: "3.2.1")!)))
     }
 
     func test_semverVersions_ordered() throws {

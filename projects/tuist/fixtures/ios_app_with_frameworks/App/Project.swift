@@ -6,7 +6,6 @@ let settings: Settings = .settings(base: [
 
 let project = Project(
     name: "MainApp",
-    options: .options(xcodeProjectName: "AwesomePrefix-MainApp-AwesomeSuffix"),
     settings: settings,
     targets: [
         Target(

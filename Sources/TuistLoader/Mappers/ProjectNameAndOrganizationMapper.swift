@@ -20,7 +20,12 @@ public class ProjectNameAndOrganizationMapper: ProjectMapping {
         var project = project
 
         // Xcode project file name
-        if let xcodeFileName = project.options.xcodeProjectName {
+        if var xcodeFileName = config.generationOptions.xcodeProjectName {
+            let projectNameTemplate = TemplateString.Token.projectName.rawValue
+            xcodeFileName = xcodeFileName.replacingOccurrences(
+                of: projectNameTemplate,
+                with: project.name
+            )
             project.xcodeProjPath = project.xcodeProjPath.parentDirectory.appending(component: "\(xcodeFileName).xcodeproj")
         }
 

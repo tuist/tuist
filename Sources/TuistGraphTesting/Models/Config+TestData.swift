@@ -27,6 +27,7 @@ extension Config {
 
 extension Config.GenerationOptions {
     public static func test(
+        xcodeProjectName: String? = nil,
         organizationName: String? = nil,
         developmentRegion: String? = nil,
         disableShowEnvironmentVarsInScriptPhases: Bool = false,
@@ -36,6 +37,7 @@ extension Config.GenerationOptions {
         lastXcodeUpgradeCheck: Version? = nil
     ) -> Self {
         .init(
+            xcodeProjectName: xcodeProjectName,
             organizationName: organizationName,
             developmentRegion: developmentRegion,
             disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,

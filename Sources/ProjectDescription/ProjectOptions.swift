@@ -15,22 +15,17 @@ extension Project {
         /// Text settings to override user ones for current project
         public let textSettings: TextSettings
 
-        /// Tuist generates the project with the specific name on disk instead of using the project name.
-        public let xcodeProjectName: String?
-
         public static func options(
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
             disableBundleAccessors: Bool = false,
             disableSynthesizedResourceAccessors: Bool = false,
-            textSettings: TextSettings = .textSettings(),
-            xcodeProjectName: String? = nil
+            textSettings: TextSettings = .textSettings()
         ) -> Self {
             self.init(
                 automaticSchemesOptions: automaticSchemesOptions,
                 disableBundleAccessors: disableBundleAccessors,
                 disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
-                textSettings: textSettings,
-                xcodeProjectName: xcodeProjectName
+                textSettings: textSettings
             )
         }
     }
