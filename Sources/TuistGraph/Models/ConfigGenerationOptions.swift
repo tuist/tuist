@@ -3,9 +3,6 @@ import TSCUtility
 extension Config {
     /// Contains options related to the project generation.
     public struct GenerationOptions: Codable, Hashable {
-        /// Tuist generates the project with the specific name on disk instead of using the project name.
-        public let xcodeProjectName: String?
-
         /// Tuist generates the project with the specific organization name.
         public let organizationName: String?
 
@@ -31,7 +28,6 @@ extension Config {
         public let lastXcodeUpgradeCheck: Version?
 
         public init(
-            xcodeProjectName: String?,
             organizationName: String?,
             developmentRegion: String?,
             disableShowEnvironmentVarsInScriptPhases: Bool,
@@ -40,7 +36,6 @@ extension Config {
             disablePackageVersionLocking: Bool,
             lastXcodeUpgradeCheck: Version?
         ) {
-            self.xcodeProjectName = xcodeProjectName
             self.organizationName = organizationName
             self.developmentRegion = developmentRegion
             self.disableShowEnvironmentVarsInScriptPhases = disableShowEnvironmentVarsInScriptPhases

@@ -16,6 +16,7 @@ let infoPlist: [String: InfoPlist.Value] = [
 
 let project = Project(
     name: "Framework1",
+    options: .options(xcodeProjectName: "AwesomePrefix-Framework1-AwesomeSuffix"),
     targets: [
         Target(
             name: "Framework1",

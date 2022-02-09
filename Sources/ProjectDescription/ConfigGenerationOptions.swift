@@ -1,9 +1,6 @@
 extension Config {
     /// Contains options related to the project generation.
     public struct GenerationOptions: Codable, Equatable {
-        /// Tuist generates the project with the specific name on disk instead of using the project name.
-        public let xcodeProjectName: TemplateString?
-
         /// Tuist generates the project with the specific organization name.
         public let organizationName: String?
 
@@ -26,7 +23,7 @@ extension Config {
         public let lastXcodeUpgradeCheck: Version?
 
         public static func options(
-            xcodeProjectName: TemplateString? = nil,
+            xcodeProjectName: String? = nil,
             organizationName: String? = nil,
             developmentRegion: String? = nil,
             disableShowEnvironmentVarsInScriptPhases: Bool = false,
@@ -35,7 +32,6 @@ extension Config {
             lastXcodeUpgradeCheck: Version? = nil
         ) -> Self {
             self.init(
-                xcodeProjectName: xcodeProjectName,
                 organizationName: organizationName,
                 developmentRegion: developmentRegion,
                 disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,

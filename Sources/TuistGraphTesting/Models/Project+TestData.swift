@@ -15,7 +15,8 @@ extension Project {
             automaticSchemesOptions: .disabled,
             disableBundleAccessors: false,
             disableSynthesizedResourceAccessors: false,
-            textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+            textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil),
+            xcodeProjectName: nil
         ),
         settings: Settings = Settings.test(),
         filesGroup: ProjectGroup = .group(name: "Project"),

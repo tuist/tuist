@@ -15,7 +15,8 @@ extension TuistGraph.Project.Options {
                 indentWidth: manifest.textSettings.indentWidth,
                 tabWidth: manifest.textSettings.tabWidth,
                 wrapsLines: manifest.textSettings.wrapsLines
-            )
+            ),
+            xcodeProjectName: manifest.xcodeProjectName?.description
         )
     }
 }

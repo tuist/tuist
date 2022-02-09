@@ -15,10 +15,8 @@ class ProjectNameAndOrganizationMapperTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        let nameTemplate: TemplateString = "Tuist-\(.projectName)"
         config = TuistGraph.Config.test(
             generationOptions: .test(
-                xcodeProjectName: nameTemplate.description,
                 organizationName: "Tuist"
             )
         )
@@ -33,7 +31,7 @@ class ProjectNameAndOrganizationMapperTests: TuistUnitTestCase {
 
     func test_map_changes_the_project_name() throws {
         // Given
-        let project = TuistGraph.Project.test(name: "Test")
+        let project = TuistGraph.Project.test(name: "Test", options: .test(xcodeProjectName: "Tuist-Test"))
 
         // When
         let (got, _) = try subject.map(project: project)
@@ -44,7 +42,7 @@ class ProjectNameAndOrganizationMapperTests: TuistUnitTestCase {
 
     func test_map_changes_the_organization() throws {
         // Given
-        let project = TuistGraph.Project.test(name: "Test", organizationName: nil)
+        let project = TuistGraph.Project.test(name: "Test", organizationName: nil, options: .test(xcodeProjectName: "Tuist-Test"))
 
         // When
         let (got, _) = try subject.map(project: project)
