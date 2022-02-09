@@ -13,18 +13,6 @@ class S3BucketsFetchService < ApplicationService
         "You do not have a permission to view buckets for an account #{account_name}"
       end
     end
-
-    class AccountNotFound < CloudError
-      attr_reader :name
-
-      def initialize(name)
-        @name = name
-      end
-
-      def message
-        "Account with name #{name} was not found."
-      end
-    end
   end
 
   attr_reader :account_name, :user
@@ -36,11 +24,7 @@ class S3BucketsFetchService < ApplicationService
   end
 
   def call
-    begin
-      account = Account.find_by!(name: account_name)
-    rescue ActiveRecord::RecordNotFound
-      raise Error::AccountNotFound.new(account_name)
-    end
+    account = AccountFetchService.call(name: account_name)
     raise Error::Unauthorized.new(account_name) unless AccountPolicy.new(user, account).show?
     account.s3_buckets
   end

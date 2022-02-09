@@ -22,6 +22,7 @@ Rails.application.routes.draw do
   get "/auth", to: "auth#authenticate"
 
   get "/api/cache", to: "cache#cache"
+  post "/api/cache", to: "cache#upload_cache_artifact"
 
   get "/(*all)", to: "application#app"
 end

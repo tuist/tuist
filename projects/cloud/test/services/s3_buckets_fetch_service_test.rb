@@ -36,15 +36,4 @@ class S3BucketsFetchServiceTest < ActiveSupport::TestCase
       S3BucketsFetchService.call(account_name: account.name, user: user)
     end
   end
-
-  test "fails with account not found if the account does not exist" do
-    # Given
-    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
-    Organization.create!
-
-    # When / Then
-    assert_raises(S3BucketsFetchService::Error::AccountNotFound) do
-      S3BucketsFetchService.call(account_name: "non-existent-name", user: user)
-    end
-  end
 end

@@ -5,7 +5,16 @@ class CacheController < ApplicationController
   before_action :authenticate_user_from_token!
 
   def cache
-    # TODO: Check if a file for a given hash, framework, and project exists
+    raise ActiveRecord::RecordNotFound
+  end
+
+  def upload_cache_artifact
+    CacheArtifactUploadService.call(
+      project_slug: params[:project_id],
+      hash: params[:hash],
+      name: params[:name],
+      user: current_user
+    )
   end
 
   def authenticate_user_from_token!
