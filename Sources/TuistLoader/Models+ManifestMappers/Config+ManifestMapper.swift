@@ -60,9 +60,6 @@ extension TuistGraph.Config.GenerationOptions {
     ///   - manifest: Manifest representation of Tuist config generation options
     static func from(manifest: ProjectDescription.Config.GenerationOptions) throws -> TuistGraph.Config.GenerationOptions {
         .init(
-            xcodeProjectName: manifest.xcodeProjectName?.description,
-            organizationName: manifest.organizationName,
-            developmentRegion: manifest.developmentRegion,
             templateMacros: nil, // TODO: ?
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: manifest.disablePackageVersionLocking

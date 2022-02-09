@@ -27,17 +27,11 @@ extension Config {
 
 extension Config.GenerationOptions {
     public static func test(
-        xcodeProjectName: String? = nil,
-        organizationName: String? = nil,
-        developmentRegion: String? = nil,
         templateMacros: IDETemplateMacros? = nil,
         resolveDependenciesWithSystemScm: Bool = false,
         disablePackageVersionLocking: Bool = false
     ) -> Self {
         .init(
-            xcodeProjectName: xcodeProjectName,
-            organizationName: organizationName,
-            developmentRegion: developmentRegion,
             templateMacros: templateMacros,
             resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: disablePackageVersionLocking

@@ -69,27 +69,6 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, GenerateInfoPlistProjectMapper.self, after: DeleteDerivedDirectoryProjectMapper.self)
     }
 
-    func test_default_contains_the_project_name_and_organization_mapper() {
-        // Given
-        let config = Config.default
-
-        // When
-        let got = subject.default(config: config)
-
-        // Then
-        XCTAssertContainsElementOfType(got, ProjectNameAndOrganizationMapper.self)
-    }
-
-    func test_default_contains_the_project_development_region_mapper() {
-        // Given
-        let config = Config.default
-
-        // When
-        let got = subject.default(config: config)
-
-        // Then
-        XCTAssertContainsElementOfType(got, ProjectDevelopmentRegionMapper.self)
-    }
 
     func test_default_contains_the_ide_template_macros_mapper() {
         // Given

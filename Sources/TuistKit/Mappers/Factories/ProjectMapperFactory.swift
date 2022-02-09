@@ -71,12 +71,6 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         // Info Plist
         mappers.append(GenerateInfoPlistProjectMapper())
 
-        // Project name and organization
-        mappers.append(ProjectNameAndOrganizationMapper(config: config))
-
-        // Development region
-        mappers.append(ProjectDevelopmentRegionMapper(config: config))
-
         // Template macros
         mappers.append(IDETemplateMacrosMapper())
 
