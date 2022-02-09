@@ -40,8 +40,7 @@ public struct Config: Equatable, Hashable {
                 developmentRegion: nil,
                 templateMacros: nil,
                 resolveDependenciesWithSystemScm: false,
-                disablePackageVersionLocking: false,
-                lastXcodeUpgradeCheck: nil
+                disablePackageVersionLocking: false
             ),
             path: nil
         )

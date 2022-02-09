@@ -11,7 +11,7 @@ final class ConfigTests: XCTestCase {
                 organizationName: "TestOrg",
                 developmentRegion: "de",
                 resolveDependenciesWithSystemScm: false,
-                disablePackageVersionLocking: true, lastXcodeUpgradeCheck: .init(12, 5, 1)
+                disablePackageVersionLocking: true
             )
         )
 

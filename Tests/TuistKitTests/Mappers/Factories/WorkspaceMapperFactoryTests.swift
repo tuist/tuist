@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 import TuistCoreTesting
 import TuistGraph
 import TuistLoader
@@ -91,18 +92,17 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, ModuleMapMapper.self)
     }
 
-    func test_default_contains_the_last_upgrade_version_mapper_when_the_configuration_is_set() {
+    func test_default_contains_the_last_upgrade_version_mapper() {
         // Given
-        let config = Config.test(generationOptions: .test(lastXcodeUpgradeCheck: "3.2.1"))
-        subject =
-            WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMapperFactory.default(config: config)))
+        subject = WorkspaceMapperFactory(
+            projectMapper: SequentialProjectMapper(mappers: projectMapperFactory.default(config: .default))
+        )
 
         // When
-        let got = subject.default(config: config)
+        let got = subject.default(config: .default)
 
         // Then
-        let mapper = XCTAssertContainsElementOfType(got, LastUpgradeVersionWorkspaceMapper.self)
-        XCTAssertEqual(mapper?.lastUpgradeVersion, "3.2.1")
+        XCTAssertContainsElementOfType(got, LastUpgradeVersionWorkspaceMapper.self)
     }
 
     func test_automation_contains_the_path_workspace_mapper() throws {

@@ -65,8 +65,7 @@ extension TuistGraph.Config.GenerationOptions {
             developmentRegion: manifest.developmentRegion,
             templateMacros: nil, // TODO: ?
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
-            disablePackageVersionLocking: manifest.disablePackageVersionLocking,
-            lastXcodeUpgradeCheck: manifest.lastXcodeUpgradeCheck.map { .init($0.major, $0.minor, $0.patch) }
+            disablePackageVersionLocking: manifest.disablePackageVersionLocking
         )
     }
 }

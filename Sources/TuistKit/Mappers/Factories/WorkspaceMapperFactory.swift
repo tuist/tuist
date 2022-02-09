@@ -72,13 +72,9 @@ final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
             ModuleMapMapper()
         )
 
-        if let lastUpgradeVersion = config.generationOptions.lastXcodeUpgradeCheck {
-            mappers.append(
-                LastUpgradeVersionWorkspaceMapper(
-                    lastUpgradeVersion: lastUpgradeVersion
-                )
-            )
-        }
+        mappers.append(
+            LastUpgradeVersionWorkspaceMapper()
+        )
 
         return mappers
     }

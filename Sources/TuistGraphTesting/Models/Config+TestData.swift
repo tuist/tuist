@@ -32,8 +32,7 @@ extension Config.GenerationOptions {
         developmentRegion: String? = nil,
         templateMacros: IDETemplateMacros? = nil,
         resolveDependenciesWithSystemScm: Bool = false,
-        disablePackageVersionLocking: Bool = false,
-        lastXcodeUpgradeCheck: Version? = nil
+        disablePackageVersionLocking: Bool = false
     ) -> Self {
         .init(
             xcodeProjectName: xcodeProjectName,
@@ -41,8 +40,7 @@ extension Config.GenerationOptions {
             developmentRegion: developmentRegion,
             templateMacros: templateMacros,
             resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
-            disablePackageVersionLocking: disablePackageVersionLocking,
-            lastXcodeUpgradeCheck: lastXcodeUpgradeCheck
+            disablePackageVersionLocking: disablePackageVersionLocking
         )
     }
 }

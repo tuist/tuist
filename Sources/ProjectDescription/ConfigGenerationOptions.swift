@@ -18,25 +18,19 @@ extension Config {
         /// in their declarations.
         public let disablePackageVersionLocking: Bool
 
-        /// Allows to suppress warnings in Xcode about updates to recommended settings added in or below the specified Xcode version. The warnings appear when Xcode version has been upgraded.
-        /// It is recommended to set the version option to Xcode's version that is used for development of a project, for example `.lastUpgradeCheck(Version(13, 0, 0))` for Xcode 13.0.0.
-        public let lastXcodeUpgradeCheck: Version?
-
         public static func options(
             xcodeProjectName: TemplateString? = nil,
             organizationName: String? = nil,
             developmentRegion: String? = nil,
             resolveDependenciesWithSystemScm: Bool = false,
-            disablePackageVersionLocking: Bool = false,
-            lastXcodeUpgradeCheck: Version? = nil
+            disablePackageVersionLocking: Bool = false
         ) -> Self {
             self.init(
                 xcodeProjectName: xcodeProjectName,
                 organizationName: organizationName,
                 developmentRegion: developmentRegion,
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
-                disablePackageVersionLocking: disablePackageVersionLocking,
-                lastXcodeUpgradeCheck: lastXcodeUpgradeCheck
+                disablePackageVersionLocking: disablePackageVersionLocking
             )
         }
     }
