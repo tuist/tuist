@@ -5,16 +5,13 @@ class CacheController < ApplicationController
   before_action :authenticate_user_from_token!
 
   def cache
-    raise ActiveRecord::RecordNotFound
+    if request.head? && !cache_artifact_upload_service.object_exists?
+      render(json: { message: "S3 object was not found", code: :not_found }, status: :not_found)
+    end
   end
 
   def upload_cache_artifact
-    CacheArtifactUploadService.call(
-      project_slug: params[:project_id],
-      hash: params[:hash],
-      name: params[:name],
-      user: current_user
-    )
+    cache_artifact_upload_service.upload
   end
 
   def authenticate_user_from_token!
@@ -24,5 +21,15 @@ class CacheController < ApplicationController
         sign_in(user, store: false)
       end
     end
+  end
+
+  private
+  def cache_artifact_upload_service
+    CacheArtifactUploadService.new(
+      project_slug: params[:project_id],
+      hash: params[:hash],
+      name: params[:name],
+      user: current_user,
+    )
   end
 end
