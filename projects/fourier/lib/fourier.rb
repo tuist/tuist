@@ -106,7 +106,7 @@ module Fourier
       Services::Check.call
     end
 
-    desc "release", "Release the Tuist"
+    desc "release", "Prepares the Tuist binary and dependencies for release"
     subcommand "release", Commands::Release
 
     def self.exit_on_failure?
