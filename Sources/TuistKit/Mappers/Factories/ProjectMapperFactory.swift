@@ -12,13 +12,13 @@ protocol ProjectMapperFactorying {
     /// Returns the default project mapper.
     /// - Parameter config: The project configuration
     /// - Returns: A project mapper instance.
-    func `default`(config: Config) -> [ProjectMapping]
+    func `default`() -> [ProjectMapping]
 
     /// Returns a project mapper for automation.
     /// - Parameter config: The project configuration.
     /// - Parameter skipUITests: Whether UI tests should be skipped.
     /// - Returns: An instance of a project mapper.
-    func automation(config: Config, skipUITests: Bool) -> [ProjectMapping]
+    func automation(skipUITests: Bool) -> [ProjectMapping]
 }
 
 final class ProjectMapperFactory: ProjectMapperFactorying {
@@ -28,9 +28,9 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         self.contentHasher = contentHasher
     }
 
-    func automation(config: Config, skipUITests: Bool) -> [ProjectMapping] {
+    func automation(skipUITests: Bool) -> [ProjectMapping] {
         var mappers: [ProjectMapping] = []
-        mappers += self.default(config: config)
+        mappers += self.default()
 
         mappers.append(
             SourceRootPathProjectMapper()
@@ -45,7 +45,7 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         return mappers
     }
 
-    func `default`(config: Config) -> [ProjectMapping] {
+    func `default`() -> [ProjectMapping] {
         var mappers: [ProjectMapping] = []
 
         // Delete current derived

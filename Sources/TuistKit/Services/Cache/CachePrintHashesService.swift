@@ -45,7 +45,7 @@ final class CachePrintHashesService {
         let absolutePath = absolutePath(path)
         let timer = clock.startTimer()
         let config = try configLoader.loadConfig(path: absolutePath)
-        let generator = generatorFactory.default(config: config)
+        let generator = generatorFactory.default()
         let graph = try await generator.load(path: absolutePath)
         let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework : .framework
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
