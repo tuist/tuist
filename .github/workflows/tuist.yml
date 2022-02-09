@@ -39,7 +39,7 @@ jobs:
         name: 'Cache Tuist .build folder'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}-v2
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
@@ -68,7 +68,7 @@ jobs:
         name: 'Cache Tuist .build folder'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}-v2
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
@@ -126,7 +126,7 @@ jobs:
         name: 'Cache Tuist .build folder'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}-v2
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
