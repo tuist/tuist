@@ -291,6 +291,9 @@ final class ConfigGenerator: ConfigGenerating {
             if devices.contains(.ipad), devices.contains(.mac) {
                 settings["SUPPORTS_MACCATALYST"] = "YES"
                 settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
+            } else {
+                // Unless explicitly specified, when the platform the Product is a framework, these default to YES.
+                settings["SUPPORTS_MACCATALYST"] = "NO"
             }
         case let .macOS(version):
             settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
