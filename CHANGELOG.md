@@ -8,6 +8,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Use GitHub tags (via `git ls-remote`) to determine the latest Tuist version when installing/updating Tuist [#3985](https://github.com/tuist/tuist/pull/3985) by [@ezraberch](https://github.com/ezraberch)
 
+- Remove default MacCatalyst support when framework deployment target is set to iOS and/or iPad [#4134](https://github.com/tuist/tuist/pull/4134) by [@TheInkedEngineer](https://github.com/TheInkedEngineer)  
+
 ### Added
 - Add a new test argument `--retry-count <number>` to retry failed tests <number> of times until success [#4021](https://github.com/tuist/tuist/pull/4021) by [@regularberry](https://github.com/regularberry)
 - Add support for `.docc` file types [#3982](https://github.com/tuist/tuist/pull/3982) by [@Jake Prickett](https://github.com/Jake-Prickett)
