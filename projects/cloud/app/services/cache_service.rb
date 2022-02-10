@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CacheArtifactUploadService < ApplicationService
+class CacheService < ApplicationService
   module Error
     class S3ObjectNotFound < StandardError
       attr_reader :bucket_name, :object_key
@@ -42,7 +42,7 @@ class CacheArtifactUploadService < ApplicationService
     )
     s3_client = s3_client(s3_bucket: project.remote_cache_storage)
     begin
-      head = s3_client.head_object(
+      s3_client.head_object(
         bucket: project.remote_cache_storage.name,
         key: object_key,
       )
@@ -104,16 +104,15 @@ class CacheArtifactUploadService < ApplicationService
 
   private
   def s3_client(s3_bucket:)
-    decipher = OpenSSL::Cipher::AES.new(256, :CBC)
-    decipher.decrypt
-    decipher.key = Digest::MD5.hexdigest(Rails.application.credentials[:secret_key_base])
-    decipher.iv = Base64.decode64(s3_bucket.iv)
-    secret_access_key = Base64.decode64(s3_bucket.secret_access_key)
+    secret_access_key = DecipherService.call(
+      key: Base64.decode64(s3_bucket.secret_access_key),
+      iv: Base64.decode64(s3_bucket.iv)
+    )
     Aws::S3::Client.new(
       # TODO: Add this to database and make it configurable
       region: 'eu-central-1',
       access_key_id: s3_bucket.access_key_id,
-      secret_access_key: decipher.update(secret_access_key) + decipher.final,
+      secret_access_key: secret_access_key,
     )
   end
 end
