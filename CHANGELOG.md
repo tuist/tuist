@@ -54,6 +54,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix clean `tuist test` for project with resources [#4091](https://github.com/tuist/tuist/pull/4091) by [@adellibovi](https://github.com/adellibovi)
 - Fix `tuist graph --skip-external-dependencies` for `Dependencies.swift` dependencies [#4115](https://github.com/tuist/tuist/pull/4115) by [@danyf90](https://github.com/danyf90) & [#4124](https://github.com/tuist/tuist/pull/4124) by [@laxmorek](https://github.com/laxmorek)
 - Fix `envversion` command not printing the tuist env version [#4126](https://github.com/tuist/tuist/pull/4126) by [@takinwande](https://github.com/takinwande)
+- Fix warning when importing `ProjectDescription` during `tuist edit`. It was caused by `.swiftsourceinfo` files  being added to the release artifact [#4132](https://github.com/tuist/tuist/pull/4132) by [@luispadron](https://github.com/luispadron)
 
 ### Added
 
