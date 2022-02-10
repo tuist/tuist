@@ -9,12 +9,11 @@ public final class TargetActionDisableShowEnvVarsProjectMapper: ProjectMapping {
         var project = project
         project.targets = project.targets.map { target in
             var mappedTarget = target
-            let scripts: [TargetScript] = mappedTarget.scripts.map {
+            mappedTarget.scripts = mappedTarget.scripts.map {
                 var script = $0
-                script.showEnvVarsInLog = project.options.disableShowEnvironmentVarsInScriptPhases
+                script.showEnvVarsInLog = !project.options.disableShowEnvironmentVarsInScriptPhases
                 return script
             }
-            mappedTarget.scripts = scripts
             return mappedTarget
         }
 

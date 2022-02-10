@@ -389,7 +389,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             xcWorkspacePath: path.appending(component: "Workspace.xcworkspace"),
             name: "Workspace",
             projects: try projects.map { try pathTo($0) },
-            generationOptions: .test()
+            generationOptions: .test(enableAutomaticXcodeSchemes: nil)
         )
     }
 

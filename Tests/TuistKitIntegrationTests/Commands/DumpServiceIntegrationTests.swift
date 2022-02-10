@@ -62,6 +62,7 @@ final class DumpServiceTests: TuistTestCase {
               }
             },
             "disableBundleAccessors": false,
+            "disableShowEnvironmentVarsInScriptPhases": false,
             "disableSynthesizedResourceAccessors": false,
             "textSettings": {
 
@@ -169,7 +170,6 @@ final class DumpServiceTests: TuistTestCase {
           },
           "generationOptions": {
             "disablePackageVersionLocking": false,
-            "disableShowEnvironmentVarsInScriptPhases": false,
             "resolveDependenciesWithSystemScm": false
           },
           "plugins": [
