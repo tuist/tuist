@@ -35,7 +35,6 @@ class CacheArtifactUploadService < ApplicationService
   end
 
   def object_exists?
-    return false
     project = ProjectFetchService.call(
       name: project_name,
       account_name: account_name,
@@ -43,19 +42,30 @@ class CacheArtifactUploadService < ApplicationService
     )
     s3_client = s3_client(s3_bucket: project.remote_cache_storage)
     begin
-      s3_client.head_object(
+      head = s3_client.head_object(
         bucket: project.remote_cache_storage.name,
         key: object_key,
       )
       true
     rescue Aws::S3::Errors::NotFound
       false
-      # raise Error::S3ObjectNotFound.new(project.remote_cache_storage.name, object_key)
     end
   end
 
   def fetch
-    raise ApplicationRecord::RecordNotFound
+    project = ProjectFetchService.call(
+      name: project_name,
+      account_name: account_name,
+      user: user
+    )
+    s3_client = s3_client(s3_bucket: project.remote_cache_storage)
+    signer = Aws::S3::Presigner.new(client: s3_client)
+    url, headers = signer.presigned_request(
+      :get_object,
+      bucket: project.remote_cache_storage.name,
+      key: object_key
+    )
+    url
   end
 
   def upload
@@ -65,20 +75,31 @@ class CacheArtifactUploadService < ApplicationService
       user: user
     )
     s3_client = s3_client(s3_bucket: project.remote_cache_storage)
-    upload_object(s3_client, project.remote_cache_storage.name, object_key)
+    s3_client.put_object(
+      bucket: project.remote_cache_storage.name,
+      key: object_key
+    )
+    signer = Aws::S3::Presigner.new(client: s3_client)
+    url, headers = signer.presigned_request(
+      :put_object,
+      bucket: project.remote_cache_storage.name,
+      key: object_key
+    )
+    url
   end
 
-  def upload_object(s3_client, bucket_name, object_key)
-    # begin
-      response = s3_client.put_object(
-        bucket: bucket_name,
-        key: object_key
-      )
-      puts response
-      response
-    # rescue StandardError => e
-      # puts "Error uploading object: #{e.message}"
-    # end
+  def verify_upload
+    project = ProjectFetchService.call(
+      name: project_name,
+      account_name: account_name,
+      user: user
+    )
+    s3_client = s3_client(s3_bucket: project.remote_cache_storage)
+    object = s3_client.get_object(
+      bucket: project.remote_cache_storage.name,
+      key: object_key
+    )
+    object.content_length
   end
 
   private
