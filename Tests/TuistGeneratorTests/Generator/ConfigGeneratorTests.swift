@@ -263,7 +263,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: debugConfig, contains: expectedSettings)
         assert(config: releaseConfig, contains: expectedSettings)
     }
-    
+
     func test_generateTargetWithDeploymentTarget_whenIOS_for_framework() throws {
         // Given
         let target = Target.test(product: .framework, deploymentTarget: .iOS("13.0", [.iphone, .ipad]))
@@ -292,7 +292,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "TARGETED_DEVICE_FAMILY": "1,2",
             "IPHONEOS_DEPLOYMENT_TARGET": "13.0",
             "SUPPORTS_MACCATALYST": "NO",
-            "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "NO"
+            "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "NO",
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
