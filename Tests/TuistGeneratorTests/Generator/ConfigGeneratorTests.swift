@@ -292,7 +292,6 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "TARGETED_DEVICE_FAMILY": "1,2",
             "IPHONEOS_DEPLOYMENT_TARGET": "13.0",
             "SUPPORTS_MACCATALYST": "NO",
-            "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "NO",
         ]
 
         assert(config: debugConfig, contains: expectedSettings)

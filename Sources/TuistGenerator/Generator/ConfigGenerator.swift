@@ -294,7 +294,6 @@ final class ConfigGenerator: ConfigGenerating {
             } else {
                 // Unless explicitly specified, when the platform the Product is a framework, these default to YES.
                 settings["SUPPORTS_MACCATALYST"] = "NO"
-                settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "NO"
             }
         case let .macOS(version):
             settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
