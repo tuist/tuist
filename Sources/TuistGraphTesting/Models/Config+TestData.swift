@@ -31,7 +31,6 @@ extension Config.GenerationOptions {
         organizationName: String? = nil,
         developmentRegion: String? = nil,
         disableShowEnvironmentVarsInScriptPhases: Bool = false,
-        templateMacros: IDETemplateMacros? = nil,
         resolveDependenciesWithSystemScm: Bool = false,
         disablePackageVersionLocking: Bool = false,
         lastXcodeUpgradeCheck: Version? = nil
@@ -41,7 +40,6 @@ extension Config.GenerationOptions {
             organizationName: organizationName,
             developmentRegion: developmentRegion,
             disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
-            templateMacros: templateMacros,
             resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: disablePackageVersionLocking,
             lastXcodeUpgradeCheck: lastXcodeUpgradeCheck

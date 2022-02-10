@@ -19,9 +19,6 @@ extension Config {
         /// accounts (for example, git) instead of the Xcode-defined accounts
         public let resolveDependenciesWithSystemScm: Bool
 
-        /// IDE template macros
-        public let templateMacros: IDETemplateMacros?
-
         /// Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked
         /// in their declarations.
         public let disablePackageVersionLocking: Bool
@@ -35,7 +32,6 @@ extension Config {
             organizationName: String?,
             developmentRegion: String?,
             disableShowEnvironmentVarsInScriptPhases: Bool,
-            templateMacros: IDETemplateMacros?,
             resolveDependenciesWithSystemScm: Bool,
             disablePackageVersionLocking: Bool,
             lastXcodeUpgradeCheck: Version?
@@ -44,7 +40,6 @@ extension Config {
             self.organizationName = organizationName
             self.developmentRegion = developmentRegion
             self.disableShowEnvironmentVarsInScriptPhases = disableShowEnvironmentVarsInScriptPhases
-            self.templateMacros = templateMacros
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
             self.lastXcodeUpgradeCheck = lastXcodeUpgradeCheck
