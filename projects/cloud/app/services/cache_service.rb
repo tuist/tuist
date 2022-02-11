@@ -1,25 +1,6 @@
 # frozen_string_literal: true
 
 class CacheService < ApplicationService
-  module Error
-    class S3ObjectNotFound < StandardError
-      attr_reader :bucket_name, :object_key
-
-      def initialize(bucket_name, object_key)
-        @bucket_name = bucket_name
-        @object_key = object_key
-      end
-
-      def message
-        "Object with a key #{object_key} was not found in the #{bucket_name} S3 bucket."
-      end
-
-      def http_status
-        404
-      end
-    end
-  end
-
   attr_reader :account_name, :project_name, :hash, :name, :user, :object_key
 
   def initialize(project_slug:, hash:, name:, user:)
