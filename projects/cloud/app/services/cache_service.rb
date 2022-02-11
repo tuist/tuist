@@ -103,16 +103,16 @@ class CacheService < ApplicationService
   end
 
   private
-  def s3_client(s3_bucket:)
-    secret_access_key = DecipherService.call(
-      key: Base64.decode64(s3_bucket.secret_access_key),
-      iv: Base64.decode64(s3_bucket.iv)
-    )
-    Aws::S3::Client.new(
-      # TODO: Add this to database and make it configurable
-      region: 'eu-central-1',
-      access_key_id: s3_bucket.access_key_id,
-      secret_access_key: secret_access_key,
-    )
-  end
+    def s3_client(s3_bucket:)
+      secret_access_key = DecipherService.call(
+        key: Base64.decode64(s3_bucket.secret_access_key),
+        iv: Base64.decode64(s3_bucket.iv)
+      )
+      Aws::S3::Client.new(
+        # TODO: Add this to database and make it configurable
+        region: "eu-central-1",
+        access_key_id: s3_bucket.access_key_id,
+        secret_access_key: secret_access_key,
+      )
+    end
 end

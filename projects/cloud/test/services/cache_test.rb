@@ -32,27 +32,27 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       user: @user
     )
-    .object_exists?
+      .object_exists?
 
     # Then
     assert_equal true, got
   end
 
   test "object does not exists when not found AWS error is thrown" do
-        # Given
-        Aws::S3::Client.any_instance.stubs(:head_object).raises(Aws::S3::Errors::NotFound.new("", ""))
+    # Given
+    Aws::S3::Client.any_instance.stubs(:head_object).raises(Aws::S3::Errors::NotFound.new("", ""))
 
-        # When
-        got = CacheService.new(
-          project_slug: "my-project/tuist",
-          hash: "artifact-hash",
-          name: "MyFramework",
-          user: @user
-        )
-        .object_exists?
+    # When
+    got = CacheService.new(
+      project_slug: "my-project/tuist",
+      hash: "artifact-hash",
+      name: "MyFramework",
+      user: @user
+    )
+      .object_exists?
 
-        # Then
-        assert_equal false, got
+    # Then
+    assert_equal false, got
   end
 
   test "upload returns presigned url for uploading file" do
@@ -67,7 +67,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       user: @user
     )
-    .upload
+      .upload
 
     # Then
     assert_equal "upload url", got
@@ -86,7 +86,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       user: @user
     )
-    .verify_upload
+      .verify_upload
 
     # Then
     assert_equal got, 5

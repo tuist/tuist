@@ -30,12 +30,12 @@ class CacheController < ApplicationController
   end
 
   private
-  def cache_artifact_upload_service
-    CacheService.new(
-      project_slug: params[:project_id],
-      hash: params[:hash],
-      name: params[:name],
-      user: current_user,
-    )
-  end
+    def cache_artifact_upload_service
+      CacheService.new(
+        project_slug: params[:project_id],
+        hash: params[:hash],
+        name: params[:name],
+        user: current_user,
+      )
+    end
 end

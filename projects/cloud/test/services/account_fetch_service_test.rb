@@ -16,7 +16,7 @@ class AccountFetchServiceTest < ActiveSupport::TestCase
 
   test "fails with account not found if the account does not exist" do
     # Given
-    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
 
     # When / Then
     assert_raises(AccountFetchService::Error::AccountNotFound) do
