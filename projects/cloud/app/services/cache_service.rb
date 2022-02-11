@@ -60,7 +60,7 @@ class CacheService < ApplicationService
     )
     s3_client = s3_client(s3_bucket: project.remote_cache_storage)
     signer = Aws::S3::Presigner.new(client: s3_client)
-    url, headers = signer.presigned_request(
+    url = signer.presigned_url(
       :get_object,
       bucket: project.remote_cache_storage.name,
       key: object_key
@@ -80,7 +80,7 @@ class CacheService < ApplicationService
       key: object_key
     )
     signer = Aws::S3::Presigner.new(client: s3_client)
-    url, headers = signer.presigned_request(
+    url = signer.presigned_url(
       :put_object,
       bucket: project.remote_cache_storage.name,
       key: object_key
