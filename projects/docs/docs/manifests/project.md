@@ -82,10 +82,12 @@ List of additional options:
 | Case                                                                                    | Description                                                                |
 | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | `automaticSchemesOptions(AutomaticSchemesOptions)`                                      | To configure automatic target schemes generation.                          |
+| `developmentRegion`                                                                     | To customize the development region.                                       |
 | `disableBundleAccessors`                                                                | To disables generating Bundle accessors.                                   |
 | `disableShowEnvironmentVarsInScriptPhases`                                              | To suppress logging of environment in Run Script build phases.             |
 | `disableSynthesizedResourceAccessors`                                                   | To disable synthesized resource accessors.                                 |
 | `textSettings(usesTabs: Bool?, indentWidth: UInt?, tabWidth: UInt?, wrapsLines: Bool?)` | [Text settings](#text-settings) to override user ones for current project. |
+| `xcodeProjectName`                                                                      | To customize the name of the generated `.xcodeproj`.                       |
 
 ## AutomaticSchemesOptions
 

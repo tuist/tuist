@@ -6,6 +6,9 @@ extension Project {
         /// Defines how to generate automatic schemes
         public let automaticSchemesOptions: AutomaticSchemesOptions
 
+        /// Tuist generates the project with the specific development region.
+        public let developmentRegion: String?
+
         /// Disables generating Bundle accessors.
         public let disableBundleAccessors: Bool
 
@@ -18,19 +21,26 @@ extension Project {
         /// Text settings to override user ones for current project
         public let textSettings: TextSettings
 
+        /// Tuist generates the project with the specific name on disk instead of using the project name.
+        public let xcodeProjectName: String?
+
         public static func options(
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
+            developmentRegion: String? = nil,
             disableBundleAccessors: Bool = false,
             disableShowEnvironmentVarsInScriptPhases: Bool = false,
             disableSynthesizedResourceAccessors: Bool = false,
-            textSettings: TextSettings = .textSettings()
+            textSettings: TextSettings = .textSettings(),
+            xcodeProjectName: String? = nil
         ) -> Self {
             self.init(
                 automaticSchemesOptions: automaticSchemesOptions,
+                developmentRegion: developmentRegion,
                 disableBundleAccessors: disableBundleAccessors,
                 disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
                 disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
-                textSettings: textSettings
+                textSettings: textSettings,
+                xcodeProjectName: xcodeProjectName
             )
         }
     }
