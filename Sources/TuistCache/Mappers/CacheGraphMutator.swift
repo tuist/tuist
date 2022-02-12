@@ -136,9 +136,8 @@ class CacheGraphMutator: CacheGraphMutating {
         precompiledArtifacts: [GraphTarget: AbsolutePath],
         graphTraverser: GraphTraverser
     ) throws -> GraphDependency {
-        guard
-            let target = graphTraverser.target(from: graphTarget),
-            replaceableTargets.contains(target)
+        guard let target = graphTraverser.target(from: graphTarget),
+              replaceableTargets.contains(target)
         else {
             // Target is not replaceable, we keep it as is.
             return graphTarget

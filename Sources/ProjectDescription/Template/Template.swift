@@ -9,10 +9,11 @@ public struct Template: Codable, Equatable {
     /// Items to generate
     public let items: [Item]
 
-    public init(description: String,
-                attributes: [Attribute] = [],
-                items: [Item] = [])
-    {
+    public init(
+        description: String,
+        attributes: [Attribute] = [],
+        items: [Item] = []
+    ) {
         self.description = description
         self.attributes = attributes
         self.items = items

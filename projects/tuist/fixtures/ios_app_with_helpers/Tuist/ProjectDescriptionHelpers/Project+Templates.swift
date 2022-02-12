@@ -12,12 +12,13 @@ extension Project {
         project(name: name, product: .framework, platform: platform, dependencies: dependencies)
     }
 
-    public static func project(name: String,
-                               product: Product,
-                               platform: Platform,
-                               dependencies: [TargetDependency] = [],
-                               infoPlist: [String: InfoPlist.Value] = [:]) -> Project
-    {
+    public static func project(
+        name: String,
+        product: Product,
+        platform: Platform,
+        dependencies: [TargetDependency] = [],
+        infoPlist: [String: InfoPlist.Value] = [:]
+    ) -> Project {
         Project(
             name: name,
             targets: [

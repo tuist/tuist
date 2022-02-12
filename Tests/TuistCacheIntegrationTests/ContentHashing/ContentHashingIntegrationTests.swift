@@ -464,29 +464,33 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
 
     // MARK: - Private helpers
 
-    private func createTemporarySourceFile(on temporaryDirectoryPath: AbsolutePath, name: String,
-                                           content: String) throws -> SourceFile
-    {
+    private func createTemporarySourceFile(
+        on temporaryDirectoryPath: AbsolutePath,
+        name: String,
+        content: String
+    ) throws -> SourceFile {
         let filePath = temporaryDirectoryPath.appending(component: name)
         try FileHandler.shared.touch(filePath)
         try FileHandler.shared.write(content, path: filePath, atomically: true)
         return SourceFile(path: filePath, compilerFlags: nil)
     }
 
-    private func createTemporaryResourceFile(on temporaryDirectoryPath: AbsolutePath,
-                                             name: String,
-                                             content: String) throws -> ResourceFileElement
-    {
+    private func createTemporaryResourceFile(
+        on temporaryDirectoryPath: AbsolutePath,
+        name: String,
+        content: String
+    ) throws -> ResourceFileElement {
         let filePath = temporaryDirectoryPath.appending(component: name)
         try FileHandler.shared.touch(filePath)
         try FileHandler.shared.write(content, path: filePath, atomically: true)
         return ResourceFileElement.file(path: filePath)
     }
 
-    private func createTemporaryResourceFolderReference(on temporaryDirectoryPath: AbsolutePath,
-                                                        name: String,
-                                                        content: String) throws -> ResourceFileElement
-    {
+    private func createTemporaryResourceFolderReference(
+        on temporaryDirectoryPath: AbsolutePath,
+        name: String,
+        content: String
+    ) throws -> ResourceFileElement {
         let filePath = temporaryDirectoryPath.appending(component: name)
         try FileHandler.shared.touch(filePath)
         try FileHandler.shared.write(content, path: filePath, atomically: true)

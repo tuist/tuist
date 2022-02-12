@@ -34,10 +34,11 @@ class Generator {
         }
     }
 
-    private func initWorkspaceManifest(at path: AbsolutePath,
-                                       name: String,
-                                       projects: [String]) throws
-    {
+    private func initWorkspaceManifest(
+        at path: AbsolutePath,
+        name: String,
+        projects: [String]
+    ) throws {
         let manifestPath = path.appending(component: "Workspace.swift")
 
         let manifest = manifestTemplate.generate(
@@ -50,9 +51,10 @@ class Generator {
         )
     }
 
-    private func initProject(at path: AbsolutePath,
-                             name: String) throws
-    {
+    private func initProject(
+        at path: AbsolutePath,
+        name: String
+    ) throws {
         let projectPath = path.appending(component: name)
         let targets = (1 ... config.targets).map { "Target\($0)" }
 
@@ -64,10 +66,11 @@ class Generator {
         }
     }
 
-    private func initProjectManifest(at path: AbsolutePath,
-                                     name: String,
-                                     targets: [String]) throws
-    {
+    private func initProjectManifest(
+        at path: AbsolutePath,
+        name: String,
+        targets: [String]
+    ) throws {
         let manifestPath = path.appending(component: "Project.swift")
 
         let manifest = manifestTemplate.generate(

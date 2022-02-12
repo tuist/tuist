@@ -123,9 +123,8 @@ public final class TestsCacheGraphMapper: GraphMapping {
             .map(\.targets)
             .map { testTargets in
                 testTargets.compactMap { testTarget in
-                    guard
-                        let target = graphTraverser.targets[testTarget.target.projectPath]?[testTarget.target.name],
-                        let project = graphTraverser.projects[testTarget.target.projectPath]
+                    guard let target = graphTraverser.targets[testTarget.target.projectPath]?[testTarget.target.name],
+                          let project = graphTraverser.projects[testTarget.target.projectPath]
                     else { return nil }
                     return GraphTarget(
                         path: testTarget.target.projectPath,

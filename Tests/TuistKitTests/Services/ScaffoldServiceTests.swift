@@ -197,11 +197,12 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 }
 
 extension ScaffoldService {
-    func testRun(path: String? = nil,
-                 templateName: String = "template",
-                 requiredTemplateOptions: [String: String] = [:],
-                 optionalTemplateOptions: [String: String] = [:]) throws
-    {
+    func testRun(
+        path: String? = nil,
+        templateName: String = "template",
+        requiredTemplateOptions: [String: String] = [:],
+        optionalTemplateOptions: [String: String] = [:]
+    ) throws {
         try run(
             path: path,
             templateName: templateName,

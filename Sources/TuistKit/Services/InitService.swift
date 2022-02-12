@@ -47,13 +47,14 @@ class InitService {
     private let gitHandler: GitHandling
     private let templateLocationParser: TemplateLocationParsing
 
-    init(templateLoader: TemplateLoading = TemplateLoader(),
-         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-         templateGenerator: TemplateGenerating = TemplateGenerator(),
-         fileHandler: FileHandling = FileHandler.shared,
-         gitHandler: GitHandling = GitHandler(),
-         templateLocationParser: TemplateLocationParsing = TemplateLocationParser())
-    {
+    init(
+        templateLoader: TemplateLoading = TemplateLoader(),
+        templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
+        templateGenerator: TemplateGenerating = TemplateGenerator(),
+        fileHandler: FileHandling = FileHandler.shared,
+        gitHandler: GitHandling = GitHandler(),
+        templateLocationParser: TemplateLocationParsing = TemplateLocationParser()
+    ) {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
@@ -62,8 +63,10 @@ class InitService {
         self.templateLocationParser = templateLocationParser
     }
 
-    func loadTemplateOptions(templateName: String,
-                             path: String?) throws -> (
+    func loadTemplateOptions(
+        templateName: String,
+        path: String?
+    ) throws -> (
         required: [String],
         optional: [String]
     ) {
@@ -88,13 +91,14 @@ class InitService {
             }
     }
 
-    func run(name: String?,
-             platform: String?,
-             path: String?,
-             templateName: String?,
-             requiredTemplateOptions: [String: String],
-             optionalTemplateOptions: [String: String?]) throws
-    {
+    func run(
+        name: String?,
+        platform: String?,
+        path: String?,
+        templateName: String?,
+        requiredTemplateOptions: [String: String],
+        optionalTemplateOptions: [String: String?]
+    ) throws {
         let platform = try self.platform(platform)
         let path = self.path(path)
         let name = try self.name(name, path: path)
@@ -109,13 +113,11 @@ class InitService {
                 try generateTemplate(from: templateName, with: parsedAttributes, in: path)
 
             } else {
-                guard
-                    let templateDirectory = directories.first(where: { $0.basename == templateName })
+                guard let templateDirectory = directories.first(where: { $0.basename == templateName })
                 else { throw InitServiceError.templateNotFound(templateName) }
 
                 template = try templateLoader.loadTemplate(at: templateDirectory)
-                guard
-                    let template = template else { return }
+                guard let template = template else { return }
 
                 parsedAttributes = try parseAttributes(
                     name: name,
@@ -132,8 +134,7 @@ class InitService {
                 )
             }
         } else {
-            guard
-                let templateDirectory = directories.first(where: { $0.basename == "default" })
+            guard let templateDirectory = directories.first(where: { $0.basename == "default" })
             else { throw InitServiceError.templateNotFound("default") }
             let template = try templateLoader.loadTemplate(at: templateDirectory)
             try templateGenerator.generate(
@@ -189,12 +190,13 @@ class InitService {
     /// Parses all `attributes` from `template`
     /// If those attributes are optional, they default to `default` if not provided
     /// - Returns: Array of parsed attributes
-    private func parseAttributes(name: String,
-                                 platform: Platform,
-                                 requiredTemplateOptions: [String: String],
-                                 optionalTemplateOptions: [String: String?],
-                                 template: Template) throws -> [String: String]
-    {
+    private func parseAttributes(
+        name: String,
+        platform: Platform,
+        requiredTemplateOptions: [String: String],
+        optionalTemplateOptions: [String: String?],
+        template: Template
+    ) throws -> [String: String] {
         try template.attributes.reduce(into: [:]) { attributesDictionary, attribute in
             if attribute.name == "name" {
                 attributesDictionary[attribute.name] = name
@@ -206,14 +208,12 @@ class InitService {
             }
             switch attribute {
             case let .required(name):
-                guard
-                    let option = requiredTemplateOptions[name]
+                guard let option = requiredTemplateOptions[name]
                 else { throw ScaffoldServiceError.attributeNotProvided(name) }
                 attributesDictionary[name] = option
             case let .optional(name, default: defaultValue):
-                guard
-                    let unwrappedOption = optionalTemplateOptions[name],
-                    let option = unwrappedOption
+                guard let unwrappedOption = optionalTemplateOptions[name],
+                      let option = unwrappedOption
                 else {
                     attributesDictionary[name] = defaultValue
                     return
@@ -229,8 +229,7 @@ class InitService {
     ///     - template: Name of template
     /// - Returns: `AbsolutePath` of template directory
     private func templateDirectory(templateDirectories: [AbsolutePath], template: String) throws -> AbsolutePath {
-        guard
-            let templateDirectory = templateDirectories.first(where: { $0.basename == template })
+        guard let templateDirectory = templateDirectories.first(where: { $0.basename == template })
         else { throw InitServiceError.templateNotFound(template) }
         return templateDirectory
     }

@@ -104,18 +104,16 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
-        guard
-            let dependencies = graph.dependencies[.target(name: name, path: path)]
+        guard let dependencies = graph.dependencies[.target(name: name, path: path)]
         else { return [] }
 
         let targetDependencies = dependencies
             .compactMap(\.targetDependency)
 
         return Set(targetDependencies.flatMap { dependencyName, dependencyPath -> [GraphTarget] in
-            guard
-                let projectDependencies = graph.targets[dependencyPath],
-                let dependencyTarget = projectDependencies[dependencyName],
-                let dependencyProject = graph.projects[dependencyPath]
+            guard let projectDependencies = graph.targets[dependencyPath],
+                  let dependencyTarget = projectDependencies[dependencyName],
+                  let dependencyProject = graph.projects[dependencyPath]
             else {
                 return []
             }
@@ -506,10 +504,11 @@ public class GraphTraverser: GraphTraversing {
     ///   - from: Dependency from which the traverse is done.
     ///   - test: If the closure returns true, the dependency is included.
     ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
-    func filterDependencies(from rootDependency: GraphDependency,
-                            test: (GraphDependency) -> Bool = { _ in true },
-                            skip: (GraphDependency) -> Bool = { _ in false }) -> Set<GraphDependency>
-    {
+    func filterDependencies(
+        from rootDependency: GraphDependency,
+        test: (GraphDependency) -> Bool = { _ in true },
+        skip: (GraphDependency) -> Bool = { _ in false }
+    ) -> Set<GraphDependency> {
         var stack = Stack<GraphDependency>()
 
         stack.push(rootDependency)

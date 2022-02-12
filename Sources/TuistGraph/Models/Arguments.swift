@@ -8,9 +8,10 @@ public struct Arguments: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(environment: [String: String] = [:],
-                launchArguments: [LaunchArgument] = [])
-    {
+    public init(
+        environment: [String: String] = [:],
+        launchArguments: [LaunchArgument] = []
+    ) {
         self.environment = environment
         self.launchArguments = launchArguments
     }

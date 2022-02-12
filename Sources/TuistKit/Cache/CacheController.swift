@@ -229,10 +229,9 @@ final class CacheController: CacheControlling {
 
         let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
         return try await sortedCacheableTargets.concurrentCompactMap { target in
-            guard
-                let hash = hashesByCacheableTarget[target],
-                // if cache already exists, no need to build
-                try await !self.cache.exists(name: target.target.name, hash: hash)
+            guard let hash = hashesByCacheableTarget[target],
+                  // if cache already exists, no need to build
+                  try await !self.cache.exists(name: target.target.name, hash: hash)
             else {
                 return nil
             }

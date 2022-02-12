@@ -21,9 +21,10 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
         parseError: { _, _ in CloudEmptyResponseError() }
     )
 
-    public func existsResource(name: String,
-                               hash: String) throws -> HTTPResource<CloudResponse<CloudEmptyResponse>, CloudEmptyResponseError>
-    {
+    public func existsResource(
+        name: String,
+        hash: String
+    ) throws -> HTTPResource<CloudResponse<CloudEmptyResponse>, CloudEmptyResponseError> {
         invokedExistsResource = true
         invokedExistsResourceCount += 1
         invokedExistsResourceParameters = (name, hash, ())

@@ -29,11 +29,12 @@ public struct CopyFilesAction: Equatable, Codable {
         case other
     }
 
-    public init(name: String,
-                destination: Destination,
-                subpath: String? = nil,
-                files: [FileElement])
-    {
+    public init(
+        name: String,
+        destination: Destination,
+        subpath: String? = nil,
+        files: [FileElement]
+    ) {
         self.name = name
         self.destination = destination
         self.subpath = subpath

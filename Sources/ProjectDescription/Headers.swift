@@ -45,12 +45,13 @@ public struct Headers: Codable, Equatable {
     /// when the same files are found in different header scopes
     public let exclusionRule: AutomaticExclusionRule
 
-    private init(public publicHeaders: FileList? = nil,
-                 umbrellaHeader: Path? = nil,
-                 private privateHeaders: FileList? = nil,
-                 project: FileList? = nil,
-                 exclusionRule: AutomaticExclusionRule)
-    {
+    private init(
+        public publicHeaders: FileList? = nil,
+        umbrellaHeader: Path? = nil,
+        private privateHeaders: FileList? = nil,
+        project: FileList? = nil,
+        exclusionRule: AutomaticExclusionRule
+    ) {
         self.public = publicHeaders
         self.umbrellaHeader = umbrellaHeader
         self.private = privateHeaders
@@ -58,11 +59,12 @@ public struct Headers: Codable, Equatable {
         self.exclusionRule = exclusionRule
     }
 
-    public static func headers(public: FileList? = nil,
-                               private: FileList? = nil,
-                               project: FileList? = nil,
-                               exclusionRule: AutomaticExclusionRule = .projectExcludesPrivateAndPublic) -> Headers
-    {
+    public static func headers(
+        public: FileList? = nil,
+        private: FileList? = nil,
+        project: FileList? = nil,
+        exclusionRule: AutomaticExclusionRule = .projectExcludesPrivateAndPublic
+    ) -> Headers {
         .init(
             public: `public`,
             private: `private`,
@@ -71,11 +73,12 @@ public struct Headers: Codable, Equatable {
         )
     }
 
-    private static func headers(from list: FileList,
-                                umbrella: Path,
-                                private privateHeaders: FileList? = nil,
-                                allOthersAsProject: Bool) -> Headers
-    {
+    private static func headers(
+        from list: FileList,
+        umbrella: Path,
+        private privateHeaders: FileList? = nil,
+        allOthersAsProject: Bool
+    ) -> Headers {
         .init(
             public: list,
             umbrellaHeader: umbrella,
@@ -93,10 +96,11 @@ public struct Headers: Codable, Equatable {
     ///     - from: File list, which contains `public` and `project` headers
     ///     - umbrella: File path to the umbrella header
     ///     - private: File list, which contains `private` headers
-    public static func allHeaders(from list: FileList,
-                                  umbrella: Path,
-                                  private privateHeaders: FileList? = nil) -> Headers
-    {
+    public static func allHeaders(
+        from list: FileList,
+        umbrella: Path,
+        private privateHeaders: FileList? = nil
+    ) -> Headers {
         headers(
             from: list,
             umbrella: umbrella,
@@ -113,10 +117,11 @@ public struct Headers: Codable, Equatable {
     ///     - from: File list, which contains `public` and `project` headers
     ///     - umbrella: File path to the umbrella header
     ///     - private: File list, which contains `private` headers
-    public static func onlyHeaders(from list: FileList,
-                                   umbrella: Path,
-                                   private privateHeaders: FileList? = nil) -> Headers
-    {
+    public static func onlyHeaders(
+        from list: FileList,
+        umbrella: Path,
+        private privateHeaders: FileList? = nil
+    ) -> Headers {
         headers(
             from: list,
             umbrella: umbrella,

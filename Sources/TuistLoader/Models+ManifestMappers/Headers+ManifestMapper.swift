@@ -27,9 +27,10 @@ extension TuistGraph.Headers {
         let projectHeaders: [AbsolutePath]
 
         let allowedExtensions = TuistGraph.Headers.extensions
-        func unfold(_ list: FileList?,
-                    isPublic: Bool = false) throws -> [AbsolutePath]
-        {
+        func unfold(
+            _ list: FileList?,
+            isPublic: Bool = false
+        ) throws -> [AbsolutePath] {
             guard let list = list else { return [] }
             return try list.globs.flatMap {
                 try $0.unfold(generatorPaths: generatorPaths) { path in

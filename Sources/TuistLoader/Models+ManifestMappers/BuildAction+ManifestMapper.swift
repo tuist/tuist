@@ -9,9 +9,10 @@ extension TuistGraph.BuildAction {
     /// - Parameters:
     ///   - manifest: Manifest representation of build action model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.BuildAction,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.BuildAction
-    {
+    static func from(
+        manifest: ProjectDescription.BuildAction,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.BuildAction {
         let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(
             manifest: $0,
             generatorPaths: generatorPaths

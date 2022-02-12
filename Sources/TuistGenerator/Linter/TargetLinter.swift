@@ -15,9 +15,10 @@ class TargetLinter: TargetLinting {
 
     // MARK: - Init
 
-    init(settingsLinter: SettingsLinting = SettingsLinter(),
-         targetScriptLinter: TargetScriptLinting = TargetScriptLinter())
-    {
+    init(
+        settingsLinter: SettingsLinting = SettingsLinter(),
+        targetScriptLinter: TargetScriptLinting = TargetScriptLinter()
+    ) {
         self.settingsLinter = settingsLinter
         self.targetScriptLinter = targetScriptLinter
     }

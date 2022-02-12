@@ -24,9 +24,10 @@ final class BundleService {
     private let versionsController: VersionsControlling
     private let installer: Installing
 
-    init(versionsController: VersionsControlling = VersionsController(),
-         installer: Installing = Installer())
-    {
+    init(
+        versionsController: VersionsControlling = VersionsController(),
+        installer: Installing = Installer()
+    ) {
         self.versionsController = versionsController
         self.installer = installer
     }

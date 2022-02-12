@@ -6,11 +6,12 @@ import TuistSupport
 
 final class MockXcodeBuildController: XcodeBuildControlling {
     var buildStub: ((XcodeBuildTarget, String, Bool, [XcodeBuildArgument]) -> [SystemEvent<XcodeBuildOutput>])?
-    func build(_ target: XcodeBuildTarget,
-               scheme: String,
-               clean: Bool,
-               arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
-    {
+    func build(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        clean: Bool,
+        arguments: [XcodeBuildArgument]
+    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let buildStub = buildStub {
             return buildStub(target, scheme, clean, arguments).asAsyncThrowingStream()
         } else {
@@ -59,12 +60,13 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         (XcodeBuildTarget, String, Bool, AbsolutePath, [XcodeBuildArgument])
             -> [SystemEvent<XcodeBuildOutput>]
     )?
-    func archive(_ target: XcodeBuildTarget,
-                 scheme: String,
-                 clean: Bool,
-                 archivePath: AbsolutePath,
-                 arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
-    {
+    func archive(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        clean: Bool,
+        archivePath: AbsolutePath,
+        arguments: [XcodeBuildArgument]
+    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let archiveStub = archiveStub {
             return archiveStub(target, scheme, clean, archivePath, arguments).asAsyncThrowingStream()
         } else {
@@ -77,9 +79,10 @@ final class MockXcodeBuildController: XcodeBuildControlling {
     }
 
     var createXCFrameworkStub: (([AbsolutePath], AbsolutePath) -> [SystemEvent<XcodeBuildOutput>])?
-    func createXCFramework(frameworks: [AbsolutePath],
-                           output: AbsolutePath) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
-    {
+    func createXCFramework(
+        frameworks: [AbsolutePath],
+        output: AbsolutePath
+    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let createXCFrameworkStub = createXCFrameworkStub {
             return createXCFrameworkStub(frameworks, output).asAsyncThrowingStream()
         } else {
@@ -92,9 +95,11 @@ final class MockXcodeBuildController: XcodeBuildControlling {
     }
 
     var showBuildSettingsStub: ((XcodeBuildTarget, String, String) -> [String: XcodeBuildSettings])?
-    func showBuildSettings(_ target: XcodeBuildTarget, scheme: String,
-                           configuration: String) throws -> [String: XcodeBuildSettings]
-    {
+    func showBuildSettings(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        configuration: String
+    ) throws -> [String: XcodeBuildSettings] {
         if let showBuildSettingsStub = showBuildSettingsStub {
             return showBuildSettingsStub(target, scheme, configuration)
         } else {

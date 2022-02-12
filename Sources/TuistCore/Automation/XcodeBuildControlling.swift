@@ -14,10 +14,12 @@ public protocol XcodeBuildControlling {
     ///   - scheme: The scheme of the project that should be built.
     ///   - clean: True if xcodebuild should clean the project before building.
     ///   - arguments: Extra xcodebuild arguments.
-    func build(_ target: XcodeBuildTarget,
-               scheme: String,
-               clean: Bool,
-               arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    func build(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        clean: Bool,
+        arguments: [XcodeBuildArgument]
+    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable to test the given project using xcodebuild.
     /// - Parameters:
@@ -46,11 +48,13 @@ public protocol XcodeBuildControlling {
     ///   - clean: True if xcodebuild should clean the project before archiving.
     ///   - archivePath: Path where the archive will be exported (with extension .xcarchive)
     ///   - arguments: Extra xcodebuild arguments.
-    func archive(_ target: XcodeBuildTarget,
-                 scheme: String,
-                 clean: Bool,
-                 archivePath: AbsolutePath,
-                 arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    func archive(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        clean: Bool,
+        archivePath: AbsolutePath,
+        arguments: [XcodeBuildArgument]
+    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Creates an .xcframework combining the list of given frameworks.
     /// - Parameters:
@@ -64,7 +68,9 @@ public protocol XcodeBuildControlling {
     ///   - target: Project of workspace where the scheme is defined.
     ///   - scheme: Scheme whose target build settings will be obtained.
     ///   - configuration: Build configuration.
-    func showBuildSettings(_ target: XcodeBuildTarget,
-                           scheme: String,
-                           configuration: String) async throws -> [String: XcodeBuildSettings]
+    func showBuildSettings(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        configuration: String
+    ) async throws -> [String: XcodeBuildSettings]
 }

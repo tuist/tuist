@@ -26,10 +26,11 @@ class CachedArtifactLoader: ArtifactLoading {
     /// - Parameter frameworkLoader: Utility to parse a .framework from the filesystem and load it into memory.
     /// - Parameter xcframeworkLoader: Utility to parse an .xcframework from the filesystem and load it into memory.
     /// - Parameter bundleLoader: Utility to parse a .bundle from the filesystem and load it into memory.
-    init(frameworkLoader: FrameworkLoading = FrameworkLoader(),
-         xcframeworkLoader: XCFrameworkLoading = XCFrameworkLoader(),
-         bundleLoader: BundleLoading = BundleLoader())
-    {
+    init(
+        frameworkLoader: FrameworkLoading = FrameworkLoader(),
+        xcframeworkLoader: XCFrameworkLoading = XCFrameworkLoader(),
+        bundleLoader: BundleLoading = BundleLoader()
+    ) {
         self.frameworkLoader = frameworkLoader
         self.xcframeworkLoader = xcframeworkLoader
         self.bundleLoader = bundleLoader

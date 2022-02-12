@@ -16,12 +16,13 @@ public struct ProfileAction: Equatable, Codable {
     /// Arguments to pass when launching the executable
     public let arguments: Arguments?
 
-    init(configuration: ConfigurationName = .release,
-         preActions: [ExecutionAction] = [],
-         postActions: [ExecutionAction] = [],
-         executable: TargetReference? = nil,
-         arguments: Arguments? = nil)
-    {
+    init(
+        configuration: ConfigurationName = .release,
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = [],
+        executable: TargetReference? = nil,
+        arguments: Arguments? = nil
+    ) {
         self.configuration = configuration
         self.preActions = preActions
         self.postActions = postActions
@@ -37,12 +38,13 @@ public struct ProfileAction: Equatable, Codable {
     ///   - executable: Profiled executable.
     ///   - arguments: Arguments to pass when launching the executable.
     /// - Returns: Initialized profile action.
-    public static func profileAction(configuration: ConfigurationName = .release,
-                                     preActions: [ExecutionAction] = [],
-                                     postActions: [ExecutionAction] = [],
-                                     executable: TargetReference? = nil,
-                                     arguments: Arguments? = nil) -> ProfileAction
-    {
+    public static func profileAction(
+        configuration: ConfigurationName = .release,
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = [],
+        executable: TargetReference? = nil,
+        arguments: Arguments? = nil
+    ) -> ProfileAction {
         ProfileAction(
             configuration: configuration,
             preActions: preActions,

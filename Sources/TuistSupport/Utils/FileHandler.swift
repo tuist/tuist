@@ -146,9 +146,10 @@ public class FileHandler: FileHandling {
         try await closure(directory.path)
     }
 
-    public func inTemporaryDirectory<Result>(removeOnCompletion: Bool,
-                                             _ closure: (AbsolutePath) throws -> Result) throws -> Result
-    {
+    public func inTemporaryDirectory<Result>(
+        removeOnCompletion: Bool,
+        _ closure: (AbsolutePath) throws -> Result
+    ) throws -> Result {
         try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion, closure)
     }
 

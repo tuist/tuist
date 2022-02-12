@@ -46,8 +46,7 @@ final class SigningInstaller: SigningInstalling {
             try FileHandler.shared.createFolder(provisioningProfilesPath)
         }
         let provisioningProfileSourcePath = provisioningProfile.path
-        guard
-            let profileExtension = provisioningProfileSourcePath.extension
+        guard let profileExtension = provisioningProfileSourcePath.extension
         else {
             issues.append(.noFileExtension(provisioningProfileSourcePath))
             return issues

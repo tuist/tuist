@@ -116,12 +116,13 @@ public class ManifestLoader: ManifestLoading {
         )
     }
 
-    init(environment: Environmenting,
-         resourceLocator: ResourceLocating,
-         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
-         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
-         manifestFilesLocator: ManifestFilesLocating)
-    {
+    init(
+        environment: Environmenting,
+        resourceLocator: ResourceLocating,
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
+        projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
+        manifestFilesLocator: ManifestFilesLocating
+    ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory

@@ -819,9 +819,8 @@ extension ProjectDescription.Settings {
                 return resolvedDependencies.flatMap { resolvedDependency -> [PackageTarget] in
                     switch resolvedDependency {
                     case let .target(name):
-                        guard
-                            let packageInfo = packageInfos[packageTarget.package],
-                            let target = packageInfo.targets.first(where: { $0.name == name })
+                        guard let packageInfo = packageInfos[packageTarget.package],
+                              let target = packageInfo.targets.first(where: { $0.name == name })
                         else {
                             return []
                         }

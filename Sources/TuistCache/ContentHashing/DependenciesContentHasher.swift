@@ -67,10 +67,12 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
 
     // MARK: - Private
 
-    private func hash(graphTarget: GraphTarget, dependency: TargetDependency,
-                      hashedTargets: inout [GraphHashedTarget: String],
-                      hashedPaths: inout [AbsolutePath: String]) throws -> String
-    {
+    private func hash(
+        graphTarget: GraphTarget,
+        dependency: TargetDependency,
+        hashedTargets: inout [GraphHashedTarget: String],
+        hashedPaths: inout [AbsolutePath: String]
+    ) throws -> String {
         switch dependency {
         case let .target(targetName):
             guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: graphTarget.path, targetName: targetName)]

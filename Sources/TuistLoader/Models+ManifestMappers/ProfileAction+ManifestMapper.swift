@@ -4,9 +4,10 @@ import TSCBasic
 import TuistGraph
 
 extension TuistGraph.ProfileAction {
-    static func from(manifest: ProjectDescription.ProfileAction,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.ProfileAction
-    {
+    static func from(
+        manifest: ProjectDescription.ProfileAction,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.ProfileAction {
         let configurationName = manifest.configuration.rawValue
 
         let preActions = try manifest.preActions.map {

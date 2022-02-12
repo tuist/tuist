@@ -53,14 +53,12 @@ final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
         resourceName: String,
         resourceSynthesizerPlugins: [PluginResourceSynthesizer]
     ) throws -> AbsolutePath {
-        guard
-            let plugin = resourceSynthesizerPlugins.first(where: { $0.name == pluginName })
+        guard let plugin = resourceSynthesizerPlugins.first(where: { $0.name == pluginName })
         else { throw ResourceSynthesizerPathLocatorError.pluginNotFound(pluginName, resourceSynthesizerPlugins.map(\.name)) }
 
         let resourceTemplatePath = plugin.path
             .appending(components: "\(resourceName).stencil")
-        guard
-            FileHandler.shared.exists(resourceTemplatePath)
+        guard FileHandler.shared.exists(resourceTemplatePath)
         else {
             throw ResourceSynthesizerPathLocatorError
                 .resourceTemplateNotFound(name: "\(resourceName).stencil", plugin: plugin.name)

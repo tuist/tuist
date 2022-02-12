@@ -15,10 +15,11 @@ public struct Path: ExpressibleByStringInterpolation, Codable, Hashable {
         self.init(path, type: .relativeToManifest)
     }
 
-    init(_ pathString: String,
-         type: PathType,
-         callerPath: String? = nil)
-    {
+    init(
+        _ pathString: String,
+        type: PathType,
+        callerPath: String? = nil
+    ) {
         self.type = type
         self.pathString = pathString
         self.callerPath = callerPath

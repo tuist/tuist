@@ -64,8 +64,7 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
             leftNode.applyAttributes(attributes: target.styleAttributes)
             nodes.append(leftNode)
 
-            guard
-                let targetDependencies = graphTraverser.dependencies[.target(name: target.target.name, path: target.path)]
+            guard let targetDependencies = graphTraverser.dependencies[.target(name: target.target.name, path: target.path)]
             else { return }
             targetDependencies
                 .filter { dependency in

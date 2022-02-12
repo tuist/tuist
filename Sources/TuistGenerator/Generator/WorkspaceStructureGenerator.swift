@@ -73,11 +73,12 @@ private class DirectoryStructure {
         ".xcodeproj",
     ]
 
-    init(path: AbsolutePath,
-         projects: [AbsolutePath],
-         files: [FileElement],
-         fileHandler: FileHandling = FileHandler.shared)
-    {
+    init(
+        path: AbsolutePath,
+        projects: [AbsolutePath],
+        files: [FileElement],
+        fileHandler: FileHandling = FileHandler.shared
+    ) {
         self.path = path
         self.projects = projects
         self.files = files

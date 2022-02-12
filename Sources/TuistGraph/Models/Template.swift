@@ -5,10 +5,11 @@ public struct Template: Equatable {
     public let attributes: [Attribute]
     public let items: [Item]
 
-    public init(description: String,
-                attributes: [Attribute] = [],
-                items: [Item] = [])
-    {
+    public init(
+        description: String,
+        attributes: [Attribute] = [],
+        items: [Item] = []
+    ) {
         self.description = description
         self.attributes = attributes
         self.items = items
@@ -47,9 +48,10 @@ public struct Template: Equatable {
         public let path: RelativePath
         public let contents: Contents
 
-        public init(path: RelativePath,
-                    contents: Contents)
-        {
+        public init(
+            path: RelativePath,
+            contents: Contents
+        ) {
             self.path = path
             self.contents = contents
         }

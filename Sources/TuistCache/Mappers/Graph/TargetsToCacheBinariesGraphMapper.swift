@@ -65,14 +65,15 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         )
     }
 
-    init(config: Config,
-         cache: CacheStoring,
-         cacheGraphContentHasher: CacheGraphContentHashing,
-         sources: Set<String>,
-         cacheProfile: TuistGraph.Cache.Profile,
-         cacheOutputType: CacheOutputType,
-         cacheGraphMutator: CacheGraphMutating = CacheGraphMutator())
-    {
+    init(
+        config: Config,
+        cache: CacheStoring,
+        cacheGraphContentHasher: CacheGraphContentHashing,
+        sources: Set<String>,
+        cacheProfile: TuistGraph.Cache.Profile,
+        cacheOutputType: CacheOutputType,
+        cacheGraphMutator: CacheGraphMutating = CacheGraphMutator()
+    ) {
         self.config = config
         self.cache = cache
         self.cacheGraphContentHasher = cacheGraphContentHasher

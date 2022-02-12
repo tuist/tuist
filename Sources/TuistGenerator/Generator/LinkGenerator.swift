@@ -31,13 +31,15 @@ enum LinkGeneratorError: FatalError, Equatable {
 }
 
 protocol LinkGenerating: AnyObject {
-    func generateLinks(target: Target,
-                       pbxTarget: PBXTarget,
-                       pbxproj: PBXProj,
-                       fileElements: ProjectFileElements,
-                       path: AbsolutePath,
-                       sourceRootPath: AbsolutePath,
-                       graphTraverser: GraphTraversing) throws
+    func generateLinks(
+        target: Target,
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj,
+        fileElements: ProjectFileElements,
+        path: AbsolutePath,
+        sourceRootPath: AbsolutePath,
+        graphTraverser: GraphTraversing
+    ) throws
 }
 
 /// When generating build settings like "framework search path", some of the path might be relative to paths
@@ -70,14 +72,15 @@ final class LinkGenerator: LinkGenerating {
 
     // MARK: - LinkGenerating
 
-    func generateLinks(target: Target,
-                       pbxTarget: PBXTarget,
-                       pbxproj: PBXProj,
-                       fileElements: ProjectFileElements,
-                       path: AbsolutePath,
-                       sourceRootPath: AbsolutePath,
-                       graphTraverser: GraphTraversing) throws
-    {
+    func generateLinks(
+        target: Target,
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj,
+        fileElements: ProjectFileElements,
+        path: AbsolutePath,
+        sourceRootPath: AbsolutePath,
+        graphTraverser: GraphTraversing
+    ) throws {
         try setupSearchAndIncludePaths(
             target: target,
             pbxTarget: pbxTarget,
@@ -169,10 +172,11 @@ final class LinkGenerator: LinkGenerating {
         )
     }
 
-    func generatePackages(target: Target,
-                          pbxTarget: PBXTarget,
-                          pbxproj: PBXProj) throws
-    {
+    func generatePackages(
+        target: Target,
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj
+    ) throws {
         for dependency in target.dependencies {
             switch dependency {
             case let .package(product: product):
@@ -348,11 +352,12 @@ final class LinkGenerator: LinkGenerating {
         )
     }
 
-    private func setup(setting name: String,
-                       paths: [LinkGeneratorPath],
-                       pbxTarget: PBXTarget,
-                       sourceRootPath: AbsolutePath) throws
-    {
+    private func setup(
+        setting name: String,
+        paths: [LinkGeneratorPath],
+        pbxTarget: PBXTarget,
+        sourceRootPath: AbsolutePath
+    ) throws {
         guard let configurationList = pbxTarget.buildConfigurationList else {
             throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
         }
@@ -422,13 +427,14 @@ final class LinkGenerator: LinkGenerating {
             }
     }
 
-    func generateCopyProductsBuildPhase(path: AbsolutePath,
-                                        target: Target,
-                                        graphTraverser: GraphTraversing,
-                                        pbxTarget: PBXTarget,
-                                        pbxproj: PBXProj,
-                                        fileElements: ProjectFileElements) throws
-    {
+    func generateCopyProductsBuildPhase(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj,
+        fileElements: ProjectFileElements
+    ) throws {
         // If the current target, which is non-shared (e.g., static lib), depends on other focused targets which
         // include Swift code, we must ensure those are treated as dependencies so that Xcode builds the targets
         // in the correct order. Unfortunately, those deps can be part of other projects which would require
@@ -455,11 +461,12 @@ final class LinkGenerator: LinkGenerating {
         }
     }
 
-    private func generateDependenciesBuildPhase(dependencies: [GraphDependencyReference],
-                                                pbxTarget: PBXTarget,
-                                                pbxproj: PBXProj,
-                                                fileElements: ProjectFileElements) throws
-    {
+    private func generateDependenciesBuildPhase(
+        dependencies: [GraphDependencyReference],
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj,
+        fileElements: ProjectFileElements
+    ) throws {
         var files: [PBXBuildFile] = []
 
         for case let .product(target, _, platformFilter) in dependencies.sorted() {

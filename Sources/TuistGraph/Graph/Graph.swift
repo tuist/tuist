@@ -27,14 +27,15 @@ public struct Graph: Equatable, Codable {
     /// A dictionary that contains the one-to-many dependencies that represent the graph.
     public var dependencies: [GraphDependency: Set<GraphDependency>]
 
-    public init(name: String,
-                path: AbsolutePath,
-                workspace: Workspace,
-                projects: [AbsolutePath: Project],
-                packages: [AbsolutePath: [String: Package]],
-                targets: [AbsolutePath: [String: Target]],
-                dependencies: [GraphDependency: Set<GraphDependency>])
-    {
+    public init(
+        name: String,
+        path: AbsolutePath,
+        workspace: Workspace,
+        projects: [AbsolutePath: Project],
+        packages: [AbsolutePath: [String: Package]],
+        targets: [AbsolutePath: [String: Target]],
+        dependencies: [GraphDependency: Set<GraphDependency>]
+    ) {
         self.name = name
         self.path = path
         self.workspace = workspace
