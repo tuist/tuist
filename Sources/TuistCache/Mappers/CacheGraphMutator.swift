@@ -56,6 +56,8 @@ class CacheGraphMutator: CacheGraphMutating {
         precompiledArtifacts: [GraphTarget: AbsolutePath],
         sources: Set<String>
     ) throws -> Graph {
+        guard !precompiledArtifacts.isEmpty else { return graph }
+
         var graph = graph
         let graphTraverser = GraphTraverser(graph: graph)
         var visitedPrecompiledArtifactPaths: [GraphTarget: VisitedArtifact?] = [:]
@@ -68,7 +70,7 @@ class CacheGraphMutator: CacheGraphMutating {
         try userSpecifiedSourceTargets.forEach {
             try visit(
                 target: $0,
-                graph: graph,
+                graphTraverser: graphTraverser,
                 graphDependencies: &graphDependencies,
                 precompiledArtifacts: precompiledArtifacts,
                 sources: sources,
@@ -99,7 +101,7 @@ class CacheGraphMutator: CacheGraphMutating {
 
     fileprivate func visit(
         target: GraphTarget,
-        graph: Graph,
+        graphTraverser: GraphTraverser,
         graphDependencies: inout [GraphDependency: Set<GraphDependency>],
         precompiledArtifacts: [GraphTarget: AbsolutePath],
         sources: Set<String>,
@@ -110,8 +112,8 @@ class CacheGraphMutator: CacheGraphMutating {
         sourceTargets.formUnion([target])
         let targetDependency: GraphDependency = .target(name: target.target.name, path: target.path)
         graphDependencies[targetDependency] = try mapDependencies(
-            graph.dependencies[targetDependency, default: Set()],
-            graph: graph,
+            for: targetDependency,
+            graphTraverser: graphTraverser,
             graphDependencies: &graphDependencies,
             precompiledArtifacts: precompiledArtifacts,
             sources: sources,
@@ -123,8 +125,8 @@ class CacheGraphMutator: CacheGraphMutating {
 
     // swiftlint:disable:next function_body_length
     fileprivate func mapDependencies(
-        _ dependencies: Set<GraphDependency>,
-        graph: Graph,
+        for dependency: GraphDependency,
+        graphTraverser: GraphTraverser,
         graphDependencies: inout [GraphDependency: Set<GraphDependency>],
         precompiledArtifacts: [GraphTarget: AbsolutePath],
         sources: Set<String>,
@@ -132,21 +134,31 @@ class CacheGraphMutator: CacheGraphMutating {
         visitedPrecompiledArtifactPaths: inout [GraphTarget: VisitedArtifact?],
         loadedPrecompiledArtifacts: inout [AbsolutePath: GraphDependency]
     ) throws -> Set<GraphDependency> {
+        // Dependency already visited
+        guard graphDependencies[dependency] == nil else { return graphDependencies[dependency]! }
+
+        let dependencies = graphTraverser.dependencies[dependency] ?? Set()
         var newDependencies: Set<GraphDependency> = Set()
         try dependencies.forEach { dependency in
-            let graphTraverser = GraphTraverser(graph: graph)
-            let targetDependency: GraphTarget
-            switch dependency {
-            case let .target(name: name, path: path):
-                guard
-                    let target = graphTraverser.target(path: path, name: name)
-                else { return }
-                targetDependency = target
-            // If the dependency is not a target node we keep it.
-            default:
+            guard
+                case let GraphDependency.target(name: name, path: path) = dependency,
+                let targetDependency = graphTraverser.target(path: path, name: name)
+            else {
+                // If the dependency is not a target node we keep it as is.
                 newDependencies.insert(dependency)
                 return
             }
+
+            let mappedDependencies = try mapDependencies(
+                for: dependency,
+                graphTraverser: graphTraverser,
+                graphDependencies: &graphDependencies,
+                precompiledArtifacts: precompiledArtifacts,
+                sources: sources,
+                sourceTargets: &sourceTargets,
+                visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths,
+                loadedPrecompiledArtifacts: &loadedPrecompiledArtifacts
+            )
 
             // Transitive bundles
             // get all the transitive bundles
@@ -162,7 +174,7 @@ class CacheGraphMutator: CacheGraphMutating {
                     visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths
                 )
             else {
-                sourceTargets.formUnion([targetDependency])
+                sourceTargets.insert(targetDependency)
 
                 visitBundleTargets(
                     for: dependency,
@@ -170,36 +182,18 @@ class CacheGraphMutator: CacheGraphMutating {
                     visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths
                 )
 
-                graphDependencies[dependency] = try mapDependencies(
-                    graphTraverser.dependencies[dependency] ?? Set(),
-                    graph: graph,
-                    graphDependencies: &graphDependencies,
-                    precompiledArtifacts: precompiledArtifacts,
-                    sources: sources,
-                    sourceTargets: &sourceTargets,
-                    visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths,
-                    loadedPrecompiledArtifacts: &loadedPrecompiledArtifacts
-                )
+                graphDependencies[dependency] = mappedDependencies
                 newDependencies.insert(dependency)
                 return
             }
 
             // We load the .framework or .xcframework or .bundle
-            let precompiledArtifact: GraphDependency = try loadPrecompiledArtifact(
+            let precompiledArtifact = try loadPrecompiledArtifact(
                 path: precompiledArtifactPath,
                 loadedPrecompiledArtifacts: &loadedPrecompiledArtifacts
             )
 
-            try mapDependencies(
-                graphTraverser.dependencies[dependency] ?? Set(),
-                graph: graph,
-                graphDependencies: &graphDependencies,
-                precompiledArtifacts: precompiledArtifacts,
-                sources: sources,
-                sourceTargets: &sourceTargets,
-                visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths,
-                loadedPrecompiledArtifacts: &loadedPrecompiledArtifacts
-            ).forEach { dependency in
+            mappedDependencies.forEach { dependency in
                 switch dependency {
                 case .framework, .xcframework, .bundle, .sdk:
                     var precompiledDependencies = graphDependencies[precompiledArtifact, default: Set()]
