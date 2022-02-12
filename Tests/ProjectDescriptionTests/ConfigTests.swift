@@ -12,7 +12,8 @@ final class ConfigTests: XCTestCase {
                 developmentRegion: "de",
                 disableShowEnvironmentVarsInScriptPhases: true,
                 resolveDependenciesWithSystemScm: false,
-                disablePackageVersionLocking: true, lastXcodeUpgradeCheck: .init(12, 5, 1)
+                disablePackageVersionLocking: true,
+                lastXcodeUpgradeCheck: .init(12, 5, 1)
             )
         )
 
