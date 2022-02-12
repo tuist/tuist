@@ -36,11 +36,21 @@ module Fourier
             "clean", "build"
           )
 
+          FileUtils.mkdir_p(
+            File.join(output_directory, "#{product}.framework/Modules")
+          )
+
+          # NOTE: We remove the PRODUCT.swiftmodule/Project directory because
+          # this directory contains objects that are not stable across Swift releases.
+          # If left in here they manifest as warnings when compiling.
+          FileUtils.rm_rf(
+            File.join(swift_build_directory, "Release/#{product}.swiftmodule/Project")
+          )
+
           FileUtils.cp_r(
             File.join(swift_build_directory, "Release/PackageFrameworks/#{product}.framework"),
             File.join(output_directory, "#{product}.framework")
           )
-          FileUtils.mkdir_p(File.join(output_directory, "#{product}.framework/Modules"))
           FileUtils.cp_r(
             File.join(swift_build_directory, "Release/#{product}.swiftmodule"),
             File.join(output_directory, "#{product}.framework/Modules/#{product}.swiftmodule")

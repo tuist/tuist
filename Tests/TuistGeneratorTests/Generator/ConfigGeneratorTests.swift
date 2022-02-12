@@ -264,6 +264,40 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
+    func test_generateTargetWithDeploymentTarget_whenIOS_for_framework() throws {
+        // Given
+        let target = Target.test(product: .framework, deploymentTarget: .iOS("13.0", [.iphone, .ipad]))
+        let project = Project.test(targets: [target])
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: AbsolutePath("/project")
+        )
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings = [
+            "TARGETED_DEVICE_FAMILY": "1,2",
+            "IPHONEOS_DEPLOYMENT_TARGET": "13.0",
+            "SUPPORTS_MACCATALYST": "NO",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
     func test_generateTargetWithDeploymentTarget_whenMac() throws {
         // Given
         let project = Project.test()

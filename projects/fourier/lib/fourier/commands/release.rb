@@ -3,7 +3,7 @@
 module Fourier
   module Commands
     class Release < Base
-      desc "tuist VERSION", "Bundles and uploads Tuist to GCS"
+      desc "tuist VERSION", "Configures and bundles Tuist for release"
       def tuist(
         version,
         xcode_version = nil,
@@ -26,7 +26,7 @@ module Fourier
           xcode_paths: xcode_paths
         )
 
-        Utilities::Output.success("tuist and tuistenv were built successfully")
+        Utilities::Output.success("tuist and tuistenv were bundled successfully to #{output_directory}")
       end
     end
   end

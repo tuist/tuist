@@ -722,6 +722,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "takinwande",
+      "name": "Tope Akinwande",
+      "avatar_url": "https://avatars.githubusercontent.com/u/4744429?v=4",
+      "profile": "https://github.com/takinwande",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "TheInkedEngineer",
+      "name": "TheInkedEngineer",
+      "avatar_url": "https://avatars.githubusercontent.com/u/13349066?v=4",
+      "profile": "https://www.theinkedengineer.com",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

@@ -28,6 +28,10 @@ public struct Headers: Codable, Equatable {
         case publicExcludesPrivateAndProject
     }
 
+    /// Umbrella header path, which wil be parsed
+    /// to get list of public headers
+    public let umbrellaHeader: Path?
+
     /// Relative path to public headers.
     public let `public`: FileList?
 
@@ -41,13 +45,15 @@ public struct Headers: Codable, Equatable {
     /// when the same files are found in different header scopes
     public let exclusionRule: AutomaticExclusionRule
 
-    private init(public: FileList? = nil,
-                 private: FileList? = nil,
+    private init(public publicHeaders: FileList? = nil,
+                 umbrellaHeader: Path? = nil,
+                 private privateHeaders: FileList? = nil,
                  project: FileList? = nil,
                  exclusionRule: AutomaticExclusionRule)
     {
-        self.public = `public`
-        self.private = `private`
+        self.public = publicHeaders
+        self.umbrellaHeader = umbrellaHeader
+        self.private = privateHeaders
         self.project = project
         self.exclusionRule = exclusionRule
     }
@@ -62,6 +68,60 @@ public struct Headers: Codable, Equatable {
             private: `private`,
             project: project,
             exclusionRule: exclusionRule
+        )
+    }
+
+    private static func headers(from list: FileList,
+                                umbrella: Path,
+                                private privateHeaders: FileList? = nil,
+                                allOthersAsProject: Bool) -> Headers
+    {
+        .init(
+            public: list,
+            umbrellaHeader: umbrella,
+            private: privateHeaders,
+            project: allOthersAsProject ? list : nil,
+            exclusionRule: .projectExcludesPrivateAndPublic
+        )
+    }
+
+    /// Headers from the file list are included as:
+    /// - `public`, if the header is present in the umbrella header
+    /// - `private`, if the header is present in the `private` list
+    /// - `project`, otherwise
+    /// - Parameters:
+    ///     - from: File list, which contains `public` and `project` headers
+    ///     - umbrella: File path to the umbrella header
+    ///     - private: File list, which contains `private` headers
+    public static func allHeaders(from list: FileList,
+                                  umbrella: Path,
+                                  private privateHeaders: FileList? = nil) -> Headers
+    {
+        headers(
+            from: list,
+            umbrella: umbrella,
+            private: privateHeaders,
+            allOthersAsProject: true
+        )
+    }
+
+    /// Headers from the file list are included as:
+    /// - `public`, if the header is present in the umbrella header
+    /// - `private`, if the header is present in the `private` list
+    /// - not included, otherwise
+    /// - Parameters:
+    ///     - from: File list, which contains `public` and `project` headers
+    ///     - umbrella: File path to the umbrella header
+    ///     - private: File list, which contains `private` headers
+    public static func onlyHeaders(from list: FileList,
+                                   umbrella: Path,
+                                   private privateHeaders: FileList? = nil) -> Headers
+    {
+        headers(
+            from: list,
+            umbrella: umbrella,
+            private: privateHeaders,
+            allOthersAsProject: false
         )
     }
 }
