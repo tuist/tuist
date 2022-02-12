@@ -58,7 +58,14 @@ class CacheGraphMutator: CacheGraphMutating {
     ) throws -> Set<GraphTarget> {
         let allTargets = graphTraverser.allTargets()
         let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
-        let userSpecifiedSourceTargets = allTargets.filter { sources.contains($0.target.name) }
+        var userSpecifiedSourceTargets = allTargets.filter { sources.contains($0.target.name) }
+
+        // Bundles of user specified source targets must be treated as user specified source targets.
+        // This makes editing resources targets possible when focusing static framework target.
+        let nonReplaceableBundles = userSpecifiedSourceTargets
+            .flatMap { target in graphTraverser.directTargetDependencies(path: target.path, name: target.target.name) }
+            .filter { $0.target.product == .bundle }
+        userSpecifiedSourceTargets.formUnion(nonReplaceableBundles)
 
         // Targets are sorted in topological order, so we start analysing from the targets with less dependencies.
         // Because of this, we will need to check only the direct dependencies (instead of all the transitives dependencies).
@@ -80,14 +87,6 @@ class CacheGraphMutator: CacheGraphMutating {
                 replaceableTargets.insert(target)
             }
         }
-
-        // A bundle that belongs to a non replaceable target must be treated as non replaceable.
-        // This makes editing resources targets possible when focusing static framework target.
-        let nonReplaceableTargets = allTargets.subtracting(replaceableTargets)
-        let nonReplaceableBundles = nonReplaceableTargets
-            .flatMap { target in graphTraverser.directTargetDependencies(path: target.path, name: target.target.name) }
-            .filter { $0.target.product == .bundle }
-        replaceableTargets.subtract(nonReplaceableBundles)
 
         return replaceableTargets
     }
