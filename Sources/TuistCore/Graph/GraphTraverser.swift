@@ -44,6 +44,15 @@ public class GraphTraverser: GraphTraversing {
         })
     }
 
+    public func allTargetsTopologicalSorted() throws -> [GraphTarget] {
+        try topologicalSort(
+            Array(allTargets()),
+            successors: {
+                Array(directTargetDependencies(path: $0.path, name: $0.target.name))
+            }
+        ).reversed()
+    }
+
     public func allInternalTargets() -> Set<GraphTarget> {
         allTargets()
             .filter { !$0.path.pathString.contains("\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)")

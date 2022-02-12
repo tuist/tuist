@@ -10,7 +10,7 @@ public protocol ArtifactLoading {
     func load(path: AbsolutePath) throws -> GraphDependency
 }
 
-class ArtifactCachedLoader: ArtifactLoading {
+class CachedArtifactLoader: ArtifactLoading {
     var loadedPrecompiledArtifacts = [AbsolutePath: GraphDependency]()
 
     /// Utility to parse an .xcframework from the filesystem and load it into memory.
@@ -23,9 +23,9 @@ class ArtifactCachedLoader: ArtifactLoading {
     private let bundleLoader: BundleLoading
 
     /// Initializes the loader with its attributes.
-    /// - Parameter frameworkLoader: Utility to parse an .framework from the filesystem and load it into memory.
+    /// - Parameter frameworkLoader: Utility to parse a .framework from the filesystem and load it into memory.
     /// - Parameter xcframeworkLoader: Utility to parse an .xcframework from the filesystem and load it into memory.
-    /// - Parameter bundleLoader: Utility to parse an .bundle from the filesystem and load it into memory.
+    /// - Parameter bundleLoader: Utility to parse a .bundle from the filesystem and load it into memory.
     init(frameworkLoader: FrameworkLoading = FrameworkLoader(),
          xcframeworkLoader: XCFrameworkLoading = XCFrameworkLoader(),
          bundleLoader: BundleLoading = BundleLoader())
@@ -38,16 +38,18 @@ class ArtifactCachedLoader: ArtifactLoading {
     func load(path: AbsolutePath) throws -> GraphDependency {
         if let cachedArtifact = loadedPrecompiledArtifacts[path] {
             return cachedArtifact
-        } else if let framework = try? frameworkLoader.load(path: path) {
-            loadedPrecompiledArtifacts[path] = framework
-            return framework
-        } else if let xcframework = try? xcframeworkLoader.load(path: path) {
-            loadedPrecompiledArtifacts[path] = xcframework
-            return xcframework
-        } else {
-            let bundle = try bundleLoader.load(path: path)
-            loadedPrecompiledArtifacts[path] = bundle
-            return bundle
         }
+
+        let loadedDependency: GraphDependency
+        switch path.extension {
+        case "framework":
+            loadedDependency = try frameworkLoader.load(path: path)
+        case "xcframework":
+            loadedDependency = try xcframeworkLoader.load(path: path)
+        default:
+            loadedDependency = try bundleLoader.load(path: path)
+        }
+        loadedPrecompiledArtifacts[path] = loadedDependency
+        return loadedDependency
     }
 }

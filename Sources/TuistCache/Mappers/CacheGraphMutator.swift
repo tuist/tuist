@@ -16,10 +16,10 @@ protocol CacheGraphMutating {
 }
 
 class CacheGraphMutator: CacheGraphMutating {
-    /// Utility to load artificats from the filesystem and load it into memory.
+    /// Utility to load artifacts from the filesystem and load it into memory.
     private let artifactLoader: ArtifactLoading
 
-    init(artifactLoader: ArtifactLoading = ArtifactCachedLoader()) {
+    init(artifactLoader: ArtifactLoading = CachedArtifactLoader()) {
         self.artifactLoader = artifactLoader
     }
 
@@ -57,12 +57,7 @@ class CacheGraphMutator: CacheGraphMutating {
         graphTraverser: GraphTraversing
     ) throws -> Set<GraphTarget> {
         let allTargets = graphTraverser.allTargets()
-        let sortedCacheableTargets = try topologicalSort(
-            Array(allTargets),
-            successors: {
-                Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name))
-            }
-        ).reversed()
+        let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
         let userSpecifiedSourceTargets = allTargets.filter { sources.contains($0.target.name) }
 
         // Targets are sorted in topological order, so we start analysing from the targets with less dependencies.
