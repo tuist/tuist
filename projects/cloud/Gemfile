@@ -61,3 +61,5 @@ group :test do
 end
 
 gem "rubocop-rails_config", "~> 1.7"
+
+gem "aws-sdk-s3", "~> 1.112"
