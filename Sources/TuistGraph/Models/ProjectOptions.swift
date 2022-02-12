@@ -9,6 +9,9 @@ extension Project {
         /// Disables generating Bundle accessors.
         public let disableBundleAccessors: Bool
 
+        /// Tuist disables echoing the ENV in shell script build phases
+        public let disableShowEnvironmentVarsInScriptPhases: Bool
+
         /// Disable the synthesized resource accessors generation
         public let disableSynthesizedResourceAccessors: Bool
 
@@ -18,11 +21,13 @@ extension Project {
         public init(
             automaticSchemesOptions: AutomaticSchemesOptions,
             disableBundleAccessors: Bool,
+            disableShowEnvironmentVarsInScriptPhases: Bool,
             disableSynthesizedResourceAccessors: Bool,
             textSettings: TextSettings
         ) {
             self.automaticSchemesOptions = automaticSchemesOptions
             self.disableBundleAccessors = disableBundleAccessors
+            self.disableShowEnvironmentVarsInScriptPhases = disableShowEnvironmentVarsInScriptPhases
             self.disableSynthesizedResourceAccessors = disableSynthesizedResourceAccessors
             self.textSettings = textSettings
         }

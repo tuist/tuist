@@ -2,6 +2,7 @@ import ProjectDescription
 
 let project = Project(
     name: "AppWithSpace",
+    options: .options(disableShowEnvironmentVarsInScriptPhases: true),
     targets: [
         Target(
             name: "AppWithSpace",

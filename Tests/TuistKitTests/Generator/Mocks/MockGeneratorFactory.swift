@@ -58,15 +58,11 @@ final class MockGeneratorFactory: GeneratorFactorying {
 
     var invokedDefault = false
     var invokedDefaultCount = 0
-    var invokedDefaultParameters: (config: Config, Void)?
-    var invokedDefaultParametersList = [(config: Config, Void)]()
     var stubbedDefaultResult: Generating!
 
-    func `default`(config: Config) -> Generating {
+    func `default`() -> Generating {
         invokedDefault = true
         invokedDefaultCount += 1
-        invokedDefaultParameters = (config, ())
-        invokedDefaultParametersList.append((config, ()))
         return stubbedDefaultResult
     }
 

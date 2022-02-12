@@ -3,20 +3,19 @@ import TSCUtility
 import TuistCore
 
 public final class LastUpgradeVersionWorkspaceMapper: WorkspaceMapping {
-    let lastUpgradeVersion: Version
-
-    public init(lastUpgradeVersion: Version) {
-        self.lastUpgradeVersion = lastUpgradeVersion
-    }
+    public init() {}
 
     // MARK: - WorkspaceMapping
 
     public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+        guard let lastXcodeUpgradeCheck = workspace.workspace.generationOptions.lastXcodeUpgradeCheck else {
+            return (workspace, [])
+        }
+
         var projects = workspace.projects
-        projects.indices.forEach { projects[$0].lastUpgradeCheck = lastUpgradeVersion }
+        projects.indices.forEach { projects[$0].lastUpgradeCheck = projects[$0].lastUpgradeCheck ?? lastXcodeUpgradeCheck }
 
         var workspace = workspace
-        workspace.workspace.lastUpgradeCheck = lastUpgradeVersion
         workspace.projects = projects
 
         return (workspace, [])

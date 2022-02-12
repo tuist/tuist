@@ -9,6 +9,7 @@ extension TuistGraph.Project.Options {
         .init(
             automaticSchemesOptions: .from(manifest: manifest.automaticSchemesOptions),
             disableBundleAccessors: manifest.disableBundleAccessors,
+            disableShowEnvironmentVarsInScriptPhases: manifest.disableShowEnvironmentVarsInScriptPhases,
             disableSynthesizedResourceAccessors: manifest.disableSynthesizedResourceAccessors,
             textSettings: .init(
                 usesTabs: manifest.textSettings.usesTabs,

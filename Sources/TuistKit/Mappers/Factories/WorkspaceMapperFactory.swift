@@ -9,19 +9,19 @@ import TuistGraph
 protocol WorkspaceMapperFactorying {
     /// Returns the default workspace mapper.
     /// - Returns: A workspace mapping instance.
-    func `default`(config: Config) -> [WorkspaceMapping]
+    func `default`() -> [WorkspaceMapping]
 
     /// Returns a mapper to generate cacheable prorjects.
     /// - Parameter config: The project configuration.
     /// - Parameter includedTargets: The list of targets to cache.
     /// - Returns: A workspace mapping instance.
-    func cache(config: Config, includedTargets: Set<String>) -> [WorkspaceMapping]
+    func cache(includedTargets: Set<String>) -> [WorkspaceMapping]
 
     /// Returns a mapper for automation commands like build and test.
     /// - Parameter config: The project configuration.
     /// - Parameter workspaceDirectory: The directory where the workspace will be generated.
     /// - Returns: A workspace mapping instance.
-    func automation(config: Config, workspaceDirectory: AbsolutePath) -> [WorkspaceMapping]
+    func automation(workspaceDirectory: AbsolutePath) -> [WorkspaceMapping]
 }
 
 final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
@@ -31,25 +31,25 @@ final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
         self.projectMapper = projectMapper
     }
 
-    func cache(config: Config, includedTargets: Set<String>) -> [WorkspaceMapping] {
-        var mappers = self.default(config: config, forceWorkspaceSchemes: false)
+    func cache(includedTargets: Set<String>) -> [WorkspaceMapping] {
+        var mappers = self.default(forceWorkspaceSchemes: false)
         mappers += [GenerateCacheableSchemesWorkspaceMapper(includedTargets: includedTargets)]
         return mappers
     }
 
-    func automation(config: Config, workspaceDirectory: AbsolutePath) -> [WorkspaceMapping] {
+    func automation(workspaceDirectory: AbsolutePath) -> [WorkspaceMapping] {
         var mappers: [WorkspaceMapping] = []
         mappers.append(AutomationPathWorkspaceMapper(workspaceDirectory: workspaceDirectory))
-        mappers += self.default(config: config, forceWorkspaceSchemes: true)
+        mappers += self.default(forceWorkspaceSchemes: true)
 
         return mappers
     }
 
-    func `default`(config: Config) -> [WorkspaceMapping] {
-        self.default(config: config, forceWorkspaceSchemes: false)
+    func `default`() -> [WorkspaceMapping] {
+        self.default(forceWorkspaceSchemes: false)
     }
 
-    private func `default`(config: Config, forceWorkspaceSchemes: Bool) -> [WorkspaceMapping] {
+    private func `default`(forceWorkspaceSchemes: Bool) -> [WorkspaceMapping] {
         var mappers: [WorkspaceMapping] = []
 
         mappers.append(
@@ -72,13 +72,9 @@ final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
             ModuleMapMapper()
         )
 
-        if let lastUpgradeVersion = config.generationOptions.lastXcodeUpgradeCheck {
-            mappers.append(
-                LastUpgradeVersionWorkspaceMapper(
-                    lastUpgradeVersion: lastUpgradeVersion
-                )
-            )
-        }
+        mappers.append(
+            LastUpgradeVersionWorkspaceMapper()
+        )
 
         return mappers
     }

@@ -51,13 +51,8 @@ extension TuistGraph.Config.GenerationOptions {
     ///   - manifest: Manifest representation of Tuist config generation options
     static func from(manifest: ProjectDescription.Config.GenerationOptions) throws -> TuistGraph.Config.GenerationOptions {
         .init(
-            xcodeProjectName: manifest.xcodeProjectName?.description,
-            organizationName: manifest.organizationName,
-            developmentRegion: manifest.developmentRegion,
-            disableShowEnvironmentVarsInScriptPhases: manifest.disableShowEnvironmentVarsInScriptPhases,
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
-            disablePackageVersionLocking: manifest.disablePackageVersionLocking,
-            lastXcodeUpgradeCheck: manifest.lastXcodeUpgradeCheck.map { .init($0.major, $0.minor, $0.patch) }
+            disablePackageVersionLocking: manifest.disablePackageVersionLocking
         )
     }
 }
