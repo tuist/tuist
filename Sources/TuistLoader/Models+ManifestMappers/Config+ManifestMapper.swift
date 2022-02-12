@@ -33,11 +33,6 @@ extension TuistGraph.Config {
             cache = try TuistGraph.Cache.from(manifest: manifestCache, generatorPaths: generatorPaths)
         }
 
-        if let forcedCacheDirectiory = forcedCacheDirectiory {
-            cache = cache.map { TuistGraph.Cache(profiles: $0.profiles, path: forcedCacheDirectiory) }
-                ?? TuistGraph.Cache(profiles: [], path: forcedCacheDirectiory)
-        }
-
         return TuistGraph.Config(
             compatibleXcodeVersions: compatibleXcodeVersions,
             cloud: cloud,
@@ -47,10 +42,6 @@ extension TuistGraph.Config {
             generationOptions: generationOptions,
             path: path
         )
-    }
-
-    private static var forcedCacheDirectiory: AbsolutePath? {
-        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.forceConfigCacheDirectory].map { AbsolutePath($0) }
     }
 }
 
