@@ -35,7 +35,6 @@ public struct Config: Equatable, Hashable {
             swiftVersion: nil,
             plugins: [],
             generationOptions: .init(
-                templateMacros: nil,
                 resolveDependenciesWithSystemScm: false,
                 disablePackageVersionLocking: false
             ),

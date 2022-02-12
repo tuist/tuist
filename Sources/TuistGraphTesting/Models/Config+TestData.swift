@@ -27,12 +27,10 @@ extension Config {
 
 extension Config.GenerationOptions {
     public static func test(
-        templateMacros: IDETemplateMacros? = nil,
         resolveDependenciesWithSystemScm: Bool = false,
         disablePackageVersionLocking: Bool = false
     ) -> Self {
         .init(
-            templateMacros: templateMacros,
             resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: disablePackageVersionLocking
         )
