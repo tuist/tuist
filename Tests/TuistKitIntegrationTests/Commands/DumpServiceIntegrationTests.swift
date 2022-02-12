@@ -150,7 +150,7 @@ final class DumpServiceTests: TuistTestCase {
             cache: nil,
             swiftVersion: nil,
             plugins: [],
-            generationOptions: []
+            generationOptions: .options()
         )
         """
         try fileHandler.createFolder(tmpDir.appending(component: "Tuist"))
@@ -167,9 +167,11 @@ final class DumpServiceTests: TuistTestCase {
 
             }
           },
-          "generationOptions": [
-
-          ],
+          "generationOptions": {
+            "disablePackageVersionLocking": false,
+            "disableShowEnvironmentVarsInScriptPhases": false,
+            "resolveDependenciesWithSystemScm": false
+          },
           "plugins": [
 
           ]

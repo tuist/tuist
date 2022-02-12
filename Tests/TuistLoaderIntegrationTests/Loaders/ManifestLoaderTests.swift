@@ -24,7 +24,7 @@ final class ManifestLoaderTests: TuistTestCase {
         let temporaryPath = try temporaryPath()
         let content = """
         import ProjectDescription
-        let config = Config(generationOptions: [])
+        let config = Config()
         """
 
         let manifestPath = temporaryPath.appending(component: Manifest.config.fileName(temporaryPath))

@@ -15,9 +15,7 @@ final class ProjectDevelopmentRegionMapperTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        config = TuistGraph.Config.test(generationOptions: [
-            .developmentRegion("en"),
-        ])
+        config = TuistGraph.Config.test(generationOptions: .test(developmentRegion: "en"))
         subject = ProjectDevelopmentRegionMapper(config: config)
     }
 

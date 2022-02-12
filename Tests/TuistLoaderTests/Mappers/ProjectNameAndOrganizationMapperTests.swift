@@ -16,10 +16,12 @@ class ProjectNameAndOrganizationMapperTests: TuistUnitTestCase {
         super.setUp()
 
         let nameTemplate: TemplateString = "Tuist-\(.projectName)"
-        config = TuistGraph.Config.test(generationOptions: [
-            .xcodeProjectName(nameTemplate.description),
-            .organizationName("Tuist"),
-        ])
+        config = TuistGraph.Config.test(
+            generationOptions: .test(
+                xcodeProjectName: nameTemplate.description,
+                organizationName: "Tuist"
+            )
+        )
         subject = ProjectNameAndOrganizationMapper(config: config)
     }
 

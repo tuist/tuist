@@ -12,6 +12,9 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
     public let cacheDirectory: AbsolutePath
     private static let defaultDirectory = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path)
         .appending(component: ".tuist")
+    private static var forcedCacheDirectory: AbsolutePath? {
+        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.forceConfigCacheDirectory].map { AbsolutePath($0) }
+    }
 
     public init(config: Config?) {
         if let cacheDirectory = config?.cache?.path {
@@ -22,7 +25,7 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
     }
 
     public func cacheDirectory(for category: CacheCategory) -> AbsolutePath {
-        cacheDirectory.appending(component: category.directoryName)
+        Self.forcedCacheDirectory ?? cacheDirectory.appending(component: category.directoryName)
     }
 }
 

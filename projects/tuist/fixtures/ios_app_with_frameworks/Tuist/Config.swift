@@ -1,7 +1,5 @@
 import ProjectDescription
 
 let config = Config(
-    generationOptions: [
-        .xcodeProjectName("AwesomePrefix-\(.projectName)-AwesomeSuffix"),
-    ]
+    generationOptions: .options(xcodeProjectName: "AwesomePrefix-\(.projectName)-AwesomeSuffix")
 )
