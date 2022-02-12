@@ -230,11 +230,12 @@ public final class GraphLoader: GraphLoading {
         return xcframework
     }
 
-    private func loadSDK(name: String,
-                         platform: Platform,
-                         status: SDKStatus,
-                         source: SDKSource) throws -> GraphDependency
-    {
+    private func loadSDK(
+        name: String,
+        platform: Platform,
+        status: SDKStatus,
+        source: SDKSource
+    ) throws -> GraphDependency {
         let metadata = try systemFrameworkMetadataProvider.loadMetadata(
             sdkName: name,
             status: status,

@@ -41,11 +41,12 @@ extension GraphDependencyReference {
         )
     }
 
-    public static func testLibrary(path: AbsolutePath = "/libraries/library.a",
-                                   linking: BinaryLinking = .static,
-                                   architectures: [BinaryArchitecture] = [BinaryArchitecture.arm64],
-                                   product: Product = .staticLibrary) -> GraphDependencyReference
-    {
+    public static func testLibrary(
+        path: AbsolutePath = "/libraries/library.a",
+        linking: BinaryLinking = .static,
+        architectures: [BinaryArchitecture] = [BinaryArchitecture.arm64],
+        product: Product = .staticLibrary
+    ) -> GraphDependencyReference {
         GraphDependencyReference.library(
             path: path,
             linking: linking,
@@ -54,10 +55,11 @@ extension GraphDependencyReference {
         )
     }
 
-    public static func testSDK(path: AbsolutePath = "/path/CoreData.framework",
-                               status: SDKStatus = .required,
-                               source: SDKSource = .system) -> GraphDependencyReference
-    {
+    public static func testSDK(
+        path: AbsolutePath = "/path/CoreData.framework",
+        status: SDKStatus = .required,
+        source: SDKSource = .system
+    ) -> GraphDependencyReference {
         GraphDependencyReference.sdk(
             path: path,
             status: status,
@@ -65,10 +67,11 @@ extension GraphDependencyReference {
         )
     }
 
-    public static func testProduct(target: String = "Target",
-                                   productName: String = "Target.framework",
-                                   platformFilter: BuildFilePlatformFilter = .ios) -> GraphDependencyReference
-    {
+    public static func testProduct(
+        target: String = "Target",
+        productName: String = "Target.framework",
+        platformFilter: BuildFilePlatformFilter = .ios
+    ) -> GraphDependencyReference {
         GraphDependencyReference.product(
             target: target,
             productName: productName,

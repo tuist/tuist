@@ -24,16 +24,17 @@ public struct Scheme: Equatable, Codable {
     ///   - archiveAction: Scheme's archive action.
     ///   - profileAction: Scheme's profile action.
     ///   - analyzeAction: Scheme's analyze action.
-    public init(name: String,
-                shared: Bool = true,
-                hidden: Bool = false,
-                buildAction: BuildAction? = nil,
-                testAction: TestAction? = nil,
-                runAction: RunAction? = nil,
-                archiveAction: ArchiveAction? = nil,
-                profileAction: ProfileAction? = nil,
-                analyzeAction: AnalyzeAction? = nil)
-    {
+    public init(
+        name: String,
+        shared: Bool = true,
+        hidden: Bool = false,
+        buildAction: BuildAction? = nil,
+        testAction: TestAction? = nil,
+        runAction: RunAction? = nil,
+        archiveAction: ArchiveAction? = nil,
+        profileAction: ProfileAction? = nil,
+        analyzeAction: AnalyzeAction? = nil
+    ) {
         self.name = name
         self.shared = shared
         self.hidden = hidden

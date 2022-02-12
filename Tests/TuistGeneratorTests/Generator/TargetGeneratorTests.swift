@@ -91,9 +91,8 @@ final class TargetGeneratorTests: XCTestCase {
         XCTAssertEqual(generatedTarget.productNameWithExtension(), "MyFramework.framework")
         XCTAssertEqual(generatedTarget.productType, .framework)
 
-        guard
-            let preBuildPhase = generatedTarget.buildPhases.first(where: { $0.name() == "pre" }),
-            let postBuildPhase = generatedTarget.buildPhases.first(where: { $0.name() == "post" })
+        guard let preBuildPhase = generatedTarget.buildPhases.first(where: { $0.name() == "pre" }),
+              let postBuildPhase = generatedTarget.buildPhases.first(where: { $0.name() == "post" })
         else {
             XCTFail("Failed to generate target with build phases pre and post")
             return

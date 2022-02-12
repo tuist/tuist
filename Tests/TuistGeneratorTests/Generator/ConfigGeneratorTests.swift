@@ -617,11 +617,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    private func generateTestTargetConfig(appName: String = "App",
-                                          platform: Platform = .iOS,
-                                          productName: String? = nil,
-                                          uiTest: Bool = false) throws
-    {
+    private func generateTestTargetConfig(
+        appName: String = "App",
+        platform: Platform = .iOS,
+        productName: String? = nil,
+        uiTest: Bool = false
+    ) throws {
         let dir = try temporaryPath()
 
         let appTarget = Target.test(
@@ -658,11 +659,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    func assert(config: XCBuildConfiguration?,
-                contains settings: [String: String],
-                file: StaticString = #file,
-                line: UInt = #line)
-    {
+    func assert(
+        config: XCBuildConfiguration?,
+        contains settings: [String: String],
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let matches = settings.filter {
             config?.buildSettings[$0.key] as? String == $0.value
         }
@@ -676,11 +678,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    func assert(config: XCBuildConfiguration?,
-                hasXcconfig xconfigPath: String,
-                file: StaticString = #file,
-                line: UInt = #line)
-    {
+    func assert(
+        config: XCBuildConfiguration?,
+        hasXcconfig xconfigPath: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let xcconfig: PBXFileReference? = config?.baseConfiguration
         XCTAssertEqual(
             xcconfig?.path,

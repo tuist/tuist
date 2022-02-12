@@ -65,9 +65,10 @@ extension RunActionOptions {
         public let identifier: String?
         public let gpxFile: Path?
 
-        private init(identifier: String? = nil,
-                     gpxFile: Path? = nil)
-        {
+        private init(
+            identifier: String? = nil,
+            gpxFile: Path? = nil
+        ) {
             self.identifier = identifier
             self.gpxFile = gpxFile
         }

@@ -59,8 +59,7 @@ final class CertificateParser: CertificateParsing {
             pattern: SubjectAttribute.commonName.rawValue + " *= *([^/,]+)",
             options: []
         )
-        guard
-            let nameResult = nameRegex.firstMatch(in: subject, options: [], range: NSRange(location: 0, length: subject.count))
+        guard let nameResult = nameRegex.firstMatch(in: subject, options: [], range: NSRange(location: 0, length: subject.count))
         else { throw CertificateParserError.nameParsingFailed(publicKey, subject) }
         let name = NSString(string: subject).substring(with: nameResult.range(at: 1)).spm_chomp()
 
@@ -68,12 +67,11 @@ final class CertificateParser: CertificateParsing {
             pattern: SubjectAttribute.organizationalUnit.rawValue + " *= *([^/,]+)",
             options: []
         )
-        guard
-            let developmentTeamResult = developmentTeamRegex.firstMatch(
-                in: subject,
-                options: [],
-                range: NSRange(location: 0, length: subject.count)
-            )
+        guard let developmentTeamResult = developmentTeamRegex.firstMatch(
+            in: subject,
+            options: [],
+            range: NSRange(location: 0, length: subject.count)
+        )
         else { throw CertificateParserError.developmentTeamParsingFailed(publicKey, subject) }
         let developmentTeam = NSString(string: subject).substring(with: developmentTeamResult.range(at: 1)).spm_chomp()
 
@@ -133,11 +131,10 @@ extension String {
 
         var modifiableString = self
         matches.forEach { result in
-            guard
-                let firstRange = Range(result.range(at: 2), in: modifiableString),
-                let secondRange = Range(result.range(at: 4), in: modifiableString),
-                let firstInt = UInt8(modifiableString[firstRange], radix: 16),
-                let secondInt = UInt8(modifiableString[secondRange], radix: 16)
+            guard let firstRange = Range(result.range(at: 2), in: modifiableString),
+                  let secondRange = Range(result.range(at: 4), in: modifiableString),
+                  let firstInt = UInt8(modifiableString[firstRange], radix: 16),
+                  let secondInt = UInt8(modifiableString[secondRange], radix: 16)
             else {
                 return
             }

@@ -55,9 +55,12 @@ public protocol BuildGraphInspecting {
 public final class BuildGraphInspector: BuildGraphInspecting {
     public init() {}
 
-    public func buildArguments(project: Project, target: Target, configuration: String?,
-                               skipSigning: Bool) -> [XcodeBuildArgument]
-    {
+    public func buildArguments(
+        project: Project,
+        target: Target,
+        configuration: String?,
+        skipSigning: Bool
+    ) -> [XcodeBuildArgument] {
         var arguments: [XcodeBuildArgument]
         if target.platform == .macOS {
             arguments = [.sdk(target.platform.xcodeDeviceSDK)]
@@ -91,9 +94,8 @@ public final class BuildGraphInspector: BuildGraphInspecting {
     }
 
     public func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
-        guard
-            scheme.buildAction?.targets.isEmpty == false,
-            let buildTarget = scheme.buildAction?.targets.first
+        guard scheme.buildAction?.targets.isEmpty == false,
+              let buildTarget = scheme.buildAction?.targets.first
         else {
             return nil
         }

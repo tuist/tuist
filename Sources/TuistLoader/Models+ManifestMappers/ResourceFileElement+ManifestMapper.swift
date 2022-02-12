@@ -11,10 +11,11 @@ extension TuistGraph.ResourceFileElement {
     /// - Parameters:
     ///   - manifest: Manifest representation of  the file element.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.ResourceFileElement,
-                     generatorPaths: GeneratorPaths,
-                     includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }) throws -> [TuistGraph.ResourceFileElement]
-    {
+    static func from(
+        manifest: ProjectDescription.ResourceFileElement,
+        generatorPaths: GeneratorPaths,
+        includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
+    ) throws -> [TuistGraph.ResourceFileElement] {
         func globFiles(_ path: AbsolutePath, excluding: [String]) throws -> [AbsolutePath] {
             if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 

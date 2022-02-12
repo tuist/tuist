@@ -22,11 +22,12 @@ final class GeneratedProject {
     ///   - path: Dictionary whose keys are the target names and the value the Xcode targets.
     ///   - targets: Dictionary whose keys are the target names and the value the Xcode targets.
     ///   - name: Project name with .xcodeproj extension
-    init(pbxproj: PBXProj,
-         path: AbsolutePath,
-         targets: [String: PBXNativeTarget],
-         name: String)
-    {
+    init(
+        pbxproj: PBXProj,
+        path: AbsolutePath,
+        targets: [String: PBXNativeTarget],
+        name: String
+    ) {
         self.pbxproj = pbxproj
         self.path = path
         self.targets = targets

@@ -37,14 +37,15 @@ final class GraphService {
         self.manifestGraphLoader = manifestGraphLoader
     }
 
-    func run(format: GraphFormat,
-             layoutAlgorithm: GraphViz.LayoutAlgorithm,
-             skipTestTargets: Bool,
-             skipExternalDependencies: Bool,
-             targetsToFilter: [String],
-             path: AbsolutePath,
-             outputPath: AbsolutePath) async throws
-    {
+    func run(
+        format: GraphFormat,
+        layoutAlgorithm: GraphViz.LayoutAlgorithm,
+        skipTestTargets: Bool,
+        skipExternalDependencies: Bool,
+        targetsToFilter: [String],
+        path: AbsolutePath,
+        outputPath: AbsolutePath
+    ) async throws {
         let (graph, _) = try await manifestGraphLoader.load(path: path)
 
         let filePath = outputPath.appending(component: "graph.\(format.rawValue)")
@@ -71,11 +72,12 @@ final class GraphService {
         logger.notice("Graph exported to \(filePath.pathString).", metadata: .success)
     }
 
-    private func export(graph: GraphViz.Graph,
-                        at filePath: AbsolutePath,
-                        withFormat format: GraphFormat,
-                        layoutAlgorithm: LayoutAlgorithm) throws
-    {
+    private func export(
+        graph: GraphViz.Graph,
+        at filePath: AbsolutePath,
+        withFormat format: GraphFormat,
+        layoutAlgorithm: LayoutAlgorithm
+    ) throws {
         switch format {
         case .dot:
             try exportDOTRepresentation(from: graph, at: filePath)
@@ -91,10 +93,11 @@ final class GraphService {
         try FileHandler.shared.write(dotFile, path: filePath, atomically: true)
     }
 
-    private func exportPNGRepresentation(from graphVizGraph: GraphViz.Graph,
-                                         at filePath: AbsolutePath,
-                                         layoutAlgorithm: LayoutAlgorithm) throws
-    {
+    private func exportPNGRepresentation(
+        from graphVizGraph: GraphViz.Graph,
+        at filePath: AbsolutePath,
+        layoutAlgorithm: LayoutAlgorithm
+    ) throws {
         if try !isGraphVizInstalled() {
             try installGraphViz()
         }

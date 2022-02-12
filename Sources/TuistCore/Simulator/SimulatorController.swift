@@ -149,8 +149,7 @@ public final class SimulatorController: SimulatorControlling {
                 }
                 return true
             }
-        guard
-            let device = availableDevices.first(where: { !$0.device.isShutdown }) ?? availableDevices.first
+        guard let device = availableDevices.first(where: { !$0.device.isShutdown }) ?? availableDevices.first
         else { throw SimulatorControllerError.deviceNotFound(platform, version, deviceName, devicesAndRuntimes) }
         return device
     }

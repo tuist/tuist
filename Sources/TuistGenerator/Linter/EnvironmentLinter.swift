@@ -53,9 +53,8 @@ public class EnvironmentLinter: EnvironmentLinting {
     }
 
     func lintConfigPath(config: Config) -> [LintingIssue] {
-        guard
-            let configPath = config.path,
-            let rootDirectoryPath = rootDirectoryLocator.locate(from: configPath)
+        guard let configPath = config.path,
+              let rootDirectoryPath = rootDirectoryLocator.locate(from: configPath)
         else {
             return []
         }

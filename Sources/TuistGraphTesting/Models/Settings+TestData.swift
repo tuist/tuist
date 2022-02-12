@@ -3,9 +3,10 @@ import TSCBasic
 @testable import TuistGraph
 
 extension Configuration {
-    public static func test(settings: SettingsDictionary = [:],
-                            xcconfig: AbsolutePath? = AbsolutePath("/Config.xcconfig")) -> Configuration
-    {
+    public static func test(
+        settings: SettingsDictionary = [:],
+        xcconfig: AbsolutePath? = AbsolutePath("/Config.xcconfig")
+    ) -> Configuration {
         Configuration(settings: settings, xcconfig: xcconfig)
     }
 }
@@ -22,9 +23,10 @@ extension Settings {
         )
     }
 
-    public static func test(base: SettingsDictionary = [:],
-                            configurations: [BuildConfiguration: Configuration?] = [:]) -> Settings
-    {
+    public static func test(
+        base: SettingsDictionary = [:],
+        configurations: [BuildConfiguration: Configuration?] = [:]
+    ) -> Settings {
         Settings(base: base, configurations: configurations)
     }
 

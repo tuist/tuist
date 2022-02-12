@@ -38,9 +38,8 @@ internal enum XcodeProjectPathHasher {
             Array(digest[$0 ..< Swift.min($0 + 8, digest.count)])
         }
 
-        guard
-            let firstHalf = partitions.first,
-            let secondHalf = partitions.last
+        guard let firstHalf = partitions.first,
+              let secondHalf = partitions.last
         else {
             throw HashingError.invalidPartitioning
         }

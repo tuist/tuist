@@ -16,16 +16,17 @@ public struct Scheme: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(name: String,
-                shared: Bool = false,
-                hidden: Bool = false,
-                buildAction: BuildAction? = nil,
-                testAction: TestAction? = nil,
-                runAction: RunAction? = nil,
-                archiveAction: ArchiveAction? = nil,
-                profileAction: ProfileAction? = nil,
-                analyzeAction: AnalyzeAction? = nil)
-    {
+    public init(
+        name: String,
+        shared: Bool = false,
+        hidden: Bool = false,
+        buildAction: BuildAction? = nil,
+        testAction: TestAction? = nil,
+        runAction: RunAction? = nil,
+        archiveAction: ArchiveAction? = nil,
+        profileAction: ProfileAction? = nil,
+        analyzeAction: AnalyzeAction? = nil
+    ) {
         self.name = name
         self.shared = shared
         self.hidden = hidden

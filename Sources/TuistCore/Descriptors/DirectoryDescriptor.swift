@@ -23,9 +23,10 @@ public struct DirectoryDescriptor: Equatable {
     /// - Parameters:
     ///   - path: Path to the file
     ///   - state: The desired state of the file (`.present` creates a fiile, `.absent` deletes a file)
-    public init(path: AbsolutePath,
-                state: DirectoryDescriptor.State = .present)
-    {
+    public init(
+        path: AbsolutePath,
+        state: DirectoryDescriptor.State = .present
+    ) {
         self.path = path
         self.state = state
     }

@@ -34,10 +34,11 @@ class CacheGraphMutator: CacheGraphMutating {
 
     /// Initializes the graph mapper with its attributes.
     /// - Parameter xcframeworkLoader: Utility to parse an .xcframework from the filesystem and load it into memory.
-    init(frameworkLoader: FrameworkLoading = FrameworkLoader(),
-         xcframeworkLoader: XCFrameworkLoading = XCFrameworkLoader(),
-         bundleLoader: BundleLoading = BundleLoader())
-    {
+    init(
+        frameworkLoader: FrameworkLoading = FrameworkLoader(),
+        xcframeworkLoader: XCFrameworkLoading = XCFrameworkLoader(),
+        bundleLoader: BundleLoading = BundleLoader()
+    ) {
         self.frameworkLoader = frameworkLoader
         self.xcframeworkLoader = xcframeworkLoader
         self.bundleLoader = bundleLoader
@@ -138,8 +139,7 @@ class CacheGraphMutator: CacheGraphMutating {
             let targetDependency: GraphTarget
             switch dependency {
             case let .target(name: name, path: path):
-                guard
-                    let target = graphTraverser.target(path: path, name: name)
+                guard let target = graphTraverser.target(path: path, name: name)
                 else { return }
                 targetDependency = target
             // If the dependency is not a target node we keep it.
@@ -153,14 +153,13 @@ class CacheGraphMutator: CacheGraphMutating {
             // declare them as direct dependencies.
 
             // If the target cannot be replaced with its associated .(xc)framework or .bundle we return
-            guard
-                !sources.contains(targetDependency.target.name),
-                let precompiledArtifactPath = precompiledArtifactPath(
-                    target: targetDependency,
-                    graphTraverser: graphTraverser,
-                    precompiledArtifacts: precompiledArtifacts,
-                    visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths
-                )
+            guard !sources.contains(targetDependency.target.name),
+                  let precompiledArtifactPath = precompiledArtifactPath(
+                      target: targetDependency,
+                      graphTraverser: graphTraverser,
+                      precompiledArtifacts: precompiledArtifacts,
+                      visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths
+                  )
             else {
                 sourceTargets.formUnion([targetDependency])
 
@@ -250,16 +249,15 @@ class CacheGraphMutator: CacheGraphMutating {
             return nil
         }
         // The target can be replaced
-        else if
-            let path = precompiledArtifacts[target],
-            graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).allSatisfy({
-                precompiledArtifactPath(
-                    target: $0,
-                    graphTraverser: graphTraverser,
-                    precompiledArtifacts: precompiledArtifacts,
-                    visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths
-                ) != nil
-            })
+        else if let path = precompiledArtifacts[target],
+                graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).allSatisfy({
+                    precompiledArtifactPath(
+                        target: $0,
+                        graphTraverser: graphTraverser,
+                        precompiledArtifacts: precompiledArtifacts,
+                        visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths
+                    ) != nil
+                })
         {
             visitedPrecompiledArtifactPaths[target] = VisitedArtifact(path: path)
             return path
@@ -300,16 +298,14 @@ class CacheGraphMutator: CacheGraphMutating {
         let graphTraverser = GraphTraverser(graph: graph)
 
         for (key, value) in graphDependencies {
-            guard
-                let target = graphTraverser.target(from: key),
-                target.target.product.runnable || target.target.product == .unitTests
+            guard let target = graphTraverser.target(from: key),
+                  target.target.product.runnable || target.target.product == .unitTests
             else { continue }
 
             var precompiledDependencies: Set<GraphDependency> = []
             for dependency in value {
-                guard
-                    let target = graphTraverser.target(from: dependency),
-                    target.target.product == .staticFramework
+                guard let target = graphTraverser.target(from: dependency),
+                      target.target.product == .staticFramework
                 else { continue }
 
                 let precompiledDependency = graphTraverser.prebuiltDependencies(for: dependency)

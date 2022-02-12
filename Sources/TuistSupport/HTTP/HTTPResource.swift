@@ -5,10 +5,11 @@ public struct HTTPResource<T, E: Error>: Equatable, Hashable, CustomStringConver
     public let parse: (Data, HTTPURLResponse) throws -> T
     public let parseError: (Data, HTTPURLResponse) throws -> E
 
-    public init(request: @escaping () -> URLRequest,
-                parse: @escaping (Data, HTTPURLResponse) throws -> T,
-                parseError: @escaping (Data, HTTPURLResponse) throws -> E)
-    {
+    public init(
+        request: @escaping () -> URLRequest,
+        parse: @escaping (Data, HTTPURLResponse) throws -> T,
+        parseError: @escaping (Data, HTTPURLResponse) throws -> E
+    ) {
         self.request = request
         self.parse = parse
         self.parseError = parseError

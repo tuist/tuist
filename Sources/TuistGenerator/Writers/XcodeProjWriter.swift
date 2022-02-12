@@ -28,9 +28,10 @@ public final class XcodeProjWriter: XcodeProjWriting {
     private let config: Config
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
 
-    public init(sideEffectDescriptorExecutor: SideEffectDescriptorExecuting = SideEffectDescriptorExecutor(),
-                config: Config = .default)
-    {
+    public init(
+        sideEffectDescriptorExecutor: SideEffectDescriptorExecuting = SideEffectDescriptorExecutor(),
+        config: Config = .default
+    ) {
         self.sideEffectDescriptorExecutor = sideEffectDescriptorExecutor
         self.config = config
     }

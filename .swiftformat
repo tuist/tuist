@@ -7,6 +7,7 @@
 
 --allman false
 --binarygrouping 4,8
+--closingparen balanced
 --commas always
 --comments indent
 --decimalgrouping 3,6
@@ -14,6 +15,7 @@
 --empty void
 --exponentcase lowercase
 --exponentgrouping disabled
+--extensionacl on-declarations
 --fractiongrouping disabled
 --header ignore
 --hexgrouping 4,8
@@ -32,6 +34,7 @@
 --stripunusedargs always
 --trimwhitespace always
 --maxwidth 130
---wrapcollections before-first
 --wraparguments before-first
---extensionacl on-declarations
+--wrapcollections before-first
+--wrapconditions after-first
+--wrapparameters before-first

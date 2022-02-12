@@ -17,11 +17,13 @@ protocol GeneratorFactorying {
     /// - Parameter cacheProfile: The caching profile.
     /// - Parameter ignoreCache: True to not include binaries from the cache.
     /// - Returns: The generator for focused projects.
-    func focus(config: Config,
-               sources: Set<String>,
-               xcframeworks: Bool,
-               cacheProfile: TuistGraph.Cache.Profile,
-               ignoreCache: Bool) -> Generating
+    func focus(
+        config: Config,
+        sources: Set<String>,
+        xcframeworks: Bool,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool
+    ) -> Generating
 
     /// Returns the generator to generate a project to run tests on.
     /// - Parameter config: The project configuration
@@ -63,12 +65,13 @@ class GeneratorFactory: GeneratorFactorying {
         self.contentHasher = contentHasher
     }
 
-    func focus(config: Config,
-               sources: Set<String>,
-               xcframeworks: Bool,
-               cacheProfile: TuistGraph.Cache.Profile,
-               ignoreCache: Bool) -> Generating
-    {
+    func focus(
+        config: Config,
+        sources: Set<String>,
+        xcframeworks: Bool,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool
+    ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
         let projectMappers = projectMapperFactory.default()

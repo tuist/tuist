@@ -65,9 +65,10 @@ extension TuistGraph.Template.Attribute {
 }
 
 extension TuistGraph.Template.Contents {
-    static func from(manifest: ProjectDescription.Template.Contents,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.Template.Contents
-    {
+    static func from(
+        manifest: ProjectDescription.Template.Contents,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.Template.Contents {
         switch manifest {
         case let .string(contents):
             return .string(contents)

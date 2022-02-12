@@ -21,9 +21,8 @@ public enum CoreDataVersionExtractor {
             let data = try Data(contentsOf: filePath.appending(component: ".xccurrentversion").url)
             let decoder = PropertyListDecoder()
             let dict = try decoder.decode([String: String].self, from: data)
-            guard
-                let currentVersionName = dict["_XCCurrentVersionName"],
-                currentVersionName.hasSuffix(".xcdatamodel")
+            guard let currentVersionName = dict["_XCCurrentVersionName"],
+                  currentVersionName.hasSuffix(".xcdatamodel")
             else {
                 throw CoreDataVersionExtractorError.couldNotExtractVersionFrom(filePath)
             }

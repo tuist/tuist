@@ -60,9 +60,10 @@ public final class SigningCipher: SigningCiphering {
         )
     }
 
-    init(rootDirectoryLocator: RootDirectoryLocating,
-         signingFilesLocator: SigningFilesLocating)
-    {
+    init(
+        rootDirectoryLocator: RootDirectoryLocating,
+        signingFilesLocator: SigningFilesLocating
+    ) {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.signingFilesLocator = signingFilesLocator
     }
@@ -121,8 +122,7 @@ public final class SigningCipher: SigningCiphering {
 
     /// - Returns: Master key data
     public func readMasterKey(at path: AbsolutePath) throws -> String {
-        guard
-            let rootDirectory = rootDirectoryLocator.locate(from: path)
+        guard let rootDirectory = rootDirectoryLocator.locate(from: path)
         else { throw SigningCipherError.signingDirectoryNotFound(path) }
         let masterKeyFile = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.masterKey)
         guard FileHandler.shared.exists(masterKeyFile) else { throw SigningCipherError.masterKeyNotFound(masterKeyFile) }
@@ -143,9 +143,10 @@ public final class SigningCipher: SigningCiphering {
     }
 
     /// - Returns: Files that are already correctly encrypted
-    private func correctlyEncryptedSigningFiles(at path: AbsolutePath,
-                                                masterKey: Data) throws -> [(unencrypted: AbsolutePath, encrypted: AbsolutePath)]
-    {
+    private func correctlyEncryptedSigningFiles(
+        at path: AbsolutePath,
+        masterKey: Data
+    ) throws -> [(unencrypted: AbsolutePath, encrypted: AbsolutePath)] {
         try locateUnencryptedSigningFiles(at: path).compactMap { unencryptedFile in
             let encryptedFile = AbsolutePath(unencryptedFile.pathString + "." + Constants.encryptedExtension)
             guard FileHandler.shared.exists(encryptedFile) else { return nil }
@@ -160,10 +161,9 @@ public final class SigningCipher: SigningCiphering {
 
     /// Determines if encryption is needed
     private func isEncryptionNeeded(encryptedFile: AbsolutePath, unencryptedFile: AbsolutePath, masterKey: Data) throws -> Bool {
-        guard
-            let encodedString = String(data: try FileHandler.shared.readFile(encryptedFile), encoding: .utf8),
-            let dividerIndex = encodedString.firstIndex(of: "-"),
-            let iv = Data(base64Encoded: String(encodedString.prefix(upTo: dividerIndex)))
+        guard let encodedString = String(data: try FileHandler.shared.readFile(encryptedFile), encoding: .utf8),
+              let dividerIndex = encodedString.firstIndex(of: "-"),
+              let iv = Data(base64Encoded: String(encodedString.prefix(upTo: dividerIndex)))
         else { throw SigningCipherError.failedToDecrypt("corrupted data") }
 
         let aesCipher = try AES(key: masterKey.bytes, blockMode: CTR(iv: iv.bytes), padding: .noPadding)
@@ -197,24 +197,21 @@ public final class SigningCipher: SigningCiphering {
     ///     - masterKey: Master key data
     /// - Returns: Decrypted data
     private func decryptData(_ data: Data, masterKey: Data) throws -> Data {
-        guard
-            let encodedString = String(data: data, encoding: .utf8),
-            let dividerIndex = encodedString.firstIndex(of: "-"),
-            let iv = Data(base64Encoded: String(encodedString.prefix(upTo: dividerIndex)))
+        guard let encodedString = String(data: data, encoding: .utf8),
+              let dividerIndex = encodedString.firstIndex(of: "-"),
+              let iv = Data(base64Encoded: String(encodedString.prefix(upTo: dividerIndex)))
         else { throw SigningCipherError.failedToDecrypt("corrupted data") }
 
         let dataToDecrypt = Data(base64Encoded: String(encodedString.suffix(from: dividerIndex).dropFirst()))
         let aesCipher = try AES(key: masterKey.bytes, blockMode: CTR(iv: iv.bytes), padding: .noPadding)
-        guard
-            let decryptedData = try dataToDecrypt?.decrypt(cipher: aesCipher)
+        guard let decryptedData = try dataToDecrypt?.decrypt(cipher: aesCipher)
         else { throw SigningCipherError.failedToDecrypt("data is in wrong format") }
         return decryptedData
     }
 
     /// - Returns: Master key data
     private func masterKey(at path: AbsolutePath) throws -> Data {
-        guard
-            let rootDirectory = rootDirectoryLocator.locate(from: path)
+        guard let rootDirectory = rootDirectoryLocator.locate(from: path)
         else { throw SigningCipherError.signingDirectoryNotFound(path) }
         let masterKeyFile = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.masterKey)
         guard FileHandler.shared.exists(masterKeyFile) else { throw SigningCipherError.masterKeyNotFound(masterKeyFile) }
@@ -227,8 +224,7 @@ public final class SigningCipher: SigningCiphering {
         let blockSize = 16
         var iv = Data(repeating: 0, count: blockSize)
         let result = try iv.withUnsafeMutableBytes { bytes -> Int32 in
-            guard
-                let baseAddress = bytes.baseAddress
+            guard let baseAddress = bytes.baseAddress
             else { throw SigningCipherError.ivGenerationFailed("Base address not found") }
             return SecRandomCopyBytes(kSecRandomDefault, blockSize, baseAddress)
         }

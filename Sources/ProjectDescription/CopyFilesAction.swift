@@ -29,11 +29,12 @@ public struct CopyFilesAction: Codable, Equatable {
         case other
     }
 
-    init(name: String,
-         destination: Destination,
-         subpath: String? = nil,
-         files: [FileElement])
-    {
+    init(
+        name: String,
+        destination: Destination,
+        subpath: String? = nil,
+        files: [FileElement]
+    ) {
         self.name = name
         self.destination = destination
         self.subpath = subpath
@@ -48,10 +49,11 @@ public struct CopyFilesAction: Codable, Equatable {
     ///   - subpath: Path to a folder inside the destination.
     ///   - files: Relative paths to the files to be copied.
     /// - Returns: Copy files action.
-    public static func productsDirectory(name: String,
-                                         subpath: String? = nil,
-                                         files: [FileElement]) -> CopyFilesAction
-    {
+    public static func productsDirectory(
+        name: String,
+        subpath: String? = nil,
+        files: [FileElement]
+    ) -> CopyFilesAction {
         CopyFilesAction(
             name: name,
             destination: .productsDirectory,
@@ -66,10 +68,11 @@ public struct CopyFilesAction: Codable, Equatable {
     ///   - subpath: Path to a folder inside the destination.
     ///   - files: Relative paths to the files to be copied.
     /// - Returns: Copy files action.
-    public static func wrapper(name: String,
-                               subpath: String? = nil,
-                               files: [FileElement]) -> CopyFilesAction
-    {
+    public static func wrapper(
+        name: String,
+        subpath: String? = nil,
+        files: [FileElement]
+    ) -> CopyFilesAction {
         CopyFilesAction(
             name: name,
             destination: .wrapper,
@@ -84,10 +87,11 @@ public struct CopyFilesAction: Codable, Equatable {
     ///   - subpath: Path to a folder inside the destination.
     ///   - files: Relative paths to the files to be copied.
     /// - Returns: Copy files action.
-    public static func executables(name: String,
-                                   subpath: String? = nil,
-                                   files: [FileElement]) -> CopyFilesAction
-    {
+    public static func executables(
+        name: String,
+        subpath: String? = nil,
+        files: [FileElement]
+    ) -> CopyFilesAction {
         CopyFilesAction(
             name: name,
             destination: .executables,
@@ -102,10 +106,11 @@ public struct CopyFilesAction: Codable, Equatable {
     ///   - subpath: Path to a folder inside the destination.
     ///   - files: Relative paths to the files to be copied.
     /// - Returns: Copy files action.
-    public static func resources(name: String,
-                                 subpath: String? = nil,
-                                 files: [FileElement]) -> CopyFilesAction
-    {
+    public static func resources(
+        name: String,
+        subpath: String? = nil,
+        files: [FileElement]
+    ) -> CopyFilesAction {
         CopyFilesAction(
             name: name,
             destination: .resources,
@@ -120,10 +125,11 @@ public struct CopyFilesAction: Codable, Equatable {
     ///   - subpath: Path to a folder inside the destination.
     ///   - files: Relative paths to the files to be copied.
     /// - Returns: Copy files action.
-    public static func javaResources(name: String,
-                                     subpath: String? = nil,
-                                     files: [FileElement]) -> CopyFilesAction
-    {
+    public static func javaResources(
+        name: String,
+        subpath: String? = nil,
+        files: [FileElement]
+    ) -> CopyFilesAction {
         CopyFilesAction(
             name: name,
             destination: .javaResources,
@@ -138,10 +144,11 @@ public struct CopyFilesAction: Codable, Equatable {
     ///   - subpath: Path to a folder inside the destination.
     ///   - files: Relative paths to the files to be copied.
     /// - Returns: Copy files action.
-    public static func frameworks(name: String,
-                                  subpath: String? = nil,
-                                  files: [FileElement]) -> CopyFilesAction
-    {
+    public static func frameworks(
+        name: String,
+        subpath: String? = nil,
+        files: [FileElement]
+    ) -> CopyFilesAction {
         CopyFilesAction(
             name: name,
             destination: .frameworks,
@@ -156,10 +163,11 @@ public struct CopyFilesAction: Codable, Equatable {
     ///   - subpath: Path to a folder inside the destination.
     ///   - files: Relative paths to the files to be copied.
     /// - Returns: Copy files action.
-    public static func sharedFrameworks(name: String,
-                                        subpath: String? = nil,
-                                        files: [FileElement]) -> CopyFilesAction
-    {
+    public static func sharedFrameworks(
+        name: String,
+        subpath: String? = nil,
+        files: [FileElement]
+    ) -> CopyFilesAction {
         CopyFilesAction(
             name: name,
             destination: .sharedFrameworks,
@@ -174,10 +182,11 @@ public struct CopyFilesAction: Codable, Equatable {
     ///   - subpath: Path to a folder inside the destination.
     ///   - files: Relative paths to the files to be copied.
     /// - Returns: Copy files action.
-    public static func sharedSupport(name: String,
-                                     subpath: String? = nil,
-                                     files: [FileElement]) -> CopyFilesAction
-    {
+    public static func sharedSupport(
+        name: String,
+        subpath: String? = nil,
+        files: [FileElement]
+    ) -> CopyFilesAction {
         CopyFilesAction(
             name: name,
             destination: .sharedSupport,
@@ -192,10 +201,11 @@ public struct CopyFilesAction: Codable, Equatable {
     ///   - subpath: Path to a folder inside the destination.
     ///   - files: Relative paths to the files to be copied.
     /// - Returns: Copy files action.
-    public static func plugins(name: String,
-                               subpath: String? = nil,
-                               files: [FileElement]) -> CopyFilesAction
-    {
+    public static func plugins(
+        name: String,
+        subpath: String? = nil,
+        files: [FileElement]
+    ) -> CopyFilesAction {
         CopyFilesAction(
             name: name,
             destination: .plugins,

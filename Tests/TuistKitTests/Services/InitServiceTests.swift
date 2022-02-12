@@ -89,13 +89,14 @@ final class InitServiceTests: TuistUnitTestCase {
 }
 
 extension InitService {
-    func testRun(name: String? = nil,
-                 platform: String? = nil,
-                 path: String? = nil,
-                 templateName: String? = nil,
-                 requiredTemplateOptions: [String: String] = [:],
-                 optionalTemplateOptions: [String: String?] = [:]) throws
-    {
+    func testRun(
+        name: String? = nil,
+        platform: String? = nil,
+        path: String? = nil,
+        templateName: String? = nil,
+        requiredTemplateOptions: [String: String] = [:],
+        optionalTemplateOptions: [String: String?] = [:]
+    ) throws {
         try run(
             name: name,
             platform: platform,

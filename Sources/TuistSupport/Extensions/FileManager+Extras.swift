@@ -8,8 +8,7 @@ extension FileManager {
     private func subdirectoriesResolvingSymbolicLinks(atNestedPath nestedPath: String?, basePath: String) -> [String] {
         let currentLevelPath = nestedPath.map { NSString(string: basePath).appendingPathComponent($0) } ?? basePath
         let resolvedCurrentLevelPath = resolvingSymbolicLinks(path: currentLevelPath)
-        guard
-            let resolvedSubpathsFromCurrentRoot = try? subpathsOfDirectory(atPath: resolvedCurrentLevelPath)
+        guard let resolvedSubpathsFromCurrentRoot = try? subpathsOfDirectory(atPath: resolvedCurrentLevelPath)
         else {
             return []
         }

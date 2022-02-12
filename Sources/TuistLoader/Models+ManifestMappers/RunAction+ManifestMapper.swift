@@ -9,9 +9,10 @@ extension TuistGraph.RunAction {
     /// - Parameters:
     ///   - manifest: Manifest representation of  the settings.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.RunAction,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.RunAction
-    {
+    static func from(
+        manifest: ProjectDescription.RunAction,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.RunAction {
         let configurationName = manifest.configuration.rawValue
 
         let preActions = try manifest.preActions.map {

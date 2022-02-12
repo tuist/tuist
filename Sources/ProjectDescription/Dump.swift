@@ -1,9 +1,8 @@
 import Foundation
 
 func dumpIfNeeded<E: Encodable>(_ entity: E) {
-    guard
-        CommandLine.argc > 0,
-        CommandLine.arguments.contains("--tuist-dump")
+    guard CommandLine.argc > 0,
+          CommandLine.arguments.contains("--tuist-dump")
     else { return }
     let encoder = JSONEncoder()
     // swiftlint:disable:next force_try
