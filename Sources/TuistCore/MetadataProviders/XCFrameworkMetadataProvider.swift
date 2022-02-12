@@ -117,9 +117,11 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
         return try path(for: library, binaryName: binaryName, xcframeworkPath: xcframeworkPath)
     }
 
-    private func path(for library: XCFrameworkInfoPlist.Library, binaryName: String,
-                      xcframeworkPath: AbsolutePath) throws -> AbsolutePath
-    {
+    private func path(
+        for library: XCFrameworkInfoPlist.Library,
+        binaryName: String,
+        xcframeworkPath: AbsolutePath
+    ) throws -> AbsolutePath {
         let binaryPath: AbsolutePath
 
         switch library.path.extension {

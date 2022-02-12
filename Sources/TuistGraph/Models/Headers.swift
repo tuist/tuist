@@ -11,10 +11,11 @@ public struct Headers: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(public: [AbsolutePath],
-                private: [AbsolutePath],
-                project: [AbsolutePath])
-    {
+    public init(
+        public: [AbsolutePath],
+        private: [AbsolutePath],
+        project: [AbsolutePath]
+    ) {
         self.public = `public`
         self.private = `private`
         self.project = project

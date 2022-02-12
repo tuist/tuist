@@ -12,9 +12,10 @@ public struct FileListGlob: Codable, Equatable {
     /// - Parameters:
     ///   - glob: Glob pattern to files
     ///   - excluding: Glob pattern used for filtering out files.
-    public static func glob(_ glob: Path,
-                            excluding: [Path] = []) -> FileListGlob
-    {
+    public static func glob(
+        _ glob: Path,
+        excluding: [Path] = []
+    ) -> FileListGlob {
         .init(glob, excluding: excluding)
     }
 
@@ -22,22 +23,25 @@ public struct FileListGlob: Codable, Equatable {
     /// - Parameters:
     ///   - glob: Glob pattern to files
     ///   - excluding: Glob pattern used for filtering out files.
-    private init(_ glob: Path,
-                 excluding: [Path] = [])
-    {
+    private init(
+        _ glob: Path,
+        excluding: [Path] = []
+    ) {
         self.glob = glob
         self.excluding = excluding
     }
 
-    public static func glob(_ glob: Path,
-                            excluding: Path?) -> FileListGlob
-    {
+    public static func glob(
+        _ glob: Path,
+        excluding: Path?
+    ) -> FileListGlob {
         .init(glob, excluding: excluding)
     }
 
-    private init(_ glob: Path,
-                 excluding: Path?)
-    {
+    private init(
+        _ glob: Path,
+        excluding: Path?
+    ) {
         let paths: [Path] = excluding.flatMap { [$0] } ?? []
         self.init(glob, excluding: paths)
     }

@@ -21,11 +21,12 @@ struct NodeStyleAttributes {
     let strokeWidth: Double?
     let shape: GraphViz.Node.Shape?
 
-    init(fillColorName: GraphViz.Color.Name? = nil,
-         textColorName: GraphViz.Color.Name? = nil,
-         strokeWidth: Double? = nil,
-         shape: GraphViz.Node.Shape? = nil)
-    {
+    init(
+        fillColorName: GraphViz.Color.Name? = nil,
+        textColorName: GraphViz.Color.Name? = nil,
+        strokeWidth: Double? = nil,
+        shape: GraphViz.Node.Shape? = nil
+    ) {
         fillColor = fillColorName.map { GraphViz.Color.named($0) }
         textColor = textColorName.map { GraphViz.Color.named($0) }
         self.strokeWidth = strokeWidth

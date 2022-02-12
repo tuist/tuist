@@ -10,10 +10,11 @@ extension XCFrameworkInfoPlist {
 }
 
 extension XCFrameworkInfoPlist.Library {
-    public static func test(identifier: String = "test",
-                            path: RelativePath = RelativePath("relative/to/library"),
-                            architectures: [BinaryArchitecture] = [.i386]) -> XCFrameworkInfoPlist.Library
-    {
+    public static func test(
+        identifier: String = "test",
+        path: RelativePath = RelativePath("relative/to/library"),
+        architectures: [BinaryArchitecture] = [.i386]
+    ) -> XCFrameworkInfoPlist.Library {
         XCFrameworkInfoPlist.Library(
             identifier: identifier,
             path: path,

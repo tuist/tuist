@@ -94,10 +94,11 @@ public final class System: Systeming {
         try capture(arguments, verbose: false, environment: env)
     }
 
-    public func capture(_ arguments: [String],
-                        verbose: Bool,
-                        environment: [String: String]) throws -> String
-    {
+    public func capture(
+        _ arguments: [String],
+        verbose: Bool,
+        environment: [String: String]
+    ) throws -> String {
         let process = Process(
             arguments: arguments,
             environment: environment,
@@ -123,10 +124,11 @@ public final class System: Systeming {
         try runAndPrint(arguments, verbose: false, environment: env)
     }
 
-    public func runAndPrint(_ arguments: [String],
-                            verbose: Bool,
-                            environment: [String: String]) throws
-    {
+    public func runAndPrint(
+        _ arguments: [String],
+        verbose: Bool,
+        environment: [String: String]
+    ) throws {
         try runAndPrint(
             arguments,
             verbose: verbose,
@@ -184,9 +186,10 @@ public final class System: Systeming {
     ///   - arguments: Arguments for the process, first item being the executable URL.
     ///   - environment: Environment
     /// - Returns: A `Foundation.Process`
-    static func process(_ arguments: [String],
-                        environment: [String: String]) -> Foundation.Process
-    {
+    static func process(
+        _ arguments: [String],
+        environment: [String: String]
+    ) -> Foundation.Process {
         let executablePath = arguments.first!
         let process = Foundation.Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
@@ -201,9 +204,10 @@ public final class System: Systeming {
     ///   - processTwo: Second Process
     /// - Returns: The pipe
     @discardableResult
-    static func pipe(_ processOne: inout Foundation.Process,
-                     _ processTwo: inout Foundation.Process) -> Pipe
-    {
+    static func pipe(
+        _ processOne: inout Foundation.Process,
+        _ processTwo: inout Foundation.Process
+    ) -> Pipe {
         let processPipe = Pipe()
 
         processOne.standardOutput = processPipe
@@ -233,11 +237,12 @@ public final class System: Systeming {
         try localFileSystem.chmod(mode, path: path, options: options)
     }
 
-    private func runAndPrint(_ arguments: [String],
-                             verbose: Bool,
-                             environment: [String: String],
-                             redirection: TSCBasic.Process.OutputRedirection) throws
-    {
+    private func runAndPrint(
+        _ arguments: [String],
+        verbose: Bool,
+        environment: [String: String],
+        redirection: TSCBasic.Process.OutputRedirection
+    ) throws {
         let process = Process(
             arguments: arguments,
             environment: environment,
@@ -263,9 +268,11 @@ public final class System: Systeming {
         try result.throwIfErrored()
     }
 
-    public func publisher(_ arguments: [String], verbose: Bool,
-                          environment: [String: String]) -> AnyPublisher<SystemEvent<Data>, Error>
-    {
+    public func publisher(
+        _ arguments: [String],
+        verbose: Bool,
+        environment: [String: String]
+    ) -> AnyPublisher<SystemEvent<Data>, Error> {
         .create { subscriber in
             let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
             var errorData: [UInt8] = []
@@ -314,10 +321,11 @@ public final class System: Systeming {
         }
     }
 
-    private func publisher(_ arguments: [String],
-                           environment: [String: String],
-                           pipeTo secondArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error>
-    {
+    private func publisher(
+        _ arguments: [String],
+        environment: [String: String],
+        pipeTo secondArguments: [String]
+    ) -> AnyPublisher<SystemEvent<Data>, Error> {
         .create { subscriber in
             let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
             var errorData: [UInt8] = []

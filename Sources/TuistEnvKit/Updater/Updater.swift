@@ -15,11 +15,12 @@ final class Updater: Updating {
 
     // MARK: - Init
 
-    init(versionsController: VersionsControlling = VersionsController(),
-         installer: Installing = Installer(),
-         envInstaller: EnvInstalling = EnvInstaller(),
-         versionProvider: VersionProviding = VersionProvider())
-    {
+    init(
+        versionsController: VersionsControlling = VersionsController(),
+        installer: Installing = Installer(),
+        envInstaller: EnvInstalling = EnvInstaller(),
+        versionProvider: VersionProviding = VersionProvider()
+    ) {
         self.versionsController = versionsController
         self.installer = installer
         self.envInstaller = envInstaller

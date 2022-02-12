@@ -455,11 +455,12 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     // MARK: - Assertions
 
-    private func assertTarget(_ target: String = "AppTarget",
-                              expectedConfigurations: Set<String>,
-                              file: StaticString = #file,
-                              line: UInt = #line)
-    {
+    private func assertTarget(
+        _ target: String = "AppTarget",
+        expectedConfigurations: Set<String>,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let proj: XcodeProj
         do {
             proj = try loadXcodeProj("App/App.xcodeproj")
@@ -477,10 +478,11 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         XCTAssertEqual(configurationNames, expectedConfigurations, file: file, line: line)
     }
 
-    private func assertProject(expectedConfigurations: Set<String>,
-                               file: StaticString = #file,
-                               line: UInt = #line)
-    {
+    private func assertProject(
+        expectedConfigurations: Set<String>,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let proj: XcodeProj
         let rootProject: PBXProject?
         do {

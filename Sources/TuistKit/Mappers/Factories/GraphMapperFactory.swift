@@ -17,11 +17,13 @@ protocol GraphMapperFactorying {
     /// Returns the graph mapper for generating focused projects where some targets are pruned from the graph
     /// and others are replaced with their binary counterparts.
     /// - Returns: A graph mapper.
-    func focus(config: Config,
-               cache: Bool,
-               cacheSources: Set<String>,
-               cacheProfile: TuistGraph.Cache.Profile,
-               cacheOutputType: CacheOutputType) -> [GraphMapping]
+    func focus(
+        config: Config,
+        cache: Bool,
+        cacheSources: Set<String>,
+        cacheProfile: TuistGraph.Cache.Profile,
+        cacheOutputType: CacheOutputType
+    ) -> [GraphMapping]
 
     /// Returns the graph mapper whose output project is a cacheable graph.
     /// - Returns: A graph mapper.
@@ -49,12 +51,13 @@ final class GraphMapperFactory: GraphMapperFactorying {
         return mappers
     }
 
-    func focus(config: Config,
-               cache: Bool,
-               cacheSources: Set<String>,
-               cacheProfile: TuistGraph.Cache.Profile,
-               cacheOutputType: CacheOutputType) -> [GraphMapping]
-    {
+    func focus(
+        config: Config,
+        cache: Bool,
+        cacheSources: Set<String>,
+        cacheProfile: TuistGraph.Cache.Profile,
+        cacheOutputType: CacheOutputType
+    ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(FocusTargetsGraphMappers(includedTargets: cacheSources))
         mappers.append(TreeShakePrunedTargetsGraphMapper())

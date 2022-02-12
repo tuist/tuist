@@ -10,9 +10,10 @@ extension TuistGraph.Configuration {
     /// - Parameters:
     ///   - manifest: Manifest representation of configuration.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Configuration?,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.Configuration?
-    {
+    static func from(
+        manifest: ProjectDescription.Configuration?,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.Configuration? {
         guard let manifest = manifest else { return nil }
         let settings = manifest.settings.mapValues(TuistGraph.SettingValue.from)
         let xcconfig = try manifest.xcconfig.flatMap { try generatorPaths.resolve(path: $0) }

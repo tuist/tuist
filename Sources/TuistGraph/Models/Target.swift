@@ -44,30 +44,31 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 
     // MARK: - Init
 
-    public init(name: String,
-                platform: Platform,
-                product: Product,
-                productName: String?,
-                bundleId: String,
-                deploymentTarget: DeploymentTarget? = nil,
-                infoPlist: InfoPlist? = nil,
-                entitlements: AbsolutePath? = nil,
-                settings: Settings? = nil,
-                sources: [SourceFile] = [],
-                resources: [ResourceFileElement] = [],
-                copyFiles: [CopyFilesAction] = [],
-                headers: Headers? = nil,
-                coreDataModels: [CoreDataModel] = [],
-                scripts: [TargetScript] = [],
-                environment: [String: String] = [:],
-                launchArguments: [LaunchArgument] = [],
-                filesGroup: ProjectGroup,
-                dependencies: [TargetDependency] = [],
-                rawScriptBuildPhases: [RawScriptBuildPhase] = [],
-                playgrounds: [AbsolutePath] = [],
-                additionalFiles: [FileElement] = [],
-                prune: Bool = false)
-    {
+    public init(
+        name: String,
+        platform: Platform,
+        product: Product,
+        productName: String?,
+        bundleId: String,
+        deploymentTarget: DeploymentTarget? = nil,
+        infoPlist: InfoPlist? = nil,
+        entitlements: AbsolutePath? = nil,
+        settings: Settings? = nil,
+        sources: [SourceFile] = [],
+        resources: [ResourceFileElement] = [],
+        copyFiles: [CopyFilesAction] = [],
+        headers: Headers? = nil,
+        coreDataModels: [CoreDataModel] = [],
+        scripts: [TargetScript] = [],
+        environment: [String: String] = [:],
+        launchArguments: [LaunchArgument] = [],
+        filesGroup: ProjectGroup,
+        dependencies: [TargetDependency] = [],
+        rawScriptBuildPhases: [RawScriptBuildPhase] = [],
+        playgrounds: [AbsolutePath] = [],
+        additionalFiles: [FileElement] = [],
+        prune: Bool = false
+    ) {
         self.name = name
         self.product = product
         self.platform = platform

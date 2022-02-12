@@ -12,19 +12,22 @@ public protocol TemplateGenerating {
     ///     - template: Template we are generating
     ///     - destinationPath: Path of directory where files should be generated to
     ///     - attributes: Attributes from user input
-    func generate(template: Template,
-                  to destinationPath: AbsolutePath,
-                  attributes: [String: String]) throws
+    func generate(
+        template: Template,
+        to destinationPath: AbsolutePath,
+        attributes: [String: String]
+    ) throws
 }
 
 public final class TemplateGenerator: TemplateGenerating {
     // Public initializer
     public init() {}
 
-    public func generate(template: Template,
-                         to destinationPath: AbsolutePath,
-                         attributes: [String: String]) throws
-    {
+    public func generate(
+        template: Template,
+        to destinationPath: AbsolutePath,
+        attributes: [String: String]
+    ) throws {
         let renderedItems = renderItems(
             template: template,
             attributes: attributes
@@ -44,9 +47,10 @@ public final class TemplateGenerator: TemplateGenerating {
     // MARK: - Helpers
 
     /// Renders items' paths in format  path_to_dir/{{ attribute_name }} with `attributes`
-    private func renderItems(template: Template,
-                             attributes: [String: String]) -> [Template.Item]
-    {
+    private func renderItems(
+        template: Template,
+        attributes: [String: String]
+    ) -> [Template.Item] {
         attributes.reduce(template.items) { items, attribute in
             items.map {
                 let path = RelativePath(
@@ -80,9 +84,10 @@ public final class TemplateGenerator: TemplateGenerating {
     }
 
     /// Generate all necessary directories
-    private func generateDirectories(renderedItems: [Template.Item],
-                                     destinationPath: AbsolutePath) throws
-    {
+    private func generateDirectories(
+        renderedItems: [Template.Item],
+        destinationPath: AbsolutePath
+    ) throws {
         try renderedItems
             .map(\.path)
             .map {
@@ -95,10 +100,11 @@ public final class TemplateGenerator: TemplateGenerating {
     }
 
     /// Generate all `renderedItems`
-    private func generateItems(renderedItems: [Template.Item],
-                               attributes: [String: String],
-                               destinationPath: AbsolutePath) throws
-    {
+    private func generateItems(
+        renderedItems: [Template.Item],
+        attributes: [String: String],
+        destinationPath: AbsolutePath
+    ) throws {
         let environment = stencilSwiftEnvironment()
         try renderedItems.forEach {
             let renderedContents: String?

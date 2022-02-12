@@ -51,9 +51,10 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
     // MARK: - Init
 
-    convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
-                     config: Config = .default)
-    {
+    convenience init(
+        defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
+        config: Config = .default
+    ) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectDescriptorGenerator = ProjectDescriptorGenerator(
@@ -69,12 +70,13 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         )
     }
 
-    init(projectDescriptorGenerator: ProjectDescriptorGenerating,
-         workspaceStructureGenerator: WorkspaceStructureGenerating,
-         schemeDescriptorsGenerator: SchemeDescriptorsGenerating,
-         workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerating,
-         config: Config = .default)
-    {
+    init(
+        projectDescriptorGenerator: ProjectDescriptorGenerating,
+        workspaceStructureGenerator: WorkspaceStructureGenerating,
+        schemeDescriptorsGenerator: SchemeDescriptorsGenerating,
+        workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerating,
+        config: Config = .default
+    ) {
         self.projectDescriptorGenerator = projectDescriptorGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
@@ -208,10 +210,11 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         }
     }
 
-    private func recursiveChildElement(generatedProjects: [AbsolutePath: GeneratedProject],
-                                       element: WorkspaceStructure.Element,
-                                       path: AbsolutePath) throws -> XCWorkspaceDataElement
-    {
+    private func recursiveChildElement(
+        generatedProjects: [AbsolutePath: GeneratedProject],
+        element: WorkspaceStructure.Element,
+        path: AbsolutePath
+    ) throws -> XCWorkspaceDataElement {
         switch element {
         case let .file(path: filePath):
             return workspaceFileElement(path: filePath.relative(to: path))

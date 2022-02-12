@@ -100,9 +100,8 @@ extension ScaffoldCommand {
 
     /// We do not know template's option in advance -> we need to dynamically add them
     static func preprocess(_ arguments: [String]? = nil) throws {
-        guard
-            let arguments = arguments,
-            arguments.count >= 2
+        guard let arguments = arguments,
+              arguments.count >= 2
         else { throw ScaffoldCommandError.templateNotProvided }
         guard !configuration.subcommands.contains(where: { $0.configuration.commandName == arguments[1] }) else { return }
         // We want to parse only the name of template, not its arguments which will be dynamically added

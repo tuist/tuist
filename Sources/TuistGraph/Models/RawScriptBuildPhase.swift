@@ -24,12 +24,13 @@ public struct RawScriptBuildPhase: Equatable, Codable {
     /// - Parameter showEnvVarsInLog: Whether we want the build phase to show the environment variables in the logs.
     /// - Parameter hashable: Whether the script should be hashed for caching purposes.
     /// - Parameter shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    public init(name: String,
-                script: String,
-                showEnvVarsInLog: Bool,
-                hashable: Bool,
-                shellPath: String = "/bin/sh")
-    {
+    public init(
+        name: String,
+        script: String,
+        showEnvVarsInLog: Bool,
+        hashable: Bool,
+        shellPath: String = "/bin/sh"
+    ) {
         self.name = name
         self.script = script
         self.showEnvVarsInLog = showEnvVarsInLog

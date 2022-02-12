@@ -18,10 +18,11 @@ class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {
         )
     }
 
-    public init(config: Cloud,
-                resourceFactory: CloudAnalyticsResourceFactorying,
-                client: CloudClienting)
-    {
+    public init(
+        config: Cloud,
+        resourceFactory: CloudAnalyticsResourceFactorying,
+        client: CloudClienting
+    ) {
         self.config = config
         self.resourceFactory = resourceFactory
         self.client = client

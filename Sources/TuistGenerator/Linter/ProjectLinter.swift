@@ -18,11 +18,12 @@ class ProjectLinter: ProjectLinting {
 
     // MARK: - Init
 
-    init(targetLinter: TargetLinting = TargetLinter(),
-         settingsLinter: SettingsLinting = SettingsLinter(),
-         schemeLinter: SchemeLinting = SchemeLinter(),
-         packageLinter: PackageLinting = PackageLinter())
-    {
+    init(
+        targetLinter: TargetLinting = TargetLinter(),
+        settingsLinter: SettingsLinting = SettingsLinter(),
+        schemeLinter: SchemeLinting = SchemeLinter(),
+        packageLinter: PackageLinting = PackageLinter()
+    ) {
         self.targetLinter = targetLinter
         self.settingsLinter = settingsLinter
         self.schemeLinter = schemeLinter

@@ -62,9 +62,11 @@ public struct Configuration: Equatable, Codable {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A debug `CustomConfiguration`
-    public static func debug(name: ConfigurationName, settings: SettingsDictionary = [:],
-                             xcconfig: Path? = nil) -> Configuration
-    {
+    public static func debug(
+        name: ConfigurationName,
+        settings: SettingsDictionary = [:],
+        xcconfig: Path? = nil
+    ) -> Configuration {
         Configuration(
             name: name,
             variant: .debug,
@@ -80,9 +82,11 @@ public struct Configuration: Equatable, Codable {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A release `CustomConfiguration`
-    public static func release(name: ConfigurationName, settings: SettingsDictionary = [:],
-                               xcconfig: Path? = nil) -> Configuration
-    {
+    public static func release(
+        name: ConfigurationName,
+        settings: SettingsDictionary = [:],
+        xcconfig: Path? = nil
+    ) -> Configuration {
         Configuration(
             name: name,
             variant: .release,

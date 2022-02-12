@@ -6,11 +6,12 @@ import XcodeProj
 @testable import TuistGenerator
 
 extension ProjectDescriptor {
-    public static func test(path: AbsolutePath = AbsolutePath("/Test"),
-                            xcodeprojPath: AbsolutePath? = nil,
-                            schemes: [SchemeDescriptor] = [],
-                            sideEffects: [SideEffectDescriptor] = []) -> ProjectDescriptor
-    {
+    public static func test(
+        path: AbsolutePath = AbsolutePath("/Test"),
+        xcodeprojPath: AbsolutePath? = nil,
+        schemes: [SchemeDescriptor] = [],
+        sideEffects: [SideEffectDescriptor] = []
+    ) -> ProjectDescriptor {
         let mainGroup = PBXGroup()
         let configurationList = XCConfigurationList()
         let pbxProject = PBXProject(

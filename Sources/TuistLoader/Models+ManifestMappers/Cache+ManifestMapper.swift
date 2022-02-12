@@ -24,9 +24,10 @@ enum CacheProfileError: FatalError, Equatable {
 }
 
 extension TuistGraph.Cache {
-    static func from(manifest: ProjectDescription.Cache,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.Cache
-    {
+    static func from(
+        manifest: ProjectDescription.Cache,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.Cache {
         let path = try manifest.path.map { try generatorPaths.resolve(path: $0) }
         let profiles = try manifest.profiles.map(TuistGraph.Cache.Profile.from(manifest:))
         return TuistGraph.Cache(profiles: profiles, path: path)

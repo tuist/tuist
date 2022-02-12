@@ -5,11 +5,17 @@ import TuistGraph
 import TuistSupport
 
 public protocol TargetContentHashing {
-    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String],
-                     hashedPaths: inout [AbsolutePath: String]) throws -> String
-    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String],
-                     hashedPaths: inout [AbsolutePath: String],
-                     additionalStrings: [String]) throws -> String
+    func contentHash(
+        for target: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String],
+        hashedPaths: inout [AbsolutePath: String]
+    ) throws -> String
+    func contentHash(
+        for target: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String],
+        hashedPaths: inout [AbsolutePath: String],
+        additionalStrings: [String]
+    ) throws -> String
 }
 
 /// `TargetContentHasher`

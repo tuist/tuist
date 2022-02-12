@@ -36,8 +36,7 @@ class TargetScriptLinter: TargetScriptLinting {
     /// - Parameter action: Action to be linted.
     /// - Returns: Found linting issues.
     private func lintToolExistence(_ script: TargetScript) -> [LintingIssue] {
-        guard
-            let tool = script.tool
+        guard let tool = script.tool
         else { return [] }
         do {
             _ = try System.shared.which(tool)
@@ -51,9 +50,8 @@ class TargetScriptLinter: TargetScriptLinting {
     }
 
     private func lintPathExistence(_ script: TargetScript) -> [LintingIssue] {
-        guard
-            let path = script.path,
-            !FileHandler.shared.exists(path)
+        guard let path = script.path,
+              !FileHandler.shared.exists(path)
         else { return [] }
         return [LintingIssue(
             reason: "The script path \(path.pathString) doesn't exist",

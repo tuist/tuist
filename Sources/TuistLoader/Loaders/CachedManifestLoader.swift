@@ -39,14 +39,15 @@ public class CachedManifestLoader: ManifestLoading {
         )
     }
 
-    init(manifestLoader: ManifestLoading,
-         projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing,
-         helpersDirectoryLocator: HelpersDirectoryLocating,
-         fileHandler: FileHandling,
-         environment: Environmenting,
-         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
-         tuistVersion: String)
-    {
+    init(
+        manifestLoader: ManifestLoading,
+        projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing,
+        helpersDirectoryLocator: HelpersDirectoryLocating,
+        fileHandler: FileHandling,
+        environment: Environmenting,
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
+        tuistVersion: String
+    ) {
         self.manifestLoader = manifestLoader
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.helpersDirectoryLocator = helpersDirectoryLocator
@@ -145,10 +146,11 @@ public class CachedManifestLoader: ManifestLoading {
         return loadedManifest
     }
 
-    private func calculateHashes(path: AbsolutePath,
-                                 manifestPath: AbsolutePath,
-                                 manifest: Manifest) throws -> Hashes
-    {
+    private func calculateHashes(
+        path: AbsolutePath,
+        manifestPath: AbsolutePath,
+        manifest: Manifest
+    ) throws -> Hashes {
         let manifestHash = try calculateManifestHash(for: manifest, at: manifestPath)
         let helpersHash = try calculateHelpersHash(at: path)
         let environmentHash = calculateEnvironmentHash()
@@ -205,9 +207,10 @@ public class CachedManifestLoader: ManifestLoading {
         return cacheDirectory.appending(component: fileName)
     }
 
-    private func loadCachedManifest<T: Decodable>(at cachedManifestPath: AbsolutePath,
-                                                  hashes: Hashes) -> T?
-    {
+    private func loadCachedManifest<T: Decodable>(
+        at cachedManifestPath: AbsolutePath,
+        hashes: Hashes
+    ) -> T? {
         guard fileHandler.exists(cachedManifestPath) else {
             return nil
         }
@@ -230,11 +233,12 @@ public class CachedManifestLoader: ManifestLoading {
         return try? decoder.decode(T.self, from: cachedManifest.manifest)
     }
 
-    private func cacheManifest<T: Encodable>(manifest: Manifest,
-                                             loadedManifest: T,
-                                             hashes: Hashes,
-                                             to cachedManifestPath: AbsolutePath) throws
-    {
+    private func cacheManifest<T: Encodable>(
+        manifest: Manifest,
+        loadedManifest: T,
+        hashes: Hashes,
+        to cachedManifestPath: AbsolutePath
+    ) throws {
         let cachedManifest = CachedManifest(
             tuistVersion: tuistVersion,
             hashes: hashes,

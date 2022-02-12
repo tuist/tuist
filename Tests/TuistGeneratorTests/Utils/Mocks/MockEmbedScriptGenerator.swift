@@ -9,10 +9,11 @@ final class MockEmbedScriptGenerator: EmbedScriptGenerating {
     var scriptArgs: [(AbsolutePath, [GraphDependencyReference], Bool)] = []
     var scriptStub: Result<EmbedScript, Error>?
 
-    func script(sourceRootPath: AbsolutePath,
-                frameworkReferences: [GraphDependencyReference],
-                includeSymbolsInFileLists: Bool) throws -> EmbedScript
-    {
+    func script(
+        sourceRootPath: AbsolutePath,
+        frameworkReferences: [GraphDependencyReference],
+        includeSymbolsInFileLists: Bool
+    ) throws -> EmbedScript {
         scriptArgs.append((sourceRootPath, frameworkReferences, includeSymbolsInFileLists))
         if let scriptStub = scriptStub {
             switch scriptStub {

@@ -18,12 +18,13 @@ final class MockGeneratorFactory: GeneratorFactorying {
         [(config: Config, sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)]()
     var stubbedFocusResult: Generating!
 
-    func focus(config: Config,
-               sources: Set<String>,
-               xcframeworks: Bool,
-               cacheProfile: TuistGraph.Cache.Profile,
-               ignoreCache: Bool) -> Generating
-    {
+    func focus(
+        config: Config,
+        sources: Set<String>,
+        xcframeworks: Bool,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool
+    ) -> Generating {
         invokedFocus = true
         invokedFocusCount += 1
         invokedFocusParameters = (config, sources, xcframeworks, cacheProfile, ignoreCache)

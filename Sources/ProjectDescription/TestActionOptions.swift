@@ -14,11 +14,12 @@ public struct TestActionOptions: Equatable, Codable {
     /// List of targets for which Xcode will collect the coverage results.
     public let codeCoverageTargets: [TargetReference]
 
-    init(language: SchemeLanguage?,
-         region: String?,
-         coverage: Bool,
-         codeCoverageTargets: [TargetReference])
-    {
+    init(
+        language: SchemeLanguage?,
+        region: String?,
+        coverage: Bool,
+        codeCoverageTargets: [TargetReference]
+    ) {
         self.language = language
         self.region = region
         self.coverage = coverage
@@ -32,11 +33,12 @@ public struct TestActionOptions: Equatable, Codable {
     ///   - coverage: Whether test coverage should be collected.
     ///   - codeCoverageTargets: List of tests whose code coverage information should be collected.
     /// - Returns: Initialized set of options.
-    public static func options(language: SchemeLanguage? = nil,
-                               region: String? = nil,
-                               coverage: Bool = false,
-                               codeCoverageTargets: [TargetReference] = []) -> TestActionOptions
-    {
+    public static func options(
+        language: SchemeLanguage? = nil,
+        region: String? = nil,
+        coverage: Bool = false,
+        codeCoverageTargets: [TargetReference] = []
+    ) -> TestActionOptions {
         TestActionOptions(
             language: language,
             region: region,

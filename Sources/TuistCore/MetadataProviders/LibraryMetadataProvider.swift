@@ -36,9 +36,11 @@ enum LibraryMetadataProviderError: FatalError, Equatable {
 public protocol LibraryMetadataProviding: PrecompiledMetadataProviding {
     /// Loads all the metadata associated with a library (.a / .dylib) at the specified path
     /// - Note: This performs various shell calls and disk operations
-    func loadMetadata(at path: AbsolutePath,
-                      publicHeaders: AbsolutePath,
-                      swiftModuleMap: AbsolutePath?) throws -> LibraryMetadata
+    func loadMetadata(
+        at path: AbsolutePath,
+        publicHeaders: AbsolutePath,
+        swiftModuleMap: AbsolutePath?
+    ) throws -> LibraryMetadata
 }
 
 // MARK: - Default Implementation
@@ -48,10 +50,11 @@ public final class LibraryMetadataProvider: PrecompiledMetadataProvider, Library
         super.init()
     }
 
-    public func loadMetadata(at path: AbsolutePath,
-                             publicHeaders: AbsolutePath,
-                             swiftModuleMap: AbsolutePath?) throws -> LibraryMetadata
-    {
+    public func loadMetadata(
+        at path: AbsolutePath,
+        publicHeaders: AbsolutePath,
+        swiftModuleMap: AbsolutePath?
+    ) throws -> LibraryMetadata {
         let fileHandler = FileHandler.shared
         guard fileHandler.exists(path) else {
             throw LibraryMetadataProviderError.libraryNotFound(path)

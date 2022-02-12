@@ -16,9 +16,11 @@ protocol SchemeDescriptorsGenerating {
     ///   - generatedProject: Generated Xcode project.
     ///   - graphTraverser: Graph traverser.
     /// - Throws: A FatalError if the generation of the schemes fails.
-    func generateWorkspaceSchemes(workspace: Workspace,
-                                  generatedProjects: [AbsolutePath: GeneratedProject],
-                                  graphTraverser: GraphTraversing) throws -> [SchemeDescriptor]
+    func generateWorkspaceSchemes(
+        workspace: Workspace,
+        generatedProjects: [AbsolutePath: GeneratedProject],
+        graphTraverser: GraphTraversing
+    ) throws -> [SchemeDescriptor]
 
     /// Generates the schemes for the project targets.
     ///
@@ -28,9 +30,11 @@ protocol SchemeDescriptorsGenerating {
     ///   - generatedProject: Generated Xcode project.
     ///   - graphTraverser: Graph traverser.
     /// - Throws: A FatalError if the generation of the schemes fails.
-    func generateProjectSchemes(project: Project,
-                                generatedProject: GeneratedProject,
-                                graphTraverser: GraphTraversing) throws -> [SchemeDescriptor]
+    func generateProjectSchemes(
+        project: Project,
+        generatedProject: GeneratedProject,
+        graphTraverser: GraphTraversing
+    ) throws -> [SchemeDescriptor]
 }
 
 // swiftlint:disable:next type_body_length
@@ -65,10 +69,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
     }
 
-    func generateWorkspaceSchemes(workspace: Workspace,
-                                  generatedProjects: [AbsolutePath: GeneratedProject],
-                                  graphTraverser: GraphTraversing) throws -> [SchemeDescriptor]
-    {
+    func generateWorkspaceSchemes(
+        workspace: Workspace,
+        generatedProjects: [AbsolutePath: GeneratedProject],
+        graphTraverser: GraphTraversing
+    ) throws -> [SchemeDescriptor] {
         let schemes = try workspace.schemes.map { scheme in
             try generateScheme(
                 scheme: scheme,
@@ -82,10 +87,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         return schemes
     }
 
-    func generateProjectSchemes(project: Project,
-                                generatedProject: GeneratedProject,
-                                graphTraverser: GraphTraversing) throws -> [SchemeDescriptor]
-    {
+    func generateProjectSchemes(
+        project: Project,
+        generatedProject: GeneratedProject,
+        graphTraverser: GraphTraversing
+    ) throws -> [SchemeDescriptor] {
         try project.schemes.map { scheme in
             try generateScheme(
                 scheme: scheme,
@@ -120,12 +126,13 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///     - graphTraverser: Graph traverser.
     ///     - generatedProjects: Project paths mapped to generated projects.
     // swiftlint:disable:next function_body_length
-    private func generateScheme(scheme: Scheme,
-                                path: AbsolutePath,
-                                graphTraverser: GraphTraversing,
-                                generatedProjects: [AbsolutePath: GeneratedProject],
-                                lastUpgradeCheck: Version?) throws -> SchemeDescriptor
-    {
+    private func generateScheme(
+        scheme: Scheme,
+        path: AbsolutePath,
+        graphTraverser: GraphTraversing,
+        generatedProjects: [AbsolutePath: GeneratedProject],
+        lastUpgradeCheck: Version?
+    ) throws -> SchemeDescriptor {
         let generatedBuildAction = try schemeBuildAction(
             scheme: scheme,
             graphTraverser: graphTraverser,
@@ -191,11 +198,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - rootPath: Path to the project or workspace.
     ///   - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme build action.
-    func schemeBuildAction(scheme: Scheme,
-                           graphTraverser: GraphTraversing,
-                           rootPath: AbsolutePath,
-                           generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.BuildAction?
-    {
+    func schemeBuildAction(
+        scheme: Scheme,
+        graphTraverser: GraphTraversing,
+        rootPath: AbsolutePath,
+        generatedProjects: [AbsolutePath: GeneratedProject]
+    ) throws -> XCScheme.BuildAction? {
         guard let buildAction = scheme.buildAction else { return nil }
 
         let buildFor: [XCScheme.BuildAction.Entry.BuildFor] = [
@@ -207,11 +215,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         var postActions: [XCScheme.ExecutionAction] = []
 
         try buildAction.targets.forEach { buildActionTarget in
-            guard
-                let buildActionGraphTarget = graphTraverser.target(
-                    path: buildActionTarget.projectPath,
-                    name: buildActionTarget.name
-                ),
+            guard let buildActionGraphTarget = graphTraverser.target(
+                path: buildActionTarget.projectPath,
+                name: buildActionTarget.name
+            ),
                 let buildableReference = try createBuildableReference(
                     graphTarget: buildActionGraphTarget,
                     graphTraverser: graphTraverser,
@@ -261,11 +268,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme test action.
     // swiftlint:disable:next function_body_length
-    func schemeTestAction(scheme: Scheme,
-                          graphTraverser: GraphTraversing,
-                          rootPath: AbsolutePath,
-                          generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.TestAction?
-    {
+    func schemeTestAction(
+        scheme: Scheme,
+        graphTraverser: GraphTraversing,
+        rootPath: AbsolutePath,
+        generatedProjects: [AbsolutePath: GeneratedProject]
+    ) throws -> XCScheme.TestAction? {
         // Use empty action if nil, otherwise Xcode will create it anyway
         let testAction = scheme.testAction ?? .empty(
             withConfigurationName: scheme.runAction?.configurationName ?? BuildConfiguration.debug.name
@@ -283,11 +291,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
 
         try testAction.targets.forEach { testableTarget in
-            guard
-                let testableGraphTarget = graphTraverser.target(
-                    path: testableTarget.target.projectPath,
-                    name: testableTarget.target.name
-                ),
+            guard let testableGraphTarget = graphTraverser.target(
+                path: testableTarget.target.projectPath,
+                name: testableTarget.target.name
+            ),
                 let reference = try createBuildableReference(
                     graphTarget: testableGraphTarget,
                     graphTraverser: graphTraverser,
@@ -340,11 +347,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         var macroExpansion: XCScheme.BuildableReference?
         if let expandVariableFromTarget = testAction.expandVariableFromTarget {
-            guard
-                let graphTarget = graphTraverser.target(
-                    path: expandVariableFromTarget.projectPath,
-                    name: expandVariableFromTarget.name
-                )
+            guard let graphTarget = graphTraverser.target(
+                path: expandVariableFromTarget.projectPath,
+                name: expandVariableFromTarget.name
+            )
             else {
                 return nil
             }
@@ -392,11 +398,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme launch action.
     // swiftlint:disable:next function_body_length
-    func schemeLaunchAction(scheme: Scheme,
-                            graphTraverser: GraphTraversing,
-                            rootPath: AbsolutePath,
-                            generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.LaunchAction?
-    {
+    func schemeLaunchAction(
+        scheme: Scheme,
+        graphTraverser: GraphTraversing,
+        rootPath: AbsolutePath,
+        generatedProjects: [AbsolutePath: GeneratedProject]
+    ) throws -> XCScheme.LaunchAction? {
         let specifiedExecutableTarget = scheme.runAction?.executable
         let defaultTarget = defaultTargetReference(scheme: scheme)
         guard let target = specifiedExecutableTarget ?? defaultTarget else { return nil }
@@ -458,9 +465,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
 
-        if
-            let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath,
-            let graphTarget = graphTarget
+        if let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath,
+           let graphTarget = graphTarget
         {
             // the identifier is the relative path between the storekit file, and the xcode project
             let fileRelativePath = storeKitFilePath.relative(to: graphTarget.project.xcodeProjPath)
@@ -611,11 +617,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///     - rootPath: Root path to either project or workspace.
     ///     - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme analyze action.
-    func schemeAnalyzeAction(scheme: Scheme,
-                             graphTraverser: GraphTraversing,
-                             rootPath _: AbsolutePath,
-                             generatedProjects _: [AbsolutePath: GeneratedProject]) throws -> XCScheme.AnalyzeAction?
-    {
+    func schemeAnalyzeAction(
+        scheme: Scheme,
+        graphTraverser: GraphTraversing,
+        rootPath _: AbsolutePath,
+        generatedProjects _: [AbsolutePath: GeneratedProject]
+    ) throws -> XCScheme.AnalyzeAction? {
         guard let target = defaultTargetReference(scheme: scheme),
               let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name) else { return nil }
 
@@ -631,11 +638,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///     - rootPath: Root path to either project or workspace.
     ///     - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme archive action.
-    func schemeArchiveAction(scheme: Scheme,
-                             graphTraverser: GraphTraversing,
-                             rootPath: AbsolutePath,
-                             generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ArchiveAction?
-    {
+    func schemeArchiveAction(
+        scheme: Scheme,
+        graphTraverser: GraphTraversing,
+        rootPath: AbsolutePath,
+        generatedProjects: [AbsolutePath: GeneratedProject]
+    ) throws -> XCScheme.ArchiveAction? {
         guard let target = defaultTargetReference(scheme: scheme),
               let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name) else { return nil }
 
@@ -676,9 +684,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         generatedProjects: [AbsolutePath: GeneratedProject],
         rootPath: AbsolutePath
     ) throws -> XCScheme.ExecutionAction {
-        guard
-            let targetReference = action.target,
-            let graphTarget = graphTraverser.target(path: targetReference.projectPath, name: targetReference.name)
+        guard let targetReference = action.target,
+              let graphTarget = graphTraverser.target(path: targetReference.projectPath, name: targetReference.name)
         else {
             return XCScheme.ExecutionAction(
                 scriptText: action.scriptText,
@@ -703,10 +710,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
     // MARK: - Helpers
 
-    private func resolveRelativeProjectPath(graphTarget: GraphTarget,
-                                            generatedProject _: GeneratedProject,
-                                            rootPath: AbsolutePath) -> RelativePath
-    {
+    private func resolveRelativeProjectPath(
+        graphTarget: GraphTarget,
+        generatedProject _: GeneratedProject,
+        rootPath: AbsolutePath
+    ) -> RelativePath {
         let xcodeProjectPath = graphTarget.project.xcodeProjPath
         return xcodeProjectPath.relative(to: rootPath)
     }
@@ -751,11 +759,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - generatedProjects: Generated Xcode projects.
     ///   - rootPath: Root path to workspace or project.
     /// - Returns: Array of buildable references.
-    private func testCoverageTargetReferences(graphTarget: GraphTarget,
-                                              graphTraverser: GraphTraversing,
-                                              generatedProjects: [AbsolutePath: GeneratedProject],
-                                              rootPath: AbsolutePath) throws -> XCScheme.BuildableReference?
-    {
+    private func testCoverageTargetReferences(
+        graphTarget: GraphTarget,
+        graphTraverser: GraphTraversing,
+        generatedProjects: [AbsolutePath: GeneratedProject],
+        rootPath: AbsolutePath
+    ) throws -> XCScheme.BuildableReference? {
         try createBuildableReference(
             graphTarget: graphTarget,
             graphTraverser: graphTraverser,
@@ -818,10 +827,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - pbxTarget: Xcode native target.
     ///   - projectPath: Project name with the .xcodeproj extension.
     /// - Returns: Buildable reference.
-    private func targetBuildableReference(target: Target,
-                                          pbxTarget: PBXNativeTarget,
-                                          projectPath: String) -> XCScheme.BuildableReference
-    {
+    private func targetBuildableReference(
+        target: Target,
+        pbxTarget: PBXNativeTarget,
+        projectPath: String
+    ) -> XCScheme.BuildableReference {
         XCScheme.BuildableReference(
             referencedContainer: "container:\(projectPath)",
             blueprint: pbxTarget,

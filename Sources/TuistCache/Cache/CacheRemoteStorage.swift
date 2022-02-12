@@ -33,9 +33,11 @@ public final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - Init
 
-    public convenience init(cloudConfig: Cloud, cloudClient: CloudClienting,
-                            cacheDirectoriesProvider: CacheDirectoriesProviding)
-    {
+    public convenience init(
+        cloudConfig: Cloud,
+        cloudClient: CloudClienting,
+        cacheDirectoriesProvider: CacheDirectoriesProviding
+    ) {
         self.init(
             cloudClient: cloudClient,
             fileArchiverFactory: FileArchivingFactory(),
@@ -45,12 +47,13 @@ public final class CacheRemoteStorage: CacheStoring {
         )
     }
 
-    init(cloudClient: CloudClienting,
-         fileArchiverFactory: FileArchivingFactorying,
-         fileClient: FileClienting,
-         cloudCacheResourceFactory: CloudCacheResourceFactorying,
-         cacheDirectoriesProvider: CacheDirectoriesProviding)
-    {
+    init(
+        cloudClient: CloudClienting,
+        fileArchiverFactory: FileArchivingFactorying,
+        fileClient: FileClienting,
+        cloudCacheResourceFactory: CloudCacheResourceFactorying,
+        cacheDirectoriesProvider: CacheDirectoriesProviding
+    ) {
         self.cloudClient = cloudClient
         self.fileArchiverFactory = fileArchiverFactory
         self.fileClient = fileClient

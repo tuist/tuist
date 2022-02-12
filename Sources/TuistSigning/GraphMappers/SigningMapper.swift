@@ -17,10 +17,11 @@ public class SigningMapper: ProjectMapping {
         )
     }
 
-    init(signingFilesLocator: SigningFilesLocating,
-         signingMatcher: SigningMatching,
-         signingCipher: SigningCiphering)
-    {
+    init(
+        signingFilesLocator: SigningFilesLocating,
+        signingMatcher: SigningMatching,
+        signingCipher: SigningCiphering
+    ) {
         self.signingFilesLocator = signingFilesLocator
         self.signingMatcher = signingMatcher
         self.signingCipher = signingCipher
@@ -31,8 +32,7 @@ public class SigningMapper: ProjectMapping {
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         var project = project
         let path = project.path
-        guard
-            try signingFilesLocator.locateSigningDirectory(from: path) != nil
+        guard try signingFilesLocator.locateSigningDirectory(from: path) != nil
         else {
             logger.debug("No signing artifacts found")
             return (project, [])
@@ -61,12 +61,13 @@ public class SigningMapper: ProjectMapping {
 
     // MARK: - Helpers
 
-    private func map(target: Target,
-                     project: Project,
-                     keychainPath: AbsolutePath,
-                     certificates: [Fingerprint: Certificate],
-                     provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws -> Target
-    {
+    private func map(
+        target: Target,
+        project: Project,
+        keychainPath: AbsolutePath,
+        certificates: [Fingerprint: Certificate],
+        provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]
+    ) throws -> Target {
         var target = target
         let targetConfigurations = target.settings?.configurations ?? [:]
         let configurations: [BuildConfiguration: Configuration?] = targetConfigurations
@@ -75,9 +76,8 @@ public class SigningMapper: ProjectMapping {
                 uniquingKeysWith: { config, _ in config }
             )
             .reduce(into: [:]) { dict, configurationPair in
-                guard
-                    let provisioningProfile = provisioningProfiles[target.name]?[configurationPair.key.name],
-                    let certificate = certificates.first(for: provisioningProfile)
+                guard let provisioningProfile = provisioningProfiles[target.name]?[configurationPair.key.name],
+                      let certificate = certificates.first(for: provisioningProfile)
                 else {
                     dict[configurationPair.key] = configurationPair.value
                     return

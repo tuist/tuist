@@ -131,21 +131,20 @@ final class ScaffoldService {
     /// Parses all `attributes` from `template`
     /// If those attributes are optional, they default to `default` if not provided
     /// - Returns: Array of parsed attributes
-    private func parseAttributes(requiredTemplateOptions: [String: String],
-                                 optionalTemplateOptions: [String: String?],
-                                 template: Template) throws -> [String: String]
-    {
+    private func parseAttributes(
+        requiredTemplateOptions: [String: String],
+        optionalTemplateOptions: [String: String?],
+        template: Template
+    ) throws -> [String: String] {
         try template.attributes.reduce(into: [:]) { attributesDictionary, attribute in
             switch attribute {
             case let .required(name):
-                guard
-                    let option = requiredTemplateOptions[name]
+                guard let option = requiredTemplateOptions[name]
                 else { throw ScaffoldServiceError.attributeNotProvided(name) }
                 attributesDictionary[name] = option
             case let .optional(name, default: defaultValue):
-                guard
-                    let unwrappedOption = optionalTemplateOptions[name],
-                    let option = unwrappedOption
+                guard let unwrappedOption = optionalTemplateOptions[name],
+                      let option = unwrappedOption
                 else {
                     attributesDictionary[name] = defaultValue
                     return
@@ -173,8 +172,7 @@ final class ScaffoldService {
     ///     - template: Name of template
     /// - Returns: `AbsolutePath` of template directory
     private func templateDirectory(templateDirectories: [AbsolutePath], template: String) throws -> AbsolutePath {
-        guard
-            let templateDirectory = templateDirectories.first(where: { $0.basename == template })
+        guard let templateDirectory = templateDirectories.first(where: { $0.basename == template })
         else { throw ScaffoldServiceError.templateNotFound(template, searchPaths: templateDirectories) }
         return templateDirectory
     }

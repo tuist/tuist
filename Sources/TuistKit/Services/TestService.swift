@@ -113,8 +113,7 @@ final class TestService {
         )
 
         if let schemeName = schemeName {
-            guard
-                let scheme = testableSchemes.first(where: { $0.name == schemeName })
+            guard let scheme = testableSchemes.first(where: { $0.name == schemeName })
             else {
                 throw TestServiceError.schemeNotFound(
                     scheme: schemeName,

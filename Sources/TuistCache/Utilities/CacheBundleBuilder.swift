@@ -63,11 +63,12 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
 
     // MARK: - Fileprivate
 
-    fileprivate func arguments(platform: Platform,
-                               configuration: String,
-                               osVersion: Version?,
-                               deviceName: String?) async throws -> [XcodeBuildArgument]
-    {
+    fileprivate func arguments(
+        platform: Platform,
+        configuration: String,
+        osVersion: Version?,
+        deviceName: String?
+    ) async throws -> [XcodeBuildArgument] {
         let destination = try await simulatorController.destination(
             for: platform,
             version: osVersion,
@@ -81,9 +82,10 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         ]
     }
 
-    fileprivate func exportBundles(from buildDirectory: AbsolutePath,
-                                   into outputDirectory: AbsolutePath) throws
-    {
+    fileprivate func exportBundles(
+        from buildDirectory: AbsolutePath,
+        into outputDirectory: AbsolutePath
+    ) throws {
         let bundles = FileHandler.shared.glob(buildDirectory, glob: "*.bundle")
         try bundles.forEach { bundle in
             try FileHandler.shared.copy(from: bundle, to: outputDirectory.appending(component: bundle.basename))
