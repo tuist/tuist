@@ -20,7 +20,9 @@ extension TuistGraph.Project {
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
     ) throws -> TuistGraph.Project {
         let name = manifest.name
+        let xcodeProjectName = manifest.options.xcodeProjectName ?? name
         let organizationName = manifest.organizationName
+        let developmentRegion = manifest.options.developmentRegion
         let options = TuistGraph.Project.Options.from(manifest: manifest.options)
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
         let targets = try manifest.targets.map {
@@ -43,10 +45,10 @@ extension TuistGraph.Project {
         return Project(
             path: generatorPaths.manifestDirectory,
             sourceRootPath: generatorPaths.manifestDirectory,
-            xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(name).xcodeproj"),
+            xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(xcodeProjectName).xcodeproj"),
             name: name,
             organizationName: organizationName,
-            developmentRegion: nil,
+            developmentRegion: developmentRegion,
             options: options,
             settings: settings ?? .default,
             filesGroup: .group(name: "Project"),

@@ -7,13 +7,8 @@ final class ConfigTests: XCTestCase {
         let config = Config(
             cloud: Cloud(url: "https://cloud.tuist.io", projectId: "123", options: [.analytics]),
             generationOptions: .options(
-                xcodeProjectName: "someprefix-\(.projectName)",
-                organizationName: "TestOrg",
-                developmentRegion: "de",
-                disableShowEnvironmentVarsInScriptPhases: true,
                 resolveDependenciesWithSystemScm: false,
-                disablePackageVersionLocking: true,
-                lastXcodeUpgradeCheck: .init(12, 5, 1)
+                disablePackageVersionLocking: true
             )
         )
 

@@ -9,7 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** Tuist plugins 2.0 [#3492](https://github.com/tuist/tuist/pull/3492) by [@fortmarek](https://github.com/fortmarek)
 - **Breaking** `tuist generate` automatically opens the generated project. [#3912](https://github.com/tuist/tuist/pull/3912) by [@danyf90](https://github.com/danyf90):
   - **Motivation:**: Most of the times you want to open the project after generating it.
-  - **Migration:** If you need to generate the project without openeing it, just pass `--no-open` to `tuist generate`.
+  - **Migration:** If you need to generate the project without opening it, just pass `--no-open` to `tuist generate`.
 - **Breaking** add `type` parameter to `TargetDependency.sdk` [#3961](https://github.com/tuist/tuist/pull/3961) by [@danyf90](https://github.com/danyf90)
   - **Migration:** Add the `type` parameter where defining `sdk` target dependencies and remove both the extension and the `lib` prefix from the name
 - **Breaking** move `disableBundleAccessors` and `disableSynthesizedResourceAccessors` from `Config.swift` to `Project.ProjectOption` [#3963](https://github.com/tuist/tuist/pull/3963) by [@danyf90](https://github.com/danyf90).
@@ -34,6 +34,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
   - **Motivation**: A struct better represents the semantic of the type
 - **Breaking** refactor `Config.generationOptions` to be a `struct` instead of an `enum` [#4109](https://github.com/tuist/tuist/pull/4109) by [@danyf90](https://github.com/danyf90)
   - **Motivation**: A struct better represents the semantic of the type
+- **Breaking** remove `xcodeProjectName`, `organizationName`, and `developmentRegion` from `Config.GenerationOptions` [#4131](https://github.com/tuist/tuist/pull/4131) by [@danyf90](https://github.com/danyf90)
+  - **Migration**: Configure them in `Project` instead or define helpers to share the value across projects
+- **Breaking** move `Config.GenerationOptions.disableShowEnvironmentVarsInScriptPhases` to `Project.Options` [#4131](https://github.com/tuist/tuist/pull/4131) by [@danyf90](https://github.com/danyf90)
+  - **Motivation**: It is related to the project generation
+  - **Migration**: Configure it in `Project.Options` instead
+- **Breaking** move `Config.GenerationOptions.lastXcodeUpgradeCheck` to `Workspace.GenerationOptions` [#4131](https://github.com/tuist/tuist/pull/4131) by [@danyf90](https://github.com/danyf90)
+  - **Motivation**: It is related to the workspace generation
+  - **Migration**: Configure it in `Worksapace.GenerrationOptions` instead
 - Add support for configuring code coverage and testing options at the project level [#4090](https://github.com/tuist/tuist/pull/4090) by [@danyf90](https://github.com/danyf90)
 - Add more detailed messaging for errors during manifest loading [#4076](https://github.com/tuist/tuist/pull/4076) by [@luispadron](https://github.com/luispadron)
 - Deprecate legacy SPM support via Project.packages [#4112](https://github.com/tuist/tuist/pull/4112) by [@danyf90](https://github.com/danyf90)
@@ -57,6 +65,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix `tuist graph --skip-external-dependencies` for `Dependencies.swift` dependencies [#4115](https://github.com/tuist/tuist/pull/4115) by [@danyf90](https://github.com/danyf90) & [#4124](https://github.com/tuist/tuist/pull/4124) by [@laxmorek](https://github.com/laxmorek)
 - Fix `envversion` command not printing the tuist env version [#4126](https://github.com/tuist/tuist/pull/4126) by [@takinwande](https://github.com/takinwande)
 - Fix warning when importing `ProjectDescription` during `tuist edit`. It was caused by `.swiftsourceinfo` files  being added to the release artifact [#4132](https://github.com/tuist/tuist/pull/4132) by [@luispadron](https://github.com/luispadron)
+- Remove default MacCatalyst support when framework deployment target is set to iOS and/or iPad [#4134](https://github.com/tuist/tuist/pull/4134) by [@TheInkedEngineer](https://github.com/TheInkedEngineer)
 
 ### Added
 
@@ -74,9 +83,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- Use GitHub tags (via `git ls-remote`) to determine the latest Tuist version when installing/updating Tuist [#3985](https://github.com/tuist/tuist/pull/3985) by [@ezraberch](https://github.com/ezraberch)
-
-- Remove default MacCatalyst support when framework deployment target is set to iOS and/or iPad [#4134](https://github.com/tuist/tuist/pull/4134) by [@TheInkedEngineer](https://github.com/TheInkedEngineer)  
+- Use GitHub tags (via `git ls-remote`) to determine the latest Tuist version when installing/updating Tuist [#3985](https://github.com/tuist/tuist/pull/3985) by [@ezraberch](https://github.com/ezraberch) 
 
 ### Added
 
@@ -1603,7 +1610,7 @@ let baseSettings = SettingsDictionary()
 - **Breaking** Allow specifying a deployment target within project manifests [#541](https://github.com/tuist/tuist/pull/541) [@mollyIV](https://github.com/mollyIV).
 - Add support for sticker pack extension & app extension products [#489](https://github.com/tuist/tuist/pull/489) by @Rag0n
 - Utility to locate the root directory of a project [#622](https://github.com/tuist/tuist/pull/622) by [@pepibumur](https://github.com/pepibumur).
-- Adds `codeCoverageTargets` to `TestAction` to make XCode gather coverage info only for that targets [#619](https://github.com/tuist/tuist/pull/619) by @abbasmousavi
+- Adds `codeCoverageTargets` to `TestAction` to make Xcode gather coverage info only for that targets [#619](https://github.com/tuist/tuist/pull/619) by @abbasmousavi
 - Enable the library evololution for the ProjectDescription framework [#625](https://github.com/tuist/tuist/pull/625) by [@pepibumur](https://github.com/pepibumur).
 - Add support for watchOS apps [#623](https://github.com/tuist/tuist/pull/623) by [@kwridan](https://github.com/kwridan)
 - Add linting for duplicate dependencies [#629](https://github.com/tuist/tuist/pull/629) by @lakpa

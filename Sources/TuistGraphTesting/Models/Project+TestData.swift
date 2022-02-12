@@ -11,12 +11,7 @@ extension Project {
         name: String = "Project",
         organizationName: String? = nil,
         developmentRegion: String? = nil,
-        options: Options = .init(
-            automaticSchemesOptions: .disabled,
-            disableBundleAccessors: false,
-            disableSynthesizedResourceAccessors: false,
-            textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
-        ),
+        options: Options = .test(automaticSchemesOptions: .disabled),
         settings: Settings = Settings.test(),
         filesGroup: ProjectGroup = .group(name: "Project"),
         targets: [Target] = [Target.test()],
@@ -54,12 +49,7 @@ extension Project {
         name: String = "Project",
         organizationName: String? = nil,
         developmentRegion: String? = nil,
-        options: Options = .init(
-            automaticSchemesOptions: .disabled,
-            disableBundleAccessors: false,
-            disableSynthesizedResourceAccessors: false,
-            textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
-        ),
+        options: Options = .test(automaticSchemesOptions: .disabled),
         settings: Settings = .default,
         filesGroup: ProjectGroup = .group(name: "Project"),
         targets: [Target] = [],

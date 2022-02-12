@@ -18,10 +18,10 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     public var name: String
 
     /// Organization name.
-    public var organizationName: String?
+    public let organizationName: String?
 
     /// Development region code e.g. `en`.
-    public var developmentRegion: String?
+    public let developmentRegion: String?
 
     /// Additional project options.
     public var options: Options

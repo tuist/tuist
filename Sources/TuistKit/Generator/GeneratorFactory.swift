@@ -39,7 +39,7 @@ protocol GeneratorFactorying {
     /// Returns the default generator.
     /// - Parameter config: The project configuration.
     /// - Returns: A Generator instance.
-    func `default`(config: Config) -> Generating
+    func `default`() -> Generating
 
     /// Returns a generator that generates a cacheable project.
     /// - Parameter config: The project configuration.
@@ -71,7 +71,7 @@ class GeneratorFactory: GeneratorFactorying {
     {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
-        let projectMappers = projectMapperFactory.default(config: config)
+        let projectMappers = projectMapperFactory.default()
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
         let graphMapperFactory = GraphMapperFactory(contentHasher: contentHasher)
 
@@ -82,7 +82,7 @@ class GeneratorFactory: GeneratorFactorying {
             cacheProfile: cacheProfile,
             cacheOutputType: xcframeworks ? .xcframework : .framework
         )
-        let workspaceMappers = workspaceMapperFactory.default(config: config)
+        let workspaceMappers = workspaceMapperFactory.default()
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
             manifestLoader: manifestLoader,
@@ -94,10 +94,6 @@ class GeneratorFactory: GeneratorFactorying {
         )
     }
 
-    func `default`(config: Config) -> Generating {
-        self.default(config: config, contentHasher: ContentHasher())
-    }
-
     func test(
         config: Config,
         automationPath: AbsolutePath,
@@ -106,13 +102,12 @@ class GeneratorFactory: GeneratorFactorying {
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
-        let projectMappers = projectMapperFactory.automation(config: config, skipUITests: skipUITests)
+        let projectMappers = projectMapperFactory.automation(skipUITests: skipUITests)
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
         let graphMapperFactory = GraphMapperFactory(contentHasher: contentHasher)
 
         let graphMappers = graphMapperFactory.automation(config: config, testsCacheDirectory: testsCacheDirectory)
         let workspaceMappers = workspaceMapperFactory.automation(
-            config: config,
             workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath)
         )
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
@@ -135,7 +130,7 @@ class GeneratorFactory: GeneratorFactorying {
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
-        let projectMappers = projectMapperFactory.default(config: config)
+        let projectMappers = projectMapperFactory.default()
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
         let graphMapperFactory = GraphMapperFactory(contentHasher: contentHasher)
 
@@ -152,7 +147,7 @@ class GeneratorFactory: GeneratorFactorying {
             graphMappers = graphMapperFactory.cache(includedTargets: includedTargets)
         }
 
-        let workspaceMappers = workspaceMapperFactory.cache(config: config, includedTargets: includedTargets)
+        let workspaceMappers = workspaceMapperFactory.cache(includedTargets: includedTargets)
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
             manifestLoader: manifestLoader,
@@ -164,16 +159,14 @@ class GeneratorFactory: GeneratorFactorying {
         )
     }
 
-    // MARK: - Fileprivate
-
-    func `default`(config: Config, contentHasher _: ContentHashing) -> Generating {
+    func `default`() -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
-        let projectMappers = projectMapperFactory.default(config: config)
+        let projectMappers = projectMapperFactory.default()
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
         let graphMapperFactory = GraphMapperFactory(contentHasher: contentHasher)
         let graphMappers = graphMapperFactory.default()
-        let workspaceMappers = workspaceMapperFactory.default(config: config)
+        let workspaceMappers = workspaceMapperFactory.default()
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
             manifestLoader: manifestLoader,

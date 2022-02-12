@@ -294,14 +294,6 @@ A simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel)
 
 An iOS app that has a dependency with a dependency with a framework for macOS.
 
-## app_with_development_region_config
-
-An iOS app where the development region is defined at the `Config` level.
-
-## app_with_organization_name_config
-
-An iOS app where the organization name is defined at the `Config` level.
-
 ## app_with_organization_name_project
 
 An iOS app where the organization name is defined at the `Project` level.

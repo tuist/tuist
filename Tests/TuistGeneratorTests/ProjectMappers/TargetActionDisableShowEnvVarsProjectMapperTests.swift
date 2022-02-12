@@ -5,17 +5,15 @@ import XCTest
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
-final class ConfigShowEnvironmentMapperTests: TuistUnitTestCase {
+final class TargetActionDisableShowEnvVarsProjectMapperTests: TuistUnitTestCase {
     func test_map_environmentLoggingDisables() throws {
         // Given
-        let targetMapper = TargetActionEnvironmentMapper(false)
-
-        let subject = TargetProjectMapper(mapper: targetMapper)
+        let subject = TargetActionDisableShowEnvVarsProjectMapper()
         let scriptA = TargetScript(name: "Pre Script", order: .pre)
         let scriptB = TargetScript(name: "Post Script", order: .post)
         let targetA = Target.test(name: "A", scripts: [scriptA, scriptB])
         let targetB = Target.test(name: "B", scripts: [scriptA, scriptB])
-        let project = Project.test(targets: [targetA, targetB])
+        let project = Project.test(options: .test(disableShowEnvironmentVarsInScriptPhases: true), targets: [targetA, targetB])
 
         // When
         let (updatedProject, _) = try subject.map(project: project)
@@ -33,14 +31,12 @@ final class ConfigShowEnvironmentMapperTests: TuistUnitTestCase {
 
     func test_map_environmentLoggingEnables() throws {
         // Given
-        let targetMapper = TargetActionEnvironmentMapper(true)
-
-        let subject = TargetProjectMapper(mapper: targetMapper)
+        let subject = TargetActionDisableShowEnvVarsProjectMapper()
         let scriptA = TargetScript(name: "Pre Script", order: .pre)
         let scriptB = TargetScript(name: "Post Script", order: .post)
         let targetA = Target.test(name: "A", scripts: [scriptA, scriptB])
         let targetB = Target.test(name: "B", scripts: [scriptA, scriptB])
-        let project = Project.test(targets: [targetA, targetB])
+        let project = Project.test(options: .test(disableShowEnvironmentVarsInScriptPhases: false), targets: [targetA, targetB])
 
         // When
         let (updatedProject, _) = try subject.map(project: project)

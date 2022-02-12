@@ -35,13 +35,8 @@ public struct Config: Equatable, Hashable {
             swiftVersion: nil,
             plugins: [],
             generationOptions: .init(
-                xcodeProjectName: nil,
-                organizationName: nil,
-                developmentRegion: nil,
-                disableShowEnvironmentVarsInScriptPhases: false,
                 resolveDependenciesWithSystemScm: false,
-                disablePackageVersionLocking: false,
-                lastXcodeUpgradeCheck: nil
+                disablePackageVersionLocking: false
             ),
             path: nil
         )

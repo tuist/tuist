@@ -75,7 +75,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 path: workspace.xcWorkspacePath.parentDirectory,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
-                lastUpgradeCheck: workspace.lastUpgradeCheck
+                lastUpgradeCheck: workspace.generationOptions.lastXcodeUpgradeCheck
             )
         }
 
