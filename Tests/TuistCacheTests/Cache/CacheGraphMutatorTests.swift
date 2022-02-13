@@ -11,23 +11,20 @@ import XCTest
 // To generate the ASCII graphs: http://asciiflow.com/
 // Alternative: https://dot-to-ascii.ggerganov.com/
 final class CacheGraphMutatorTests: TuistUnitTestCase {
-    var xcframeworkLoader: MockXCFrameworkLoader!
-    var frameworkLoader: MockFrameworkLoader!
+    var artifactLoader: MockArtifactLoader!
 
     var subject: CacheGraphMutator!
 
     override func setUp() {
         super.setUp()
-        xcframeworkLoader = MockXCFrameworkLoader()
-        frameworkLoader = MockFrameworkLoader()
+        artifactLoader = MockArtifactLoader()
         subject = CacheGraphMutator(
-            frameworkLoader: frameworkLoader,
-            xcframeworkLoader: xcframeworkLoader
+            artifactLoader: artifactLoader
         )
     }
 
     override func tearDown() {
-        xcframeworkLoader = nil
+        artifactLoader = nil
         subject = nil
         super.tearDown()
     }
@@ -92,15 +89,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             cFrameworkGraphTarget: cXCFrameworkPath,
         ]
 
-        xcframeworkLoader.loadStub = { path in
+        artifactLoader.loadStub = { path in
             if path == dXCFrameworkPath { return dXCFramework }
             else if path == bXCFrameworkPath { return bXCFramework }
             else if path == cXCFrameworkPath { return cXCFramework }
             else { fatalError("Unexpected load call") }
-        }
-
-        frameworkLoader.loadStub = { _ in
-            throw "Can't find .framework here"
         }
 
         let expectedGraph = Graph.test(
@@ -186,15 +179,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             cGraphTarget: cXCFrameworkPath,
         ]
 
-        xcframeworkLoader.loadStub = { path in
+        artifactLoader.loadStub = { path in
             if path == bXCFrameworkPath { return bXCFramework }
             else if path == cXCFrameworkPath { return cXCFramework }
+            else if path == dFrameworkPath { return dFramework }
             else { fatalError("Unexpected load call") }
-        }
-
-        frameworkLoader.loadStub = { path in
-            if path == dFrameworkPath { return dFramework }
-            throw "Can't find .framework here"
         }
 
         let expectedGraph = Graph.test(
@@ -287,15 +276,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             cGraphTarget: cXCFrameworkPath,
         ]
 
-        xcframeworkLoader.loadStub = { path in
+        artifactLoader.loadStub = { path in
             if path == bXCFrameworkPath { return bXCFramework }
             else if path == cXCFrameworkPath { return cXCFramework }
+            else if path == dFrameworkPath { return dFramework }
             else { fatalError("Unexpected load call") }
-        }
-
-        frameworkLoader.loadStub = { path in
-            if path == dFrameworkPath { return dFramework }
-            throw "Can't find .framework here"
         }
 
         let expectedGraph = Graph.test(
@@ -388,14 +373,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             cGraphTarget: cXCFrameworkPath,
         ]
 
-        xcframeworkLoader.loadStub = { path in
+        artifactLoader.loadStub = { path in
             if path == cXCFrameworkPath { return cXCFramework }
+            else if path == dFrameworkPath { return dFramework }
             else { fatalError("Unexpected load call") }
-        }
-
-        frameworkLoader.loadStub = { path in
-            if path == dFrameworkPath { return dFramework }
-            throw "Can't find .framework here"
         }
 
         let expectedGraph = Graph.test(
@@ -539,15 +520,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             cGraphTarget: cCachedFrameworkPath,
         ]
 
-        frameworkLoader.loadStub = { path in
+        artifactLoader.loadStub = { path in
             if path == dCachedFrameworkPath { return dCachedFramework }
             else if path == bCachedFrameworkPath { return bCachedFramework }
             else if path == cCachedFrameworkPath { return cCachedFramework }
             else { fatalError("Unexpected load call") }
-        }
-
-        xcframeworkLoader.loadStub = { _ in
-            throw "Can't find an .xcframework here"
         }
 
         let expectedGraph = Graph.test(
@@ -633,15 +610,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             cGraphTarget: cCachedFrameworkPath,
         ]
 
-        frameworkLoader.loadStub = { path in
+        artifactLoader.loadStub = { path in
             if path == bCachedFrameworkPath { return bCachedFramework }
             else if path == cCachedFrameworkPath { return cCachedFramework }
             else if path == dFrameworkPath { return dFramework }
             else { fatalError("Unexpected load call") }
-        }
-
-        xcframeworkLoader.loadStub = { _ in
-            throw "Can't find .framework here"
         }
 
         let expectedGraph = Graph.test(
@@ -734,16 +707,12 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             cGraphTarget: cCachedFrameworkPath,
         ]
 
-        frameworkLoader.loadStub = { path in
+        artifactLoader.loadStub = { path in
             if path == bCachedFrameworkPath { return bCachedFramework }
             else if path == cCachedFrameworkPath { return cCachedFramework }
             else if path == dFrameworkPath { return dFramework }
+            else if path == eXCFrameworkPath { return eXCFramework }
             else { fatalError("Unexpected load call") }
-        }
-
-        xcframeworkLoader.loadStub = { path in
-            if path == eXCFrameworkPath { return eXCFramework }
-            throw "Can't find an .xcframework here"
         }
 
         let expectedGraph = Graph.test(
@@ -836,13 +805,9 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             cGraphTarget: cCachedFrameworkPath,
         ]
 
-        frameworkLoader.loadStub = { path in
+        artifactLoader.loadStub = { path in
             if path == cCachedFrameworkPath { return cCachedFramework }
             else { fatalError("Unexpected load call") }
-        }
-
-        xcframeworkLoader.loadStub = { _ in
-            throw "Can't find an .xcframework here"
         }
 
         let expectedGraph = Graph.test(
@@ -888,6 +853,17 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             var targets = acc[target.path, default: [:]]
             targets[target.target.name] = target.target
             acc[target.path] = targets
+        }
+    }
+}
+
+final class MockArtifactLoader: ArtifactLoading {
+    var loadStub: ((AbsolutePath) throws -> GraphDependency)?
+    func load(path: AbsolutePath) throws -> GraphDependency {
+        if let loadStub = loadStub {
+            return try loadStub(path)
+        } else {
+            return GraphDependency.testFramework(path: path)
         }
     }
 }

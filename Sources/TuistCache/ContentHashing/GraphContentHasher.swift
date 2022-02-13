@@ -65,12 +65,7 @@ public final class GraphContentHasher: GraphContentHashing {
         var hashedTargets: [GraphHashedTarget: String] = [:]
         var hashedPaths: [AbsolutePath: String] = [:]
 
-        let sortedCacheableTargets = try topologicalSort(
-            Array(graphTraverser.allTargets()),
-            successors: {
-                Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name))
-            }
-        ).reversed()
+        let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
 
         let hashableTargets = sortedCacheableTargets.compactMap { target -> GraphTarget? in
             if isHashable(
