@@ -20,7 +20,8 @@ extension Project {
         ideTemplateMacros: IDETemplateMacros? = nil,
         additionalFiles: [FileElement] = [],
         resourceSynthesizers: [ResourceSynthesizer] = [],
-        lastUpgradeCheck: Version? = nil
+        lastUpgradeCheck: Version? = nil,
+        isExternal: Bool = false
     ) -> Project {
         Project(
             path: path,
@@ -38,7 +39,8 @@ extension Project {
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
             resourceSynthesizers: resourceSynthesizers,
-            lastUpgradeCheck: lastUpgradeCheck
+            lastUpgradeCheck: lastUpgradeCheck,
+            isExternal: isExternal
         )
     }
 
@@ -58,7 +60,8 @@ extension Project {
         ideTemplateMacros: IDETemplateMacros? = nil,
         additionalFiles: [FileElement] = [],
         resourceSynthesizers: [ResourceSynthesizer] = [],
-        lastUpgradeCheck: Version? = nil
+        lastUpgradeCheck: Version? = nil,
+        isExternal: Bool = false
     ) -> Project {
         Project(
             path: path,
@@ -76,7 +79,8 @@ extension Project {
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
             resourceSynthesizers: resourceSynthesizers,
-            lastUpgradeCheck: lastUpgradeCheck
+            lastUpgradeCheck: lastUpgradeCheck,
+            isExternal: isExternal
         )
     }
 }

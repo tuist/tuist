@@ -52,6 +52,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
 
     /// The version in which a check happened related to recommended settings after updating Xcode.
     public var lastUpgradeCheck: Version?
+    
+    /// Indicates whether the project is imported through `Dependencies.swift`.
+    public let isExternal: Bool
 
     // MARK: - Init
 
@@ -70,6 +73,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///   - targets: The project targets
     ///   - additionalFiles: The additional files to include in the project
     ///                      *(Those won't be included in any build phases)*
+    ///   - isExternal: Indicates whether the project is imported through `Dependencies.swift`.
     public init(
         path: AbsolutePath,
         sourceRootPath: AbsolutePath,
@@ -86,7 +90,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         ideTemplateMacros: IDETemplateMacros?,
         additionalFiles: [FileElement],
         resourceSynthesizers: [ResourceSynthesizer],
-        lastUpgradeCheck: Version?
+        lastUpgradeCheck: Version?,
+        isExternal: Bool
     ) {
         self.path = path
         self.sourceRootPath = sourceRootPath
@@ -104,6 +109,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         self.additionalFiles = additionalFiles
         self.resourceSynthesizers = resourceSynthesizers
         self.lastUpgradeCheck = lastUpgradeCheck
+        self.isExternal = isExternal
     }
 
     // MARK: - CustomStringConvertible
@@ -145,7 +151,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
             resourceSynthesizers: resourceSynthesizers,
-            lastUpgradeCheck: lastUpgradeCheck
+            lastUpgradeCheck: lastUpgradeCheck,
+            isExternal: isExternal
         )
     }
 
@@ -168,7 +175,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
             resourceSynthesizers: resourceSynthesizers,
-            lastUpgradeCheck: lastUpgradeCheck
+            lastUpgradeCheck: lastUpgradeCheck,
+            isExternal: isExternal
         )
     }
 

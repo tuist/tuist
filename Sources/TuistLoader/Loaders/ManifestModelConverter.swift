@@ -13,7 +13,8 @@ public protocol ManifestModelConverting {
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
         plugins: Plugins,
-        externalDependencies: [String: [TuistGraph.TargetDependency]]
+        externalDependencies: [String: [TuistGraph.TargetDependency]],
+        isExternal: Bool
     ) throws -> TuistGraph.Project
     func convert(manifest: TuistCore.DependenciesGraph, path: AbsolutePath) throws -> TuistGraph.DependenciesGraph
 }
@@ -49,7 +50,8 @@ public final class ManifestModelConverter: ManifestModelConverting {
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
         plugins: Plugins,
-        externalDependencies: [String: [TuistGraph.TargetDependency]]
+        externalDependencies: [String: [TuistGraph.TargetDependency]],
+        isExternal: Bool
     ) throws -> TuistGraph.Project {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         return try TuistGraph.Project.from(
@@ -57,7 +59,8 @@ public final class ManifestModelConverter: ManifestModelConverting {
             generatorPaths: generatorPaths,
             plugins: plugins,
             externalDependencies: externalDependencies,
-            resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
+            resourceSynthesizerPathLocator: resourceSynthesizerPathLocator,
+            isExternal: isExternal
         )
     }
 
@@ -97,7 +100,8 @@ public final class ManifestModelConverter: ManifestModelConverting {
                         manifest: project.value,
                         path: projectPath,
                         plugins: .none,
-                        externalDependencies: externalDependencies
+                        externalDependencies: externalDependencies,
+                        isExternal: true
                     )
                     // Disable all lastUpgradeCheck related warnings on projects generated from dependencies
                     project.lastUpgradeCheck = Version(99, 9, 9)

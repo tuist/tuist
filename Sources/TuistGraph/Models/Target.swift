@@ -42,9 +42,6 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public let additionalFiles: [FileElement]
     public var prune: Bool
 
-    /// Indicates whether the target is imported through `Dependencies.swift`.
-    public let isExternal: Bool
-
     // MARK: - Init
 
     public init(
@@ -70,8 +67,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         rawScriptBuildPhases: [RawScriptBuildPhase] = [],
         playgrounds: [AbsolutePath] = [],
         additionalFiles: [FileElement] = [],
-        prune: Bool = false,
-        isExternal: Bool = false
+        prune: Bool = false
     ) {
         self.name = name
         self.product = product
@@ -96,7 +92,6 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         self.playgrounds = playgrounds
         self.additionalFiles = additionalFiles
         self.prune = prune
-        self.isExternal = isExternal
     }
 
     /// Target can be included in the link phase of other targets

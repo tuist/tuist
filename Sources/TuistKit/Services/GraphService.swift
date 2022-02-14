@@ -175,6 +175,7 @@ extension ProjectAutomation.Project {
         return ProjectAutomation.Project(
             name: project.name,
             path: project.path.pathString,
+            isExternal: project.isExternal,
             packages: packages,
             targets: targets,
             schemes: schemes
@@ -198,8 +199,7 @@ extension ProjectAutomation.Target {
         ProjectAutomation.Target(
             name: target.name,
             product: target.product.rawValue,
-            sources: target.sources.map(\.path.pathString),
-            isExternal: target.isExternal
+            sources: target.sources.map(\.path.pathString)
         )
     }
 }

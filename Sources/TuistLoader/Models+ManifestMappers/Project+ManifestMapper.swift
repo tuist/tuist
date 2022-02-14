@@ -12,12 +12,14 @@ extension TuistGraph.Project {
     ///   - plugins: Configured plugins.
     ///   - externalDependencies: External dependencies graph.
     ///   - resourceSynthesizerPathLocator: Resource synthesizer locator.
+    ///   - isExternal: Indicates whether the project is imported through `Dependencies.swift`.
     static func from(
         manifest: ProjectDescription.Project,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
         externalDependencies: [String: [TuistGraph.TargetDependency]],
-        resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
+        resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating,
+        isExternal: Bool
     ) throws -> TuistGraph.Project {
         let name = manifest.name
         let xcodeProjectName = manifest.options.xcodeProjectName ?? name
@@ -58,7 +60,8 @@ extension TuistGraph.Project {
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
             resourceSynthesizers: resourceSynthesizers,
-            lastUpgradeCheck: nil
+            lastUpgradeCheck: nil,
+            isExternal: isExternal
         )
     }
 }

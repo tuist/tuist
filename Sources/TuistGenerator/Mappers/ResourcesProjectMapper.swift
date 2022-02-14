@@ -47,8 +47,7 @@ public class ResourcesProjectMapper: ProjectMapping {
                 resources: target.resources,
                 copyFiles: target.copyFiles,
                 coreDataModels: target.coreDataModels,
-                filesGroup: target.filesGroup,
-                isExternal: target.isExternal
+                filesGroup: target.filesGroup
             )
             modifiedTarget.resources = []
             modifiedTarget.copyFiles = []

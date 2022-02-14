@@ -150,7 +150,8 @@ final class ManifestGraphLoader: ManifestGraphLoading {
                 manifest: $0.manifest,
                 path: $0.path,
                 plugins: plugins,
-                externalDependencies: externalDependencies
+                externalDependencies: externalDependencies,
+                isExternal: false
             )
         }
     }
