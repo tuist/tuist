@@ -13,7 +13,7 @@ public struct Target: Codable, Equatable {
 
     /// Indicates whether the target is imported through `Dependencies.swift`.
     public let isExternal: Bool
-    
+
     public init(
         name: String,
         product: String,

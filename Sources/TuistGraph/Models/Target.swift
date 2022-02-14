@@ -41,7 +41,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var playgrounds: [AbsolutePath]
     public let additionalFiles: [FileElement]
     public var prune: Bool
-    
+
     /// Indicates whether the target is imported through `Dependencies.swift`.
     public let isExternal: Bool
 

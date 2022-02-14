@@ -92,7 +92,7 @@ extension TuistGraph.Target {
 
         let additionalFiles = try manifest.additionalFiles
             .flatMap { try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
-        
+
         let isExternal = externalDependencies.keys.contains(name)
 
         return TuistGraph.Target(
