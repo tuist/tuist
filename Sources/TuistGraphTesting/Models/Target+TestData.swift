@@ -28,7 +28,8 @@ extension Target {
         launchArguments: [LaunchArgument] = [],
         playgrounds: [AbsolutePath] = [],
         additionalFiles: [FileElement] = [],
-        prune: Bool = false
+        prune: Bool = false,
+        isExternal: Bool = false
     ) -> Target {
         Target(
             name: name,
@@ -53,7 +54,8 @@ extension Target {
             rawScriptBuildPhases: rawScriptBuildPhases,
             playgrounds: playgrounds,
             additionalFiles: additionalFiles,
-            prune: prune
+            prune: prune,
+            isExternal: isExternal
         )
     }
 
@@ -77,7 +79,8 @@ extension Target {
         environment: [String: String] = [:],
         filesGroup: ProjectGroup = .group(name: "Project"),
         dependencies: [TargetDependency] = [],
-        rawScriptBuildPhases: [RawScriptBuildPhase] = []
+        rawScriptBuildPhases: [RawScriptBuildPhase] = [],
+        isExternal: Bool = false
     ) -> Target {
         Target(
             name: name,
@@ -98,7 +101,8 @@ extension Target {
             environment: environment,
             filesGroup: filesGroup,
             dependencies: dependencies,
-            rawScriptBuildPhases: rawScriptBuildPhases
+            rawScriptBuildPhases: rawScriptBuildPhases,
+            isExternal: isExternal
         )
     }
 }

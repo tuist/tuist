@@ -11,13 +11,18 @@ public struct Target: Codable, Equatable {
     /// List of file paths that are the target's sources.
     public let sources: [String]
 
+    /// Indicates whether the target is imported through `Dependencies.swift`.
+    public let isExternal: Bool
+    
     public init(
         name: String,
         product: String,
-        sources: [String]
+        sources: [String],
+        isExternal: Bool
     ) {
         self.name = name
         self.product = product
         self.sources = sources
+        self.isExternal = isExternal
     }
 }
