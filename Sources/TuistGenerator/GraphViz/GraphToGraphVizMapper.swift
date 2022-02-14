@@ -38,7 +38,9 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 
         let graphTraverser = GraphTraverser(graph: graph)
 
-        let filteredTargets: Set<GraphTarget> = graphTraverser.allTargets().filter { target in
+        let allTargets: Set<GraphTarget> = skipExternalDependencies ? graphTraverser.allInternalTargets() : graphTraverser
+            .allTargets()
+        let filteredTargets: Set<GraphTarget> = allTargets.filter { target in
             if skipTestTargets, graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name) {
                 return false
             }
@@ -66,6 +68,7 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 
             guard let targetDependencies = graphTraverser.dependencies[.target(name: target.target.name, path: target.path)]
             else { return }
+
             targetDependencies
                 .filter { dependency in
                     if skipExternalDependencies, dependency.isExternal(root: graph.path) { return false }
@@ -96,7 +99,11 @@ extension GraphDependency {
     fileprivate func isExternal(root: AbsolutePath) -> Bool {
         switch self {
         case let .target(_, path):
-            return isPathToTuistDependencyDirectory(path, root: root)
+            return path.pathString
+                .starts(
+                    with: root.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name)
+                        .pathString
+                )
         case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk:
             return true
         }
@@ -147,15 +154,7 @@ extension GraphDependency {
 }
 
 extension GraphTarget {
-    fileprivate func isExternal(root: AbsolutePath) -> Bool {
-        isPathToTuistDependencyDirectory(path, root: root)
+    fileprivate func isExternal(root _: AbsolutePath) -> Bool {
+        project.isExternal
     }
-}
-
-/// Checks if the path points to the `Tuist/Dependencies/` directory.
-private func isPathToTuistDependencyDirectory(_ path: AbsolutePath, root: AbsolutePath) -> Bool {
-    path.pathString
-        .starts(
-            with: root.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name).pathString
-        )
 }

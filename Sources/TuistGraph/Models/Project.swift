@@ -52,7 +52,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
 
     /// The version in which a check happened related to recommended settings after updating Xcode.
     public var lastUpgradeCheck: Version?
-    
+
     /// Indicates whether the project is imported through `Dependencies.swift`.
     public let isExternal: Bool
 
