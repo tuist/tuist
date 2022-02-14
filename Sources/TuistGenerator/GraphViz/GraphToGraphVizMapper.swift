@@ -59,7 +59,7 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
         )
 
         filteredTargetsAndDependencies.forEach { target in
-            if skipExternalDependencies, target.isExternal(root: graph.path) { return }
+            if skipExternalDependencies, target.project.isExternal { return }
 
             var leftNode = GraphViz.Node(target.target.name)
 
@@ -150,11 +150,5 @@ extension GraphDependency {
         ):
             return String(name.split(separator: ".").first ?? "")
         }
-    }
-}
-
-extension GraphTarget {
-    fileprivate func isExternal(root _: AbsolutePath) -> Bool {
-        project.isExternal
     }
 }
