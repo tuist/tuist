@@ -78,16 +78,16 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         // Search for the dependency graph at the root directory
         // This can be the directory of this project or in case of nested projects
         // the root of the overall project
-        guard let rootDirectory = self.rootDirectoryLocator.locate(from: path) else {
+        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else {
             return .none
         }
-         
-        let rootGraphPath = self.graphPath(at: rootDirectory)
-        
+
+        let rootGraphPath = graphPath(at: rootDirectory)
+
         guard FileHandler.shared.exists(rootGraphPath) else {
             return .none
         }
-    
+
         let graphData = try FileHandler.shared.readFile(rootGraphPath)
 
         do {

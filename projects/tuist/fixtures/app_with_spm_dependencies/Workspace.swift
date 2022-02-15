@@ -1,9 +1,9 @@
 import ProjectDescription
 
 let workspace = Workspace(
-  name: "Tuistplayground",
-  projects: [
-  "App",
-  "Features/FeatureOne"
-  ]
+    name: "Tuistplayground",
+    projects: [
+        "App",
+        "Features/FeatureOne",
+    ]
 )

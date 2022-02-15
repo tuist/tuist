@@ -19,7 +19,7 @@ let project = Project(
                 .external(name: "FirebaseAnalytics"),
                 .external(name: "FirebaseDatabase"),
                 .external(name: "FirebaseFirestore"),
-                .project(target: "FeatureOneFramework", path: .relativeToRoot("Features/FeatureOne"))
+                .project(target: "FeatureOneFramework", path: .relativeToRoot("Features/FeatureOne")),
             ]
         ),
     ]
