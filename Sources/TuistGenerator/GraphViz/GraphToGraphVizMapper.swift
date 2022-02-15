@@ -71,7 +71,7 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 
             targetDependencies
                 .filter { dependency in
-                    if skipExternalDependencies, dependency.isExternal(root: graph.path) { return false }
+                    if skipExternalDependencies, dependency.isExternal(graph.projects) { return false }
                     return true
                 }
                 .forEach { dependency in
@@ -96,14 +96,10 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 }
 
 extension GraphDependency {
-    fileprivate func isExternal(root: AbsolutePath) -> Bool {
+    fileprivate func isExternal(_ projects: [AbsolutePath: Project]) -> Bool {
         switch self {
         case let .target(_, path):
-            return path.pathString
-                .starts(
-                    with: root.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name)
-                        .pathString
-                )
+            return projects[path]?.isExternal ?? false
         case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk:
             return true
         }
