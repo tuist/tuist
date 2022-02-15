@@ -77,7 +77,6 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
     public func load(at path: AbsolutePath) throws -> TuistGraph.DependenciesGraph {
         var graphPath = graphPath(at: path)
 
-       
         if !FileHandler.shared.exists(graphPath) {
             // If the current directory does not have a dependency graph available
             // look at the root of the complete project
@@ -99,7 +98,6 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         do {
             return try JSONDecoder().decode(TuistGraph.DependenciesGraph.self, from: graphData)
         } catch {
-            print(error)
             logger
                 .debug(
                     "Failed to load dependencies graph, running `tuist fetch dependencies` should solve the problem.\nError: \(error)"
