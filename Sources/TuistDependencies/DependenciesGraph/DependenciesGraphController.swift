@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistGraph
 import TuistSupport
-import TuistCore
 
 // MARK: - Dependencies Graph Controller Errors
 
@@ -80,19 +80,19 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         if !FileHandler.shared.exists(graphPath) {
             // If the current directory does not have a dependency graph available
             // look at the root of the complete project
-            
-            guard let rootDirectory = self.rootDirectoryLocator.locate(from: path) else {
+
+            guard let rootDirectory = rootDirectoryLocator.locate(from: path) else {
                 return .none
             }
             let rootGraphPath = self.graphPath(at: rootDirectory)
-            
+
             guard FileHandler.shared.exists(rootGraphPath) else {
                 return .none
             }
-            
+
             graphPath = rootGraphPath
         }
-        
+
         let graphData = try FileHandler.shared.readFile(graphPath)
 
         do {
