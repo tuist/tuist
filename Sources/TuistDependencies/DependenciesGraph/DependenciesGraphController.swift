@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistGraph
 import TuistSupport
+import TuistCore
 
 // MARK: - Dependencies Graph Controller Errors
 
@@ -50,7 +51,12 @@ public protocol DependenciesGraphControlling {
 // MARK: - Dependencies Graph Controller
 
 public final class DependenciesGraphController: DependenciesGraphControlling {
-    public init() {}
+    private let rootDirectoryLocator: RootDirectoryLocating
+
+    /// Default constructor.
+    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+        self.rootDirectoryLocator = rootDirectoryLocator
+    }
 
     public func save(_ dependenciesGraph: TuistGraph.DependenciesGraph, to path: AbsolutePath) throws {
         let jsonEncoder = JSONEncoder()
@@ -69,15 +75,31 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
     }
 
     public func load(at path: AbsolutePath) throws -> TuistGraph.DependenciesGraph {
-        let graphPath = graphPath(at: path)
-        guard FileHandler.shared.exists(graphPath) else {
-            return .none
+        var graphPath = graphPath(at: path)
+
+       
+        if !FileHandler.shared.exists(graphPath) {
+            // If the current directory does not have a dependency graph available
+            // look at the root of the complete project
+            
+            guard let rootDirectory = self.rootDirectoryLocator.locate(from: path) else {
+                return .none
+            }
+            let rootGraphPath = self.graphPath(at: rootDirectory)
+            
+            guard FileHandler.shared.exists(rootGraphPath) else {
+                return .none
+            }
+            
+            graphPath = rootGraphPath
         }
+        
         let graphData = try FileHandler.shared.readFile(graphPath)
 
         do {
             return try JSONDecoder().decode(TuistGraph.DependenciesGraph.self, from: graphData)
         } catch {
+            print(error)
             logger
                 .debug(
                     "Failed to load dependencies graph, running `tuist fetch dependencies` should solve the problem.\nError: \(error)"
