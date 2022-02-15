@@ -75,25 +75,20 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
     }
 
     public func load(at path: AbsolutePath) throws -> TuistGraph.DependenciesGraph {
-        var graphPath = graphPath(at: path)
-
-        if !FileHandler.shared.exists(graphPath) {
-            // If the current directory does not have a dependency graph available
-            // look at the root of the complete project
-
-            guard let rootDirectory = rootDirectoryLocator.locate(from: path) else {
-                return .none
-            }
-            let rootGraphPath = self.graphPath(at: rootDirectory)
-
-            guard FileHandler.shared.exists(rootGraphPath) else {
-                return .none
-            }
-
-            graphPath = rootGraphPath
+        // Search for the dependency graph at the root directory
+        // This can be the directory of this project or in case of nested projects
+        // the root of the overall project
+        guard let rootDirectory = self.rootDirectoryLocator.locate(from: path) else {
+            return .none
         }
-
-        let graphData = try FileHandler.shared.readFile(graphPath)
+         
+        let rootGraphPath = self.graphPath(at: rootDirectory)
+        
+        guard FileHandler.shared.exists(rootGraphPath) else {
+            return .none
+        }
+    
+        let graphData = try FileHandler.shared.readFile(rootGraphPath)
 
         do {
             return try JSONDecoder().decode(TuistGraph.DependenciesGraph.self, from: graphData)
