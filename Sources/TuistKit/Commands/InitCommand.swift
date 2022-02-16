@@ -93,10 +93,7 @@ extension InitCommand {
 
     /// We do not know template's option in advance -> we need to dynamically add them
     static func preprocess(_ arguments: [String]? = nil) throws {
-        guard let arguments = arguments,
-              arguments.contains("--template"),
-              arguments.contains("-t")
-        else { return }
+        guard let arguments = arguments else { return }
 
         // We want to parse only the name of template, not its arguments which will be dynamically added
         // Plucking out path argument
@@ -110,9 +107,10 @@ extension InitCommand {
             }
             .flatMap { $0 }
 
+        let templatesWithoutValidation = ["default", "swiftui"]
         guard let command = try parseAsRoot(filteredArguments) as? InitCommand,
               let templateName = command.template,
-              templateName != "default"
+              !templatesWithoutValidation.contains(templateName)
         else { return }
 
         let (required, optional) = try InitService().loadTemplateOptions(
