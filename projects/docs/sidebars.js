@@ -36,6 +36,7 @@ module.exports = {
         'commands/plugin',
         'commands/scaffold',
         'commands/signing',
+        'commands/task',
         'commands/test',
       ],
     },
