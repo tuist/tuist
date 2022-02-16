@@ -9,7 +9,7 @@ let project = Project(
             product: .app,
             bundleId: "io.tuist.app",
             infoPlist: .default,
-            sources: "App/**",
+            sources: "Sources/**",
             dependencies: [
                 .sdk(name: "c++", type: .library, status: .required),
                 .external(name: "Alamofire"),
@@ -19,6 +19,7 @@ let project = Project(
                 .external(name: "FirebaseAnalytics"),
                 .external(name: "FirebaseDatabase"),
                 .external(name: "FirebaseFirestore"),
+                .project(target: "FeatureOneFramework", path: .relativeToRoot("Features/FeatureOne")),
             ]
         ),
     ]
