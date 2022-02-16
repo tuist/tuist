@@ -1,5 +1,5 @@
 ---
-title: tuist exec
+title: Custom Tuist commands
 slug: '/guides/task'
 description: 'Learn how to to automate arbitrary tasks with tuist in Swift.'
 ---
