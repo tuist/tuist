@@ -55,7 +55,7 @@ In order for Tuist to locate the templates for a plugin, they must be placed in 
 
 ### Tasks
 
-Tasks represent arbitrary tasks which can be run via tuist. For more context, continue [here](/commands/task) where you will also find documentation for the `ProjectAutomation` framework.
+Tasks represent arbitrary tasks which can be run via tuist. For more context, continue [here](/guides/task) where you will also find documentation for the `ProjectAutomation` framework.
 
 To create a task plugin, start by adding a `Package.swift` and adding your CLI executable with `tuist` prefix, such as:
 ```swift
