@@ -115,6 +115,41 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
+    func test_addElement_bundleInsideFrameworkReference() throws {
+        // Given
+        let bundle = GroupFileElement(
+            path: "/path/vendor/abc.framework/resources/abc.bundle",
+            group: .group(name: "Project"),
+            isReference: true
+        )
+        let framework = GroupFileElement(
+            path: "/path/vendor/abc.framework",
+            group: .group(name: "Project"),
+            isReference: true
+        )
+
+        // When
+        try subject.generate(
+            fileElement: bundle,
+            groups: groups,
+            pbxproj: pbxproj,
+            sourceRootPath: "/path"
+        )
+        try subject.generate(
+            fileElement: framework,
+            groups: groups,
+            pbxproj: pbxproj,
+            sourceRootPath: "/path"
+        )
+
+        // Then
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren, [
+            "vendor/abc.framework/resources/abc.bundle",
+            "vendor/abc.framework",
+        ])
+    }
+
     func test_addElement_fileReference() throws {
         // Given
         let element = GroupFileElement(
