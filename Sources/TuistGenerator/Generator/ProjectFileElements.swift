@@ -273,7 +273,7 @@ class ProjectFileElements {
         sourceRootPath: AbsolutePath
     ) throws {
         // The file already exists
-        if elements[fileElement.path] != nil { return }
+        if elements[fileElement.path] != nil && !isFramework(path: fileElement.path) { return }
 
         let fileElementRelativeToSourceRoot = fileElement.path.relative(to: sourceRootPath)
         let closestRelativeRelativePath = closestRelativeElementPath(pathRelativeToSourceRoot: fileElementRelativeToSourceRoot)
@@ -331,8 +331,8 @@ class ProjectFileElements {
         pbxproj: PBXProj
     ) -> (element: PBXFileElement, path: AbsolutePath)? {
         let absolutePath = from.appending(relativePath)
-        if elements[absolutePath] != nil {
-            return (element: elements[absolutePath]!, path: from.appending(relativePath))
+        if let element = elements[absolutePath], !isFramework(path: absolutePath) {
+            return (element: element, path: from.appending(relativePath))
         }
 
         // If the path is ../../xx we specify the name
@@ -367,6 +367,16 @@ class ProjectFileElements {
                 toGroup: toGroup,
                 pbxproj: pbxproj
             )
+        } else if isFramework(path: absolutePath), isLeaf {
+            addFileElement(
+                from: from,
+                fileAbsolutePath: absolutePath,
+                fileRelativePath: relativePath,
+                name: name,
+                toGroup: toGroup,
+                pbxproj: pbxproj
+            )
+            return nil
         } else if !(isFolderTypeFileSource(path: absolutePath) || isLeaf) {
             return addGroupElement(
                 from: from,
@@ -631,6 +641,10 @@ class ProjectFileElements {
 
     func isScnassets(path: AbsolutePath) -> Bool {
         path.extension == "scnassets"
+    }
+
+    func isFramework(path: AbsolutePath) -> Bool {
+        path.extension == "framework"
     }
 
     /// Normalizes a path. Some paths have no direct representation in Xcode,
