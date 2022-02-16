@@ -1,6 +1,6 @@
 ---
-title: tuist exec
-slug: '/commands/task'
+title: Custom Tuist commands
+slug: '/guides/task'
 description: 'Learn how to to automate arbitrary tasks with tuist in Swift.'
 ---
 
@@ -20,7 +20,7 @@ Be aware some APIs might change as we iterate the functionality with the feedbac
 
 You can prepend any executable with `tuist-` and add it to your `PATH`. If you for example add `tuist-my-command` to your `PATH`, you will be able to run `tuist my-command` and `tuist-my-command` will automatically be executed.
 
-You can also create a task as a tuist plugin - learn how to do that [here](/plugins/creating-plugins#Tasks).
+You can also create a task as a tuist plugin - learn how to do that [here](plugins/creating-plugins.md#Tasks).
 
 ## ProjectAutomation
 

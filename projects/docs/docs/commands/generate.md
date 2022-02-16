@@ -18,7 +18,7 @@ To generate the project in the current directory, youn can simply run:
 tuist generate
 ```
 
-Moreover, if external dependencies exist in the [cache](/building-at-scale/caching/), Tuist replaces them with their pre-compiled version.
+Moreover, if external dependencies exist in the [cache](building-at-scale/caching.md), Tuist replaces them with their pre-compiled version.
 
 In large Xcode projects that contain many targets and schemes, Xcode can be slow indexing the project.
 The build system, which needs to resolve implicit dependencies, might take longer to do so because there are more Xcode objects to analyze.
@@ -29,7 +29,7 @@ tuist generate MyApp
 ```
 
 The command generates and opens an Xcode workspace where the targets and schemes not directly related to `MyApp` are removed.
-If the direct and transitive dependencies exist in the [cache](/building-at-scale/caching/), Tuist replaces them with their pre-compiled version.
+If the direct and transitive dependencies exist in the [cache](building-at-scale/caching.md), Tuist replaces them with their pre-compiled version.
 Thanks to that developers can safely clean their Xcode environment because they'll only be building the target they are focusing on.
 
 ### Arguments
