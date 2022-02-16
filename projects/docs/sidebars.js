@@ -15,6 +15,7 @@ module.exports = {
         'guides/resources',
         'guides/dependencies',
         'guides/third-party-dependencies',
+        'guides/task',
         'guides/environment',
         'guides/version-management',
         'guides/shell-autocompletion',
