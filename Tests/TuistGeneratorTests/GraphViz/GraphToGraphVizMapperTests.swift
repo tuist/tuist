@@ -147,6 +147,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
     private func makeGivenGraph() throws -> TuistGraph.Graph {
         let project = Project.test(path: "/")
         let coreProject = Project.test(path: "/Core")
+        let externalProject = Project.test(path: "/Tuist/Dependencies", isExternal: true)
         let framework = GraphDependency.testFramework(path: AbsolutePath("/XcodeProj.framework"))
         let library = GraphDependency.testLibrary(path: AbsolutePath("/RxSwift.a"))
         let sdk = GraphDependency.testSDK(name: "CoreData.framework", status: .required, source: .developer)
@@ -163,17 +164,18 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 product: .unitTests
             )
         )
-        let externalDependency = GraphDependency.target(
-            name: "External dependency",
-            path: project.path.appending(components: "Tuist", "Dependencies")
-        )
+
         let iOSApp = GraphTarget.test(target: Target.test(name: "Tuist iOS"))
         let watchApp = GraphTarget.test(target: Target.test(name: "Tuist watchOS"))
+
+        let externalTarget = GraphTarget.test(path: externalProject.path, target: Target.test(name: "External dependency"))
+        let externalDependency = GraphDependency.target(name: externalTarget.target.name, path: externalTarget.path)
 
         let graph = TuistGraph.Graph.test(
             projects: [
                 project.path: project,
                 coreProject.path: coreProject,
+                externalProject.path: externalProject,
             ],
             targets: [
                 project.path: [
@@ -183,6 +185,9 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 coreProject.path: [
                     core.target.name: core.target,
                     coreTests.target.name: coreTests.target,
+                ],
+                externalProject.path: [
+                    externalTarget.target.name: externalTarget.target,
                 ],
             ],
             dependencies: [
