@@ -68,6 +68,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix warning when importing `ProjectDescription` during `tuist edit`. It was caused by `.swiftsourceinfo` files  being added to the release artifact [#4132](https://github.com/tuist/tuist/pull/4132) by [@luispadron](https://github.com/luispadron)
 - Remove default MacCatalyst support when framework deployment target is set to iOS and/or iPad [#4134](https://github.com/tuist/tuist/pull/4134) by [@TheInkedEngineer](https://github.com/TheInkedEngineer)
 - Fix loading of external dependencies in nested projects [#4157](https://github.com/tuist/tuist/pull/4157) by [@alexanderwe](https://github.com/alexanderwe)
+- Fix to avoid linking indirected cached static frameworks [#4165](https://github.com/tuist/tuist/pull/4165) by [@danyf90](https://github.com/danyf90)
 
 ### Added
 
