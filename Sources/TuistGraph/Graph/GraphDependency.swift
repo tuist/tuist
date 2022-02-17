@@ -98,17 +98,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         }
     }
 
-    public var isStatic: Bool {
-        switch self {
-        case let .xcframework(_, _, _, linking),
-             let .framework(_, _, _, _, linking, _, _),
-             let .library(_, _, linking, _, _):
-            return linking == .static
-        case .bundle, .packageProduct, .target, .sdk:
-            return false
-        }
-    }
-
     // MARK: - Internal
 
     public var targetDependency: (name: String, path: AbsolutePath)? {

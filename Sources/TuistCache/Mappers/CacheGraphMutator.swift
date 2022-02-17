@@ -99,32 +99,22 @@ class CacheGraphMutator: CacheGraphMutating {
     ) throws -> [GraphDependency: Set<GraphDependency>] {
         var graphDependencies = [GraphDependency: Set<GraphDependency>]()
         for (graphTarget, oldDependencies) in graphTraverser.dependencies {
-            let mappedTarget = try replaceableTargetIfNeeded(
-                graphTarget: graphTarget,
-                replaceableTargets: replaceableTargets,
-                precompiledArtifacts: precompiledArtifacts,
-                graphTraverser: graphTraverser
-            ) ?? graphTarget
-
-            let mappedDependencies: [GraphDependency] = try oldDependencies.compactMap { dependency in
-                if let mappedDependency = try replaceableTargetIfNeeded(
+            let newDependencies = try oldDependencies.map { dependency in
+                try mapReplaceableTargetIfNeeded(
                     graphTarget: dependency,
                     replaceableTargets: replaceableTargets,
                     precompiledArtifacts: precompiledArtifacts,
                     graphTraverser: graphTraverser
-                ) {
-                    if mappedTarget != graphTarget, mappedDependency.isStatic {
-                        // Remove the dependency as the code is already embedded in the replaced target
-                        return nil
-                    } else {
-                        return mappedDependency
-                    }
-                } else {
-                    return dependency
-                }
+                )
             }
 
-            graphDependencies[mappedTarget] = Set(mappedDependencies)
+            let newTarget = try mapReplaceableTargetIfNeeded(
+                graphTarget: graphTarget,
+                replaceableTargets: replaceableTargets,
+                precompiledArtifacts: precompiledArtifacts,
+                graphTraverser: graphTraverser
+            )
+            graphDependencies[newTarget] = Set(newDependencies)
         }
         return graphDependencies
     }
@@ -141,17 +131,17 @@ class CacheGraphMutator: CacheGraphMutating {
         return targets
     }
 
-    fileprivate func replaceableTargetIfNeeded(
+    fileprivate func mapReplaceableTargetIfNeeded(
         graphTarget: GraphDependency,
         replaceableTargets: Set<GraphTarget>,
         precompiledArtifacts: [GraphTarget: AbsolutePath],
         graphTraverser: GraphTraverser
-    ) throws -> GraphDependency? {
+    ) throws -> GraphDependency {
         guard let target = graphTraverser.target(from: graphTarget),
               replaceableTargets.contains(target)
         else {
             // Target is not replaceable, we keep it as is.
-            return nil
+            return graphTarget
         }
 
         // Target is replaceable, load the .framework or .xcframework or .bundle
