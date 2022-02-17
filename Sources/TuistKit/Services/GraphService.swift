@@ -175,6 +175,7 @@ extension ProjectAutomation.Project {
         return ProjectAutomation.Project(
             name: project.name,
             path: project.path.pathString,
+            isExternal: project.isExternal,
             packages: packages,
             targets: targets,
             schemes: schemes

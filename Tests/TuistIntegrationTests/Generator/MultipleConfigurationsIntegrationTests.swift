@@ -416,7 +416,8 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             ideTemplateMacros: nil,
             additionalFiles: [],
             resourceSynthesizers: [],
-            lastUpgradeCheck: nil
+            lastUpgradeCheck: nil,
+            isExternal: false
         )
     }
 
