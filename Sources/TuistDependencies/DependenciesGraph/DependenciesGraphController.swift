@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistGraph
 import TuistSupport
 
@@ -50,7 +51,12 @@ public protocol DependenciesGraphControlling {
 // MARK: - Dependencies Graph Controller
 
 public final class DependenciesGraphController: DependenciesGraphControlling {
-    public init() {}
+    private let rootDirectoryLocator: RootDirectoryLocating
+
+    /// Default constructor.
+    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+        self.rootDirectoryLocator = rootDirectoryLocator
+    }
 
     public func save(_ dependenciesGraph: TuistGraph.DependenciesGraph, to path: AbsolutePath) throws {
         let jsonEncoder = JSONEncoder()
@@ -69,11 +75,20 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
     }
 
     public func load(at path: AbsolutePath) throws -> TuistGraph.DependenciesGraph {
-        let graphPath = graphPath(at: path)
-        guard FileHandler.shared.exists(graphPath) else {
+        // Search for the dependency graph at the root directory
+        // This can be the directory of this project or in case of nested projects
+        // the root of the overall project
+        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else {
             return .none
         }
-        let graphData = try FileHandler.shared.readFile(graphPath)
+
+        let rootGraphPath = graphPath(at: rootDirectory)
+
+        guard FileHandler.shared.exists(rootGraphPath) else {
+            return .none
+        }
+
+        let graphData = try FileHandler.shared.readFile(rootGraphPath)
 
         do {
             return try JSONDecoder().decode(TuistGraph.DependenciesGraph.self, from: graphData)

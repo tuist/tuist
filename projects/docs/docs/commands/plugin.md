@@ -4,7 +4,7 @@ title: Sharing via plugins
 description: 'Learn how to use plugin commands for developing and publishing Tuist plugins.'
 ---
 
-To help developers with the process of [creating plugins](/plugins/creating-plugins/),
+To help developers with the process of [creating plugins](plugins/creating-plugins.md),
 we provide a set of commands under `tuist plugin`. These plugin commands are aimed at parts of the plugin defined in `Package.swift`.
 
 ### Build
@@ -37,7 +37,7 @@ we provide a set of commands under `tuist plugin`. These plugin commands are aim
 
 ### Archive
 
-Archives a plugin into a `NameOfPlugin.tuist-plugin.zip`. This file is then used for publishing the plugin as described [here](/plugins/creating-plugins).
+Archives a plugin into a `NameOfPlugin.tuist-plugin.zip`. This file is then used for publishing the plugin as described [here](plugins/creating-plugins.md).
 
 #### Arguments
 

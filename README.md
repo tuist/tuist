@@ -247,6 +247,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/mikchmie"><img src="https://avatars.githubusercontent.com/u/15248837?v=4" width="100px;" alt=""/><br /><sub><b>Mikołaj Chmielewski</b></sub></a></td>
     <td align="center"><a href="https://github.com/takinwande"><img src="https://avatars.githubusercontent.com/u/4744429?v=4" width="100px;" alt=""/><br /><sub><b>Tope Akinwande</b></sub></a></td>
     <td align="center"><a href="https://www.theinkedengineer.com"><img src="https://avatars.githubusercontent.com/u/13349066?v=4" width="100px;" alt=""/><br /><sub><b>TheInkedEngineer</b></sub></a></td>
+    <td align="center"><a href="http://alexanderweiss.dev"><img src="https://avatars.githubusercontent.com/u/12934015?v=4" width="100px;" alt=""/><br /><sub><b>Alexander Weiß</b></sub></a></td>
   </tr>
 </table>
 

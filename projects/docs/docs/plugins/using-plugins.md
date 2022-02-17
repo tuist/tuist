@@ -80,7 +80,7 @@ let config = Config(
 #### Tasks
 
 To use a task plugin, simply import the plugin in `Config.swift` and it will be automatically available by running `tuist my-plugin-task`.
-You can read more about tasks [here](/commands/task).
+You can read more about tasks [here](guides/task.md).
 
 #### Project description helpers
 
