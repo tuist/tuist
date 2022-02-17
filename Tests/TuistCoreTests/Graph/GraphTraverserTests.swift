@@ -1617,7 +1617,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, [
             GraphDependencyReference(dependencyPrecompiledStaticBinaryA),
-            GraphDependencyReference(dependencyPrecompiledStaticBinaryB),
         ])
 
         // When
@@ -1790,7 +1789,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, [
             GraphDependencyReference(dependencyPrecompiledDynamicBinaryA),
-            GraphDependencyReference(dependencyPrecompiledStaticBinaryB),
         ])
 
         // When

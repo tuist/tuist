@@ -293,14 +293,20 @@ public class GraphTraverser: GraphTraversing {
         references.formUnion(directSystemLibrariesAndFrameworks)
 
         // Precompiled libraries and frameworks
-        let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
+        let precompiledDependencies = graph.dependencies[.target(name: name, path: path), default: []]
             .lazy
             .filter(\.isPrecompiled)
 
-        let precompiledDependencies = precompiled
-            .flatMap { filterDependencies(from: $0) }
+        let precompiledTransitiveDependencies = precompiledDependencies
+            .flatMap {
+              filterDependencies(
+                from: $0,
+                // ignore transitive static precompiled dependencies as they are embedded in direct ones
+                test: { !isDependencyStatic(dependency: $0) }
+              )
+            }
 
-        let precompiledLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
+        let precompiledLibrariesAndFrameworks = Set(precompiledDependencies + precompiledTransitiveDependencies)
             .compactMap(dependencyReference)
 
         references.formUnion(precompiledLibrariesAndFrameworks)
