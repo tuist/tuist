@@ -511,33 +511,29 @@ public class GraphTraverser: GraphTraversing {
     ) -> Set<GraphDependency> {
         var stack = Stack<GraphDependency>()
 
-        stack.push(rootDependency)
+        graph.dependencies[rootDependency]?.forEach { stack.push($0) }
 
         var visited: Set<GraphDependency> = .init()
         var references = Set<GraphDependency>()
 
         while !stack.isEmpty {
-            guard let node = stack.pop() else {
-                continue
-            }
-
-            if visited.contains(node) {
+            guard let node = stack.pop(),
+                  !visited.contains(node)
+            else {
                 continue
             }
 
             visited.insert(node)
 
-            if node != rootDependency, test(node) {
+            if test(node) {
                 references.insert(node)
             }
 
-            if node != rootDependency, skip(node) {
-                continue
-            }
-
-            graph.dependencies[node]?.forEach { nodeDependency in
-                if !visited.contains(nodeDependency) {
-                    stack.push(nodeDependency)
+            if !skip(node) {
+                graph.dependencies[node]?.forEach { nodeDependency in
+                    if !visited.contains(nodeDependency) {
+                        stack.push(nodeDependency)
+                    }
                 }
             }
         }
