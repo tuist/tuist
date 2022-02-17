@@ -8,7 +8,7 @@ public struct Project: Codable, Equatable {
     /// The absolute path of the project.
     public let path: String
 
-    /// Indicates whether the target is imported through `Dependencies.swift`.
+    /// Indicates whether the project is imported through `Dependencies.swift`.
     public let isExternal: Bool
 
     /// The Swift packages that this project depends on.
