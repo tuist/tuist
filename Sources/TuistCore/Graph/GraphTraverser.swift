@@ -299,11 +299,11 @@ public class GraphTraverser: GraphTraversing {
 
         let precompiledTransitiveDependencies = precompiledDependencies
             .flatMap {
-              filterDependencies(
-                from: $0,
-                // include transitive static precompiled dependencies, static ones are embedded in direct dependencies
-                test: isDependencyPrecompiledDynamicAndLinkable
-              )
+                filterDependencies(
+                    from: $0,
+                    // include transitive static precompiled dependencies, static ones are embedded in direct dependencies
+                    test: isDependencyPrecompiledDynamicAndLinkable
+                )
             }
 
         let precompiledLibrariesAndFrameworks = Set(precompiledDependencies + precompiledTransitiveDependencies)
