@@ -301,8 +301,8 @@ public class GraphTraverser: GraphTraversing {
             .flatMap {
               filterDependencies(
                 from: $0,
-                // ignore transitive static precompiled dependencies as they are embedded in direct ones
-                test: { !isDependencyStatic(dependency: $0) }
+                // include transitive static precompiled dependencies, static ones are embedded in direct dependencies
+                test: isDependencyPrecompiledDynamicAndLinkable
               )
             }
 
