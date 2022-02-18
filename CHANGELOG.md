@@ -96,6 +96,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add more detailed messaging for errors during manifest loading [#4076](https://github.com/tuist/tuist/pull/4076) by [@luispadron](https://github.com/luispadron)
 - Deprecate legacy SPM support via Project.packages [#4112](https://github.com/tuist/tuist/pull/4112) by [@danyf90](https://github.com/danyf90)
 - Improve performance of `tuist generate` when cache is used [#4146](https://github.com/tuist/tuist/pull/4146) by [@adellibovi](https://github.com/adellibovi)
+- `tuist init` now requires to provide the `--name` argument for custom templates [#4163](https://github.com/tuist/tuist/pull/4163) by [@austinate](https://github.com/austinate)
 
 ### Removed
 
@@ -118,7 +119,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix warning when importing `ProjectDescription` during `tuist edit`. It was caused by `.swiftsourceinfo` files  being added to the release artifact [#4132](https://github.com/tuist/tuist/pull/4132) by [@luispadron](https://github.com/luispadron)
 - Remove default MacCatalyst support when framework deployment target is set to iOS and/or iPad [#4134](https://github.com/tuist/tuist/pull/4134) by [@TheInkedEngineer](https://github.com/TheInkedEngineer)
 - Fix loading of external dependencies in nested projects [#4157](https://github.com/tuist/tuist/pull/4157) by [@alexanderwe](https://github.com/alexanderwe)
-- Fix `tuist init` not validating missing `--name` argument for custom templates with the required template name [#4163](https://github.com/tuist/tuist/pull/4163) by [@austinate](https://github.com/austinate)
 
 ### Added
 
