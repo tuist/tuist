@@ -201,7 +201,7 @@ public class GraphTraverser: GraphTraversing {
         /// Precompiled frameworks
         let precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: isDependencyPrecompiledAndLinkable,
+            test: isDependencyPrecompiledDynamicAndLinkable,
             skip: canDependencyEmbedProducts
         )
         .lazy
@@ -408,7 +408,7 @@ public class GraphTraverser: GraphTraversing {
         let from = GraphDependency.target(name: name, path: path)
         let precompiledFramewoksPaths = filterDependencies(
             from: from,
-            test: isDependencyPrecompiledAndLinkable,
+            test: isDependencyPrecompiledDynamicAndLinkable,
             skip: canDependencyEmbedProducts
         )
         .lazy
@@ -633,11 +633,10 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
-    func isDependencyPrecompiledAndLinkable(dependency: GraphDependency) -> Bool {
+    func isDependencyPrecompiledDynamicAndLinkable(dependency: GraphDependency) -> Bool {
         switch dependency {
-        case .xcframework(_, _, _, _):
-            return true
-        case let .framework(_, _, _, _, linking, _, _),
+        case let .xcframework(_, _, _, linking),
+             let .framework(_, _, _, _, linking, _, _),
              let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
             return linking == .dynamic
         case .bundle: return false
