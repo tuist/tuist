@@ -73,6 +73,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add support for `umbrellaHeader` parameter to `Headers` to get list of public headers automatically. Also added new static functions in `Headers` for most popular cases with umbrella header [#3884](https://github.com/tuist/tuist/pull/3884) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
 - Add `isExternal` property to `ProjectAutomation.Project` and `TuistGraph.Project` that indicates whether a project is imported through `Dependencies.swift`. [#4155](https://github.com/tuist/tuist/pull/4155) by [@laxmorek](https://github.com/laxmorek)
+- Add `swiftOptimizeObjectLifetimes(_ enabled:)` to SettingsDictionary extension to set `SWIFT_OPTIMIZE_OBJECT_LIFETIME` in Build Settings. [#4171](https://github.com/tuist/tuist/pull/4171) by [@kyungpyoda](https://github.com/kyungpyoda)
 
 ## 2.7.2
 
