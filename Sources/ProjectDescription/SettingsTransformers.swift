@@ -109,6 +109,11 @@ extension SettingsDictionary {
         merging(["SWIFT_OPTIMIZATION_LEVEL": SettingValue(level)])
     }
 
+    /// Sets `"SWIFT_OPTIMIZE_OBJECT_LIFETIME"` to `"YES"` or `"NO"`
+    public func swiftOptimizeObjectLifetimes(_ enabled: Bool) -> SettingsDictionary {
+        merging(["SWIFT_OPTIMIZE_OBJECT_LIFETIME": SettingValue(enabled)])
+    }
+
     // MARK: - Bitcode
 
     /// Sets `"ENABLE_BITCODE"` to `"YES"` or `"NO"`
