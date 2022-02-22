@@ -47,9 +47,9 @@ module Fourier
             File.join(output_directory, "#{product}.framework")
           )
 
-            FileUtils.mkdir_p(
-              File.join(output_directory, "#{product}.framework/Modules")
-            )
+          FileUtils.mkdir_p(
+            File.join(output_directory, "#{product}.framework/Modules")
+          )
           FileUtils.cp_r(
             File.join(swift_build_directory, "Release/#{product}.swiftmodule"),
             File.join(output_directory, "#{product}.framework/Modules/#{product}.swiftmodule")
