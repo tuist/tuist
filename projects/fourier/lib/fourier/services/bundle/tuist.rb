@@ -28,6 +28,12 @@ module Fourier
           Dir.mktmpdir do |build_directory|
             Dir.mktmpdir do |swift_build_directory|
               build_project_library(
+                name: "ProjectAutomation",
+                output_directory: build_directory,
+                swift_build_directory: swift_build_directory,
+                xcode_paths: xcode_paths
+              )
+              build_project_library(
                 name: "ProjectDescription",
                 output_directory: build_directory,
                 swift_build_directory: swift_build_directory,
@@ -66,6 +72,8 @@ module Fourier
                   output_zip_path,
                   "tuist",
                   "libswift_Concurrency.dylib",
+                  "ProjectAutomation.framework",
+                  "ProjectAutomation.framework.dSYM",
                   "ProjectDescription.framework",
                   "ProjectDescription.framework.dSYM",
                   "Templates",
