@@ -758,6 +758,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "VilleWitt",
+      "name": "Ville Witt",
+      "avatar_url": "https://avatars.githubusercontent.com/u/522544?v=4",
+      "profile": "http://www.villewitt.net",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
