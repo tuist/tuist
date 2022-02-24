@@ -35,9 +35,13 @@ And then run:
 tuist init --platform ios
 ```
 
-The `init` command will bootstrap an iOS application, which includes the `Info.plist` files, an `AppDelegate.swift,` a tests file, and a **`Project.swift` that contains the definition of the project.**
+The `init` command will bootstrap an iOS application, which includes the `Info.plist` files, an `AppDelegate.swift`, a tests file, and a **`Project.swift` that contains the definition of the project.**
 
 > If you have used the Swift Package Manager before, the `Project.swift` file is the equivalent to the `Package.swift`.
+
+:::note SwiftUI template
+`tuist init --platform ios --template swiftui` will bootstrap a SwiftUI iOS project instead.
+:::
 
 The definition file, also known as manifest, has the following structure:
 
