@@ -40,7 +40,7 @@ The `init` command will bootstrap an iOS application, which includes the `Info.p
 > If you have used the Swift Package Manager before, the `Project.swift` file is the equivalent to the `Package.swift`.
 
 :::note SwiftUI template
-`tuist init --platform ios --template swiftui` will bootstrap a SwiftUI project instead.
+`tuist init --platform ios --template swiftui` will bootstrap a SwiftUI iOS project instead.
 :::
 
 The definition file, also known as manifest, has the following structure:
