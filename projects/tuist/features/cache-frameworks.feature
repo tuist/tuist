@@ -18,6 +18,11 @@ Feature: Focuses projects with pre-compiled cached xcframeworks
     Then tuist warms the cache
     When tuist focuses the target App
     Then I should be able to build for iOS the scheme App
+    Then App links the framework Framework1 from the cache
+    Then App links the framework Framework2 from the cache
+    Then App does not link the framework Framework3 from the cache
+    Then App links the framework FrameworkA from the cache
+    Then App does not link the framework FrameworkB from the cache
 
   Scenario: The project is an iOS application with custom configuration and cache profile (ios_app_with_custom_configuration)
     Given that tuist is available

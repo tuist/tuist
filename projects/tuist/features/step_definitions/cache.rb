@@ -37,6 +37,18 @@ Then(/^([a-zA-Z0-9]+) links the framework ([a-zA-Z0-9]+) from the cache/) do |ta
   end
 end
 
+Then(/^([a-zA-Z0-9]+) does not link the framework ([a-zA-Z0-9]+) from the cache/) do |target_name, framework_name|
+  projects = Xcode.projects(@workspace_path)
+  target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
+  flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
+  build_file = target.frameworks_build_phases.files.filter do |f|
+    f.display_name.include?("#{framework_name}.framework")
+  end .first
+  if build_file
+    flunk("Target #{target_name} links the framework #{framework}")
+  end
+end
+
 Then(/^([a-zA-Z0-9]+) copies the bundle ([a-zA-Z0-9]+) from the cache/) do |target_name, bundle_name|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }

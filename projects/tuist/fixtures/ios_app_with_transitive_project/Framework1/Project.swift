@@ -13,6 +13,7 @@ let project = Project(
             sources: "Sources/**",
             dependencies: [
                 .project(target: "Framework2-iOS", path: "../Framework2"),
+                .project(target: "Framework3-iOS", path: "../Framework3"),
             ]
         ),
         Target(
@@ -25,6 +26,7 @@ let project = Project(
             sources: "Sources/**",
             dependencies: [
                 .project(target: "Framework2-macOS", path: "../Framework2"),
+                .project(target: "Framework3-macOS", path: "../Framework3"),
             ]
         ),
         Target(
