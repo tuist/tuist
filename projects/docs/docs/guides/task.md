@@ -76,6 +76,7 @@ You might wonder what the return value of `Tuist.graph()` is - the method return
 | ---------- | ------------------------------------------------------------- | ------- |
 | `name`| Name of the project | `String` |
 | `path` | Absolute path of the project | `String` |
+| `isExternal` | Indicates whether the project is imported through `Dependencies.swift` | `Bool` |
 | `packages` | Swift packages that this project depends on | `[Package]` |
 | `targets` | Targets of this projects | `[Target]` |
 | `schemes` | Defined schemes for this project | `[Scheme]` |

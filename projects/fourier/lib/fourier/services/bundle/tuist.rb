@@ -66,6 +66,8 @@ module Fourier
                   output_zip_path,
                   "tuist",
                   "libswift_Concurrency.dylib",
+                  "ProjectAutomation.framework",
+                  "ProjectAutomation.framework.dSYM",
                   "ProjectDescription.framework",
                   "ProjectDescription.framework.dSYM",
                   "Templates",

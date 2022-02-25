@@ -174,4 +174,24 @@ final class SettingsTests: XCTestCase {
             "SWIFT_OPTIMIZATION_LEVEL": "-Osize",
         ])
     }
+
+    func test_settingsDictionary_SwiftOptimizeObjectLifetimes() {
+        /// Given/When
+        let settings1 = SettingsDictionary()
+            .swiftOptimizeObjectLifetimes(true)
+
+        /// Then
+        XCTAssertEqual(settings1, [
+            "SWIFT_OPTIMIZE_OBJECT_LIFETIME": "YES",
+        ])
+
+        /// Given/When
+        let settings2 = SettingsDictionary()
+            .swiftOptimizeObjectLifetimes(false)
+
+        /// Then
+        XCTAssertEqual(settings2, [
+            "SWIFT_OPTIMIZE_OBJECT_LIFETIME": "NO",
+        ])
+    }
 }

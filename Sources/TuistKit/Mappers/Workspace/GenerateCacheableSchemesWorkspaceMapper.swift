@@ -36,7 +36,7 @@ final class GenerateCacheableSchemesWorkspaceMapper: WorkspaceMapping {
             .filter { $0.1.platform == platform }
 
         let allInternalTargets = projectsWithTargets
-            .filter { !$0.0.path.pathString.contains("\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)") }
+            .filter { !$0.0.isExternal }
             .map(\.1.name)
         let includedTargets = includedTargets.isEmpty ? Set(allInternalTargets) : includedTargets
 

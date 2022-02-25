@@ -36,12 +36,7 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func allTargets() -> Set<GraphTarget> {
-        Set(projects.flatMap { projectPath, project -> [GraphTarget] in
-            let targets = graph.targets[projectPath, default: [:]]
-            return targets.values.map { target in
-                GraphTarget(path: projectPath, target: target, project: project)
-            }
-        })
+        allTargets(excludingExternalTargets: false)
     }
 
     public func allTargetsTopologicalSorted() throws -> [GraphTarget] {
@@ -54,9 +49,7 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func allInternalTargets() -> Set<GraphTarget> {
-        allTargets()
-            .filter { !$0.path.pathString.contains("\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)")
-            }
+        allTargets(excludingExternalTargets: true)
     }
 
     public func rootProjects() -> Set<Project> {
@@ -739,6 +732,17 @@ public class GraphTraverser: GraphTraversing {
         default:
             return false
         }
+    }
+
+    private func allTargets(excludingExternalTargets: Bool) -> Set<GraphTarget> {
+        Set(projects.flatMap { projectPath, project -> [GraphTarget] in
+            if excludingExternalTargets, project.isExternal { return [] }
+
+            let targets = graph.targets[projectPath, default: [:]]
+            return targets.values.map { target in
+                GraphTarget(path: projectPath, target: target, project: project)
+            }
+        })
     }
 }
 

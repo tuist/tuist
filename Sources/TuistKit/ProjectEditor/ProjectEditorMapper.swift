@@ -267,7 +267,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             ideTemplateMacros: nil,
             additionalFiles: [],
             resourceSynthesizers: [],
-            lastUpgradeCheck: nil
+            lastUpgradeCheck: nil,
+            isExternal: false
         )
     }
 
@@ -359,7 +360,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             ideTemplateMacros: nil,
             additionalFiles: [],
             resourceSynthesizers: [],
-            lastUpgradeCheck: nil
+            lastUpgradeCheck: nil,
+            isExternal: false
         )
     }
 

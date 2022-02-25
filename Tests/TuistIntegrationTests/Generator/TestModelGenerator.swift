@@ -162,7 +162,8 @@ final class TestModelGenerator {
             ideTemplateMacros: nil,
             additionalFiles: createAdditionalFiles(path: path),
             resourceSynthesizers: [],
-            lastUpgradeCheck: nil
+            lastUpgradeCheck: nil,
+            isExternal: false
         )
     }
 

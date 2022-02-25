@@ -47,7 +47,8 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
             generatorPaths: .init(manifestDirectory: "/"),
             plugins: .none,
             externalDependencies: [:],
-            resourceSynthesizerPathLocator: MockResourceSynthesizerPathLocator()
+            resourceSynthesizerPathLocator: MockResourceSynthesizerPathLocator(),
+            isExternal: false
         )
 
         // Then
@@ -82,7 +83,8 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                 ideTemplateMacros: .init(fileHeader: "123"),
                 additionalFiles: [.file(path: "/file.swift")],
                 resourceSynthesizers: [],
-                lastUpgradeCheck: nil
+                lastUpgradeCheck: nil,
+                isExternal: false
             )
         )
     }
