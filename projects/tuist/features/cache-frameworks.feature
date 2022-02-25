@@ -47,7 +47,6 @@ Feature: Focuses projects with pre-compiled cached xcframeworks
     And tuist warms the cache
     When tuist focuses the target App
     Then App links the framework A from the cache
-    Then App links the framework B from the cache
     Then App links the framework C from the cache
     Then App links the framework D from the cache
     Then App copies the bundle AResources from the cache
