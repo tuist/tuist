@@ -2,6 +2,13 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## Next
+
+### Added
+
+- Add `marketingVersion(_ version:)` to SettingsDictionary extension to set `MARKETING_VERSION` in Build Settings. by [@dogo](https://github.com/dogo)
+- Add `debugInformationFormat(_ format:)` to SettingsDictionary extension to set `DEBUG_INFORMATION_FORMAT` in Build Settings. by [@dogo](https://github.com/dogo)
+
 ## 3.0.0 - Bravo
 
 ### Changed
