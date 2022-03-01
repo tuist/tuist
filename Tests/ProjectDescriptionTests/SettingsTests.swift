@@ -90,17 +90,20 @@ final class SettingsTests: XCTestCase {
         let settings = SettingsDictionary()
             .codeSignIdentityAppleDevelopment()
             .currentProjectVersion("999")
+            .marketingVersion("1.0.0")
             .automaticCodeSigning(devTeam: "123ABC")
             .appleGenericVersioningSystem()
             .versionInfo("NLR", prefix: "A_Prefix", suffix: "A_Suffix")
             .swiftVersion("5.2.1")
             .otherSwiftFlags("first", "second", "third")
             .bitcodeEnabled(true)
+            .debugInformationFormat(.dwarf)
 
         /// Then
         XCTAssertEqual(settings, [
             "CODE_SIGN_IDENTITY": "Apple Development",
             "CURRENT_PROJECT_VERSION": "999",
+            "MARKETING_VERSION": "1.0.0",
             "CODE_SIGN_STYLE": "Automatic",
             "DEVELOPMENT_TEAM": "123ABC",
             "VERSIONING_SYSTEM": "apple-generic",
@@ -110,6 +113,7 @@ final class SettingsTests: XCTestCase {
             "SWIFT_VERSION": "5.2.1",
             "OTHER_SWIFT_FLAGS": "first second third",
             "ENABLE_BITCODE": "YES",
+            "DEBUG_INFORMATION_FORMAT": "dwarf",
         ])
     }
 
@@ -192,6 +196,37 @@ final class SettingsTests: XCTestCase {
         /// Then
         XCTAssertEqual(settings2, [
             "SWIFT_OPTIMIZE_OBJECT_LIFETIME": "NO",
+        ])
+    }
+
+    func test_settingsDictionary_marketingVersion() {
+        /// Given/When
+        let settings = SettingsDictionary()
+            .marketingVersion("1.0.0")
+
+        /// Then
+        XCTAssertEqual(settings, [
+            "MARKETING_VERSION": "1.0.0",
+        ])
+    }
+
+    func test_settingsDictionary_debugInformationFormat() {
+        /// Given/When
+        let settings1 = SettingsDictionary()
+            .debugInformationFormat(.dwarf)
+
+        /// Then
+        XCTAssertEqual(settings1, [
+            "DEBUG_INFORMATION_FORMAT": "dwarf",
+        ])
+
+        /// Given/When
+        let settings2 = SettingsDictionary()
+            .debugInformationFormat(.dwarfWithDsym)
+
+        /// Then
+        XCTAssertEqual(settings2, [
+            "DEBUG_INFORMATION_FORMAT": "dwarf-with-dsym",
         ])
     }
 }

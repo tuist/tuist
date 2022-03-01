@@ -25,6 +25,11 @@ public enum SwiftCompilationMode: String {
     case wholemodule
 }
 
+public enum DebugInformationFormat: String {
+    case dwarf
+    case dwarfWithDsym = "dwarf-with-dsym"
+}
+
 public enum SwiftOptimizationLevel: String {
     case o = "-O"
     case oNone = "-Onone"
@@ -73,6 +78,11 @@ extension SettingsDictionary {
         merging(["CURRENT_PROJECT_VERSION": SettingValue(version)])
     }
 
+    /// Sets `"MARKETING_VERSION"` to `version`
+    public func marketingVersion(_ version: String) -> SettingsDictionary {
+        merging(["MARKETING_VERSION": SettingValue(version)])
+    }
+
     /// Sets `"VERSIONING_SYSTEM"` to `"apple-generic"`
     public func appleGenericVersioningSystem() -> SettingsDictionary {
         merging(["VERSIONING_SYSTEM": "apple-generic"])
@@ -119,5 +129,12 @@ extension SettingsDictionary {
     /// Sets `"ENABLE_BITCODE"` to `"YES"` or `"NO"`
     public func bitcodeEnabled(_ enabled: Bool) -> SettingsDictionary {
         merging(["ENABLE_BITCODE": SettingValue(enabled)])
+    }
+
+    // MARK: - Build Options
+
+    /// Sets `"DEBUG_INFORMATION_FORMAT"`to `"dwarf"` or `"dwarf-with-dsym"`
+    public func debugInformationFormat(_ format: DebugInformationFormat) -> SettingsDictionary {
+        merging(["DEBUG_INFORMATION_FORMAT": SettingValue(format)])
     }
 }
