@@ -11,7 +11,7 @@ let project = Project(
             bundleId: "io.tuist.FrameworkC",
             infoPlist: .default,
             sources: "Sources/**",
-            dependencies: [ ]
+            dependencies: []
         ),
         Target(
             name: "FrameworkC-macOS",
