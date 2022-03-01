@@ -9,7 +9,7 @@ we provide a set of commands under `tuist plugin`. These plugin commands are aim
 
 ### Run
 
-`tuist plugin run tuist-my-task` will run the given task of a plugin. If you are using [ProjectAutomation](task/#projectautomation), the easiest way to run the task is from the directory that contains your project and with the following command:
+`tuist plugin run tuist-my-task` will run the given task of a plugin. If you are using [ProjectAutomation](guides/task.md#projectautomation), the easiest way to run the task is from the directory that contains your project and with the following command:
 `tuist plugin run tuist-my-task --path /path/to/directory/containing/plugin`
 
 #### Arguments
