@@ -12,6 +12,7 @@ let project = Project(
             sources: "Sources/**",
             dependencies: [
                 .project(target: "Framework1-iOS", path: "../Framework1"),
+                .project(target: "FrameworkA-iOS", path: "../FrameworkA"),
             ]
         ),
         Target(
