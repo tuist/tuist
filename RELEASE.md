@@ -13,4 +13,5 @@ This document describes the process of releasing new versions of Tuist.
 5. Run the workflow
 6. Wait for release workflow to finish
 7. Merge the PR created by the workflow
-8. Once merged verify with `tuist update`
+8. Clone [ProjectAutomation](https://github.com/tuist/ProjectAutomation) repository and run `./release.sh`
+9. Once merged verify with `tuist update`

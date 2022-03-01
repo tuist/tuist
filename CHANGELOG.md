@@ -2,6 +2,12 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## Next
+
+### Fixed
+
+- Fix `Tuist.graph()` command in `ProjectAutomation` [#4204](https://github.com/tuist/tuist/pull/4204) by [@fortmarek](https://github.com/fortmarek)
+
 ## 3.0.0 - Bravo
 
 ### Changed
