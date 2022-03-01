@@ -34,13 +34,13 @@ let package = Package(
         .executable(name: "my-cli", targets: ["my-cli"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/tuist/tuist", .upToNextMajor(from: "x.y.z")), // Add tuist as a package
+        .package(url: "https://github.com/tuist/ProjectAutomation", .upToNextMajor(from: "x.y.z")), // Add ProjectAutomation as a package
     ],
     targets: [
         .target(
             name: "my-cli",
             dependencies: [
-                .product(name: "ProjectAutomation", package: "tuist") // Integrate ProjectAutomation framework
+                .product(name: "ProjectAutomation", package: "ProjectAutomation") // Integrate ProjectAutomation framework
             ]
         ),
     ]

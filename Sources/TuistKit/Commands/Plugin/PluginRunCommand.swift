@@ -19,7 +19,7 @@ struct PluginRunCommand: ParsableCommand {
     var buildTests = false
 
     @Flag(
-        help: "Skip building the test target."
+        help: "Skip building the plugin."
     )
     var skipBuild = false
 
