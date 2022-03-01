@@ -46,7 +46,7 @@ public enum Tuist {
             var environment: [String: String] = [:]
             if let configCacheDirectory = ProcessInfo.processInfo.environment[forceConfigCacheDirectory],
                 !configCacheDirectory.isEmpty {
-                environment[forceConfigCacheDirectory] = ProcessInfo.processInfo.environment[forceConfigCacheDirectory]
+                environment[forceConfigCacheDirectory] = configCacheDirectory
             }
             try run(
                 arguments,
