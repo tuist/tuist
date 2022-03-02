@@ -1,29 +1,29 @@
 import Foundation
 
-/// It represents the test action of a scheme.
+/// It represents the scheme action that runs the built products on the supported platforms. It's initialized with the .runAction static method.
 public struct RunAction: Equatable, Codable {
-    /// Name of the configuration that should be used for building the runnable targets.
+    /// Indicates the build configuration the product should run with.
     public let configuration: ConfigurationName
 
-    /// Enable this to attach a debugger to the process running the app.
+    /// Whether a debugger should be attached to the run process or not.
     public let attachDebugger: Bool
 
-    /// List of actions to be executed before running.
+    /// A list of actions that are executed before starting the run process.
     public let preActions: [ExecutionAction]
 
-    /// List of actions to be executed after running.
+    /// A list of actions that are executed after the run process.
     public let postActions: [ExecutionAction]
 
-    /// Executable that will be run.
+    /// The name of the executable or target to run.
     public let executable: TargetReference?
 
-    /// Arguments passed to the process running the app.
+    /// Command line arguments passed on launch and environment variables.
     public let arguments: Arguments?
 
-    /// Run action options
+    /// List of options to set to the action.
     public let options: RunActionOptions
 
-    /// Diagnostics options.
+    /// List of diagnostics options to set to the action.
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
 
     init(
@@ -48,14 +48,14 @@ public struct RunAction: Equatable, Codable {
 
     /// Initializes a new instance of a run action.
     /// - Parameters:
-    ///   - configuration: Name of the configuration that should be used for building the runnable targets.
-    ///   - attachDebugger: A boolean controlling whether a debugger is attached to the process running the app.
-    ///   - preActions: Actions to execute before running.
-    ///   - postActions: Actions to execute after running.
-    ///   - executable: Executable that will be run.
-    ///   - arguments: Arguments passed to the process running the app.
-    ///   - options: Run action options.
-    ///   - diagnosticsOptions: Diagnostics options.
+    ///   - configuration: Indicates the build configuration the product should run with.
+    ///   - attachDebugger: Whether a debugger should be attached to the run process or not.
+    ///   - preActions: A list of actions that are executed before starting the run process.
+    ///   - postActions: A list of actions that are executed after the run process.
+    ///   - executable: The name of the executable or target to run.
+    ///   - arguments: Command line arguments passed on launch and environment variables.
+    ///   - options: List of options to set to the action.
+    ///   - diagnosticsOptions: List of diagnostics options to set to the action.
     /// - Returns: Run action.
     public static func runAction(
         configuration: ConfigurationName = .debug,

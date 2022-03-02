@@ -1,9 +1,14 @@
 import Foundation
 
+/// It represents the scheme action that builds targets. It's initialized with the `.buildAction` static method.
 public struct BuildAction: Equatable, Codable {
+    /// A list of targets to build, which are defined in the project.
     public let targets: [TargetReference]
+    /// A list of actions that are executed before starting the build process.
     public let preActions: [ExecutionAction]
+    /// A list of actions that are executed after the build process.
     public let postActions: [ExecutionAction]
+    /// Whether the post actions should be run in the case of a failure
     public let runPostActionsOnFailure: Bool
 
     public init(
@@ -20,10 +25,10 @@ public struct BuildAction: Equatable, Codable {
 
     /// Returns a build action.
     /// - Parameters:
-    ///   - targets: Targets to be built.
-    ///   - preActions: Actions to run before building.
-    ///   - postActions: Actions to run after building.
-    ///   - runPostActionsOnFailure: Whether pre and post actions should run on failure.
+    ///   - targets: A list of targets to build, which are defined in the project.
+    ///   - preActions: A list of actions that are executed before starting the build process.
+    ///   - postActions: A list of actions that are executed after the build process.
+    ///   - runPostActionsOnFailure: Whether the post actions should be run in the case of a failure
     /// - Returns: Initialized build action.
     public static func buildAction(
         targets: [TargetReference],

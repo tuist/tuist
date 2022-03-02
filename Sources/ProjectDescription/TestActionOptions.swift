@@ -1,17 +1,17 @@
 import Foundation
 
-/// Options for the `TestAction` action
+/// The type `TestActionOptions` represents a set of options for a test action.
 public struct TestActionOptions: Equatable, Codable {
-    /// App Language.
+    /// Language used to run the tests.
     public let language: SchemeLanguage?
 
-    /// Region.
+    /// Region used to run the tests.
     public let region: String?
 
-    /// True to collect the test coverage results.
+    /// Whether the scheme should or not gather the test coverage data.
     public let coverage: Bool
 
-    /// List of targets for which Xcode will collect the coverage results.
+    /// A list of targets you want to gather the test coverage data for them, which are defined in the project.
     public let codeCoverageTargets: [TargetReference]
 
     init(

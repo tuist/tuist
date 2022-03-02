@@ -1,26 +1,26 @@
 // MARK: - FileList
 
-/// A model to refer to source files that supports passing compiler flags.
+/// It represents a glob pattern that refers to source files and the compiler flags (if any) to be set in the build phase:
 public struct SourceFileGlob: Codable, Equatable {
-    /// Relative glob pattern.
+    /// Glob pattern to the source files.
     public let glob: Path
 
-    /// Relative glob patterns for excluded files.
+    /// Glob patterns for source files that will be excluded.
     public let excluding: [Path]
 
-    /// Compiler flags.
+    /// The compiler flags to be set to the source files in the sources build phase.
     public let compilerFlags: String?
 
-    /// Source file code generation attribute
+    /// The source file attribute to be set in the build phase.
     public let codeGen: FileCodeGen?
 
     /// Initializes a SourceFileGlob instance.
     ///
     /// - Parameters:
-    ///   - glob: Relative glob pattern.
-    ///   - excluding: Relative glob patterns for excluded files.
-    ///   - compilerFlags: Compiler flags.
-    ///   - codegen: Source file code generation attribute
+    ///   - glob: Glob pattern to the source files.
+    ///   - excluding: Glob patterns for source files that will be excluded.
+    ///   - compilerFlags: The compiler flags to be set to the source files in the sources build phase.
+    ///   - codegen: The source file attribute to be set in the build phase.
     public static func glob(
         _ glob: Path,
         excluding: [Path] = [],
@@ -47,6 +47,7 @@ extension SourceFileGlob: ExpressibleByStringInterpolation {
     }
 }
 
+/// It represents a list of source files that are part of a target:
 public struct SourceFilesList: Codable, Equatable {
     /// List glob patterns.
     public let globs: [SourceFileGlob]

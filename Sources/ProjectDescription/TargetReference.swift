@@ -1,7 +1,10 @@
 import Foundation
 
+/// A target within a specified project. The project is specified through the path and should contain the target name.
 public struct TargetReference: Equatable, Codable, ExpressibleByStringInterpolation {
+    /// Path to the target's project directory.
     public var projectPath: Path?
+    /// Name of the target.
     public var targetName: String
 
     public init(projectPath: Path?, target: String) {

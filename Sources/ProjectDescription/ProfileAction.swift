@@ -1,19 +1,20 @@
 import Foundation
 
+/// It represents the scheme action that profiles the built products on the supported platforms. It's initialized with the `.profileAction` static method
 public struct ProfileAction: Equatable, Codable {
-    /// Name of the configuration that should be used for the Analyze action
+    /// Indicates the build configuration the product should be profiled with.
     public let configuration: ConfigurationName
 
-    /// List of actions to be executed before running the Analyze action
+    /// A list of actions that are executed before starting the profile process.
     public let preActions: [ExecutionAction]
 
-    /// List of actions to be executed after running the Analyze action
+    /// A list of actions that are executed after the profile process.
     public let postActions: [ExecutionAction]
 
-    /// The executable to profile
+    /// The name of the executable or target to profile.
     public let executable: TargetReference?
 
-    /// Arguments to pass when launching the executable
+    /// Command line arguments passed on launch and environment variables.
     public let arguments: Arguments?
 
     init(
@@ -32,11 +33,11 @@ public struct ProfileAction: Equatable, Codable {
 
     /// Initializes a profile action.
     /// - Parameters:
-    ///   - configuration: Configuration to be used for profiling.
-    ///   - preActions: Actions to be run before the Profile action
-    ///   - postActions: Actions to be run after the Profile action
-    ///   - executable: Profiled executable.
-    ///   - arguments: Arguments to pass when launching the executable.
+    ///   - configuration: Indicates the build configuration the product should be profiled with.
+    ///   - preActions: A list of actions that are executed before starting the profile process.
+    ///   - postActions: A list of actions that are executed after the profile process.
+    ///   - executable: The name of the executable or target to profile.
+    ///   - arguments: Command line arguments passed on launch and environment variables.
     /// - Returns: Initialized profile action.
     public static func profileAction(
         configuration: ConfigurationName = .release,

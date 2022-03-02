@@ -1,6 +1,8 @@
 import Foundation
 
-/// It represent a copy files build phase.
+/// Copy files actions, represented as target copy files build phases, are useful to associate project files
+/// and products of other targets with the target and copies them to a specified destination, typically a
+/// subfolder within a product. This action may be used multiple times per target.
 public struct CopyFilesAction: Codable, Equatable {
     /// Name of the build phase when the project gets generated.
     public var name: String

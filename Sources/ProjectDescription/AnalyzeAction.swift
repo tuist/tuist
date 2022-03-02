@@ -1,6 +1,8 @@
 import Foundation
 
+/// It represents the scheme action that analyzes the built products. It's initialized with the `.analyzeAction` static method
 public struct AnalyzeAction: Equatable, Codable {
+    /// Indicates the build configuration the product should be analyzed with.
     public let configuration: ConfigurationName
 
     init(configuration: ConfigurationName) {
@@ -8,7 +10,7 @@ public struct AnalyzeAction: Equatable, Codable {
     }
 
     /// Returns an analyze action.
-    /// - Parameter configuration: Configuration used for analyzing.
+    /// - Parameter configuration: Indicates the build configuration the product should be analyzed with.
     /// - Returns: Analyze action.
     public static func analyzeAction(configuration: ConfigurationName) -> AnalyzeAction {
         AnalyzeAction(configuration: configuration)
