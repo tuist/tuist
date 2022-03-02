@@ -1,35 +1,35 @@
 import Foundation
 
-/// It represents the test action of a scheme.
+/// You can create a test action with either a set of test targets or test plans using the `.targets` or `.testPlans` static methods respectively.
 public struct TestAction: Equatable, Codable {
     /// List of test plans. The first in the list will be the default plan.
     public let testPlans: [Path]?
 
-    /// List of targets to be tested.
+    /// A list of testable targets, that are targets which are defined in the project with testable information.
     public let targets: [TestableTarget]
 
-    /// Arguments passed to the process running the tests.
+    /// Command line arguments passed on launch and environment variables.
     public let arguments: Arguments?
 
-    /// Name of the configuration that should be used for building the test targets.
+    /// Build configuration to run the test with.
     public let configuration: ConfigurationName
 
-    /// Enable this to attach a debugger to the process running the tests.
+    /// Whether a debugger should be attached to the test process or not.
     public let attachDebugger: Bool
 
-    /// Set the target that will expand the variables for
+    /// A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT)
     public let expandVariableFromTarget: TargetReference?
 
-    /// List of actions to be executed before running the tests.
+    /// A list of actions that are executed before starting the tests-run process.
     public let preActions: [ExecutionAction]
 
-    /// List of actions to be executed after running the tests.
+    /// A list of actions that are executed after the tests-run process.
     public let postActions: [ExecutionAction]
 
-    /// Options.
+    /// List of options to set to the action.
     public let options: TestActionOptions
 
-    /// Diagnostics options.
+    /// List of diagnostics options to set to the action.
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
 
     private init(

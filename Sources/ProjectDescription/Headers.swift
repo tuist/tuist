@@ -1,9 +1,8 @@
 import Foundation
 
-/// Headers
+/// It represents the target headers.
 public struct Headers: Codable, Equatable {
-    /// Determine how to resolve cases
-    /// when the same files are found in different header scopes
+    /// Determine how to resolve cases, when the same files found in different header scopes
     public enum AutomaticExclusionRule: Int, Codable {
         /// Project headers = all found - private headers - public headers
         ///
@@ -28,21 +27,19 @@ public struct Headers: Codable, Equatable {
         case publicExcludesPrivateAndProject
     }
 
-    /// Umbrella header path, which wil be parsed
-    /// to get list of public headers
+    /// Path to an umbrella header, which will be used to get list of public headers.
     public let umbrellaHeader: Path?
 
-    /// Relative path to public headers.
+    /// Relative glob pattern that points to the public headers.
     public let `public`: FileList?
 
-    /// Relative path to private headers.
+    /// Relative glob pattern that points to the private headers.
     public let `private`: FileList?
 
-    /// Relative path to project headers.
+    /// Relative glob pattern that points to the project headers.
     public let project: FileList?
 
-    /// Determine how to resolve cases
-    /// when the same files are found in different header scopes
+    /// Rule, which determines how to resolve found duplicates in public/private/project scopes
     public let exclusionRule: AutomaticExclusionRule
 
     private init(

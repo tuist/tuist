@@ -1,11 +1,11 @@
 import Foundation
 
-/// A type that represents a list of source files defined by a glob.
+/// It represents a glob pattern that refers to files.
 public struct FileListGlob: Codable, Equatable {
-    /// Glob pattern to header files
+    /// Glob pattern to the files.
     public var glob: Path
 
-    /// Relative glob patterns for excluded files.
+    /// Glob patterns for source files that will be excluded.
     public var excluding: [Path]
 
     /// Generage the file glob.

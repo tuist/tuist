@@ -1,5 +1,6 @@
 import Foundation
 
+/// Language to use in target action. Can be initialized with String which should be a valid language code or used as pre-defined pseudo language.
 public struct SchemeLanguage: Codable, Equatable, ExpressibleByStringLiteral {
     public let identifier: String
 

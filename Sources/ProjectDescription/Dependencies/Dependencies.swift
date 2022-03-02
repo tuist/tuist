@@ -8,7 +8,7 @@ public struct Dependencies: Codable, Equatable {
     /// The description of dependencies that can be installed using Swift Package Manager.
     public let swiftPackageManager: SwiftPackageManagerDependencies?
 
-    /// Set of platforms for which you want to install dependencies.
+    /// List of platforms for which you want to install dependencies.
     public let platforms: Set<Platform>
 
     /// Initializes a new `Dependencies` manifest instance.

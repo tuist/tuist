@@ -3,7 +3,7 @@ public struct Config: Codable, Equatable {
     /// Generation options.
     public let generationOptions: GenerationOptions
 
-    /// List of Xcode versions that the project supports.
+    /// Set the versions of Xcode that the project is compatible with.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
 
     /// List of `Plugin`s used to extend Tuist.

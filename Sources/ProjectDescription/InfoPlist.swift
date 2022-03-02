@@ -1,25 +1,34 @@
 import Foundation
 
+/// The InfoPlist model represents a target's Info.plist file.
 public enum InfoPlist: Codable, Equatable {
+    /// It represents the values of the InfoPlist file dictionary.
+    /// It ensures that the values used to define the content of the dynamically generated Info.plist files are valid
     public indirect enum Value: Codable, Equatable {
+        /// It represents a string value.
         case string(String)
+        /// It represents an integer value.
         case integer(Int)
+        /// It represents a floating value.
         case real(Double)
+        /// It represents a boolean value.
         case boolean(Bool)
+        /// It represents a dictionary value.
         case dictionary([String: Value])
+        /// It represents an array value.
         case array([Value])
     }
 
-    /// Use an existing Info.plist file.
+    /// The path to an existing Info.plist file.
     case file(path: Path)
 
-    /// Generate an Info.plist file with the content in the given dictionary.
+    /// A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time.
     case dictionary([String: Value])
 
     /// Generate an Info.plist file with the default content for the target product extended with the values in the given dictionary.
     case extendingDefault(with: [String: Value])
 
-    /// Default value.
+    /// Generate the default content for the target the InfoPlist belongs to.
     public static var `default`: InfoPlist {
         .extendingDefault(with: [:])
     }
