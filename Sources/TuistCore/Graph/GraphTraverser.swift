@@ -250,7 +250,7 @@ public class GraphTraverser: GraphTraversing {
 
         // System libraries and frameworks
         if target.target.canLinkStaticProducts() {
-            let transitiveSystemLibraries = transitiveStaticTargets(from: .target(name: name, path: path))
+            let transitiveSystemLibraries = transitiveStaticDependencies(from: .target(name: name, path: path))
                 .flatMap { dependency -> [GraphDependencyReference] in
                     let dependencies = self.graph.dependencies[dependency, default: []]
                     return dependencies.compactMap { dependencyDependency -> GraphDependencyReference? in
@@ -300,7 +300,7 @@ public class GraphTraverser: GraphTraversing {
 
         // Static libraries and frameworks / Static libraries' dynamic libraries
         if target.target.canLinkStaticProducts() {
-            let transitiveStaticTargets = transitiveStaticTargets(from: .target(name: name, path: path))
+            let transitiveStaticTargetReferences = transitiveStaticDependencies(from: .target(name: name, path: path))
 
             // Exclude any static products linked in a host application
             // however, for search paths it's fine to keep them included
@@ -314,16 +314,14 @@ public class GraphTraverser: GraphTraversing {
                 hostApplicationStaticTargets = Set()
             }
 
-            let transitiveStaticTargetReferences = transitiveStaticTargets
-
-            let staticDependenciesDynamicLibrariesAndFrameworks = transitiveStaticTargets.flatMap { dependency in
+            let staticDependenciesDynamicLibrariesAndFrameworks = transitiveStaticTargetReferences.flatMap { dependency in
                 self.graph.dependencies[dependency, default: []]
                     .lazy
                     .filter(\.isTarget)
                     .filter(isDependencyDynamicTarget)
             }
 
-            let staticDependenciesPrecompiledLibrariesAndFrameworks = transitiveStaticTargets.flatMap { dependency in
+            let staticDependenciesPrecompiledLibrariesAndFrameworks = transitiveStaticTargetReferences.flatMap { dependency in
                 self.graph.dependencies[dependency, default: []]
                     .lazy
                     .filter(\.isPrecompiled)
@@ -536,14 +534,6 @@ public class GraphTraverser: GraphTraversing {
         }
 
         return references
-    }
-
-    func transitiveStaticTargets(from dependency: GraphDependency) -> Set<GraphDependency> {
-        filterDependencies(
-            from: dependency,
-            test: isDependencyStaticTarget,
-            skip: canDependencyLinkStaticProducts
-        )
     }
 
     func transitiveStaticDependencies(from dependency: GraphDependency) -> Set<GraphDependency> {
