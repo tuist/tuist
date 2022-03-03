@@ -37,6 +37,9 @@ PluginLocation.local(path: .relativeToCurrentFile("MyOtherPlugin/"))
 PluginLocation.local(path: .relativeToManifest("../DevelopmentPlugin"))
 ```
 
+:::note Local plugins will not work for [tasks](guides/task.md). If you want to run them locally, either add the built executable to your `$PATH` or run via plugin command - learn more about it [here](commands/plugin.md)
+:::
+
 #### Remote plugin
 
 Remote plugins are stored on a remote server and can be downloaded by Tuist and shared across multiple projects.

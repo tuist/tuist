@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fix `Tuist.graph()` command in `ProjectAutomation` [#4204](https://github.com/tuist/tuist/pull/4204) by [@fortmarek](https://github.com/fortmarek)
+
 ### Added
 
 - Add `marketingVersion(_ version:)` to SettingsDictionary extension to set `MARKETING_VERSION` in Build Settings. [#4194](https://github.com/tuist/tuist/pull/4194) by [@dogo](https://github.com/dogo)
