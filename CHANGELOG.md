@@ -13,6 +13,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add `marketingVersion(_ version:)` to SettingsDictionary extension to set `MARKETING_VERSION` in Build Settings. [#4194](https://github.com/tuist/tuist/pull/4194) by [@dogo](https://github.com/dogo)
 - Add `debugInformationFormat(_ format:)` to SettingsDictionary extension to set `DEBUG_INFORMATION_FORMAT` in Build Settings. [#4194](https://github.com/tuist/tuist/pull/4194) by [@dogo](https://github.com/dogo)
 
+### Fixed
+
+- Fix linking of transitive precompiled static frameworks [#4200](https://github.com/tuist/tuist/pull/4200) by [danyf90](https://github.com/danyf90), [kwridan](https://github.com/kwridan), [adellibovi](https://github.com/adellibovi).
+
 ## 3.0.0 - Bravo
 
 ### Changed

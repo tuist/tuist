@@ -16,7 +16,7 @@ Feature: Focuses projects with pre-compiled cached xcframeworks
     And I have a working directory
     Then I copy the fixture ios_app_with_transitive_project into the working directory
     Then tuist warms the cache
-    When tuist focuses the target App
+    When tuist focuses the targets App,FrameworkA-iOS
     Then I should be able to build for iOS the scheme App
 
   Scenario: The project is an iOS application with custom configuration and cache profile (ios_app_with_custom_configuration)

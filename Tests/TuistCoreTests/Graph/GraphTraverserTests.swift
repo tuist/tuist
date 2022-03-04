@@ -1802,6 +1802,66 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_linkableFrameworks_when_staticFrameworkDependsOnTransitivePrecompiledStaticFramework() throws {
+        // Given
+        // App
+        //  -> StaticFramework (Target .staticFramework)
+        //     -> precompiledStaticFrameworkA (Framework .static)
+        //        -> precompiledStaticFrameworkB (Framework .static)
+        let app = Target.test(name: "App", product: .app)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(targets: [app, staticFramework])
+        let precompiledStaticFrameworkA = GraphDependency.testFramework(
+            path: "/test/StaticFrameworkA.framework",
+            binaryPath: "/test/StaticFrameworkA.framework/StaticFrameworkA",
+            linking: .static
+        )
+        let precompiledStaticFrameworkB = GraphDependency.testFramework(
+            path: "/test/StaticFrameworkB.framework",
+            binaryPath: "/test/StaticFrameworkB.framework/StaticFrameworkB",
+            linking: .static
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): [
+                .target(name: staticFramework.name, path: project.path),
+            ],
+            .target(name: staticFramework.name, path: project.path): [
+                precompiledStaticFrameworkA,
+            ],
+            precompiledStaticFrameworkA: [
+                precompiledStaticFrameworkB,
+            ],
+        ]
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+            ],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFramework.name: staticFramework,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let results = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(results.sorted(), [
+            .product(
+                target: staticFramework.name,
+                productName: staticFramework.productNameWithExtension,
+                platformFilter: .ios
+            ),
+            GraphDependencyReference(precompiledStaticFrameworkA),
+            GraphDependencyReference(precompiledStaticFrameworkB),
+        ])
+    }
+
     func test_linkableDependencies_whenALibraryTarget() throws {
         // Given
         let target = Target.test(name: "Main")
