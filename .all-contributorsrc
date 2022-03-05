@@ -767,6 +767,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "paulsamuels",
+      "name": "paul.s",
+      "avatar_url": "https://avatars.githubusercontent.com/u/527091?v=4",
+      "profile": "https://github.com/paulsamuels",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
