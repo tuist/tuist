@@ -251,6 +251,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/kyungpyoda"><img src="https://avatars.githubusercontent.com/u/44656036?v=4" width="100px;" alt=""/><br /><sub><b>kyungpyoda</b></sub></a></td>
     <td align="center"><a href="http://www.villewitt.net"><img src="https://avatars.githubusercontent.com/u/522544?v=4" width="100px;" alt=""/><br /><sub><b>Ville Witt</b></sub></a></td>
   </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/paulsamuels"><img src="https://avatars.githubusercontent.com/u/527091?v=4" width="100px;" alt=""/><br /><sub><b>paul.s</b></sub></a></td>
+  </tr>
 </table>
 
 <!-- markdownlint-restore -->
