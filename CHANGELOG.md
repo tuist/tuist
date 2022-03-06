@@ -2,6 +2,12 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## Next
+
+### Fixed
+
+- Fix linking of staticFramework in messagesExtensions [#4211](https://github.com/tuist/tuist/pull/4211) by [paulsamuels](https://github.com/paulsamuels).
+
 ## 3.0.1 - Bravissimo
 
 ### Fixed
