@@ -24,7 +24,7 @@ let project = Project(
                 .folderReference(path: "Stubs"),
                 .folderReference(path: "ODR", tags: ["odr_tag"])
             ],
-            headers: Headers(
+            headers: .headers(
                 public: ["Sources/public/A/**", "Sources/public/B/**"],
                 private: "Sources/private/**",
                 project: ["Sources/project/A/**", "Sources/project/B/**"]
