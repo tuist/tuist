@@ -60,7 +60,7 @@ let project = Project(
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             resources: ["Resources/**"],
-            headers: Headers(
+            headers: .headers(
                 public: ["Sources/public/A/**", "Sources/public/B/**"],
                 private: "Sources/private/**",
                 project: ["Sources/project/A/**", "Sources/project/B/**"]
