@@ -125,11 +125,8 @@ const Home = observer(() => {
     <TopBar.UserMenu
       actions={userMenuActions}
       name={user?.email ?? ''}
-      // TODO: Name from github
-      detail="Name from Github"
       avatar={user?.avatarUrl ?? ''}
-      // TODO: Initials
-      initials="initials"
+      initials={user?.email[0] ?? ''}
       open={userMenuActive}
       onToggle={toggleUserMenuActive}
     />
