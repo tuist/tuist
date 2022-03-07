@@ -17,6 +17,7 @@ module TokenAuthenticatable
 
   def encoded_token
     return if self.class.token_property.nil?
+
     APITokenStrategy::Token.new(
       self.class.name,
       id,
@@ -27,6 +28,7 @@ module TokenAuthenticatable
   private
     def ensure_token_presence
       return if self.class.token_property.nil?
+
       token = self.send(self.class.token_property)
       if token.blank?
         self.send("#{self.class.token_property}=", generate_token)

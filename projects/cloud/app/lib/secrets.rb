@@ -13,6 +13,7 @@ module Secrets
       if value.blank?
         raise KeyNotFoundError, "The key #{args.map(&:to_s).join(".")} was not found in the app credentials"
       end
+
       value
     end
   end

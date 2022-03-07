@@ -46,6 +46,7 @@ class ProjectFetchService < ApplicationService
       raise Error::ProjectNotFound.new(account.id, name)
     end
     raise Error::Unauthorized.new(account_name, name) unless ProjectPolicy.new(user, project).show?
+
     project
   end
 end

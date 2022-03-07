@@ -9,6 +9,7 @@ module Environment
 
   def self.truthy?(value)
     return false if value.blank?
+
     TRUTHY_VALUES.any? { |v| v == value.to_s }
   end
 end

@@ -37,6 +37,7 @@ class OrganizationInviteService < ApplicationService
       raise Error::OrganizationNotFound.new(organization_id)
     end
     raise Error::Unauthorized unless OrganizationPolicy.new(inviter, organization).update?
+
     token = Devise.friendly_token.first(16)
     invitation = inviter.invitations.create!(
       invitee_email: invitee_email,
