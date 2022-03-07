@@ -660,6 +660,7 @@ public class GraphTraverser: GraphTraversing {
             .unitTests,
             .uiTests,
             .watch2Extension,
+            .bundle
         ]
         return validProducts.contains(target.product)
     }
