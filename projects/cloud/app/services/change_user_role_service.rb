@@ -39,9 +39,11 @@ class ChangeUserRoleService < ApplicationService
     end
     current_role = user.roles.find_by(resource_type: "Organization", resource_id: organization_id)
     return user if current_role == role
+
     ActiveRecord::Base.transaction do
       organization = Organization.find(organization_id)
       raise Error::Unauthorized unless OrganizationPolicy.new(role_changer, organization).update?
+
       user.remove_role(current_role.name, organization)
       user.add_role(role, organization)
       user

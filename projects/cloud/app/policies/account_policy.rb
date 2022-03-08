@@ -5,6 +5,7 @@ class AccountPolicy < ApplicationPolicy
     if record.owner_type == "User"
       return record.owner_id == user.id
     end
+
     organization = Organization.find(record.owner_id)
     OrganizationPolicy.new(user, organization).show?
   end
@@ -13,6 +14,7 @@ class AccountPolicy < ApplicationPolicy
     if record.owner_type == "User"
       return record.owner_id == user.id
     end
+
     organization = Organization.find(record.owner_id)
     OrganizationPolicy.new(user, organization).update?
   end

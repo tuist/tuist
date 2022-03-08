@@ -39,6 +39,7 @@ class S3BucketUpdateService < ApplicationService
       raise Error::S3BucketNotFound.new(id)
     end
     raise Error::Unauthorized.new unless AccountPolicy.new(user, bucket.account).update?
+
     if secret_access_key != bucket.secret_access_key
       cipher = OpenSSL::Cipher::AES.new(256, :CBC)
       cipher.encrypt
