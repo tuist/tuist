@@ -26,6 +26,7 @@ class S3BucketsFetchService < ApplicationService
   def call
     account = AccountFetchService.call(name: account_name)
     raise Error::Unauthorized.new(account_name) unless AccountPolicy.new(user, account).show?
+
     account.s3_buckets
   end
 end

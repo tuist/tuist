@@ -40,6 +40,7 @@ class RemoveUserService < ApplicationService
     ActiveRecord::Base.transaction do
       organization = Organization.find(organization_id)
       raise Error::Unauthorized unless OrganizationPolicy.new(remover, organization).update?
+
       user.remove_role(current_role.name, organization)
       user
     end

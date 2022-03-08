@@ -29,6 +29,7 @@ class S3BucketCreateService < ApplicationService
     if !S3Bucket.find_by(name: name, account_id: account_id).nil?
       raise Error::DuplicatedName.new(name)
     end
+
     cipher = OpenSSL::Cipher::AES.new(256, :CBC)
     cipher.encrypt
     cipher.key = Digest::MD5.hexdigest(Rails.application.credentials[:secret_key_base])
