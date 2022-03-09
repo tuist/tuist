@@ -13,8 +13,8 @@ let project = Project(
             infoPlist: .default,
             sources: ["Targets/App/Sources/**"],
             dependencies: [
-                            .target(name: "Dbundle"),
-                        ]
+                .target(name: "Dbundle"),
+            ]
         ),
         Target(
             name: "Dload",
@@ -33,8 +33,8 @@ let project = Project(
             deploymentTarget: .iOS(targetVersion: "13.0", devices: .iphone),
             infoPlist: .default,
             dependencies: [
-                            .target(name: "Dload"),
-                        ]
+                .target(name: "Dload"),
+            ]
         ),
     ]
 )
