@@ -27,5 +27,7 @@ module TuistCloud
     # Stripe
     config.stripe.secret_key = Rails.application.credentials.stripe[:api_key]
     config.stripe.publishable_key = Rails.application.credentials.stripe[:publishable_key]
+
+    config.react.server_renderer_extensions = ["jsx", "js", "tsx", "ts"]
   end
 end

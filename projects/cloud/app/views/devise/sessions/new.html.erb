@@ -1,4 +1,28 @@
-<% if false %>
+<h2>Log in</h2>
+
+<%= javascript_pack_tag 'application' %>
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/@shopify/polaris@7.6.0/build/esm/styles.css"
+/>
+
+<%- @omniauth_providers = [] %>
+<%- if devise_mapping.omniauthable? %>
+  <%- resource_class.omniauth_providers.each do |provider| %>
+    <%- @omniauth_providers.push({title: OmniAuth::Utils.camelize(provider), link: omniauth_authorize_path(resource_name, provider)}) %>
+  <% end %>
+<% end %>
+
+<%=
+react_component(
+  "Login",
+  {
+    omniauthProviders: @omniauth_providers,
+    authenticityToken: form_authenticity_token,
+    signUpURL: new_registration_path(resource_name)
+  }
+)
+%>
 
 <h2>Log in</h2>
 
@@ -23,8 +47,30 @@
   <div class="actions">
     <%= f.submit "Log in" %>
   </div>
+  <%- if controller_name != 'sessions' %>
+  <%= link_to "Log in", new_session_path(resource_name) %><br />
 <% end %>
 
-<%= render "devise/shared/links" %>
-
+<%- if devise_mapping.registerable? && controller_name != 'registrations' %>
+  <%= link_to "Sign up", new_registration_path(resource_name) %><br />
 <% end %>
+
+<%- if devise_mapping.recoverable? && controller_name != 'passwords' && controller_name != 'registrations' %>
+  <%= link_to "Forgot your password?", new_password_path(resource_name) %><br />
+<% end %>
+
+<%- if devise_mapping.confirmable? && controller_name != 'confirmations' %>
+  <%= link_to "Didn't receive confirmation instructions?", new_confirmation_path(resource_name) %><br />
+<% end %>
+
+<%- if devise_mapping.lockable? && resource_class.unlock_strategy_enabled?(:email) && controller_name != 'unlocks' %>
+  <%= link_to "Didn't receive unlock instructions?", new_unlock_path(resource_name) %><br />
+<% end %>
+
+<%- if devise_mapping.omniauthable? %>
+  <%- resource_class.omniauth_providers.each do |provider| %>
+    <%= link_to("Sign in with #{OmniAuth::Utils.camelize(provider)}", omniauth_authorize_path(resource_name, provider), method: "post") %><br />
+  <% end %>
+<% end %>
+<% end %>
+</div>
