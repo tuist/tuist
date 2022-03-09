@@ -7,6 +7,7 @@ class ApplicationController < ActionController::Base
   protect_from_forgery with: :null_session
 
   def app
+    logger.info("Render me")
     render(layout: "app")
   end
 end

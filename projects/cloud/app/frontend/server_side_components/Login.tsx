@@ -8,13 +8,32 @@ import {
   AppProvider,
   Form,
 } from '@shopify/polaris';
-import { Link, useNavigate } from 'react-router-dom';
 
 interface LoginProps {
   omniauthProviders: [{ title: string; link: string }];
   authenticityToken: string;
   signUpURL: string;
 }
+
+interface PostButtonProps {
+  href: string;
+  children: JSX.Element | string;
+}
+
+const PostButton = ({ href, children }: PostButtonProps) => {
+  return (
+    <a
+      className="Polaris-Button"
+      href={href}
+      data-polaris-unstyled="true"
+      data-method="post"
+    >
+      <span className="Polaris-Button__Content">
+        <span className="Polaris-Button__Text">{children}</span>
+      </span>
+    </a>
+  );
+};
 
 const Login = ({
   omniauthProviders,
@@ -68,76 +87,53 @@ const Login = ({
     >
       <Page title="Remote Cache">
         <Card title="S3 Bucket" sectioned>
-          <Form
-            autoComplete={true}
-            action="/users/sign_in"
-            onSubmit={() => {
-              fetch('/users/sign_in', {
-                method: 'post',
-                headers: { 'X-CSRF-Token': authenticityToken },
-              });
-            }}
-          >
-            <input
-              type="hidden"
-              name="authenticity_token"
-              value={authenticityToken}
+          <FormLayout>
+            <TextField
+              type="email"
+              label="Email"
+              name="user[email]"
+              value={email}
+              onChange={(newValue) => {
+                setEmail(newValue);
+              }}
             />
-            <FormLayout>
-              <TextField
-                type="email"
-                label="Email"
-                name="user[email]"
-                value={email}
-                onChange={(newValue) => {
-                  setEmail(newValue);
-                }}
-              />
-              <TextField
-                type="password"
-                label="Password"
-                name="user[password]"
-                value={password}
-                onChange={(newValue) => {
-                  setPassword(newValue);
-                }}
-              />
-              <Button submit>Login</Button>
-              <Button
-                onClick={() => {
-                  fetch(
-                    signUpURL +
-                      `?email=${email}&password=${password}`,
-                    {
-                      method: 'get',
-                      headers: {
-                        'X-CSRF-Token': authenticityToken,
-                      },
+            <TextField
+              type="password"
+              label="Password"
+              name="user[password]"
+              value={password}
+              onChange={(newValue) => {
+                setPassword(newValue);
+              }}
+            />
+            <PostButton
+              href={`/users/sign_in?user[email]=${email}&user[password]=${password}&authenticity_token=${authenticityToken}&remember_me=1`}
+            >
+              Log in
+            </PostButton>
+            <Button
+              onClick={() => {
+                fetch(
+                  signUpURL + `?email=${email}&password=${password}`,
+                  {
+                    method: 'get',
+                    headers: {
+                      'X-CSRF-Token': authenticityToken,
                     },
-                  );
-                }}
-              >
-                Sign up
-              </Button>
-              {omniauthProviders.map((provider) => {
-                return (
-                  <a
-                    key={provider.title}
-                    className="Polaris-Button"
-                    href={provider.link}
-                    data-polaris-unstyled="true"
-                    data-method="post"
-                  >
-                    <span className="Polaris-Button__Content">
-                      <span className="Polaris-Button__Text">
-                        {provider.title}
-                      </span>
-                    </span>
-                  </a>
+                  },
                 );
-              })}
-            </FormLayout>
-          </Form>
+              }}
+            >
+              Sign up
+            </Button>
+            {omniauthProviders.map((provider) => {
+              return (
+                <PostButton href={provider.link} key={provider.title}>
+                  {provider.title}
+                </PostButton>
+              );
+            })}
+          </FormLayout>
         </Card>
       </Page>
     </AppProvider>

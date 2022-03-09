@@ -25,6 +25,8 @@ const AppRoutes = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  console.log('App routes');
+
   const { data, loading, error } = useMeQuery();
   if (loading) {
     return <div>loading</div>;
