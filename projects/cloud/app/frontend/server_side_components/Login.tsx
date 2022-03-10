@@ -4,11 +4,12 @@ import {
   Card,
   FormLayout,
   TextField,
-  AppProvider,
   Checkbox,
   Stack,
   Button,
 } from '@shopify/polaris';
+import TuistCloudAppProvider from '../components/TuistCloudAppProvider';
+import LinkButton from './LinkButton';
 
 interface LoginProps {
   omniauthProviders: [{ title: string; link: string }];
@@ -16,43 +17,11 @@ interface LoginProps {
   signUpURL: string;
 }
 
-interface PostButtonProps {
-  href: string;
-  method?: 'post' | 'get';
-  children: JSX.Element | string;
-}
-
-const LinkButton = ({ href, children, method }: PostButtonProps) => {
-  return (
-    <a
-      className="Polaris-Button"
-      href={href}
-      data-polaris-unstyled="true"
-      data-method={method ?? 'get'}
-    >
-      <span className="Polaris-Button__Content">
-        <span className="Polaris-Button__Text">{children}</span>
-      </span>
-    </a>
-  );
-};
-
 const Login = ({
   omniauthProviders,
   authenticityToken,
   signUpURL,
 }: LoginProps) => {
-  const theme = {
-    logo: {
-      width: 124,
-      topBarSource:
-        'https://cdn.shopify.com/s/files/1/0446/6937/files/jaded-pixel-logo-color.svg?6215648040070010999',
-      contextualSaveBarSource:
-        'https://cdn.shopify.com/s/files/1/0446/6937/files/jaded-pixel-logo-gray.svg?6215648040070010999',
-      url: 'http://jadedpixel.com',
-      accessibilityLabel: 'Jaded Pixel',
-    },
-  };
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -61,37 +30,7 @@ const Login = ({
   const [isConfirmationSentVisible, setIsConfirmationSentVisible] =
     useState(false);
   return (
-    <AppProvider
-      theme={theme}
-      i18n={{
-        Polaris: {
-          Avatar: {
-            label: 'Avatar',
-            labelWithInitials: 'Avatar with initials {initials}',
-          },
-          ContextualSaveBar: {
-            save: 'Save',
-            discard: 'Discard',
-          },
-          TextField: {
-            characterCount: '{count} characters',
-          },
-          TopBar: {
-            toggleMenuLabel: 'Toggle menu',
-          },
-          Modal: {
-            iFrameTitle: 'body markup',
-          },
-          Frame: {
-            skipToContent: 'Skip to content',
-            navigationLabel: 'Navigation',
-            Navigation: {
-              closeMobileNavigationLabel: 'Close navigation',
-            },
-          },
-        },
-      }}
-    >
+    <TuistCloudAppProvider>
       <Page title="Sign in to Tuist Cloud">
         <Card sectioned>
           <Card.Section title="Email login">
@@ -181,7 +120,7 @@ const Login = ({
           </Card.Section>
         </Card>
       </Page>
-    </AppProvider>
+    </TuistCloudAppProvider>
   );
 };
 
