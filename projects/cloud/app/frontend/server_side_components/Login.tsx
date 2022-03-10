@@ -7,6 +7,7 @@ import {
   AppProvider,
   Checkbox,
   Stack,
+  Button,
 } from '@shopify/polaris';
 
 interface LoginProps {
@@ -55,6 +56,10 @@ const Login = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [isSignUpButtonLoading, setIsSignUpButtonLoading] =
+    useState(false);
+  const [isConfirmationSentVisible, setIsConfirmationSentVisible] =
+    useState(false);
   return (
     <AppProvider
       theme={theme}
@@ -98,6 +103,7 @@ const Login = ({
                 value={email}
                 onChange={(newValue) => {
                   setEmail(newValue);
+                  setIsConfirmationSentVisible(false);
                 }}
               />
               <TextField
@@ -107,6 +113,7 @@ const Login = ({
                 value={password}
                 onChange={(newValue) => {
                   setPassword(newValue);
+                  setIsConfirmationSentVisible(false);
                 }}
               />
               <Stack alignment="center">
@@ -127,14 +134,30 @@ const Login = ({
                 />
               </Stack>
               <Stack alignment="center">
-                <LinkButton
-                  href={
-                    signUpURL +
-                    `?email=${email}&password=${password}&authenticity_token=${authenticityToken}`
-                  }
+                <Button
+                  loading={isSignUpButtonLoading}
+                  disabled={isConfirmationSentVisible}
+                  onClick={() => {
+                    setIsSignUpButtonLoading(true);
+                    fetch(
+                      signUpURL +
+                        `?email=${email}&password=${password}`,
+                      {
+                        method: 'get',
+                        headers: {
+                          'X-CSRF-Token': authenticityToken,
+                        },
+                      },
+                    ).then(() => {
+                      setIsSignUpButtonLoading(false);
+                      setIsConfirmationSentVisible(true);
+                    });
+                  }}
                 >
-                  Sign up
-                </LinkButton>
+                  {isConfirmationSentVisible
+                    ? 'Check your email for confirmation link'
+                    : 'Sign up'}
+                </Button>
                 <LinkButton href="/users/confirmation/new">
                   Didn't receive confirmation instructions?
                 </LinkButton>
