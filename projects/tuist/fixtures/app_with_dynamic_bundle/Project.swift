@@ -32,6 +32,7 @@ let project = Project(
             bundleId: "io.tuist.Dbundle",
             deploymentTarget: .iOS(targetVersion: "13.0", devices: .iphone),
             infoPlist: .default,
+            sources: ["Targets/Dbundle/Sources/**"],
             dependencies: [
                 .target(name: "Dload"),
             ]
