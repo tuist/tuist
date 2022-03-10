@@ -4,9 +4,9 @@ import {
   Card,
   FormLayout,
   TextField,
-  Button,
   AppProvider,
-  Form,
+  Checkbox,
+  Stack,
 } from '@shopify/polaris';
 
 interface LoginProps {
@@ -17,16 +17,17 @@ interface LoginProps {
 
 interface PostButtonProps {
   href: string;
+  method?: 'post' | 'get';
   children: JSX.Element | string;
 }
 
-const PostButton = ({ href, children }: PostButtonProps) => {
+const LinkButton = ({ href, children, method }: PostButtonProps) => {
   return (
     <a
       className="Polaris-Button"
       href={href}
       data-polaris-unstyled="true"
-      data-method="post"
+      data-method={method ?? 'get'}
     >
       <span className="Polaris-Button__Content">
         <span className="Polaris-Button__Text">{children}</span>
@@ -53,6 +54,7 @@ const Login = ({
   };
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   return (
     <AppProvider
       theme={theme}
@@ -85,55 +87,75 @@ const Login = ({
         },
       }}
     >
-      <Page title="Remote Cache">
-        <Card title="S3 Bucket" sectioned>
-          <FormLayout>
-            <TextField
-              type="email"
-              label="Email"
-              name="user[email]"
-              value={email}
-              onChange={(newValue) => {
-                setEmail(newValue);
-              }}
-            />
-            <TextField
-              type="password"
-              label="Password"
-              name="user[password]"
-              value={password}
-              onChange={(newValue) => {
-                setPassword(newValue);
-              }}
-            />
-            <PostButton
-              href={`/users/sign_in?user[email]=${email}&user[password]=${password}&authenticity_token=${authenticityToken}&remember_me=1`}
-            >
-              Log in
-            </PostButton>
-            <Button
-              onClick={() => {
-                fetch(
-                  signUpURL + `?email=${email}&password=${password}`,
-                  {
-                    method: 'get',
-                    headers: {
-                      'X-CSRF-Token': authenticityToken,
-                    },
-                  },
+      <Page title="Sign in to Tuist Cloud">
+        <Card sectioned>
+          <Card.Section title="Email login">
+            <FormLayout>
+              <TextField
+                type="email"
+                label="Email"
+                name="user[email]"
+                value={email}
+                onChange={(newValue) => {
+                  setEmail(newValue);
+                }}
+              />
+              <TextField
+                type="password"
+                label="Password"
+                name="user[password]"
+                value={password}
+                onChange={(newValue) => {
+                  setPassword(newValue);
+                }}
+              />
+              <Stack alignment="center">
+                <LinkButton
+                  href={`/users/sign_in?user[email]=${email}&user[password]=${password}&authenticity_token=${authenticityToken}&remember_me=${Number(
+                    rememberMe,
+                  )}`}
+                  method="post"
+                >
+                  Log in
+                </LinkButton>
+                <Checkbox
+                  label="Remember me?"
+                  checked={rememberMe}
+                  onChange={(newValue) => {
+                    setRememberMe(newValue);
+                  }}
+                />
+              </Stack>
+              <Stack alignment="center">
+                <LinkButton
+                  href={
+                    signUpURL +
+                    `?email=${email}&password=${password}&authenticity_token=${authenticityToken}`
+                  }
+                >
+                  Sign up
+                </LinkButton>
+                <LinkButton href="/users/confirmation/new">
+                  Didn't receive confirmation instructions?
+                </LinkButton>
+              </Stack>
+            </FormLayout>
+          </Card.Section>
+          <Card.Section title="Social login">
+            <Stack vertical={false}>
+              {omniauthProviders.map((provider) => {
+                return (
+                  <LinkButton
+                    href={provider.link}
+                    key={provider.title}
+                    method="post"
+                  >
+                    {provider.title}
+                  </LinkButton>
                 );
-              }}
-            >
-              Sign up
-            </Button>
-            {omniauthProviders.map((provider) => {
-              return (
-                <PostButton href={provider.link} key={provider.title}>
-                  {provider.title}
-                </PostButton>
-              );
-            })}
-          </FormLayout>
+              })}
+            </Stack>
+          </Card.Section>
         </Card>
       </Page>
     </AppProvider>
