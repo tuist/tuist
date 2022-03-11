@@ -85,6 +85,10 @@ GEM
       aws-sigv4 (~> 1.4)
     aws-sigv4 (1.4.0)
       aws-eventstream (~> 1, >= 1.0.2)
+    babel-source (5.8.35)
+    babel-transpiler (0.7.0)
+      babel-source (>= 4.0, < 6)
+      execjs (~> 2.0)
     bcrypt (3.1.16)
     bindex (0.8.1)
     bootsnap (1.10.3)
@@ -124,6 +128,7 @@ GEM
       rake (>= 12.0.0, < 14.0.0)
     dry-cli (0.7.0)
     erubi (1.10.0)
+    execjs (2.8.1)
     faker (2.20.0)
       i18n (>= 1.8.11, < 2)
     faraday (1.10.0)
@@ -324,6 +329,12 @@ GEM
     rb-fsevent (0.11.1)
     rb-inotify (0.10.1)
       ffi (~> 1.0)
+    react-rails (2.6.1)
+      babel-transpiler (>= 0.7.0)
+      connection_pool
+      execjs
+      railties (>= 3.2)
+      tilt
     redis (4.6.0)
     regexp_parser (2.2.1)
     reline (0.3.1)
@@ -387,6 +398,7 @@ GEM
       childprocess (>= 0.5, < 5.0)
       rexml (~> 3.2, >= 3.2.5)
       rubyzip (>= 1.2.2)
+    semantic_range (3.0.0)
     sidekiq (6.4.1)
       connection_pool (>= 2.2.2)
       rack (~> 2.0)
@@ -443,6 +455,11 @@ GEM
       nokogiri (~> 1.6)
       rubyzip (>= 1.3.0)
       selenium-webdriver (~> 4.0)
+    webpacker (5.4.3)
+      activesupport (>= 5.2)
+      rack-proxy (>= 0.6.1)
+      railties (>= 5.2)
+      semantic_range (>= 2.3.0)
     webrick (1.7.0)
     websocket-driver (0.7.5)
       websocket-extensions (>= 0.1.0)
@@ -482,6 +499,7 @@ DEPENDENCIES
   pundit (~> 2.1)
   rack-mini-profiler (~> 2.0)
   rails (~> 7.0.0)
+  react-rails (~> 2.6)
   redis (~> 4.0)
   rolify (~> 6.0)
   rubocop (~> 1.18)
@@ -498,6 +516,7 @@ DEPENDENCIES
   vite_rails (~> 3.0.3)
   web-console (>= 4.1.0)
   webdrivers
+  webpacker (~> 5.4)
 
 RUBY VERSION
    ruby 3.0.3p157
