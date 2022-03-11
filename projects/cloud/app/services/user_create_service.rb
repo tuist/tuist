@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 
 class UserCreateService < ApplicationService
-  attr_reader :email, :password
+  attr_reader :email, :password, :skip_confirmation
 
-  def initialize(email:, password:)
+  def initialize(email:, password: nil, skip_confirmation: false)
     super()
     @email = email
     @password = password
+    @skip_confirmation = skip_confirmation
   end
 
   def call
@@ -17,6 +18,9 @@ class UserCreateService < ApplicationService
         else
           user.password = password
         end
+      end
+      if skip_confirmation
+        user.skip_confirmation!
       end
       user.save!
       user
