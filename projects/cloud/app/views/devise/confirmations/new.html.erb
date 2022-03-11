@@ -1,16 +1,14 @@
-<h2>Resend confirmation instructions</h2>
+<%= javascript_pack_tag 'application' %>
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/@shopify/polaris@7.6.0/build/esm/styles.css"
+/>
 
-<%= form_for(resource, as: resource_name, url: confirmation_path(resource_name), html: { method: :post }) do |f| %>
-  <%= render "devise/shared/error_messages", resource: resource %>
-
-  <div class="field">
-    <%= f.label :email %><br />
-    <%= f.email_field :email, autofocus: true, autocomplete: "email", value: (resource.pending_reconfirmation? ? resource.unconfirmed_email : resource.email) %>
-  </div>
-
-  <div class="actions">
-    <%= f.submit "Resend confirmation instructions" %>
-  </div>
-<% end %>
-
-<%= render "devise/shared/links" %>
+<%=
+react_component(
+  "ResendConfirmation",
+  {
+    authenticityToken: form_authenticity_token,
+  }
+)
+%>

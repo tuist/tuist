@@ -21,7 +21,7 @@ class User < ApplicationRecord
   # Devise
   devise :database_authenticatable, :registerable,
     :recoverable, :rememberable, :validatable,
-    :lockable, :timeoutable, :trackable,
+    :timeoutable, :trackable, :confirmable,
     :omniauthable,
     omniauth_providers: [:github, :gitlab]
 

@@ -63,3 +63,7 @@ end
 gem "rubocop-rails_config", "~> 1.7"
 
 gem "aws-sdk-s3", "~> 1.112"
+
+gem "react-rails", "~> 2.6"
+
+gem "webpacker", "~> 5.4"
