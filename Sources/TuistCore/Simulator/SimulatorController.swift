@@ -179,7 +179,15 @@ public final class SimulatorController: SimulatorControlling {
         case .iOS: platform = .iOS
         case .watchOS: platform = .watchOS
         case .tvOS: platform = .tvOS
-        case .macOS: return "generic/platform=macOS,name=Any Mac"
+        case .macOS:
+          let arch: String
+          switch DeveloperEnvironment.shared.architecture {
+          case .arm64:
+              arch = "arm64"
+          case .x8664:
+              arch = "x86_64"
+          }
+          return "platform=macOS,arch=\(arch)"
         }
 
         let deviceAndRuntime = try await findAvailableDevice(
