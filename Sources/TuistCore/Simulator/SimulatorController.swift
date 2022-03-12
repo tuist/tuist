@@ -41,6 +41,9 @@ public protocol SimulatorControlling {
         version: Version?,
         deviceName: String?
     ) async throws -> String
+
+    /// Returns the simulator destination for the macOS platform
+    func macOSDestination() -> String
 }
 
 public enum SimulatorControllerError: Equatable, FatalError {
@@ -180,14 +183,7 @@ public final class SimulatorController: SimulatorControlling {
         case .watchOS: platform = .watchOS
         case .tvOS: platform = .tvOS
         case .macOS:
-          let arch: String
-          switch DeveloperEnvironment.shared.architecture {
-          case .arm64:
-              arch = "arm64"
-          case .x8664:
-              arch = "x86_64"
-          }
-          return "platform=macOS,arch=\(arch)"
+          return macOSDestination()
         }
 
         let deviceAndRuntime = try await findAvailableDevice(
@@ -197,6 +193,17 @@ public final class SimulatorController: SimulatorControlling {
             deviceName: deviceName
         )
         return "id=\(deviceAndRuntime.device.udid)"
+    }
+
+    public func macOSDestination() -> String {
+        let arch: String
+        switch DeveloperEnvironment.shared.architecture {
+        case .arm64:
+            arch = "arm64"
+        case .x8664:
+            arch = "x86_64"
+        }
+        return "platform=macOS,arch=\(arch)"
     }
 }
 

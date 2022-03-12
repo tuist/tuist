@@ -29,8 +29,13 @@ public final class MockSimulatorController: SimulatorControlling {
         try launchAppStub?(bundleId, device, arguments)
     }
 
-    public var destinationStub: ((Platform) -> String)?
-    public func destination(for targetPlatform: Platform, version _: Version?, deviceName _: String?) async throws -> String {
-        destinationStub?(targetPlatform) ?? "id=\(SimulatorDeviceAndRuntime.test().device.udid)"
-    }
+  public var destinationStub: ((Platform) -> String)?
+  public func destination(for targetPlatform: Platform, version _: Version?, deviceName _: String?) async throws -> String {
+      destinationStub?(targetPlatform) ?? "id=\(SimulatorDeviceAndRuntime.test().device.udid)"
+  }
+
+  public var macOSDestinationStub: (() -> String)?
+  public func macOSDestination() -> String {
+    macOSDestinationStub?() ?? "platform=macOS,arch=arm64"
+  }
 }

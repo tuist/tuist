@@ -97,8 +97,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         case let .device(udid):
             command.append(contentsOf: ["-destination", "id=\(udid)"])
         case .mac:
-            destination = SimulatorController().destination(for: .macOS, version: nil, deviceName: nil)
-            command.append(contentsOf: ["-destination", destination])
+            command.append(contentsOf: ["-destination", SimulatorController().macOSDestination()])
         }
 
         // Derived data path
