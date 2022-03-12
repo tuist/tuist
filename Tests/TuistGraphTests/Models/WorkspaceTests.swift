@@ -15,16 +15,4 @@ final class WorkspaceTests: TuistUnitTestCase {
         // Then
         XCTAssertCodable(subject)
     }
-
-    func test_codable_withGenerationOptions() {
-        // Given
-        let subject = Workspace.test(
-            path: "/path/to/workspace",
-            name: "name",
-            generationOptions: .options(automaticXcodeSchemes: .disabled)
-        )
-
-        // Then
-        XCTAssertCodable(subject)
-    }
 }

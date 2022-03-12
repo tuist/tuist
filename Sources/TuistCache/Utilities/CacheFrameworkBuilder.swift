@@ -83,14 +83,14 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
 
     // MARK: - Fileprivate
 
-    fileprivate func arguments(platform: Platform,
-                               configuration: String,
-                               version: Version?,
-                               deviceName: String?) async throws -> [XcodeBuildArgument]
-    {
+    fileprivate func arguments(
+        platform: Platform,
+        configuration: String,
+        version: Version?,
+        deviceName: String?
+    ) async throws -> [XcodeBuildArgument] {
         let destination = try await simulatorController
             .destination(for: platform, version: version, deviceName: deviceName)
-
         return [
             .configuration(configuration),
             .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
@@ -99,9 +99,10 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         ]
     }
 
-    fileprivate func exportFrameworksAndDSYMs(from buildDirectory: AbsolutePath,
-                                              into outputDirectory: AbsolutePath) throws
-    {
+    fileprivate func exportFrameworksAndDSYMs(
+        from buildDirectory: AbsolutePath,
+        into outputDirectory: AbsolutePath
+    ) throws {
         let frameworks = FileHandler.shared.glob(buildDirectory, glob: "*.framework")
         try frameworks.forEach { framework in
             try FileHandler.shared.copy(from: framework, to: outputDirectory.appending(component: framework.basename))

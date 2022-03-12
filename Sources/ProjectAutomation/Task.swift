@@ -19,9 +19,8 @@ public struct Task {
     }
 
     private func runIfNeeded() {
-        guard
-            let taskCommandLineIndex = CommandLine.arguments.firstIndex(of: "--tuist-task"),
-            CommandLine.argc > taskCommandLineIndex
+        guard let taskCommandLineIndex = CommandLine.arguments.firstIndex(of: "--tuist-task"),
+              CommandLine.argc > taskCommandLineIndex
         else { return }
         let attributesString = CommandLine.arguments[taskCommandLineIndex + 1]
         // swiftlint:disable force_try

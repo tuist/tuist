@@ -27,19 +27,6 @@ enum PrecompiledMetadataProviderError: FatalError, Equatable {
             return .abort
         }
     }
-
-    // MARK: - Equatable
-
-    static func == (lhs: PrecompiledMetadataProviderError, rhs: PrecompiledMetadataProviderError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.architecturesNotFound(lhsPath), .architecturesNotFound(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.metadataNotFound(lhsPath), .metadataNotFound(rhsPath)):
-            return lhsPath == rhsPath
-        default:
-            return false
-        }
-    }
 }
 
 public protocol PrecompiledMetadataProviding {
@@ -179,8 +166,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
             numOfCommands = header.ncmds
         }
 
-        guard
-            let binaryArchitecture = readBinaryArchitecture(cputype: cputype, cpusubtype: cpusubtype)
+        guard let binaryArchitecture = readBinaryArchitecture(cputype: cputype, cpusubtype: cpusubtype)
         else { return nil }
 
         var uuid: UUID?
@@ -215,9 +201,8 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     }
 
     private func readBinaryArchitecture(cputype: cpu_type_t, cpusubtype: cpu_subtype_t) -> BinaryArchitecture? {
-        guard
-            let archInfo = NXGetArchInfoFromCpuType(cputype, cpusubtype),
-            let arch = BinaryArchitecture(rawValue: String(cString: archInfo.pointee.name))
+        guard let archInfo = NXGetArchInfoFromCpuType(cputype, cpusubtype),
+              let arch = BinaryArchitecture(rawValue: String(cString: archInfo.pointee.name))
         else {
             return nil
         }

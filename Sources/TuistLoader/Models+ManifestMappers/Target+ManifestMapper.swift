@@ -71,7 +71,11 @@ extension TuistGraph.Target {
             try TuistGraph.CopyFilesAction.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
-        let headers = try manifest.headers.map { try TuistGraph.Headers.from(manifest: $0, generatorPaths: generatorPaths) }
+        let headers = try manifest.headers.map { try TuistGraph.Headers.from(
+            manifest: $0,
+            generatorPaths: generatorPaths,
+            productName: manifest.productName
+        ) }
 
         let coreDataModels = try manifest.coreDataModels.map {
             try TuistGraph.CoreDataModel.from(manifest: $0, generatorPaths: generatorPaths)

@@ -65,7 +65,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             cache: nil,
             swiftVersion: nil,
             plugins: [],
-            generationOptions: [.resolveDependenciesWithSystemScm],
+            generationOptions: .test(resolveDependenciesWithSystemScm: true),
             path: nil
         )
 

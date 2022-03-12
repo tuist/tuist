@@ -1,6 +1,16 @@
 import Foundation
 
-/// It represent's a project configuration.
+/// `ConfigurationName` is a wrapper around `String` to type the project or workspace configurations.
+///
+/// The type provides the `.debug` and .release static variables for the `Debug` and `Release` configuration respectively, and we recommend adding new configurations using a extension:
+/// ```
+/// import ProjectDescription
+/// extension ConfigurationName {
+///   static var beta: ConfigurationName {
+///       ConfigurationName("Beta")
+///   }
+/// }
+/// ```
 public struct ConfigurationName: ExpressibleByStringLiteral, Codable, Equatable {
     /// Configuration name.
     public let rawValue: String

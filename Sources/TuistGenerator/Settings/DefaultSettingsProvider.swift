@@ -6,12 +6,16 @@ import TuistSupport
 import XcodeProj
 
 public protocol DefaultSettingsProviding {
-    func projectSettings(project: Project,
-                         buildConfiguration: BuildConfiguration) throws -> SettingsDictionary
+    func projectSettings(
+        project: Project,
+        buildConfiguration: BuildConfiguration
+    ) throws -> SettingsDictionary
 
-    func targetSettings(target: Target,
-                        project: Project,
-                        buildConfiguration: BuildConfiguration) throws -> SettingsDictionary
+    func targetSettings(
+        target: Target,
+        project: Project,
+        buildConfiguration: BuildConfiguration
+    ) throws -> SettingsDictionary
 }
 
 public final class DefaultSettingsProvider: DefaultSettingsProviding {
@@ -91,9 +95,10 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
 
     // MARK: - DefaultSettingsProviding
 
-    public func projectSettings(project: Project,
-                                buildConfiguration: BuildConfiguration) throws -> SettingsDictionary
-    {
+    public func projectSettings(
+        project: Project,
+        buildConfiguration: BuildConfiguration
+    ) throws -> SettingsDictionary {
         let settingsHelper = SettingsHelper()
         let defaultSettings = project.settings.defaultSettings
         let variant = settingsHelper.variant(buildConfiguration)
@@ -110,10 +115,11 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         return settings.filter(filter)
     }
 
-    public func targetSettings(target: Target,
-                               project: Project,
-                               buildConfiguration: BuildConfiguration) throws -> SettingsDictionary
-    {
+    public func targetSettings(
+        target: Target,
+        project: Project,
+        buildConfiguration: BuildConfiguration
+    ) throws -> SettingsDictionary {
         let settingsHelper = SettingsHelper()
         let defaultSettings = target.settings?.defaultSettings ?? project.settings.defaultSettings
         let product = settingsHelper.settingsProviderProduct(target)
@@ -147,10 +153,11 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
 
     // MARK: - Private
 
-    private func createFilter(defaultSettings: DefaultSettings,
-                              essentialKeys: Set<String>,
-                              newXcodeKeys: [Version: Set<String>] = [:]) throws -> (String, SettingValue) -> Bool
-    {
+    private func createFilter(
+        defaultSettings: DefaultSettings,
+        essentialKeys: Set<String>,
+        newXcodeKeys: [Version: Set<String>] = [:]
+    ) throws -> (String, SettingValue) -> Bool {
         switch defaultSettings {
         case let .essential(excludedKeys):
             return { key, _ in essentialKeys.contains(key) && !excludedKeys.contains(key) }

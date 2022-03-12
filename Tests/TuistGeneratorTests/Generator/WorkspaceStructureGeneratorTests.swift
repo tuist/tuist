@@ -352,9 +352,10 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             try closure(currentPath)
         }
 
-        func inTemporaryDirectory<Result>(removeOnCompletion _: Bool,
-                                          _ closure: (AbsolutePath) throws -> Result) throws -> Result
-        {
+        func inTemporaryDirectory<Result>(
+            removeOnCompletion _: Bool,
+            _ closure: (AbsolutePath) throws -> Result
+        ) throws -> Result {
             try closure(currentPath)
         }
 
@@ -441,10 +442,11 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
 }
 
 extension WorkspaceStructure.Element {
-    static func group(_ name: String,
-                      _ path: AbsolutePath,
-                      _ contents: [WorkspaceStructure.Element]) -> WorkspaceStructure.Element
-    {
+    static func group(
+        _ name: String,
+        _ path: AbsolutePath,
+        _ contents: [WorkspaceStructure.Element]
+    ) -> WorkspaceStructure.Element {
         .group(name: name, path: path, contents: contents)
     }
 

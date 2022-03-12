@@ -18,11 +18,4 @@ public class MockGraphLinter: GraphLinting {
         invokedLintParametersList.append((graphTraverser, ()))
         return stubbedLintResult
     }
-
-    public func lintCodeCoverageMode(
-        _: CodeCoverageMode?,
-        graphTraverser _: GraphTraversing
-    ) -> [LintingIssue] {
-        []
-    }
 }

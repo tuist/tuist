@@ -33,15 +33,16 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    private func makeTargetScript(name: String = "1",
-                                  order: TargetScript.Order = .pre,
-                                  tool: String = "tool1",
-                                  arguments: [String] = ["arg1", "arg2"],
-                                  inputPaths: [AbsolutePath] = [AbsolutePath("/inputPaths1")],
-                                  inputFileListPaths: [AbsolutePath] = [AbsolutePath("/inputFileListPaths1")],
-                                  outputPaths: [AbsolutePath] = [AbsolutePath("/outputPaths1")],
-                                  outputFileListPaths: [AbsolutePath] = [AbsolutePath("/outputFileListPaths1")]) -> TargetScript
-    {
+    private func makeTargetScript(
+        name: String = "1",
+        order: TargetScript.Order = .pre,
+        tool: String = "tool1",
+        arguments: [String] = ["arg1", "arg2"],
+        inputPaths: [AbsolutePath] = [AbsolutePath("/inputPaths1")],
+        inputFileListPaths: [AbsolutePath] = [AbsolutePath("/inputFileListPaths1")],
+        outputPaths: [AbsolutePath] = [AbsolutePath("/outputPaths1")],
+        outputFileListPaths: [AbsolutePath] = [AbsolutePath("/outputFileListPaths1")]
+    ) -> TargetScript {
         TargetScript(
             name: name,
             order: order,

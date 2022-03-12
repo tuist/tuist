@@ -1,14 +1,12 @@
 query Me {
-    me {
-        id
-        email
-        avatarUrl
-        lastVisitedProject {
-          slug
-        }
-        projects {
-          name
-          slug
-        }
+  me {
+    ...UserBasicInfo
+    lastVisitedProject {
+      slug
     }
+    projects {
+      name
+      slug
+    }
+  }
 }

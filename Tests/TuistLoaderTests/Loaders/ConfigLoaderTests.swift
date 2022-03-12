@@ -2,6 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistGraph
+import TuistGraphTesting
 import TuistSupport
 import XCTest
 @testable import TuistCoreTesting
@@ -62,9 +63,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project/Tuist/Config.swift"
         stub(path: path, exists: true)
         stub(
-            config: .test(
-                generationOptions: [.developmentRegion("fr")]
-            ),
+            config: .test(),
             at: path.parentDirectory
         )
 
@@ -78,7 +77,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             cache: nil,
             swiftVersion: nil,
             plugins: [],
-            generationOptions: [.developmentRegion("fr")],
+            generationOptions: .test(),
             path: path
         ))
     }
@@ -105,9 +104,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             stub(path: $0, exists: true)
         }
         stub(
-            config: .test(
-                generationOptions: [.developmentRegion("fr")]
-            ),
+            config: .test(),
             at: "/project/Tuist"
         )
 
@@ -121,7 +118,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             cache: nil,
             swiftVersion: nil,
             plugins: [],
-            generationOptions: [.developmentRegion("fr")],
+            generationOptions: .test(),
             path: "/project/Tuist/Config.swift"
         ))
     }

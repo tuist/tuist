@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistCore
 import TuistGraph
+import TuistGraphTesting
 import TuistLoaderTesting
 import XcodeProj
 import XCTest
@@ -377,7 +378,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             cache: .default,
             swiftVersion: nil,
             plugins: [],
-            generationOptions: [],
+            generationOptions: .test(),
             path: nil
         )
     }
@@ -387,7 +388,8 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             path: path,
             xcWorkspacePath: path.appending(component: "Workspace.xcworkspace"),
             name: "Workspace",
-            projects: try projects.map { try pathTo($0) }
+            projects: try projects.map { try pathTo($0) },
+            generationOptions: .test(enableAutomaticXcodeSchemes: nil)
         )
     }
 
@@ -405,7 +407,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             name: "App",
             organizationName: nil,
             developmentRegion: nil,
-            options: [],
+            options: .test(),
             settings: settings,
             filesGroup: .group(name: "Project"),
             targets: targets,
@@ -414,7 +416,8 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             ideTemplateMacros: nil,
             additionalFiles: [],
             resourceSynthesizers: [],
-            lastUpgradeCheck: nil
+            lastUpgradeCheck: nil,
+            isExternal: false
         )
     }
 
@@ -453,11 +456,12 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     // MARK: - Assertions
 
-    private func assertTarget(_ target: String = "AppTarget",
-                              expectedConfigurations: Set<String>,
-                              file: StaticString = #file,
-                              line: UInt = #line)
-    {
+    private func assertTarget(
+        _ target: String = "AppTarget",
+        expectedConfigurations: Set<String>,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let proj: XcodeProj
         do {
             proj = try loadXcodeProj("App/App.xcodeproj")
@@ -475,10 +479,11 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         XCTAssertEqual(configurationNames, expectedConfigurations, file: file, line: line)
     }
 
-    private func assertProject(expectedConfigurations: Set<String>,
-                               file: StaticString = #file,
-                               line: UInt = #line)
-    {
+    private func assertProject(
+        expectedConfigurations: Set<String>,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let proj: XcodeProj
         let rootProject: PBXProject?
         do {

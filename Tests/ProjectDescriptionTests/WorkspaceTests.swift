@@ -25,7 +25,7 @@ final class WorkspaceTests: XCTestCase {
         let subject = Workspace(
             name: "name",
             projects: ["ProjectA"],
-            generationOptions: .options(automaticXcodeSchemes: .default)
+            generationOptions: .options(enableAutomaticXcodeSchemes: true)
         )
 
         XCTAssertCodable(subject)

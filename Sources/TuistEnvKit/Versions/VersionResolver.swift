@@ -6,19 +6,6 @@ enum ResolvedVersion: Equatable {
     case bin(AbsolutePath)
     case versionFile(AbsolutePath, String)
     case undefined
-
-    static func == (lhs: ResolvedVersion, rhs: ResolvedVersion) -> Bool {
-        switch (lhs, rhs) {
-        case let (.bin(lhsPath), .bin(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.versionFile(lhsPath, lhsValue), .versionFile(rhsPath, rhsValue)):
-            return lhsValue == rhsValue && lhsPath == rhsPath
-        case (.undefined, .undefined):
-            return true
-        default:
-            return false
-        }
-    }
 }
 
 protocol VersionResolving: AnyObject {
@@ -38,13 +25,6 @@ enum VersionResolverError: FatalError, Equatable {
         switch self {
         case let .readError(path):
             return "Cannot read the version file at path \(path.pathString)."
-        }
-    }
-
-    static func == (lhs: VersionResolverError, rhs: VersionResolverError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.readError(lhsPath), .readError(rhsPath)):
-            return lhsPath == rhsPath
         }
     }
 }

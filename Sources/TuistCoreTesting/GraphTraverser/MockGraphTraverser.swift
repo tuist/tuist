@@ -125,6 +125,26 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedAllTargetsResult
     }
 
+    var invokedAllTargetsTopologicalSorted = false
+    var invokedAllTargetsTopologicalSortedCount = 0
+    var stubbedAllTargetsTopologicalSortedResult: [GraphTarget]! = []
+
+    func allTargetsTopologicalSorted() throws -> [GraphTarget] {
+        invokedAllTargetsTopologicalSorted = true
+        invokedAllTargetsTopologicalSortedCount += 1
+        return stubbedAllTargetsTopologicalSortedResult
+    }
+
+    var invokedAllInternalTargets = false
+    var invokedAllInternalTargetsCount = 0
+    var stubbedAllInternalTargetsResult: Set<GraphTarget>! = []
+
+    func allInternalTargets() -> Set<GraphTarget> {
+        invokedAllInternalTargets = true
+        invokedAllInternalTargetsCount += 1
+        return stubbedAllInternalTargetsResult
+    }
+
     var invokedPrecompiledFrameworksPaths = false
     var invokedPrecompiledFrameworksPathsCount = 0
     var stubbedPrecompiledFrameworksPathsResult: Set<AbsolutePath>! = []

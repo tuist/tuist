@@ -8,7 +8,6 @@ extension SimulatorRuntime {
             "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS.simruntime",
         buildVersion: String = "17F61",
         runtimeRoot: AbsolutePath =
-            // swiftlint:disable:next line_length
             "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS.simruntime/Contents/Resources/RuntimeRoot",
         identifier: String = "com.apple.CoreSimulator.SimRuntime.iOS-13-5",
         version: SimulatorRuntimeVersion = "13.5",

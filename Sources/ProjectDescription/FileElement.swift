@@ -8,11 +8,10 @@ import Foundation
 /// Note: For convenience, an element can be represented as a string literal
 ///       `"some/pattern/**"` is the equivalent of `FileElement.glob(pattern: "some/pattern/**")`
 public enum FileElement: Codable, Equatable {
-    /// A glob pattern of files to include
+    /// A file path (or glob pattern) to include. For convenience, a string literal can be used as an alternate way to specify this option.
     case glob(pattern: Path)
 
-    /// Relative path to a directory to include
-    /// as a folder reference
+    /// A directory path to include as a folder reference.
     case folderReference(path: Path)
 
     private enum TypeName: String, Codable {

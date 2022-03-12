@@ -18,22 +18,16 @@ enum BundleServiceError: FatalError, Equatable {
             return "Couldn't find a .tuist-version file in the directory \(path.pathString)"
         }
     }
-
-    static func == (lhs: BundleServiceError, rhs: BundleServiceError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.missingVersionFile(lhsPath), .missingVersionFile(rhsPath)):
-            return lhsPath == rhsPath
-        }
-    }
 }
 
 final class BundleService {
     private let versionsController: VersionsControlling
     private let installer: Installing
 
-    init(versionsController: VersionsControlling = VersionsController(),
-         installer: Installing = Installer())
-    {
+    init(
+        versionsController: VersionsControlling = VersionsController(),
+        installer: Installing = Installer()
+    ) {
         self.versionsController = versionsController
         self.installer = installer
     }

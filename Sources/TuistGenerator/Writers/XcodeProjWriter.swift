@@ -28,9 +28,10 @@ public final class XcodeProjWriter: XcodeProjWriting {
     private let config: Config
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
 
-    public init(sideEffectDescriptorExecutor: SideEffectDescriptorExecuting = SideEffectDescriptorExecutor(),
-                config: Config = .default)
-    {
+    public init(
+        sideEffectDescriptorExecutor: SideEffectDescriptorExecuting = SideEffectDescriptorExecutor(),
+        config: Config = .default
+    ) {
         self.sideEffectDescriptorExecutor = sideEffectDescriptorExecutor
         self.config = config
     }
@@ -134,6 +135,10 @@ public final class XcodeProjWriter: XcodeProjWriting {
     ) throws {
         let settingsPath = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: xccontainerPath)
 
+        let parentFolder = settingsPath.removingLastComponent()
+        if !FileHandler.shared.exists(parentFolder) {
+            try FileHandler.shared.createFolder(parentFolder)
+        }
         try workspaceSettingsDescriptor.settings
             .write(path: settingsPath.path, override: true)
     }

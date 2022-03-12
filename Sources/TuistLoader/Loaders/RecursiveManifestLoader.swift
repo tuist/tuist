@@ -6,7 +6,6 @@ import TuistSupport
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {
-    func loadProject(at path: AbsolutePath) throws -> LoadedProjects
     func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace
 }
 
@@ -24,19 +23,21 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     private let manifestLoader: ManifestLoading
     private let fileHandler: FileHandling
 
-    public init(manifestLoader: ManifestLoading = ManifestLoader(),
-                fileHandler: FileHandling = FileHandler.shared)
-    {
+    public init(
+        manifestLoader: ManifestLoading = ManifestLoader(),
+        fileHandler: FileHandling = FileHandler.shared
+    ) {
         self.manifestLoader = manifestLoader
         self.fileHandler = fileHandler
     }
 
-    public func loadProject(at path: AbsolutePath) throws -> LoadedProjects {
-        try loadProjects(paths: [path])
-    }
-
     public func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace {
-        let workspace = try manifestLoader.loadWorkspace(at: path)
+        var workspace: ProjectDescription.Workspace
+        do {
+            workspace = try manifestLoader.loadWorkspace(at: path)
+        } catch ManifestLoaderError.manifestNotFound {
+            workspace = Workspace(name: "Workspace", projects: ["."])
+        }
 
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let projectPaths = try workspace.projects.map {
@@ -50,6 +51,9 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         }
 
         let projects = try loadProjects(paths: projectPaths)
+        if let workspaceName = projects.projects[path]?.name {
+            workspace = Workspace(name: workspaceName, projects: ["."])
+        }
         return LoadedWorkspace(
             path: path,
             workspace: workspace,

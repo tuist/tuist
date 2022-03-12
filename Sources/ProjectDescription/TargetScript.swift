@@ -1,5 +1,6 @@
 import Foundation
 
+/// Target scripts, represented as target script build phases in the generated Xcode projects, are useful to define actions to be executed before of after the build process of a target.
 // swiftlint:disable:next type_body_length
 public struct TargetScript: Codable, Equatable {
     /// Order when the script gets executed.
@@ -65,17 +66,18 @@ public struct TargetScript: Codable, Equatable {
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    init(name: String,
-         script: Script = .embedded(""),
-         order: Order,
-         inputPaths: [Path] = [],
-         inputFileListPaths: [Path] = [],
-         outputPaths: [Path] = [],
-         outputFileListPaths: [Path] = [],
-         basedOnDependencyAnalysis: Bool? = nil,
-         runForInstallBuildsOnly: Bool = false,
-         shellPath: String = "/bin/sh")
-    {
+    init(
+        name: String,
+        script: Script = .embedded(""),
+        order: Order,
+        inputPaths: [Path] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh"
+    ) {
         self.name = name
         self.script = script
         self.order = order
@@ -104,17 +106,18 @@ public struct TargetScript: Codable, Equatable {
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
-    public static func pre(path: Path,
-                           arguments: String...,
-                           name: String,
-                           inputPaths: [Path] = [],
-                           inputFileListPaths: [Path] = [],
-                           outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil,
-                           runForInstallBuildsOnly: Bool = false,
-                           shellPath: String = "/bin/sh") -> TargetScript
-    {
+    public static func pre(
+        path: Path,
+        arguments: String...,
+        name: String,
+        inputPaths: [Path] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh"
+    ) -> TargetScript {
         TargetScript(
             name: name,
             script: .scriptPath(path: path, args: arguments),
@@ -143,17 +146,18 @@ public struct TargetScript: Codable, Equatable {
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
-    public static func pre(path: Path,
-                           arguments: [String],
-                           name: String,
-                           inputPaths: [Path] = [],
-                           inputFileListPaths: [Path] = [],
-                           outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil,
-                           runForInstallBuildsOnly: Bool = false,
-                           shellPath: String = "/bin/sh") -> TargetScript
-    {
+    public static func pre(
+        path: Path,
+        arguments: [String],
+        name: String,
+        inputPaths: [Path] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh"
+    ) -> TargetScript {
         TargetScript(
             name: name,
             script: .scriptPath(path: path, args: arguments),
@@ -182,17 +186,18 @@ public struct TargetScript: Codable, Equatable {
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
-    public static func post(path: Path,
-                            arguments: String...,
-                            name: String,
-                            inputPaths: [Path] = [],
-                            inputFileListPaths: [Path] = [],
-                            outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil,
-                            runForInstallBuildsOnly: Bool = false,
-                            shellPath: String = "/bin/sh") -> TargetScript
-    {
+    public static func post(
+        path: Path,
+        arguments: String...,
+        name: String,
+        inputPaths: [Path] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh"
+    ) -> TargetScript {
         TargetScript(
             name: name,
             script: .scriptPath(path: path, args: arguments),
@@ -221,17 +226,18 @@ public struct TargetScript: Codable, Equatable {
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
-    public static func post(path: Path,
-                            arguments: [String],
-                            name: String,
-                            inputPaths: [Path] = [],
-                            inputFileListPaths: [Path] = [],
-                            outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil,
-                            runForInstallBuildsOnly: Bool = false,
-                            shellPath: String = "/bin/sh") -> TargetScript
-    {
+    public static func post(
+        path: Path,
+        arguments: [String],
+        name: String,
+        inputPaths: [Path] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh"
+    ) -> TargetScript {
         TargetScript(
             name: name,
             script: .scriptPath(path: path, args: arguments),
@@ -262,17 +268,18 @@ public struct TargetScript: Codable, Equatable {
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
-    public static func pre(tool: String,
-                           arguments: String...,
-                           name: String,
-                           inputPaths: [Path] = [],
-                           inputFileListPaths: [Path] = [],
-                           outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil,
-                           runForInstallBuildsOnly: Bool = false,
-                           shellPath: String = "/bin/sh") -> TargetScript
-    {
+    public static func pre(
+        tool: String,
+        arguments: String...,
+        name: String,
+        inputPaths: [Path] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh"
+    ) -> TargetScript {
         TargetScript(
             name: name,
             script: .tool(path: tool, args: arguments),
@@ -301,17 +308,18 @@ public struct TargetScript: Codable, Equatable {
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
-    public static func pre(tool: String,
-                           arguments: [String],
-                           name: String,
-                           inputPaths: [Path] = [],
-                           inputFileListPaths: [Path] = [],
-                           outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil,
-                           runForInstallBuildsOnly: Bool = false,
-                           shellPath: String = "/bin/sh") -> TargetScript
-    {
+    public static func pre(
+        tool: String,
+        arguments: [String],
+        name: String,
+        inputPaths: [Path] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh"
+    ) -> TargetScript {
         TargetScript(
             name: name,
             script: .tool(path: tool, args: arguments),
@@ -340,17 +348,18 @@ public struct TargetScript: Codable, Equatable {
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
-    public static func post(tool: String,
-                            arguments: String...,
-                            name: String,
-                            inputPaths: [Path] = [],
-                            inputFileListPaths: [Path] = [],
-                            outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil,
-                            runForInstallBuildsOnly: Bool = false,
-                            shellPath: String = "/bin/sh") -> TargetScript
-    {
+    public static func post(
+        tool: String,
+        arguments: String...,
+        name: String,
+        inputPaths: [Path] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh"
+    ) -> TargetScript {
         TargetScript(
             name: name,
             script: .tool(path: tool, args: arguments),
@@ -379,17 +388,18 @@ public struct TargetScript: Codable, Equatable {
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
-    public static func post(tool: String,
-                            arguments: [String],
-                            name: String,
-                            inputPaths: [Path] = [],
-                            inputFileListPaths: [Path] = [],
-                            outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil,
-                            runForInstallBuildsOnly: Bool = false,
-                            shellPath: String = "/bin/sh") -> TargetScript
-    {
+    public static func post(
+        tool: String,
+        arguments: [String],
+        name: String,
+        inputPaths: [Path] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh"
+    ) -> TargetScript {
         TargetScript(
             name: name,
             script: .tool(path: tool, args: arguments),
@@ -420,16 +430,17 @@ public struct TargetScript: Codable, Equatable {
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
-    public static func pre(script: String,
-                           name: String,
-                           inputPaths: [Path] = [],
-                           inputFileListPaths: [Path] = [],
-                           outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil,
-                           runForInstallBuildsOnly: Bool = false,
-                           shellPath: String = "/bin/sh") -> TargetScript
-    {
+    public static func pre(
+        script: String,
+        name: String,
+        inputPaths: [Path] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh"
+    ) -> TargetScript {
         TargetScript(
             name: name,
             script: .embedded(script),
@@ -458,16 +469,17 @@ public struct TargetScript: Codable, Equatable {
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
-    public static func post(script: String,
-                            name: String,
-                            inputPaths: [Path] = [],
-                            inputFileListPaths: [Path] = [],
-                            outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil,
-                            runForInstallBuildsOnly: Bool = false,
-                            shellPath: String = "/bin/sh") -> TargetScript
-    {
+    public static func post(
+        script: String,
+        name: String,
+        inputPaths: [Path] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh"
+    ) -> TargetScript {
         TargetScript(
             name: name,
             script: .embedded(script),

@@ -38,18 +38,15 @@ final class BuildService {
     private let generatorFactory: GeneratorFactorying
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding
-    private let configLoader: ConfigLoading
 
     init(
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
-        targetBuilder: TargetBuilding = TargetBuilder(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
+        targetBuilder: TargetBuilding = TargetBuilder()
     ) {
         self.generatorFactory = generatorFactory
         self.buildGraphInspector = buildGraphInspector
         self.targetBuilder = targetBuilder
-        self.configLoader = configLoader
     }
 
     // swiftlint:disable:next function_body_length
@@ -62,10 +59,9 @@ final class BuildService {
         path: AbsolutePath
     ) async throws {
         let graph: Graph
-        let config = try configLoader.loadConfig(path: path)
-        let generator = generatorFactory.default(config: config)
+        let generator = generatorFactory.default()
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
-            graph = try await generator.generateWithGraph(path: path, projectOnly: false).1
+            graph = try await generator.generateWithGraph(path: path).1
         } else {
             graph = try await generator.load(path: path)
         }

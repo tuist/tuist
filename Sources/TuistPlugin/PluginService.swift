@@ -265,8 +265,7 @@ public final class PluginService: PluginServicing {
         }
 
         let plugin = try manifestLoader.loadPlugin(at: pluginRepositoryDirectory)
-        guard
-            let releaseURL = URL(string: url)?
+        guard let releaseURL = URL(string: url)?
             .appendingPathComponent("releases/download/\(gitTag)/\(plugin.name).tuist-plugin.zip")
         else { throw PluginServiceError.invalidURL(url) }
 

@@ -1,0 +1,5 @@
+mutation CreateS3Bucket($input: CreateS3BucketInput!) {
+  createS3Bucket(input: $input) {
+    ...S3BucketInfo
+  }
+}

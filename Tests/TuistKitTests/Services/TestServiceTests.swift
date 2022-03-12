@@ -86,10 +86,8 @@ final class TestServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         var generatedPath: AbsolutePath?
-        var projectOnly: Bool?
         generator.generateWithGraphStub = {
             generatedPath = $0
-            projectOnly = $1
             return ($0, Graph.test())
         }
 
@@ -100,14 +98,13 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(generatedPath, path)
-        XCTAssertEqual(projectOnly, false)
     }
 
     func test_run_tests_for_only_specified_scheme() async throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
             [
-                Scheme.test(name: "App-Project"),
+                Scheme.test(name: "App-Workspace"),
                 Scheme.test(name: "TestScheme"),
             ]
         }
@@ -118,7 +115,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 )
             )
         }
-        generator.generateWithGraphStub = { path, _ in
+        generator.generateWithGraphStub = { path in
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
@@ -144,13 +141,13 @@ final class TestServiceTests: TuistUnitTestCase {
                 Scheme.test(name: "TestScheme"),
             ]
         }
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectSchemeOne"),
                 Scheme.test(name: "ProjectSchemeTwo"),
             ]
         }
-        generator.generateWithGraphStub = { path, _ in
+        generator.generateWithGraphStub = { path in
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
@@ -193,13 +190,13 @@ final class TestServiceTests: TuistUnitTestCase {
                 Scheme.test(name: "TestScheme"),
             ]
         }
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectSchemeOne"),
                 Scheme.test(name: "ProjectSchemeTwo"),
             ]
         }
-        generator.generateWithGraphStub = { path, _ in
+        generator.generateWithGraphStub = { path in
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
@@ -232,12 +229,12 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_all_project_schemes_when_fails() async throws {
         // Given
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectScheme"),
             ]
         }
-        generator.generateWithGraphStub = { path, _ in
+        generator.generateWithGraphStub = { path in
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
@@ -270,10 +267,10 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_when_no_project_schemes_present() async throws {
         // Given
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             []
         }
-        generator.generateWithGraphStub = { path, _ in
+        generator.generateWithGraphStub = { path in
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
@@ -301,10 +298,10 @@ final class TestServiceTests: TuistUnitTestCase {
             resourceBundlePath = gotResourceBundlePath
             return []
         }
-        generator.generateWithGraphStub = { path, _ in
+        generator.generateWithGraphStub = { path in
             (path, Graph.test())
         }
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectScheme"),
             ]
@@ -332,10 +329,10 @@ final class TestServiceTests: TuistUnitTestCase {
             resourceBundlePath = gotResourceBundlePath
             return []
         }
-        generator.generateWithGraphStub = { path, _ in
+        generator.generateWithGraphStub = { path in
             (path, Graph.test())
         }
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectScheme"),
                 Scheme.test(name: "ProjectScheme2"),
@@ -363,12 +360,12 @@ final class TestServiceTests: TuistUnitTestCase {
                 Scheme.test(name: "TestScheme"),
             ]
         }
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectSchemeOne"),
             ]
         }
-        generator.generateWithGraphStub = { path, _ in
+        generator.generateWithGraphStub = { path in
             (path, Graph.test())
         }
 
@@ -396,12 +393,12 @@ final class TestServiceTests: TuistUnitTestCase {
                 Scheme.test(name: "TestScheme"),
             ]
         }
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectSchemeOne"),
             ]
         }
-        generator.generateWithGraphStub = { path, _ in
+        generator.generateWithGraphStub = { path in
             (path, Graph.test())
         }
 

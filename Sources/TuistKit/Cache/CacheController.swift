@@ -86,12 +86,12 @@ final class CacheController: CacheControlling {
         let xcframeworks = artifactBuilder.cacheOutputType == .xcframework
         let generator = generatorFactory.cache(
             config: config,
-            includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets),
+            includedTargets: includedTargets,
             focusedTargets: nil,
             xcframeworks: xcframeworks,
             cacheProfile: cacheProfile
         )
-        let (_, graph) = try await generator.generateWithGraph(path: path, projectOnly: false)
+        let (_, graph) = try await generator.generateWithGraph(path: path)
 
         // Lint
         cacheGraphLinter.lint(graph: graph)
@@ -123,7 +123,7 @@ final class CacheController: CacheControlling {
                 xcframeworks: xcframeworks,
                 cacheProfile: cacheProfile
             )
-            .generateWithGraph(path: path, projectOnly: false)
+            .generateWithGraph(path: path)
 
         logger.notice("Building cacheable targets")
 
@@ -213,6 +213,9 @@ final class CacheController: CacheControlling {
         includedTargets: Set<String>,
         dependenciesOnly: Bool
     ) async throws -> [(GraphTarget, String)] {
+        let graphTraverser = GraphTraverser(graph: graph)
+        let includedTargets = includedTargets
+            .isEmpty ? Set(graphTraverser.allInternalTargets().map(\.target.name)) : includedTargets
         // When `dependenciesOnly` is true, there is no need to compute `includedTargets` hashes
         let excludedTargets = dependenciesOnly ? includedTargets : []
         let hashesByCacheableTarget = try cacheGraphContentHasher.contentHashes(
@@ -222,19 +225,11 @@ final class CacheController: CacheControlling {
             excludedTargets: excludedTargets
         )
 
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        let graph = try topologicalSort(
-            Array(graphTraverser.allTargets()),
-            successors: {
-                Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name))
-            }
-        )
-        return try await graph.concurrentCompactMap { target in
-            guard
-                let hash = hashesByCacheableTarget[target],
-                // if cache already exists, no need to build
-                try await !self.cache.exists(name: target.target.name, hash: hash)
+        let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
+        return try await sortedCacheableTargets.concurrentCompactMap { target in
+            guard let hash = hashesByCacheableTarget[target],
+                  // if cache already exists, no need to build
+                  try await !self.cache.exists(name: target.target.name, hash: hash)
             else {
                 return nil
             }

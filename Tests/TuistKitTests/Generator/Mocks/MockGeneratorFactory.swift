@@ -18,12 +18,13 @@ final class MockGeneratorFactory: GeneratorFactorying {
         [(config: Config, sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)]()
     var stubbedFocusResult: Generating!
 
-    func focus(config: Config,
-               sources: Set<String>,
-               xcframeworks: Bool,
-               cacheProfile: TuistGraph.Cache.Profile,
-               ignoreCache: Bool) -> Generating
-    {
+    func focus(
+        config: Config,
+        sources: Set<String>,
+        xcframeworks: Bool,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool
+    ) -> Generating {
         invokedFocus = true
         invokedFocusCount += 1
         invokedFocusParameters = (config, sources, xcframeworks, cacheProfile, ignoreCache)
@@ -58,15 +59,11 @@ final class MockGeneratorFactory: GeneratorFactorying {
 
     var invokedDefault = false
     var invokedDefaultCount = 0
-    var invokedDefaultParameters: (config: Config, Void)?
-    var invokedDefaultParametersList = [(config: Config, Void)]()
     var stubbedDefaultResult: Generating!
 
-    func `default`(config: Config) -> Generating {
+    func `default`() -> Generating {
         invokedDefault = true
         invokedDefaultCount += 1
-        invokedDefaultParameters = (config, ())
-        invokedDefaultParametersList.append((config, ()))
         return stubbedDefaultResult
     }
 
@@ -74,14 +71,14 @@ final class MockGeneratorFactory: GeneratorFactorying {
     var invokedCacheCount = 0
     var invokedCacheParameters: (
         config: Config,
-        includedTargets: Set<String>?,
+        includedTargets: Set<String>,
         focusedTargets: Set<String>?,
         xcframeworks: Bool,
         cacheProfile: Cache.Profile
     )?
     var invokedCacheParametersList = [(
         config: Config,
-        includedTargets: Set<String>?,
+        includedTargets: Set<String>,
         focusedTargets: Set<String>?,
         xcframeworks: Bool,
         cacheProfile: Cache.Profile
@@ -90,7 +87,7 @@ final class MockGeneratorFactory: GeneratorFactorying {
 
     func cache(
         config: Config,
-        includedTargets: Set<String>?,
+        includedTargets: Set<String>,
         focusedTargets: Set<String>?,
         xcframeworks: Bool,
         cacheProfile: Cache.Profile

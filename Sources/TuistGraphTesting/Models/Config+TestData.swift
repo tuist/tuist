@@ -10,7 +10,7 @@ extension Config {
         cache: Cache? = Cache.test(),
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
-        generationOptions: [GenerationOption] = [],
+        generationOptions: GenerationOptions = Config.default.generationOptions,
         path: AbsolutePath? = nil
     ) -> Config {
         .init(
@@ -21,6 +21,18 @@ extension Config {
             plugins: plugins,
             generationOptions: generationOptions,
             path: path
+        )
+    }
+}
+
+extension Config.GenerationOptions {
+    public static func test(
+        resolveDependenciesWithSystemScm: Bool = false,
+        disablePackageVersionLocking: Bool = false
+    ) -> Self {
+        .init(
+            resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
+            disablePackageVersionLocking: disablePackageVersionLocking
         )
     }
 }

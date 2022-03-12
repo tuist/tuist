@@ -722,6 +722,60 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "takinwande",
+      "name": "Tope Akinwande",
+      "avatar_url": "https://avatars.githubusercontent.com/u/4744429?v=4",
+      "profile": "https://github.com/takinwande",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "TheInkedEngineer",
+      "name": "TheInkedEngineer",
+      "avatar_url": "https://avatars.githubusercontent.com/u/13349066?v=4",
+      "profile": "https://www.theinkedengineer.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "alexanderwe",
+      "name": "Alexander Weiß",
+      "avatar_url": "https://avatars.githubusercontent.com/u/12934015?v=4",
+      "profile": "http://alexanderweiss.dev",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "kyungpyoda",
+      "name": "kyungpyoda",
+      "avatar_url": "https://avatars.githubusercontent.com/u/44656036?v=4",
+      "profile": "https://github.com/kyungpyoda",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "VilleWitt",
+      "name": "Ville Witt",
+      "avatar_url": "https://avatars.githubusercontent.com/u/522544?v=4",
+      "profile": "http://www.villewitt.net",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "paulsamuels",
+      "name": "paul.s",
+      "avatar_url": "https://avatars.githubusercontent.com/u/527091?v=4",
+      "profile": "https://github.com/paulsamuels",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

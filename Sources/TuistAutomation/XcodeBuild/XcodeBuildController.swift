@@ -26,18 +26,20 @@ public final class XcodeBuildController: XcodeBuildControlling {
         )
     }
 
-    init(formatter: Formatting,
-         environment: Environmenting)
-    {
+    init(
+        formatter: Formatting,
+        environment: Environmenting
+    ) {
         self.formatter = formatter
         self.environment = environment
     }
 
-    public func build(_ target: XcodeBuildTarget,
-                      scheme: String,
-                      clean: Bool = false,
-                      arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
-    {
+    public func build(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        clean: Bool = false,
+        arguments: [XcodeBuildArgument]
+    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -111,12 +113,13 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return run(command: command, isVerbose: environment.isVerbose)
     }
 
-    public func archive(_ target: XcodeBuildTarget,
-                        scheme: String,
-                        clean: Bool,
-                        archivePath: AbsolutePath,
-                        arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
-    {
+    public func archive(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        clean: Bool,
+        archivePath: AbsolutePath,
+        arguments: [XcodeBuildArgument]
+    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -140,14 +143,19 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return run(command: command, isVerbose: environment.isVerbose)
     }
 
-    public func createXCFramework(frameworks: [AbsolutePath],
-                                  output: AbsolutePath) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
-    {
+    public func createXCFramework(
+        frameworks: [AbsolutePath],
+        output: AbsolutePath
+    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
         command.append(contentsOf: frameworks.flatMap { ["-framework", $0.pathString] })
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
         return run(command: command, isVerbose: environment.isVerbose)
+    }
+
+    enum ShowBuildSettingsError: Error {
+        case timeout
     }
 
     public func showBuildSettings(
@@ -173,7 +181,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             // can sometimes hang indefinitely on projects that don't
             // share any schemes, so automatically bail out if it looks
             // like that's happening.
-            .timeout(.seconds(20), scheduler: DispatchQueue.global())
+            .timeout(.seconds(20), scheduler: DispatchQueue.main, customError: { ShowBuildSettingsError.timeout })
             .retry(5)
             .values
         var buildSettingsByTargetName = [String: XcodeBuildSettings]()

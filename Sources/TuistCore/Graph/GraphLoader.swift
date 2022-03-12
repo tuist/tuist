@@ -6,7 +6,6 @@ import TuistGraph
 
 public protocol GraphLoading {
     func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph
-    func loadProject(at path: AbsolutePath, projects: [Project]) throws -> (Project, Graph)
 }
 
 // MARK: - GraphLoader
@@ -62,31 +61,6 @@ public final class GraphLoader: GraphLoading {
             dependencies: cache.dependencies
         )
         return graph
-    }
-
-    public func loadProject(at path: AbsolutePath, projects: [Project]) throws -> (Project, Graph) {
-        let cache = Cache(projects: projects)
-        guard let rootProject = cache.allProjects[path] else {
-            throw GraphLoadingError.missingProject(path)
-        }
-        try loadProject(path: path, cache: cache)
-
-        let workspace = Workspace(
-            path: path,
-            xcWorkspacePath: path.appending(component: "\(rootProject.name).xcworkspace"),
-            name: rootProject.name,
-            projects: cache.loadedProjects.keys.sorted()
-        )
-        let graph = Graph(
-            name: rootProject.name,
-            path: path,
-            workspace: workspace,
-            projects: cache.loadedProjects,
-            packages: cache.packages,
-            targets: cache.loadedTargets,
-            dependencies: cache.dependencies
-        )
-        return (rootProject, graph)
     }
 
     // MARK: - Private
@@ -256,11 +230,12 @@ public final class GraphLoader: GraphLoading {
         return xcframework
     }
 
-    private func loadSDK(name: String,
-                         platform: Platform,
-                         status: SDKStatus,
-                         source: SDKSource) throws -> GraphDependency
-    {
+    private func loadSDK(
+        name: String,
+        platform: Platform,
+        status: SDKStatus,
+        source: SDKSource
+    ) throws -> GraphDependency {
         let metadata = try systemFrameworkMetadataProvider.loadMetadata(
             sdkName: name,
             status: status,

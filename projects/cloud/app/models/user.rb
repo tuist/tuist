@@ -13,10 +13,15 @@ class User < ApplicationRecord
   # Callbacks
   before_validation :create_account, if: -> (user) { user.account.nil? }
 
+  include TokenAuthenticatable
+
+  # Token authenticatable
+  autogenerates_token :token
+
   # Devise
   devise :database_authenticatable, :registerable,
     :recoverable, :rememberable, :validatable,
-    :lockable, :timeoutable, :trackable,
+    :timeoutable, :trackable, :confirmable,
     :omniauthable,
     omniauth_providers: [:github, :gitlab]
 
@@ -43,8 +48,10 @@ class User < ApplicationRecord
       name = email.split("@").first
       name = suffix.nil? ? name : name + suffix.to_s
       return name if Account.where(name: name).count == 0
+
       suffix = suffix.nil? ? 1 : suffix + 1
       raise Error::CantObtainAccountName if suffix == ACCOUNT_SUFFIX_LIMIT
+
       account_name(suffix: suffix)
     end
 end

@@ -13,9 +13,11 @@ protocol EmbedScriptGenerating {
     /// - Parameter sourceRootPath: Directory where the Xcode project will be created.
     /// - Parameter frameworkReferences: Framework references.
     /// - Parameter includeSymbolsInFileLists: Whether or not to list DSYMs/bcsymbol files in the input/output file list.
-    func script(sourceRootPath: AbsolutePath,
-                frameworkReferences: [GraphDependencyReference],
-                includeSymbolsInFileLists: Bool) throws -> EmbedScript
+    func script(
+        sourceRootPath: AbsolutePath,
+        frameworkReferences: [GraphDependencyReference],
+        includeSymbolsInFileLists: Bool
+    ) throws -> EmbedScript
 }
 
 /// It represents a embed frameworks script.
@@ -33,10 +35,11 @@ struct EmbedScript {
 final class EmbedScriptGenerator: EmbedScriptGenerating {
     typealias FrameworkScript = (script: String, inputPaths: [RelativePath], outputPaths: [String])
 
-    func script(sourceRootPath: AbsolutePath,
-                frameworkReferences: [GraphDependencyReference],
-                includeSymbolsInFileLists: Bool) throws -> EmbedScript
-    {
+    func script(
+        sourceRootPath: AbsolutePath,
+        frameworkReferences: [GraphDependencyReference],
+        includeSymbolsInFileLists: Bool
+    ) throws -> EmbedScript {
         var script = baseScript()
         script.append("\n")
 
@@ -52,10 +55,11 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
 
     // MARK: - Fileprivate
 
-    fileprivate func frameworksScript(sourceRootPath: AbsolutePath,
-                                      frameworkReferences: [GraphDependencyReference],
-                                      includeSymbolsInFileLists: Bool) throws -> FrameworkScript
-    {
+    fileprivate func frameworksScript(
+        sourceRootPath: AbsolutePath,
+        frameworkReferences: [GraphDependencyReference],
+        includeSymbolsInFileLists: Bool
+    ) throws -> FrameworkScript {
         var script = ""
         var inputPaths: [RelativePath] = []
         var outputPaths: [String] = []
@@ -105,7 +109,6 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
     }
 
     // swiftlint:disable function_body_length
-    // swiftlint:disable line_length
     fileprivate func baseScript() -> String {
         """
         #!/bin/sh
@@ -252,7 +255,6 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
     }
 
     // swiftlint:enable function_body_length
-    // swiftlint:enable line_length
 }
 
 extension RelativePath {

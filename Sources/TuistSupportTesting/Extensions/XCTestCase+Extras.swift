@@ -39,11 +39,12 @@ extension XCTestCase {
         }
     }
 
-    public func XCTAssertEqualDictionaries<T: Hashable>(_ first: [T: Any],
-                                                        _ second: [T: Any],
-                                                        file: StaticString = #file,
-                                                        line: UInt = #line)
-    {
+    public func XCTAssertEqualDictionaries<T: Hashable>(
+        _ first: [T: Any],
+        _ second: [T: Any],
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let firstDictionary = NSDictionary(dictionary: first)
         let secondDictioanry = NSDictionary(dictionary: second)
         XCTAssertEqual(firstDictionary, secondDictioanry, file: file, line: line)
@@ -111,9 +112,12 @@ extension XCTestCase {
         XCTFail("No error was thrown", file: file, line: line)
     }
 
-    public func XCTAssertCodableEqualToJson<C: Codable>(_ subject: C, _ json: String, file: StaticString = #file,
-                                                        line: UInt = #line)
-    {
+    public func XCTAssertCodableEqualToJson<C: Codable>(
+        _ subject: C,
+        _ json: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let decoder = JSONDecoder()
         let decoded = XCTTry(try decoder.decode(C.self, from: json.data(using: .utf8)!), file: file, line: line)
         let encoder = JSONEncoder()
@@ -141,9 +145,12 @@ extension XCTestCase {
         XCTAssertEqual(subject, decoded, "The subject is not equal to it's encoded & decoded version")
     }
 
-    public func XCTAssertEncodableEqualToJson<C: Encodable>(_ subject: C, _ json: String, file: StaticString = #file,
-                                                            line: UInt = #line)
-    {
+    public func XCTAssertEncodableEqualToJson<C: Encodable>(
+        _ subject: C,
+        _ json: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
 
@@ -179,9 +186,12 @@ extension XCTestCase {
     }
 
     /// Asserts that a `json` object decoded as a `T` type is equal to an `expected` value.
-    public func XCTAssertDecodableEqualToJson<C: Decodable & Equatable>(_ json: String, _ expected: C, file: StaticString = #file,
-                                                                        line: UInt = #line)
-    {
+    public func XCTAssertDecodableEqualToJson<C: Decodable & Equatable>(
+        _ json: String,
+        _ expected: C,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         guard let jsonData = json.data(using: .utf8) else {
             XCTFail("Invalid JSON.", file: file, line: line)
             return
@@ -235,10 +245,12 @@ extension XCTestCase {
 
     // MARK: - HTTPResource
 
-    public func XCTAssertHTTPResourceMethod<T, E: Error>(_ resource: HTTPResource<T, E>, _ method: String,
-                                                         file: StaticString = #file,
-                                                         line: UInt = #line)
-    {
+    public func XCTAssertHTTPResourceMethod<T, E: Error>(
+        _ resource: HTTPResource<T, E>,
+        _ method: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let request = resource.request()
         XCTAssertEqual(
             request.httpMethod!,
@@ -271,9 +283,12 @@ extension XCTestCase {
         )
     }
 
-    public func XCTAssertHTTPResourcePath<T, E: Error>(_ resource: HTTPResource<T, E>, path: String, file: StaticString = #file,
-                                                       line: UInt = #line)
-    {
+    public func XCTAssertHTTPResourcePath<T, E: Error>(
+        _ resource: HTTPResource<T, E>,
+        path: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let request = resource.request()
         let url = request.url!
         let components = URLComponents(string: url.absoluteString)!
@@ -281,9 +296,12 @@ extension XCTestCase {
         XCTAssertEqual(requestPath, path, "Expected the path \(path) but got \(requestPath)", file: file, line: line)
     }
 
-    public func XCTAssertHTTPResourceURL<T, E: Error>(_ resource: HTTPResource<T, E>, url: URL, file: StaticString = #file,
-                                                      line: UInt = #line)
-    {
+    public func XCTAssertHTTPResourceURL<T, E: Error>(
+        _ resource: HTTPResource<T, E>,
+        url: URL,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let request = resource.request()
         let requestUrl = request.url!
         let components = URLComponents(string: requestUrl.absoluteString)!

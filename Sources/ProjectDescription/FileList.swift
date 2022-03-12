@@ -1,7 +1,9 @@
 import Foundation
 
+/// It represents a list of glob patterns that refer to files.
+/// The list of files can be initialized with a string that represents the glob pattern, or an array of strings, which represents a list of glob patterns.
 public struct FileList: Codable, Equatable {
-    /// List glob patterns.
+    /// Glob pattern to the files.
     public let globs: [FileListGlob]
 
     /// Initializes the files list with the glob patterns.

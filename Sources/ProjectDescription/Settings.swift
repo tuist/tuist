@@ -31,12 +31,7 @@ public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLi
 
 // MARK: - Configuration
 
-/// A custom configuration allows declaring a named build configuration along with its settings.
-///
-/// Additionally, a custom configuration specifies the configuration variant (debug or release)
-/// to help Tuist select the most appropriate default settings.
-///
-/// - seealso: Configuration
+/// Describes the build settings and the .xcconfig file of a project or target. It is initialized with either the `.debug` or `.release` static method.
 public struct Configuration: Equatable, Codable {
     public enum Variant: String, Codable {
         case debug
@@ -62,9 +57,11 @@ public struct Configuration: Equatable, Codable {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A debug `CustomConfiguration`
-    public static func debug(name: ConfigurationName, settings: SettingsDictionary = [:],
-                             xcconfig: Path? = nil) -> Configuration
-    {
+    public static func debug(
+        name: ConfigurationName,
+        settings: SettingsDictionary = [:],
+        xcconfig: Path? = nil
+    ) -> Configuration {
         Configuration(
             name: name,
             variant: .debug,
@@ -80,9 +77,11 @@ public struct Configuration: Equatable, Codable {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A release `CustomConfiguration`
-    public static func release(name: ConfigurationName, settings: SettingsDictionary = [:],
-                               xcconfig: Path? = nil) -> Configuration
-    {
+    public static func release(
+        name: ConfigurationName,
+        settings: SettingsDictionary = [:],
+        xcconfig: Path? = nil
+    ) -> Configuration {
         Configuration(
             name: name,
             variant: .release,
@@ -97,12 +96,12 @@ public struct Configuration: Equatable, Codable {
 /// Specifies the default set of settings applied to all the projects and targets.
 /// The default settings can be overridden via `Settings base: SettingsDictionary`
 /// and `Configuration settings: SettingsDictionary`.
-///
-/// - `recommended`: Essential settings plus all the recommended settings (including extra warnings)
-/// - essential: Only essential settings to make the projects compile (i.e. `TARGETED_DEVICE_FAMILY`)
 public enum DefaultSettings: Codable, Equatable {
+    /// Recommended settings including warning flags to help you catch some of the bugs at the early stage of development. If you need to override certain settings in a `Configuration` it's possible to add those keys to `excluding`.
     case recommended(excluding: Set<String> = [])
+    /// A minimal set of settings to make the project compile without any additional settings for example `PRODUCT_NAME` or `TARGETED_DEVICE_FAMILY`. If you need to override certain settings in a Configuration it's possible to add those keys to `excluding`.
     case essential(excluding: Set<String> = [])
+    /// Tuist won't generate any build settings for the target or project.
     case none
 }
 
@@ -118,7 +117,9 @@ extension DefaultSettings {
 
 // MARK: - Settings
 
+/// A `Settings` object contains an optional dictionary with build settings and relative path to an .xcconfig file. It is initialized with the `.settings` static method.
 public struct Settings: Equatable, Codable {
+    /// A dictionary with build settings that are inherited from all the configurations.
     public let base: SettingsDictionary
     public let configurations: [Configuration]
     public let defaultSettings: DefaultSettings
@@ -136,10 +137,10 @@ public struct Settings: Equatable, Codable {
     /// Creates settings with default.configurations `Debug` and `Release`
     ///
     /// - Parameters:
-    ///   - base: The base build settings to use
-    ///   - debug: The debug configuration build settings to use
-    ///   - release: The release configuration build settings to use
-    ///   - defaultSettings: The default settings to apply during generation
+    ///   - base: A dictionary with build settings that are inherited from all the configurations.
+    ///   - debug: The debug configuration settings.
+    ///   - release: The release configuration settings.
+    ///   - defaultSettings: An enum specifying the set of default settings.
     ///
     /// - Note: To specify custom configurations (e.g. `Debug`, `Beta` & `Release`) or to specify xcconfigs, you can use the alternate static method
     ///         `.settings(base:configurations:defaultSettings:)`
@@ -165,9 +166,9 @@ public struct Settings: Equatable, Codable {
     /// Creates settings with any number of configurations.
     ///
     /// - Parameters:
-    ///   - base: Base build settings to use
-    ///   - configurations: A list of custom configurations to use
-    ///   - defaultSettings: The default settings to apply during generation
+    ///   - base: A dictionary with build settings that are inherited from all the configurations.
+    ///   - configurations: A list of configurations.
+    ///   - defaultSettings: An enum specifying the set of default settings.
     ///
     /// - Note: Configurations shouldn't be empty, please use the alternate static method
     ///         `.settings(base:debug:release:defaultSettings:)` to leverage the default configurations

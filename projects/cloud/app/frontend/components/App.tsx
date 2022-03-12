@@ -3,7 +3,6 @@ import GraphqlProvider from '@/networking/GraphqlProvider';
 import ErrorBoundary from '@/components/boundaries/ErrorBoundary';
 import '@shopify/polaris/dist/styles.css';
 import {
-  HashRouter,
   Routes,
   Route,
   useLocation,
@@ -16,10 +15,10 @@ import NewProject from './NewProject';
 import Dashboard from './Dashboard';
 import Home from './Home';
 import { useMeQuery } from '@/graphql/types';
-import RemoteCache from './RemoteCache';
+import RemoteCachePage from './pages/remote-cache/RemoteCachePage';
 import OrganizationPage from './pages/organization/OrganizationPage';
 
-import { AppProvider } from '@shopify/polaris';
+import TuistCloudAppProvider from './TuistCloudAppProvider';
 import AcceptInvitationPage from './pages/invitations/AcceptInvitationPage';
 
 const AppRoutes = () => {
@@ -51,7 +50,7 @@ const AppRoutes = () => {
         />
         <Route path="/:accountName/:projectName" element={<Home />}>
           <Route path="" element={<Dashboard />} />
-          <Route path="remote-cache" element={<RemoteCache />} />
+          <Route path="remote-cache" element={<RemoteCachePage />} />
           <Route path="organization" element={<OrganizationPage />} />
         </Route>
         <Route path="/new" element={<NewProject />} />
@@ -62,70 +61,18 @@ const AppRoutes = () => {
 };
 
 const App = (): JSX.Element => {
-  const theme = {
-    logo: {
-      width: 124,
-      topBarSource:
-        'https://cdn.shopify.com/s/files/1/0446/6937/files/jaded-pixel-logo-color.svg?6215648040070010999',
-      contextualSaveBarSource:
-        'https://cdn.shopify.com/s/files/1/0446/6937/files/jaded-pixel-logo-gray.svg?6215648040070010999',
-      url: 'http://jadedpixel.com',
-      accessibilityLabel: 'Jaded Pixel',
-    },
-  };
   return (
     <ErrorBoundary>
       <GraphqlProvider>
         <div style={{ height: '500px' }}>
-          <AppProvider
-            theme={theme}
-            i18n={{
-              Polaris: {
-                Avatar: {
-                  label: 'Avatar',
-                  labelWithInitials:
-                    'Avatar with initials {initials}',
-                },
-                ContextualSaveBar: {
-                  save: 'Save',
-                  discard: 'Discard',
-                },
-                TextField: {
-                  characterCount: '{count} characters',
-                },
-                TopBar: {
-                  toggleMenuLabel: 'Toggle menu',
-                },
-                Modal: {
-                  iFrameTitle: 'body markup',
-                },
-                Frame: {
-                  skipToContent: 'Skip to content',
-                  navigationLabel: 'Navigation',
-                  Navigation: {
-                    closeMobileNavigationLabel: 'Close navigation',
-                  },
-                },
-              },
-            }}
-            linkComponent={Link}
-          >
+          <TuistCloudAppProvider>
             <BrowserRouter>
               <AppRoutes />
             </BrowserRouter>
-          </AppProvider>
+          </TuistCloudAppProvider>
         </div>
       </GraphqlProvider>
     </ErrorBoundary>
-  );
-};
-
-/// Inspired by: https://github.com/Shopify/polaris-react/issues/2575#issuecomment-574269370
-const Link = ({ url, children, className, ...rest }) => {
-  return (
-    <ReactRouterLink to={url} {...{ className }} {...rest}>
-      {children}
-    </ReactRouterLink>
   );
 };
 

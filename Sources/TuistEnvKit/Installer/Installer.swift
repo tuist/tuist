@@ -35,17 +35,6 @@ enum InstallerError: FatalError, Equatable {
             return "Found \(local) Swift version but expected \(expected)"
         }
     }
-
-    static func == (lhs: InstallerError, rhs: InstallerError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.versionNotFound(lhsVersion), .versionNotFound(rhsVersion)):
-            return lhsVersion == rhsVersion
-        case let (.incompatibleSwiftVersion(lhsLocal, lhsExpected), .incompatibleSwiftVersion(rhsLocal, rhsExpected)):
-            return lhsLocal == rhsLocal && lhsExpected == rhsExpected
-        default:
-            return false
-        }
-    }
 }
 
 /// Class that manages the installation of Tuist versions.
@@ -57,9 +46,10 @@ final class Installer: Installing {
 
     // MARK: - Init
 
-    init(buildCopier: BuildCopying = BuildCopier(),
-         versionsController: VersionsControlling = VersionsController())
-    {
+    init(
+        buildCopier: BuildCopying = BuildCopier(),
+        versionsController: VersionsControlling = VersionsController()
+    ) {
         self.buildCopier = buildCopier
         self.versionsController = versionsController
     }
@@ -80,10 +70,11 @@ final class Installer: Installing {
         )
     }
 
-    func installFromBundle(bundleURL: URL,
-                           version: String,
-                           temporaryDirectory: AbsolutePath) throws
-    {
+    func installFromBundle(
+        bundleURL: URL,
+        version: String,
+        temporaryDirectory: AbsolutePath
+    ) throws {
         try versionsController.install(version: version, installation: { installationDirectory in
 
             // Download bundle
@@ -93,7 +84,7 @@ final class Installer: Installing {
             try System.shared.run(["/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString])
 
             // Unzip
-            logger.notice("Installing...")
+            logger.notice("Installing…")
             try System.shared.run(["/usr/bin/unzip", "-q", downloadPath.pathString, "-d", installationDirectory.pathString])
 
             logger.notice("Version \(version) installed")

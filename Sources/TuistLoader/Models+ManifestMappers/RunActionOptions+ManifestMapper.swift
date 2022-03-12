@@ -1,7 +1,6 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-// import TuistCore
 import TuistGraph
 
 extension TuistGraph.RunActionOptions {
@@ -9,9 +8,10 @@ extension TuistGraph.RunActionOptions {
     /// - Parameters:
     ///   - manifest: Manifest representation of the options.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.RunActionOptions,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.RunActionOptions
-    {
+    static func from(
+        manifest: ProjectDescription.RunActionOptions,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.RunActionOptions {
         var language: String?
         var storeKitConfigurationPath: AbsolutePath?
         var simulatedLocation: SimulatedLocation?

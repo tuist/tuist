@@ -24,9 +24,8 @@ public final class TemplateLocationParser: TemplateLocationParsing {
     public func parseRepositoryBranch(from templateURL: String) -> String? {
         let splittedURL = templateURL
             .split(separator: "@")
-        guard
-            let branch = splittedURL.last,
-            splittedURL.count >= 2
+        guard let branch = splittedURL.last,
+              splittedURL.count >= 2
         else {
             return nil
         }

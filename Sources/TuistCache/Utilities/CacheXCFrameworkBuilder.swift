@@ -86,12 +86,13 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
     // MARK: - Fileprivate
 
-    fileprivate func deviceBuild(projectTarget: XcodeBuildTarget,
-                                 scheme: String,
-                                 platform: Platform,
-                                 configuration: String,
-                                 archivePath: AbsolutePath) async throws
-    {
+    fileprivate func deviceBuild(
+        projectTarget: XcodeBuildTarget,
+        scheme: String,
+        platform: Platform,
+        configuration: String,
+        archivePath: AbsolutePath
+    ) async throws {
         try await xcodeBuildController.archive(
             projectTarget,
             scheme: scheme,
@@ -105,12 +106,13 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
         ).printFormattedOutput()
     }
 
-    fileprivate func simulatorBuild(projectTarget: XcodeBuildTarget,
-                                    scheme: String,
-                                    platform: Platform,
-                                    configuration: String,
-                                    archivePath: AbsolutePath) async throws
-    {
+    fileprivate func simulatorBuild(
+        projectTarget: XcodeBuildTarget,
+        scheme: String,
+        platform: Platform,
+        configuration: String,
+        archivePath: AbsolutePath
+    ) async throws {
         try await xcodeBuildController.archive(
             projectTarget,
             scheme: scheme,

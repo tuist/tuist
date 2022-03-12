@@ -43,14 +43,6 @@ final class TargetDependencyTests: XCTestCase {
         XCTAssertEqual(decoded, sdks)
     }
 
-    func test_package_codable() throws {
-        // Given
-        let subject = TargetDependency.package(product: "foo")
-
-        // Then
-        XCTAssertCodable(subject)
-    }
-
     func test_xcframework_codable() {
         // Given
         let subject: [TargetDependency] = [

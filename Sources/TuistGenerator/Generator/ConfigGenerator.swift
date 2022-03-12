@@ -6,18 +6,22 @@ import TuistSupport
 import XcodeProj
 
 protocol ConfigGenerating: AnyObject {
-    func generateProjectConfig(project: Project,
-                               pbxproj: PBXProj,
-                               fileElements: ProjectFileElements) throws -> XCConfigurationList
+    func generateProjectConfig(
+        project: Project,
+        pbxproj: PBXProj,
+        fileElements: ProjectFileElements
+    ) throws -> XCConfigurationList
 
-    func generateTargetConfig(_ target: Target,
-                              project: Project,
-                              pbxTarget: PBXTarget,
-                              pbxproj: PBXProj,
-                              projectSettings: Settings,
-                              fileElements: ProjectFileElements,
-                              graphTraverser: GraphTraversing,
-                              sourceRootPath: AbsolutePath) throws
+    func generateTargetConfig(
+        _ target: Target,
+        project: Project,
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj,
+        projectSettings: Settings,
+        fileElements: ProjectFileElements,
+        graphTraverser: GraphTraversing,
+        sourceRootPath: AbsolutePath
+    ) throws
 }
 
 // swiftlint:disable:next type_body_length
@@ -29,19 +33,21 @@ final class ConfigGenerator: ConfigGenerating {
 
     // MARK: - Init
 
-    init(fileGenerator: FileGenerating = FileGenerator(),
-         defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider())
-    {
+    init(
+        fileGenerator: FileGenerating = FileGenerator(),
+        defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()
+    ) {
         self.fileGenerator = fileGenerator
         self.defaultSettingsProvider = defaultSettingsProvider
     }
 
     // MARK: - ConfigGenerating
 
-    func generateProjectConfig(project: Project,
-                               pbxproj: PBXProj,
-                               fileElements: ProjectFileElements) throws -> XCConfigurationList
-    {
+    func generateProjectConfig(
+        project: Project,
+        pbxproj: PBXProj,
+        fileElements: ProjectFileElements
+    ) throws -> XCConfigurationList {
         /// Configuration list
         let defaultConfiguration = project.settings.defaultReleaseBuildConfiguration()
             ?? project.settings.defaultDebugBuildConfiguration()
@@ -65,15 +71,16 @@ final class ConfigGenerator: ConfigGenerating {
         return configurationList
     }
 
-    func generateTargetConfig(_ target: Target,
-                              project: Project,
-                              pbxTarget: PBXTarget,
-                              pbxproj: PBXProj,
-                              projectSettings: Settings,
-                              fileElements: ProjectFileElements,
-                              graphTraverser: GraphTraversing,
-                              sourceRootPath: AbsolutePath) throws
-    {
+    func generateTargetConfig(
+        _ target: Target,
+        project: Project,
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj,
+        projectSettings: Settings,
+        fileElements: ProjectFileElements,
+        graphTraverser: GraphTraversing,
+        sourceRootPath: AbsolutePath
+    ) throws {
         let defaultConfiguration = projectSettings.defaultReleaseBuildConfiguration()
             ?? projectSettings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(
@@ -114,13 +121,14 @@ final class ConfigGenerator: ConfigGenerating {
 
     // MARK: - Fileprivate
 
-    private func generateProjectSettingsFor(buildConfiguration: BuildConfiguration,
-                                            configuration: Configuration?,
-                                            project: Project,
-                                            fileElements: ProjectFileElements,
-                                            pbxproj: PBXProj,
-                                            configurationList: XCConfigurationList) throws
-    {
+    private func generateProjectSettingsFor(
+        buildConfiguration: BuildConfiguration,
+        configuration: Configuration?,
+        project: Project,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj,
+        configurationList: XCConfigurationList
+    ) throws {
         let settingsHelper = SettingsHelper()
         var settings = try defaultSettingsProvider.projectSettings(
             project: project,
@@ -145,16 +153,17 @@ final class ConfigGenerator: ConfigGenerating {
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }
 
-    private func generateTargetSettingsFor(target: Target,
-                                           project: Project,
-                                           buildConfiguration: BuildConfiguration,
-                                           configuration: Configuration?,
-                                           fileElements: ProjectFileElements,
-                                           graphTraverser: GraphTraversing,
-                                           pbxproj: PBXProj,
-                                           configurationList: XCConfigurationList,
-                                           sourceRootPath: AbsolutePath) throws
-    {
+    private func generateTargetSettingsFor(
+        target: Target,
+        project: Project,
+        buildConfiguration: BuildConfiguration,
+        configuration: Configuration?,
+        fileElements: ProjectFileElements,
+        graphTraverser: GraphTraversing,
+        pbxproj: PBXProj,
+        configurationList: XCConfigurationList,
+        sourceRootPath: AbsolutePath
+    ) throws {
         let settingsHelper = SettingsHelper()
         var settings = try defaultSettingsProvider.targetSettings(
             target: target,
@@ -187,12 +196,13 @@ final class ConfigGenerator: ConfigGenerating {
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }
 
-    private func updateTargetDerived(buildSettings settings: inout SettingsDictionary,
-                                     target: Target,
-                                     graphTraverser: GraphTraversing,
-                                     project: Project,
-                                     sourceRootPath: AbsolutePath)
-    {
+    private func updateTargetDerived(
+        buildSettings settings: inout SettingsDictionary,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        project: Project,
+        sourceRootPath: AbsolutePath
+    ) {
         settings.merge(
             generalTargetDerivedSettings(
                 target: target,
@@ -241,10 +251,11 @@ final class ConfigGenerator: ConfigGenerating {
         return settings
     }
 
-    private func testBundleTargetDerivedSettings(target: Target,
-                                                 graphTraverser: GraphTraversing,
-                                                 projectPath: AbsolutePath) -> SettingsDictionary
-    {
+    private func testBundleTargetDerivedSettings(
+        target: Target,
+        graphTraverser: GraphTraversing,
+        projectPath: AbsolutePath
+    ) -> SettingsDictionary {
         guard target.product.testsBundle else {
             return [:]
         }
@@ -291,6 +302,9 @@ final class ConfigGenerator: ConfigGenerating {
             if devices.contains(.ipad), devices.contains(.mac) {
                 settings["SUPPORTS_MACCATALYST"] = "YES"
                 settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
+            } else {
+                // Unless explicitly specified, when the platform the Product is a framework, these default to YES.
+                settings["SUPPORTS_MACCATALYST"] = "NO"
             }
         case let .macOS(version):
             settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
@@ -303,10 +317,11 @@ final class ConfigGenerator: ConfigGenerating {
         return settings
     }
 
-    private func watchTargetDerivedSettings(target: Target,
-                                            graphTraverser: GraphTraversing,
-                                            projectPath: AbsolutePath) -> SettingsDictionary
-    {
+    private func watchTargetDerivedSettings(
+        target: Target,
+        graphTraverser: GraphTraversing,
+        projectPath: AbsolutePath
+    ) -> SettingsDictionary {
         guard target.product == .watch2App else {
             return [:]
         }

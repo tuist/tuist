@@ -25,19 +25,9 @@ public enum Tuist {
         }
     }
 
-    /// Returns graph at the current path.
-    public static func graph() throws -> Graph {
-        try graph(at: nil)
-    }
-
-    /// Returns graph at the given path.
-    public static func graph(at path: String) throws -> Graph {
-        try graph(at: path as String?)
-    }
-
-    // MARK: - Helpers
-
-    private static func graph(at path: String?) throws -> Graph {
+    /// Loads and returns the graph at the given path.
+    /// - parameter path: the path which graph should be loaded. If nil, the current path is used.
+    public static func graph(at path: String? = nil) throws -> Graph {
         // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
         // Otherwise, fallback to go
         let tuistBinaryPath = ProcessInfo.processInfo.environment["TUIST_CONFIG_BINARY_PATH"] ?? "tuist"
@@ -52,13 +42,16 @@ public enum Tuist {
             if let path = path {
                 arguments += ["--path", path]
             }
+            let forceConfigCacheDirectory = "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"
+            var environment: [String: String] = [:]
+            if let configCacheDirectory = ProcessInfo.processInfo.environment[forceConfigCacheDirectory],
+               !configCacheDirectory.isEmpty
+            {
+                environment[forceConfigCacheDirectory] = configCacheDirectory
+            }
             try run(
                 arguments,
-                environment: [
-                    "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY": ProcessInfo.processInfo.environment[
-                        "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"
-                    ] ?? "",
-                ]
+                environment: environment
             )
             let graphData = try Data(contentsOf: graphPath.asURL)
             return try JSONDecoder().decode(Graph.self, from: graphData)

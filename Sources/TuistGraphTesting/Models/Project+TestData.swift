@@ -11,7 +11,7 @@ extension Project {
         name: String = "Project",
         organizationName: String? = nil,
         developmentRegion: String? = nil,
-        options: [ProjectOption] = [],
+        options: Options = .test(automaticSchemesOptions: .disabled),
         settings: Settings = Settings.test(),
         filesGroup: ProjectGroup = .group(name: "Project"),
         targets: [Target] = [Target.test()],
@@ -20,7 +20,8 @@ extension Project {
         ideTemplateMacros: IDETemplateMacros? = nil,
         additionalFiles: [FileElement] = [],
         resourceSynthesizers: [ResourceSynthesizer] = [],
-        lastUpgradeCheck: Version? = nil
+        lastUpgradeCheck: Version? = nil,
+        isExternal: Bool = false
     ) -> Project {
         Project(
             path: path,
@@ -38,7 +39,8 @@ extension Project {
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
             resourceSynthesizers: resourceSynthesizers,
-            lastUpgradeCheck: lastUpgradeCheck
+            lastUpgradeCheck: lastUpgradeCheck,
+            isExternal: isExternal
         )
     }
 
@@ -49,7 +51,7 @@ extension Project {
         name: String = "Project",
         organizationName: String? = nil,
         developmentRegion: String? = nil,
-        options: [ProjectOption] = [],
+        options: Options = .test(automaticSchemesOptions: .disabled),
         settings: Settings = .default,
         filesGroup: ProjectGroup = .group(name: "Project"),
         targets: [Target] = [],
@@ -58,7 +60,8 @@ extension Project {
         ideTemplateMacros: IDETemplateMacros? = nil,
         additionalFiles: [FileElement] = [],
         resourceSynthesizers: [ResourceSynthesizer] = [],
-        lastUpgradeCheck: Version? = nil
+        lastUpgradeCheck: Version? = nil,
+        isExternal: Bool = false
     ) -> Project {
         Project(
             path: path,
@@ -76,7 +79,8 @@ extension Project {
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
             resourceSynthesizers: resourceSynthesizers,
-            lastUpgradeCheck: lastUpgradeCheck
+            lastUpgradeCheck: lastUpgradeCheck,
+            isExternal: isExternal
         )
     }
 }

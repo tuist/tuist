@@ -17,7 +17,11 @@ final class GraphService {
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
             .createManifestLoader()
-        let manifestGraphLoader = ManifestGraphLoader(manifestLoader: manifestLoader)
+        let manifestGraphLoader = ManifestGraphLoader(
+            manifestLoader: manifestLoader,
+            workspaceMapper: SequentialWorkspaceMapper(mappers: []),
+            graphMapper: SequentialGraphMapper([])
+        )
         let graphVizMapper = GraphToGraphVizMapper()
         self.init(
             graphVizGenerator: graphVizMapper,
@@ -33,15 +37,16 @@ final class GraphService {
         self.manifestGraphLoader = manifestGraphLoader
     }
 
-    func run(format: GraphFormat,
-             layoutAlgorithm: GraphViz.LayoutAlgorithm,
-             skipTestTargets: Bool,
-             skipExternalDependencies: Bool,
-             targetsToFilter: [String],
-             path: AbsolutePath,
-             outputPath: AbsolutePath) throws
-    {
-        let graph = try manifestGraphLoader.loadGraph(at: path)
+    func run(
+        format: GraphFormat,
+        layoutAlgorithm: GraphViz.LayoutAlgorithm,
+        skipTestTargets: Bool,
+        skipExternalDependencies: Bool,
+        targetsToFilter: [String],
+        path: AbsolutePath,
+        outputPath: AbsolutePath
+    ) async throws {
+        let (graph, _) = try await manifestGraphLoader.load(path: path)
 
         let filePath = outputPath.appending(component: "graph.\(format.rawValue)")
         if FileHandler.shared.exists(filePath) {
@@ -67,11 +72,12 @@ final class GraphService {
         logger.notice("Graph exported to \(filePath.pathString).", metadata: .success)
     }
 
-    private func export(graph: GraphViz.Graph,
-                        at filePath: AbsolutePath,
-                        withFormat format: GraphFormat,
-                        layoutAlgorithm: LayoutAlgorithm) throws
-    {
+    private func export(
+        graph: GraphViz.Graph,
+        at filePath: AbsolutePath,
+        withFormat format: GraphFormat,
+        layoutAlgorithm: LayoutAlgorithm
+    ) throws {
         switch format {
         case .dot:
             try exportDOTRepresentation(from: graph, at: filePath)
@@ -87,10 +93,11 @@ final class GraphService {
         try FileHandler.shared.write(dotFile, path: filePath, atomically: true)
     }
 
-    private func exportPNGRepresentation(from graphVizGraph: GraphViz.Graph,
-                                         at filePath: AbsolutePath,
-                                         layoutAlgorithm: LayoutAlgorithm) throws
-    {
+    private func exportPNGRepresentation(
+        from graphVizGraph: GraphViz.Graph,
+        at filePath: AbsolutePath,
+        layoutAlgorithm: LayoutAlgorithm
+    ) throws {
         if try !isGraphVizInstalled() {
             try installGraphViz()
         }
@@ -168,6 +175,7 @@ extension ProjectAutomation.Project {
         return ProjectAutomation.Project(
             name: project.name,
             path: project.path.pathString,
+            isExternal: project.isExternal,
             packages: packages,
             targets: targets,
             schemes: schemes

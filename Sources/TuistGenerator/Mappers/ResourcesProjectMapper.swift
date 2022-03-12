@@ -6,7 +6,10 @@ import TuistSupport
 
 /// A project mapper that adds support for defining resources in targets that don't support it
 public class ResourcesProjectMapper: ProjectMapping {
-    public init() {}
+    private let contentHasher: ContentHashing
+    public init(contentHasher: ContentHashing) {
+        self.contentHasher = contentHasher
+    }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
         guard !project.options.disableBundleAccessors else {
@@ -15,8 +18,8 @@ public class ResourcesProjectMapper: ProjectMapping {
         var sideEffects: [SideEffectDescriptor] = []
         var targets: [Target] = []
 
-        project.targets.forEach { target in
-            let (mappedTargets, targetSideEffects) = mapTarget(target, project: project)
+        try project.targets.forEach { target in
+            let (mappedTargets, targetSideEffects) = try mapTarget(target, project: project)
             targets.append(contentsOf: mappedTargets)
             sideEffects.append(contentsOf: targetSideEffects)
         }
@@ -24,7 +27,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         return (project.with(targets: targets), sideEffects)
     }
 
-    public func mapTarget(_ target: Target, project: Project) -> ([Target], [SideEffectDescriptor]) {
+    public func mapTarget(_ target: Target, project: Project) throws -> ([Target], [SideEffectDescriptor]) {
         if target.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
@@ -53,15 +56,19 @@ public class ResourcesProjectMapper: ProjectMapping {
         }
 
         if target.supportsSources {
-            let (filePath, fileDescriptors) = synthesizedFile(bundleName: bundleName, target: target, project: project)
-            modifiedTarget.sources.append(SourceFile(path: filePath, compilerFlags: nil))
-            sideEffects.append(contentsOf: fileDescriptors)
+            let (filePath, data) = synthesizedFile(bundleName: bundleName, target: target, project: project)
+
+            let hash = try data.map(contentHasher.hash)
+            let sourceFile = SourceFile(path: filePath, contentHash: hash)
+            let sideEffect = SideEffectDescriptor.file(.init(path: filePath, contents: data, state: .present))
+            modifiedTarget.sources.append(sourceFile)
+            sideEffects.append(sideEffect)
         }
 
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
-    func synthesizedFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, [SideEffectDescriptor]) {
+    func synthesizedFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
         let filePath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
@@ -72,7 +79,7 @@ public class ResourcesProjectMapper: ProjectMapping {
             bundleName: bundleName,
             target: target
         )
-        return (filePath, [.file(.init(path: filePath, contents: content.data(using: .utf8), state: .present))])
+        return (filePath, content.data(using: .utf8))
     }
 
     // swiftlint:disable:next function_body_length

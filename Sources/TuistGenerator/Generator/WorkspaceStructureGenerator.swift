@@ -73,11 +73,12 @@ private class DirectoryStructure {
         ".xcodeproj",
     ]
 
-    init(path: AbsolutePath,
-         projects: [AbsolutePath],
-         files: [FileElement],
-         fileHandler: FileHandling = FileHandler.shared)
-    {
+    init(
+        path: AbsolutePath,
+        projects: [AbsolutePath],
+        files: [FileElement],
+        fileHandler: FileHandling = FileHandler.shared
+    ) {
         self.path = path
         self.projects = projects
         self.files = files
@@ -177,9 +178,7 @@ extension DirectoryStructure {
             nodes.debugDescription
         }
 
-        static func == (lhs: DirectoryStructure.Graph,
-                        rhs: DirectoryStructure.Graph) -> Bool
-        {
+        static func == (lhs: DirectoryStructure.Graph, rhs: DirectoryStructure.Graph) -> Bool {
             lhs.nodes == rhs.nodes
         }
     }

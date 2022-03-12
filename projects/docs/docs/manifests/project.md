@@ -24,7 +24,7 @@ let project = Project(
                 .folderReference(path: "Stubs"),
                 .folderReference(path: "ODR", tags: ["odr_tag"])
             ],
-            headers: Headers(
+            headers: .headers(
                 public: ["Sources/public/A/**", "Sources/public/B/**"],
                 private: "Sources/private/**",
                 project: ["Sources/project/A/**", "Sources/project/B/**"]
@@ -76,15 +76,50 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
 | `resourceSynthesizers` | List of resource synthesizer for generating accessors for resources.                                                                                                                                            | [`[ResourceSynthesizer]`](#resource-synthesizer) | No       | `.default` |
 
 ### Project Options
+
 List of additional options:
 
-| Case                                                                                     | Description                                                                |
-| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `.disableSynthesizedResourceAccessors)`                                                  | To disable synthesized resource accessors.                                 |
-| `.disableBundleAccessors`                                                                | To disables generating Bundle accessors.                                   |
-| `.textSettings(usesTabs: Bool?, indentWidth: UInt?, tabWidth: UInt?, wrapsLines: Bool?)` | [Text settings](#text-settings) to override user ones for current project. |
+| Case                                                                                    | Description                                                                |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `automaticSchemesOptions(AutomaticSchemesOptions)`                                      | To configure automatic target schemes generation.                          |
+| `developmentRegion`                                                                     | To customize the development region.                                       |
+| `disableBundleAccessors`                                                                | To disables generating Bundle accessors.                                   |
+| `disableShowEnvironmentVarsInScriptPhases`                                              | To suppress logging of environment in Run Script build phases.             |
+| `disableSynthesizedResourceAccessors`                                                   | To disable synthesized resource accessors.                                 |
+| `textSettings(usesTabs: Bool?, indentWidth: UInt?, tabWidth: UInt?, wrapsLines: Bool?)` | [Text settings](#text-settings) to override user ones for current project. |
+| `xcodeProjectName`                                                                      | To customize the name of the generated `.xcodeproj`.                       |
+
+## AutomaticSchemesOptions
+
+Automatic schemes options allow customizing the generation of the target schemes.
+
+| Property                | Description                                    | Type                                              | Required | Default                                                     |
+| ----------------------- | ---------------------------------------------- | ------------------------------------------------- | -------- | ----------------------------------------------------------- |
+| `targetSchemesGrouping` | Configure the grouping of targets into schemes | [`TargetSchemesGrouping`](#TargetSchemesGrouping) | No       | `byNameSuffix()`                                                     |
+| `codeCoverageEnabled`   | Enable or disable code coverage.               | `Bool`                                            | No       | `false` |
+| `testingOptions`        | Configure scheme testing options.              | [`TestingOptions`](#TestingOptions)               | No       | `[]` |
+
+### TargetSchemesGrouping
+
+Allows you to define what targets will be enabled for code coverage data gathering.
+
+| Case                                                                     | Description                                           |
+| ------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `.singleScheme`                                                          | Generate a single scheme for each project.            |
+| `.byNameSuffix(build: Set<String>, test: Set<String>, run: Set<String>)` | Group schemes according to the suffix of their names. |
+| `.notGrouped`                                                            | Generate a scheme for each target.                    |
+
+### TestingOptions
+
+Allows you to define which set of testing options are applied on autogenerated schemes.
+
+| Option                     | Description                                       |
+| -------------------------- | ------------------------------------------------- |
+| `.parallelizable`          | Enables parallel test execution (where possible). |
+| `.randomExecutionOrdering` | Randomizes order of execution of tests            |
 
 #### Text Settings
+
 Text settings to override user ones. Would use Xcode defined settings if pass `nil`.
 
 | Property      | Description          | Type    | Required | Default |
@@ -95,6 +130,10 @@ Text settings to override user ones. Would use Xcode defined settings if pass `n
 | `wrapsLines`  | Wrap lines           | `Bool?` | No       | `nil`   |
 
 ### Package
+
+:::warning Deprecated
+This feature is deprecated. You should use `Dependencies.swift` instead.
+:::
 
 You can add Swift Packages very similarly to how you add dependencies in a `Package.swift`:
 
@@ -142,7 +181,7 @@ Each target in the list of project targets can be initialized with the following
 | `copyFiles`        | Copy files actions allow defining copy files build phases.                                                                                                                                         | [`[CopyFilesAction]`](#copy-files-action)       | No       |                  |
 | `headers`          | The target headers.                                                                                                                                                                                | [`Headers`](#headers)                           | No       |                  |
 | `entitlements`     | Path to the entitlement file.                                                                                                                                                                      | [`Path`](#path)                                 | No       |                  |
-| `scripts`          | Target scripts allow defining extra script build phases.                                                                                                                                           | [`[TargetScript]`](#target-script)              | No       | `[]`             |
+| `scripts`          | Target scripts allow defining extra script build phases.                                                                                                                                           | [`[TargetScript]`](#target-scripts)              | No       | `[]`             |
 | `dependencies`     | List of target dependencies.                                                                                                                                                                       | [`[TargetDependency]`](guides/dependencies.md)   | No       | `[]`             |
 | `settings`         | Target build settings and configuration files.                                                                                                                                                     | [`Settings`](#settings)                         | No       |                  |
 | `coreDataModels`   | Core Data models.                                                                                                                                                                                  | [`[CoreDataModel]`](#core-data-model)           | No       |                  |
@@ -224,9 +263,48 @@ It represents the target headers:
 | Property           | Description                                                                           | Type                                                     | Required | Default |
 | ------------------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------- | ------- |
 | `public`           | Relative glob pattern that points to the public headers.                                 | [`FileList`](#file-list)                              | No       |         |
+| `umbrellaHeader`   | Path to an umbrella header, which will be used to get list of public headers             | [`Path`](#path)                                       | No       |         |
 | `private`          | Relative glob pattern that points to the private headers.                                | [`FileList`](#file-list)                              | No       |         |
 | `project`          | Relative glob pattern that points to the project headers.                                | [`FileList`](#file-list)                              | No       |         |
 | `exclusionRule`    | Rule, which determines how to resolve found duplicates in public/private/project scopes  | [`AutomaticExclusionRule`](#automatic-exclusion-rule) | No       | `.none` |
+
+The following example shows creating Header by using umbrealla header as source of truth for public headers, all others will be with `project` visibility:
+
+```swift
+.allHeaders(from: "Classes/**", umbrella: "MyModuleName.h")
+```
+
+The following example shows creating Header by using umbrealla header as source of truth for public headers, specific list of private headers and all others will be with `project` visibility:
+
+```swift
+.allHeaders(from: "Classes/**", umbrella: "MyModuleName.h", private: "Sources/**/*+Private.h")
+```
+
+The following example shows creating Header by using umbrealla header as source of truth for public headers, specific list of private headers and all others will be with skipped:
+
+```swift
+.onlyHeaders(from: "Classes/**", umbrella: "MyModuleName.h", private: "Sources/**/*+Private.h")
+```
+
+Don't forget, that you can add exceptions for the each list, e.g. to remove unit-tests headers
+
+```swift
+.allHeaders(
+    from: .list([.glob("Sources/group/**", excluding: ["Sources/**/*+Mock.h"])]),
+    umbrella: "Sources/Umbrella.h",
+    private: "Sources/**/*+Private.h"
+    )
+```
+
+The following example shows classic way with manual declaring list for each kind of vibisility
+
+```swift
+.headers(
+    public: "Sources/public/**",
+    private: "Sources/private/**",
+    project: "Sources/project/**"
+)
+```
 
 ### File List
 
@@ -670,13 +748,16 @@ Here is the list of functions provided by Tuist:
 | Code signing   | `func codeSignIdentityAppleDevelopment() -> SettingsDictionary`                                                      | Sets `"CODE_SIGN_IDENTITY"` to `"Apple Development"`                                                                                                                  |
 | Code signing   | `func codeSignIdentity(_ identity: String) -> SettingsDictionary`                                                    | Sets `"CODE_SIGN_IDENTITY"` to `identity`                                                                                                                             |
 | Versioning     | `func currentProjectVersion(_ version: String) -> SettingsDictionary`                                                | Sets `"CURRENT_PROJECT_VERSION"` to `version`                                                                                                                         |
+| Versioning     | `func marketingVersion(_ version: String) -> SettingsDictionary`                                                     | Sets `"MARKETING_VERSION"` to `version`                     
 | Versioning     | `func appleGenericVersioningSystem() -> SettingsDictionary`                                                          | Sets `"VERSIONING_SYSTEM"` to `"apple-generic"`                                                                                                                       |
 | Versioning     | `func versionInfo(_ version: String, prefix: String? = nil, suffix: String? = nil) -> SettingsDictionary`            | Sets `"VERSION_INFO_PREFIX"` to `version`. If `prefix` and `suffix` are not `nil`, they\'re used as `"VERSION_INFO_PREFIX"` and `"VERSION_INFO_SUFFIX"` respectively. |
 | Swift Settings | `func swiftVersion(_ version: String) -> SettingsDictionary`                                                         | Sets `"SWIFT_VERSION"` to `version`                                                                                                                                   |
 | Swift Settings | `func otherSwiftFlags(_ flags: String...) -> SettingsDictionary`                                                     | Sets `"OTHER_SWIFT_FLAGS"` to `flags`                                                                                                                                 |
 | Swift Settings | `func swiftCompilationMode(_ mode: SwiftCompilationMode) -> SettingsDictionary`                                      | Sets `"SWIFT_COMPILATION_MODE"` to the available `SwiftCompilationMode` (`"singlefile"` or `"wholemodule"`)                                                           |
 | Swift Settings | `func swiftOptimizationLevel(_ level: SwiftOptimizationLevel) -> SettingsDictionary`                                 | Sets `"SWIFT_OPTIMIZATION_LEVEL"` to the available `SwiftOptimizationLevel` (`"-O"`, `"-Onone"` or `"-Osize"`)                                                        |
-| Bitcode        | `func bitcodeEnabled(_ enabled: Bool) -> SettingsDictionary`                                                         | Sets `"ENABLE_BITCODE"` to `"YES"` or `"NO"`                                                                                                                          |
+| Swift Settings | `func swiftOptimizeObjectLifetimes(_ enabled: Bool) -> SettingsDictionary`                                           | Sets `"SWIFT_OPTIMIZE_OBJECT_LIFETIME"` to `"YES"` or `"NO"`                                                                                                                          |
+| Bitcode        | `func bitcodeEnabled(_ enabled: Bool) -> SettingsDictionary`                                                         | Sets `"ENABLE_BITCODE"` to `"YES"` or `"NO"`                       
+| Build Options  | `func debugInformationFormat(_ format: DebugInformationFormat) -> SettingsDictionary`                                | Sets `"DEBUG_INFORMATION_FORMAT"` `"dwarf"` or `"dwarf-with-dsym"`                                                                                                                     |
 
 Notice that you don't depend exclusively on Tuist's built-in functions.
 You can create your own `SettingsDictionary` extension methods and add them to your

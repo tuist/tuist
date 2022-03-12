@@ -109,6 +109,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let core = GraphViz.Node("Core")
         let coreTests = GraphViz.Node("CoreTests")
         let watchOS = GraphViz.Node("Tuist watchOS")
+        let externalDependency = GraphViz.Node("External dependency")
 
         graph.append(contentsOf: [tuist, core])
         if !onlyiOS {
@@ -122,13 +123,14 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         if includeExternalDependencies {
             graph.append(
                 contentsOf: [
-                    coreData, rxSwift, xcodeProj,
+                    coreData, rxSwift, xcodeProj, externalDependency,
                 ]
             )
             graph.append(contentsOf: [
                 GraphViz.Edge(from: core, to: xcodeProj),
                 GraphViz.Edge(from: core, to: rxSwift),
                 GraphViz.Edge(from: core, to: coreData),
+                GraphViz.Edge(from: core, to: externalDependency),
             ])
         }
 
@@ -145,6 +147,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
     private func makeGivenGraph() throws -> TuistGraph.Graph {
         let project = Project.test(path: "/")
         let coreProject = Project.test(path: "/Core")
+        let externalProject = Project.test(path: "/Tuist/Dependencies", isExternal: true)
         let framework = GraphDependency.testFramework(path: AbsolutePath("/XcodeProj.framework"))
         let library = GraphDependency.testLibrary(path: AbsolutePath("/RxSwift.a"))
         let sdk = GraphDependency.testSDK(name: "CoreData.framework", status: .required, source: .developer)
@@ -161,13 +164,18 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 product: .unitTests
             )
         )
+
         let iOSApp = GraphTarget.test(target: Target.test(name: "Tuist iOS"))
         let watchApp = GraphTarget.test(target: Target.test(name: "Tuist watchOS"))
+
+        let externalTarget = GraphTarget.test(path: externalProject.path, target: Target.test(name: "External dependency"))
+        let externalDependency = GraphDependency.target(name: externalTarget.target.name, path: externalTarget.path)
 
         let graph = TuistGraph.Graph.test(
             projects: [
                 project.path: project,
                 coreProject.path: coreProject,
+                externalProject.path: externalProject,
             ],
             targets: [
                 project.path: [
@@ -178,12 +186,16 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                     core.target.name: core.target,
                     coreTests.target.name: coreTests.target,
                 ],
+                externalProject.path: [
+                    externalTarget.target.name: externalTarget.target,
+                ],
             ],
             dependencies: [
                 .target(name: core.target.name, path: core.path): [
                     framework,
                     library,
                     sdk,
+                    externalDependency,
                 ],
                 .target(name: coreTests.target.name, path: coreTests.path): [coreDependency],
                 .target(name: iOSApp.target.name, path: iOSApp.path): [coreDependency],

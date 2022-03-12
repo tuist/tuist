@@ -245,6 +245,14 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   <tr>
     <td align="center"><a href="https://github.com/mohitsaxenaknoldus"><img src="https://avatars.githubusercontent.com/u/76725454?v=4" width="100px;" alt=""/><br /><sub><b>Mohit Saxena</b></sub></a></td>
     <td align="center"><a href="https://github.com/mikchmie"><img src="https://avatars.githubusercontent.com/u/15248837?v=4" width="100px;" alt=""/><br /><sub><b>Mikołaj Chmielewski</b></sub></a></td>
+    <td align="center"><a href="https://github.com/takinwande"><img src="https://avatars.githubusercontent.com/u/4744429?v=4" width="100px;" alt=""/><br /><sub><b>Tope Akinwande</b></sub></a></td>
+    <td align="center"><a href="https://www.theinkedengineer.com"><img src="https://avatars.githubusercontent.com/u/13349066?v=4" width="100px;" alt=""/><br /><sub><b>TheInkedEngineer</b></sub></a></td>
+    <td align="center"><a href="http://alexanderweiss.dev"><img src="https://avatars.githubusercontent.com/u/12934015?v=4" width="100px;" alt=""/><br /><sub><b>Alexander Weiß</b></sub></a></td>
+    <td align="center"><a href="https://github.com/kyungpyoda"><img src="https://avatars.githubusercontent.com/u/44656036?v=4" width="100px;" alt=""/><br /><sub><b>kyungpyoda</b></sub></a></td>
+    <td align="center"><a href="http://www.villewitt.net"><img src="https://avatars.githubusercontent.com/u/522544?v=4" width="100px;" alt=""/><br /><sub><b>Ville Witt</b></sub></a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/paulsamuels"><img src="https://avatars.githubusercontent.com/u/527091?v=4" width="100px;" alt=""/><br /><sub><b>paul.s</b></sub></a></td>
   </tr>
 </table>
 

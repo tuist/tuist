@@ -49,12 +49,12 @@ final class GenerateService {
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
         let generator = generatorFactory.focus(
             config: config,
-            sources: sources.isEmpty ? try projectTargets(at: path, config: config) : sources,
+            sources: sources,
             xcframeworks: xcframeworks,
             cacheProfile: cacheProfile,
             ignoreCache: ignoreCache
         )
-        let workspacePath = try await generator.generate(path: path, projectOnly: false)
+        let workspacePath = try await generator.generate(path: path)
         if !noOpen {
             try opener.open(path: workspacePath)
         }
@@ -70,27 +70,5 @@ final class GenerateService {
         } else {
             return FileHandler.shared.currentPath
         }
-    }
-
-    private func projectTargets(at path: AbsolutePath, config: Config) throws -> Set<String> {
-        let plugins = try pluginService.loadPlugins(using: config)
-        try manifestLoader.register(plugins: plugins)
-        let manifests = manifestLoader.manifests(at: path)
-
-        let projects: [AbsolutePath]
-        if manifests.contains(.workspace) {
-            let workspace = try manifestLoader.loadWorkspace(at: path)
-            projects = workspace.projects.flatMap { project in
-                FileHandler.shared.glob(path, glob: project.pathString).filter {
-                    FileHandler.shared.isFolder($0) && manifestLoader.manifests(at: $0).contains(.project)
-                }
-            }
-        } else if manifests.contains(.project) {
-            projects = [path]
-        } else {
-            throw ManifestLoaderError.manifestNotFound(path)
-        }
-
-        return try Set(projects.flatMap { try manifestLoader.loadProject(at: $0).targets.map(\.name) })
     }
 }

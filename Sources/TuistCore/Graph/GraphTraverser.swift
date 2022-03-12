@@ -36,12 +36,20 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func allTargets() -> Set<GraphTarget> {
-        Set(projects.flatMap { projectPath, project -> [GraphTarget] in
-            let targets = graph.targets[projectPath, default: [:]]
-            return targets.values.map { target in
-                GraphTarget(path: projectPath, target: target, project: project)
+        allTargets(excludingExternalTargets: false)
+    }
+
+    public func allTargetsTopologicalSorted() throws -> [GraphTarget] {
+        try topologicalSort(
+            Array(allTargets()),
+            successors: {
+                Array(directTargetDependencies(path: $0.path, name: $0.target.name))
             }
-        })
+        ).reversed()
+    }
+
+    public func allInternalTargets() -> Set<GraphTarget> {
+        allTargets(excludingExternalTargets: true)
     }
 
     public func rootProjects() -> Set<Project> {
@@ -89,18 +97,16 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
-        guard
-            let dependencies = graph.dependencies[.target(name: name, path: path)]
+        guard let dependencies = graph.dependencies[.target(name: name, path: path)]
         else { return [] }
 
         let targetDependencies = dependencies
             .compactMap(\.targetDependency)
 
         return Set(targetDependencies.flatMap { dependencyName, dependencyPath -> [GraphTarget] in
-            guard
-                let projectDependencies = graph.targets[dependencyPath],
-                let dependencyTarget = projectDependencies[dependencyName],
-                let dependencyProject = graph.projects[dependencyPath]
+            guard let projectDependencies = graph.targets[dependencyPath],
+                  let dependencyTarget = projectDependencies[dependencyName],
+                  let dependencyProject = graph.projects[dependencyPath]
             else {
                 return []
             }
@@ -244,7 +250,7 @@ public class GraphTraverser: GraphTraversing {
 
         // System libraries and frameworks
         if target.target.canLinkStaticProducts() {
-            let transitiveSystemLibraries = transitiveStaticTargets(from: .target(name: name, path: path))
+            let transitiveSystemLibraries = transitiveStaticDependencies(from: .target(name: name, path: path))
                 .flatMap { dependency -> [GraphDependencyReference] in
                     let dependencies = self.graph.dependencies[dependency, default: []]
                     return dependencies.compactMap { dependencyDependency -> GraphDependencyReference? in
@@ -294,7 +300,7 @@ public class GraphTraverser: GraphTraversing {
 
         // Static libraries and frameworks / Static libraries' dynamic libraries
         if target.target.canLinkStaticProducts() {
-            let transitiveStaticTargets = transitiveStaticTargets(from: .target(name: name, path: path))
+            let transitiveStaticTargetReferences = transitiveStaticDependencies(from: .target(name: name, path: path))
 
             // Exclude any static products linked in a host application
             // however, for search paths it's fine to keep them included
@@ -308,16 +314,14 @@ public class GraphTraverser: GraphTraversing {
                 hostApplicationStaticTargets = Set()
             }
 
-            let transitiveStaticTargetReferences = transitiveStaticTargets
-
-            let staticDependenciesDynamicLibrariesAndFrameworks = transitiveStaticTargets.flatMap { dependency in
+            let staticDependenciesDynamicLibrariesAndFrameworks = transitiveStaticTargetReferences.flatMap { dependency in
                 self.graph.dependencies[dependency, default: []]
                     .lazy
                     .filter(\.isTarget)
                     .filter(isDependencyDynamicTarget)
             }
 
-            let staticDependenciesPrecompiledLibrariesAndFrameworks = transitiveStaticTargets.flatMap { dependency in
+            let staticDependenciesPrecompiledLibrariesAndFrameworks = transitiveStaticTargetReferences.flatMap { dependency in
                 self.graph.dependencies[dependency, default: []]
                     .lazy
                     .filter(\.isPrecompiled)
@@ -491,10 +495,11 @@ public class GraphTraverser: GraphTraversing {
     ///   - from: Dependency from which the traverse is done.
     ///   - test: If the closure returns true, the dependency is included.
     ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
-    func filterDependencies(from rootDependency: GraphDependency,
-                            test: (GraphDependency) -> Bool = { _ in true },
-                            skip: (GraphDependency) -> Bool = { _ in false }) -> Set<GraphDependency>
-    {
+    func filterDependencies(
+        from rootDependency: GraphDependency,
+        test: (GraphDependency) -> Bool = { _ in true },
+        skip: (GraphDependency) -> Bool = { _ in false }
+    ) -> Set<GraphDependency> {
         var stack = Stack<GraphDependency>()
 
         stack.push(rootDependency)
@@ -529,14 +534,6 @@ public class GraphTraverser: GraphTraversing {
         }
 
         return references
-    }
-
-    func transitiveStaticTargets(from dependency: GraphDependency) -> Set<GraphDependency> {
-        filterDependencies(
-            from: dependency,
-            test: isDependencyStaticTarget,
-            skip: canDependencyLinkStaticProducts
-        )
     }
 
     func transitiveStaticDependencies(from dependency: GraphDependency) -> Set<GraphDependency> {
@@ -723,6 +720,17 @@ public class GraphTraverser: GraphTraversing {
         default:
             return false
         }
+    }
+
+    private func allTargets(excludingExternalTargets: Bool) -> Set<GraphTarget> {
+        Set(projects.flatMap { projectPath, project -> [GraphTarget] in
+            if excludingExternalTargets, project.isExternal { return [] }
+
+            let targets = graph.targets[projectPath, default: [:]]
+            return targets.values.map { target in
+                GraphTarget(path: projectPath, target: target, project: project)
+            }
+        })
     }
 }
 

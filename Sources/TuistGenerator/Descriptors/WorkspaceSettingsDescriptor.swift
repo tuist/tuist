@@ -11,14 +11,14 @@ import XcodeProj
 ///
 /// - seealso: `WorkspaceDescriptor`
 public struct WorkspaceSettingsDescriptor: Equatable {
-    private let automaticXcodeSchemes: Bool?
+    private let enableAutomaticXcodeSchemes: Bool?
 
     var settings: WorkspaceSettings {
-        WorkspaceSettings(autoCreateSchemes: automaticXcodeSchemes)
+        WorkspaceSettings(autoCreateSchemes: enableAutomaticXcodeSchemes)
     }
 
-    public init(automaticXcodeSchemes: Bool?) {
-        self.automaticXcodeSchemes = automaticXcodeSchemes
+    public init(enableAutomaticXcodeSchemes: Bool?) {
+        self.enableAutomaticXcodeSchemes = enableAutomaticXcodeSchemes
     }
 }
 

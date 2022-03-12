@@ -6,19 +6,23 @@ import TuistSupport
 import XcodeProj
 
 protocol TargetGenerating: AnyObject {
-    func generateTarget(target: Target,
-                        project: Project,
-                        pbxproj: PBXProj,
-                        pbxProject: PBXProject,
-                        projectSettings: Settings,
-                        fileElements: ProjectFileElements,
-                        path: AbsolutePath,
-                        graphTraverser: GraphTraversing) throws -> PBXNativeTarget
+    func generateTarget(
+        target: Target,
+        project: Project,
+        pbxproj: PBXProj,
+        pbxProject: PBXProject,
+        projectSettings: Settings,
+        fileElements: ProjectFileElements,
+        path: AbsolutePath,
+        graphTraverser: GraphTraversing
+    ) throws -> PBXNativeTarget
 
-    func generateTargetDependencies(path: AbsolutePath,
-                                    targets: [Target],
-                                    nativeTargets: [String: PBXNativeTarget],
-                                    graphTraverser: GraphTraversing) throws
+    func generateTargetDependencies(
+        path: AbsolutePath,
+        targets: [Target],
+        nativeTargets: [String: PBXNativeTarget],
+        graphTraverser: GraphTraversing
+    ) throws
 }
 
 final class TargetGenerator: TargetGenerating {
@@ -31,11 +35,12 @@ final class TargetGenerator: TargetGenerating {
 
     // MARK: - Init
 
-    init(configGenerator: ConfigGenerating = ConfigGenerator(),
-         fileGenerator: FileGenerating = FileGenerator(),
-         buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
-         linkGenerator: LinkGenerating = LinkGenerator())
-    {
+    init(
+        configGenerator: ConfigGenerating = ConfigGenerator(),
+        fileGenerator: FileGenerating = FileGenerator(),
+        buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
+        linkGenerator: LinkGenerating = LinkGenerator()
+    ) {
         self.configGenerator = configGenerator
         self.fileGenerator = fileGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
@@ -45,15 +50,16 @@ final class TargetGenerator: TargetGenerating {
     // MARK: - TargetGenerating
 
     // swiftlint:disable:next function_body_length
-    func generateTarget(target: Target,
-                        project: Project,
-                        pbxproj: PBXProj,
-                        pbxProject: PBXProject,
-                        projectSettings: Settings,
-                        fileElements: ProjectFileElements,
-                        path: AbsolutePath,
-                        graphTraverser: GraphTraversing) throws -> PBXNativeTarget
-    {
+    func generateTarget(
+        target: Target,
+        project: Project,
+        pbxproj: PBXProj,
+        pbxProject: PBXProject,
+        projectSettings: Settings,
+        fileElements: ProjectFileElements,
+        path: AbsolutePath,
+        graphTraverser: GraphTraversing
+    ) throws -> PBXNativeTarget {
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
 
@@ -123,11 +129,12 @@ final class TargetGenerator: TargetGenerating {
         return pbxTarget
     }
 
-    func generateTargetDependencies(path: AbsolutePath,
-                                    targets: [Target],
-                                    nativeTargets: [String: PBXNativeTarget],
-                                    graphTraverser: GraphTraversing) throws
-    {
+    func generateTargetDependencies(
+        path: AbsolutePath,
+        targets: [Target],
+        nativeTargets: [String: PBXNativeTarget],
+        graphTraverser: GraphTraversing
+    ) throws {
         try targets.forEach { targetSpec in
             let dependencies = graphTraverser.directLocalTargetDependencies(path: path, name: targetSpec.name).sorted()
             try dependencies.forEach { dependency in

@@ -21,7 +21,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform\n",
             exitstatus: 0
         )
-        // swiftlint:disable line_length
         system
             .stubs[
                 "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
@@ -60,7 +59,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 """,
                 exitstatus: 0
             )
-        // swiftlint:enable line_length
         subject = PackageInfoMapper()
     }
 
@@ -89,7 +87,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ],
             productToPackage: [:],
             packageToFolder: ["Package": "/Package"],
-            artifactsFolder: .init("/Artifacts/"),
+            packageToTargetsToArtifactPaths: ["Package": ["Target_1": .init("/artifacts/Package/Target_1.xcframework")]],
             platforms: [.iOS]
         )
 
@@ -111,7 +109,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             preprocessInfo.productToExternalDependencies,
             [
                 "Product1": [
-                    .xcframework(path: "/Artifacts/Package/Target_1.xcframework"),
+                    .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
                     .project(target: "Target_2", path: "/Package"),
                 ],
             ]
@@ -400,7 +398,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": "/Package",
                 "com.example.dep-1": "/com.example.dep-1",
             ],
-            artifactsFolder: .init("/Artifacts/"),
+            packageToTargetsToArtifactPaths: [:],
             platforms: [.iOS]
         )
 
@@ -1101,7 +1099,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform\n",
             exitstatus: 0
         )
-        // swiftlint:disable line_length
         system
             .stubs[
                 "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
@@ -1128,7 +1125,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 """,
                 exitstatus: 0
             )
-        // swiftlint:enable line_length
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
@@ -2462,13 +2458,25 @@ extension PackageInfoMapping {
         let packageToFolder: [String: AbsolutePath] = packageInfos.keys.reduce(into: [:]) { result, packageName in
             result[packageName] = basePath.appending(component: packageName)
         }
+        let packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]] = packageInfos
+            .reduce(into: [:]) { packagesResult, element in
+                let (packageName, packageInfo) = element
+                packagesResult[packageName] = packageInfo.targets
+                    .reduce(into: [String: AbsolutePath]()) { targetsResult, target in
+                        guard target.type == .binary, target.path == nil else {
+                            return
+                        }
+                        targetsResult[target.name] = basePath.appending(
+                            RelativePath("artifacts/\(packageName)/\(target.name).xcframework")
+                        )
+                    }
+            }
 
-        let artifactsFolder = basePath.appending(component: "artifacts")
         let preprocessInfo = try preprocess(
             packageInfos: packageInfos,
             productToPackage: productToPackage,
             packageToFolder: packageToFolder,
-            artifactsFolder: artifactsFolder,
+            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
             platforms: platforms
         )
 
@@ -2529,6 +2537,16 @@ extension ProjectDescription.Project {
     ) -> Self {
         .init(
             name: name,
+            options: .options(
+                automaticSchemesOptions: .enabled(
+                    targetSchemesGrouping: .singleScheme,
+                    codeCoverageEnabled: false,
+                    testingOptions: []
+                ),
+                disableBundleAccessors: false,
+                disableSynthesizedResourceAccessors: false,
+                textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+            ),
             settings: settings,
             targets: targets,
             resourceSynthesizers: []

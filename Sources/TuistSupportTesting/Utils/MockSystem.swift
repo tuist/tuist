@@ -42,7 +42,11 @@ public final class MockSystem: Systeming {
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
         if stub.exitstatus != 0 {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
+            throw TuistSupport.SystemError.terminated(
+                command: arguments.first!,
+                code: 1,
+                standardError: Data((stub.stderror ?? "").utf8)
+            )
         }
         calls.append(arguments.joined(separator: " "))
         return stub.stdout ?? ""
@@ -70,9 +74,11 @@ public final class MockSystem: Systeming {
         publisher(arguments, verbose: false, environment: env)
     }
 
-    public func publisher(_ arguments: [String], verbose _: Bool,
-                          environment _: [String: String]) -> AnyPublisher<SystemEvent<Data>, Error>
-    {
+    public func publisher(
+        _ arguments: [String],
+        verbose _: Bool,
+        environment _: [String: String]
+    ) -> AnyPublisher<SystemEvent<Data>, Error> {
         AnyPublisher<SystemEvent<Data>, Error>.create { subscriber in
             let command = arguments.joined(separator: " ")
             guard let stub = self.stubs[command] else {

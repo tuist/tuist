@@ -6,7 +6,7 @@ Feature: Generate a new project using Tuist (suite 2)
     Then I copy the fixture ios_app_with_sdk into the working directory
     Then tuist generates the project
     Then I should be able to build for iOS the scheme App
-    Then I should be able to test for iOS the scheme AppTests
+    Then I should be able to test for iOS the scheme App
     Then I should be able to build for macOS the scheme MacFramework
     Then I should be able to build for iOS the scheme StaticFramework
     Then I should be able to build for tvOS the scheme TVFramework

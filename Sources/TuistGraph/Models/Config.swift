@@ -4,29 +4,11 @@ import TSCUtility
 
 /// This model allows to configure Tuist.
 public struct Config: Equatable, Hashable {
-    /// Contains options related to the project generation.
-    public enum GenerationOption: Hashable, Equatable {
-        /// Name used for the Xcode project
-        case xcodeProjectName(String)
-        case organizationName(String)
-        case developmentRegion(String)
-        case autogenerationOptions(AutogenerationOptions)
-        case disableShowEnvironmentVarsInScriptPhases
-        case enableCodeCoverage(CodeCoverageMode)
-        case templateMacros(IDETemplateMacros)
-        case resolveDependenciesWithSystemScm
-        /// Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked
-        /// in their declarations.
-        case disablePackageVersionLocking
-        /// Allows to suppress warnings in Xcode about updates to recommended settings.
-        case lastUpgradeCheck(Version)
-    }
-
     /// List of `Plugin`s used to extend Tuist.
     public let plugins: [PluginLocation]
 
     /// Generation options.
-    public let generationOptions: [GenerationOption]
+    public let generationOptions: GenerationOptions
 
     /// List of Xcode versions the project or set of projects is compatible with.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
@@ -52,37 +34,12 @@ public struct Config: Equatable, Hashable {
             cache: nil,
             swiftVersion: nil,
             plugins: [],
-            generationOptions: [],
+            generationOptions: .init(
+                resolveDependenciesWithSystemScm: false,
+                disablePackageVersionLocking: false
+            ),
             path: nil
         )
-    }
-
-    public var codeCoverageMode: CodeCoverageMode? {
-        generationOptions.compactMap { option -> CodeCoverageMode? in
-            switch option {
-            case let .enableCodeCoverage(mode): return mode
-            default: return nil
-            }
-        }.first
-    }
-
-    public var autogenerationTestingOptions: AutogenerationOptions.TestingOptions? {
-        let autogenerationOptions = generationOptions.compactMap { option -> AutogenerationOptions? in
-            switch option {
-            case let .autogenerationOptions(options): return options
-            default: return nil
-            }
-        }.first
-
-        switch autogenerationOptions {
-        case let .enabled(options):
-            return options
-        case .disabled:
-            return nil
-        case nil:
-            // no value provided is equivalent to .enabled([])
-            return []
-        }
     }
 
     /// Initializes the tuist cofiguration.
@@ -101,7 +58,7 @@ public struct Config: Equatable, Hashable {
         cache: Cache?,
         swiftVersion: Version?,
         plugins: [PluginLocation],
-        generationOptions: [GenerationOption],
+        generationOptions: GenerationOptions,
         path: AbsolutePath?
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions

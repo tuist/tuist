@@ -17,6 +17,7 @@ module TuistCloud
     # Autoloading
     config.autoload_once_paths << "#{root}/app/lib/defaults"
     config.autoload_once_paths << "#{root}/app/lib/secrets"
+    Rails.autoloaders.main.ignore("#{root}/app/frontend")
 
     # URLs
     Rails.application.routes.default_url_options[:host] = config.defaults[:urls][:app]
@@ -26,5 +27,7 @@ module TuistCloud
     # Stripe
     config.stripe.secret_key = Rails.application.credentials.stripe[:api_key]
     config.stripe.publishable_key = Rails.application.credentials.stripe[:publishable_key]
+
+    config.react.server_renderer_extensions = ["jsx", "js", "tsx", "ts"]
   end
 end

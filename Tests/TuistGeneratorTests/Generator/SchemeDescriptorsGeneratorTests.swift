@@ -1728,7 +1728,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let workspace = Workspace.test(
             projects: [project.path],
             schemes: [.test()],
-            lastUpgradeCheck: .init(13, 0, 0)
+            generationOptions: .test(lastXcodeUpgradeCheck: .init(13, 0, 0))
         )
 
         let graph = Graph.test(

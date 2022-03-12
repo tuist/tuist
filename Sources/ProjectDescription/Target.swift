@@ -2,86 +2,86 @@ import Foundation
 
 // MARK: - Target
 
+/// The target of a project
 public struct Target: Codable, Equatable {
-    /// Target name.
+    /// The name of the target. The Xcode project target and the derivated product take the same name.
     public let name: String
 
-    /// Product platform.
+    /// The platform the target product is built for.
     public let platform: Platform
 
-    /// Product type.
+    /// The type of build product this target will output.
     public let product: Product
 
-    /// Bundle identifier.
-    public let bundleId: String
-
-    /// The name of the product output by this target.
-    /// passing nil in the initialiser will default
-    /// this value to the name of the target.
+    /// The built product name. If nil, it will be equal to `name`.
     public let productName: String?
 
-    /// Deployment target.
+    /// The product bundle identifier.
+    public let bundleId: String
+
+    /// The minimum deployment target your product will support.
     public let deploymentTarget: DeploymentTarget?
 
     /// Relative path to the Info.plist file.
     public let infoPlist: InfoPlist
 
+    /// Source files that are compiled by the target. Any playgrounds matched by the globs used in this property will be automatically added.
+    public let sources: SourceFilesList?
+
+    /// List of files to include in the resources build phase. Note that localizable files, `*.lproj`, are supported.
+    public let resources: ResourceFileElements?
+
+    /// Copy files actions allow defining copy files build phases.
+    public let copyFiles: [CopyFilesAction]?
+
+    /// The target headers.
+    public let headers: Headers?
+
     /// Relative path to the entitlements file.
     public let entitlements: Path?
 
-    /// Target settings.
-    public let settings: Settings?
+    /// Target scripts allow defining extra script build phases.
+    public let scripts: [TargetScript]
 
     /// Target dependencies.
     public let dependencies: [TargetDependency]
 
-    /// Relative paths to the sources directory.
-    public let sources: SourceFilesList?
-
-    /// Relative paths to the resources directory.
-    public let resources: ResourceFileElements?
-
-    /// Copy files actions.
-    public let copyFiles: [CopyFilesAction]?
-
-    /// Headers.
-    public let headers: Headers?
-
-    /// Target scripts.
-    public let scripts: [TargetScript]
+    /// Target settings.
+    public let settings: Settings?
 
     /// CoreData models.
     public let coreDataModels: [CoreDataModel]
 
-    /// Environment variables to be exposed to the target.
+    /// List of variables that will be set to the scheme that Tuist automatically generates for the target.
     public let environment: [String: String]
 
-    /// Launch argument to be exposed to the target.
+    /// List of launch arguments that will be set to the scheme that Tuist automatically generates for the target.
     public let launchArguments: [LaunchArgument]
 
-    /// The additional files to include in the target (won't be included in a build phase)
+    /// List of target related files to include in the project - these won't be included in any of the build phases. For project related files, use the corresponding `Project.additionalFiles` parameter.
     public let additionalFiles: [FileElement]
 
-    /// Initializes the target.
-    ///
+    /// The target of a project
     /// - Parameters:
-    ///   - name: target name.
-    ///   - platform: product platform.
-    ///   - product: product type.
-    ///   - bundleId: bundle identifier.
-    ///   - infoPlist: relative path to the Info.plist file.
-    ///   - sources: relative paths to the sources directory.
-    ///   - resources: relative paths to the resources directory.
-    ///   - copyFiles: copy files phases.
-    ///   - headers: headers.
-    ///   - entitlements: relative path to the entitlements file.
-    ///   - scripts: target scripts.
-    ///   - dependencies: target dependencies.
-    ///   - settings: target settings.
+    ///   - name: The name of the target. The Xcode project target and the derivated product take the same name.
+    ///   - platform: The platform the target product is built for.
+    ///   - product: The type of build product this target will output.
+    ///   - productName: The built product name. If nil, it will be equal to `name`.
+    ///   - bundleId: The product bundle identifier.
+    ///   - deploymentTarget: The minimum deployment target your product will support.
+    ///   - infoPlist: Relative path to the Info.plist file.
+    ///   - sources: Source files that are compiled by the target. Any playgrounds matched by the globs used in this property will be automatically added.
+    ///   - resources: List of files to include in the resources build phase. Note that localizable files, `*.lproj`, are supported.
+    ///   - copyFiles: Copy files actions allow defining copy files build phases.
+    ///   - headers: The target headers.
+    ///   - entitlements: Relative path to the entitlements file.
+    ///   - scripts: Target scripts allow defining extra script build phases.
+    ///   - dependencies: Target dependencies.
+    ///   - settings: Target settings.
     ///   - coreDataModels: CoreData models.
-    ///   - environment: Environment variables to be exposed to the target.
-    ///   - launchArguments: Launch arguments that are passwd to target.
-    ///   - additionalFiles: The additional files to include in the target (won't be included in a build phase).
+    ///   - environment: List of variables that will be set to the scheme that Tuist automatically generates for the target.
+    ///   - launchArguments: List of launch arguments that will be set to the scheme that Tuist automatically generates for the target.
+    ///   - additionalFiles: List of target related files to include in the project - these won't be included in any of the build phases. For project related files, use the corresponding `Project.additionalFiles` parameter.
     public init(
         name: String,
         platform: Platform,

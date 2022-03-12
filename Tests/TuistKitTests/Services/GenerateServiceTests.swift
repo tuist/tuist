@@ -45,7 +45,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() async throws {
         let expectedError = NSError.test()
-        generator.generateStub = { _, _ in
+        generator.generateStub = { _ in
             throw expectedError
         }
 
@@ -61,7 +61,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
     func test_run() async throws {
         let workspacePath = AbsolutePath("/test.xcworkspace")
 
-        generator.generateStub = { _, _ in
+        generator.generateStub = { _ in
             workspacePath
         }
 
@@ -81,7 +81,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
         // Given
         let workspacePath = AbsolutePath("/test.xcworkspace")
 
-        generator.generateStub = { _, _ in
+        generator.generateStub = { _ in
             workspacePath
         }
         clock.assertOnUnexpectedCalls = true

@@ -1,4 +1,4 @@
-import CommonCrypto
+import CryptoKit
 import Foundation
 import TSCBasic
 
@@ -146,9 +146,10 @@ public class FileHandler: FileHandling {
         try await closure(directory.path)
     }
 
-    public func inTemporaryDirectory<Result>(removeOnCompletion: Bool,
-                                             _ closure: (AbsolutePath) throws -> Result) throws -> Result
-    {
+    public func inTemporaryDirectory<Result>(
+        removeOnCompletion: Bool,
+        _ closure: (AbsolutePath) throws -> Result
+    ) throws -> Result {
         try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion, closure)
     }
 
@@ -293,20 +294,7 @@ public class FileHandler: FileHandling {
 
     public func urlSafeBase64MD5(path: AbsolutePath) throws -> String {
         let data = try Data(contentsOf: path.url)
-        let length = Int(CC_MD5_DIGEST_LENGTH)
-        var digestData = Data(count: length)
-
-        _ = digestData.withUnsafeMutableBytes { digestBytes -> UInt8 in
-            data.withUnsafeBytes { messageBytes -> UInt8 in
-                if let messageBytesBaseAddress = messageBytes.baseAddress,
-                   let digestBytesBlindMemory = digestBytes.bindMemory(to: UInt8.self).baseAddress
-                {
-                    let messageLength = CC_LONG(data.count)
-                    CC_MD5(messageBytesBaseAddress, messageLength, digestBytesBlindMemory)
-                }
-                return 0
-            }
-        }
+        let digestData = Data(Insecure.MD5.hash(data: data))
         return digestData.base64EncodedString()
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "+", with: "-")

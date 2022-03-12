@@ -13,7 +13,7 @@ Tuist provides a first-class support for integrating external dependencies into 
 Dependencies can be fetched by running the following command. They are stored in your project's `Tuist/Dependencies` directory:
 
 ```bash
-tuist fetch dependencies
+tuist fetch
 ```
 
 | Argument | Short | Description                                                                                          | Default           | Required |

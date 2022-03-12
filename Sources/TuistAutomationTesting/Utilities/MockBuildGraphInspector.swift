@@ -37,9 +37,12 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
     }
 
     public var buildArgumentsStub: ((Project, Target, String?, Bool) -> [XcodeBuildArgument])?
-    public func buildArguments(project: Project, target: Target, configuration: String?,
-                               skipSigning: Bool) -> [XcodeBuildArgument]
-    {
+    public func buildArguments(
+        project: Project,
+        target: Target,
+        configuration: String?,
+        skipSigning: Bool
+    ) -> [XcodeBuildArgument] {
         if let buildArgumentsStub = buildArgumentsStub {
             return buildArgumentsStub(project, target, configuration, skipSigning)
         } else {
@@ -80,8 +83,8 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         runnableSchemesStub?(graphTraverser) ?? []
     }
 
-    public var projectSchemesStub: ((GraphTraversing) -> [Scheme])?
-    public func projectSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
-        projectSchemesStub?(graphTraverser) ?? []
+    public var workspaceSchemesStub: ((GraphTraversing) -> [Scheme])?
+    public func workspaceSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
+        workspaceSchemesStub?(graphTraverser) ?? []
     }
 }

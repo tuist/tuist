@@ -1,0 +1,9 @@
+mutation ChangeRemoteCacheStorage(
+  $input: ChangeRemoteCacheStorageInput!
+) {
+  changeRemoteCacheStorage(input: $input) {
+    ... on S3Bucket {
+      ...S3BucketInfo
+    }
+  }
+}

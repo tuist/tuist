@@ -30,9 +30,10 @@ public struct GeneratorPaths {
 
     /// Creates an instance with its attributes.
     /// - Parameter manifestDirectory: Path to the directory that contains the manifest being loaded.
-    public init(manifestDirectory: AbsolutePath,
-                rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator())
-    {
+    public init(
+        manifestDirectory: AbsolutePath,
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+    ) {
         self.manifestDirectory = manifestDirectory
         self.rootDirectoryLocator = rootDirectoryLocator
     }

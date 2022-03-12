@@ -64,9 +64,12 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         return workspace
     }
 
-    fileprivate func treeShake(targets: [Target], path: AbsolutePath, graph: Graph,
-                               sourceTargets: Set<TargetReference>) -> [Target]
-    {
+    fileprivate func treeShake(
+        targets: [Target],
+        path: AbsolutePath,
+        graph: Graph,
+        sourceTargets: Set<TargetReference>
+    ) -> [Target] {
         targets.compactMap { target -> Target? in
             guard let target = graph.targets[path, default: [:]][target.name] else { return nil }
             let targetReference = TargetReference(projectPath: path, name: target.name)
@@ -89,8 +92,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
             scheme.buildAction = buildAction
             scheme.testAction = testAction
 
-            guard
-                buildAction?.targets.isEmpty == false ||
+            guard buildAction?.targets.isEmpty == false ||
                 testAction?.targets.isEmpty == false
             else {
                 return nil

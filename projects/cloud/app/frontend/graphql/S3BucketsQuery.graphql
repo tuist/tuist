@@ -1,0 +1,5 @@
+query S3Buckets($accountName: String!) {
+  s3Buckets(accountName: $accountName) {
+    ...S3BucketInfo
+  }
+}

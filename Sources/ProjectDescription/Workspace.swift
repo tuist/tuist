@@ -2,64 +2,44 @@ import Foundation
 
 // MARK: - Workspace
 
+/// A `Workspace.swift` should initialize a variable of type `Workspace`. It can take any name, although we recommend to stick to workspace. A workspace accepts the following attributes:
 public struct Workspace: Codable, Equatable {
-    /// Contains options related to the workspace generation.
-    public struct GenerationOptions: Codable, Equatable {
-        /// Represents the behavior Xcode will apply to the workspace regarding
-        /// schema generation using the `IDEWorkspaceSharedSettings_AutocreateContextsIfNeeded` key.
-        /// - seealso: `WorkspaceSettingsDescriptor`
-        public enum AutomaticSchemeMode: String, Codable, Equatable {
-            /// Will not add the key to the settings file.
-            case `default`
-
-            /// Will add the key with the value set to `false`.
-            case disabled
-
-            /// Will add the key with the value set to `true`.
-            case enabled
-        }
-
-        /// Tuist generates a WorkspaceSettings.xcsettings file, setting the related key to the associated value.
-        public let automaticXcodeSchemes: AutomaticSchemeMode
-
-        public static func options(automaticXcodeSchemes: AutomaticSchemeMode) -> Self {
-            GenerationOptions(automaticXcodeSchemes: automaticXcodeSchemes)
-        }
-    }
-
-    /// Name of the workspace
+    /// Name of the workspace. It’s used to determine the name of the generated Xcode workspace.
     public let name: String
 
-    /// List of project relative paths (or glob patterns) to generate and include
+    /// List of paths (or glob patterns) to projects to generate and include within the generated Xcode workspace.
     public let projects: [Path]
 
-    /// List of custom schemes
+    /// List of custom schemes to include in the workspace
     public let schemes: [Scheme]
 
-    /// Default file header template used for Xcode file templates
+    /// Custom file header template macro for built-in Xcode file templates.
     public let fileHeaderTemplate: FileHeaderTemplate?
 
-    /// List of files to include in the workspace (e.g. Documentation)
+    /// List of files to include in the workspace - these won't be included in any of the projects or their build phases.
     public let additionalFiles: [FileElement]
 
-    /// Generation options.
-    public let generationOptions: GenerationOptions?
+    /// Options to configure the generation of the Xcode workspace.
+    public let generationOptions: GenerationOptions
 
     /// Workspace
     ///
     /// This can be used to customize the generated workspace.
     ///
     /// - Parameters:
-    ///   - name: Name of the workspace.
-    ///   - projects: List of project relative paths (or glob patterns) to generate and include.
-    ///   - additionalFiles: List of files to include in the workspace (e.g. Documentation)
+    ///   - name: Name of the workspace. It’s used to determine the name of the generated Xcode workspace.
+    ///   - projects: List of paths (or glob patterns) to projects to generate and include within the generated Xcode workspace.
+    ///   - schemes: List of custom schemes to include in the workspace
+    ///   - fileHeaderTemplate: Custom file header template macro for built-in Xcode file templates.
+    ///   - additionalFiles: List of files to include in the workspace - these won't be included in any of the projects or their build phases.
+    ///   - generationOptions: Options to configure the generation of the Xcode workspace.
     public init(
         name: String,
         projects: [Path],
         schemes: [Scheme] = [],
         fileHeaderTemplate: FileHeaderTemplate? = nil,
         additionalFiles: [FileElement] = [],
-        generationOptions: GenerationOptions? = nil
+        generationOptions: GenerationOptions = .options()
     ) {
         self.name = name
         self.projects = projects

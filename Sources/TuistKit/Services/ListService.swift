@@ -55,9 +55,10 @@ class ListService {
         }
     }
 
-    private func string(for templates: [PrintableTemplate],
-                        in format: ListService.OutputFormat) throws -> String
-    {
+    private func string(
+        for templates: [PrintableTemplate],
+        in format: ListService.OutputFormat
+    ) throws -> String {
         switch format {
         case .table:
             let textTable = TextTable<PrintableTemplate> { [

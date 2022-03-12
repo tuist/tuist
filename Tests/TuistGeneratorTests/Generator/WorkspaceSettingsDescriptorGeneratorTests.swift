@@ -32,17 +32,21 @@ final class WorkspaceSettingsDescriptorGeneratorTests: TuistUnitTestCase {
         let result = subject.generateWorkspaceSettings(workspace: workspace)
 
         // Then
-        XCTAssertNil(result)
+        XCTAssertEqual(result, WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: false))
     }
 
     func test_generate_withGenerationOptions() {
         // Given
-        let workspace = Workspace.test(generationOptions: .options(automaticXcodeSchemes: .disabled))
+        let workspace = Workspace.test(
+            generationOptions: .test(
+                enableAutomaticXcodeSchemes: true
+            )
+        )
 
         // When
         let result = subject.generateWorkspaceSettings(workspace: workspace)
 
         // Then
-        XCTAssertEqual(result, WorkspaceSettingsDescriptor(automaticXcodeSchemes: false))
+        XCTAssertEqual(result, WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: true))
     }
 }

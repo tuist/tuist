@@ -264,6 +264,40 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
+    func test_generateTargetWithDeploymentTarget_whenIOS_for_framework() throws {
+        // Given
+        let target = Target.test(product: .framework, deploymentTarget: .iOS("13.0", [.iphone, .ipad]))
+        let project = Project.test(targets: [target])
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: AbsolutePath("/project")
+        )
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings = [
+            "TARGETED_DEVICE_FAMILY": "1,2",
+            "IPHONEOS_DEPLOYMENT_TARGET": "13.0",
+            "SUPPORTS_MACCATALYST": "NO",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
     func test_generateTargetWithDeploymentTarget_whenMac() throws {
         // Given
         let project = Project.test()
@@ -583,11 +617,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    private func generateTestTargetConfig(appName: String = "App",
-                                          platform: Platform = .iOS,
-                                          productName: String? = nil,
-                                          uiTest: Bool = false) throws
-    {
+    private func generateTestTargetConfig(
+        appName: String = "App",
+        platform: Platform = .iOS,
+        productName: String? = nil,
+        uiTest: Bool = false
+    ) throws {
         let dir = try temporaryPath()
 
         let appTarget = Target.test(
@@ -624,11 +659,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    func assert(config: XCBuildConfiguration?,
-                contains settings: [String: String],
-                file: StaticString = #file,
-                line: UInt = #line)
-    {
+    func assert(
+        config: XCBuildConfiguration?,
+        contains settings: [String: String],
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let matches = settings.filter {
             config?.buildSettings[$0.key] as? String == $0.value
         }
@@ -642,11 +678,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    func assert(config: XCBuildConfiguration?,
-                hasXcconfig xconfigPath: String,
-                file: StaticString = #file,
-                line: UInt = #line)
-    {
+    func assert(
+        config: XCBuildConfiguration?,
+        hasXcconfig xconfigPath: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let xcconfig: PBXFileReference? = config?.baseConfiguration
         XCTAssertEqual(
             xcconfig?.path,

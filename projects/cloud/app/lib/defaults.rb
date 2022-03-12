@@ -15,6 +15,7 @@ module Defaults
       if value.blank?
         raise KeyNotFoundError, "The key #{args.map(&:to_s).join(".")} was not found in the app defaults"
       end
+
       value
     end
   end

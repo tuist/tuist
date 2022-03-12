@@ -333,7 +333,9 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
 
         let project = Project.test(
             path: projectPath,
-            options: [.disableSynthesizedResourceAccessors],
+            options: .test(
+                disableSynthesizedResourceAccessors: true
+            ),
             targets: [
                 targetA,
             ],

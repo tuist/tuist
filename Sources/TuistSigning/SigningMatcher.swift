@@ -21,10 +21,11 @@ final class SigningMatcher: SigningMatching {
     private let provisioningProfileParser: ProvisioningProfileParsing
     private let certificateParser: CertificateParsing
 
-    init(signingFilesLocator: SigningFilesLocating = SigningFilesLocator(),
-         provisioningProfileParser: ProvisioningProfileParsing = ProvisioningProfileParser(),
-         certificateParser: CertificateParsing = CertificateParser())
-    {
+    init(
+        signingFilesLocator: SigningFilesLocating = SigningFilesLocator(),
+        provisioningProfileParser: ProvisioningProfileParsing = ProvisioningProfileParser(),
+        certificateParser: CertificateParsing = CertificateParser()
+    ) {
         self.signingFilesLocator = signingFilesLocator
         self.provisioningProfileParser = provisioningProfileParser
         self.certificateParser = certificateParser

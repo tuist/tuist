@@ -11,7 +11,7 @@ final class LastUpgradeVersionWorkspaceMapperTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        subject = LastUpgradeVersionWorkspaceMapper(lastUpgradeVersion: .init(12, 5, 1))
+        subject = LastUpgradeVersionWorkspaceMapper()
     }
 
     override func tearDown() {
@@ -22,9 +22,13 @@ final class LastUpgradeVersionWorkspaceMapperTests: TuistUnitTestCase {
 
     func test_maps_last_upgrade_version() throws {
         // Given
-        subject = LastUpgradeVersionWorkspaceMapper(lastUpgradeVersion: .init(12, 5, 1))
+        subject = LastUpgradeVersionWorkspaceMapper()
 
-        let workspace = Workspace.test(lastUpgradeCheck: nil)
+        let workspace = Workspace.test(
+            generationOptions: .test(
+                lastXcodeUpgradeCheck: .init(12, 5, 1)
+            )
+        )
         let projectAPath = try temporaryPath().appending(component: "A")
         let projectBPath = try temporaryPath().appending(component: "B")
 
@@ -76,13 +80,10 @@ final class LastUpgradeVersionWorkspaceMapperTests: TuistUnitTestCase {
             lastUpgradeCheck: .init(12, 5, 1)
         )
 
-        var mappedWorkspace = workspace
-        mappedWorkspace.lastUpgradeCheck = .init(12, 5, 1)
-
         XCTAssertEqual(
             gotWorkspaceWithProjects,
             WorkspaceWithProjects(
-                workspace: mappedWorkspace,
+                workspace: workspace,
                 projects: [
                     mappedProjectA,
                     mappedProjectB,

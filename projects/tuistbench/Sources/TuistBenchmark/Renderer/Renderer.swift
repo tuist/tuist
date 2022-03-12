@@ -21,10 +21,11 @@ extension Renderer {
         formatter.string(for: double) ?? ""
     }
 
-    func delta(first: TimeInterval,
-               second: TimeInterval,
-               threshold: TimeInterval) -> String
-    {
+    func delta(
+        first: TimeInterval,
+        second: TimeInterval,
+        threshold: TimeInterval
+    ) -> String {
         let delta = first - second
         let prefix = delta > 0 ? "+" : ""
         let percentageString = prefix + format((delta / second) * 100)

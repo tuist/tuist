@@ -18,11 +18,12 @@ public struct SourceFile: ExpressibleByStringLiteral, Equatable, Codable {
     /// Source file code generation attribute
     public let codeGen: FileCodeGen?
 
-    public init(path: AbsolutePath,
-                compilerFlags: String? = nil,
-                contentHash: String? = nil,
-                codeGen: FileCodeGen? = nil)
-    {
+    public init(
+        path: AbsolutePath,
+        compilerFlags: String? = nil,
+        contentHash: String? = nil,
+        codeGen: FileCodeGen? = nil
+    ) {
         self.path = path
         self.compilerFlags = compilerFlags
         self.contentHash = contentHash

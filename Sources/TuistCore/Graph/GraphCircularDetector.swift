@@ -52,10 +52,11 @@ public final class GraphCircularDetector: GraphCircularDetecting {
     /// - Parameter node: The node to visit
     /// - Parameter currentPath: The current path of nodes we are inspecting
     /// - Parameter inspectedNodes: History of nodes that have had all their adjacent nodes traversed to completion
-    private func visit(node: Node,
-                       currentPath: OrderedSet<Node> = OrderedSet(),
-                       inspectedNodes: inout Set<Node>) throws
-    {
+    private func visit(
+        node: Node,
+        currentPath: OrderedSet<Node> = OrderedSet(),
+        inspectedNodes: inout Set<Node>
+    ) throws {
         guard !inspectedNodes.contains(node) else {
             return
         }

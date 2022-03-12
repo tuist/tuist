@@ -20,20 +20,21 @@ public struct TestAction: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(targets: [TestableTarget],
-                arguments: Arguments?,
-                configurationName: String,
-                attachDebugger: Bool,
-                coverage: Bool,
-                codeCoverageTargets: [TargetReference],
-                expandVariableFromTarget: TargetReference?,
-                preActions: [ExecutionAction],
-                postActions: [ExecutionAction],
-                diagnosticsOptions: Set<SchemeDiagnosticsOption>,
-                language: String? = nil,
-                region: String? = nil,
-                testPlans: [TestPlan]? = nil)
-    {
+    public init(
+        targets: [TestableTarget],
+        arguments: Arguments?,
+        configurationName: String,
+        attachDebugger: Bool,
+        coverage: Bool,
+        codeCoverageTargets: [TargetReference],
+        expandVariableFromTarget: TargetReference?,
+        preActions: [ExecutionAction],
+        postActions: [ExecutionAction],
+        diagnosticsOptions: Set<SchemeDiagnosticsOption>,
+        language: String? = nil,
+        region: String? = nil,
+        testPlans: [TestPlan]? = nil
+    ) {
         self.testPlans = testPlans
         self.targets = targets
         self.arguments = arguments

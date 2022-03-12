@@ -2,6 +2,9 @@ import ProjectDescription
 
 let project = Project(
     name: "App",
+    options: .options(
+        automaticSchemesOptions: .enabled(targetSchemesGrouping: .notGrouped, codeCoverageEnabled: false, testingOptions: [])
+    ),
     targets: [
         Target(
             name: "AppCore",

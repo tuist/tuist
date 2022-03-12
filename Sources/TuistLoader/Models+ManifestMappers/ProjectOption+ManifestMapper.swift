@@ -1,25 +1,54 @@
 import ProjectDescription
 import TuistGraph
 
-extension TuistGraph.ProjectOption {
+extension TuistGraph.Project.Options {
     /// Maps a ProjectDescription.ProjectOption instance into a TuistGraph.ProjectOption instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of project options.
-    static func from(manifest: ProjectDescription.ProjectOption) -> TuistGraph.ProjectOption {
-        switch manifest {
-        case .disableBundleAccessors:
-            return .disableBundleAccessors
-        case .disableSynthesizedResourceAccessors:
-            return .disableSynthesizedResourceAccessors
-        case let .textSettings(usesTabs, indentWidth, tabWidth, wrapsLines):
-            return .textSettings(
-                .init(
-                    usesTabs: usesTabs,
-                    indentWidth: indentWidth,
-                    tabWidth: tabWidth,
-                    wrapsLines: wrapsLines
-                )
+    static func from(manifest: ProjectDescription.Project.Options) -> Self {
+        .init(
+            automaticSchemesOptions: .from(manifest: manifest.automaticSchemesOptions),
+            disableBundleAccessors: manifest.disableBundleAccessors,
+            disableShowEnvironmentVarsInScriptPhases: manifest.disableShowEnvironmentVarsInScriptPhases,
+            disableSynthesizedResourceAccessors: manifest.disableSynthesizedResourceAccessors,
+            textSettings: .init(
+                usesTabs: manifest.textSettings.usesTabs,
+                indentWidth: manifest.textSettings.indentWidth,
+                tabWidth: manifest.textSettings.tabWidth,
+                wrapsLines: manifest.textSettings.wrapsLines
             )
+        )
+    }
+}
+
+extension TuistGraph.Project.Options.AutomaticSchemesOptions {
+    static func from(
+        manifest: ProjectDescription.Project.Options.AutomaticSchemesOptions
+    ) -> Self {
+        switch manifest {
+        case let .enabled(targetSchemesGrouping, codeCoverageEnabled, testingOptions):
+            return .enabled(
+                targetSchemesGrouping: .from(manifest: targetSchemesGrouping),
+                codeCoverageEnabled: codeCoverageEnabled,
+                testingOptions: .from(manifest: testingOptions)
+            )
+        case .disabled:
+            return .disabled
+        }
+    }
+}
+
+extension TuistGraph.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping {
+    static func from(
+        manifest: ProjectDescription.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping
+    ) -> Self {
+        switch manifest {
+        case .singleScheme:
+            return .singleScheme
+        case let .byNameSuffix(build, test, run):
+            return .byNameSuffix(build: build, test: test, run: run)
+        case .notGrouped:
+            return .notGrouped
         }
     }
 }

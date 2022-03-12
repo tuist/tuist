@@ -1,4 +1,4 @@
-// swiftlint:disable line_length
+// swiftformat:disable wrap
 extension SynthesizedResourceInterfaceTemplates {
     static let assetsTemplate = """
     // swiftlint:disable all

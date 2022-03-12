@@ -6,4 +6,7 @@ module.exports = {
   testMatch: [
     '<rootDir>/app/frontend/**/__tests__/**/*.(test|spec).(ts|tsx|js)',
   ],
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/app/frontend/$1',
+  },
 };

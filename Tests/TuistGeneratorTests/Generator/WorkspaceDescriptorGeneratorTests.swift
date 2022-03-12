@@ -130,7 +130,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
             projects: [],
-            generationOptions: .options(automaticXcodeSchemes: .disabled)
+            generationOptions: .test(enableAutomaticXcodeSchemes: false)
         )
 
         let graph = Graph.test(workspace: workspace)
@@ -140,7 +140,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let result = try subject.generate(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticXcodeSchemes: false))
+        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: false))
     }
 
     func test_generateWorkspaceStructure_withSettingsDescriptorEnablingSchemaGeneration() throws {
@@ -150,7 +150,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
             projects: [],
-            generationOptions: .options(automaticXcodeSchemes: .enabled)
+            generationOptions: .test(enableAutomaticXcodeSchemes: true)
         )
 
         let graph = Graph.test(workspace: workspace)
@@ -160,7 +160,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let result = try subject.generate(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticXcodeSchemes: true))
+        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: true))
     }
 
     func test_generateWorkspaceStructure_withSettingsDescriptorDefaultSchemaGeneration() throws {
@@ -170,7 +170,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
             projects: [],
-            generationOptions: .options(automaticXcodeSchemes: .default)
+            generationOptions: .test(enableAutomaticXcodeSchemes: nil)
         )
 
         let graph = Graph.test(workspace: workspace)
@@ -180,7 +180,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let result = try subject.generate(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticXcodeSchemes: nil))
+        XCTAssertNil(result.workspaceSettingsDescriptor)
     }
 
     // MARK: - Helpers

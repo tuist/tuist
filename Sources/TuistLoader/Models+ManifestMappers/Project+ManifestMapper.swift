@@ -12,16 +12,20 @@ extension TuistGraph.Project {
     ///   - plugins: Configured plugins.
     ///   - externalDependencies: External dependencies graph.
     ///   - resourceSynthesizerPathLocator: Resource synthesizer locator.
+    ///   - isExternal: Indicates whether the project is imported through `Dependencies.swift`.
     static func from(
         manifest: ProjectDescription.Project,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
         externalDependencies: [String: [TuistGraph.TargetDependency]],
-        resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
+        resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating,
+        isExternal: Bool
     ) throws -> TuistGraph.Project {
         let name = manifest.name
+        let xcodeProjectName = manifest.options.xcodeProjectName ?? name
         let organizationName = manifest.organizationName
-        let options = manifest.options.map { TuistGraph.ProjectOption.from(manifest: $0) }
+        let developmentRegion = manifest.options.developmentRegion
+        let options = TuistGraph.Project.Options.from(manifest: manifest.options)
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
         let targets = try manifest.targets.map {
             try TuistGraph.Target.from(manifest: $0, generatorPaths: generatorPaths, externalDependencies: externalDependencies)
@@ -43,10 +47,10 @@ extension TuistGraph.Project {
         return Project(
             path: generatorPaths.manifestDirectory,
             sourceRootPath: generatorPaths.manifestDirectory,
-            xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(name).xcodeproj"),
+            xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(xcodeProjectName).xcodeproj"),
             name: name,
             organizationName: organizationName,
-            developmentRegion: nil,
+            developmentRegion: developmentRegion,
             options: options,
             settings: settings ?? .default,
             filesGroup: .group(name: "Project"),
@@ -56,7 +60,8 @@ extension TuistGraph.Project {
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
             resourceSynthesizers: resourceSynthesizers,
-            lastUpgradeCheck: nil
+            lastUpgradeCheck: nil,
+            isExternal: isExternal
         )
     }
 }

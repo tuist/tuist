@@ -65,14 +65,15 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         )
     }
 
-    init(config: Config,
-         cache: CacheStoring,
-         cacheGraphContentHasher: CacheGraphContentHashing,
-         sources: Set<String>,
-         cacheProfile: TuistGraph.Cache.Profile,
-         cacheOutputType: CacheOutputType,
-         cacheGraphMutator: CacheGraphMutating = CacheGraphMutator())
-    {
+    init(
+        config: Config,
+        cache: CacheStoring,
+        cacheGraphContentHasher: CacheGraphContentHashing,
+        sources: Set<String>,
+        cacheProfile: TuistGraph.Cache.Profile,
+        cacheOutputType: CacheOutputType,
+        cacheGraphMutator: CacheGraphMutating = CacheGraphMutator()
+    ) {
         self.config = config
         self.cache = cache
         self.cacheGraphContentHasher = cacheGraphContentHasher
@@ -89,10 +90,12 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         let availableTargets = Set(
             graphTraverser.allTargets().map(\.target.name)
         )
+        let allInternalTargets = Set(
+            graphTraverser.allInternalTargets().map(\.target.name)
+        )
+        let sources = sources.isEmpty ? Set(allInternalTargets) : sources
         let missingTargets = sources.subtracting(availableTargets)
-        guard
-            missingTargets.isEmpty
-        else {
+        guard missingTargets.isEmpty else {
             throw FocusTargetsGraphMapperError.missingTargets(
                 missingTargets: missingTargets.sorted(),
                 availableTargets: availableTargets.sorted()

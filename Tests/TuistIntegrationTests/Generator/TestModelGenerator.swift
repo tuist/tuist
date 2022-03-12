@@ -153,7 +153,7 @@ final class TestModelGenerator {
             name: name,
             organizationName: nil,
             developmentRegion: nil,
-            options: [],
+            options: .test(),
             settings: settings,
             filesGroup: .group(name: "Project"),
             targets: targets,
@@ -162,7 +162,8 @@ final class TestModelGenerator {
             ideTemplateMacros: nil,
             additionalFiles: createAdditionalFiles(path: path),
             resourceSynthesizers: [],
-            lastUpgradeCheck: nil
+            lastUpgradeCheck: nil,
+            isExternal: false
         )
     }
 

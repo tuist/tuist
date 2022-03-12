@@ -100,22 +100,20 @@ final class TestService {
         )
         logger.notice("Generating project for testing", metadata: .section)
         let graph = try await generator.generateWithGraph(
-            path: path,
-            projectOnly: false
+            path: path
         ).1
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
 
         let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
-            buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
+            buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
         logger.log(
             level: .debug,
             "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
         )
 
         if let schemeName = schemeName {
-            guard
-                let scheme = testableSchemes.first(where: { $0.name == schemeName })
+            guard let scheme = testableSchemes.first(where: { $0.name == schemeName })
             else {
                 throw TestServiceError.schemeNotFound(
                     scheme: schemeName,
@@ -143,7 +141,7 @@ final class TestService {
                 )
             }
         } else {
-            let testSchemes: [Scheme] = buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
+            let testSchemes: [Scheme] = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
                 .filter {
                     $0.testAction.map { !$0.targets.isEmpty } ?? false
                 }

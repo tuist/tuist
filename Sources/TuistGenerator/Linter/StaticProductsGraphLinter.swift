@@ -58,10 +58,11 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     /// - In the event a node is a node capable of linking static products, it removes all the nodes
     ///   from the unlinked bucket and places them in the linked bucket in format of _staticNode > [linkingNode]_.
     ///
-    private func buildStaticProductsMap(visiting dependency: GraphDependency,
-                                        graphTraverser: GraphTraversing,
-                                        cache: Cache) -> StaticProducts
-    {
+    private func buildStaticProductsMap(
+        visiting dependency: GraphDependency,
+        graphTraverser: GraphTraversing,
+        cache: Cache
+    ) -> StaticProducts {
         if let cachedResult = cache.results(for: dependency) {
             return cachedResult
         }
@@ -98,10 +99,11 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         return results
     }
 
-    private func staticDependencyWarning(staticProduct: GraphDependency,
-                                         linkedBy: Set<GraphDependency>,
-                                         graphTraverser: GraphTraversing) -> [StaticDependencyWarning]
-    {
+    private func staticDependencyWarning(
+        staticProduct: GraphDependency,
+        linkedBy: Set<GraphDependency>,
+        graphTraverser: GraphTraversing
+    ) -> [StaticDependencyWarning] {
         // Common dependencies between test bundles and their host apps are automatically omitted
         // during generation - as such those shouldn't be flagged
         //
@@ -220,9 +222,10 @@ extension StaticProductsGraphLinter {
             "\(staticProduct) > \(linkingDependencies.map(\.description))"
         }
 
-        static func < (lhs: StaticDependencyWarning,
-                       rhs: StaticDependencyWarning) -> Bool
-        {
+        static func < (
+            lhs: StaticDependencyWarning,
+            rhs: StaticDependencyWarning
+        ) -> Bool {
             lhs.stringDescription < rhs.stringDescription
         }
     }
@@ -252,9 +255,10 @@ extension StaticProductsGraphLinter {
             cachedResults[dependency]
         }
 
-        func cache(results: StaticProducts,
-                   for dependency: GraphDependency)
-        {
+        func cache(
+            results: StaticProducts,
+            for dependency: GraphDependency
+        ) {
             cachedResults[dependency] = results
         }
     }
