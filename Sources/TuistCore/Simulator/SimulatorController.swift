@@ -183,7 +183,7 @@ public final class SimulatorController: SimulatorControlling {
         case .watchOS: platform = .watchOS
         case .tvOS: platform = .tvOS
         case .macOS:
-          return macOSDestination()
+            return macOSDestination()
         }
 
         let deviceAndRuntime = try await findAvailableDevice(
