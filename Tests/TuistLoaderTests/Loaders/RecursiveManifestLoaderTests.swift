@@ -258,6 +258,36 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         ])
     }
 
+    func test_loadWorkspace_withSameProjectName() throws {
+        // Given
+        let workspace = Workspace.test(
+            name: "ProjectA",
+            projects: [
+                ".",
+            ]
+        )
+
+        let projectA = createProject(
+            name: "ProjectA",
+            targets: [
+                "TargetA": [],
+            ]
+        )
+
+        try stub(manifest: projectA, at: RelativePath("Some/Path"))
+        try stub(manifest: workspace, at: RelativePath("Some/Path"))
+
+        // When
+        let manifests = try subject.loadWorkspace(at: path.appending(RelativePath("Some/Path")))
+
+        // Then
+        XCTAssertEqual(manifests.path, path.appending(RelativePath("Some/Path")))
+        XCTAssertEqual(manifests.workspace, workspace)
+        XCTAssertEqual(withRelativePaths(manifests.projects), [
+            "Some/Path": projectA,
+        ])
+    }
+
     // MARK: - Helpers
 
     private func createProject(
