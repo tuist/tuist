@@ -261,9 +261,12 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     func test_loadWorkspace_withSameProjectName() throws {
         // Given
         let workspace = Workspace.test(
-            name: "ProjectA",
+            name: "MyWorkspace",
             projects: [
                 ".",
+            ],
+            schemes: [
+                Scheme(name: "CustomWorkspaceScheme")
             ]
         )
 
