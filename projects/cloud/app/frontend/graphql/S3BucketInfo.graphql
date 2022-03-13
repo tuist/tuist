@@ -4,4 +4,5 @@ fragment S3BucketInfo on S3Bucket {
   accessKeyId
   secretAccessKey
   accountId
+  region
 }

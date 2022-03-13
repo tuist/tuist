@@ -255,6 +255,7 @@ type S3Bucket {
   accountId: ID!
   id: ID!
   name: String!
+  region: String!
   secretAccessKey: String
 }
 
@@ -270,6 +271,7 @@ input UpdateS3BucketInput {
   clientMutationId: String
   id: ID!
   name: String!
+  region: String!
   secretAccessKey: String!
 }
 
