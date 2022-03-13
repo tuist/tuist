@@ -9,7 +9,8 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "project-bucket",
       access_key_id: "access key id",
       secret_access_key: "encoded secret",
-      iv: "random iv"
+      iv: "random iv",
+      region: "region"
     )
     @project = Project.create!(
       name: "my-project",

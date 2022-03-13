@@ -8,6 +8,7 @@ class S3BucketCreateServiceTest < ActiveSupport::TestCase
     name = "bucket"
     access_key_id = "access key id"
     secret_access_key = "secret access key"
+    region = "region"
     account = Account.create!(owner: Organization.create!, name: "tuist")
 
     # When
@@ -15,7 +16,8 @@ class S3BucketCreateServiceTest < ActiveSupport::TestCase
       name: name,
       access_key_id: access_key_id,
       secret_access_key: secret_access_key,
-      account_id: account.id
+      account_id: account.id,
+      region: region
     )
 
     # Then
@@ -23,6 +25,7 @@ class S3BucketCreateServiceTest < ActiveSupport::TestCase
     assert_equal access_key_id, got.access_key_id
     assert_not_equal secret_access_key, got.secret_access_key
     assert_equal account.id, got.account_id
+    assert_equal region, got.region
   end
 
   test "creating an S3 bucket fails when another with the same name already exists" do
@@ -32,6 +35,7 @@ class S3BucketCreateServiceTest < ActiveSupport::TestCase
       name: "bucket",
       access_key_id: "key id 1",
       secret_access_key: "secret access key",
+      region: "region",
       account_id: account.id
     )
 
@@ -41,6 +45,7 @@ class S3BucketCreateServiceTest < ActiveSupport::TestCase
         name: "bucket",
         access_key_id: "key id 2",
         secret_access_key: "secret access key",
+        region: "region",
         account_id: account.id
       )
     end

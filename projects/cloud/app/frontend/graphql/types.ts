@@ -63,6 +63,7 @@ export type CreateS3BucketInput = {
   /** A unique identifier for the client performing the mutation. */
   clientMutationId?: InputMaybe<Scalars['String']>;
   name: Scalars['String'];
+  region: Scalars['String'];
   secretAccessKey: Scalars['String'];
 };
 

@@ -67,6 +67,7 @@ input CreateS3BucketInput {
   """
   clientMutationId: String
   name: String!
+  region: String!
   secretAccessKey: String!
 }
 
