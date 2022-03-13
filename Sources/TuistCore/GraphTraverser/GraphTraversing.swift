@@ -170,6 +170,8 @@ public protocol GraphTraversing {
     ///   - path: Path to the project tha defines the target.
     ///   - name: Target name.
     func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool
+    
+    func impartedSettings(path: AbsolutePath, name: String) -> [SettingsDictionary]
 }
 
 extension GraphTraversing {

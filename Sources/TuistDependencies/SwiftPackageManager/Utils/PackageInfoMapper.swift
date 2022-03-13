@@ -682,6 +682,7 @@ extension ProjectDescription.Settings {
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
         var linkerFlags: [String] = []
+        var impartedSettings: [String: ProjectDescription.SettingValue] = [:]
 
         let mainPath = try target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
@@ -690,6 +691,7 @@ extension ProjectDescription.Settings {
             let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
             let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
             headerSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
+            impartedSettings["HEADER_SEARCH_PATHS"] = .array(["$(inherited)", publicHeadersPath.pathString])
         }
 
         let allDependencies = Self.recursiveTargetDependencies(
@@ -798,7 +800,11 @@ extension ProjectDescription.Settings {
             settingsDictionary.merge(projectDescriptionSettingsToOverride)
         }
 
-        return .from(settings: baseSettings, adding: settingsDictionary, packageFolder: packageFolder)
+        return .from(
+            settings: baseSettings,
+            adding: settingsDictionary,
+            packageFolder: packageFolder,
+            imparted: impartedSettings)
     }
 
     fileprivate struct PackageTarget: Hashable {
@@ -942,7 +948,8 @@ extension ProjectDescription.Settings {
     fileprivate static func from(
         settings: TuistGraph.Settings,
         adding: ProjectDescription.SettingsDictionary,
-        packageFolder: AbsolutePath
+        packageFolder: AbsolutePath,
+        imparted: ProjectDescription.SettingsDictionary
     ) -> Self {
         .settings(
             base: .from(settingsDictionary: settings.base).merging(adding, uniquingKeysWith: { $1 }),
@@ -951,7 +958,8 @@ extension ProjectDescription.Settings {
                     .from(buildConfiguration: buildConfiguration, configuration: configuration, packageFolder: packageFolder)
                 }
                 .sorted { $0.name.rawValue < $1.name.rawValue },
-            defaultSettings: .from(defaultSettings: settings.defaultSettings)
+            defaultSettings: .from(defaultSettings: settings.defaultSettings),
+            imparted: imparted
         )
     }
 }

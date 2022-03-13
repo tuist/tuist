@@ -123,15 +123,18 @@ public struct Settings: Equatable, Codable {
     public let base: SettingsDictionary
     public let configurations: [Configuration]
     public let defaultSettings: DefaultSettings
+    public let imparted: SettingsDictionary
 
     init(
         base: SettingsDictionary,
         configurations: [Configuration],
-        defaultSettings: DefaultSettings
+        defaultSettings: DefaultSettings,
+        imparted: SettingsDictionary
     ) {
         self.base = base
         self.configurations = configurations
         self.defaultSettings = defaultSettings
+        self.imparted = imparted
     }
 
     /// Creates settings with default.configurations `Debug` and `Release`
@@ -151,7 +154,8 @@ public struct Settings: Equatable, Codable {
         base: SettingsDictionary = [:],
         debug: SettingsDictionary = [:],
         release: SettingsDictionary = [:],
-        defaultSettings: DefaultSettings = .recommended
+        defaultSettings: DefaultSettings = .recommended,
+        imparted: SettingsDictionary = [:]
     ) -> Settings {
         Settings(
             base: base,
@@ -159,7 +163,8 @@ public struct Settings: Equatable, Codable {
                 .debug(name: .debug, settings: debug, xcconfig: nil),
                 .release(name: .release, settings: release, xcconfig: nil),
             ],
-            defaultSettings: defaultSettings
+            defaultSettings: defaultSettings,
+            imparted: imparted
         )
     }
 
@@ -179,12 +184,14 @@ public struct Settings: Equatable, Codable {
     public static func settings(
         base: SettingsDictionary = [:],
         configurations: [Configuration],
-        defaultSettings: DefaultSettings = .recommended
+        defaultSettings: DefaultSettings = .recommended,
+        imparted: SettingsDictionary = [:]
     ) -> Settings {
         Settings(
             base: base,
             configurations: configurations,
-            defaultSettings: defaultSettings
+            defaultSettings: defaultSettings,
+            imparted: imparted
         )
     }
 }

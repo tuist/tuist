@@ -80,24 +80,29 @@ public struct Settings: Equatable, Codable {
     public let base: SettingsDictionary
     public let configurations: [BuildConfiguration: Configuration?]
     public let defaultSettings: DefaultSettings
+    public let imparted: SettingsDictionary
+
 
     // MARK: - Init
 
     public init(
         base: SettingsDictionary = [:],
         configurations: [BuildConfiguration: Configuration?],
-        defaultSettings: DefaultSettings = .recommended
+        defaultSettings: DefaultSettings = .recommended,
+        imparted: SettingsDictionary = [:]
     ) {
         self.base = base
         self.configurations = configurations
         self.defaultSettings = defaultSettings
+        self.imparted = imparted
     }
 
     public func with(base: SettingsDictionary) -> Settings {
         .init(
             base: base,
             configurations: configurations,
-            defaultSettings: defaultSettings
+            defaultSettings: defaultSettings,
+            imparted: imparted
         )
     }
 }

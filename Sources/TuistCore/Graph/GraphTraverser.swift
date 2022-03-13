@@ -373,6 +373,15 @@ public class GraphTraverser: GraphTraversing {
         }
         return Set(libraryPublicHeaders)
     }
+    
+    public func impartedSettings(path: AbsolutePath, name: String) -> [SettingsDictionary] {
+        let dependencies = graph.dependencies[.target(name: name, path: path), default: []]
+        return dependencies
+            .compactMap { dependency -> SettingsDictionary? in
+                guard case let GraphDependency.target(name, path) = dependency else { return nil }
+                return target(path: path, name: name)?.target.settings?.imparted
+            }
+    }
 
     public func librariesSearchPaths(path: AbsolutePath, name: String) -> Set<AbsolutePath> {
         let dependencies = graph.dependencies[.target(name: name, path: path), default: []]

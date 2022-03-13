@@ -170,6 +170,14 @@ final class LinkGenerator: LinkGenerating {
             path: path,
             graphTraverser: graphTraverser
         )
+        
+        try setupImpartedSettings(
+            target: target,
+            pbxTarget: pbxTarget,
+            sourceRootPath: sourceRootPath,
+            path: path,
+            graphTraverser: graphTraverser
+        )
     }
 
     func generatePackages(
@@ -350,6 +358,25 @@ final class LinkGenerator: LinkGenerating {
             pbxTarget: pbxTarget,
             sourceRootPath: sourceRootPath
         )
+    }
+    
+    func setupImpartedSettings(
+        target: Target,
+        pbxTarget: PBXTarget,
+        sourceRootPath: AbsolutePath,
+        path: AbsolutePath,
+        graphTraverser: GraphTraversing
+    ) throws {
+        guard let configurationList = pbxTarget.buildConfigurationList else {
+            throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
+        }
+        let helper = SettingsHelper()
+        let impartedSettings = graphTraverser.impartedSettings(path: path, name: target.name)
+        for setting in impartedSettings {
+            try configurationList.buildConfigurations.forEach { configuration in
+                try helper.extend(buildSettings: &configuration.buildSettings, with: setting)
+            }
+        }
     }
 
     private func setup(

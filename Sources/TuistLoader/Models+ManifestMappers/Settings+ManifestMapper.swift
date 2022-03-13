@@ -22,7 +22,8 @@ extension TuistGraph.Settings {
         return TuistGraph.Settings(
             base: base,
             configurations: configurations,
-            defaultSettings: defaultSettings
+            defaultSettings: defaultSettings,
+            imparted: manifest.imparted.mapValues(TuistGraph.SettingValue.from)
         )
     }
 }

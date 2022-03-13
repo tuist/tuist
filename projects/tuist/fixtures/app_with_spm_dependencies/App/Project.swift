@@ -31,6 +31,8 @@ let project = Project(
                 .external(name: "FirebaseAnalytics"),
                 .external(name: "FirebaseDatabase"),
                 .external(name: "FirebaseFirestore"),
+                .external(name: "Realm"),
+                .external(name: "RealmSwift"),
             ]
         ),
     ]
