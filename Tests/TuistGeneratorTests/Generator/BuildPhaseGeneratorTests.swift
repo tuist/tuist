@@ -170,7 +170,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         }
     }
 
-    func test_generateSourcesBuildPhase_withDocCArchive_ArticleAndTutorial() throws {
+    func test_generateSourcesBuildPhase_withDocCArchive() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
@@ -179,10 +179,6 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let sources: [SourceFile] = [
             SourceFile(path: "/path/sources/Foo.swift", compilerFlags: nil),
             SourceFile(path: "/path/sources/Doc.docc", compilerFlags: nil),
-            SourceFile(path: "/path/sources/Doc.docc/Articles/Article.md", compilerFlags: nil),
-            SourceFile(path: "/path/sources/Doc.docc/Tutorials/Tutorials.md", compilerFlags: nil),
-            SourceFile(path: "/path/sources/Doc.docc/Tutorials/Step-1.swift", compilerFlags: nil),
-            SourceFile(path: "/path/sources/Doc.docc/Tutorials/Step-2.swift", compilerFlags: nil),
         ]
 
         let fileElements = createFileElements(for: sources.map(\.path))

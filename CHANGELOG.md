@@ -4,6 +4,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add support for SPM dependencies with Core Data models. [#4237](https://github.com/tuist/tuist/pull/4237) by [@adellibovi](https://github.com/adellibovi)
+- Add support for Core Data models in Resources. [#4237](https://github.com/tuist/tuist/pull/4237) by [@adellibovi](https://github.com/adellibovi)
+
 ### Fixed
 
 - Fix linking of staticFramework in messagesExtensions [#4211](https://github.com/tuist/tuist/pull/4211) by [paulsamuels](https://github.com/paulsamuels).

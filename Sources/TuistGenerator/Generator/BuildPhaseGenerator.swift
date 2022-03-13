@@ -194,9 +194,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxTarget.buildPhases.append(sourcesBuildPhase)
 
         var buildFilesCache = Set<AbsolutePath>()
-        // Ignore DocC Swift tutorial files from `Sources`
         let sortedFiles = files
-            .filter { !fileElements.isDocCTutorialFile(path: $0.path) }
             .sorted(by: { $0.path < $1.path })
 
         var pbxBuildFiles = [PBXBuildFile]()
@@ -378,14 +376,6 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             let pathString = buildFilePath.pathString
             let isLocalized = pathString.contains(".lproj/")
             let isLproj = buildFilePath.extension == "lproj"
-            let isWithinAssets = pathString.contains(".xcassets/") || pathString.contains(".scnassets/")
-
-            /// Assets that are part of a .xcassets or .scnassets folder
-            /// are not added individually. The whole folder is added
-            /// instead as a group.
-            if isWithinAssets {
-                return
-            }
 
             var element: (element: PBXFileElement, path: AbsolutePath)?
 
@@ -402,10 +392,13 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
                 element = (group, path)
             } else if !isLproj {
-                guard let fileReference = fileElements.file(path: buildFilePath) else {
+                if let fileReference = fileElements.file(path: buildFilePath) {
+                    element = (fileReference, buildFilePath)
+                } else if let fileReference = fileElements.elements[buildFilePath] as? XCVersionGroup {
+                    element = (fileReference, buildFilePath)
+                } else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
-                element = (fileReference, buildFilePath)
             }
             if let element = element, buildFilesCache.contains(element.path) == false {
                 let tags = resource.tags.sorted()
