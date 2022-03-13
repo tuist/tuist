@@ -35,7 +35,22 @@ final class TargetTests: TuistUnitTestCase {
     func test_validSourceExtensions() {
         XCTAssertEqual(
             Target.validSourceExtensions,
-            ["m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel", "docc", "playground"]
+            [
+                "m",
+                "swift",
+                "mm",
+                "cpp",
+                "cc",
+                "c",
+                "d",
+                "s",
+                "intentdefinition",
+                "xcmappingmodel",
+                "metal",
+                "mlmodel",
+                "docc",
+                "playground",
+            ]
         )
     }
 

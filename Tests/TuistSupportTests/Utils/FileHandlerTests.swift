@@ -71,6 +71,30 @@ final class FileHandlerTests: TuistUnitTestCase {
         // XCTAssertEqual(count, try countItemsInRootTempDirectory(appropriateFor: to.asURL))
     }
 
+    func test_isInOpaqueDirectory() throws {
+        XCTAssertFalse(FileHandler.isInOpaqueDirectory(path: "/test/directory.bundle"))
+        XCTAssertFalse(FileHandler.isInOpaqueDirectory(path: "/test/directory.xcassets"))
+        XCTAssertFalse(FileHandler.isInOpaqueDirectory(path: "/test/directory.xcassets"))
+        XCTAssertFalse(FileHandler.isInOpaqueDirectory(path: "/test/directory.scnassets"))
+        XCTAssertFalse(FileHandler.isInOpaqueDirectory(path: "/test/directory.xcdatamodeld"))
+        XCTAssertFalse(FileHandler.isInOpaqueDirectory(path: "/test/directory.docc"))
+        XCTAssertFalse(FileHandler.isInOpaqueDirectory(path: "/test/directory.playground"))
+        XCTAssertFalse(FileHandler.isInOpaqueDirectory(path: "/test/directory.bundle"))
+
+        XCTAssertFalse(FileHandler.isInOpaqueDirectory(path: "/"))
+        XCTAssertFalse(FileHandler.isInOpaqueDirectory(path: "/test/directory.notopaque/file.notopaque"))
+        XCTAssertFalse(FileHandler.isInOpaqueDirectory(path: "/test/directory.notopaque/directory.bundle"))
+        XCTAssertTrue(FileHandler.isInOpaqueDirectory(path: "/test/directory.notopaque/directory.bundle/file.png"))
+
+        XCTAssertTrue(FileHandler.isInOpaqueDirectory(path: "/test/directory.bundle/file.png"))
+        XCTAssertTrue(FileHandler.isInOpaqueDirectory(path: "/test/directory.xcassets/file.png"))
+        XCTAssertTrue(FileHandler.isInOpaqueDirectory(path: "/test/directory.xcassets/file.png"))
+        XCTAssertTrue(FileHandler.isInOpaqueDirectory(path: "/test/directory.scnassets/file.png"))
+        XCTAssertTrue(FileHandler.isInOpaqueDirectory(path: "/test/directory.xcdatamodeld/file.png"))
+        XCTAssertTrue(FileHandler.isInOpaqueDirectory(path: "/test/directory.docc/file.png"))
+        XCTAssertTrue(FileHandler.isInOpaqueDirectory(path: "/test/directory.playground/file.png"))
+    }
+
     func test_base64MD5() throws {
         // Given
         let testZippedFrameworkPath = fixturePath(path: RelativePath("uUI.xcframework.zip"))
