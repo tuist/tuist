@@ -369,10 +369,6 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             []
         }
 
-        func throwingGlobExcludingOpaqueDirectories(_: AbsolutePath, glob _: String) throws -> [AbsolutePath] {
-            []
-        }
-
         func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath {
             path
         }

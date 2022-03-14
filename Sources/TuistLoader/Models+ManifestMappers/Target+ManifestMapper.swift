@@ -126,7 +126,7 @@ extension TuistGraph.Target {
     ) throws -> (
         resources: [TuistGraph.ResourceFileElement],
         playgrounds: [AbsolutePath],
-        coreDatas: [AbsolutePath],
+        coreDataModels: [AbsolutePath],
         invalidResourceGlobs: [InvalidGlob]
     ) {
         let resourceFilter = { (path: AbsolutePath) -> Bool in
@@ -136,7 +136,7 @@ extension TuistGraph.Target {
         var invalidResourceGlobs: [InvalidGlob] = []
         var resourcesWithoutPlaygrounds: [TuistGraph.ResourceFileElement] = []
         var playgrounds: Set<AbsolutePath> = []
-        var coreDatas: Set<AbsolutePath> = []
+        var coreDataModels: Set<AbsolutePath> = []
 
         let allResources = try (manifest.resources?.resources ?? []).flatMap { manifest -> [TuistGraph.ResourceFileElement] in
             do {
@@ -159,7 +159,7 @@ extension TuistGraph.Target {
                     if path.extension == "playground" {
                         playgrounds.insert(path)
                     } else if path.extension == "xcdatamodeld" {
-                        coreDatas.insert(path)
+                        coreDataModels.insert(path)
                         resourcesWithoutPlaygrounds.append(fileElement)
                     } else {
                         resourcesWithoutPlaygrounds.append(fileElement)
@@ -170,7 +170,7 @@ extension TuistGraph.Target {
         return (
             resources: resourcesWithoutPlaygrounds,
             playgrounds: Array(playgrounds),
-            coreDatas: Array(coreDatas),
+            coreDataModels: Array(coreDataModels),
             invalidResourceGlobs: invalidResourceGlobs
         )
     }

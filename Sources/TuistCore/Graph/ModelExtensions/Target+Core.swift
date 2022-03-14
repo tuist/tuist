@@ -67,7 +67,9 @@ extension Target {
             let paths: [AbsolutePath]
 
             do {
-                paths = try FileHandler.shared.throwingGlobExcludingOpaqueDirectories(base, glob: sourcePath.basename)
+                paths = try FileHandler.shared
+                    .throwingGlob(base, glob: sourcePath.basename)
+                    .filter { !$0.isInOpaqueDirectory }
             } catch let GlobError.nonExistentDirectory(invalidGlob) {
                 paths = []
                 invalidGlobs.append(invalidGlob)
