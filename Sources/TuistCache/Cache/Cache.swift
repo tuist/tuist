@@ -7,11 +7,6 @@ public final class Cache: CacheStoring {
 
     private let storageProvider: CacheStorageProviding
 
-    /// An instance that returns the storages to be used.
-    private var storages: [CacheStoring] {
-        (try? storageProvider.storages()) ?? []
-    }
-
     // MARK: - Init
 
     /// Initializes the cache with its attributes.
@@ -23,7 +18,7 @@ public final class Cache: CacheStoring {
     // MARK: - CacheStoring
 
     public func exists(name: String, hash: String) async throws -> Bool {
-        for storage in storages {
+        for storage in try storageProvider.storages() {
             if try await storage.exists(name: name, hash: hash) {
                 return true
             }
@@ -33,7 +28,7 @@ public final class Cache: CacheStoring {
 
     public func fetch(name: String, hash: String) async throws -> AbsolutePath {
         var throwingError: Error = CacheLocalStorageError.compiledArtifactNotFound(hash: hash)
-        for storage in storages {
+        for storage in try storageProvider.storages() {
             do {
                 return try await storage.fetch(name: name, hash: hash)
             } catch {
@@ -45,7 +40,7 @@ public final class Cache: CacheStoring {
     }
 
     public func store(name: String, hash: String, paths: [AbsolutePath]) async throws {
-        _ = try await storages.concurrentMap { storage in
+        _ = try await storageProvider.storages().concurrentMap { storage in
             try await storage.store(name: name, hash: hash, paths: paths)
         }
     }

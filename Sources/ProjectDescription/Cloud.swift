@@ -5,6 +5,9 @@ public struct Cloud: Codable, Equatable {
     /// Cloud option.
     public enum Option: String, Codable, Equatable {
         case analytics
+        /// Marks whether cloud connection is optional. 
+        /// If set to `false`, tuist commands will fail regardless of whether an authentication token is available locally from `tuist cloud auth` or not.
+        case `optional`
     }
 
     /// The base URL that points to the Cloud server
