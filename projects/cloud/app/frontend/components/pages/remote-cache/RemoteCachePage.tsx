@@ -46,6 +46,15 @@ const RemoteCachePage = observer(() => {
     [remoteCachePageStore],
   );
 
+  const handleRegionChange = useCallback(
+    (newValue) => {
+      runInAction(() => {
+        remoteCachePageStore.region = newValue;
+      });
+    },
+    [remoteCachePageStore],
+  );
+
   const handleAccessKeyIdChange = useCallback(
     (newValue) => {
       runInAction(() => {
@@ -92,6 +101,12 @@ const RemoteCachePage = observer(() => {
             label="Bucket name"
             value={remoteCachePageStore.bucketName}
             onChange={handleBucketNameChange}
+          />
+          <TextField
+            type="text"
+            label="Region"
+            value={remoteCachePageStore.region}
+            onChange={handleRegionChange}
           />
           <TextField
             type="text"

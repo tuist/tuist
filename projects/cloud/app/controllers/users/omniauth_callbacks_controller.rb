@@ -15,7 +15,7 @@ module Users
     end
 
     def find_or_create_and_redirect_user
-      @user = UserCreateService.call(email: auth_email)
+      @user = UserCreateService.call(email: auth_email, skip_confirmation: true)
       if @user.persisted?
         sign_in_and_redirect(@user, event: :authentication)
       else

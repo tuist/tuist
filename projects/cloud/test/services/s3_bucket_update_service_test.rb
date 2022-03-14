@@ -9,7 +9,8 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
     s3_bucket = user.account.s3_buckets.create!(
       access_key_id: "1",
       name: "s3 bucket",
-      secret_access_key: "secret"
+      secret_access_key: "secret",
+      region: "region"
     )
 
     # When
@@ -18,6 +19,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
       name: "new name",
       access_key_id: "new access key",
       secret_access_key: "new secret access key",
+      region: "new region",
       user: user
     )
 
@@ -28,6 +30,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
     assert_not_equal s3_bucket.secret_access_key, got.secret_access_key
     assert_not_equal s3_bucket.iv, got.iv
     assert_equal user.account.id, got.account_id
+    assert_equal "new region", got.region
   end
 
   test "updates an S3 bucket when secret access key has not changed" do
@@ -37,7 +40,8 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
       access_key_id: "1",
       name: "s3 bucket",
       secret_access_key: "secret",
-      iv: "iv"
+      iv: "iv",
+      region: "region"
     )
 
     # When
@@ -46,6 +50,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
       name: "new name",
       access_key_id: "new access key",
       secret_access_key: s3_bucket.secret_access_key,
+      region: "new region",
       user: user
     )
 
@@ -55,6 +60,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
     assert_equal s3_bucket.secret_access_key, got.secret_access_key
     assert_equal s3_bucket.iv, got.iv
     assert_equal user.account.id, got.account_id
+    assert_equal "new region", got.region
   end
 
   test "updating an S3 bucket fails when the bucket with a given id does not exist" do
@@ -68,6 +74,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
         name: "new name",
         access_key_id: "new access key",
         secret_access_key: "new secret access key",
+        region: "new region",
         user: user
       )
     end
@@ -81,7 +88,8 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
     s3_bucket = account.s3_buckets.create!(
       access_key_id: "1",
       name: "s3 bucket",
-      secret_access_key: "secret"
+      secret_access_key: "secret",
+      region: "region"
     )
 
     # When/Then
@@ -91,6 +99,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
         name: "new name",
         access_key_id: "new access key",
         secret_access_key: "new secret access key",
+        region: "new region",
         user: user
       )
     end

@@ -57,6 +57,7 @@ describe('RemoteCachePageStore', () => {
     remoteCachePageStore.bucketName = '1';
     remoteCachePageStore.accessKeyId = '1';
     remoteCachePageStore.secretAccessKey = '1';
+    remoteCachePageStore.region = '1';
 
     // Then
     expect(
@@ -97,6 +98,7 @@ describe('RemoteCachePageStore', () => {
       id: 'id',
       name: 'bucket',
       secretAccessKey: 'secret',
+      region: 'region',
     };
 
     // When
@@ -116,6 +118,7 @@ describe('RemoteCachePageStore', () => {
       id: 'id-1',
       name: 'S3 bucket one',
       secretAccessKey: 'secret',
+      region: 'region',
     };
     const remoteCachePageStore = new RemoteCachePageStore(
       client,
@@ -129,6 +132,7 @@ describe('RemoteCachePageStore', () => {
             accountId: 'account-id-1',
             id: 'id-1',
             name: 'S3 bucket one',
+            region: 'region',
             __typename: 'S3Bucket',
           },
           {
@@ -136,6 +140,7 @@ describe('RemoteCachePageStore', () => {
             accountId: 'account-id-2',
             id: 'id-2',
             name: 'S3 bucket two',
+            region: 'region',
             __typename: 'S3Bucket',
           },
         ] as S3BucketInfoFragment[],
@@ -155,12 +160,14 @@ describe('RemoteCachePageStore', () => {
         secretAccessKey: undefined,
         id: 'id-1',
         name: 'S3 bucket one',
+        region: 'region',
       },
       {
         accessKeyId: 'key-id-2',
         secretAccessKey: undefined,
         id: 'id-2',
         name: 'S3 bucket two',
+        region: 'region',
       },
     ]);
     expect(remoteCachePageStore.bucketOptions).toEqual([
@@ -188,6 +195,7 @@ describe('RemoteCachePageStore', () => {
     remoteCachePageStore.bucketName = 'S3 bucket';
     remoteCachePageStore.secretAccessKey = 'secret';
     remoteCachePageStore.accessKeyId = 'access-key-id';
+    remoteCachePageStore.region = 'region';
     client.mutate.mockReturnValueOnce({
       data: {
         createS3Bucket: {
@@ -196,6 +204,7 @@ describe('RemoteCachePageStore', () => {
           id: 'id-1',
           name: 'S3 bucket',
           secretAccessKey: 'secret',
+          region: 'region',
           __typename: 'S3Bucket',
         },
       },
@@ -205,6 +214,7 @@ describe('RemoteCachePageStore', () => {
       id: 'id-1',
       name: 'S3 bucket',
       secretAccessKey: 'secret',
+      region: 'region',
     };
 
     // When
@@ -228,6 +238,7 @@ describe('RemoteCachePageStore', () => {
       id: 'id-1',
       name: 'S3 bucket',
       secretAccessKey: 'secret',
+      region: 'region',
     };
     const remoteCachePageStore = new RemoteCachePageStore(
       client,
@@ -238,6 +249,7 @@ describe('RemoteCachePageStore', () => {
       id: 'id-1',
       name: 'new name',
       secretAccessKey: 'new secret',
+      region: 'region',
     };
     client.mutate.mockReturnValueOnce({
       data: {
@@ -247,6 +259,7 @@ describe('RemoteCachePageStore', () => {
           id: expectedS3Bucket.id,
           name: expectedS3Bucket.name,
           secretAccessKey: expectedS3Bucket.secretAccessKey,
+          region: expectedS3Bucket.region,
           __typename: 'S3Bucket',
         },
       },
@@ -260,6 +273,7 @@ describe('RemoteCachePageStore', () => {
             id: 'id-1',
             name: 'S3 bucket',
             secretAccessKey: 'secret',
+            region: 'region',
             __typename: 'S3Bucket',
           },
         ] as S3BucketInfoFragment[],

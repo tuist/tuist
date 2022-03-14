@@ -5,6 +5,7 @@ export interface S3Bucket {
   name: string;
   accessKeyId: string;
   secretAccessKey: string;
+  region: string;
 }
 
 export const mapS3Bucket = (bucketFragment: S3BucketInfoFragment) => {
@@ -13,5 +14,6 @@ export const mapS3Bucket = (bucketFragment: S3BucketInfoFragment) => {
     name: bucketFragment.name,
     accessKeyId: bucketFragment.accessKeyId,
     secretAccessKey: bucketFragment.secretAccessKey,
+    region: bucketFragment.region,
   } as S3Bucket;
 };
