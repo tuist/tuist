@@ -7,5 +7,6 @@ module Types
     field :access_key_id, String, null: false
     field :secret_access_key, String, null: true
     field :account_id, ID, null: false
+    field :region, String, null: false
   end
 end

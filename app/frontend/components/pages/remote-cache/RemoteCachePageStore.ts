@@ -18,6 +18,7 @@ class RemoteCachePageStore {
   bucketName = '';
   accessKeyId = '';
   secretAccessKey = '';
+  region = '';
   s3Buckets: S3Bucket[] = [];
   isApplyChangesButtonLoading = false;
 
@@ -91,6 +92,7 @@ class RemoteCachePageStore {
       this.bucketName = '';
       this.accessKeyId = '';
       this.secretAccessKey = '';
+      this.region = '';
     }
     const s3Bucket = this.s3Buckets.find(
       (s3Bucket) => s3Bucket.name === option,
@@ -102,6 +104,7 @@ class RemoteCachePageStore {
     this.bucketName = s3Bucket.name;
     this.accessKeyId = s3Bucket.accessKeyId;
     this.secretAccessKey = s3Bucket.secretAccessKey;
+    this.region = s3Bucket.region;
     this.changeRemoteCacheStorage();
   }
 
@@ -109,7 +112,8 @@ class RemoteCachePageStore {
     return (
       this.bucketName.length === 0 ||
       this.accessKeyId.length === 0 ||
-      this.secretAccessKey.length === 0
+      this.secretAccessKey.length === 0 ||
+      this.region.length === 0
     );
   }
 
@@ -140,6 +144,8 @@ class RemoteCachePageStore {
         this.projectStore.project.remoteCacheStorage.accessKeyId;
       this.secretAccessKey =
         this.projectStore.project.remoteCacheStorage.secretAccessKey;
+      this.region =
+        this.projectStore.project.remoteCacheStorage.region;
     });
   }
 
@@ -154,6 +160,7 @@ class RemoteCachePageStore {
               name: this.bucketName,
               accessKeyId: this.accessKeyId,
               secretAccessKey: this.secretAccessKey,
+              region: this.region,
               accountId,
             },
           },
@@ -180,6 +187,7 @@ class RemoteCachePageStore {
               name: this.bucketName,
               accessKeyId: this.accessKeyId,
               secretAccessKey: this.secretAccessKey,
+              region: this.region,
             },
           },
         });
