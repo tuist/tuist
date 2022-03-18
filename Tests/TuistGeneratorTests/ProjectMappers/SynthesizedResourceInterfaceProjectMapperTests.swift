@@ -36,7 +36,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func test_map() throws {
         // Given
         var templateStrings: [String] = []
-        synthesizedResourceInterfacesGenerator.renderStub = { _, templateString, _, paths in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, templateString, _, _, paths in
             templateStrings.append(templateString)
             let content = paths.map { $0.components.suffix(2).joined(separator: "/") }.joined(separator: ", ")
             return content
@@ -244,7 +244,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func testMap_whenDisableSynthesizedResourceAccessors() throws {
         // Given
         var templateStrings: [String] = []
-        synthesizedResourceInterfacesGenerator.renderStub = { _, templateString, _, paths in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, templateString, _, _, paths in
             templateStrings.append(templateString)
             let content = paths.map { $0.components.suffix(2).joined(separator: "/") }.joined(separator: ", ")
             return content
@@ -348,5 +348,106 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(project, mappedProject)
         XCTAssertEqual(sideEffects, [])
+    }
+
+    func testMap_bundleName_whenBundleAccessorsAreEnabled() throws {
+        // Given
+        var bundleNames: [String?] = []
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, bundleName, _ in
+            bundleNames.append(bundleName)
+            return ""
+        }
+        let projectPath = try temporaryPath()
+        let targetPath = projectPath.appending(component: "TargetA")
+        let ttfFont = targetPath.appending(component: "ttfFont.ttf")
+        try stub(file: ttfFont)
+
+        let project: Project = .test(
+            options: .test(
+                disableBundleAccessors: false,
+                disableSynthesizedResourceAccessors: false
+            ),
+            targets: [
+                .test(
+                    name: "TargetA",
+                    resources: [
+                        .file(path: ttfFont),
+                    ]
+                ),
+            ],
+            resourceSynthesizers: makeResourceSynthesizers()
+        )
+
+        // When
+        _ = try subject.map(project: project)
+
+        // Then
+        XCTAssertEqual(bundleNames, [
+            "Bundle.module",
+        ])
+    }
+
+    func testMap_bundleName_whenBundleAccessorsAreDisabled() throws {
+        // Given
+        var bundleNames: [String?] = []
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, bundleName, _ in
+            bundleNames.append(bundleName)
+            return ""
+        }
+        let projectPath = try temporaryPath()
+        let targetPath = projectPath.appending(component: "TargetA")
+        let ttfFont = targetPath.appending(component: "ttfFont.ttf")
+        try stub(file: ttfFont)
+
+        let project: Project = .test(
+            options: .test(
+                disableBundleAccessors: true,
+                disableSynthesizedResourceAccessors: false
+            ),
+            targets: [
+                .test(
+                    name: "TargetA",
+                    resources: [
+                        .file(path: ttfFont),
+                    ]
+                ),
+            ],
+            resourceSynthesizers: makeResourceSynthesizers()
+        )
+
+        // When
+        _ = try subject.map(project: project)
+
+        // Then
+        XCTAssertEqual(bundleNames, [
+            nil,
+        ])
+    }
+
+    // MARK: - Helpers
+
+    private func stub(file: AbsolutePath) throws {
+        try fileHandler.touch(file)
+        try fileHandler.write("a", path: file, atomically: true)
+    }
+
+    private func makeResourceSynthesizers() -> [ResourceSynthesizer] {
+        [
+            .init(
+                parser: .assets,
+                extensions: ["xcassets"],
+                template: .defaultTemplate("Assets")
+            ),
+            .init(
+                parser: .plists,
+                extensions: ["plist"],
+                template: .defaultTemplate("Plists")
+            ),
+            .init(
+                parser: .fonts,
+                extensions: ["otf", "ttc", "ttf"],
+                template: .defaultTemplate("Fonts")
+            ),
+        ]
     }
 }

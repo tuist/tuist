@@ -135,6 +135,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                         parser: resourceSynthesizer.parser,
                         templateString: templateString,
                         name: name,
+                        bundleName: project.options.disableBundleAccessors ? nil : "Bundle.module",
                         paths: paths
                     )
                 ),

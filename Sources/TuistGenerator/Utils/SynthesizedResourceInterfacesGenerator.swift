@@ -10,6 +10,7 @@ protocol SynthesizedResourceInterfacesGenerating {
         parser: ResourceSynthesizer.Parser,
         templateString: String,
         name: String,
+        bundleName: String?,
         paths: [AbsolutePath]
     ) throws -> String
 }
@@ -19,6 +20,7 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
         parser: ResourceSynthesizer.Parser,
         templateString: String,
         name: String,
+        bundleName: String?,
         paths: [AbsolutePath]
     ) throws -> String {
         let template = StencilSwiftTemplate(
@@ -32,10 +34,7 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
         var context = parser.stencilContext()
         context = try StencilContext.enrich(
             context: context,
-            parameters: [
-                "publicAccess": true,
-                "name": name,
-            ]
+            parameters: makeParams(name: name, bundleName: bundleName)
         )
         return try template.render(context)
     }
@@ -63,5 +62,15 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
         case .files:
             return try Files.Parser()
         }
+    }
+
+    private func makeParams(name: String, bundleName: String?) -> [String: Any] {
+        var params: [String: Any] = [:]
+        params["publicAccess"] = true
+        params["name"] = name
+        if let bundleName = bundleName {
+            params["bundle"] = bundleName
+        }
+        return params
     }
 }
