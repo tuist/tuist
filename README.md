@@ -1,6 +1,5 @@
 <div align="center">
 <img src="assets/header.gif"/>
-  <a href="#contributors-"><img src="https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square" alt="All contributors"></a>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
   <img src="https://img.shields.io/github/v/release/tuist/tuist?include_prereleases&style=flat-square" alt="Latest Version">
   <a href="http://community.tuist.io"><img src="https://img.shields.io/badge/community-tuist-blue?style=flat-square" alt="Community"></a>
@@ -11,10 +10,9 @@
   <img src="https://img.shields.io/github/commits-since/tuist/tuist/latest?style=flat-square" alt="Latest Commits">
   <a href="http://twitter.com/tuistio"><img src="https://img.shields.io/twitter/follow/tuistio?style=flat-square" alt="Twitter Followers"></a>
   <img src="https://img.shields.io/opencollective/sponsors/tuistapp?style=flat-square" alt="Sponsors">
-  <img src="https://img.shields.io/opencollective/all/tuistapp?style=flat-square" alt="Backers and sponsors">
+  <img src="https://img.shields.io/opencollective/backers/tuistapp?style=flat-square" alt="Backers">
   <img src="https://img.shields.io/github/license/tuist/tuist?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/Powered%20by-Tuist-blue" alt="Powered by Tuist">
-  <a href="#contributors-"><img src="https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square" alt="Contributors"></a>
 </div>
 
 ## What's Tuist 🕺
@@ -85,14 +83,20 @@ The financial sustainability of the project is possible thanks to the ongoing co
   <a href="https://angrynerds.co" target="_blank">
     <img src="assets/companies/angry_nerds_logo_black.svg" style="width: 110px;" hspace="8"/>
   </a>
-  <a href="https://www.compass.com/" target="_blank">
+  <a href="https://www.compass.com" target="_blank">
     <img src="assets/companies/Compass Black Logo.png" style="width: 110px;" hspace="8"/>
   </a>
   <a href="https://www.wefox.com" target="_blank">
     <img src="assets/companies/Wefox_2021.png" style="width: 110px;" hspace="8"/>
   </a>
-  <a href="https://www.hedvig.com/" target="_blank">
+  <a href="https://www.hedvig.com" target="_blank">
     <img src="assets/companies/Hedvig.svg" style="width: 110px;" hspace="8"/>
+  </a>
+  <a href="https://www.takeoutcentral.com" target="_blank">
+    <img src="assets/companies/takeout_central.svg" style="width: 110px;" hspace="8"/>
+  </a>
+  <a href="https://www.olx.com.br" target="_blank">
+    <img src="assets/companies/olx.svg" style="width: 60px;" hspace="8"/>
   </a>
 </div>
 

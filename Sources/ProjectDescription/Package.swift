@@ -54,7 +54,6 @@ extension Package {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - version: The minimum version requirement.
-    @available(*, deprecated, message: "Use Dependencies.swift instead")
     public static func package(url: String, from version: Version) -> Package {
         .package(url: url, .upToNextMajor(from: version))
     }
@@ -64,7 +63,6 @@ extension Package {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - requirement: A dependency requirement. See static methods on `Package.Dependency.Requirement` for available options.
-    @available(*, deprecated, message: "Use Dependencies.swift instead")
     public static func package(url: String, _ requirement: Package.Requirement) -> Package {
         .remote(url: url, requirement: requirement)
     }
@@ -80,7 +78,6 @@ extension Package {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - range: The custom version range requirement.
-    @available(*, deprecated, message: "Use Dependencies.swift instead")
     public static func package(url: String, _ range: Range<Version>) -> Package {
         .remote(url: url, requirement: .range(from: range.lowerBound, to: range.upperBound))
     }
@@ -96,7 +93,6 @@ extension Package {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - range: The closed version range requirement.
-    @available(*, deprecated, message: "Use Dependencies.swift instead")
     public static func package(url: String, _ range: ClosedRange<Version>) -> Package {
         // Increase upperbound's patch version by one.
         let upper = range.upperBound
@@ -116,7 +112,6 @@ extension Package {
     /// on multiple tightly coupled packages.
     ///
     /// - Parameter path: The path of the package.
-    @available(*, deprecated, message: "Use Dependencies.swift instead")
     public static func package(path: Path) -> Package {
         .local(path: path)
     }

@@ -28,11 +28,13 @@ extension Workspace {
     public static func test(
         name: String = "Workspace",
         projects: [Path] = [],
+        schemes: [Scheme] = [],
         additionalFiles: [FileElement] = []
     ) -> Workspace {
         Workspace(
             name: name,
             projects: projects,
+            schemes: schemes,
             additionalFiles: additionalFiles
         )
     }

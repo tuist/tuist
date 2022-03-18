@@ -32,15 +32,16 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     }
 
     public func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace {
-        var workspace: ProjectDescription.Workspace
+        let loadedWorkspace: ProjectDescription.Workspace?
         do {
-            workspace = try manifestLoader.loadWorkspace(at: path)
+            loadedWorkspace = try manifestLoader.loadWorkspace(at: path)
         } catch ManifestLoaderError.manifestNotFound {
-            workspace = Workspace(name: "Workspace", projects: ["."])
+            loadedWorkspace = nil
         }
 
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let projectPaths = try workspace.projects.map {
+        let projectSearchPaths = (loadedWorkspace?.projects ?? ["."])
+        let projectPaths = try projectSearchPaths.map {
             try generatorPaths.resolve(path: $0)
         }.flatMap {
             fileHandler.glob($0, glob: "")
@@ -51,8 +52,13 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         }
 
         let projects = try loadProjects(paths: projectPaths)
-        if let workspaceName = projects.projects[path]?.name {
-            workspace = Workspace(name: workspaceName, projects: ["."])
+        let workspace: ProjectDescription.Workspace
+        if let loadedWorkspace = loadedWorkspace {
+            workspace = loadedWorkspace
+        } else {
+            let projectName = projects.projects[path]?.name
+            let workspaceName = projectName ?? "Workspace"
+            workspace = Workspace(name: workspaceName, projects: projectSearchPaths)
         }
         return LoadedWorkspace(
             path: path,
