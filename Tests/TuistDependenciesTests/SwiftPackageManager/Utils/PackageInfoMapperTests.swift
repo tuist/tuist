@@ -2389,6 +2389,38 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenDepndenciesContainsCustomConfiguration_mapsToProjectWithCustomConfig() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            baseSettings:  Settings(
+                configurations: [.release: nil, .debug: nil, .init(name: "Custom", variant: .release): nil],
+                defaultSettings: .recommended
+            ),
+            swiftToolsVersion: "4.4.0"
+        )
+
+        XCTAssertNotNil(project?.settings?.configurations.first(where: { $0.name == "Custom" }))
+    }
+
     func testMap_whenTargetsWithDefaultHardcodedMapping() throws {
         let basePath = try temporaryPath()
         let testTargets = ["Nimble", "Quick", "RxTest", "RxTest-Dynamic", "SnapshotTesting", "TempuraTesting", "TSCTestSupport"]
