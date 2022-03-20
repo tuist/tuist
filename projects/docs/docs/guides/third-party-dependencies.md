@@ -111,3 +111,7 @@ When Swift Packages are integrated into your project's graph, there are some heu
 
 - Tuist defaults to using `iOS` as a platform when there's more than one platform defined in the `Dependencies.swift` and the package manifest file. This is currently a limitation of Tuist [because it does not support multi-platform targets](https://github.com/tuist/tuist/issues/397).
 - Tuist defaults to using the product type defined in the `SwiftPackageManagerDependencies.productTypes` property if the linking type is not defined in the package manifest file. If no product type is defined in `SwiftPackageManagerDependencies`, Tuist will default to a `.staticFramework`
+
+## Known issues and workarounds
+
+- To use Swift Packages from an Objective-C target, add the path to the public headers of the package to the `HEADER_SEARCH_PATHS` of the target. The path will be something like `Tuist/Dependencies/SwiftPackageManager/.build/checkouts/<your_package>/<the_headers>` ([workaround for issue 4180](https://github.com/tuist/tuist/issues/4180))
