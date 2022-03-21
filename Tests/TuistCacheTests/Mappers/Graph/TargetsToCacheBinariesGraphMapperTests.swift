@@ -123,7 +123,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
             contentHashes
         }
-        
+
         let cache = MockCacheStorage()
         cacheFactory.cacheStub = { _ in cache }
 
@@ -213,7 +213,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
 
         let cache = MockCacheStorage()
         cacheFactory.cacheStub = { _ in cache }
-        
+
         cache.existsStub = { name, hash in
             switch hash {
             case bHash:
@@ -251,7 +251,6 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let project = Project.test(path: path)
 
-        
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cacheStorageProvider: cacheStorageProvider,

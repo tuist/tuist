@@ -42,7 +42,7 @@ final class CacheStorageProvider: CacheStorageProviding {
             cloudAuthenticationController: CloudAuthenticationController()
         )
     }
-    
+
     init(
         config: Config,
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
@@ -69,7 +69,10 @@ final class CacheStorageProvider: CacheStorageProviding {
                 storages.append(storage)
             } else {
                 if cloudConfig.options.contains(.optional) {
-                    logger.warning("Authentication token for tuist cloud was not found. Skipping using remote cache. Run `tuist cloud auth` to authenticate yourself.")
+                    logger
+                        .warning(
+                            "Authentication token for tuist cloud was not found. Skipping using remote cache. Run `tuist cloud auth` to authenticate yourself."
+                        )
                 } else {
                     throw CacheStorageProviderError.tokenNotFound
                 }

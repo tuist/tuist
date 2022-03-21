@@ -27,7 +27,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
 
     /// Cache storage provider.
     private let cacheStorageProvider: CacheStorageProviding
-    
+
     /// Cache factory
     private let cacheFactory: CacheFactoring
 
