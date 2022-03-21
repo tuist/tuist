@@ -31,7 +31,7 @@ final class CacheStorageProvider: CacheStorageProviding {
 
     /// Cached response for list of storages
     @Atomic
-    private static var storages: [CacheStoring]?
+    static var storages: [CacheStoring]?
 
     convenience init(
         config: Config

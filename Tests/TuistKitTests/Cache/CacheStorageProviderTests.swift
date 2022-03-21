@@ -27,6 +27,7 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         cacheDirectoryProviderFactory = nil
         cloudAuthenticationController = nil
         subject = nil
+        CacheStorageProvider.storages = nil
         super.tearDown()
     }
 
@@ -92,7 +93,7 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
     func test_when_config_is_without_cloud() throws {
         // Given
         subject = CacheStorageProvider(
-            config: .test(),
+            config: .test(cloud: nil),
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
             cloudAuthenticationController: cloudAuthenticationController
         )

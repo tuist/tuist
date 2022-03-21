@@ -321,7 +321,7 @@ extension XCTestCase {
         line: UInt = #line
     ) -> T? {
         guard let element = collection.first(where: { $0 is T }) else {
-            XCTFail("Didn't found an element of type \(String(describing: element))", file: file, line: line)
+            XCTFail("Didn't find an element of type \(String(describing: element))", file: file, line: line)
             return nil
         }
         return element as? T
