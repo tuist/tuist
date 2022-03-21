@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix linking of staticFramework in messagesExtensions [#4211](https://github.com/tuist/tuist/pull/4211) by [paulsamuels](https://github.com/paulsamuels).
 - Fix ignored Workspace generation when Project exists on the same directory [#4236](https://github.com/tuist/tuist/pull/4236) by [adellibovi](https://github.com/adellibovi).
+- Fix warnings when generating SwiftPackageManager dependencies with Swift 5.6 [#4261](https://github.com/tuist/tuist/pull/4261) by [@danyf90](https://github.com/danyf90)
 
 ## 3.0.1 - Bravissimo
 
