@@ -71,7 +71,7 @@ class WeeklyDigestJob < ApplicationJob
 
   def more_or_less_percentage_in_words(percentage)
     if percentage < 0
-      "#{percentage}% less than"
+      "#{-percentage}% less than"
     else
       "#{percentage}% more than"
     end
