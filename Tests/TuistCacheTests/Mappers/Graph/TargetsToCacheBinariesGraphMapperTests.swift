@@ -10,21 +10,24 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
-    var cache: MockCacheStorage!
-    var cacheGraphContentHasher: MockCacheGraphContentHasher!
-    var cacheGraphMutator: MockCacheGraphMutator!
-    var subject: TargetsToCacheBinariesGraphMapper!
-    var config: Config!
+    private var cacheStorageProvider: MockCacheStorageProvider!
+    private var cacheFactory: MockCacheFactory!
+    private var cacheGraphContentHasher: MockCacheGraphContentHasher!
+    private var cacheGraphMutator: MockCacheGraphMutator!
+    private var subject: TargetsToCacheBinariesGraphMapper!
+    private var config: Config!
 
     override func setUp() {
         super.setUp()
-        cache = MockCacheStorage()
+        config = .test()
+        cacheStorageProvider = MockCacheStorageProvider(config: config)
+        cacheFactory = MockCacheFactory()
         cacheGraphContentHasher = MockCacheGraphContentHasher()
         cacheGraphMutator = MockCacheGraphMutator()
-        config = .test()
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
-            cache: cache,
+            cacheStorageProvider: cacheStorageProvider,
+            cacheFactory: cacheFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             sources: [],
             cacheProfile: .test(),
@@ -35,7 +38,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
 
     override func tearDown() {
         config = nil
-        cache = nil
+        cacheStorageProvider = nil
+        cacheFactory = nil
         cacheGraphContentHasher = nil
         cacheGraphMutator = nil
         subject = nil
@@ -46,7 +50,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         // Given
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
-            cache: cache,
+            cacheStorageProvider: cacheStorageProvider,
+            cacheFactory: cacheFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             sources: ["B", "C", "D"],
             cacheProfile: .test(),
@@ -118,6 +123,9 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
             contentHashes
         }
+        
+        let cache = MockCacheStorage()
+        cacheFactory.cacheStub = { _ in cache }
 
         cache.existsStub = { name, hash in
             switch hash {
@@ -203,6 +211,9 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             contentHashes
         }
 
+        let cache = MockCacheStorage()
+        cacheFactory.cacheStub = { _ in cache }
+        
         cache.existsStub = { name, hash in
             switch hash {
             case bHash:
@@ -240,9 +251,11 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let project = Project.test(path: path)
 
+        
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
-            cache: cache,
+            cacheStorageProvider: cacheStorageProvider,
+            cacheFactory: cacheFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             sources: [],
             cacheProfile: .test(),

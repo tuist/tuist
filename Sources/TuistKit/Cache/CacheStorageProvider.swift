@@ -29,13 +29,34 @@ final class CacheStorageProvider: CacheStorageProviding {
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let cloudAuthenticationController: CloudAuthenticationControlling
 
-    init(config: Config) {
+    /// Cached response for list of storages
+    @Atomic
+    private static var storages: [CacheStoring]?
+
+    convenience init(
+        config: Config
+    ) {
+        self.init(
+            config: config,
+            cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
+            cloudAuthenticationController: CloudAuthenticationController()
+        )
+    }
+    
+    init(
+        config: Config,
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
+        cloudAuthenticationController: CloudAuthenticationControlling
+    ) {
         self.config = config
-        cacheDirectoryProviderFactory = CacheDirectoriesProviderFactory()
-        cloudAuthenticationController = CloudAuthenticationController()
+        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.cloudAuthenticationController = cloudAuthenticationController
     }
 
     func storages() throws -> [CacheStoring] {
+        if let storages = Self.storages {
+            return storages
+        }
         let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
         var storages: [CacheStoring] = [CacheLocalStorage(cacheDirectoriesProvider: cacheDirectoriesProvider)]
         if let cloudConfig = config.cloud {
@@ -54,6 +75,7 @@ final class CacheStorageProvider: CacheStorageProviding {
                 }
             }
         }
+        Self.storages = storages
         return storages
     }
 }

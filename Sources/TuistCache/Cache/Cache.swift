@@ -5,20 +5,20 @@ import TuistCore
 public final class Cache: CacheStoring {
     // MARK: - Attributes
 
-    private let storageProvider: CacheStorageProviding
+    private let storages: [CacheStoring]
 
     // MARK: - Init
 
     /// Initializes the cache with its attributes.
-    /// - Parameter storageProvider: An instance that returns the storages to be used.
-    public init(storageProvider: CacheStorageProviding) {
-        self.storageProvider = storageProvider
+    /// - Parameter storages: List of storages for retrieving and saving items.
+    public init(storages: [CacheStoring]) {
+        self.storages = storages
     }
 
     // MARK: - CacheStoring
 
     public func exists(name: String, hash: String) async throws -> Bool {
-        for storage in try storageProvider.storages() {
+        for storage in storages {
             if try await storage.exists(name: name, hash: hash) {
                 return true
             }
@@ -28,7 +28,7 @@ public final class Cache: CacheStoring {
 
     public func fetch(name: String, hash: String) async throws -> AbsolutePath {
         var throwingError: Error = CacheLocalStorageError.compiledArtifactNotFound(hash: hash)
-        for storage in try storageProvider.storages() {
+        for storage in storages {
             do {
                 return try await storage.fetch(name: name, hash: hash)
             } catch {
@@ -40,7 +40,7 @@ public final class Cache: CacheStoring {
     }
 
     public func store(name: String, hash: String, paths: [AbsolutePath]) async throws {
-        _ = try await storageProvider.storages().concurrentMap { storage in
+        _ = try await storages.concurrentMap { storage in
             try await storage.store(name: name, hash: hash, paths: paths)
         }
     }
