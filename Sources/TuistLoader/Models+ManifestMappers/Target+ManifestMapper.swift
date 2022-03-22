@@ -57,7 +57,7 @@ extension TuistGraph.Target {
             generatorPaths: generatorPaths
         )
 
-        let (resources, resourcesPlaygrounds, resourcesCoreDatas, invalidResourceGlobs) = try resourcesAndPlaygrounds(
+        let (resources, resourcesPlaygrounds, resourcesCoreDatas, invalidResourceGlobs) = try resourcesAndOthers(
             manifest: manifest,
             generatorPaths: generatorPaths
         )
@@ -119,7 +119,7 @@ extension TuistGraph.Target {
 
     // MARK: - Fileprivate
 
-    fileprivate static func resourcesAndPlaygrounds(
+    fileprivate static func resourcesAndOthers(
         manifest: ProjectDescription.Target,
         generatorPaths: GeneratorPaths
         // swiftlint:disable:next large_tuple
@@ -134,7 +134,7 @@ extension TuistGraph.Target {
         }
 
         var invalidResourceGlobs: [InvalidGlob] = []
-        var resourcesWithoutPlaygrounds: [TuistGraph.ResourceFileElement] = []
+        var filteredResources: [TuistGraph.ResourceFileElement] = []
         var playgrounds: Set<AbsolutePath> = []
         var coreDataModels: Set<AbsolutePath> = []
 
@@ -154,21 +154,20 @@ extension TuistGraph.Target {
         allResources
             .forEach { fileElement in
                 switch fileElement {
-                case .folderReference: resourcesWithoutPlaygrounds.append(fileElement)
+                case .folderReference: filteredResources.append(fileElement)
                 case let .file(path, _):
                     if path.extension == "playground" {
                         playgrounds.insert(path)
                     } else if path.extension == "xcdatamodeld" {
                         coreDataModels.insert(path)
-                        resourcesWithoutPlaygrounds.append(fileElement)
                     } else {
-                        resourcesWithoutPlaygrounds.append(fileElement)
+                        filteredResources.append(fileElement)
                     }
                 }
             }
 
         return (
-            resources: resourcesWithoutPlaygrounds,
+            resources: filteredResources,
             playgrounds: Array(playgrounds),
             coreDataModels: Array(coreDataModels),
             invalidResourceGlobs: invalidResourceGlobs

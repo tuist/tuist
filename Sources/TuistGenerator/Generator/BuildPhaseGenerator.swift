@@ -392,13 +392,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
                 element = (group, path)
             } else if !isLproj {
-                if let fileReference = fileElements.file(path: buildFilePath) {
-                    element = (fileReference, buildFilePath)
-                } else if let fileReference = fileElements.elements[buildFilePath] as? XCVersionGroup {
-                    element = (fileReference, buildFilePath)
-                } else {
+                guard let fileReference = fileElements.file(path: buildFilePath) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
+                element = (fileReference, buildFilePath)
             }
             if let element = element, buildFilesCache.contains(element.path) == false {
                 let tags = resource.tags.sorted()
