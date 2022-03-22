@@ -14,4 +14,8 @@ class Organization < ApplicationRecord
   def name
     account.name
   end
+
+  def pending_invitations
+    invitations.where(accepted: false)
+  end
 end

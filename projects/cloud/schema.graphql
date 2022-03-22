@@ -190,6 +190,7 @@ type Organization {
   id: ID!
   invitations: [Invitation!]!
   name: String!
+  pendingInvitations: [Invitation!]!
   users: [User!]!
 }
 

@@ -31,10 +31,14 @@ const AcceptInvitationPage = observer(() => {
         primaryAction={{
           content: 'Accept the invitation',
           onAction: async () => {
+            console.log('Accept me!');
+            // TODO: Handle error (e.g. when already signed in but with a different account than the invitation was meant for)
             const slug =
               await acceptInvitationPageStore.acceptInvitation(
                 token ?? '',
               );
+            console.log('ola');
+            console.log(slug);
             navigate(`/${slug}`);
           },
         }}

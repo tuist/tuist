@@ -159,6 +159,7 @@ export type Organization = {
   id: Scalars['ID'];
   invitations: Array<Invitation>;
   name: Scalars['String'];
+  pendingInvitations: Array<Invitation>;
   users: Array<User>;
 };
 
@@ -337,7 +338,7 @@ export type OrganizationQueryVariables = Exact<{
 }>;
 
 
-export type OrganizationQuery = { __typename?: 'Query', organization?: { __typename?: 'Organization', id: string, users: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } }>, admins: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } }>, invitations: Array<{ __typename?: 'Invitation', inviteeEmail: string, id: string, accepted: boolean }> } | null };
+export type OrganizationQuery = { __typename?: 'Query', organization?: { __typename?: 'Organization', id: string, users: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } }>, admins: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } }>, pendingInvitations: Array<{ __typename?: 'Invitation', inviteeEmail: string, id: string, accepted: boolean }> } | null };
 
 export type ProjectQueryVariables = Exact<{
   name: Scalars['String'];
@@ -774,7 +775,7 @@ export const OrganizationDocument = gql`
     admins {
       ...UserBasicInfo
     }
-    invitations {
+    pendingInvitations {
       inviteeEmail
       id
       accepted

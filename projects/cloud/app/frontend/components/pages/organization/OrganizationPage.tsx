@@ -125,7 +125,7 @@ const OrganizationPage = observer(() => {
         .includes(userStore.me.id)) ??
     false;
   const [organizationPageStore] = useState(
-    () => new OrganizationPageStore(),
+    () => new OrganizationPageStore(organizationStore),
   );
   return (
     <Page
@@ -180,6 +180,38 @@ const OrganizationPage = observer(() => {
           }}
         />
       </Card>
+      {organizationPageStore.isPendingInvitationsVisible && (
+        <Card title="Pending invitations">
+          <ResourceList
+            resourceName={{
+              singular: 'pending invitation',
+              plural: 'pending invitations',
+            }}
+            items={organizationStore.pendingInvitations}
+            renderItem={({ inviteeEmail, id }) => {
+              return (
+                <div style={{ padding: '10px 100px 10px 20px' }}>
+                  <Stack alignment={'center'}>
+                    <Avatar customer size="medium" />
+                    <Stack.Item fill={true}>
+                      <TextStyle variation="strong">
+                        {inviteeEmail}
+                      </TextStyle>
+                    </Stack.Item>
+                    <Button
+                      onClick={() => {
+                        organizationStore.resendInvite(id);
+                      }}
+                    >
+                      Resend invite
+                    </Button>
+                  </Stack>
+                </div>
+              );
+            }}
+          />
+        </Card>
+      )}
     </Page>
   );
 });

@@ -7,7 +7,9 @@ import {
   Role,
   RemoveUserDocument,
   InviteUserDocument,
-} from '../graphql/types';
+  ResendInviteMutation,
+  ResendInviteDocument,
+} from '@/graphql/types';
 
 class OrganizationStore {
   organization: OrganizationQuery['organization'];
@@ -19,14 +21,12 @@ class OrganizationStore {
     makeAutoObservable(this);
   }
 
-  get invitations() {
+  get pendingInvitations() {
     if (!this.organization) {
       return [];
     }
 
-    return this.organization.invitations.filter(
-      (invitation) => !invitation.accepted,
-    );
+    return this.organization.pendingInvitations;
   }
 
   get members() {
@@ -155,6 +155,17 @@ class OrganizationStore {
         input: {
           inviteeEmail: memberEmail,
           organizationId: this.organization.id,
+        },
+      },
+    });
+  }
+
+  async resendInvite(invitationId: string) {
+    await this.client.mutate<ResendInviteMutation>({
+      mutation: ResendInviteDocument,
+      variables: {
+        input: {
+          invitationId,
         },
       },
     });
