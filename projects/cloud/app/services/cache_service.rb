@@ -90,8 +90,7 @@ class CacheService < ApplicationService
         iv: Base64.decode64(s3_bucket.iv)
       )
       Aws::S3::Client.new(
-        # TODO: Add this to database and make it configurable
-        region: "eu-central-1",
+        region: s3_bucket.region,
         access_key_id: s3_bucket.access_key_id,
         secret_access_key: secret_access_key,
       )

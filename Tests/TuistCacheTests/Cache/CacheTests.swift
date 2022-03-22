@@ -16,9 +16,7 @@ final class CacheTests: TuistUnitTestCase {
 
         firstCache = MockCacheStorage()
         secondCache = MockCacheStorage()
-        let cacheStorageProvider = MockCacheStorageProvider(config: Config.test())
-        cacheStorageProvider.storagesStub = [firstCache, secondCache]
-        subject = Cache(storageProvider: cacheStorageProvider)
+        subject = Cache(storages: [firstCache, secondCache])
     }
 
     override func tearDown() {

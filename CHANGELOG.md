@@ -6,13 +6,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Add `.optional` option to `.cloud` [#4262](https://github.com/tuist/tuist/pull/4262) by [@fortmarek](https://github.com/fortmarek).
 - Add support for SPM dependencies with Core Data models. [#4237](https://github.com/tuist/tuist/pull/4237) by [@adellibovi](https://github.com/adellibovi)
 - Add support for Core Data models in Resources. [#4237](https://github.com/tuist/tuist/pull/4237) by [@adellibovi](https://github.com/adellibovi)
 
 ### Fixed
 
-- Fix linking of staticFramework in messagesExtensions [#4211](https://github.com/tuist/tuist/pull/4211) by [paulsamuels](https://github.com/paulsamuels).
-- Fix ignored Workspace generation when Project exists on the same directory [#4236](https://github.com/tuist/tuist/pull/4236) by [adellibovi](https://github.com/adellibovi).
+- Fix linking of staticFramework in messagesExtensions [#4211](https://github.com/tuist/tuist/pull/4211) by [@paulsamuels](https://github.com/paulsamuels).
+- Fix ignored Workspace generation when Project exists on the same directory [#4236](https://github.com/tuist/tuist/pull/4236) by [@adellibovi](https://github.com/adellibovi).
 
 ## 3.0.1 - Bravissimo
 

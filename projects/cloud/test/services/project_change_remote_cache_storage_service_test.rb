@@ -11,7 +11,8 @@ class ProjectChangeRemoteCacheStorageServiceTest < ActiveSupport::TestCase
     project = Project.create!(name: "tuist-project-2", account_id: account.id, token: Devise.friendly_token.first(16))
     s3_bucket = account.s3_buckets.create!(
       name: "s3-bucket",
-      access_key_id: "access key id"
+      access_key_id: "access key id",
+      region: "region"
     )
 
     # When
@@ -30,7 +31,8 @@ class ProjectChangeRemoteCacheStorageServiceTest < ActiveSupport::TestCase
     project = Project.create!(name: "tuist-project", account_id: account.id, token: Devise.friendly_token.first(16))
     s3_bucket = account.s3_buckets.create!(
       name: "s3-bucket",
-      access_key_id: "access key id"
+      access_key_id: "access key id",
+      region: "region"
     )
 
     # When / Then
@@ -45,7 +47,8 @@ class ProjectChangeRemoteCacheStorageServiceTest < ActiveSupport::TestCase
     account = user.account
     s3_bucket = account.s3_buckets.create!(
       name: "s3-bucket",
-      access_key_id: "access key id"
+      access_key_id: "access key id",
+      region: "region"
     )
 
     # When / Then

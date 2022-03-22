@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class S3BucketCreateService < ApplicationService
-  attr_reader :name, :access_key_id, :secret_access_key, :account_id
+  attr_reader :name, :access_key_id, :secret_access_key, :region, :account_id
 
   module Error
     class DuplicatedName < CloudError
@@ -17,11 +17,12 @@ class S3BucketCreateService < ApplicationService
     end
   end
 
-  def initialize(name:, access_key_id:, secret_access_key:, account_id:)
+  def initialize(name:, access_key_id:, secret_access_key:, region:, account_id:)
     super()
     @name = name
     @access_key_id = access_key_id
     @secret_access_key = secret_access_key
+    @region = region
     @account_id = account_id
   end
 
@@ -41,7 +42,8 @@ class S3BucketCreateService < ApplicationService
       name: name,
       access_key_id: access_key_id,
       secret_access_key: Base64.encode64(encrypted_secret_access_key),
-      iv: Base64.encode64(iv)
+      iv: Base64.encode64(iv),
+      region: region
     )
   end
 end
