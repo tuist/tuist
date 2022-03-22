@@ -69,25 +69,27 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         )
     }
 
-    func test_upToComponentMatchingRegex() throws {
-        // Given
-        let path = AbsolutePath("/path/to/sources/Playground.playground/Content.swift")
+    func test_isInOpaqueDirectory() throws {
+        XCTAssertFalse(AbsolutePath("/test/directory.bundle").isInOpaqueDirectory)
+        XCTAssertFalse(AbsolutePath("/test/directory.xcassets").isInOpaqueDirectory)
+        XCTAssertFalse(AbsolutePath("/test/directory.xcassets").isInOpaqueDirectory)
+        XCTAssertFalse(AbsolutePath("/test/directory.scnassets").isInOpaqueDirectory)
+        XCTAssertFalse(AbsolutePath("/test/directory.xcdatamodeld").isInOpaqueDirectory)
+        XCTAssertFalse(AbsolutePath("/test/directory.docc").isInOpaqueDirectory)
+        XCTAssertFalse(AbsolutePath("/test/directory.playground").isInOpaqueDirectory)
+        XCTAssertFalse(AbsolutePath("/test/directory.bundle").isInOpaqueDirectory)
 
-        // When
-        let got = path.upToComponentMatching(regex: ".+\\.playground")
+        XCTAssertFalse(AbsolutePath("/").isInOpaqueDirectory)
+        XCTAssertFalse(AbsolutePath("/test/directory.notopaque/file.notopaque").isInOpaqueDirectory)
+        XCTAssertFalse(AbsolutePath("/test/directory.notopaque/directory.bundle").isInOpaqueDirectory)
+        XCTAssertTrue(AbsolutePath("/test/directory.notopaque/directory.bundle/file.png").isInOpaqueDirectory)
 
-        // Then
-        XCTAssertEqual(got, "/path/to/sources/Playground.playground")
-    }
-
-    func test_upToComponentMatchingExtension() throws {
-        // Given
-        let path = AbsolutePath("/path/to/sources/Playground.playground/Content.swift")
-
-        // When
-        let got = path.upToComponentMatching(extension: "playground")
-
-        // Then
-        XCTAssertEqual(got, "/path/to/sources/Playground.playground")
+        XCTAssertTrue(AbsolutePath("/test/directory.bundle/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(AbsolutePath("/test/directory.xcassets/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(AbsolutePath("/test/directory.xcassets/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(AbsolutePath("/test/directory.scnassets/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(AbsolutePath("/test/directory.xcdatamodeld/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(AbsolutePath("/test/directory.docc/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(AbsolutePath("/test/directory.playground/file.png").isInOpaqueDirectory)
     }
 }

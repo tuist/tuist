@@ -57,11 +57,10 @@ extension TuistGraph.Target {
             generatorPaths: generatorPaths
         )
 
-        var (resources, resourcesPlaygrounds, invalidResourceGlobs) = try resourcesAndPlaygrounds(
+        let (resources, resourcesPlaygrounds, resourcesCoreDatas, invalidResourceGlobs) = try resourcesAndOthers(
             manifest: manifest,
             generatorPaths: generatorPaths
         )
-        resources = resourcesFlatteningBundles(resources: resources)
 
         if !invalidResourceGlobs.isEmpty {
             throw TargetManifestMapperError.invalidResourcesGlob(targetName: name, invalidGlobs: invalidResourceGlobs)
@@ -79,7 +78,7 @@ extension TuistGraph.Target {
 
         let coreDataModels = try manifest.coreDataModels.map {
             try TuistGraph.CoreDataModel.from(manifest: $0, generatorPaths: generatorPaths)
-        }
+        } + resourcesCoreDatas.map { try TuistGraph.CoreDataModel.from(path: $0) }
 
         let scripts = try manifest.scripts.map {
             try TuistGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
@@ -120,18 +119,24 @@ extension TuistGraph.Target {
 
     // MARK: - Fileprivate
 
-    fileprivate static func resourcesAndPlaygrounds(
+    fileprivate static func resourcesAndOthers(
         manifest: ProjectDescription.Target,
         generatorPaths: GeneratorPaths
         // swiftlint:disable:next large_tuple
-    ) throws -> (resources: [TuistGraph.ResourceFileElement], playgrounds: [AbsolutePath], invalidResourceGlobs: [InvalidGlob]) {
+    ) throws -> (
+        resources: [TuistGraph.ResourceFileElement],
+        playgrounds: [AbsolutePath],
+        coreDataModels: [AbsolutePath],
+        invalidResourceGlobs: [InvalidGlob]
+    ) {
         let resourceFilter = { (path: AbsolutePath) -> Bool in
             TuistGraph.Target.isResource(path: path)
         }
 
         var invalidResourceGlobs: [InvalidGlob] = []
-        var resourcesWithoutPlaygrounds: [TuistGraph.ResourceFileElement] = []
+        var filteredResources: [TuistGraph.ResourceFileElement] = []
         var playgrounds: Set<AbsolutePath> = []
+        var coreDataModels: Set<AbsolutePath> = []
 
         let allResources = try (manifest.resources?.resources ?? []).flatMap { manifest -> [TuistGraph.ResourceFileElement] in
             do {
@@ -146,40 +151,27 @@ extension TuistGraph.Target {
             }
         }
 
-        allResources.forEach { fileElement in
-            switch fileElement {
-            case .folderReference: resourcesWithoutPlaygrounds.append(fileElement)
-            case let .file(path, _):
-                if path.pathString.contains(".playground/") {
-                    playgrounds.insert(path.upToComponentMatching(extension: "playground"))
-                } else {
-                    resourcesWithoutPlaygrounds.append(fileElement)
+        allResources
+            .forEach { fileElement in
+                switch fileElement {
+                case .folderReference: filteredResources.append(fileElement)
+                case let .file(path, _):
+                    if path.extension == "playground" {
+                        playgrounds.insert(path)
+                    } else if path.extension == "xcdatamodeld" {
+                        coreDataModels.insert(path)
+                    } else {
+                        filteredResources.append(fileElement)
+                    }
                 }
             }
-        }
 
         return (
-            resources: resourcesWithoutPlaygrounds,
+            resources: filteredResources,
             playgrounds: Array(playgrounds),
+            coreDataModels: Array(coreDataModels),
             invalidResourceGlobs: invalidResourceGlobs
         )
-    }
-
-    fileprivate static func resourcesFlatteningBundles(resources: [TuistGraph.ResourceFileElement])
-        -> [TuistGraph.ResourceFileElement]
-    {
-        Array(resources.reduce(into: Set<TuistGraph.ResourceFileElement>()) { flattenedResources, resourceElement in
-            switch resourceElement {
-            case let .file(path, _):
-                if path.pathString.contains(".bundle/") {
-                    flattenedResources.formUnion([.file(path: path.upToComponentMatching(extension: "bundle"))])
-                } else {
-                    flattenedResources.formUnion([resourceElement])
-                }
-            case .folderReference:
-                flattenedResources.formUnion([resourceElement])
-            }
-        })
     }
 
     fileprivate static func sourcesAndPlaygrounds(
@@ -204,8 +196,8 @@ extension TuistGraph.Target {
         } ?? [])
 
         allSources.forEach { sourceFile in
-            if sourceFile.path.pathString.contains(".playground/") {
-                playgrounds.insert(sourceFile.path.upToComponentMatching(extension: "playground"))
+            if sourceFile.path.extension == "playground" {
+                playgrounds.insert(sourceFile.path)
             } else {
                 sourcesWithoutPlaygrounds.append(sourceFile)
             }

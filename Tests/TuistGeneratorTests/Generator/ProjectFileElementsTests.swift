@@ -163,7 +163,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     func test_addElement_xcassets() throws {
         // Given
         let element = GroupFileElement(
-            path: "/path/myfolder/resources/assets.xcassets/foo/bar.png",
+            path: "/path/myfolder/resources/assets.xcassets",
             group: .group(name: "Project")
         )
 
@@ -207,7 +207,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     func test_addElement_scnassets() throws {
         // Given
         let element = GroupFileElement(
-            path: "/path/myfolder/resources/assets.scnassets/foo.exr",
+            path: "/path/myfolder/resources/assets.scnassets",
             group: .group(name: "Project")
         )
 
@@ -223,42 +223,6 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let projectGroup = groups.sortedMain.group(named: "Project")
         XCTAssertEqual(projectGroup?.flattenedChildren, [
             "myfolder/resources/assets.scnassets",
-        ])
-    }
-
-    func test_addElement_xcassets_and_scnassets_multiple_files() throws {
-        // Given
-        let resources = [
-            "/path/myfolder/resources/assets.xcassets/foo/a.png",
-            "/path/myfolder/resources/assets.xcassets/foo/abc/b.png",
-            "/path/myfolder/resources/assets.xcassets/foo/def/c.png",
-            "/path/myfolder/resources/assets.xcassets",
-            "/path/myfolder/resources/assets.scnassets/foo.exr",
-            "/path/myfolder/resources/assets.scnassets/bar.exr",
-            "/path/myfolder/resources/assets.scnassets",
-        ]
-        let elements = resources.map {
-            GroupFileElement(
-                path: AbsolutePath($0),
-                group: .group(name: "Project")
-            )
-        }
-
-        // When
-        try elements.forEach {
-            try subject.generate(
-                fileElement: $0,
-                groups: groups,
-                pbxproj: pbxproj,
-                sourceRootPath: "/path"
-            )
-        }
-
-        // Then
-        let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren.sorted(), [
-            "myfolder/resources/assets.scnassets",
-            "myfolder/resources/assets.xcassets",
         ])
     }
 
@@ -683,7 +647,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         pbxproj.add(object: group)
 
         // When
-        subject.addPlayground(
+        subject.addFileElement(
             from: from,
             fileAbsolutePath: fileAbsolutePath,
             fileRelativePath: fileRelativePath,
@@ -766,11 +730,6 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     func test_isLocalized() {
         let path = AbsolutePath("/path/to/es.lproj")
         XCTAssertTrue(subject.isLocalized(path: path))
-    }
-
-    func test_isPlayground() {
-        let path = AbsolutePath("/path/to/MyPlayground.playground")
-        XCTAssertTrue(subject.isPlayground(path: path))
     }
 
     func test_isVersionGroup() {

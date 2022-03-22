@@ -367,7 +367,7 @@ class ProjectFileElements {
                 toGroup: toGroup,
                 pbxproj: pbxproj
             )
-        } else if !(isFolderTypeFileSource(path: absolutePath) || isLeaf) {
+        } else if !isLeaf {
             return addGroupElement(
                 from: from,
                 folderAbsolutePath: absolutePath,
@@ -376,17 +376,6 @@ class ProjectFileElements {
                 toGroup: toGroup,
                 pbxproj: pbxproj
             )
-        } else if isPlayground(path: absolutePath) {
-            addPlayground(
-                from: from,
-                fileAbsolutePath: absolutePath,
-                fileRelativePath: relativePath,
-                name: name,
-                toGroup: toGroup,
-                pbxproj: pbxproj
-            )
-            return nil
-
         } else {
             addFileElement(
                 from: from,
@@ -521,32 +510,13 @@ class ProjectFileElements {
         pbxproj: PBXProj
     ) {
         let lastKnownFileType = fileAbsolutePath.extension.flatMap { Xcode.filetype(extension: $0) }
-        let file = PBXFileReference(
-            sourceTree: .group,
-            name: name,
-            lastKnownFileType: lastKnownFileType,
-            path: fileRelativePath.pathString
-        )
-        pbxproj.add(object: file)
-        toGroup.children.append(file)
-        elements[fileAbsolutePath] = file
-    }
-
-    func addPlayground(
-        from _: AbsolutePath,
-        fileAbsolutePath: AbsolutePath,
-        fileRelativePath: RelativePath,
-        name: String?,
-        toGroup: PBXGroup,
-        pbxproj: PBXProj
-    ) {
-        let lastKnownFileType = fileAbsolutePath.extension.flatMap { Xcode.filetype(extension: $0) }
+        let xcLanguageSpecificationIdentifier = lastKnownFileType == "file.playground" ? "xcode.lang.swift" : nil
         let file = PBXFileReference(
             sourceTree: .group,
             name: name,
             lastKnownFileType: lastKnownFileType,
             path: fileRelativePath.pathString,
-            xcLanguageSpecificationIdentifier: "xcode.lang.swift"
+            xcLanguageSpecificationIdentifier: xcLanguageSpecificationIdentifier
         )
         pbxproj.add(object: file)
         toGroup.children.append(file)
@@ -604,33 +574,8 @@ class ProjectFileElements {
         path.extension == "lproj"
     }
 
-    func isPlayground(path: AbsolutePath) -> Bool {
-        path.extension == "playground"
-    }
-
     func isVersionGroup(path: AbsolutePath) -> Bool {
         path.extension == "xcdatamodeld"
-    }
-
-    func isFolderTypeFileSource(path: AbsolutePath) -> Bool {
-        isXcassets(path: path) || isDocCArchive(path: path) || isScnassets(path: path)
-    }
-
-    func isXcassets(path: AbsolutePath) -> Bool {
-        path.extension == "xcassets"
-    }
-
-    func isDocCArchive(path: AbsolutePath) -> Bool {
-        path.extension == "docc"
-    }
-
-    func isDocCTutorialFile(path: AbsolutePath) -> Bool {
-        // Skip the initial DocC source directory
-        !isDocCArchive(path: path) && path.pathString.contains(".docc")
-    }
-
-    func isScnassets(path: AbsolutePath) -> Bool {
-        path.extension == "scnassets"
     }
 
     /// Normalizes a path. Some paths have no direct representation in Xcode,

@@ -22,10 +22,27 @@ extension TuistGraph.CoreDataModel {
             } else if CoreDataVersionExtractor.isVersioned(at: modelPath) {
                 return try CoreDataVersionExtractor.version(fromVersionFileAtPath: modelPath)
             } else {
-                return modelPath.url.lastPathComponent.dropSuffix(".xcdatamodeld")
+                return modelPath.basenameWithoutExt
             }
         }()
 
+        return CoreDataModel(path: modelPath, versions: versions, currentVersion: currentVersion)
+    }
+}
+
+extension TuistGraph.CoreDataModel {
+    /// Maps a `.xcdatamodeld` package into a TuistGraph.CoreDataModel instance.
+    /// - Parameters:
+    ///   - path: The path for a `.xcdatamodeld` package.
+    static func from(path modelPath: AbsolutePath) throws -> TuistGraph.CoreDataModel {
+        let versions = FileHandler.shared.glob(modelPath, glob: "*.xcdatamodel")
+        let currentVersion: String = try {
+            if CoreDataVersionExtractor.isVersioned(at: modelPath) {
+                return try CoreDataVersionExtractor.version(fromVersionFileAtPath: modelPath)
+            } else {
+                return modelPath.basenameWithoutExt
+            }
+        }()
         return CoreDataModel(path: modelPath, versions: versions, currentVersion: currentVersion)
     }
 }
