@@ -6,5 +6,7 @@ module Types
     field :inviter, UserType, null: false
     field :organization, OrganizationType, null: false
     field :token, String, null: false
+    field :accepted, Boolean, null: false
+    field :id, ID, null: false
   end
 end

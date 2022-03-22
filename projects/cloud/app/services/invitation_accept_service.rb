@@ -21,7 +21,10 @@ class InvitationAcceptService < ApplicationService
     invitation = InvitationFetchService.call(token: token)
     raise Error::Unauthorized.new unless invitation.invitee_email == user.email
 
-    user.add_role(:user, invitation.organization)
+    ActiveRecord::Base.transaction do
+      user.add_role(:user, invitation.organization)
+      invitation.update(accepted: true)
+    end
     invitation.organization
   end
 end

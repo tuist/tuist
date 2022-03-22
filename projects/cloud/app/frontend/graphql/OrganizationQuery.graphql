@@ -7,5 +7,10 @@ query Organization($name: String!) {
     admins {
       ...UserBasicInfo
     }
+    invitations {
+      inviteeEmail
+      id
+      accepted
+    }
   }
 }

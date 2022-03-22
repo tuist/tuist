@@ -19,6 +19,16 @@ class OrganizationStore {
     makeAutoObservable(this);
   }
 
+  get invitations() {
+    if (!this.organization) {
+      return [];
+    }
+
+    return this.organization.invitations.filter(
+      (invitation) => !invitation.accepted,
+    );
+  }
+
   get members() {
     if (!this.organization) {
       return [];
