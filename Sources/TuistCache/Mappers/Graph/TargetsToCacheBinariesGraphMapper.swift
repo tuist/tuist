@@ -25,8 +25,11 @@ enum FocusTargetsGraphMapperError: FatalError, Equatable {
 public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
     // MARK: - Attributes
 
-    /// Cache.
-    private let cache: CacheStoring
+    /// Cache storage provider.
+    private let cacheStorageProvider: CacheStorageProviding
+
+    /// Cache factory
+    private let cacheFactory: CacheFactoring
 
     /// Graph content hasher.
     private let cacheGraphContentHasher: CacheGraphContentHashing
@@ -57,7 +60,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
     ) {
         self.init(
             config: config,
-            cache: Cache(storageProvider: cacheStorageProvider),
+            cacheStorageProvider: cacheStorageProvider,
             cacheGraphContentHasher: CacheGraphContentHasher(),
             sources: sources,
             cacheProfile: cacheProfile,
@@ -67,7 +70,8 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
 
     init(
         config: Config,
-        cache: CacheStoring,
+        cacheStorageProvider: CacheStorageProviding,
+        cacheFactory: CacheFactoring = CacheFactory(),
         cacheGraphContentHasher: CacheGraphContentHashing,
         sources: Set<String>,
         cacheProfile: TuistGraph.Cache.Profile,
@@ -75,7 +79,8 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         cacheGraphMutator: CacheGraphMutating = CacheGraphMutator()
     ) {
         self.config = config
-        self.cache = cache
+        self.cacheStorageProvider = cacheStorageProvider
+        self.cacheFactory = cacheFactory
         self.cacheGraphContentHasher = cacheGraphContentHasher
         self.cacheGraphMutator = cacheGraphMutator
         self.sources = sources
@@ -118,9 +123,11 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
     // MARK: - Helpers
 
     private func fetch(hashes: [GraphTarget: String]) async throws -> [GraphTarget: AbsolutePath] {
-        try await hashes.concurrentMap { target, hash -> (GraphTarget, AbsolutePath?) in
-            if try await self.cache.exists(name: target.target.name, hash: hash) {
-                let path = try await self.cache.fetch(name: target.target.name, hash: hash)
+        let storages = try cacheStorageProvider.storages()
+        let cache = cacheFactory.cache(storages: storages)
+        return try await hashes.concurrentMap { target, hash -> (GraphTarget, AbsolutePath?) in
+            if try await cache.exists(name: target.target.name, hash: hash) {
+                let path = try await cache.fetch(name: target.target.name, hash: hash)
                 return (target, path)
             } else {
                 return (target, nil)
