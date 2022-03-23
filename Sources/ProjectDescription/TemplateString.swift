@@ -43,14 +43,7 @@ extension TemplateString {
     /// Provides a template for existing project properties.
     ///
     /// - projectName: The name of the project.
-    public enum Token: String {
+    public enum Token: String, Equatable {
         case projectName = "${project_name}"
-    }
-}
-
-public func == (lhs: TemplateString.Token, rhs: TemplateString.Token) -> Bool {
-    switch (lhs, rhs) {
-    case (.projectName, .projectName):
-        return true
     }
 }
