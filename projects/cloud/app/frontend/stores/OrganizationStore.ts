@@ -8,8 +8,10 @@ import {
   InviteUserDocument,
   ResendInviteMutation,
   ResendInviteDocument,
+  InviteUserMutation,
 } from '@/graphql/types';
 import { OrganizationDetail, mapOrganizationDetail } from '@/models';
+import { mapPendingInvitation } from '@/models/PendingInvitation';
 
 class OrganizationStore {
   organization: OrganizationDetail | undefined;
@@ -141,7 +143,7 @@ class OrganizationStore {
     if (!this.organization) {
       return;
     }
-    await this.client.mutate({
+    const { data } = await this.client.mutate<InviteUserMutation>({
       mutation: InviteUserDocument,
       variables: {
         input: {
@@ -150,6 +152,13 @@ class OrganizationStore {
         },
       },
     });
+    if (data === null || data === undefined) {
+      return;
+    }
+    this.organization.pendingInvitations = [
+      mapPendingInvitation(data.inviteUser),
+      ...this.organization.pendingInvitations,
+    ];
   }
 
   async resendInvite(invitationId: string) {

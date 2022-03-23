@@ -307,14 +307,14 @@ export type InvitationQueryVariables = Exact<{
 }>;
 
 
-export type InvitationQuery = { __typename?: 'Query', invitation: { __typename?: 'Invitation', inviteeEmail: string, organization: { __typename?: 'Organization', name: string }, inviter: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } } } };
+export type InvitationQuery = { __typename?: 'Query', invitation: { __typename?: 'Invitation', inviteeEmail: string, id: string } };
 
 export type InviteUserMutationVariables = Exact<{
   input: InviteUserInput;
 }>;
 
 
-export type InviteUserMutation = { __typename?: 'Mutation', inviteUser: { __typename?: 'Invitation', inviteeEmail: string, inviter: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } }, organization: { __typename?: 'Organization', account: { __typename?: 'Account', name: string } } } };
+export type InviteUserMutation = { __typename?: 'Mutation', inviteUser: { __typename?: 'Invitation', inviteeEmail: string, id: string } };
 
 export type MeQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -580,16 +580,10 @@ export type CreateS3BucketMutationOptions = Apollo.BaseMutationOptions<CreateS3B
 export const InvitationDocument = gql`
     query Invitation($token: String!) {
   invitation(token: $token) {
-    organization {
-      name
-    }
-    inviteeEmail
-    inviter {
-      ...UserBasicInfo
-    }
+    ...PendingInvitation
   }
 }
-    ${UserBasicInfoFragmentDoc}`;
+    ${PendingInvitationFragmentDoc}`;
 
 /**
  * __useInvitationQuery__
@@ -621,18 +615,10 @@ export type InvitationQueryResult = Apollo.QueryResult<InvitationQuery, Invitati
 export const InviteUserDocument = gql`
     mutation InviteUser($input: InviteUserInput!) {
   inviteUser(input: $input) {
-    inviteeEmail
-    inviter {
-      ...UserBasicInfo
-    }
-    organization {
-      account {
-        name
-      }
-    }
+    ...PendingInvitation
   }
 }
-    ${UserBasicInfoFragmentDoc}`;
+    ${PendingInvitationFragmentDoc}`;
 export type InviteUserMutationFn = Apollo.MutationFunction<InviteUserMutation, InviteUserMutationVariables>;
 
 /**
