@@ -2,10 +2,10 @@
 
 ## Topics
 
-### Manage your Swift Package Manager dependencies
+### Managing Swift Package Manager dependencies
 
 - ``SwiftPackageManagerDependencies``
 
-### Manage your Carthage dependencies
+### Managing Carthage dependencies
 
 - ``CarthageDependencies``

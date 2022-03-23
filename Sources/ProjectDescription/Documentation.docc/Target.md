@@ -2,24 +2,29 @@
 
 ## Topics
 
-### Define your source files
+### Defining source files
 
 - ``SourceFilesList``
 - ``SourceFileGlob``
 
-### Define your headers
+### Defining headers
 
 - ``Headers``
 
-### Define your resources
+### Defining resources
 
 - ``ResourceFileElements``
 - ``ResourceFileElement``
 - ``ResourceSynthesizer``
 
-### Define target's dependencies
+### Defining target's dependencies
 
 - ``TargetDependency``
+
+### Configure build phases
+
+- ``CopyFilesAction``
+- ``TargetScript``
 
 ### Configuration
 

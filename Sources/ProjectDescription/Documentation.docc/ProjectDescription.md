@@ -19,12 +19,12 @@ from Swift Package Manager, Carthage or Cocoapods (see ``Dependencies`` for more
 
 ## Topics
 
-### Define your Manifest(s)
+### Defining Manifests
 
 - ``Project``
 - ``Workspace``
 
-### Manage your Dependencies
+### Managing Dependencies
 
 - ``Dependencies``
 
@@ -32,6 +32,6 @@ from Swift Package Manager, Carthage or Cocoapods (see ``Dependencies`` for more
 
 - ``Config``
 
-### Scaffold
+### Scaffolding
 
 - ``Template``

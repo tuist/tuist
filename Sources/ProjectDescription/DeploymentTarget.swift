@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - DeploymentTarget
 
-/// The `DeploymentTarget` model represents the minimum operating system version your product will support.
+/// A supported minimum deployment target.
 public enum DeploymentTarget: Codable, Hashable {
     /// The minimum iOS version and the list of devices your product will support.
     case iOS(targetVersion: String, devices: DeploymentDevice)

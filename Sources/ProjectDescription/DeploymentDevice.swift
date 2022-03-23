@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - DeploymentDevice
 
-/// Represents the device your product will support.
+/// A supported deployment device.
 public struct DeploymentDevice: OptionSet, Codable, Hashable {
     /// An iPhone device.
     public static let iphone = DeploymentDevice(rawValue: 1 << 0)

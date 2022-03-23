@@ -1,9 +1,6 @@
 import Foundation
 
-/// Resource file elements
-///
-/// - resources: list of resource file elements
-///
+/// A collection of resource file.
 public struct ResourceFileElements: Codable, Equatable {
     /// List of resource file elements
     public let resources: [ResourceFileElement]

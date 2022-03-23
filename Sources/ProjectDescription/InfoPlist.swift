@@ -1,6 +1,6 @@
 import Foundation
 
-/// The InfoPlist model represents a target's Info.plist file.
+/// A info plist from a file, a custom dictonary or a extended defaults.
 public enum InfoPlist: Codable, Equatable {
     /// It represents the values of the InfoPlist file dictionary.
     /// It ensures that the values used to define the content of the dynamically generated Info.plist files are valid

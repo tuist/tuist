@@ -1,6 +1,6 @@
 import Foundation
 
-/// Resource synthesizer encapsulates how resources with given `extensions` should be synthesized
+/// A resource synthesizer for given file extensions.
 ///
 /// For example to synthesize resource accessors for strings, you can use:
 /// - `.strings()` for tuist's default

@@ -1,6 +1,8 @@
 import Foundation
 
-/// It represents the scheme action that runs the built products on the supported platforms. It's initialized with the .runAction static method.
+/// An action that runs the built products.
+///
+/// It's initialized with the .runAction static method.
 public struct RunAction: Equatable, Codable {
     /// Indicates the build configuration the product should run with.
     public let configuration: ConfigurationName

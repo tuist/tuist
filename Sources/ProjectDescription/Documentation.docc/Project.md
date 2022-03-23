@@ -2,21 +2,17 @@
 
 ## Topics
 
-### Configure your target(s)
+### Configuring targets
 
 - ``Target``
 
-### Configure your scheme(s)
+### Configuring custom schemes
 
 - ``Scheme``
 
-### Configure your build phase(s)
-
-- ``CopyFilesAction``
-- ``TargetScript``
-
 ### Others
 
-- ``FileHeaderTemplate``
+- ``Options-swift.struct``
 - ``TestingOptions``
+- ``FileHeaderTemplate``
 - ``ResourceSynthesizer``
