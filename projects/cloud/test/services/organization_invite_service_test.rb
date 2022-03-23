@@ -131,7 +131,6 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
 
   test "resend invitation fails when not found" do
     # Given
-    invitee_email = "test1@cloud.tuist.io"
     organization = Organization.create!
     Account.create!(owner: organization, name: "tuist")
     inviter = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))

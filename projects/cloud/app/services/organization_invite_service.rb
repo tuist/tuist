@@ -97,6 +97,7 @@ class OrganizationInviteService < ApplicationService
       raise Error::OrganizationNotFound.new(organization_id)
     end
     raise Error::Unauthorized unless OrganizationPolicy.new(inviter, organization).update?
+
     organization
   end
 end
