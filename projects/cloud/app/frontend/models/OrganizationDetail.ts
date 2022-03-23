@@ -14,13 +14,13 @@ export interface OrganizationDetail {
 
 export const mapOrganizationDetail = ({
   id,
-  pendingInvitations,
+  invitations,
   admins,
   users,
 }: Organization) => {
   return {
     id,
-    pendingInvitations: pendingInvitations.map((pendingInvitation) =>
+    pendingInvitations: invitations.map((pendingInvitation) =>
       mapPendingInvitation(pendingInvitation),
     ),
     admins: admins.map((admin) => mapUserBasicInfo(admin)),

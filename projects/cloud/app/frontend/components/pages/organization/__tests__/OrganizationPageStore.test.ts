@@ -22,8 +22,8 @@ describe('OrganizationPageStore', () => {
 
   it('sets isPendingInvitationsVisible to false when there are pending invitations', () => {
     // Given
-    organizationStore.organization.pendingInvitations = [
-      { accepted: false, id: 'one', inviteeEmail: 'test@mail.com' },
+    organizationStore.organization!.pendingInvitations = [
+      { id: 'one', inviteeEmail: 'test@mail.com' },
     ];
 
     // When
@@ -39,14 +39,12 @@ describe('OrganizationPageStore', () => {
 
   it('sets isPendingInvitationsVisible to true when there are not pending invitations', () => {
     // Given
-    organizationStore.organization.pendingInvitations = [];
+    organizationStore.organization!.pendingInvitations = [];
 
     // When
     const organizationPageStore = new OrganizationPageStore(
       organizationStore,
     );
-    console.log(organizationStore);
-    console.log(organizationStore.organization.pendingInvitations);
 
     // Then
     expect(organizationPageStore.isPendingInvitationsVisible).toBe(

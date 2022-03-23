@@ -8,6 +8,5 @@ module Types
     field :admins, [UserType], null: false
     field :name, String, null: false
     field :invitations, [InvitationType], null: false
-    field :pending_invitations, [InvitationType], null: false
   end
 end

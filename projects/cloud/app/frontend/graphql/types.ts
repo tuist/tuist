@@ -69,7 +69,6 @@ export type CreateS3BucketInput = {
 
 export type Invitation = {
   __typename?: 'Invitation';
-  accepted: Scalars['Boolean'];
   id: Scalars['ID'];
   inviteeEmail: Scalars['ID'];
   inviter: User;
@@ -159,7 +158,6 @@ export type Organization = {
   id: Scalars['ID'];
   invitations: Array<Invitation>;
   name: Scalars['String'];
-  pendingInvitations: Array<Invitation>;
   users: Array<User>;
 };
 
@@ -338,9 +336,9 @@ export type OrganizationQueryVariables = Exact<{
 }>;
 
 
-export type OrganizationQuery = { __typename?: 'Query', organization?: { __typename?: 'Organization', id: string, users: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } }>, admins: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } }>, pendingInvitations: Array<{ __typename?: 'Invitation', inviteeEmail: string, id: string, accepted: boolean }> } | null };
+export type OrganizationQuery = { __typename?: 'Query', organization?: { __typename?: 'Organization', id: string, users: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } }>, admins: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } }>, invitations: Array<{ __typename?: 'Invitation', inviteeEmail: string, id: string }> } | null };
 
-export type PendingInvitationFragment = { __typename?: 'Invitation', inviteeEmail: string, id: string, accepted: boolean };
+export type PendingInvitationFragment = { __typename?: 'Invitation', inviteeEmail: string, id: string };
 
 export type ProjectQueryVariables = Exact<{
   name: Scalars['String'];
@@ -386,7 +384,6 @@ export const PendingInvitationFragmentDoc = gql`
     fragment PendingInvitation on Invitation {
   inviteeEmail
   id
-  accepted
 }
     `;
 export const S3BucketInfoFragmentDoc = gql`
@@ -784,7 +781,7 @@ export const OrganizationDocument = gql`
     admins {
       ...UserBasicInfo
     }
-    pendingInvitations {
+    invitations {
       ...PendingInvitation
     }
   }

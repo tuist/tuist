@@ -7,7 +7,7 @@ query Organization($name: String!) {
     admins {
       ...UserBasicInfo
     }
-    pendingInvitations {
+    invitations {
       ...PendingInvitation
     }
   }

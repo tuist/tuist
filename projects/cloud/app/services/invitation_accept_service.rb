@@ -23,7 +23,7 @@ class InvitationAcceptService < ApplicationService
 
     ActiveRecord::Base.transaction do
       user.add_role(:user, invitation.organization)
-      invitation.update(accepted: true)
+      invitation.delete
     end
     invitation.organization
   end

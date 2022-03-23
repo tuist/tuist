@@ -72,7 +72,6 @@ input CreateS3BucketInput {
 }
 
 type Invitation {
-  accepted: Boolean!
   id: ID!
   inviteeEmail: ID!
   inviter: User!
@@ -190,7 +189,6 @@ type Organization {
   id: ID!
   invitations: [Invitation!]!
   name: String!
-  pendingInvitations: [Invitation!]!
   users: [User!]!
 }
 
