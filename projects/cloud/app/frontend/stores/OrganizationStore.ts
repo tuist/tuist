@@ -2,7 +2,6 @@ import { ApolloClient } from '@apollo/client';
 import { makeAutoObservable, runInAction } from 'mobx';
 import {
   ChangeUserRoleDocument,
-  OrganizationQuery,
   OrganizationDocument,
   Role,
   RemoveUserDocument,
@@ -10,23 +9,16 @@ import {
   ResendInviteMutation,
   ResendInviteDocument,
 } from '@/graphql/types';
+import { OrganizationDetail, mapOrganizationDetail } from '@/models';
 
 class OrganizationStore {
-  organization: OrganizationQuery['organization'];
+  organization: OrganizationDetail | undefined;
 
   client: ApolloClient<object>;
 
   constructor(client: ApolloClient<object>) {
     this.client = client;
     makeAutoObservable(this);
-  }
-
-  get pendingInvitations() {
-    if (!this.organization) {
-      return [];
-    }
-
-    return this.organization.pendingInvitations;
   }
 
   get members() {
@@ -46,7 +38,7 @@ class OrganizationStore {
       return {
         id: user.id,
         email: user.email,
-        name: user.account.name,
+        name: user.accountName,
         avatarUrl: user.avatarUrl ?? undefined,
         role: Role.User,
       };
@@ -61,7 +53,7 @@ class OrganizationStore {
       return {
         id: user.id,
         email: user.email,
-        name: user.account.name,
+        name: user.accountName,
         avatarUrl: user.avatarUrl ?? undefined,
         role: Role.Admin,
       };
@@ -141,7 +133,7 @@ class OrganizationStore {
       variables: { name: organizationName },
     });
     runInAction(() => {
-      this.organization = data.organization;
+      this.organization = mapOrganizationDetail(data.organization);
     });
   }
 

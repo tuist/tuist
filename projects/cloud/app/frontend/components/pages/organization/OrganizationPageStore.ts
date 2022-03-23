@@ -5,7 +5,7 @@ class OrganizationPageStore {
   inviteeEmail = '';
   isInvitePopoverActive = false;
 
-  organizationStore: OrganizationStore;
+  private organizationStore: OrganizationStore;
 
   constructor(organizationStore: OrganizationStore) {
     this.organizationStore = organizationStore;
@@ -13,7 +13,10 @@ class OrganizationPageStore {
   }
 
   get isPendingInvitationsVisible() {
-    return this.organizationStore.pendingInvitations.length > 0;
+    return (
+      (this.organizationStore.organization?.pendingInvitations
+        .length ?? 0) > 0
+    );
   }
 
   invitePopoverClosed() {

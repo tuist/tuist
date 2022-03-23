@@ -187,7 +187,9 @@ const OrganizationPage = observer(() => {
               singular: 'pending invitation',
               plural: 'pending invitations',
             }}
-            items={organizationStore.pendingInvitations}
+            items={
+              organizationStore.organization?.pendingInvitations ?? []
+            }
             renderItem={({ inviteeEmail, id }) => {
               return (
                 <div style={{ padding: '10px 100px 10px 20px' }}>
@@ -198,13 +200,15 @@ const OrganizationPage = observer(() => {
                         {inviteeEmail}
                       </TextStyle>
                     </Stack.Item>
-                    <Button
-                      onClick={() => {
-                        organizationStore.resendInvite(id);
-                      }}
-                    >
-                      Resend invite
-                    </Button>
+                    {isAdmin && (
+                      <Button
+                        onClick={() => {
+                          organizationStore.resendInvite(id);
+                        }}
+                      >
+                        Resend invite
+                      </Button>
+                    )}
                   </Stack>
                 </div>
               );

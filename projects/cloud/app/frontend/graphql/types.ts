@@ -340,6 +340,8 @@ export type OrganizationQueryVariables = Exact<{
 
 export type OrganizationQuery = { __typename?: 'Query', organization?: { __typename?: 'Organization', id: string, users: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } }>, admins: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } }>, pendingInvitations: Array<{ __typename?: 'Invitation', inviteeEmail: string, id: string, accepted: boolean }> } | null };
 
+export type PendingInvitationFragment = { __typename?: 'Invitation', inviteeEmail: string, id: string, accepted: boolean };
+
 export type ProjectQueryVariables = Exact<{
   name: Scalars['String'];
   accountName: Scalars['String'];
@@ -380,6 +382,13 @@ export type UpdateS3BucketMutation = { __typename?: 'Mutation', updateS3Bucket: 
 
 export type UserBasicInfoFragment = { __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } };
 
+export const PendingInvitationFragmentDoc = gql`
+    fragment PendingInvitation on Invitation {
+  inviteeEmail
+  id
+  accepted
+}
+    `;
 export const S3BucketInfoFragmentDoc = gql`
     fragment S3BucketInfo on S3Bucket {
   id
@@ -776,13 +785,12 @@ export const OrganizationDocument = gql`
       ...UserBasicInfo
     }
     pendingInvitations {
-      inviteeEmail
-      id
-      accepted
+      ...PendingInvitation
     }
   }
 }
-    ${UserBasicInfoFragmentDoc}`;
+    ${UserBasicInfoFragmentDoc}
+${PendingInvitationFragmentDoc}`;
 
 /**
  * __useOrganizationQuery__

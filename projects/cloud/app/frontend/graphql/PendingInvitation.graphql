@@ -1,0 +1,5 @@
+fragment PendingInvitation on Invitation {
+    inviteeEmail
+    id
+    accepted
+}

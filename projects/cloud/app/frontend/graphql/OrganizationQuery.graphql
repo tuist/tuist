@@ -8,9 +8,7 @@ query Organization($name: String!) {
       ...UserBasicInfo
     }
     pendingInvitations {
-      inviteeEmail
-      id
-      accepted
+      ...PendingInvitation
     }
   }
 }
