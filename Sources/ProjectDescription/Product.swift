@@ -1,8 +1,6 @@
 import Foundation
 
-// MARK: - Product
-
-/// The type of build product.
+/// Possible products types.
 public enum Product: String, Codable, Equatable {
     /// An application.
     case app

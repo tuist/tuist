@@ -117,7 +117,7 @@ extension DefaultSettings {
 
 // MARK: - Settings
 
-/// A `Settings` object contains an optional dictionary with build settings and relative path to an .xcconfig file. It is initialized with the `.settings` static method.
+/// A group of settings configuration.
 public struct Settings: Equatable, Codable {
     /// A dictionary with build settings that are inherited from all the configurations.
     public let base: SettingsDictionary

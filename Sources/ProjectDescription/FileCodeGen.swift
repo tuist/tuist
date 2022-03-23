@@ -1,6 +1,6 @@
 import Foundation
 
-/// FileCodeGen: Soure file code generation attribues
+/// Options for source file code generation.
 public enum FileCodeGen: String, Codable, Equatable {
     /// Public codegen
     case `public`

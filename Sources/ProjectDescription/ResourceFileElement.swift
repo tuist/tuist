@@ -1,6 +1,6 @@
 import Foundation
 
-/// Resource file element
+/// A resource file element from a glob pattern or a folder reference.
 ///
 /// - glob: a glob pattern for files to include
 /// - folderReference: a single path to a directory

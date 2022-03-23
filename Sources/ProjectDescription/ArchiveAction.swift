@@ -1,6 +1,8 @@
 import Foundation
 
-/// It represents the scheme action to archive targets' products. It's initialized with the `.archiveAction` static method.
+/// An action that archives the built products.
+///
+/// It's initialized with the `.archiveAction` static method.
 public struct ArchiveAction: Equatable, Codable {
     /// Indicates the build configuration to run the archive with.
     public let configuration: ConfigurationName

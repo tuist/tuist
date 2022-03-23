@@ -1,6 +1,6 @@
 import Foundation
 
-/// Enum representing customizable file header template for Xcode built-in file templates
+/// A header template from a file or a string.
 ///
 /// Lets you define custom file header template for built-in Xcode templates, e.g. when you create new Swift file you can automatically have your custom define file header.
 ///

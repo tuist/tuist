@@ -1,6 +1,6 @@
-// MARK: - FileList
+import Foundation
 
-/// It represents a glob pattern that refers to source files and the compiler flags (if any) to be set in the build phase:
+/// A glob pattern representing source files and its compiler flags, if any.
 public struct SourceFileGlob: Codable, Equatable {
     /// Glob pattern to the source files.
     public let glob: Path
@@ -47,7 +47,7 @@ extension SourceFileGlob: ExpressibleByStringInterpolation {
     }
 }
 
-/// It represents a list of source files that are part of a target:
+/// A collection of source file globs.
 public struct SourceFilesList: Codable, Equatable {
     /// List glob patterns.
     public let globs: [SourceFileGlob]

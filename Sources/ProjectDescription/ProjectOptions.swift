@@ -1,7 +1,7 @@
 import Foundation
 
 extension Project {
-    /// Additional options related to the `Project`
+    /// Options to configure a project.
     public struct Options: Codable, Equatable {
         /// Configures automatic target schemes generation.
         public let automaticSchemesOptions: AutomaticSchemesOptions
