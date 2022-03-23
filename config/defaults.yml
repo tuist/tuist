@@ -21,6 +21,10 @@ production:
   urls:
     <<: *base_urls
     app: https://cloud.tuist.io
+  smpt_settings:
+    authentication: plain
+    address: smtp.eu.mailgun.org
+    port: 587
   domain: cloud.tuist.io
 test:
   <<: *development
