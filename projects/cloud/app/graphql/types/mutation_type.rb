@@ -22,6 +22,11 @@ module Types
       null: false,
       description: "Invite a user to a given organization",
       mutation: Mutations::InviteUser
+    field :resend_invite,
+      InvitationType,
+      null: false,
+      description: "Resend invite for a user to a given organization",
+      mutation: Mutations::ResendInvite
     field :accept_invitation,
       OrganizationType,
       null: false,

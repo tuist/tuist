@@ -26,7 +26,9 @@ extension TuistGraph.ResourceFileElement {
                 excluded.formUnion(globs)
             }
 
-            let files = try FileHandler.shared.throwingGlob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
+            let files = try FileHandler.shared
+                .throwingGlob(.root, glob: String(path.pathString.dropFirst()))
+                .filter { !$0.isInOpaqueDirectory }
                 .filter(includeFiles)
                 .filter { !excluded.contains($0) }
 

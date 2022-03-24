@@ -1,6 +1,6 @@
 import ProjectStore from '@/stores/ProjectStore';
 import RemoteCachePageStore from '../RemoteCachePageStore';
-import { Account, S3Bucket } from '@/models';
+import { S3Bucket } from '@/models';
 import { S3BucketInfoFragment } from '@/graphql/types';
 
 jest.mock('@apollo/client');
@@ -29,7 +29,7 @@ describe('RemoteCachePageStore', () => {
     };
   });
 
-  it('keeps apply changes button disabled when not all fields are filled', async () => {
+  it('keeps apply changes button disabled when not all fields are filled', () => {
     // Given
     const remoteCachePageStore = new RemoteCachePageStore(
       client,
@@ -46,7 +46,7 @@ describe('RemoteCachePageStore', () => {
     ).toBeTruthy();
   });
 
-  it('marks apply changes button enabled when all fields are filled', async () => {
+  it('marks apply changes button enabled when all fields are filled', () => {
     // Given
     const remoteCachePageStore = new RemoteCachePageStore(
       client,

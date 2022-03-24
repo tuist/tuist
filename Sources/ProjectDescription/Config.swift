@@ -1,4 +1,4 @@
-/// This model allows to configure Tuist.
+/// The configuration of your enviroment.
 public struct Config: Codable, Equatable {
     /// Generation options.
     public let generationOptions: GenerationOptions

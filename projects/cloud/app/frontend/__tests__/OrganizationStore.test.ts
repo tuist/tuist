@@ -1,26 +1,28 @@
 import OrganizationStore from '../stores/OrganizationStore';
 import { Role } from '../graphql/types';
+import { UserBasicInfo } from '@/models/UserBasicInfo';
+import { OrganizationDetail } from '@/models';
 
 jest.mock('@apollo/client');
 
 describe('OrganizationStore', () => {
-  const userOne = {
+  const userOne: UserBasicInfo = {
     id: 'user-1',
     email: 'user1@email.com',
-    name: 'User One',
-    account: { name: 'user-one' },
+    accountName: 'user-one',
+    avatarUrl: '',
   };
-  const userTwo = {
+  const userTwo: UserBasicInfo = {
     id: 'user-2',
     email: 'user2@email.com',
-    name: 'User Two',
-    account: { name: 'user-two' },
+    accountName: 'user-two',
+    avatarUrl: '',
   };
-  const admin = {
+  const admin: UserBasicInfo = {
     id: 'admin',
     email: 'admin@email.com',
-    name: 'Admin',
-    account: { name: 'admin' },
+    accountName: 'admin',
+    avatarUrl: '',
   };
 
   const client = {
@@ -35,32 +37,32 @@ describe('OrganizationStore', () => {
   it('loads organization', async () => {
     // Given
     const organization = {
-      __typename: 'Organization' as 'Organization' | undefined,
       id: 'organization-id',
       users: [userOne, userTwo],
       admins: [admin],
+      pendingInvitations: [],
     };
     const organizationStore = new OrganizationStore(client as any);
     const expectedUserOne = {
       role: Role.User,
       id: userOne.id,
       email: userOne.email,
-      name: userOne.account.name,
-      avatarUrl: undefined,
+      name: userOne.accountName,
+      avatarUrl: '',
     };
     const expectedUserTwo = {
       role: Role.User,
       id: userTwo.id,
       email: userTwo.email,
-      name: userTwo.account.name,
-      avatarUrl: undefined,
+      name: userTwo.accountName,
+      avatarUrl: '',
     };
     const expectedAdmin = {
       role: Role.Admin,
       id: admin.id,
       email: admin.email,
-      name: admin.account.name,
-      avatarUrl: undefined,
+      name: admin.accountName,
+      avatarUrl: '',
     };
 
     // When
@@ -86,6 +88,7 @@ describe('OrganizationStore', () => {
       id: 'organization-id',
       users: [userOne, userTwo],
       admins: [admin],
+      pendingInvitations: [],
     };
     const organizationStore = new OrganizationStore(client as any);
     organizationStore.organization = organization;
@@ -93,22 +96,22 @@ describe('OrganizationStore', () => {
       role: Role.User,
       id: userOne.id,
       email: userOne.email,
-      name: userOne.account.name,
-      avatarUrl: undefined,
+      name: userOne.accountName,
+      avatarUrl: '',
     };
     const expectedUserTwo = {
       role: Role.User,
       id: userTwo.id,
       email: userTwo.email,
-      name: userTwo.account.name,
-      avatarUrl: undefined,
+      name: userTwo.accountName,
+      avatarUrl: '',
     };
     const expectedUserThree = {
       role: Role.User,
       id: admin.id,
       email: admin.email,
-      name: admin.account.name,
-      avatarUrl: undefined,
+      name: admin.accountName,
+      avatarUrl: '',
     };
 
     // When
@@ -126,26 +129,26 @@ describe('OrganizationStore', () => {
   it('removes a user from the organization', async () => {
     // Given
     const organization = {
-      __typename: 'Organization' as 'Organization' | undefined,
       id: 'organization-id',
       users: [userOne, userTwo],
       admins: [admin],
-    };
+      pendingInvitations: [],
+    } as OrganizationDetail;
     const organizationStore = new OrganizationStore(client as any);
     organizationStore.organization = organization;
     const expectedUserOne = {
       role: Role.User,
       id: userOne.id,
       email: userOne.email,
-      name: userOne.account.name,
-      avatarUrl: undefined,
+      name: userOne.accountName,
+      avatarUrl: '',
     };
     const expectedAdmin = {
       role: Role.Admin,
       id: admin.id,
       email: admin.email,
-      name: admin.account.name,
-      avatarUrl: undefined,
+      name: admin.accountName,
+      avatarUrl: '',
     };
 
     // When

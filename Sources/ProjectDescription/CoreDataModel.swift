@@ -1,6 +1,6 @@
 import Foundation
 
-/// Core Data model.
+/// A Core Data model.
 public struct CoreDataModel: Codable, Equatable {
     /// Relative path to the model.
     public let path: Path

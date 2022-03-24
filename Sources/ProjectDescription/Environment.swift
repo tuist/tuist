@@ -1,5 +1,6 @@
 import Foundation
 
+/// A convenience structure to read environment variables.
 @dynamicMemberLookup
 public enum Environment {
     public enum Value: Equatable {

@@ -22,7 +22,8 @@ final class CacheWarmService {
     func run(path: String?, profile: String?, xcframeworks: Bool, targets: Set<String>, dependenciesOnly: Bool) async throws {
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
-        let cache = Cache(storageProvider: CacheStorageProvider(config: config))
+        let storages = try CacheStorageProvider(config: config).storages()
+        let cache = Cache(storages: storages)
         let contentHasher = CacheContentHasher()
         let cacheController: CacheControlling
         if xcframeworks {

@@ -6,6 +6,7 @@ import FirebaseAnalytics
 import FirebaseCore
 import FirebaseDatabase
 import FirebaseFirestore
+import IterableSDK
 
 public enum AppKit {
     public static func start() {
@@ -26,5 +27,7 @@ public enum AppKit {
 
         // Use FirebaseFirestore to make sure it links fine
         _ = Firestore.firestore()
+
+        _ = IterableSDK.IterableAPI.sdkVersion
     }
 }

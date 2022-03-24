@@ -1,6 +1,6 @@
 import Foundation
 
-/// It represents the target headers.
+/// A group of public, private and project headers.
 public struct Headers: Codable, Equatable {
     /// Determine how to resolve cases, when the same files found in different header scopes
     public enum AutomaticExclusionRule: Int, Codable {

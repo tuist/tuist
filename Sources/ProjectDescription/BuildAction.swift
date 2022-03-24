@@ -1,6 +1,8 @@
 import Foundation
 
-/// It represents the scheme action that builds targets. It's initialized with the `.buildAction` static method.
+/// An action that builds products.
+///
+/// It's initialized with the `.buildAction` static method.
 public struct BuildAction: Equatable, Codable {
     /// A list of targets to build, which are defined in the project.
     public let targets: [TargetReference]
