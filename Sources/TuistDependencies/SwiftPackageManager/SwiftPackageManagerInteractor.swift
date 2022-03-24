@@ -135,7 +135,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         dependencies: TuistGraph.SwiftPackageManagerDependencies,
         swiftToolsVersion: TSCUtility.Version?
     ) throws {
-        let isLegacy = Version(string: System.shared.swiftVersion()) < Version(5, 6, 0)
+        let isLegacy = TSCUtility.Version(string: try System.shared.swiftVersion())! < TSCUtility.Version(5, 6, 0)
 
         // copy `Package.resolved` directory from lockfiles folder
         if fileHandler.exists(pathsProvider.destinationPackageResolvedPath) {
