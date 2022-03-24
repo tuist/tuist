@@ -27,6 +27,11 @@ module Types
       null: false,
       description: "Resend invite for a user to a given organization",
       mutation: Mutations::ResendInvite
+    field :cancel_invite,
+      InvitationType,
+      null: false,
+      description: "Cancel invite for a user to a given organization",
+      mutation: Mutations::CancelInvite
     field :accept_invitation,
       OrganizationType,
       null: false,

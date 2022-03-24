@@ -111,6 +111,8 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     Account.create!(owner: organization, name: "tuist")
     inviter = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
     inviter.add_role(:admin, organization)
+    resender = User.create!(email: "test1@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    resender.add_role(:admin, organization)
     invitation = inviter.invitations.create!(
       invitee_email: invitee_email,
       organization_id: organization.id,
@@ -121,6 +123,7 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     # When
     got = OrganizationInviteService.new.resend_invite(
       invitation_id: invitation.id,
+      resender: resender
     )
 
     # Then
@@ -133,13 +136,55 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     # Given
     organization = Organization.create!
     Account.create!(owner: organization, name: "tuist")
-    inviter = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
-    inviter.add_role(:admin, organization)
+    resender = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    resender.add_role(:admin, organization)
 
     # When / Then
     assert_raises(OrganizationInviteService::Error::InvitationNotFound) do
       OrganizationInviteService.new.resend_invite(
-        invitation_id: 0
+        invitation_id: 0,
+        resender: resender
+      )
+    end
+  end
+
+  test "cancel invitation" do
+    # Given
+    invitee_email = "test1@cloud.tuist.io"
+    organization = Organization.create!
+    Account.create!(owner: organization, name: "tuist")
+    remover = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    remover.add_role(:admin, organization)
+    invitation = remover.invitations.create!(
+      invitee_email: invitee_email,
+      organization_id: organization.id,
+      token: "token"
+    )
+
+    # When
+    got = OrganizationInviteService.new.cancel_invite(
+      invitation_id: invitation.id,
+      remover: remover
+    )
+
+    # Then
+    assert_equal got.inviter, remover
+    assert_equal got.invitee_email, invitee_email
+    assert_equal got.organization, organization
+  end
+
+  test "cancel invitation when invitation does not exist" do
+    # Given
+    organization = Organization.create!
+    Account.create!(owner: organization, name: "tuist")
+    remover = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    remover.add_role(:admin, organization)
+
+    # When / Then
+    assert_raises(OrganizationInviteService::Error::InvitationNotFound) do
+      OrganizationInviteService.new.cancel_invite(
+        invitation_id: 0,
+        remover: remover
       )
     end
   end
