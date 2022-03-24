@@ -49,13 +49,11 @@ class OrganizationInviteService < ApplicationService
     end
   end
 
-  def resend_invite(invitation_id:)
-    begin
-      invitation = Invitation.find(invitation_id)
-    rescue ActiveRecord::RecordNotFound
-      raise Error::InvitationNotFound.new(invitation_id)
-    end
-    organization = find_organization(organization_id: invitation.organization.id, inviter: invitation.inviter)
+  def resend_invite(invitation_id:, resender:)
+    invitation = find_invitation(invitation_id)
+    organization = find_organization(invitation.organization.id)
+    raise Error::Unauthorized unless OrganizationPolicy.new(resender, organization).update?
+
     InvitationMailer
       .invitation_mail(
         inviter: invitation.inviter,
@@ -67,8 +65,18 @@ class OrganizationInviteService < ApplicationService
     invitation
   end
 
+  def cancel_invite(invitation_id:, remover:)
+    invitation = find_invitation(invitation_id)
+    organization = find_organization(invitation.organization_id)
+    raise Error::Unauthorized unless OrganizationPolicy.new(remover, organization).update?
+
+    invitation.delete
+  end
+
   def invite(inviter:, invitee_email:, organization_id:)
-    organization = find_organization(organization_id: organization_id, inviter: inviter)
+    organization = find_organization(organization_id)
+    raise Error::Unauthorized unless OrganizationPolicy.new(inviter, organization).update?
+
     token = Devise.friendly_token.first(16)
     begin
       invitation = inviter.invitations.create!(
@@ -90,14 +98,21 @@ class OrganizationInviteService < ApplicationService
     invitation
   end
 
-  private def find_organization(organization_id:, inviter:)
+  private def find_invitation(invitation_id)
+    begin
+      invitation = Invitation.find(invitation_id)
+    rescue ActiveRecord::RecordNotFound
+      raise Error::InvitationNotFound.new(invitation_id)
+    end
+    invitation
+  end
+
+  private def find_organization(organization_id)
     begin
       organization = Organization.find(organization_id)
     rescue ActiveRecord::RecordNotFound
       raise Error::OrganizationNotFound.new(organization_id)
     end
-    raise Error::Unauthorized unless OrganizationPolicy.new(inviter, organization).update?
-
     organization
   end
 end

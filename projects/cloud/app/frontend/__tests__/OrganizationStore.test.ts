@@ -1,7 +1,12 @@
 import OrganizationStore from '../stores/OrganizationStore';
-import { Role } from '../graphql/types';
+import {
+  CancelInviteMutation,
+  InviteUserMutation,
+  Role,
+} from '../graphql/types';
 import { UserBasicInfo } from '@/models/UserBasicInfo';
 import { OrganizationDetail } from '@/models';
+import { PendingInvitation } from '@/models/PendingInvitation';
 
 jest.mock('@apollo/client');
 
@@ -24,14 +29,33 @@ describe('OrganizationStore', () => {
     accountName: 'admin',
     avatarUrl: '',
   };
+  const invitationOne: PendingInvitation = {
+    id: 'id-one',
+    inviteeEmail: 'mail1@test.com',
+  };
+  const invitationTwo: PendingInvitation = {
+    id: 'id-two',
+    inviteeEmail: 'mail2@test.com',
+  };
 
   const client = {
     query: jest.fn(),
     mutate: jest.fn(),
   };
 
+  let organizationStore: OrganizationStore;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    const organization = {
+      __typename: 'Organization' as 'Organization' | undefined,
+      id: 'organization-id',
+      users: [userOne, userTwo],
+      admins: [admin],
+      pendingInvitations: [invitationOne, invitationTwo],
+    };
+    organizationStore = new OrganizationStore(client as any);
+    organizationStore.organization = organization;
   });
 
   it('loads organization', async () => {
@@ -157,5 +181,51 @@ describe('OrganizationStore', () => {
     // Then
     expect(organizationStore.admins).toEqual([expectedAdmin]);
     expect(organizationStore.users).toEqual([expectedUserOne]);
+  });
+
+  it('adds invited member to pending invitations', async () => {
+    // Given
+    const newInvitation: PendingInvitation = {
+      id: 'id-new',
+      inviteeEmail: 'new@test.com',
+    };
+    client.mutate.mockReturnValueOnce({
+      data: {
+        inviteUser: {
+          __typename: 'Invitation',
+          id: newInvitation.id,
+          inviteeEmail: newInvitation.inviteeEmail,
+        },
+      } as InviteUserMutation,
+    });
+
+    // When
+    await organizationStore.inviteMember('mail2test.com');
+
+    // Then
+    expect(
+      organizationStore.organization?.pendingInvitations,
+    ).toEqual([newInvitation, invitationOne, invitationTwo]);
+  });
+
+  it('cancels invitation', async () => {
+    // Given
+    client.mutate.mockReturnValueOnce({
+      data: {
+        cancelInvite: {
+          __typename: 'Invitation',
+          id: invitationTwo.id,
+          inviteeEmail: invitationTwo.inviteeEmail,
+        },
+      } as CancelInviteMutation,
+    });
+
+    // When
+    await organizationStore.cancelInvite(invitationTwo.id);
+
+    // Then
+    expect(
+      organizationStore.organization?.pendingInvitations,
+    ).toEqual([invitationOne]);
   });
 });
