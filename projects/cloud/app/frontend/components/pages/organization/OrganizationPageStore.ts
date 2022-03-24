@@ -1,11 +1,22 @@
+import OrganizationStore from '@/stores/OrganizationStore';
 import { makeAutoObservable } from 'mobx';
 
 class OrganizationPageStore {
   inviteeEmail = '';
   isInvitePopoverActive = false;
 
-  constructor() {
+  private organizationStore: OrganizationStore;
+
+  constructor(organizationStore: OrganizationStore) {
+    this.organizationStore = organizationStore;
     makeAutoObservable(this);
+  }
+
+  get isPendingInvitationsVisible() {
+    return (
+      (this.organizationStore.organization?.pendingInvitations
+        .length ?? 0) > 0
+    );
   }
 
   invitePopoverClosed() {

@@ -2,15 +2,19 @@ import { ApolloClient } from '@apollo/client';
 import { makeAutoObservable, runInAction } from 'mobx';
 import {
   ChangeUserRoleDocument,
-  OrganizationQuery,
   OrganizationDocument,
   Role,
   RemoveUserDocument,
   InviteUserDocument,
-} from '../graphql/types';
+  ResendInviteMutation,
+  ResendInviteDocument,
+  InviteUserMutation,
+} from '@/graphql/types';
+import { OrganizationDetail, mapOrganizationDetail } from '@/models';
+import { mapPendingInvitation } from '@/models/PendingInvitation';
 
 class OrganizationStore {
-  organization: OrganizationQuery['organization'];
+  organization: OrganizationDetail | undefined;
 
   client: ApolloClient<object>;
 
@@ -36,7 +40,7 @@ class OrganizationStore {
       return {
         id: user.id,
         email: user.email,
-        name: user.account.name,
+        name: user.accountName,
         avatarUrl: user.avatarUrl ?? undefined,
         role: Role.User,
       };
@@ -51,7 +55,7 @@ class OrganizationStore {
       return {
         id: user.id,
         email: user.email,
-        name: user.account.name,
+        name: user.accountName,
         avatarUrl: user.avatarUrl ?? undefined,
         role: Role.Admin,
       };
@@ -131,7 +135,7 @@ class OrganizationStore {
       variables: { name: organizationName },
     });
     runInAction(() => {
-      this.organization = data.organization;
+      this.organization = mapOrganizationDetail(data.organization);
     });
   }
 
@@ -139,12 +143,30 @@ class OrganizationStore {
     if (!this.organization) {
       return;
     }
-    await this.client.mutate({
+    const { data } = await this.client.mutate<InviteUserMutation>({
       mutation: InviteUserDocument,
       variables: {
         input: {
           inviteeEmail: memberEmail,
           organizationId: this.organization.id,
+        },
+      },
+    });
+    if (data === null || data === undefined) {
+      return;
+    }
+    this.organization.pendingInvitations = [
+      mapPendingInvitation(data.inviteUser),
+      ...this.organization.pendingInvitations,
+    ];
+  }
+
+  async resendInvite(invitationId: string) {
+    await this.client.mutate<ResendInviteMutation>({
+      mutation: ResendInviteDocument,
+      variables: {
+        input: {
+          invitationId,
         },
       },
     });

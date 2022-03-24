@@ -21,29 +21,64 @@ class OrganizationInviteService < ApplicationService
         "Organization with id #{organization_id} was not found"
       end
     end
-  end
 
-  def initialize(inviter:, invitee_email:, organization_id:)
-    super()
-    @inviter = inviter
-    @invitee_email = invitee_email
-    @organization_id = organization_id
-  end
+    class InvitationNotFound < CloudError
+      attr_reader :invitation_id
 
-  def call
-    begin
-      organization = Organization.find(organization_id)
-    rescue ActiveRecord::RecordNotFound
-      raise Error::OrganizationNotFound.new(organization_id)
+      def initialize(invitation_id)
+        @invitation_id = invitation_id
+      end
+
+      def message
+        "Invitation with id #{invitation_id} was not found"
+      end
     end
-    raise Error::Unauthorized unless OrganizationPolicy.new(inviter, organization).update?
 
+    class DuplicateInvitation < CloudError
+      attr_reader :invitee_email, :organization_id
+
+      def initialize(invitee_email, organization_id)
+        @invitee_email = invitee_email
+        @organization_id = organization_id
+      end
+
+      def message
+        "User with email #{invitee_email} has already been to organization with id #{organization_id}. \
+        Consider resending the invite instead."
+      end
+    end
+  end
+
+  def resend_invite(invitation_id:)
+    begin
+      invitation = Invitation.find(invitation_id)
+    rescue ActiveRecord::RecordNotFound
+      raise Error::InvitationNotFound.new(invitation_id)
+    end
+    organization = find_organization(organization_id: invitation.organization.id, inviter: invitation.inviter)
+    InvitationMailer
+      .invitation_mail(
+        inviter: invitation.inviter,
+        invitee_email: invitation.invitee_email,
+        organization: organization,
+        token: invitation.token
+      )
+      .deliver_now
+    invitation
+  end
+
+  def invite(inviter:, invitee_email:, organization_id:)
+    organization = find_organization(organization_id: organization_id, inviter: inviter)
     token = Devise.friendly_token.first(16)
-    invitation = inviter.invitations.create!(
-      invitee_email: invitee_email,
-      organization_id: organization.id,
-      token: token
-    )
+    begin
+      invitation = inviter.invitations.create!(
+        invitee_email: invitee_email,
+        organization_id: organization.id,
+        token: token
+      )
+    rescue ActiveRecord::RecordNotUnique
+      raise Error::DuplicateInvitation.new(invitee_email, organization.id)
+    end
     InvitationMailer
       .invitation_mail(
         inviter: inviter,
@@ -53,5 +88,16 @@ class OrganizationInviteService < ApplicationService
       )
       .deliver_now
     invitation
+  end
+
+  private def find_organization(organization_id:, inviter:)
+    begin
+      organization = Organization.find(organization_id)
+    rescue ActiveRecord::RecordNotFound
+      raise Error::OrganizationNotFound.new(organization_id)
+    end
+    raise Error::Unauthorized unless OrganizationPolicy.new(inviter, organization).update?
+
+    organization
   end
 end
