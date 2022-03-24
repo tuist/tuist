@@ -9,6 +9,8 @@ import {
   ResendInviteMutation,
   ResendInviteDocument,
   InviteUserMutation,
+  CancelInviteMutation,
+  CancelInviteDocument,
 } from '@/graphql/types';
 import { OrganizationDetail, mapOrganizationDetail } from '@/models';
 import { mapPendingInvitation } from '@/models/PendingInvitation';
@@ -159,6 +161,30 @@ class OrganizationStore {
       mapPendingInvitation(data.inviteUser),
       ...this.organization.pendingInvitations,
     ];
+  }
+
+  async cancelInvite(invitationId: string) {
+    if (this.organization === undefined) {
+      return;
+    }
+
+    const { data } = await this.client.mutate<CancelInviteMutation>({
+      mutation: CancelInviteDocument,
+      variables: {
+        input: {
+          invitationId,
+        },
+      },
+    });
+
+    if (data === null || data === undefined) {
+      return;
+    }
+
+    this.organization.pendingInvitations =
+      this.organization.pendingInvitations.filter(
+        (pendingInvitation) => pendingInvitation.id !== invitationId,
+      );
   }
 
   async resendInvite(invitationId: string) {

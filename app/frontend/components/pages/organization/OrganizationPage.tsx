@@ -200,14 +200,25 @@ const OrganizationPage = observer(() => {
                         {inviteeEmail}
                       </TextStyle>
                     </Stack.Item>
+
                     {isAdmin && (
-                      <Button
-                        onClick={() => {
-                          organizationStore.resendInvite(id);
-                        }}
-                      >
-                        Resend invite
-                      </Button>
+                      <Stack>
+                        <Button
+                          onClick={() => {
+                            organizationStore.resendInvite(id);
+                          }}
+                        >
+                          Resend invite
+                        </Button>
+                        <Button
+                          destructive
+                          onClick={() => {
+                            organizationStore.cancelInvite(id);
+                          }}
+                        >
+                          Cancel invite
+                        </Button>
+                      </Stack>
                     )}
                   </Stack>
                 </div>
