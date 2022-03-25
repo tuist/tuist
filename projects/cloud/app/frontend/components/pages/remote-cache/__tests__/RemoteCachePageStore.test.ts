@@ -2,9 +2,11 @@ import ProjectStore from '@/stores/ProjectStore';
 import RemoteCachePageStore from '../RemoteCachePageStore';
 import { S3Bucket } from '@/models';
 import { S3BucketInfoFragment } from '@/graphql/types';
+import { copyToClipboard } from '@/utilities/copyToClipboard';
 
 jest.mock('@apollo/client');
 jest.mock('@/stores/ProjectStore');
+jest.mock('@/utilities/copyToClipboard');
 
 describe('RemoteCachePageStore', () => {
   const client = {
@@ -26,6 +28,7 @@ describe('RemoteCachePageStore', () => {
         },
       },
       remoteCacheStorage: null,
+      token: '',
     };
   });
 
@@ -78,6 +81,7 @@ describe('RemoteCachePageStore', () => {
         },
       },
       remoteCacheStorage: null,
+      token: '',
     };
 
     // When
@@ -109,6 +113,42 @@ describe('RemoteCachePageStore', () => {
 
     // Then
     expect(remoteCachePageStore.selectedOption).toEqual('bucket');
+  });
+
+  it('copy pastes project token of the remote cache', () => {
+    // Given
+    projectStore.project = {
+      id: 'project',
+      account: {
+        id: 'account-id',
+        name: 'acount-name',
+        owner: {
+          id: 'owner',
+          type: 'organization',
+        },
+      },
+      remoteCacheStorage: null,
+      token: 'token',
+    };
+    const remoteCachePageStore = new RemoteCachePageStore(
+      client,
+      projectStore,
+    );
+
+    // When
+    remoteCachePageStore.copyProjectToken();
+
+    // Then
+    expect(copyToClipboard as jest.Mock).toHaveBeenCalledWith(
+      'token',
+    );
+    expect(remoteCachePageStore.isCopyProjectButtonLoading).toBe(
+      true,
+    );
+    jest.advanceTimersByTime(1000);
+    expect(remoteCachePageStore.isCopyProjectButtonLoading).toBe(
+      false,
+    );
   });
 
   it('loads remote cache page', async () => {

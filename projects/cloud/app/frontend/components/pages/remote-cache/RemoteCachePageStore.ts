@@ -13,6 +13,7 @@ import { SelectOption } from '@shopify/polaris';
 import { makeAutoObservable, runInAction } from 'mobx';
 import ProjectStore from '@/stores/ProjectStore';
 import { mapS3Bucket, S3Bucket } from '@/models';
+import { copyToClipboard } from '@/utilities/copyToClipboard';
 
 class RemoteCachePageStore {
   bucketName = '';
@@ -66,7 +67,7 @@ class RemoteCachePageStore {
   }
 
   copyProjectToken() {
-    navigator.clipboard.writeText(this.projectStore.project.token);
+    copyToClipboard(this.projectStore.project.token);
     this.isCopyProjectButtonLoading = true;
     setTimeout(() => {
       this.isCopyProjectButtonLoading = false;
