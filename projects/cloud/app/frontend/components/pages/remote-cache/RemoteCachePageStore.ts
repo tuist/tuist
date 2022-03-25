@@ -21,6 +21,7 @@ class RemoteCachePageStore {
   region = '';
   s3Buckets: S3Bucket[] = [];
   isApplyChangesButtonLoading = false;
+  isCopyProjectButtonLoading = false;
 
   client: ApolloClient<object>;
   projectStore: ProjectStore;
@@ -62,6 +63,14 @@ class RemoteCachePageStore {
       return 'new';
     }
     return this.projectStore.project.remoteCacheStorage.name;
+  }
+
+  copyProjectToken() {
+    navigator.clipboard.writeText(this.projectStore.project.token);
+    this.isCopyProjectButtonLoading = true;
+    setTimeout(() => {
+      this.isCopyProjectButtonLoading = false;
+    }, 1000);
   }
 
   removeAccessKey() {

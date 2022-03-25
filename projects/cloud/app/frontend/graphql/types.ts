@@ -170,6 +170,7 @@ export type Project = {
   name: Scalars['String'];
   remoteCacheStorage?: Maybe<RemoteCacheStorage>;
   slug: Scalars['String'];
+  token: Scalars['String'];
 };
 
 export type Query = {
@@ -340,13 +341,15 @@ export type OrganizationQuery = { __typename?: 'Query', organization?: { __typen
 
 export type PendingInvitationFragment = { __typename?: 'Invitation', inviteeEmail: string, id: string };
 
+export type ProjectDetailFragment = { __typename?: 'Project', id: string, token: string, account: { __typename?: 'Account', id: string, name: string, owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } }, remoteCacheStorage?: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string } | null };
+
 export type ProjectQueryVariables = Exact<{
   name: Scalars['String'];
   accountName: Scalars['String'];
 }>;
 
 
-export type ProjectQuery = { __typename?: 'Query', project?: { __typename?: 'Project', id: string, account: { __typename?: 'Account', id: string, name: string, owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } }, remoteCacheStorage?: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string } | null } | null };
+export type ProjectQuery = { __typename?: 'Query', project?: { __typename?: 'Project', id: string, token: string, account: { __typename?: 'Account', id: string, name: string, owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } }, remoteCacheStorage?: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string } | null } | null };
 
 export type RemoveUserMutationVariables = Exact<{
   input: RemoveUserInput;
@@ -396,6 +399,29 @@ export const S3BucketInfoFragmentDoc = gql`
   region
 }
     `;
+export const ProjectDetailFragmentDoc = gql`
+    fragment ProjectDetail on Project {
+  id
+  account {
+    id
+    name
+    owner {
+      ... on Organization {
+        id
+      }
+      ... on User {
+        id
+      }
+    }
+  }
+  token
+  remoteCacheStorage {
+    ... on S3Bucket {
+      ...S3BucketInfo
+    }
+  }
+}
+    ${S3BucketInfoFragmentDoc}`;
 export const UserBasicInfoFragmentDoc = gql`
     fragment UserBasicInfo on User {
   id
@@ -805,27 +831,10 @@ export type OrganizationQueryResult = Apollo.QueryResult<OrganizationQuery, Orga
 export const ProjectDocument = gql`
     query Project($name: String!, $accountName: String!) {
   project(name: $name, accountName: $accountName) {
-    id
-    account {
-      id
-      name
-      owner {
-        ... on Organization {
-          id
-        }
-        ... on User {
-          id
-        }
-      }
-    }
-    remoteCacheStorage {
-      ... on S3Bucket {
-        ...S3BucketInfo
-      }
-    }
+    ...ProjectDetail
   }
 }
-    ${S3BucketInfoFragmentDoc}`;
+    ${ProjectDetailFragmentDoc}`;
 
 /**
  * __useProjectQuery__
