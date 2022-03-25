@@ -1,10 +1,12 @@
 # frozen_string_literal: true
 
 class CacheService < ApplicationService
-  attr_reader :account_name, :project_name, :hash, :name, :user, :object_key
+  attr_reader :account_name, :project_name, :hash, :name, :user, :object_key, :project
 
-  def initialize(project_slug:, hash:, name:, user:)
+  def initialize(project_slug:, hash:, name:, user:, project:)
     super()
+    puts "init"
+    puts project
     split_project_slug = project_slug.split("/")
     @account_name = split_project_slug.first
     @project_name = split_project_slug.last
@@ -13,14 +15,11 @@ class CacheService < ApplicationService
     @object_key = "#{hash}/#{name}"
     @name = name
     @user = user
+    @project = project
   end
 
   def object_exists?
-    project = ProjectFetchService.call(
-      name: project_name,
-      account_name: account_name,
-      user: user
-    )
+    fetch_project_if_necessary
     s3_client = s3_client(s3_bucket: project.remote_cache_storage)
     begin
       s3_client.head_object(
@@ -34,11 +33,7 @@ class CacheService < ApplicationService
   end
 
   def fetch
-    project = ProjectFetchService.call(
-      name: project_name,
-      account_name: account_name,
-      user: user
-    )
+    fetch_project_if_necessary
     s3_client = s3_client(s3_bucket: project.remote_cache_storage)
     signer = Aws::S3::Presigner.new(client: s3_client)
     url = signer.presigned_url(
@@ -50,11 +45,7 @@ class CacheService < ApplicationService
   end
 
   def upload
-    project = ProjectFetchService.call(
-      name: project_name,
-      account_name: account_name,
-      user: user
-    )
+    fetch_project_if_necessary
     s3_client = s3_client(s3_bucket: project.remote_cache_storage)
     s3_client.put_object(
       bucket: project.remote_cache_storage.name,
@@ -81,6 +72,16 @@ class CacheService < ApplicationService
       key: object_key
     )
     object.content_length
+  end
+
+  private def fetch_project_if_necessary
+    if project.nil?
+      @project = ProjectFetchService.call(
+        name: project_name,
+        account_name: account_name,
+        user: user
+      )
+    end
   end
 
   private
