@@ -81,7 +81,7 @@ extension Requirement {
         case let .revision(revision):
             return #"revision: "\#(revision)""#
         case let .range(from, to):
-            return #""\#(from)"..<"\#(to)""#
+            return #""\#(from)" ..< "\#(to)""#
         }
     }
 
@@ -99,7 +99,7 @@ extension Requirement {
         case let .revision(revision):
             return #".revision("\#(revision)")"#
         case let .range(from, to):
-            return #""\#(from)"..<"\#(to)""#
+            return #""\#(from)" ..< "\#(to)""#
         }
     }
 }
