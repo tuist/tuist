@@ -5,8 +5,6 @@ class CacheService < ApplicationService
 
   def initialize(project_slug:, hash:, name:, user:, project:)
     super()
-    puts "init"
-    puts project
     split_project_slug = project_slug.split("/")
     @account_name = split_project_slug.first
     @project_name = split_project_slug.last
