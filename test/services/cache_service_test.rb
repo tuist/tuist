@@ -31,7 +31,26 @@ class CacheServiceTest < ActiveSupport::TestCase
       project_slug: "my-project/tuist",
       hash: "artifact-hash",
       name: "MyFramework",
-      user: @user
+      user: @user,
+      project: nil
+    )
+      .object_exists?
+
+    # Then
+    assert_equal true, got
+  end
+
+  test "object exists with using passed project" do
+    # Given
+    Aws::S3::Client.any_instance.stubs(:head_object).returns(true)
+
+    # When
+    got = CacheService.new(
+      project_slug: "my-project/tuist",
+      hash: "artifact-hash",
+      name: "MyFramework",
+      user: nil,
+      project: @project
     )
       .object_exists?
 
@@ -48,7 +67,8 @@ class CacheServiceTest < ActiveSupport::TestCase
       project_slug: "my-project/tuist",
       hash: "artifact-hash",
       name: "MyFramework",
-      user: @user
+      user: @user,
+      project: nil
     )
       .object_exists?
 
@@ -66,7 +86,8 @@ class CacheServiceTest < ActiveSupport::TestCase
       project_slug: "my-project/tuist",
       hash: "artifact-hash",
       name: "MyFramework",
-      user: @user
+      user: @user,
+      project: nil
     )
       .upload
 
@@ -85,7 +106,8 @@ class CacheServiceTest < ActiveSupport::TestCase
       project_slug: "my-project/tuist",
       hash: "artifact-hash",
       name: "MyFramework",
-      user: @user
+      user: @user,
+      project: nil
     )
       .verify_upload
 

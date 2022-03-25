@@ -144,6 +144,16 @@ const RemoteCachePage = observer(() => {
           </Button>
         </FormLayout>
       </Card>
+      <Card title="CI cloud token" sectioned>
+        <Button
+          loading={remoteCachePageStore.isCopyProjectButtonLoading}
+          onClick={() => {
+            remoteCachePageStore.copyProjectToken();
+          }}
+        >
+          Copy CI cloud token
+        </Button>
+      </Card>
     </Page>
   );
 });

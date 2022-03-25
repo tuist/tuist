@@ -24,9 +24,15 @@ class CacheController < ApplicationController
 
   def authenticate_user_from_token!
     authenticate_or_request_with_http_token do |token, options|
-      user = User.find_by!(token: token)
+      begin
+        user = User.find_by!(token: token)
+      rescue ActiveRecord::RecordNotFound
+        @project = Project.find_by!(token: token)
+      end
       if user
         sign_in(user, store: false)
+      else
+        @project
       end
     end
   end
@@ -38,6 +44,7 @@ class CacheController < ApplicationController
         hash: params[:hash],
         name: params[:name],
         user: current_user,
+        project: @project
       )
     end
 end

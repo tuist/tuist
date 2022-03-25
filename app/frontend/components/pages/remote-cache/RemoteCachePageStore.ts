@@ -13,6 +13,7 @@ import { SelectOption } from '@shopify/polaris';
 import { makeAutoObservable, runInAction } from 'mobx';
 import ProjectStore from '@/stores/ProjectStore';
 import { mapS3Bucket, S3Bucket } from '@/models';
+import { copyToClipboard } from '@/utilities/copyToClipboard';
 
 class RemoteCachePageStore {
   bucketName = '';
@@ -21,6 +22,7 @@ class RemoteCachePageStore {
   region = '';
   s3Buckets: S3Bucket[] = [];
   isApplyChangesButtonLoading = false;
+  isCopyProjectButtonLoading = false;
 
   client: ApolloClient<object>;
   projectStore: ProjectStore;
@@ -62,6 +64,14 @@ class RemoteCachePageStore {
       return 'new';
     }
     return this.projectStore.project.remoteCacheStorage.name;
+  }
+
+  copyProjectToken() {
+    copyToClipboard(this.projectStore.project.token);
+    this.isCopyProjectButtonLoading = true;
+    setTimeout(() => {
+      this.isCopyProjectButtonLoading = false;
+    }, 1000);
   }
 
   removeAccessKey() {
