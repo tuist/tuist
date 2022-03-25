@@ -1,0 +1,22 @@
+fragment ProjectDetail on Project {
+  id
+  account {
+    id
+    name
+    owner {
+      ... on Organization {
+        id
+      }
+
+      ... on User {
+        id
+      }
+    }
+  }
+  token
+  remoteCacheStorage {
+    ... on S3Bucket {
+      ...S3BucketInfo
+    }
+  }
+}

@@ -221,6 +221,7 @@ type Project {
   name: String!
   remoteCacheStorage: RemoteCacheStorage
   slug: String!
+  token: String!
 }
 
 type Query {
