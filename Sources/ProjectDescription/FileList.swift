@@ -7,31 +7,23 @@ public struct FileList: Codable, Equatable {
     /// Glob pattern to the files.
     public let globs: [FileListGlob]
 
-    /// Initializes the files list with the glob patterns.
+    /// Creates a file list from a collection of glob patterns.
     ///
     ///   - glob: Relative glob pattern.
     ///   - excluding: Relative glob patterns for excluded files.
     public static func list(_ globs: [FileListGlob]) -> FileList {
-        .init(globs)
-    }
-
-    /// Initializes the files list with the glob patterns.
-    ///
-    ///   - glob: Relative glob pattern.
-    ///   - excluding: Relative glob patterns for excluded files.
-    private init(_ globs: [FileListGlob]) {
-        self.globs = globs
+        FileList(globs: globs)
     }
 }
 
 extension FileList: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self.init([.init(stringLiteral: value)])
+        self.init(globs: [.init(stringLiteral: value)])
     }
 }
 
 extension FileList: ExpressibleByArrayLiteral {
     public init(arrayLiteral elements: String...) {
-        self.init(elements.map { .init(stringLiteral: $0) })
+        self.init(globs: elements.map { .init(stringLiteral: $0) })
     }
 }

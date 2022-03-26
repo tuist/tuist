@@ -1,4 +1,4 @@
-/// The configuration of your enviroment.
+/// The configuration of your environment.
 public struct Config: Codable, Equatable {
     /// Generation options.
     public let generationOptions: GenerationOptions
@@ -19,7 +19,7 @@ public struct Config: Codable, Equatable {
     /// If `nil` is passed then Tuist will use the environment’s version.
     public let swiftVersion: Version?
 
-    /// Initializes the tuist configuration.
+    /// Creates a tuist configuration.
     ///
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project is compatible with.

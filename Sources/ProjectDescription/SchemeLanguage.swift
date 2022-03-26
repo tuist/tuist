@@ -1,17 +1,19 @@
 import Foundation
 
 /// A language to use for run and test actions.
-///
-/// Can be initialized with String which should be a valid language code or used as pre-defined pseudo language.
 public struct SchemeLanguage: Codable, Equatable, ExpressibleByStringLiteral {
     public let identifier: String
-
+    
+    /// Creates a new scheme language.
+    /// - Parameter identifier: A valid language code or a pre-defined pseudo language.
     public init(identifier: String) {
         self.identifier = identifier
     }
-
-    public init(stringLiteral value: String) {
-        identifier = value
+    
+    /// Creates a new scheme language.
+    /// - Parameter stringLiteral: A valid language code or a pre-defined pseudo language.
+    public init(stringLiteral: String) {
+        identifier = stringLiteral
     }
 }
 

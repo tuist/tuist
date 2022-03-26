@@ -1,54 +1,38 @@
 import Foundation
 
-/// It represents a glob pattern that refers to files.
+/// A glob pattern that refers to files.
 public struct FileListGlob: Codable, Equatable {
-    /// Glob pattern to the files.
+    /// The path with a glob pattern.
     public var glob: Path
 
-    /// Glob patterns for source files that will be excluded.
+    /// The excluding paths.
     public var excluding: [Path]
 
-    /// Generage the file glob.
+    /// Returns a generic file list glob.
     /// - Parameters:
-    ///   - glob: Glob pattern to files
-    ///   - excluding: Glob pattern used for filtering out files.
+    ///   - glob: The path with a glob pattern.
+    ///   - excluding: The excluding paths.
     public static func glob(
         _ glob: Path,
         excluding: [Path] = []
     ) -> FileListGlob {
-        .init(glob, excluding: excluding)
+        FileListGlob(glob: glob, excluding: excluding)
     }
-
-    /// Initializes the file glob.
-    /// - Parameters:
-    ///   - glob: Glob pattern to files
-    ///   - excluding: Glob pattern used for filtering out files.
-    private init(
-        _ glob: Path,
-        excluding: [Path] = []
-    ) {
-        self.glob = glob
-        self.excluding = excluding
-    }
-
+    
+    /// Returns a file list glob with an optional excluding path.
     public static func glob(
         _ glob: Path,
         excluding: Path?
     ) -> FileListGlob {
-        .init(glob, excluding: excluding)
-    }
-
-    private init(
-        _ glob: Path,
-        excluding: Path?
-    ) {
-        let paths: [Path] = excluding.flatMap { [$0] } ?? []
-        self.init(glob, excluding: paths)
+        FileListGlob(
+            glob: glob,
+            excluding: excluding.flatMap { [$0] } ?? []
+        )
     }
 }
 
 extension FileListGlob: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self.init(Path(value))
+        self.init(glob: Path(value), excluding: [])
     }
 }
