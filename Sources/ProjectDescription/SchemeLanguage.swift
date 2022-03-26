@@ -3,13 +3,13 @@ import Foundation
 /// A language to use for run and test actions.
 public struct SchemeLanguage: Codable, Equatable, ExpressibleByStringLiteral {
     public let identifier: String
-    
+
     /// Creates a new scheme language.
     /// - Parameter identifier: A valid language code or a pre-defined pseudo language.
     public init(identifier: String) {
         self.identifier = identifier
     }
-    
+
     /// Creates a new scheme language.
     /// - Parameter stringLiteral: A valid language code or a pre-defined pseudo language.
     public init(stringLiteral: String) {

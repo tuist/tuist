@@ -3,7 +3,7 @@ import Foundation
 /// A configuration name.
 ///
 /// It has build-in support for ``debug`` and ``release`` configurations.
-/// 
+///
 /// You can extend with your own configurations using a extension:
 /// ```
 /// import ProjectDescription

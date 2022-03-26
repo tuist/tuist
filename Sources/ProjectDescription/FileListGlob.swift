@@ -18,7 +18,7 @@ public struct FileListGlob: Codable, Equatable {
     ) -> FileListGlob {
         FileListGlob(glob: glob, excluding: excluding)
     }
-    
+
     /// Returns a file list glob with an optional excluding path.
     public static func glob(
         _ glob: Path,
