@@ -59,11 +59,7 @@ class CacheService < ApplicationService
   end
 
   def verify_upload
-    project = ProjectFetchService.call(
-      name: project_name,
-      account_name: account_name,
-      user: user
-    )
+    fetch_project_if_necessary
     s3_client = s3_client(s3_bucket: project.remote_cache_storage)
     object = s3_client.get_object(
       bucket: project.remote_cache_storage.name,
