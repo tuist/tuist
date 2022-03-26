@@ -281,6 +281,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     public func map(
         packageInfo: PackageInfo,
         packageInfos: [String: PackageInfo],

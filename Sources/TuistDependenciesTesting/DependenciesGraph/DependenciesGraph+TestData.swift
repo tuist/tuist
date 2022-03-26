@@ -134,6 +134,7 @@ extension TuistCore.DependenciesGraph {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     public static func aDependency(spmFolder: Path) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
         return .init(
