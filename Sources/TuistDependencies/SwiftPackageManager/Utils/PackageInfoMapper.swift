@@ -1011,7 +1011,7 @@ extension ProjectDescription.DeploymentDevice {
 extension PackageInfo {
     fileprivate func projectSettings(
         swiftToolsVersion: TSCUtility.Version?,
-        buildConfigs: [BuildConfiguration]
+        buildConfigs: [BuildConfiguration]? = nil
     ) -> ProjectDescription.Settings? {
         var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
 
@@ -1027,9 +1027,8 @@ extension PackageInfo {
             settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
         }
 
-        let hasCustomConfig = buildConfigs.firstIndex(where: { !["Debug", "Release"].contains($0.name) }) != nil
-
-        if hasCustomConfig {
+        if let buildConfigs = buildConfigs,
+           buildConfigs.firstIndex(where: { !["Debug", "Release"].contains($0.name) }) != nil {
             let configs = buildConfigs.map { config -> ProjectDescription.Configuration in
                 switch config.variant {
                 case .debug:
