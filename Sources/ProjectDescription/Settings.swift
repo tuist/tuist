@@ -2,8 +2,7 @@ import Foundation
 
 public typealias SettingsDictionary = [String: SettingValue]
 
-// MARK: - SettingValue
-
+/// A value or a collection of values used for settings configuration.
 public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLiteral, ExpressibleByBooleanLiteral, Equatable,
     Codable
 {
@@ -31,7 +30,7 @@ public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLi
 
 // MARK: - Configuration
 
-/// Describes the build settings and the .xcconfig file of a project or target. It is initialized with either the `.debug` or `.release` static method.
+/// A the build settings and the .xcconfig file of a project or target. It is initialized with either the `.debug` or `.release` static method.
 public struct Configuration: Equatable, Codable {
     public enum Variant: String, Codable {
         case debug
@@ -50,7 +49,7 @@ public struct Configuration: Equatable, Codable {
         self.xcconfig = xcconfig
     }
 
-    /// Creates a debug configuration
+    /// Returns a debug configuration.
     ///
     /// - Parameters:
     ///   - name: The name of the configuration to use

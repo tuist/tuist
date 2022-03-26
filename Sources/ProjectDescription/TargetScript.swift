@@ -54,7 +54,7 @@ public struct TargetScript: Codable, Equatable {
     /// The path to the shell which shall execute this script.
     public let shellPath: String
 
-    /// Initializes the target script with its attributes.
+    /// Creates the target script with its attributes.
     ///
     /// - Parameters:
     ///   - name: Name of the build phase when the project gets generated.

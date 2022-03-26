@@ -1,6 +1,6 @@
 import Foundation
 
-/// A collection of arguments and envoriment variables.
+/// A collection of arguments and environment variables.
 public struct Arguments: Equatable, Codable {
     public let environment: [String: String]
     public let launchArguments: [LaunchArgument]
