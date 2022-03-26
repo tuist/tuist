@@ -16,7 +16,7 @@ module Fourier
           fetch = ["fetch"]
           Utilities::System.tuist(*fetch)
 
-          cache_warm = ["cache", "warm"] + targets
+          cache_warm = ["cache", "warm", "--dependencies-only"] + targets
           Utilities::System.tuist(*cache_warm)
 
           generate = ["generate"] + targets

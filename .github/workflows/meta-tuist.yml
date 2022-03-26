@@ -74,6 +74,9 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Generate
         run: |
+          swift build
+          swift run tuist fetch
+          swift run tuist cache warm
           ./fourier generate tuist
   test:
     name: Test with Xcode
