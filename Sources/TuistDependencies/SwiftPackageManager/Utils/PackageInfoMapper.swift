@@ -1027,16 +1027,17 @@ extension PackageInfo {
             settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
         }
 
-        if let buildConfigs = buildConfigs,
-           buildConfigs.firstIndex(where: { !["Debug", "Release"].contains($0.name) }) != nil {
-            let configs = buildConfigs.map { config -> ProjectDescription.Configuration in
-                switch config.variant {
-                case .debug:
-                    return ProjectDescription.Configuration.debug(name: .configuration(config.name))
-                case .release:
-                    return ProjectDescription.Configuration.release(name: .configuration(config.name))
+        if let buildConfigs = buildConfigs {
+            let configs = buildConfigs
+                .sorted()
+                .map { config -> ProjectDescription.Configuration in
+                    switch config.variant {
+                    case .debug:
+                        return ProjectDescription.Configuration.debug(name: .configuration(config.name))
+                    case .release:
+                        return ProjectDescription.Configuration.release(name: .configuration(config.name))
+                    }
                 }
-            }
             return .settings(base: settingsDictionary, configurations: configs)
         } else {
             return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
