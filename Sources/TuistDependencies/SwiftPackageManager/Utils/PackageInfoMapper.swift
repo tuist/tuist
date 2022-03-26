@@ -356,10 +356,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         return ProjectDescription.Project(
             name: name,
             options: .options(
-                // Use `.singleScheme` to reduce number of generated schemes
-                automaticSchemesOptions: .enabled(
-                    targetSchemesGrouping: .singleScheme
-                ),
+                automaticSchemesOptions: .disabled, // disable schemes for dependencies
                 disableBundleAccessors: false,
                 disableSynthesizedResourceAccessors: false
             ),
