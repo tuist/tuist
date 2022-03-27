@@ -33,7 +33,7 @@
     "vite-plugin-bugsnag": "^1.0.2",
     "vite-plugin-environment": "^1.0.1",
     "vite-plugin-full-reload": "^0.2.2",
-    "vite-plugin-ruby": "^3.0.5",
+    "vite-plugin-ruby": "^3.0.8",
     "webpack-dev-server": "^3"
   },
   "dependencies": {
