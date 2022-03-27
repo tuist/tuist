@@ -63,10 +63,6 @@ PluginLocation.git(url: "https://url/to/plugin.git", sha: "e34c5ba")
 
 The [`Plugin.swift`](plugins/creating-plugins.md) manifest in a git repository should be located at the root of the repository.
 
-### Fetching plugins
-
-After plugins have been declared in `Config.swift`, you need to fetch them by running [`tuist fetch`](commands/dependencies.md#fetching). 
-
 ### Example
 
 Let's say we have a plugin called `MyTuistPlugin`. This plugin is designed to add functionality to `ProjectDescription`, in this example the plugin will add a new method to `Project` which allow us to define an application.
@@ -83,6 +79,8 @@ let config = Config(
     ]
 )
 ```
+
+After plugins have been declared in `Config.swift`, you need to fetch them by running [`tuist fetch`](commands/dependencies.md#fetching). 
 
 #### Tasks
 
