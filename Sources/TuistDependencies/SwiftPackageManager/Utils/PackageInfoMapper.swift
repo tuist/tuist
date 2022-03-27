@@ -363,7 +363,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 disableBundleAccessors: false,
                 disableSynthesizedResourceAccessors: false
             ),
-            settings: packageInfo.projectSettings(swiftToolsVersion: swiftToolsVersion, buildConfigs: baseSettings.configurations.map { key, _ in key }),
+            settings: packageInfo.projectSettings(
+                swiftToolsVersion: swiftToolsVersion,
+                buildConfigs: baseSettings.configurations.map { key, _ in key }
+            ),
             targets: targets,
             resourceSynthesizers: []
         )

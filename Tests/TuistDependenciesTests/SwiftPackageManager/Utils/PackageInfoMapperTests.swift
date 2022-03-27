@@ -2411,7 +2411,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     swiftLanguageVersions: nil
                 ),
             ],
-            baseSettings:  Settings(
+            baseSettings: Settings(
                 configurations: [.release: nil, .debug: nil, .init(name: "Custom", variant: .release): nil],
                 defaultSettings: .recommended
             ),
@@ -2593,7 +2593,7 @@ extension ProjectDescription.Project {
             name: name,
             settings: .settings(configurations: [
                 .debug(name: .debug),
-                .release(name: .release)
+                .release(name: .release),
             ]),
             targets: targets
         )

@@ -62,11 +62,11 @@ extension TuistCore.DependenciesGraph {
                     ),
                     settings: .settings(
                         base: [
-                            "GCC_C_LANGUAGE_STANDARD": "c99"
+                            "GCC_C_LANGUAGE_STANDARD": "c99",
                         ],
                         configurations: [
                             .debug(name: .debug),
-                            .release(name: .release)
+                            .release(name: .release),
                         ]
                     ),
                     targets: [
@@ -165,7 +165,7 @@ extension TuistCore.DependenciesGraph {
                     settings: .settings(
                         configurations: [
                             .debug(name: .debug),
-                            .release(name: .release)
+                            .release(name: .release),
                         ]
                     ),
                     targets: [
@@ -227,7 +227,7 @@ extension TuistCore.DependenciesGraph {
                     settings: .settings(
                         configurations: [
                             .debug(name: .debug),
-                            .release(name: .release)
+                            .release(name: .release),
                         ]
                     ),
                     targets: [
@@ -329,7 +329,7 @@ extension TuistCore.DependenciesGraph {
                         ],
                         configurations: [
                             .debug(name: .debug),
-                            .release(name: .release)
+                            .release(name: .release),
                         ]
                     ),
                     targets: [
@@ -440,7 +440,7 @@ extension TuistCore.DependenciesGraph {
                     settings: .settings(
                         configurations: [
                             .debug(name: .debug),
-                            .release(name: .release)
+                            .release(name: .release),
                         ]
                     ),
                     targets: [
@@ -521,7 +521,7 @@ extension TuistCore.DependenciesGraph {
                     settings: .settings(
                         configurations: [
                             .debug(name: .debug),
-                            .release(name: .release)
+                            .release(name: .release),
                         ]
                     ),
                     targets: [
