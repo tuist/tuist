@@ -51,11 +51,7 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "test",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
@@ -148,11 +144,7 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "a-dependency",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
@@ -204,11 +196,7 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "another-dependency",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
@@ -245,11 +233,7 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "Alamofire",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
@@ -296,11 +280,7 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "GoogleAppMeasurement",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
@@ -405,11 +385,7 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "GoogleUtilities",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
@@ -480,11 +456,7 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "nanopb",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
