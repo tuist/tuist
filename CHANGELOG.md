@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix ignored Workspace generation when Project exists on the same directory [#4236](https://github.com/tuist/tuist/pull/4236) by [@adellibovi](https://github.com/adellibovi).
 - Fix warnings when generating SwiftPackageManager dependencies with Swift 5.6 [#4261](https://github.com/tuist/tuist/pull/4261) by [@danyf90](https://github.com/danyf90)
 - Fix generating project with custom configurations (other than Debug and Release) via SPM packages [#4259](https://github.com/tuist/tuist/pull/4259) by [mstfy](https://github.com/mstfy).
+- Fix for incorrect bundle when using generated resource accessors [#4258](https://github.com/tuist/tuist/pull/4258) by [kwridan](https://github.com/kwridan)
 
 ## 3.0.1 - Bravissimo
 
