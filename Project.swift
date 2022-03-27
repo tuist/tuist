@@ -62,7 +62,6 @@ func targets() -> [Target] {
                     .external(name: "StencilSwiftKit"),
                     .external(name: "Swifter"),
                     .external(name: "SwiftToolsSupport-auto"),
-                    .external(name: "TSCBasic"),
                     .external(name: "XcodeProj"),
                     .external(name: "Zip"),
                     .target(name: "ProjectDescription"),
