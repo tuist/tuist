@@ -5,7 +5,7 @@ description: 'Learn how to set up Tuist Cloud on your projects to have access to
 ---
 
 :::caution Work in progress
-[Tuist Cloud](https://github.com/tuist/cloud) is under development and therefore we don't recommend its usage yet.
+[Tuist Cloud](https://github.com/tuist/cloud) is currently in alpha and we don't make any assurances about the stability of the feature.
 If you feel adventurous and would like to be early adopter and feedback provider, 
 you'll find up-to-date documentation here.  
 :::
@@ -42,3 +42,26 @@ It provides benefits like support, monitoring, and continuous updates,
 and you support a project your project depends on.
 You can also take the adventurous path of building your backend.
 The [specification](cloud/specification.md) documents the contract and designs it to be platform-agnostic.
+
+## Usage
+
+To set up Tuist Cloud, you will first need to sign up at [cloud.tuist.io](https://cloud.tuist.io) and create a project. You can also create an organization if you intend to work in a team. Once created, you can invite your team members to the organization.
+
+For remote cache, you will also need to set up an [S3 bucket](https://aws.amazon.com/s3/) and provide Tuist Cloud with your [access key](https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html). We also plan to offer more providers in the future.
+
+In your project, you then need to add a reference to Tuist Cloud in your `Config.swift`:
+```
+import ProjectDescription
+
+let config = Config(
+    cloud: .cloud(projectId: "your-organization/your-project", url: "https://cloud.tuist.io", options: [.optional])
+)
+```
+
+Afterwards, you can simply run `tuist cloud auth` - and that's it 🎉  When you then run `tuist generate App`, all available binaries will be automatically downloaded from remote if available. You can also warm all the targets with `tuist cache warm`. At the end of the command, all the binaries will be uploaded to your S3 bucket.
+
+If you ever need to remove your Tuist Cloud credentials on your machine, you can run `tuist cloud logout`.
+
+### CI
+
+One of the great benefits of Tuist Cloud is that you can cache your targets on CI. Obtain your project token from the `Remote cache` page in Tuist Cloud and you can add a step in your CI pipeline configuration for warming all the targets by `TUIST_CONFIG_CLOUD_TOKEN="token-from-tuist-cloud" tuist cache warm`.
