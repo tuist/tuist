@@ -48,7 +48,7 @@ public struct RunAction: Equatable, Codable {
         self.diagnosticsOptions = diagnosticsOptions
     }
 
-    /// Initializes a new instance of a run action.
+    /// Returns a run action.
     /// - Parameters:
     ///   - configuration: Indicates the build configuration the product should run with.
     ///   - attachDebugger: Whether a debugger should be attached to the run process or not.

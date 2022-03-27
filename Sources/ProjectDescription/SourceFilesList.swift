@@ -1,6 +1,6 @@
 import Foundation
 
-/// A glob pattern representing source files and its compiler flags, if any.
+/// A glob pattern configuration representing source files and its compiler flags, if any.
 public struct SourceFileGlob: Codable, Equatable {
     /// Glob pattern to the source files.
     public let glob: Path
@@ -14,7 +14,7 @@ public struct SourceFileGlob: Codable, Equatable {
     /// The source file attribute to be set in the build phase.
     public let codeGen: FileCodeGen?
 
-    /// Initializes a SourceFileGlob instance.
+    /// Returns a source glob pattern configuration.
     ///
     /// - Parameters:
     ///   - glob: Glob pattern to the source files.
@@ -52,21 +52,21 @@ public struct SourceFilesList: Codable, Equatable {
     /// List glob patterns.
     public let globs: [SourceFileGlob]
 
-    /// Initializes the source files list with the glob patterns.
+    /// Creates the source files list with the glob patterns.
     ///
     /// - Parameter globs: Glob patterns.
     public init(globs: [SourceFileGlob]) {
         self.globs = globs
     }
 
-    /// Initializes the source files list with the glob patterns as strings.
+    /// Creates the source files list with the glob patterns as strings.
     ///
     /// - Parameter globs: Glob patterns.
     public init(globs: [String]) {
         self.globs = globs.map(SourceFileGlob.init)
     }
 
-    /// Initializes a sources list with a list of paths.
+    /// Returns a sources list from a list of paths.
     /// - Parameter paths: Source paths.
     public static func paths(_ paths: [Path]) -> SourceFilesList {
         SourceFilesList(globs: paths.map { .glob($0) })

@@ -1,6 +1,6 @@
 import Foundation
 
-/// The location to a directory containing a `Plugin` manifest.
+/// A location to a plugin, either local or remote.
 public struct PluginLocation: Codable, Equatable {
     /// The type of location `local` or `git`.
     public let type: LocationType

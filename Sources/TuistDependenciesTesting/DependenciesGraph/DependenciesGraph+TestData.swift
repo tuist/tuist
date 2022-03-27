@@ -56,9 +56,15 @@ extension TuistCore.DependenciesGraph {
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
-                    settings: .settings(base: [
-                        "GCC_C_LANGUAGE_STANDARD": "c99",
-                    ]),
+                    settings: .settings(
+                        base: [
+                            "GCC_C_LANGUAGE_STANDARD": "c99",
+                        ],
+                        configurations: [
+                            .debug(name: .debug),
+                            .release(name: .release),
+                        ]
+                    ),
                     targets: [
                         .init(
                             name: "Tuist",
@@ -149,6 +155,12 @@ extension TuistCore.DependenciesGraph {
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
+                    settings: .settings(
+                        configurations: [
+                            .debug(name: .debug),
+                            .release(name: .release),
+                        ]
+                    ),
                     targets: [
                         .init(
                             name: "ALibrary",
@@ -200,6 +212,12 @@ extension TuistCore.DependenciesGraph {
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
+                    settings: .settings(
+                        configurations: [
+                            .debug(name: .debug),
+                            .release(name: .release),
+                        ]
                     ),
                     targets: [
                         .init(
@@ -285,10 +303,16 @@ extension TuistCore.DependenciesGraph {
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
-                    settings: .settings(base: [
-                        "GCC_C_LANGUAGE_STANDARD": "c99",
-                        "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
-                    ]),
+                    settings: .settings(
+                        base: [
+                            "GCC_C_LANGUAGE_STANDARD": "c99",
+                            "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
+                        ],
+                        configurations: [
+                            .debug(name: .debug),
+                            .release(name: .release),
+                        ]
+                    ),
                     targets: [
                         .init(
                             name: "GoogleAppMeasurementTarget",
@@ -390,6 +414,12 @@ extension TuistCore.DependenciesGraph {
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
+                    settings: .settings(
+                        configurations: [
+                            .debug(name: .debug),
+                            .release(name: .release),
+                        ]
+                    ),
                     targets: [
                         .init(
                             name: "GULAppDelegateSwizzler",
@@ -460,6 +490,12 @@ extension TuistCore.DependenciesGraph {
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
+                    settings: .settings(
+                        configurations: [
+                            .debug(name: .debug),
+                            .release(name: .release),
+                        ]
                     ),
                     targets: [
                         .init(

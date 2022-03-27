@@ -26,13 +26,13 @@ public struct TestActionOptions: Equatable, Codable {
         self.codeCoverageTargets = codeCoverageTargets
     }
 
-    /// Initializes set of options for a test action.
+    /// Returns a set of options for a test action.
     /// - Parameters:
     ///   - language: Language used for running the tests.
     ///   - region: Region used for running the tests.
     ///   - coverage: Whether test coverage should be collected.
     ///   - codeCoverageTargets: List of tests whose code coverage information should be collected.
-    /// - Returns: Initialized set of options.
+    /// - Returns: A set of options.
     public static func options(
         language: SchemeLanguage? = nil,
         region: String? = nil,

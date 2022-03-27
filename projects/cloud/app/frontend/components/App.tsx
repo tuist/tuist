@@ -49,7 +49,8 @@ const AppRoutes = () => {
           element={<AcceptInvitationPage />}
         />
         <Route path="/:accountName/:projectName" element={<Home />}>
-          <Route path="" element={<Dashboard />} />
+          {/* TODO: Return dashboard here once we have what to display there */}
+          <Route path="" element={<RemoteCachePage />} />
           <Route path="remote-cache" element={<RemoteCachePage />} />
           <Route path="organization" element={<OrganizationPage />} />
         </Route>

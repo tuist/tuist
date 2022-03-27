@@ -361,7 +361,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 disableBundleAccessors: false,
                 disableSynthesizedResourceAccessors: false
             ),
-            settings: packageInfo.projectSettings(swiftToolsVersion: swiftToolsVersion),
+            settings: packageInfo.projectSettings(
+                swiftToolsVersion: swiftToolsVersion,
+                buildConfigs: baseSettings.configurations.map { key, _ in key }
+            ),
             targets: targets,
             resourceSynthesizers: []
         )
@@ -1008,7 +1011,8 @@ extension ProjectDescription.DeploymentDevice {
 
 extension PackageInfo {
     fileprivate func projectSettings(
-        swiftToolsVersion: TSCUtility.Version?
+        swiftToolsVersion: TSCUtility.Version?,
+        buildConfigs: [BuildConfiguration]? = nil
     ) -> ProjectDescription.Settings? {
         var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
 
@@ -1024,7 +1028,21 @@ extension PackageInfo {
             settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
         }
 
-        return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
+        if let buildConfigs = buildConfigs {
+            let configs = buildConfigs
+                .sorted()
+                .map { config -> ProjectDescription.Configuration in
+                    switch config.variant {
+                    case .debug:
+                        return ProjectDescription.Configuration.debug(name: .configuration(config.name))
+                    case .release:
+                        return ProjectDescription.Configuration.release(name: .configuration(config.name))
+                    }
+                }
+            return .settings(base: settingsDictionary, configurations: configs)
+        } else {
+            return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
+        }
     }
 
     private func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {

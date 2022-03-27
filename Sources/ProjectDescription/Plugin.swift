@@ -1,6 +1,6 @@
 import Foundation
 
-/// A `Plugin` manifest allows for defining extensions for Tuist.
+/// A plugin representation.
 ///
 /// Supported plugins include:
 /// - ProjectDescriptionHelpers
@@ -11,7 +11,7 @@ public struct Plugin: Codable, Equatable {
     /// The name of the `Plugin`.
     public let name: String
 
-    /// Creates a `Plugin`.
+    /// Creates a new plugin.
     /// - Parameters:
     ///     - name: The name of the plugin.
     public init(name: String) {

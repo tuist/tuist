@@ -26,6 +26,7 @@ concurrency:
 env:
   RUBY_VERSION: '3.0.3'
   TUIST_STATS_OPT_OUT: true
+  TUIST_CONFIG_CLOUD_TOKEN: ${{ secrets.TUIST_CONFIG_CLOUD_TOKEN }}
 
 jobs:
   build:
@@ -71,9 +72,9 @@ jobs:
         run: |
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
-      - name: Build
+      - name: Generate
         run: |
-          ./fourier generate
+          ./fourier generate tuist --targets tuist
   test:
     name: Test with Xcode
     runs-on: macOS-11

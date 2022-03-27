@@ -1,8 +1,8 @@
 import Foundation
 
-/// It represents a cache configuration.
+/// A cache configuration.
 public struct Cache: Codable, Equatable {
-    /// It represents a cache profile.
+    /// A cache profile.
     public struct Profile: Codable, Equatable {
         /// The unique name of a profile
         public let name: String

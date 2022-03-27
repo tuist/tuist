@@ -33,7 +33,7 @@ public struct ProfileAction: Equatable, Codable {
         self.arguments = arguments
     }
 
-    /// Initializes a profile action.
+    /// Returns a profile action.
     /// - Parameters:
     ///   - configuration: Indicates the build configuration the product should be profiled with.
     ///   - preActions: A list of actions that are executed before starting the profile process.
