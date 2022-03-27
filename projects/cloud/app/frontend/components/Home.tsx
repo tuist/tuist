@@ -196,17 +196,20 @@ const Home = observer(() => {
 
   const location = useLocation();
   let navigationItems: NavigationItemProps[] = [
-    {
-      label: 'Dashboard',
-      icon: HomeMajor,
-      url: '',
-      selected: location.pathname.endsWith(projectName ?? ''),
-    },
+    // TODO: Bring back once we have what to display on dashboard
+    // {
+    //   label: 'Dashboard',
+    //   icon: HomeMajor,
+    //   url: '',
+    //   selected: location.pathname.endsWith(projectName ?? ''),
+    // },
     {
       label: 'Remote Cache',
       icon: PackageMajor,
       url: 'remote-cache',
-      selected: location.pathname.endsWith('remote-cache'),
+      selected:
+        location.pathname.endsWith(projectName ?? '') ||
+        location.pathname.endsWith('remote-cache'),
     },
   ];
   const project = useProjectQuery({
