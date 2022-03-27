@@ -6,23 +6,23 @@ module Fourier
   module Utilities
     class Output
       def self.section(message)
-        STDERR.puts(message.cyan.bold)
+        $stderr.puts(message.cyan.bold)
       end
 
       def self.subsection(message)
-        STDERR.puts(message.cyan)
+        $stderr.puts(message.cyan)
       end
 
       def self.error(message)
-        STDERR.puts(message.red.bold)
+        $stderr.puts(message.red.bold)
       end
 
       def self.warning(message)
-        STDOUT.puts(message.yellow.bold)
+        $stdout.puts(message.yellow.bold)
       end
 
       def self.success(message)
-        STDOUT.puts(message.green.bold)
+        $stdout.puts(message.green.bold)
       end
     end
   end
