@@ -135,7 +135,6 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         dependencies: TuistGraph.SwiftPackageManagerDependencies,
         swiftToolsVersion: TSCUtility.Version?
     ) throws {
-        // Use ProjectDescription.Version to correctly parse version when patch or minor is missing (for example, "5.6")
         let version = try TSCUtility.Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)
         let isLegacy = version < TSCUtility.Version(5, 6, 0)
 
