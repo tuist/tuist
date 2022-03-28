@@ -46,7 +46,7 @@
     "apollo-link": "^1.2.14",
     "apollo-link-http": "^1.5.17",
     "babel-plugin-transform-react-remove-prop-types": "^0.4.24",
-    "mobx": "^6.4.2",
+    "mobx": "^6.5.0",
     "mobx-react-lite": "^3.3.0",
     "prop-types": "^15.8.1",
     "react": "^17.0.2",
