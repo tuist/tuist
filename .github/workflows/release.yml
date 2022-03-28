@@ -4,19 +4,66 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version for the release (ex. x.x.x)
-        required: true
-      title:
-        description: Title for the release (ex. Chimera)
-        required: true
-
+        description: Custom version for the release (ex. x.x.x), if not specified, next minor.
+        required: false
+      publish:
+        description: Should publish?
+        required: false
+        type: boolean
+        default: true
 env:
   RUBY_VERSION: '3.0.3'
   TUIST_STATS_OPT_OUT: true
 
 jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.semvers.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        ref: ${{ github.head_ref }}
+        fetch-depth: 0
+        token: ${{ secrets.GH_RELEASE_TOKEN }}
+    - name: 'Get Previous tag'
+      id: previoustag
+      uses: "WyriHaximus/github-action-get-previous-tag@v1"
+    - name: 'Get next minor version'
+      if: ${{ github.event.inputs.version == '' }}
+      id: calculated_semvers
+      uses: "WyriHaximus/github-action-next-semvers@v1"
+      with:
+        version: ${{ steps.previoustag.outputs.tag }}
+    - name: 'Set version'
+      run: echo '::set-output name=version::${{ steps.calculated_semvers.outputs.minor }}${{ github.event.inputs.version }}'
+      id: semvers
+    - name: Update Tuist version
+      # This step updates the version in the Constants.swift file by replacing the current tag in Constants.swift with the tagged release.
+      run: |
+        sed -i -e "s/version = \".*\"/version = \"${{ steps.semvers.outputs.version }}\"/g" Sources/TuistSupport/Constants.swift
+    - name: "Build Changelog"
+      id: changelog
+      uses: mikepenz/release-changelog-builder-action@v2
+      with:
+        configuration: ".github/workflows/changelog-configuration.json"
+        toTag: "main"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+    - name: Update Changelog
+      uses: stefanzweifel/changelog-updater-action@v1
+      with:
+        latest-version: ${{ steps.semvers.outputs.version }}
+        release-notes: ${{ steps.changelog.outputs.changelog }}
+    - name: Commit
+      uses: stefanzweifel/git-auto-commit-action@v4
+      if: ${{ github.event.inputs.publish == 'true' }}
+      with:
+        commit_message: "[Release] Tuist ${{ steps.semvers.outputs.minor }}"
   release:
-    runs-on: macOS-11
+    runs-on: macos-11
+    needs: prepare-release
     steps:
     - uses: actions/checkout@v2
     - uses: ruby/setup-ruby@v1
@@ -32,24 +79,15 @@ jobs:
       run: |
         bundle config path vendor/bundle
         bundle install --jobs 4 --retry 3
-    - name: Update Tuist version
-      # This step updates the version in the Constants.swift file by replacing the current tag in Constants.swift with the tagged release.
-      # This step also updates the CHANGELOG.md to rename the Next section to the proper release version.
-      run: |
-        sed -i '' -e "s/version = \".*\"/version = \"${{ github.event.inputs.version }}\"/g" Sources/TuistSupport/Constants.swift
-        sed -i '' -e "s/## Next/## ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}/g" CHANGELOG.md
     - name: Fourier release
-      run: ./fourier release tuist ${{ github.event.inputs.version }} $(cat .xcode-version) $(cat .xcode-version-libraries)
+      if: ${{ github.event.inputs.publish == 'true' }}
+      run: ./fourier release tuist ${{ needs.prepare-release.outputs.version }} $(cat .xcode-version) $(cat .xcode-version-libraries)
     - name: Create GitHub Release
+      if: ${{ github.event.inputs.publish == 'true' }}
       uses: softprops/action-gh-release@v1
       with:
         token: ${{ secrets.GH_RELEASE_TOKEN }}
         files: build/*
-        name: ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}
-        tag_name: ${{ github.event.inputs.version }}
-    - name: Create pull-request for release changes
-      uses: peter-evans/create-pull-request@v3
-      with:
-        title: "[Release] Tuist ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}"
-        commit-message: "[Release] Tuist ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}"
-        base: main
+        name: ${{ needs.prepare-release.outputs.version }}
+        tag_name: ${{ needs.prepare-release.outputs.version }}
+        body: ${{ needs.prepare-release.outputs.changelog }}
