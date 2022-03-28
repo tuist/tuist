@@ -257,6 +257,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/paulsamuels"><img src="https://avatars.githubusercontent.com/u/527091?v=4" width="100px;" alt=""/><br /><sub><b>paul.s</b></sub></a></td>
+    <td align="center"><a href="https://github.com/aniltaskiran"><img src="https://avatars.githubusercontent.com/u/16738729?v=4" width="100px;" alt=""/><br /><sub><b>aniltaskiran</b></sub></a></td>
   </tr>
 </table>
 
