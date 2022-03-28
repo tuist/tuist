@@ -7,7 +7,7 @@ description: Learn how to extend Tuist with plugins.
 ### Plugins
 
 Plugins are meant to be separate and isolated directories, each containing code used to extend existing Tuist functionality.
-You may use plugins that exist at a path local to your machine or at a git source URL to enable sharing and version control across multiple projects.
+You may use plugins that exist at a path local to your machine or at a git source URL to enable sharing and version control across multiple projects. They are fetched by running `tuist fetch`. If you add plugin to your project you can not generate it without fetching. 
 
 ### Adding plugins
 
@@ -79,6 +79,8 @@ let config = Config(
     ]
 )
 ```
+
+After plugins have been declared in `Config.swift`, you need to fetch them by running [`tuist fetch`](commands/dependencies.md#fetching). 
 
 #### Tasks
 
