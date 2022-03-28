@@ -21,6 +21,7 @@ jobs:
     outputs:
       version: ${{ steps.semvers.outputs.version }}
       changelog: ${{ steps.changelog.outputs.changelog }}
+      commit_hash: ${{ steps.auto-commit-action.outputs.commit_hash }}
     steps:
     - uses: actions/checkout@v2
       with:
@@ -57,6 +58,7 @@ jobs:
         latest-version: ${{ steps.semvers.outputs.version }}
         release-notes: ${{ steps.changelog.outputs.changelog }}
     - name: Commit
+      id: auto-commit-action
       uses: stefanzweifel/git-auto-commit-action@v4
       if: ${{ github.event.inputs.publish == 'true' }}
       with:
@@ -66,6 +68,8 @@ jobs:
     needs: prepare-release
     steps:
     - uses: actions/checkout@v2
+      with:
+        ref: ${{ needs.prepare-release.outputs.commit_hash }}
     - uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ env.RUBY_VERSION }}
@@ -91,3 +95,4 @@ jobs:
         name: ${{ needs.prepare-release.outputs.version }}
         tag_name: ${{ needs.prepare-release.outputs.version }}
         body: ${{ needs.prepare-release.outputs.changelog }}
+        target_commitish: ${{ needs.prepare-release.outputs.commit_hash }}
