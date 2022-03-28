@@ -60,7 +60,7 @@ jobs:
       uses: stefanzweifel/git-auto-commit-action@v4
       if: ${{ github.event.inputs.publish == 'true' }}
       with:
-        commit_message: "[Release] Tuist ${{ steps.semvers.outputs.minor }}"
+        commit_message: "[Release] Tuist ${{ steps.semvers.outputs.version }}"
   release:
     runs-on: macos-11
     needs: prepare-release
