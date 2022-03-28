@@ -82,7 +82,7 @@ extension String {
     }
 
     public func version() -> Version? {
-        return try? Version(versionString: self, usesLenientParsing: true)
+        try? Version(versionString: self, usesLenientParsing: true)
     }
 
     public func capitalizingFirstLetter() -> String {
