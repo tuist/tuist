@@ -16,10 +16,10 @@ module Fourier
           fetch = ["fetch"]
           Utilities::System.tuist(*fetch)
 
-          cache_warm = ["cache", "warm", "--dependencies-only"] + targets
+          cache_warm = ["cache", "warm", "--dependencies-only", "--xcframeworks"] + targets
           Utilities::System.tuist(*cache_warm)
 
-          generate = ["generate"] + targets
+          generate = ["generate", "--xcframeworks"] + targets
           generate << "--no-open" if no_open
           Utilities::System.tuist(*generate)
         end
