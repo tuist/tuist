@@ -56,7 +56,7 @@ let package = Package(
             url: "https://github.com/httpswift/swifter.git",
             .revision("1e4f51c92d7ca486242d8bf0722b99de2c3531aa")
         ),
-        .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.0")),
+        .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.5")),
         .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "1.0.0")),
         .package(url: "https://github.com/marmelroy/Zip.git", .upToNextMajor(from: "2.1.1")),
         .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
