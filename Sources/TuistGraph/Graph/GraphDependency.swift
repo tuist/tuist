@@ -1,7 +1,6 @@
 import Foundation
 import TSCBasic
 
-// swiftlint:disable:next type_body_length
 public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Codable {
     /// A dependency that represents a pre-compiled .xcframework.
     case xcframework(

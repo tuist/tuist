@@ -2608,11 +2608,7 @@ extension ProjectDescription.Project {
         .init(
             name: name,
             options: .options(
-                automaticSchemesOptions: .enabled(
-                    targetSchemesGrouping: .singleScheme,
-                    codeCoverageEnabled: false,
-                    testingOptions: []
-                ),
+                automaticSchemesOptions: .disabled,
                 disableBundleAccessors: false,
                 disableSynthesizedResourceAccessors: false,
                 textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)

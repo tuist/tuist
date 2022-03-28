@@ -166,6 +166,7 @@ public class ManifestLoader: ManifestLoading {
 
     // MARK: - Private
 
+    // swiftlint:disable:next function_body_length
     private func loadManifest<T: Decodable>(
         _ manifest: Manifest,
         at path: AbsolutePath

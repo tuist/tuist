@@ -49,7 +49,6 @@ final class BuildService {
         self.targetBuilder = targetBuilder
     }
 
-    // swiftlint:disable:next function_body_length
     func run(
         schemeName: String?,
         generate: Bool,

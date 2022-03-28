@@ -105,13 +105,15 @@ let project = Project(
 )
 ```
 
-## Some notes on the integration of Swift Packages
+## Some notes on the integration of Swift packages
 
-When Swift Packages are integrated into your project's graph, there are some heuristics in place to ensure the resulting graph is valid:
+When Swift packages are integrated as source code into your project's graph, no scheme is created for them, as you usually don't want to build only the dependency explicitly. If you need it (for example, for testing some problem in the library), you can create the scheme directly from Xcode, or you can define it in your Project.swift if you need it to be available across generations.
+
+When Swift packages are integrated into your project's graph, there are some heuristics in place to ensure the resulting graph is valid:
 
 - Tuist defaults to using `iOS` as a platform when there's more than one platform defined in the `Dependencies.swift` and the package manifest file. This is currently a limitation of Tuist [because it does not support multi-platform targets](https://github.com/tuist/tuist/issues/397).
 - Tuist defaults to using the product type defined in the `SwiftPackageManagerDependencies.productTypes` property if the linking type is not defined in the package manifest file. If no product type is defined in `SwiftPackageManagerDependencies`, Tuist will default to a `.staticFramework`
 
 ## Known issues and workarounds
 
-- To use Swift Packages from an Objective-C target, add the path to the public headers of the package to the `HEADER_SEARCH_PATHS` of the target. The path will be something like `Tuist/Dependencies/SwiftPackageManager/.build/checkouts/<your_package>/<the_headers>` ([workaround for issue 4180](https://github.com/tuist/tuist/issues/4180))
+- To use Swift packages from an Objective-C target, add the path to the public headers of the package to the `HEADER_SEARCH_PATHS` of the target. The path will be something like `Tuist/Dependencies/SwiftPackageManager/.build/checkouts/<your_package>/<the_headers>` ([workaround for issue 4180](https://github.com/tuist/tuist/issues/4180))

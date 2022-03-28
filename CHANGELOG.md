@@ -17,10 +17,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## 3.0.1 - Bravissimo
 
-### Fixed
-
-- Fix `Tuist.graph()` command in `ProjectAutomation` [#4204](https://github.com/tuist/tuist/pull/4204) by [@fortmarek](https://github.com/fortmarek)
-
 ### Added
 
 - Add `marketingVersion(_ version:)` to SettingsDictionary extension to set `MARKETING_VERSION` in Build Settings. [#4194](https://github.com/tuist/tuist/pull/4194) by [@dogo](https://github.com/dogo)
@@ -29,6 +25,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix linking of transitive precompiled static frameworks [#4200](https://github.com/tuist/tuist/pull/4200) by [danyf90](https://github.com/danyf90), [kwridan](https://github.com/kwridan), [adellibovi](https://github.com/adellibovi).
+- Fix `Tuist.graph()` command in `ProjectAutomation` [#4204](https://github.com/tuist/tuist/pull/4204) by [@fortmarek](https://github.com/fortmarek)
 
 ## 3.0.0 - Bravo
 
