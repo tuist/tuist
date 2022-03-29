@@ -12,7 +12,7 @@ Below, I'd like to get deeper into the new features and improvements and briefly
 
 ## Plugins
 
-[Plugins](https://docs.tuist.io/plugins/using-plugins/) allow us to make Tuist an extensible platforms. This approach is beneficial to both the users and tuist maintainers. For users, it means they can build **plugins that suit their concrete problem**. The problem might not be general enough for it to be a part of tuist itself or you want to codify your own conventions on top of what tuist offers. Plugins also make tuist easier to maintain because we can provide certain convenience features outside the main repository. The project also becomes leaner and keeps the users in charge of decisions that are outside of tuist's purview.
+[Plugins](https://docs.tuist.io/plugins/using-plugins/) allow us to make Tuist an extensible platform. This approach is beneficial to both the users and tuist maintainers. For users, it means they can build **plugins that suit their concrete problem**. The problem might not be general enough for it to be a part of tuist itself or you want to codify your own conventions on top of what tuist offers. Plugins also make tuist easier to maintain because we can provide certain convenience features outside the main repository. The project also becomes leaner and keeps the users in charge of decisions that are outside of tuist's purview.
 
 Plugins have been in tuist for some time now but it is now possible to use **third-party dependencies in plugin [tasks](https://docs.tuist.io/plugins/creating-plugins/#tasks)**. This unlocks a lot of possibilities. And when users define a task in their `Config.swift`, it's integrated right inside the tuist CLI. For example, we have created a [new tuist plugin](https://github.com/tuist/tuist-plugin-lint) for linting source code where we have integrated the SwiftLint package to actually do the linting. When you integrate the plugin in your project, you can just run `tuist lint` and it will trigger that plugin 🤯  How _cool_ is that?
 
@@ -23,11 +23,11 @@ import ProjectAutomation
 let allSources = Tuist.graph().projects.values.flatMap(\.targets).map(\.sources)
 ```
 
-Having an access to the graph is extremely powerful and can be used for _so many_ things - and we can't wait to learn what you build.
+Having an access to the graph is extremely powerful and can be used for _so many_ things - and we can't wait to learn what you will build.
 
 ## Dependencies.swift
 
-We have all had our share of pain of using the SPM integration in Xcode. And more importantly, you can only integrate the SPM targets as sources - so when you inevitably clean your project, you need to _rebuild_ all of the dependencies again. That's why still a lot of users stick to using Carthage. You always integrate the targets as frameworks, never having to worry about building that code multiple times. Additionally, your Xcode projects is snappier because it only links binaries. The drawback of Carthage has always been you as a developer have to do a lot of manual setup. And when the time comes and you have to debug your dependency, you need to go back to SPM or Cocoapods.
+We have all had our share of pain of using the SPM integration in Xcode. And more importantly, you can only integrate the SPM targets as sources - so when you inevitably clean your project, you need to _rebuild_ all of the dependencies again. That's why a lot of users stick to using Carthage. You always integrate the targets as frameworks, never having to worry about building that code multiple times. Additionally, your Xcode projects is snappier because it only links binaries. The drawback of Carthage has always been that you as a developer have to do a lot of manual setup. And when the time comes and you have to debug your dependency, you need to go back to SPM or Cocoapods.
 
 With [`Dependencies.swift`](https://docs.tuist.io/manifests/dependencies/), you declare your dependencies easily inside a dedicated Swift file instead of relying on Xcode UI. Your dependencies are resolved via a simple command `tuist fetch`. And then when you generate your project, tuist prebuilds all the dependencies, so you get a lean Xcode project which you can clean without worrying about ever having to rebuild your dependencies. And if you still want to debug a dependency, simply specify it in your `tuist generate` call.
 
@@ -47,4 +47,4 @@ With tuist plugins being well-positioned now to cover lots of features that prev
 
 I expect we might see a lot of opportunities for improvement with Tuist Cloud - some features will be on the website only, some might need additional cooperation with tuist CLI. For example, I think we could provide statistics about build times and how they evolve over time. Since we already have `tuist build` command, it's only a matter of sending the right data to the server. But since Tuist Cloud is still nascent, new features will be decided based on the feedback we receive.
 
-Tuist is in a better position than ever to provide the best developer experience for developing on Apple platforms - and so the future is bright. I can't wait to see what we can build all together next. 
+Tuist is in a better position than ever to provide the best developer experience for developing on Apple platforms - and so the future is bright. I can't wait to see what we can build together next. 
