@@ -496,8 +496,11 @@ extension ProjectDescription.DeploymentTarget {
         if let packagePlatform = package.first(where: { $0.tuistPlatformName == platform.rawValue }) {
             switch platform {
             case .iOS:
-              let hasMacCatalyst = package.contains(where: { $0.platformName == "maccatalyst" })
-              return .iOS(targetVersion: packagePlatform.version, devices: hasMacCatalyst ? [.iphone, .ipad, .mac] : [.iphone, .ipad])
+                let hasMacCatalyst = package.contains(where: { $0.platformName == "maccatalyst" })
+                return .iOS(
+                    targetVersion: packagePlatform.version,
+                    devices: hasMacCatalyst ? [.iphone, .ipad, .mac] : [.iphone, .ipad]
+                )
             case .macOS:
                 return .macOS(targetVersion: packagePlatform.version)
             case .watchOS:
@@ -1161,6 +1164,6 @@ extension PackageInfoMapper {
 extension PackageInfo.Platform {
     var tuistPlatformName: String {
         // catalyst is mapped to iOS platform in tuist
-        return platformName == "maccatalyst" ? "ios" : platformName
+        platformName == "maccatalyst" ? "ios" : platformName
     }
 }
