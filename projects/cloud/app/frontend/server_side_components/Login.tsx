@@ -106,6 +106,10 @@ const Login = ({
           <Card.Section title="Social login">
             <Stack vertical={false}>
               {omniauthProviders.map((provider) => {
+                // TODO: Fix gitlab
+                if (provider.title === "GitLab") {
+                  return null;
+                }
                 return (
                   <LinkButton
                     href={provider.link}
