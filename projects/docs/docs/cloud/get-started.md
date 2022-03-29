@@ -5,7 +5,7 @@ description: 'Learn how to set up Tuist Cloud on your projects to have access to
 ---
 
 :::caution Work in progress
-[Tuist Cloud](https://github.com/tuist/cloud) is currently in alpha and we don't make any assurances about the stability of the feature.
+[Tuist Cloud](https://cloud.tuist.io) is currently in alpha and we don't make any assurances about the stability of the feature.
 If you feel adventurous and would like to be early adopter and feedback provider, 
 you'll find up-to-date documentation here.  
 :::
@@ -33,7 +33,7 @@ What if **Tuist Cloud** is the solution?
 That's what we are aiming to achieve, 
 taking inspiration from tools like [Plausible](https://plausible.io/) and [Ghost](https://ghost.org/).
 
-The project is an [open-source](https://github.com/tuist/cloud) Rails app licensed under MIT.
+The project is an [open-source](https://github.com/tuist/tuist/tree/main/projects/cloud) Rails app licensed under MIT.
 Teams can self-host it themselves.
 However, 
 we document the process to self-host the project and design it for easy hosting.
