@@ -12,6 +12,8 @@ import {
   Button,
   Select,
   Stack,
+  FooterHelp,
+  Link,
 } from '@shopify/polaris';
 import RemoteCachePageStore from './RemoteCachePageStore';
 import { observer } from 'mobx-react-lite';
@@ -142,6 +144,15 @@ const RemoteCachePage = observer(() => {
               ? 'Create bucket'
               : 'Edit bucket'}
           </Button>
+          <FooterHelp>
+            Learn more about getting{' '}
+            <Link
+              external={true}
+              url="https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html"
+            >
+              access key to your bucket
+            </Link>
+          </FooterHelp>
         </FormLayout>
       </Card>
       <Card title="CI cloud token" sectioned>
@@ -153,6 +164,10 @@ const RemoteCachePage = observer(() => {
         >
           Copy CI cloud token
         </Button>
+        <FooterHelp>
+          Save this token on your CI to the{' '}
+          <b>TUIST_CONFIG_CLOUD_TOKEN</b> variable
+        </FooterHelp>
       </Card>
     </Page>
   );
