@@ -47,7 +47,7 @@ The [specification](cloud/specification.md) documents the contract and designs i
 
 To set up Tuist Cloud, you will first need to sign up at [cloud.tuist.io](https://cloud.tuist.io) and create a project. You can also create an organization if you intend to work in a team. Once created, you can invite your team members to the organization.
 
-For remote cache, you will also need to set up an [S3 bucket](https://aws.amazon.com/s3/) and provide Tuist Cloud with your [access key](https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html). We also plan to offer more providers in the future.
+For remote cache, you will also need to set up an [S3 bucket](https://aws.amazon.com/s3/) and provide Tuist Cloud with your [access key](https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html). The access key needs write and read permissions for the bucket you plan to use with Tuist Cloud. We also plan to offer more providers in the future.
 
 In your project, you then need to add a reference to Tuist Cloud in your `Config.swift`:
 ```
