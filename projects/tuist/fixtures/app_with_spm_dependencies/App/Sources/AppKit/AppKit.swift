@@ -3,8 +3,8 @@ import Charts
 import ComposableArchitecture
 import FBSDKCoreKit
 import FirebaseAnalytics
-import FirebaseCrashlytics
 import FirebaseCore
+import FirebaseCrashlytics
 import FirebaseDatabase
 import FirebaseFirestore
 import IterableSDK
