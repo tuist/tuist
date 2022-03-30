@@ -3,6 +3,7 @@ import Charts
 import ComposableArchitecture
 import FBSDKCoreKit
 import FirebaseAnalytics
+import FirebaseCrashlytics
 import FirebaseCore
 import FirebaseDatabase
 import FirebaseFirestore
@@ -25,9 +26,13 @@ public enum AppKit {
         // Use FirebaseDatabase to make sure it links fine
         Database.database(app: FirebaseApp.app()!).reference().setValue("value")
 
+        // Use FirebaseCrashlytics to make sure it links fine
+        _ = Crashlytics.crashlytics()
+
         // Use FirebaseFirestore to make sure it links fine
         _ = Firestore.firestore()
 
+        // Use IterableSDK to make sure it links fine
         _ = IterableSDK.IterableAPI.sdkVersion
     }
 }
