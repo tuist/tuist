@@ -323,9 +323,9 @@ final class LinkGeneratorTests: XCTestCase {
         let config = xcodeprojElements.config
         XCTAssertEqual(config.buildSettings["LD_RUNPATH_SEARCH_PATHS"] as? [String], [
             "$(inherited)",
+            "my/custom/path",
             "$(SRCROOT)/Dependencies/Frameworks",
             "$(SRCROOT)/Dependencies/XCFrameworks",
-            "my/custom/path",
         ])
     }
 
@@ -362,11 +362,11 @@ final class LinkGeneratorTests: XCTestCase {
         let config = xcodeprojElements.config
         XCTAssertEqual(config.buildSettings["FRAMEWORK_SEARCH_PATHS"] as? [String], [
             "$(inherited)",
+            "my/custom/path",
             "$(PLATFORM_DIR)/Developer/Library/Frameworks",
             "$(SRCROOT)/Dependencies/Frameworks",
             "$(SRCROOT)/Dependencies/Libraries",
             "$(SRCROOT)/Dependencies/XCFrameworks",
-            "my/custom/path",
         ])
     }
 
@@ -430,9 +430,9 @@ final class LinkGeneratorTests: XCTestCase {
         let config = xcodeprojElements.config
         XCTAssertEqual(config.buildSettings["HEADER_SEARCH_PATHS"] as? [String], [
             "$(inherited)",
+            "my/custom/path",
             "$(SRCROOT)/to/libraries",
             "$(SRCROOT)/to/other/libraries",
-            "my/custom/path",
         ])
     }
 
