@@ -85,24 +85,47 @@ final class SettingsHelper {
         case let (.string(old), .string(new)) where new.contains(inherited):
             // Example: ("OLD", "$(inherited) NEW") -> ["$(inherited) NEW", "OLD"]
             // This case shouldn't happen as all default multi-value settings are defined as NSArray<NSString>
-            return .array([old, new].sortAndTrim(element: inherited))
+            return .array(sortAndTrim(array: [old, new], element: inherited))
 
         case let (.string(old), .array(new)) where new.contains(inherited):
             // Example: ("OLD", ["$(inherited)", "NEW"]) -> ["$(inherited)", "NEW", "OLD"]
-            return .array(([old] + new).sortAndTrim(element: inherited))
+            return .array(sortAndTrim(array: [old] + new, element: inherited))
 
         case let (.array(old), .string(new)) where new.contains(inherited):
             // Example: (["OLD", "OLD_2"], "$(inherited) NEW") -> ["$(inherited) NEW", "OLD", "OLD_2"]
             // This case shouldn't happen as all default multi-value settings are defined as NSArray<NSString>
-            return .array((old + [new]).sortAndTrim(element: inherited))
+            return .array(sortAndTrim(array: old + [new], element: inherited))
 
         case let (.array(old), .array(new)) where new.contains(inherited):
             // Example: (["OLD", "OLD_2"], ["$(inherited)", "NEW"]) -> ["$(inherited)", "NEW", "OLD", OLD_2"]
-            return .array((old + new).sortAndTrim(element: inherited))
+            return .array(sortAndTrim(array: old + new, element: inherited))
 
         default:
             // The newValue does not contain $(inherited) so the oldValue should be omitted
             return newValue
         }
+    }
+
+    private func sortAndTrim(array: [String], element: String) -> [String] {
+        guard array.contains(where: { $0.starts(with: element) }) else { return array }
+        // Move items that contain `element` to the top of the array
+        return array
+            .sorted { first, _ in first.contains(element) }
+            .enumerated()
+            .compactMap { index, item in
+                // Remove duplicate `element`
+                if index > 0,
+                   item == element
+                {
+                    return nil
+                } else if index > 0, item.contains(element) {
+                    // "$(inherited) flag" -> "flag"
+                    return item
+                        .replacingOccurrences(of: element, with: "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                } else {
+                    return item
+                }
+            }
     }
 }
