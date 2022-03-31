@@ -785,6 +785,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "unxavi",
+      "name": "Javier Vieira",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3817679?v=4",
+      "profile": "https://github.com/unxavi",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
