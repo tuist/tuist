@@ -321,6 +321,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "SnapshotTesting", // https://github.com/pointfreeco/swift-snapshot-testing
                     "TempuraTesting", // https://github.com/BendingSpoons/tempura-swift
                     "TSCTestSupport", // https://github.com/apple/swift-tools-support-core
+                    "ViewInspector", // https://github.com/nalexn/ViewInspector
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }
