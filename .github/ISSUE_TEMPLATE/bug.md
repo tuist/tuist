@@ -3,17 +3,13 @@ name: Bug report
 about: Create a report to help us improve
 ---
 
-## Describe the bug
+## Describe the bug and the expected behavior
 
-A clear and concise description of what the bug is.
-
-### Expected behavior
-
-A clear and concise description of what you expected to happen instead.
+A clear and concise description of what the bug is, and what you expect to happen instead.
 
 ## Reproduction steps
 
-Steps to reproduce the behavior:
+Steps to reproduce the bug:
 
 1. Use the attached sample project (to be provided when opening the issue)
 2. Run `…`
