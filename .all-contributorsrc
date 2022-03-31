@@ -794,6 +794,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "a-sarris",
+      "name": "Aris Sarris",
+      "avatar_url": "https://avatars.githubusercontent.com/u/78614622?v=4",
+      "profile": "https://github.com/a-sarris",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
