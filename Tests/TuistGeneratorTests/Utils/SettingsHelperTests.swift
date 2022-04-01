@@ -175,24 +175,28 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: ["A": ["$(inherited)", "A_VALUE_1"]])
 
         // Then
-        XCTAssertEqual(settings, ["A": ["$(inherited)",
-                                        "A_VALUE",
-                                        "B_VALUE",
-                                        "A_VALUE",
-                                        "C_VALUE",
-                                        "A_VALUE_1"]])
+        XCTAssertEqual(settings, ["A": [
+            "$(inherited)",
+            "A_VALUE",
+            "B_VALUE",
+            "A_VALUE",
+            "C_VALUE",
+            "A_VALUE_1",
+        ]])
     }
 
     func testExtend_whenExistingSettingsStringWithDuplicatesAndNewWithInheritedDeclaration() {
         // Given
         settings["A"] = "$(inherited) A_VALUE B_VALUE A_VALUE C_VALUE"
-        
+
         // When
         subject.extend(buildSettings: &settings, with: ["A": "$(inherited) A_VALUE_1"])
-        
+
         // Then
-        XCTAssertEqual(settings, ["A": ["$(inherited) A_VALUE_1",
-                                        "A_VALUE B_VALUE A_VALUE C_VALUE"]])
+        XCTAssertEqual(settings, ["A": [
+            "$(inherited) A_VALUE_1",
+            "A_VALUE B_VALUE A_VALUE C_VALUE",
+        ]])
     }
 
     func testSettingsProviderPlatform() {
