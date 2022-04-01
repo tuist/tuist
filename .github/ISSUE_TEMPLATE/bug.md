@@ -3,27 +3,32 @@ name: Bug report
 about: Create a report to help us improve
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Describe the bug and the expected behavior
 
-**To Reproduce**
-Steps to reproduce the behavior:
+A clear and concise description of what the bug is, and what you expect to happen instead.
 
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+## Reproduction steps
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+Steps to reproduce the bug:
 
-**Screenshots**
+1. Use the attached sample project (to be provided when opening the issue)
+2. Run `…`
+3. See the error
+
+### Error log
+
+```
+Copy of the full error message
+```
+
+### Error screenshots
+
 If applicable, add screenshots to help explain your problem.
 
-**Desktop (please complete the following information):**
+### Additional context
 
-- OS: [e.g. macOS]
-- Version [e.g. 22]
+- macOS version: X.X.X
+- Tuist version: X.X.X
+- Xcode version: X.X.X
 
-**Additional context**
 Add any other context about the problem here.
