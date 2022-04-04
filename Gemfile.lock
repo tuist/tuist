@@ -65,7 +65,7 @@ GEM
       public_suffix (~> 4.0)
       typhoeus (~> 1.0)
     cocoapods-deintegrate (1.0.5)
-    cocoapods-downloader (1.6.1)
+    cocoapods-downloader (1.6.3)
     cocoapods-plugins (1.0.0)
       nap
     cocoapods-search (1.0.1)
@@ -158,7 +158,7 @@ GEM
       webrick
     google-apis-iamcredentials_v1 (0.10.0)
       google-apis-core (>= 0.4, < 2.a)
-    google-apis-storage_v1 (0.11.0)
+    google-apis-storage_v1 (0.12.0)
       google-apis-core (>= 0.4, < 2.a)
     google-cloud-core (1.6.0)
       google-cloud-env (~> 1.0)
@@ -187,7 +187,7 @@ GEM
       concurrent-ruby (~> 1.0)
     json (2.6.1)
     jwt (2.3.0)
-    loofah (2.15.0)
+    loofah (2.16.0)
       crass (~> 1.0.2)
       nokogiri (>= 1.5.9)
     memoist (0.16.2)
