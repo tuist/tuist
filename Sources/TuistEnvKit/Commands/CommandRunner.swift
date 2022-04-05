@@ -101,6 +101,8 @@ class CommandRunner: CommandRunning {
     }
 
     func runVersion(_ version: String) throws {
+        _ = Version(stringLiteral: version)
+
         if !versionsController.versions().contains(where: { $0.description == version }) {
             logger.notice("Version \(version) not found locally. Installing...")
             try installer.install(version: version)
