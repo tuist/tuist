@@ -260,6 +260,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/aniltaskiran"><img src="https://avatars.githubusercontent.com/u/16738729?v=4" width="100px;" alt=""/><br /><sub><b>aniltaskiran</b></sub></a></td>
     <td align="center"><a href="https://github.com/unxavi"><img src="https://avatars.githubusercontent.com/u/3817679?v=4" width="100px;" alt=""/><br /><sub><b>Javier Vieira</b></sub></a></td>
     <td align="center"><a href="https://github.com/a-sarris"><img src="https://avatars.githubusercontent.com/u/78614622?v=4" width="100px;" alt=""/><br /><sub><b>Aris Sarris</b></sub></a></td>
+    <td align="center"><a href="https://xxw9999.notion.site/xxw9999/iOS-8585a34b2886419586960c5c02b9d845"><img src="https://avatars.githubusercontent.com/u/67373938?v=4" width="100px;" alt=""/><br /><sub><b>kimxwan0319</b></sub></a></td>
   </tr>
 </table>
 
