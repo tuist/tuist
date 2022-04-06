@@ -10,13 +10,19 @@ import {
 } from '@shopify/polaris';
 import { observer } from 'mobx-react-lite';
 import React, { useContext, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import SettingsPageStore from './SettingsPageStore';
 
 const SettingsPage = observer(() => {
   const homeStore = useContext(HomeStoreContext);
   const [settingsPageStore] = useState(
-    () => new SettingsPageStore(homeStore.projectStore),
+    () =>
+      new SettingsPageStore(
+        homeStore.projectStore,
+        homeStore.userStore,
+      ),
   );
+  const navigate = useNavigate();
   return (
     <>
       <Page title="Settings">
@@ -65,7 +71,17 @@ const SettingsPage = observer(() => {
                   newValue;
               }}
             />
-            <Button destructive={true} onClick={() => {}}>
+            <Button
+              destructive={true}
+              onClick={async () => {
+                const slug =
+                  await settingsPageStore.deleteProjectConfirmed();
+                navigate(`/${slug}`);
+              }}
+              disabled={
+                settingsPageStore.isDeleteProjectButtonDisabled
+              }
+            >
               Permanently delete this project
             </Button>
           </Stack>

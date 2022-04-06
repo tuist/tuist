@@ -2,7 +2,7 @@ import { MeQuery, MeDocument } from '@/graphql/types';
 import { ApolloClient } from '@apollo/client';
 import { makeAutoObservable, runInAction } from 'mobx';
 
-export default class UsersStore {
+export default class UserStore {
   me: MeQuery['me'];
   client: ApolloClient<object>;
   constructor(client: ApolloClient<object>) {
