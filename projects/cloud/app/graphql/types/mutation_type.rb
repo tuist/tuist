@@ -7,6 +7,11 @@ module Types
       null: false,
       description: "Creates a new project",
       mutation: Mutations::CreateProject
+    field :delete_project,
+      ProjectType,
+      null: false,
+      description: "Deletes a given project",
+      mutation: Mutations::DeleteProject
     field :change_user_role,
       UserType,
       null: false,
