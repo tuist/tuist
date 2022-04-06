@@ -362,7 +362,7 @@ export type OrganizationQuery = { __typename?: 'Query', organization?: { __typen
 
 export type PendingInvitationFragment = { __typename?: 'Invitation', inviteeEmail: string, id: string };
 
-export type ProjectDetailFragment = { __typename?: 'Project', id: string, token: string, account: { __typename?: 'Account', id: string, name: string, owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } }, remoteCacheStorage?: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string } | null };
+export type ProjectDetailFragment = { __typename?: 'Project', id: string, slug: string, name: string, token: string, account: { __typename?: 'Account', id: string, name: string, owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } }, remoteCacheStorage?: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string } | null };
 
 export type ProjectQueryVariables = Exact<{
   name: Scalars['String'];
@@ -370,7 +370,7 @@ export type ProjectQueryVariables = Exact<{
 }>;
 
 
-export type ProjectQuery = { __typename?: 'Query', project?: { __typename?: 'Project', id: string, token: string, account: { __typename?: 'Account', id: string, name: string, owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } }, remoteCacheStorage?: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string } | null } | null };
+export type ProjectQuery = { __typename?: 'Query', project?: { __typename?: 'Project', id: string, slug: string, name: string, token: string, account: { __typename?: 'Account', id: string, name: string, owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } }, remoteCacheStorage?: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string } | null } | null };
 
 export type RemoveUserMutationVariables = Exact<{
   input: RemoveUserInput;
@@ -423,6 +423,8 @@ export const S3BucketInfoFragmentDoc = gql`
 export const ProjectDetailFragmentDoc = gql`
     fragment ProjectDetail on Project {
   id
+  slug
+  name
   account {
     id
     name

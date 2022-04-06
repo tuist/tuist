@@ -6,6 +6,8 @@ export interface Project {
   account: Account;
   remoteCacheStorage: S3Bucket | null;
   token: string;
+  slug: string;
+  name: string;
 }
 
 export const mapProject = ({
@@ -13,6 +15,8 @@ export const mapProject = ({
   account,
   remoteCacheStorage,
   token,
+  slug,
+  name,
 }: ProjectDetailFragment) => {
   let mappedRemoteCacheStorage: S3Bucket | undefined | null;
   if (
@@ -38,5 +42,7 @@ export const mapProject = ({
     },
     remoteCacheStorage: mappedRemoteCacheStorage,
     token,
+    slug,
+    name,
   } as Project;
 };

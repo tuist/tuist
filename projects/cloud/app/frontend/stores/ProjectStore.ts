@@ -4,7 +4,7 @@ import { makeAutoObservable, runInAction } from 'mobx';
 import { mapProject, Project } from '@/models/Project';
 
 export default class ProjectStore {
-  project: Project;
+  project: Project | undefined;
   client: ApolloClient<object>;
   constructor(client: ApolloClient<object>) {
     this.client = client;
