@@ -1,5 +1,7 @@
 fragment ProjectDetail on Project {
   id
+  slug
+  name
   account {
     id
     name

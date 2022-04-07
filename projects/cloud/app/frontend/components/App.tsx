@@ -20,6 +20,7 @@ import OrganizationPage from './pages/organization/OrganizationPage';
 
 import TuistCloudAppProvider from './TuistCloudAppProvider';
 import AcceptInvitationPage from './pages/invitations/AcceptInvitationPage';
+import SettingsPage from './pages/settings/SettingsPage';
 
 const AppRoutes = () => {
   const location = useLocation();
@@ -53,6 +54,7 @@ const AppRoutes = () => {
           <Route path="" element={<RemoteCachePage />} />
           <Route path="remote-cache" element={<RemoteCachePage />} />
           <Route path="organization" element={<OrganizationPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="/new" element={<NewProject />} />
         <Route element={<NoPageFound />} />
