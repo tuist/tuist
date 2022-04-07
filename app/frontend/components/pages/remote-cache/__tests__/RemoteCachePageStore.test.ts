@@ -29,6 +29,8 @@ describe('RemoteCachePageStore', () => {
       },
       remoteCacheStorage: null,
       token: '',
+      name: 'project',
+      slug: 'org/project',
     };
   });
 
@@ -82,6 +84,8 @@ describe('RemoteCachePageStore', () => {
       },
       remoteCacheStorage: null,
       token: '',
+      name: 'project',
+      slug: 'org/project',
     };
 
     // When
@@ -97,7 +101,7 @@ describe('RemoteCachePageStore', () => {
 
   it('returns remote cache storage name if it is set in the project', () => {
     // Given
-    projectStore.project.remoteCacheStorage = {
+    projectStore.project!.remoteCacheStorage = {
       accessKeyId: 'accessKeyId',
       id: 'id',
       name: 'bucket',
@@ -129,6 +133,8 @@ describe('RemoteCachePageStore', () => {
       },
       remoteCacheStorage: null,
       token: 'token',
+      name: 'project',
+      slug: 'org/project',
     };
     const remoteCachePageStore = new RemoteCachePageStore(
       client,
@@ -153,7 +159,7 @@ describe('RemoteCachePageStore', () => {
 
   it('loads remote cache page', async () => {
     // Given
-    projectStore.project.remoteCacheStorage = {
+    projectStore.project!.remoteCacheStorage = {
       accessKeyId: 'key-id-1',
       id: 'id-1',
       name: 'S3 bucket one',
@@ -264,7 +270,7 @@ describe('RemoteCachePageStore', () => {
 
     // Then
     expect(
-      remoteCachePageStore.projectStore.project.remoteCacheStorage,
+      remoteCachePageStore.projectStore.project?.remoteCacheStorage,
     ).toEqual(expectedS3Bucket);
     expect(remoteCachePageStore.s3Buckets).toEqual([
       expectedS3Bucket,
@@ -273,7 +279,7 @@ describe('RemoteCachePageStore', () => {
 
   it('updates the current bucket', async () => {
     // Given
-    projectStore.project.remoteCacheStorage = {
+    projectStore.project!.remoteCacheStorage = {
       accessKeyId: 'key-id-1',
       id: 'id-1',
       name: 'S3 bucket',
@@ -328,7 +334,7 @@ describe('RemoteCachePageStore', () => {
 
     // Then
     expect(
-      remoteCachePageStore.projectStore.project.remoteCacheStorage,
+      remoteCachePageStore.projectStore.project?.remoteCacheStorage,
     ).toEqual(expectedS3Bucket);
     expect(remoteCachePageStore.s3Buckets).toEqual([
       expectedS3Bucket,

@@ -7,6 +7,7 @@ class Project < ApplicationRecord
   autogenerates_token :token
 
   # Associations
+  has_many :users, foreign_key: :last_visited_project_id, dependent: :nullify
   belongs_to :account, optional: false
   belongs_to :remote_cache_storage, polymorphic: true, optional: true
 

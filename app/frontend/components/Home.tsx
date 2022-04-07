@@ -34,6 +34,7 @@ import {
   HomeMajor,
   PackageMajor,
   PlusMinor,
+  SettingsMajor,
 } from '@shopify/polaris-icons';
 import { HomeStore, HomeStoreContext } from '@/stores/HomeStore';
 import { observer } from 'mobx-react-lite';
@@ -229,6 +230,12 @@ const Home = observer(() => {
       selected: location.pathname.endsWith('organization'),
     });
   }
+  navigationItems.push({
+    label: 'Settings',
+    icon: SettingsMajor,
+    url: 'settings',
+    selected: location.pathname.endsWith('settings'),
+  });
 
   const navigationMarkup = (
     <Navigation location="/">
