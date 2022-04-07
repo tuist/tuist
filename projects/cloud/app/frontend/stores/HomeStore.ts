@@ -23,9 +23,13 @@ export class HomeStore {
       return false;
     }
 
-    return this.organizationStore.admins
-      .map((admin) => admin.id)
-      .includes(this.userStore.me.id);
+    if (this.projectStore.project?.account.owner.type === 'user') {
+      return true;
+    } else {
+      return this.organizationStore.admins
+        .map((admin) => admin.id)
+        .includes(this.userStore.me.id);
+    }
   }
 
   async load(projectName: string, accountName: string) {
