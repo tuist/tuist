@@ -812,6 +812,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "ffittschen",
+      "name": "Florian Fittschen",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7734806?v=4",
+      "profile": "https://florian.codes",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
