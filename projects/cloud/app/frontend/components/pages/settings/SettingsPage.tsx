@@ -38,6 +38,7 @@ const SettingsPage = observer(() => {
                 </Stack>
               </Stack.Item>
               <Button
+                disabled={!homeStore.isAdmin}
                 destructive={true}
                 onClick={() => {
                   settingsPageStore.isDeleteProjectConfirmModalActive =

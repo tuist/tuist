@@ -18,9 +18,19 @@ export class HomeStore {
     this.projectStore = new ProjectStore(client);
   }
 
+  get isAdmin() {
+    if (this.userStore.me === undefined) {
+      return false;
+    }
+
+    return this.organizationStore.admins
+      .map((admin) => admin.id)
+      .includes(this.userStore.me.id);
+  }
+
   async load(projectName: string, accountName: string) {
     await this.userStore.load();
-    if (this.userStore.me.account.name !== accountName) {
+    if (this.userStore.me?.account.name !== accountName) {
       await this.organizationStore.load(accountName);
     }
     await this.projectStore.load(projectName, accountName);
