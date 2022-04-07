@@ -78,10 +78,9 @@ extension Target {
             Set(paths)
                 .subtracting(excluded)
                 .filter { path in
-                    if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
-                        return true
-                    }
-                    return false
+                    guard let `extension` = path.extension else { return false }
+                    return Target.validSourceExtensions
+                        .contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame })
                 }
                 .forEach { sourceFiles[$0] = SourceFile(path: $0, compilerFlags: source.compilerFlags, codeGen: source.codeGen) }
         }

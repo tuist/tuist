@@ -114,6 +114,7 @@ final class TargetTests: TuistUnitTestCase {
             "sources/d.c",
             "sources/e.cpp",
             "sources/f.s",
+            "sources/g.S",
             "sources/k.kt",
             "sources/n.metal",
         ])
@@ -141,6 +142,7 @@ final class TargetTests: TuistUnitTestCase {
             "sources/c.mm",
             "sources/d.c",
             "sources/f.s",
+            "sources/g.S",
             "sources/e.cpp",
             "sources/n.metal",
         ]))
