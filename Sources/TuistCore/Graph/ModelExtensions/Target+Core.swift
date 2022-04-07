@@ -78,7 +78,7 @@ extension Target {
             Set(paths)
                 .subtracting(excluded)
                 .filter { path in
-                    if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
+                    if let `extension` = path.extension, Target.validSourceExtensions.contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame }) {
                         return true
                     }
                     return false
