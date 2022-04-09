@@ -232,6 +232,58 @@ describe('RemoteCachePageStore', () => {
     ]);
   });
 
+  it('resets fields when changing reloading and project has no remote cache storage', async () => {
+    // Given
+    projectStore.project!.remoteCacheStorage = {
+      accessKeyId: 'key-id-1',
+      id: 'id-1',
+      name: 'S3 bucket one',
+      secretAccessKey: 'secret',
+      region: 'region',
+    };
+    const remoteCachePageStore = new RemoteCachePageStore(
+      client,
+      projectStore,
+    );
+    client.query.mockResolvedValueOnce({
+      data: {
+        s3Buckets: [
+          {
+            accessKeyId: 'key-id-1',
+            accountId: 'account-id-1',
+            id: 'id-1',
+            name: 'S3 bucket one',
+            region: 'region',
+            __typename: 'S3Bucket',
+          },
+        ] as S3BucketInfoFragment[],
+      },
+    });
+    await remoteCachePageStore.load();
+    remoteCachePageStore.projectStore.project!.remoteCacheStorage =
+      null;
+    client.query.mockResolvedValueOnce({
+      data: {
+        s3Buckets: [],
+      },
+    });
+
+    // When
+    await remoteCachePageStore.load();
+
+    // Then
+    expect(remoteCachePageStore.bucketName).toEqual('');
+    expect(remoteCachePageStore.accessKeyId).toEqual('');
+    expect(remoteCachePageStore.secretAccessKey).toEqual('');
+    expect(remoteCachePageStore.s3Buckets).toEqual([]);
+    expect(remoteCachePageStore.bucketOptions).toEqual([
+      {
+        label: 'Create new bucket',
+        value: 'new',
+      },
+    ]);
+  });
+
   it('creates a new bucket', async () => {
     // Given
     const remoteCachePageStore = new RemoteCachePageStore(
