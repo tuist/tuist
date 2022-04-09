@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import struct TSCUtility.Version
 import TuistSupport
 
 protocol CommandRunning: AnyObject {
