@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 import TuistSupport
 
 protocol CommandRunning: AnyObject {
@@ -101,6 +102,12 @@ class CommandRunner: CommandRunning {
     }
 
     func runVersion(_ version: String) throws {
+        guard Version(string: version) != nil else {
+            logger.error("\(version) is not a valid version")
+            exiter(1)
+            return
+        }
+
         if !versionsController.versions().contains(where: { $0.description == version }) {
             logger.notice("Version \(version) not found locally. Installing...")
             try installer.install(version: version)
