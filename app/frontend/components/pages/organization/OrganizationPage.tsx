@@ -81,7 +81,8 @@ const UserItem = ({
   user: User;
   isAdmin: boolean;
 }) => {
-  const { organizationStore } = useContext(HomeStoreContext);
+  const { organizationStore, userStore } =
+    useContext(HomeStoreContext);
   return (
     <div style={{ padding: '10px 100px 10px 20px' }}>
       <Stack alignment={'center'}>
@@ -92,7 +93,7 @@ const UserItem = ({
             <TextStyle variation="subdued">{user.email}</TextStyle>
           </Stack>
         </Stack.Item>
-        {isAdmin ? (
+        {isAdmin && user.id !== userStore.me?.id ? (
           <UserRolePopover user={user} />
         ) : (
           <TextStyle>
