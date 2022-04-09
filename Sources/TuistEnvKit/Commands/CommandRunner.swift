@@ -105,6 +105,7 @@ class CommandRunner: CommandRunning {
         guard Version(string: version) != nil else {
             logger.error("\(version) is not a valid version")
             exiter(1)
+            return
         }
 
         if !versionsController.versions().contains(where: { $0.description == version }) {
