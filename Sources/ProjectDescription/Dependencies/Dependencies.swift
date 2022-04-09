@@ -1,6 +1,22 @@
 import Foundation
 
 /// A collection of external dependencies.
+///
+/// Learn how to get started with `Dependencies.swift` manifest [here](https://docs.tuist.io/guides/dependencies).
+///
+/// ```swift
+/// import ProjectDescription
+///
+/// let dependencies = Dependencies(
+///     carthage: [
+///         .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4")),
+///     ],
+///     swiftPackageManager: [
+///         .remote(url: "https://github.com/Alamofire/Alamofire", requirement: / .upToNextMajor(from: "5.0.0")),
+///     ],
+///     platforms: [.iOS]
+/// )
+/// ```
 public struct Dependencies: Codable, Equatable {
     /// The description of dependencies that can be installed using Carthage.
     public let carthage: CarthageDependencies?
