@@ -158,6 +158,10 @@ class RemoteCachePageStore {
         this.projectStore.project == null ||
         this.projectStore.project.remoteCacheStorage == null
       ) {
+        this.bucketName = '';
+        this.accessKeyId = '';
+        this.secretAccessKey = '';
+        this.region = '';
         return;
       }
       this.bucketName =
