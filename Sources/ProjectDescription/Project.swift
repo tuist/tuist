@@ -3,6 +3,10 @@ import Foundation
 /// A project representation.
 ///
 /// A project manifest needs to be defined in a `Project.swift` manifest file.
+/// Manifests need to import the framework ProjectDescription which contains all
+/// the classes and enums that are available for you to describe your projects.
+///
+/// The snippet below shows an example project manifest:
 ///
 /// ```swift
 /// import ProjectDescription

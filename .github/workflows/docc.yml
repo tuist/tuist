@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - main
+  pull_request:
 
 concurrency:
   group: docc-${{ github.head_ref }}
@@ -63,7 +64,8 @@ jobs:
         run: >
           rm -rf docs-out/.git;
           rm -rf docs-out/main;
-          for tag in $(echo "main"; git tag | tail -n +94);
+          rm -rf docs-out/latest;
+          for tag in $(echo "main"; echo "latest"; git tag | tail -n +94);
           do
             echo "⏳ Generating documentation for "$tag" release.";
             
@@ -71,7 +73,11 @@ jobs:
             then 
                 echo "✅ Documentation for "$tag" already exists.";
             else 
-                git checkout -f "$tag";
+                if [ "$tag" == "latest" ]; then
+                  git checkout -f "$(git tag | tail -n 1)";
+                else
+                  git checkout -f "$tag";
+                fi
                 mkdir -p Sources/ProjectDescription/Documentation.docc;
                 export DOCC_HTML_DIR="$(pwd)/swift-docc-render/dist";
                 rm -rf .build/symbol-graphs;
