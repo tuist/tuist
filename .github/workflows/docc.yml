@@ -80,7 +80,7 @@ jobs:
                 fi
                 mkdir -p Sources/ProjectDescription/Documentation.docc;
                 export DOCC_HTML_DIR="$(pwd)/swift-docc-render/dist";
-                rm -rf .build/symbol-graphs;
+                rm -rf .build;
                 mkdir -p .build/symbol-graphs;
                 swift build \
                   --target ProjectDescription \
