@@ -86,7 +86,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_excluding() throws {
+    func test_excluding_file() throws {
         // Given
         let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
@@ -148,6 +148,22 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
                 .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),
             ]
+        )
+    }
+
+    func test_excluding_when_pattern_is_file() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let resourcesFolder = temporaryPath.appending(component: "Resources")
+        try fileHandler.createFolder(resourcesFolder)
+        try fileHandler.write("", path: resourcesFolder.appending(component: "excluded.xib"), atomically: true)
+        let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/excluded.xib", excluding: ["Resources/excluded.xib"])
+
+        // Then
+        XCTAssertEqual(
+            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            []
         )
     }
 }

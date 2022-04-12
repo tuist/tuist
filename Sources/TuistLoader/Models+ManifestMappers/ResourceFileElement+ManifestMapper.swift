@@ -17,8 +17,6 @@ extension TuistGraph.ResourceFileElement {
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
     ) throws -> [TuistGraph.ResourceFileElement] {
         func globFiles(_ path: AbsolutePath, excluding: [String]) throws -> [AbsolutePath] {
-            if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
-
             var excluded: Set<AbsolutePath> = []
             excluding.forEach { path in
                 let absolute = AbsolutePath(path)

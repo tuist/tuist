@@ -632,9 +632,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .init(rule: .copy, path: "Resource/Folder"),
                                 .init(rule: .process, path: "Another/Resource/Folder"),
                                 .init(rule: .process, path: "AnotherOne/Resource/Folder"),
+                                .init(rule: .process, path: "YetAnotherOne/Info.plist"),
                             ],
                             exclude: [
                                 "AnotherOne/Resource",
+                                "YetAnotherOne/Info.plist",
                             ]
                         ),
                     ],
@@ -2427,7 +2429,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenDepndenciesContainsCustomConfiguration_mapsToProjectWithCustomConfig() throws {
+    func testMap_whenDependenciesContainsCustomConfiguration_mapsToProjectWithCustomConfig() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
