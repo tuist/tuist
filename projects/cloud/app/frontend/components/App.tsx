@@ -12,7 +12,7 @@ import {
 } from 'react-router-dom';
 import NoPageFound from './NoPageFound';
 import NewProject from './NewProject';
-import Dashboard from './Dashboard';
+import Dashboard from './pages/dashboard/Dashboard';
 import Home from './Home';
 import { useMeQuery } from '@/graphql/types';
 import RemoteCachePage from './pages/remote-cache/RemoteCachePage';
@@ -51,7 +51,7 @@ const AppRoutes = () => {
         />
         <Route path="/:accountName/:projectName" element={<Home />}>
           {/* TODO: Return dashboard here once we have what to display there */}
-          <Route path="" element={<RemoteCachePage />} />
+          <Route path="" element={<Dashboard />} />
           <Route path="remote-cache" element={<RemoteCachePage />} />
           <Route path="organization" element={<OrganizationPage />} />
           <Route path="settings" element={<SettingsPage />} />

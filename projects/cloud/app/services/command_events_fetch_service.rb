@@ -11,5 +11,7 @@ class CommandEventsFetchService < ApplicationService
 
   def call
     project = ProjectFetchService.new.fetch_by_id(project_id: project_id, user: user)
+
+    project.command_events
   end
 end

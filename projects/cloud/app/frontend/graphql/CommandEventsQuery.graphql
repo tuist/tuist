@@ -1,0 +1,5 @@
+query CommandEvents($projectId: ID!) {
+  commandEvents(projectId: $projectId) {
+    ...CommandEventDetail
+  }
+}

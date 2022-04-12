@@ -4,7 +4,7 @@ class AddCommandEventsTable < ActiveRecord::Migration[7.0]
   def change
     create_table(:command_events) do |t|
       t.string(:name)
-      t.string(:subcommand)
+      t.string(:subcommand, null: true)
       t.string(:command_arguments)
       t.integer(:duration)
       t.string(:client_id)

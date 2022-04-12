@@ -1,0 +1,10 @@
+fragment CommandEventDetail on CommandEvent {
+  name
+  subcommand
+  commandArguments
+  duration
+  clientId
+  tuistVersion
+  swiftVersion
+  macosVersion
+}
