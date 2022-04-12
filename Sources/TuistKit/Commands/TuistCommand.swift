@@ -51,7 +51,13 @@ public struct TuistCommand: ParsableCommand {
                 try InitCommand.preprocess(processedArguments)
             }
             let command = try parseAsRoot(processedArguments)
-            executeCommand = { try await execute(command) }
+            print(processedArguments)
+            executeCommand = { 
+                try await execute(
+                    command: command,
+                    commandArguments: processedArguments
+                ) 
+            }
         } catch {
             parsedError = error
             executeCommand = {
@@ -95,10 +101,16 @@ public struct TuistCommand: ParsableCommand {
         _exit(exitCode)
     }
 
-    private static func execute(_ command: ParsableCommand) async throws {
+    private static func execute(
+        command: ParsableCommand,
+        commandArguments: [String]
+    ) async throws {
         var command = command
         if Environment.shared.isStatsEnabled {
-            let trackableCommand = TrackableCommand(command: command)
+            let trackableCommand = TrackableCommand(
+                command: command,
+                commandArguments: commandArguments
+            )
             try await trackableCommand.run()
         } else {
             if var asyncCommand = command as? AsyncParsableCommand {

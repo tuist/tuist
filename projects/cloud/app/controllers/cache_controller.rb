@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
-class CacheController < ApplicationController
-  skip_before_action :authenticate_user!
-  before_action :authenticate_user_from_token!
-
+class CacheController < APIController
   def cache
     if request.head? && !cache_artifact_upload_service.object_exists?
       render(json: { message: "S3 object was not found", code: :not_found }, status: :not_found)
@@ -20,21 +17,6 @@ class CacheController < ApplicationController
 
   def verify_upload
     render(json: { status: "success", data: { uploaded_size: cache_artifact_upload_service.verify_upload } })
-  end
-
-  def authenticate_user_from_token!
-    authenticate_or_request_with_http_token do |token, options|
-      begin
-        user = User.find_by!(token: token)
-      rescue ActiveRecord::RecordNotFound
-        @project = Project.find_by!(token: token)
-      end
-      if user
-        sign_in(user, store: false)
-      else
-        @project
-      end
-    end
   end
 
   private

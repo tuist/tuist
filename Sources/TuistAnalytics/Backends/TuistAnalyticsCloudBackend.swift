@@ -30,6 +30,8 @@ class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {
 
     func send(commandEvent: CommandEvent) async throws {
         guard config.options.contains(.analytics) else { return }
+        var commandEvent = commandEvent
+        commandEvent.params["project_id"] = config.projectId
 
         let resource = try resourceFactory.create(commandEvent: commandEvent)
         _ = try await client.request(resource)
