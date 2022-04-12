@@ -6,7 +6,7 @@ import TuistCore
 public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let name: String
     public let subcommand: String?
-    public var params: [String: String]
+    public let params: [String: String]
     public let commandArguments: String
     public let durationInMs: Int
     public let clientId: String

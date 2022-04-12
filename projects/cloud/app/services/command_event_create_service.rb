@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-class CommandEventsFetchService < ApplicationService
+class CommandEventCreateService < ApplicationService
   attr_reader :account_name, :project_name, :user, :name, :subcommand, :command_arguments, :duration, :client_id,
-  :tuist_version, :swift_version, :macos_version
+    :tuist_version, :swift_version, :macos_version
 
   def initialize(
     project_slug:,
@@ -32,7 +32,7 @@ class CommandEventsFetchService < ApplicationService
   end
 
   def call
-    project = ProjectFetchService.new.fetch_by_name(project_id: project_id, user: user)
+    project = ProjectFetchService.new.fetch_by_name(name: project_name, account_name: account_name, user: user)
 
     CommandEvent.create!(
       name: name,
