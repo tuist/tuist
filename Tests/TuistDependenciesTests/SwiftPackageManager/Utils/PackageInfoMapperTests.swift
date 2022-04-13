@@ -2427,7 +2427,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenDepndenciesContainsCustomConfiguration_mapsToProjectWithCustomConfig() throws {
+    func testMap_whenDependenciesContainsCustomConfiguration_mapsToProjectWithCustomConfig() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)

@@ -1388,7 +1388,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
-    func test_embeddableDependencies_whenHostedTestTarget_transitiveDepndencies() throws {
+    func test_embeddableDependencies_whenHostedTestTarget_transitiveDependencies() throws {
         // Given
         let framework = Target.test(
             name: "Framework",
@@ -1439,7 +1439,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
-    func test_embeddableDependencies_whenUITest_andAppPrecompiledDepndencies() throws {
+    func test_embeddableDependencies_whenUITest_andAppPrecompiledDependencies() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
         let uiTests = Target.test(name: "AppUITests", product: .uiTests)
