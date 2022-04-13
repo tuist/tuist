@@ -1,4 +1,5 @@
 fragment CommandEventDetail on CommandEvent {
+  id
   name
   subcommand
   commandArguments
@@ -7,4 +8,5 @@ fragment CommandEventDetail on CommandEvent {
   tuistVersion
   swiftVersion
   macosVersion
+  createdAt
 }

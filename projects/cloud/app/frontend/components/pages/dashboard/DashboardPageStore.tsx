@@ -7,7 +7,7 @@ import {
   mapCommandEventDetail,
 } from '@/models/CommandEventDetail';
 import { ApolloClient } from '@apollo/client';
-import { makeAutoObservable } from 'mobx';
+import { makeAutoObservable, runInAction } from 'mobx';
 
 class DashboardPageStore {
   commandEvents: CommandEventDetail[] = [];
@@ -21,17 +21,17 @@ class DashboardPageStore {
 
   async load(projectId: string) {
     // TODO: Do not use command event details here
-    const { data, errors } =
-      await this.client.query<CommandEventsQuery>({
-        query: CommandEventsDocument,
-        variables: {
-          projectId,
-        },
-      });
-    console.log('Load', data, errors);
-    this.commandEvents = data.commandEvents.map((commandEvent) =>
-      mapCommandEventDetail(commandEvent),
-    );
+    const { data } = await this.client.query<CommandEventsQuery>({
+      query: CommandEventsDocument,
+      variables: {
+        projectId,
+      },
+    });
+    runInAction(() => {
+      this.commandEvents = data.commandEvents.map((commandEvent) =>
+        mapCommandEventDetail(commandEvent),
+      );
+    });
   }
 }
 

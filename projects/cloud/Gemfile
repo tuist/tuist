@@ -23,7 +23,7 @@ gem "google-cloud-storage", "~> 1.34"
 gem "faker", "~> 2.19"
 
 # GraphQL
-gem "graphql", "~> 1.12"
+gem "graphql", "~> 2.0.5"
 gem "graphiql-rails", group: :development
 gem "graphql-schema_comparator", "~> 1.0"
 
