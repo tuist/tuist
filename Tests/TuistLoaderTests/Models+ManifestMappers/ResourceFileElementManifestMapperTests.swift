@@ -158,7 +158,10 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let resourcesFolder = temporaryPath.appending(component: "Resources")
         try fileHandler.createFolder(resourcesFolder)
         try fileHandler.write("", path: resourcesFolder.appending(component: "excluded.xib"), atomically: true)
-        let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/excluded.xib", excluding: ["Resources/excluded.xib"])
+        let manifest = ProjectDescription.ResourceFileElement.glob(
+            pattern: "Resources/excluded.xib",
+            excluding: ["Resources/excluded.xib"]
+        )
 
         // Then
         XCTAssertEqual(

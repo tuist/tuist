@@ -632,11 +632,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .init(rule: .copy, path: "Resource/Folder"),
                                 .init(rule: .process, path: "Another/Resource/Folder"),
                                 .init(rule: .process, path: "AnotherOne/Resource/Folder"),
-                                .init(rule: .process, path: "YetAnotherOne/Info.plist"),
                             ],
                             exclude: [
                                 "AnotherOne/Resource",
-                                "YetAnotherOne/Info.plist",
                             ]
                         ),
                     ],
