@@ -1,7 +1,5 @@
 import Foundation
 
-// MARK: - TargetDependency
-
 /// Dependency status used by `.sdk` target dependencies
 public enum SDKStatus: String, Codable {
     /// Required dependency
@@ -20,7 +18,7 @@ public enum SDKType: String, Codable {
     case framework
 }
 
-/// Defines the target dependencies supported by Tuist
+/// A target dependency.
 public enum TargetDependency: Codable, Equatable {
     /// Dependency on another target within the same project
     ///

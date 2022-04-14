@@ -1,6 +1,6 @@
 import Foundation
 
-/// Contains the description of a dependency that can be installed using Carthage.
+/// A collection of Carthage dependencies.
 public struct CarthageDependencies: Codable, Equatable {
     /// List of dependencies that will be installed using Carthage.
     public let dependencies: [Dependency]

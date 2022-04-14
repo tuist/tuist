@@ -55,56 +55,56 @@ Then(%r{^tuist generates the project at ([a-zA-Z/]+)$}) do |path|
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
-Then(/^tuist focuses the target ([a-zA-Z]+)$/) do |target|
+When(/^tuist focuses the target ([a-zA-Z\-]+)$/) do |target|
   system(@tuist, "generate", "--no-open", "--path", @dir, target)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
-Then(/^tuist focuses the targets ([a-zA-Z,]+)$/) do |targets|
+When(/^tuist focuses the targets ([a-zA-Z,\-]+)$/) do |targets|
   system(@tuist, "generate", "--no-open", "--path", @dir, *targets.split(","))
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
-Then(/^tuist focuses the target ([a-zA-Z]+) with ([a-zA-Z]+) profile$/) do |target, cache_profile|
+When(/^tuist focuses the target ([a-zA-Z]+) with ([a-zA-Z]+) profile$/) do |target, cache_profile|
   system(@tuist, "generate", "--no-open", "--path", @dir, target, "--profile", cache_profile)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
-Then(%r{^tuist focuses the target ([a-zA-Z]+) at ([a-zA-Z/]+)$}) do |target, path|
+When(%r{^tuist focuses the target ([a-zA-Z\-]+) at ([a-zA-Z/]+)$}) do |target, path|
   system(@tuist, "generate", "--no-open", "--path", File.join(@dir, path), target)
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
-Then(%r{^tuist focuses the targets ([a-zA-Z,]+) at ([a-zA-Z/]+)$}) do |targets, path|
+When(%r{^tuist focuses the targets ([a-zA-Z,\-]+) at ([a-zA-Z/]+)$}) do |targets, path|
   system(@tuist, "generate", "--no-open", "--path", File.join(@dir, path), *targets.split(","))
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
-Then(/^tuist focuses the target ([a-zA-Z]+) using xcframeworks$/) do |target|
+When(/^tuist focuses the target ([a-zA-Z\-]+) using xcframeworks$/) do |target|
   system(@tuist, "generate", "--no-open", "--path", @dir, target, "--xcframeworks")
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
-Then(/^tuist focuses the targets ([a-zA-Z,]+) using xcframeworks$/) do |targets|
+When(/^tuist focuses the targets ([a-zA-Z,\-]+) using xcframeworks$/) do |targets|
   system(@tuist, "generate", "--no-open", "--path", @dir, *targets.split(","),
     "--xcframeworks")
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
-Then(%r{^tuist focuses the target ([a-zA-Z]+) at ([a-zA-Z/]+) using xcframeworks$}) do |target, path|
+When(%r{^tuist focuses the target ([a-zA-Z\-]+) at ([a-zA-Z/]+) using xcframeworks$}) do |target, path|
   system(@tuist, "generate", "--no-open", "--path", File.join(@dir, path), target, "--xcframeworks")
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
-Then(%r{^tuist focuses the targets ([a-zA-Z,]+) at ([a-zA-Z/]+) using xcframeworks$}) do |targets, path|
+When(%r{^tuist focuses the targets ([a-zA-Z,\-]+) at ([a-zA-Z/]+) using xcframeworks$}) do |targets, path|
   system(@tuist, "generate", "--no-open", "--path", File.join(@dir, path), *targets.split(","),
     "--xcframeworks")
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first

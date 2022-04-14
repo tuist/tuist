@@ -776,6 +776,51 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "aniltaskiran",
+      "name": "aniltaskiran",
+      "avatar_url": "https://avatars.githubusercontent.com/u/16738729?v=4",
+      "profile": "https://github.com/aniltaskiran",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "unxavi",
+      "name": "Javier Vieira",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3817679?v=4",
+      "profile": "https://github.com/unxavi",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "a-sarris",
+      "name": "Aris Sarris",
+      "avatar_url": "https://avatars.githubusercontent.com/u/78614622?v=4",
+      "profile": "https://github.com/a-sarris",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "kimxwan0319",
+      "name": "kimxwan0319",
+      "avatar_url": "https://avatars.githubusercontent.com/u/67373938?v=4",
+      "profile": "https://xxw9999.notion.site/xxw9999/iOS-8585a34b2886419586960c5c02b9d845",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "ffittschen",
+      "name": "Florian Fittschen",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7734806?v=4",
+      "profile": "https://florian.codes",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

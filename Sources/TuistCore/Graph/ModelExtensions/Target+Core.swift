@@ -67,7 +67,9 @@ extension Target {
             let paths: [AbsolutePath]
 
             do {
-                paths = try base.throwingGlob(sourcePath.basename)
+                paths = try FileHandler.shared
+                    .throwingGlob(base, glob: sourcePath.basename)
+                    .filter { !$0.isInOpaqueDirectory }
             } catch let GlobError.nonExistentDirectory(invalidGlob) {
                 paths = []
                 invalidGlobs.append(invalidGlob)
@@ -76,10 +78,9 @@ extension Target {
             Set(paths)
                 .subtracting(excluded)
                 .filter { path in
-                    if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
-                        return true
-                    }
-                    return false
+                    guard let `extension` = path.extension else { return false }
+                    return Target.validSourceExtensions
+                        .contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame })
                 }
                 .forEach { sourceFiles[$0] = SourceFile(path: $0, compilerFlags: source.compilerFlags, codeGen: source.codeGen) }
         }

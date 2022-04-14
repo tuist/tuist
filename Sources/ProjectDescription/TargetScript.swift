@@ -1,8 +1,9 @@
 import Foundation
 
+/// A build phase action used to run a script.
+///
 /// Target scripts, represented as target script build phases in the generated Xcode projects, are useful to define actions to be executed before of after the build process of a target.
-// swiftlint:disable:next type_body_length
-public struct TargetScript: Codable, Equatable {
+public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_body_length
     /// Order when the script gets executed.
     ///
     /// - pre: Before the sources and resources build phase.
@@ -53,7 +54,7 @@ public struct TargetScript: Codable, Equatable {
     /// The path to the shell which shall execute this script.
     public let shellPath: String
 
-    /// Initializes the target script with its attributes.
+    /// Creates the target script with its attributes.
     ///
     /// - Parameters:
     ///   - name: Name of the build phase when the project gets generated.

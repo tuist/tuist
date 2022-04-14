@@ -11,7 +11,8 @@ extension TuistGraph.Headers {
     /// - Parameters:
     ///   - manifest: Manifest representation of Headers.
     ///   - generatorPaths: Generator paths.
-    static func from(
+    ///   - productName: The name of the product.
+    static func from( // swiftlint:disable:this function_body_length
         manifest: ProjectDescription.Headers,
         generatorPaths: GeneratorPaths,
         productName: String?

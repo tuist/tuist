@@ -7,6 +7,16 @@ module Types
       null: false,
       description: "Creates a new project",
       mutation: Mutations::CreateProject
+    field :delete_project,
+      ProjectType,
+      null: false,
+      description: "Deletes a given project",
+      mutation: Mutations::DeleteProject
+    field :update_last_visited_project,
+      ProjectType,
+      null: false,
+      description: "Updates the last visited project of a user",
+      mutation: Mutations::UpdateLastVisitedProject
     field :change_user_role,
       UserType,
       null: false,
@@ -22,6 +32,16 @@ module Types
       null: false,
       description: "Invite a user to a given organization",
       mutation: Mutations::InviteUser
+    field :resend_invite,
+      InvitationType,
+      null: false,
+      description: "Resend invite for a user to a given organization",
+      mutation: Mutations::ResendInvite
+    field :cancel_invite,
+      InvitationType,
+      null: false,
+      description: "Cancel invite for a user to a given organization",
+      mutation: Mutations::CancelInvite
     field :accept_invitation,
       OrganizationType,
       null: false,

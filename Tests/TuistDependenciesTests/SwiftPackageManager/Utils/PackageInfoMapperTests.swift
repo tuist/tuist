@@ -141,10 +141,48 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenMacCatalyst() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [.init(platformName: "maccatalyst", version: "13.0", options: [])],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac])
+                    ),
                 ]
             )
         )
@@ -176,7 +214,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
             XCTAssertEqual(
                 project,
-                .test(
+                .testWithDefaultConfigs(
                     name: "Package",
                     targets: [
                         .test(
@@ -244,7 +282,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target_1", basePath: basePath, customBundleID: "Target-1"),
@@ -291,7 +329,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -343,7 +381,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -439,7 +477,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath),
@@ -479,7 +517,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath),
@@ -517,7 +555,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath),
@@ -551,7 +589,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -609,7 +647,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -708,7 +746,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -755,7 +793,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -814,7 +852,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -922,7 +960,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -978,7 +1016,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1034,7 +1072,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1083,7 +1121,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath, platform: .iOS),
@@ -1149,7 +1187,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath, platform: .tvOS, deploymentTarget: .tvOS(targetVersion: "9.0")),
@@ -1215,7 +1253,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1256,7 +1294,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1296,7 +1334,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1340,7 +1378,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1383,7 +1421,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1425,7 +1463,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath, customSettings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["key"]]),
@@ -1464,7 +1502,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath, customSettings: ["OTHER_CFLAGS": ["key1", "key2", "key3"]]),
@@ -1503,7 +1541,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath, customSettings: ["OTHER_CPLUSPLUSFLAGS": ["key1", "key2", "key3"]]),
@@ -1542,7 +1580,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath, customSettings: ["OTHER_SWIFT_FLAGS": ["key1", "key2", "key3"]]),
@@ -1582,7 +1620,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath, customSettings: ["OTHER_LDFLAGS": ["key1", "key2", "key3"]]),
@@ -1634,7 +1672,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1700,7 +1738,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1757,7 +1795,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1800,7 +1838,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1843,7 +1881,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1887,7 +1925,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath, dependencies: [.target(name: "Dependency1")]),
@@ -1928,7 +1966,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -1977,7 +2015,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath, dependencies: [.target(name: "Dependency1")]),
@@ -2018,7 +2056,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -2067,7 +2105,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -2132,7 +2170,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -2197,7 +2235,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test(
@@ -2389,9 +2427,50 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenDependenciesContainsCustomConfiguration_mapsToProjectWithCustomConfig() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            baseSettings: Settings(
+                configurations: [.release: nil, .debug: nil, .init(name: "Custom", variant: .release): nil],
+                defaultSettings: .recommended
+            ),
+            swiftToolsVersion: "4.4.0"
+        )
+
+        XCTAssertNotNil(project?.settings?.configurations.first(where: { $0.name == "Custom" }))
+    }
+
     func testMap_whenTargetsWithDefaultHardcodedMapping() throws {
         let basePath = try temporaryPath()
-        let testTargets = ["Nimble", "Quick", "RxTest", "RxTest-Dynamic", "SnapshotTesting", "TempuraTesting", "TSCTestSupport"]
+        let testTargets = [
+            "Nimble",
+            "Quick",
+            "RxTest",
+            "RxTest-Dynamic",
+            "SnapshotTesting",
+            "TempuraTesting",
+            "TSCTestSupport",
+            "ViewInspector",
+        ]
         let allTargets = ["RxSwift"] + testTargets
         try allTargets
             .map { basePath.appending(RelativePath("Package/Path/Sources/\($0)")) }
@@ -2419,7 +2498,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(
             project,
-            .test(
+            .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
                     .test("RxSwift", basePath: basePath, product: .framework),
@@ -2538,11 +2617,7 @@ extension ProjectDescription.Project {
         .init(
             name: name,
             options: .options(
-                automaticSchemesOptions: .enabled(
-                    targetSchemesGrouping: .singleScheme,
-                    codeCoverageEnabled: false,
-                    testingOptions: []
-                ),
+                automaticSchemesOptions: .disabled,
                 disableBundleAccessors: false,
                 disableSynthesizedResourceAccessors: false,
                 textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
@@ -2550,6 +2625,20 @@ extension ProjectDescription.Project {
             settings: settings,
             targets: targets,
             resourceSynthesizers: []
+        )
+    }
+
+    fileprivate static func testWithDefaultConfigs(
+        name: String,
+        targets: [ProjectDescription.Target]
+    ) -> Self {
+        Project.test(
+            name: name,
+            settings: .settings(configurations: [
+                .debug(name: .debug),
+                .release(name: .release),
+            ]),
+            targets: targets
         )
     }
 }

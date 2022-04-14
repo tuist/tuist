@@ -1,5 +1,7 @@
 import Foundation
 
+/// An action that tests the built products.
+///
 /// You can create a test action with either a set of test targets or test plans using the `.targets` or `.testPlans` static methods respectively.
 public struct TestAction: Equatable, Codable {
     /// List of test plans. The first in the list will be the default plan.
@@ -56,7 +58,7 @@ public struct TestAction: Equatable, Codable {
         self.diagnosticsOptions = diagnosticsOptions
     }
 
-    /// Initializes a test action using a list of targets.
+    /// Returns a test action from a list of targets to be tested.
     /// - Parameters:
     ///   - targets: List of targets to be tested.
     ///   - arguments: Arguments passed when running the tests.
@@ -93,13 +95,13 @@ public struct TestAction: Equatable, Codable {
         )
     }
 
-    /// Initializes a test action using a list of test plans.
+    /// Returns a test action from a list of test plans.
     /// - Parameters:
     ///   - testPlans: List of test plans to run.
     ///   - configuration: Configuration to be used.
     ///   - preActions: Actions to execute before running the tests.
     ///   - postActions: Actions to execute after running the tests.
-    /// - Returns: An initialized test action.
+    /// - Returns: A test action.
     public static func testPlans(
         _ testPlans: [Path],
         configuration: ConfigurationName = .debug,

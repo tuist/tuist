@@ -9,4 +9,5 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/app/frontend/$1',
   },
+  timers: 'fake',
 };

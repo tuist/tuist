@@ -1,16 +1,17 @@
-import { ProjectQuery, ProjectDocument } from '@/graphql/types';
+import {
+  ProjectQuery,
+  ProjectDocument,
+  DeleteProjectMutation,
+  DeleteProjectDocument,
+  UpdateLastVisitedProjectMutation,
+  UpdateLastVisitedProjectDocument,
+} from '@/graphql/types';
 import { ApolloClient } from '@apollo/client';
 import { makeAutoObservable, runInAction } from 'mobx';
-import { S3Bucket, mapS3Bucket, Account } from '@/models';
-
-interface Project {
-  id: string;
-  account: Account;
-  remoteCacheStorage: S3Bucket | null;
-}
+import { mapProject, Project } from '@/models/Project';
 
 export default class ProjectStore {
-  project: Project;
+  project: Project | undefined | null;
   client: ApolloClient<object>;
   constructor(client: ApolloClient<object>) {
     this.client = client;
@@ -25,28 +26,30 @@ export default class ProjectStore {
         accountName,
       },
     });
-    runInAction(() => {
-      if (data == null || data.project == null) {
-        return;
-      }
-      this.project = {
-        id: data.project.id,
-        account: {
-          id: data.project.account.id,
-          owner: {
-            type:
-              data.project.account.owner.__typename === 'Organization'
-                ? 'organization'
-                : 'user',
-            id: data.project.account.owner.id,
-          },
-          name: data.project.account.name,
-        },
-        remoteCacheStorage:
-          data.project.remoteCacheStorage == null
-            ? null
-            : mapS3Bucket(data.project.remoteCacheStorage),
-      };
+    if (data == null || data.project == null) {
+      return;
+    }
+    this.project = mapProject(data.project);
+    await this.client.mutate<UpdateLastVisitedProjectMutation>({
+      mutation: UpdateLastVisitedProjectDocument,
+      variables: {
+        input: { id: this.project.id },
+      },
     });
+  }
+
+  async deleteProject() {
+    if (this.project === undefined || this.project === null) {
+      return;
+    }
+    await this.client.mutate<DeleteProjectMutation>({
+      mutation: DeleteProjectDocument,
+      variables: {
+        input: {
+          id: this.project.id,
+        },
+      },
+    });
+    this.project = null;
   }
 }

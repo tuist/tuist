@@ -53,6 +53,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             targetSettings: [:]
         )
 
+        system.swiftVersionStub = { "5.6.0" }
         swiftPackageManagerController.resolveStub = { path, printOutput in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
             XCTAssertTrue(printOutput)
@@ -142,6 +143,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             targetSettings: [:]
         )
 
+        system.swiftVersionStub = { "5.6.0" }
         swiftPackageManagerController.resolveStub = { path, printOutput in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
             XCTAssertTrue(printOutput)
@@ -233,6 +235,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             targetSettings: [:]
         )
 
+        system.swiftVersionStub = { "5.6.0" }
         swiftPackageManagerController.updateStub = { path, printOutput in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
             XCTAssertTrue(printOutput)

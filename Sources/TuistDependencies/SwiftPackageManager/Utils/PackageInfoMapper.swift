@@ -281,6 +281,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     public func map(
         packageInfo: PackageInfo,
         packageInfos: [String: PackageInfo],
@@ -320,6 +321,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "SnapshotTesting", // https://github.com/pointfreeco/swift-snapshot-testing
                     "TempuraTesting", // https://github.com/BendingSpoons/tempura-swift
                     "TSCTestSupport", // https://github.com/apple/swift-tools-support-core
+                    "ViewInspector", // https://github.com/nalexn/ViewInspector
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }
@@ -356,14 +358,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
         return ProjectDescription.Project(
             name: name,
             options: .options(
-                // Use `.singleScheme` to reduce number of generated schemes
-                automaticSchemesOptions: .enabled(
-                    targetSchemesGrouping: .singleScheme
-                ),
+                automaticSchemesOptions: .disabled, // disable schemes for dependencies
                 disableBundleAccessors: false,
                 disableSynthesizedResourceAccessors: false
             ),
-            settings: packageInfo.projectSettings(swiftToolsVersion: swiftToolsVersion),
+            settings: packageInfo.projectSettings(
+                swiftToolsVersion: swiftToolsVersion,
+                buildConfigs: baseSettings.configurations.map { key, _ in key }
+            ),
             targets: targets,
             resourceSynthesizers: []
         )
@@ -492,10 +494,14 @@ extension ProjectDescription.DeploymentTarget {
         package: [PackageInfo.Platform],
         packageName _: String
     ) throws -> Self {
-        if let packagePlatform = package.first(where: { $0.platformName == platform.rawValue }) {
+        if let packagePlatform = package.first(where: { $0.tuistPlatformName == platform.rawValue }) {
             switch platform {
             case .iOS:
-                return .iOS(targetVersion: packagePlatform.version, devices: [.iphone, .ipad])
+                let hasMacCatalyst = package.contains(where: { $0.platformName == "maccatalyst" })
+                return .iOS(
+                    targetVersion: packagePlatform.version,
+                    devices: hasMacCatalyst ? [.iphone, .ipad, .mac] : [.iphone, .ipad]
+                )
             case .macOS:
                 return .macOS(targetVersion: packagePlatform.version)
             case .watchOS:
@@ -585,7 +591,11 @@ extension SourceFilesList {
 }
 
 extension ResourceFileElements {
-    fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) -> Self? {
+    fileprivate static func from(
+        resources: [PackageInfo.Target.Resource],
+        path: AbsolutePath,
+        excluding: [String]
+    ) -> Self? {
         let resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
         guard !resourcesPaths.isEmpty else { return nil }
 
@@ -872,7 +882,7 @@ extension TuistGraph.Platform {
 extension PackageInfo.Platform {
     fileprivate func descriptionPlatform() throws -> ProjectDescription.Platform {
         switch platformName {
-        case "ios":
+        case "ios", "maccatalyst":
             return .iOS
         case "macos":
             return .macOS
@@ -1010,7 +1020,8 @@ extension ProjectDescription.DeploymentDevice {
 
 extension PackageInfo {
     fileprivate func projectSettings(
-        swiftToolsVersion: TSCUtility.Version?
+        swiftToolsVersion: TSCUtility.Version?,
+        buildConfigs: [BuildConfiguration]? = nil
     ) -> ProjectDescription.Settings? {
         var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
 
@@ -1026,7 +1037,21 @@ extension PackageInfo {
             settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
         }
 
-        return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
+        if let buildConfigs = buildConfigs {
+            let configs = buildConfigs
+                .sorted()
+                .map { config -> ProjectDescription.Configuration in
+                    switch config.variant {
+                    case .debug:
+                        return ProjectDescription.Configuration.debug(name: .configuration(config.name))
+                    case .release:
+                        return ProjectDescription.Configuration.release(name: .configuration(config.name))
+                    }
+                }
+            return .settings(base: settingsDictionary, configurations: configs)
+        } else {
+            return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
+        }
     }
 
     private func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {
@@ -1138,5 +1163,12 @@ extension PackageInfoMapper {
                 }
             }
         }
+    }
+}
+
+extension PackageInfo.Platform {
+    var tuistPlatformName: String {
+        // catalyst is mapped to iOS platform in tuist
+        platformName == "maccatalyst" ? "ios" : platformName
     }
 }

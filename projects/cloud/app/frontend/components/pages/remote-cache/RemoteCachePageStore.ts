@@ -13,6 +13,7 @@ import { SelectOption } from '@shopify/polaris';
 import { makeAutoObservable, runInAction } from 'mobx';
 import ProjectStore from '@/stores/ProjectStore';
 import { mapS3Bucket, S3Bucket } from '@/models';
+import { copyToClipboard } from '@/utilities/copyToClipboard';
 
 class RemoteCachePageStore {
   bucketName = '';
@@ -21,6 +22,7 @@ class RemoteCachePageStore {
   region = '';
   s3Buckets: S3Bucket[] = [];
   isApplyChangesButtonLoading = false;
+  isCopyProjectButtonLoading = false;
 
   client: ApolloClient<object>;
   projectStore: ProjectStore;
@@ -35,6 +37,9 @@ class RemoteCachePageStore {
   }
 
   get isSecretAccessKeyTextFieldDisabled(): boolean {
+    if (this.projectStore.project == null) {
+      return true;
+    }
     return (
       this.selectedOption !== 'new' &&
       this.secretAccessKey ===
@@ -64,12 +69,26 @@ class RemoteCachePageStore {
     return this.projectStore.project.remoteCacheStorage.name;
   }
 
+  copyProjectToken() {
+    if (this.projectStore.project == null) {
+      return;
+    }
+    copyToClipboard(this.projectStore.project.token);
+    this.isCopyProjectButtonLoading = true;
+    setTimeout(() => {
+      this.isCopyProjectButtonLoading = false;
+    }, 1000);
+  }
+
   removeAccessKey() {
     this.secretAccessKey = '';
   }
 
   async changeRemoteCacheStorage() {
-    if (this.projectStore.project.remoteCacheStorage == null) {
+    if (
+      this.projectStore.project == null ||
+      this.projectStore.project.remoteCacheStorage == null
+    ) {
       return;
     }
     await this.client.mutate<ChangeRemoteCacheStorageMutation>({
@@ -84,7 +103,7 @@ class RemoteCachePageStore {
   }
 
   handleSelectOption(option: string) {
-    if (this.projectStore == null) {
+    if (this.projectStore.project == null) {
       return;
     }
     if (option == 'new') {
@@ -135,7 +154,14 @@ class RemoteCachePageStore {
       this.s3Buckets = data.s3Buckets.map((bucket) =>
         mapS3Bucket(bucket),
       );
-      if (this.projectStore.project.remoteCacheStorage == null) {
+      if (
+        this.projectStore.project == null ||
+        this.projectStore.project.remoteCacheStorage == null
+      ) {
+        this.bucketName = '';
+        this.accessKeyId = '';
+        this.secretAccessKey = '';
+        this.region = '';
         return;
       }
       this.bucketName =
@@ -171,11 +197,13 @@ class RemoteCachePageStore {
       const s3Bucket = mapS3Bucket(data.createS3Bucket);
       runInAction(() => {
         this.isApplyChangesButtonLoading = false;
-        this.projectStore.project.remoteCacheStorage = s3Bucket;
+        if (this.projectStore.project != null) {
+          this.projectStore.project.remoteCacheStorage = s3Bucket;
+        }
         this.s3Buckets.push(s3Bucket);
       });
     } else {
-      if (this.projectStore.project.remoteCacheStorage == null) {
+      if (this.projectStore.project?.remoteCacheStorage == null) {
         return;
       }
       const { data } =
@@ -197,7 +225,10 @@ class RemoteCachePageStore {
       const s3Bucket = mapS3Bucket(data.updateS3Bucket);
       runInAction(() => {
         this.isApplyChangesButtonLoading = false;
-        if (this.projectStore.project.remoteCacheStorage == null) {
+        if (
+          this.projectStore.project == null ||
+          this.projectStore.project.remoteCacheStorage == null
+        ) {
           return;
         }
         const previousId =

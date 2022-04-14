@@ -65,6 +65,7 @@ public enum SystemError: FatalError, Equatable {
     }
 }
 
+// swiftlint:disable:next type_body_length
 public final class System: Systeming {
     /// Shared system instance.
     public static var shared: Systeming = System()
@@ -321,6 +322,7 @@ public final class System: Systeming {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private func publisher(
         _ arguments: [String],
         environment: [String: String],

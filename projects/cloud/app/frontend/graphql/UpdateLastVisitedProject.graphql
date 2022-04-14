@@ -1,0 +1,5 @@
+mutation UpdateLastVisitedProject($input: UpdateLastVisitedProjectInput!) {
+  updateLastVisitedProject(input: $input) {
+    slug
+  }
+}

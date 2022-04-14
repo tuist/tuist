@@ -24,6 +24,7 @@ module Fourier
         private
           def assert_same_packages_count(spm_lockfile:, tuist_lockfile:)
             return true if spm_lockfile.count == tuist_lockfile.count
+
             message = "The number of packages in the Package.resolved files don't match."
             Utilities::Output.error(message)
             false

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Core Data model.
+/// A Core Data model.
 public struct CoreDataModel: Codable, Equatable {
     /// Relative path to the model.
     public let path: Path
@@ -8,7 +8,7 @@ public struct CoreDataModel: Codable, Equatable {
     /// Optional Current version (with or without extension)
     public let currentVersion: String?
 
-    /// Initializes the build file with its attributes.
+    /// Creates a Core Data model from a path.
     ///
     /// - Parameters:
     ///   - path: relative path to the Core Data model.

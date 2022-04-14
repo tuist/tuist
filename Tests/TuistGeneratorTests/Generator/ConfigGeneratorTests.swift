@@ -525,6 +525,62 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(result?.defaultConfigurationName, "AnotherDebug")
     }
 
+    func test_generateTargetConfigWithDuplicateValues() throws {
+        // Given
+        let projectSettings = Settings(configurations: [
+            .debug("CustomDebug"): nil,
+            .debug("AnotherDebug"): nil,
+        ])
+
+        let targetSettings = Settings.test(
+            base: ["OTHER_SWIFT_FLAGS": SettingValue.array([
+                "$(inherited)",
+                "CUSTOM_SWIFT_FLAG1",
+            ])],
+            debug: .test(settings: ["OTHER_SWIFT_FLAGS": SettingValue.array([
+                "$(inherited)",
+                "-Xcc",
+                "-fmodule-map-file=$(SRCROOT)/B1",
+                "-Xcc",
+                "-fmodule-map-file=$(SRCROOT)/B2",
+            ])]),
+            release: .test()
+        )
+        let target = Target.test(settings: targetSettings)
+        let project = Project.test()
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: AbsolutePath("/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["OTHER_SWIFT_FLAGS"]
+
+        XCTAssertEqual(targetSettingsResult, [
+            "$(inherited)",
+            "CUSTOM_SWIFT_FLAG1",
+            "-Xcc",
+            "-fmodule-map-file=$(SRCROOT)/B1",
+            "-Xcc",
+            "-fmodule-map-file=$(SRCROOT)/B2",
+        ])
+    }
+
     // MARK: - Helpers
 
     private func generateProjectConfig(config _: BuildConfiguration) throws {

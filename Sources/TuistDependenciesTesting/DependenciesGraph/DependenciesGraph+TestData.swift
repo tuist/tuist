@@ -51,18 +51,20 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "test",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
-                    settings: .settings(base: [
-                        "GCC_C_LANGUAGE_STANDARD": "c99",
-                    ]),
+                    settings: .settings(
+                        base: [
+                            "GCC_C_LANGUAGE_STANDARD": "c99",
+                        ],
+                        configurations: [
+                            .debug(name: .debug),
+                            .release(name: .release),
+                        ]
+                    ),
                     targets: [
                         .init(
                             name: "Tuist",
@@ -134,6 +136,7 @@ extension TuistCore.DependenciesGraph {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     public static func aDependency(spmFolder: Path) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
         return .init(
@@ -147,14 +150,16 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "a-dependency",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
+                    settings: .settings(
+                        configurations: [
+                            .debug(name: .debug),
+                            .release(name: .release),
+                        ]
                     ),
                     targets: [
                         .init(
@@ -203,14 +208,16 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "another-dependency",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
+                    settings: .settings(
+                        configurations: [
+                            .debug(name: .debug),
+                            .release(name: .release),
+                        ]
                     ),
                     targets: [
                         .init(
@@ -244,11 +251,7 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "Alamofire",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
@@ -295,19 +298,21 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "GoogleAppMeasurement",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
-                    settings: .settings(base: [
-                        "GCC_C_LANGUAGE_STANDARD": "c99",
-                        "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
-                    ]),
+                    settings: .settings(
+                        base: [
+                            "GCC_C_LANGUAGE_STANDARD": "c99",
+                            "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
+                        ],
+                        configurations: [
+                            .debug(name: .debug),
+                            .release(name: .release),
+                        ]
+                    ),
                     targets: [
                         .init(
                             name: "GoogleAppMeasurementTarget",
@@ -404,14 +409,16 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "GoogleUtilities",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
+                    settings: .settings(
+                        configurations: [
+                            .debug(name: .debug),
+                            .release(name: .release),
+                        ]
                     ),
                     targets: [
                         .init(
@@ -479,14 +486,16 @@ extension TuistCore.DependenciesGraph {
                 packageFolder: .init(
                     name: "nanopb",
                     options: .options(
-                        automaticSchemesOptions: .enabled(
-                            targetSchemesGrouping: .singleScheme,
-                            codeCoverageEnabled: false,
-                            testingOptions: []
-                        ),
+                        automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
+                    settings: .settings(
+                        configurations: [
+                            .debug(name: .debug),
+                            .release(name: .release),
+                        ]
                     ),
                     targets: [
                         .init(

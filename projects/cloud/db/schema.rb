@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2022_03_11_074508) do
+ActiveRecord::Schema[7.0].define(version: 2022_03_23_204451) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -29,10 +29,11 @@ ActiveRecord::Schema[7.0].define(version: 2022_03_11_074508) do
     t.string "inviter_type", null: false
     t.bigint "inviter_id", null: false
     t.string "invitee_email", null: false
-    t.bigint "organization_id", null: false
     t.string "token", limit: 100, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "organization_id"
+    t.index ["invitee_email", "organization_id"], name: "index_invitations_on_invitee_email_and_organization_id", unique: true
     t.index ["inviter_type", "inviter_id"], name: "index_invitations_on_inviter"
     t.index ["organization_id"], name: "index_invitations_on_organization_id"
     t.index ["token"], name: "index_invitations_on_token", unique: true

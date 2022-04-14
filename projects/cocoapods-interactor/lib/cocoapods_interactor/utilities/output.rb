@@ -4,7 +4,7 @@ module CocoaPodsInteractor
   module Utilities
     class Output
       def self.error(message)
-        STDERR.puts(message)
+        $stderr.puts(message)
       end
     end
   end

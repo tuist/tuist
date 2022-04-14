@@ -29,8 +29,10 @@ let project = Project(
                 .external(name: "ComposableArchitecture"),
                 .external(name: "FacebookCore"),
                 .external(name: "FirebaseAnalytics"),
+                .external(name: "FirebaseCrashlytics"),
                 .external(name: "FirebaseDatabase"),
                 .external(name: "FirebaseFirestore"),
+                .external(name: "IterableSDK"),
             ]
         ),
     ]

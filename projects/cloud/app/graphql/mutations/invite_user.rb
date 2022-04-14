@@ -6,7 +6,7 @@ module Mutations
     argument :organization_id, String, required: true
 
     def resolve(attributes)
-      OrganizationInviteService.call(**attributes, inviter: context[:current_user])
+      OrganizationInviteService.new.invite(**attributes, inviter: context[:current_user])
     end
   end
 end
