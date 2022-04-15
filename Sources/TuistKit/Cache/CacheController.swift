@@ -112,11 +112,9 @@ final class CacheController: CacheControlling {
             return
         }
 
+        let targetsToBeCached = Set(hashesByTargetToBeCached.map(\.0.target.name))
         logger.notice("Targets to be cached: \(hashesByTargetToBeCached.map(\.0.target.name).sorted().joined(separator: ", "))")
 
-        logger.notice("Filtering cacheable targets")
-
-        let targetsToBeCached = Set(hashesByTargetToBeCached.map(\.0.target.name))
         let (projectPath, updatedGraph) = try await generatorFactory
             .cache(
                 config: config,

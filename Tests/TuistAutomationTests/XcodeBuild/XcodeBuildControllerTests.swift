@@ -97,8 +97,10 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme,
         ]
         command.append(contentsOf: target.xcodebuildArguments)
+        command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
 
         system.succeedCommand(command, output: "output")
+        developerEnvironment.stubbedArchitecture = .x8664
 
         // When
         let events = subject.test(
@@ -133,9 +135,11 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme,
         ]
         command.append(contentsOf: target.xcodebuildArguments)
+        command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
         command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
 
         system.succeedCommand(command, output: "output")
+        developerEnvironment.stubbedArchitecture = .x8664
 
         // When
         let events = subject.test(
@@ -170,9 +174,11 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme,
         ]
         command.append(contentsOf: target.xcodebuildArguments)
+        command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
         command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
 
         system.succeedCommand(command, output: "output")
+        developerEnvironment.stubbedArchitecture = .x8664
 
         // When
         let events = subject.test(

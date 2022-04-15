@@ -89,34 +89,14 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         version: Version?,
         deviceName: String?
     ) async throws -> [XcodeBuildArgument] {
-        let destination = try await destination(platform: platform, version: version, deviceName: deviceName)
+        let destination = try await simulatorController
+            .destination(for: platform, version: version, deviceName: deviceName)
         return [
             .configuration(configuration),
             .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
             .xcarg("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"),
             .destination(destination),
         ]
-    }
-
-    /// https://www.mokacoding.com/blog/xcodebuild-destination-options/
-    /// https://www.mokacoding.com/blog/how-to-always-run-latest-simulator-cli/
-    fileprivate func destination(platform: Platform, version: Version?, deviceName: String?) async throws -> String {
-        var mappedPlatform: Platform!
-        switch platform {
-        case .iOS: mappedPlatform = .iOS
-        case .watchOS: mappedPlatform = .watchOS
-        case .tvOS: mappedPlatform = .tvOS
-        case .macOS: return "platform=macOS,arch=x86_64"
-        }
-
-        let availableDevices = try await simulatorController.findAvailableDevice(
-            platform: mappedPlatform,
-            version: version,
-            minVersion: nil,
-            deviceName: deviceName
-        )
-
-        return "id=\(availableDevices.device.udid)"
     }
 
     fileprivate func exportFrameworksAndDSYMs(

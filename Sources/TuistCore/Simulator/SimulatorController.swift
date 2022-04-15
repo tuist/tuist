@@ -41,6 +41,9 @@ public protocol SimulatorControlling {
         version: Version?,
         deviceName: String?
     ) async throws -> String
+
+    /// Returns the simulator destination for the macOS platform
+    func macOSDestination() -> String
 }
 
 public enum SimulatorControllerError: Equatable, FatalError {
@@ -167,6 +170,8 @@ public final class SimulatorController: SimulatorControlling {
         try System.shared.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
     }
 
+    /// https://www.mokacoding.com/blog/xcodebuild-destination-options/
+    /// https://www.mokacoding.com/blog/how-to-always-run-latest-simulator-cli/
     public func destination(
         for targetPlatform: Platform,
         version: Version?,
@@ -177,7 +182,8 @@ public final class SimulatorController: SimulatorControlling {
         case .iOS: platform = .iOS
         case .watchOS: platform = .watchOS
         case .tvOS: platform = .tvOS
-        case .macOS: return "platform=OS X,arch=x86_64"
+        case .macOS:
+            return macOSDestination()
         }
 
         let deviceAndRuntime = try await findAvailableDevice(
@@ -187,6 +193,17 @@ public final class SimulatorController: SimulatorControlling {
             deviceName: deviceName
         )
         return "id=\(deviceAndRuntime.device.udid)"
+    }
+
+    public func macOSDestination() -> String {
+        let arch: String
+        switch DeveloperEnvironment.shared.architecture {
+        case .arm64:
+            arch = "arm64"
+        case .x8664:
+            arch = "x86_64"
+        }
+        return "platform=macOS,arch=\(arch)"
     }
 }
 

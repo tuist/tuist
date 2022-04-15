@@ -1,7 +1,7 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-let baseSettings: SettingsDictionary = ["EXCLUDED_ARCHS": "arm64"]
+let baseSettings: SettingsDictionary = [:]
 
 func debugSettings() -> SettingsDictionary {
     var settings = baseSettings

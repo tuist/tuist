@@ -136,7 +136,6 @@ final class CacheControllerTests: TuistUnitTestCase {
         XCTAssertPrinterOutputContains("""
         Hashing cacheable targets
         Targets to be cached: \(targetsToBeCached)
-        Filtering cacheable targets
         Building cacheable targets
         Storing 3 cacheable targets: \(targetsToBeCached)
         All cacheable targets have been cached successfully as xcframeworks
@@ -361,7 +360,6 @@ final class CacheControllerTests: TuistUnitTestCase {
         XCTAssertPrinterOutputContains("""
         Hashing cacheable targets
         Targets to be cached: \(targetsToBeCached)
-        Filtering cacheable targets
         Building cacheable targets
         Storing 2 cacheable targets: \(targetsToBeCached)
         All cacheable targets have been cached successfully as xcframeworks
