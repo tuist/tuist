@@ -821,6 +821,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "jesus-mg-ios",
+      "name": "Jesus (iOS)",
+      "avatar_url": "https://avatars.githubusercontent.com/u/85997060?v=4",
+      "profile": "https://github.com/jesus-mg-ios",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
