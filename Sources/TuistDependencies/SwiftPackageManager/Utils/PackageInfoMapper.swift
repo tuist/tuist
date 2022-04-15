@@ -686,8 +686,8 @@ extension ProjectDescription.Settings {
         targetSettings: [String: TuistGraph.SettingsDictionary]
     ) throws -> Self? {
         var headerSearchPaths: [String] = []
-        var defines: [String: String] = ["SWIFT_PACKAGE": "1"]
-        var swiftDefines: [String] = ["SWIFT_PACKAGE"]
+        var defines = ["SWIFT_PACKAGE": "1"]
+        var swiftDefines = ["SWIFT_PACKAGE"]
         var cFlags: [String] = []
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []

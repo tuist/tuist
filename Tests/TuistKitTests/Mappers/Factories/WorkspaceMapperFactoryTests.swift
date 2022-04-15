@@ -49,6 +49,17 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, TuistWorkspaceIdentifierMapper.self)
     }
 
+    func test_default_contains_the_tuist_workspace_render_markdown_readme_mapper() {
+        // Given
+        subject = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMapperFactory.default()))
+
+        // When
+        let got = subject.default()
+
+        // Then
+        XCTAssertContainsElementOfType(got, TuistWorkspaceRenderMarkdownReadmeMapper.self)
+    }
+
     func test_default_contains_the_tide_template_macros_mapper() {
         // Given
         subject = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMapperFactory.default()))

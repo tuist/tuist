@@ -61,6 +61,10 @@ final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
         )
 
         mappers.append(
+            TuistWorkspaceRenderMarkdownReadmeMapper()
+        )
+
+        mappers.append(
             IDETemplateMacrosMapper()
         )
 

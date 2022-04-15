@@ -189,7 +189,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             var currentSettings: [String: String] = [:]
             var currentTarget: String?
 
-            let flushTarget = { () -> Void in
+            let flushTarget = { () in
                 if let currentTarget = currentTarget {
                     let buildSettings = XcodeBuildSettings(
                         currentSettings,
