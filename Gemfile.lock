@@ -221,14 +221,14 @@ GEM
       sawyer (~> 0.8.0, >= 0.5.3)
     os (1.1.4)
     parallel (1.22.1)
-    parser (3.1.1.0)
+    parser (3.1.2.0)
       ast (~> 2.4.1)
     protobuf-cucumber (3.10.8)
       activesupport (>= 3.2)
       middleware
       thor
       thread_safe
-    public_suffix (4.0.6)
+    public_suffix (4.0.7)
     racc (1.6.0)
     rack (2.2.3)
     rack-test (1.1.0)
