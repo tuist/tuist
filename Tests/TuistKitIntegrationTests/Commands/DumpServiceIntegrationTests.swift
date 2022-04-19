@@ -124,7 +124,8 @@ final class DumpServiceTests: TuistTestCase {
                 "testingOptions": 0
               }
             },
-            "enableAutomaticXcodeSchemes": false
+            "enableAutomaticXcodeSchemes": false,
+            "renderMarkdownReadme": false
           },
           "name": "tuist",
           "projects": [

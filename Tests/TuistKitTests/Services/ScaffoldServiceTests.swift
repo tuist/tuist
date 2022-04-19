@@ -63,7 +63,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
             [try self.temporaryPath().appending(component: "template")]
         }
 
-        let expectedOptions: (required: [String], optional: [String]) = (required: ["required"], optional: ["optional"])
+        let expectedOptions = (required: ["required"], optional: ["optional"])
 
         // When
         let options = try subject.loadTemplateOptions(
@@ -89,7 +89,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
             )
         }
 
-        let expectedOptions: (required: [String], optional: [String]) = (required: ["required"], optional: ["optional"])
+        let expectedOptions = (required: ["required"], optional: ["optional"])
         let pluginTemplatePath = try temporaryPath().appending(component: "PluginTemplate")
 
         pluginService.loadPluginsStub = { _ in

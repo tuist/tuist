@@ -95,7 +95,7 @@ final class BuildService {
                 buildOutputPath: buildOutputPath
             )
         } else {
-            var cleaned: Bool = false
+            var cleaned = false
             // Build only buildable entry schemes when specific schemes has not been passed
             let buildableEntrySchemes = buildGraphInspector.buildableEntrySchemes(graphTraverser: graphTraverser)
             for scheme in buildableEntrySchemes {
