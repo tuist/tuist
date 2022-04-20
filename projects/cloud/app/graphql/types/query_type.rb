@@ -66,7 +66,7 @@ module Types
       S3BucketsFetchService.call(account_name: account_name, user: context[:current_user])
     end
 
-    field :command_events, [CommandEventType], null: false,
+    field :command_events, CommandEventType.connection_type, null: false,
       description: "Returns all command events for a given project" do
       argument :project_id, ID, required: true
     end

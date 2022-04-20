@@ -25,12 +25,24 @@ class DashboardPageStore {
       query: CommandEventsDocument,
       variables: {
         projectId,
+        first: 2,
       },
     });
     runInAction(() => {
-      this.commandEvents = data.commandEvents.map((commandEvent) =>
-        mapCommandEventDetail(commandEvent),
-      );
+      this.commandEvents =
+        data.commandEvents.edges
+          ?.filter((edge) => edge != null)
+          .map((edge) => {
+            if (edge?.node == null) {
+              return null;
+            } else {
+              return mapCommandEventDetail(edge.node);
+            }
+          })
+          .filter(
+            (commandEvent): commandEvent is CommandEventDetail =>
+              commandEvent !== null,
+          ) ?? [];
     });
   }
 }

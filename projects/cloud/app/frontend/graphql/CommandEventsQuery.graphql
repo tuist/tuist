@@ -1,5 +1,9 @@
-query CommandEvents($projectId: ID!) {
-  commandEvents(projectId: $projectId) {
-    ...CommandEventDetail
+query CommandEvents($projectId: ID!, $first: Int!) {
+  commandEvents(projectId: $projectId, first: $first) {
+    edges {
+      node {
+        ...CommandEventDetail
+      }
+    }
   }
 }
