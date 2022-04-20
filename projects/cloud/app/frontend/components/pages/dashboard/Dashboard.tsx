@@ -3,6 +3,7 @@ import {
   Card,
   Icon,
   Page,
+  Pagination,
   ResourceItem,
   ResourceList,
   Stack,
@@ -26,7 +27,7 @@ const Dashboard = observer(() => {
     if (projectStore.project?.id == null) {
       return;
     }
-    dashboardPageStore.load(projectStore.project.id);
+    dashboardPageStore.loadNextPage(projectStore.project.id);
   }, [projectStore.project]);
 
   const relativeTimeFormatter = new Intl.RelativeTimeFormat('en-GB', {
@@ -47,7 +48,7 @@ const Dashboard = observer(() => {
         'hours',
       );
     }
-    return date.toDateString();
+    return date.toLocaleString();
   };
 
   const renderItem = (item: CommandEventDetail) => {
@@ -81,6 +82,26 @@ const Dashboard = observer(() => {
           <ResourceList
             items={dashboardPageStore.commandEvents}
             renderItem={renderItem}
+          />
+          <Pagination
+            hasPrevious={dashboardPageStore.hasPreviousPage}
+            onPrevious={() => {
+              if (projectStore.project?.id == null) {
+                return;
+              }
+              dashboardPageStore.loadPreviousPage(
+                projectStore.project.id,
+              );
+            }}
+            hasNext={dashboardPageStore.hasNextPage}
+            onNext={() => {
+              if (projectStore.project?.id == null) {
+                return;
+              }
+              dashboardPageStore.loadNextPage(
+                projectStore.project.id,
+              );
+            }}
           />
         </Card.Section>
       </Card>

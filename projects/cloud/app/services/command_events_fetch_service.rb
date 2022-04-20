@@ -12,6 +12,6 @@ class CommandEventsFetchService < ApplicationService
   def call
     project = ProjectFetchService.new.fetch_by_id(project_id: project_id, user: user)
 
-    project.command_events
+    project.command_events.order("created_at DESC")
   end
 end

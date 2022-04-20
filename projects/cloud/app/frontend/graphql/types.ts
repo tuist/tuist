@@ -402,11 +402,14 @@ export type CommandEventDetailFragment = { __typename?: 'CommandEvent', id: stri
 
 export type CommandEventsQueryVariables = Exact<{
   projectId: Scalars['ID'];
-  first: Scalars['Int'];
+  first?: InputMaybe<Scalars['Int']>;
+  after?: InputMaybe<Scalars['String']>;
+  before?: InputMaybe<Scalars['String']>;
+  last?: InputMaybe<Scalars['Int']>;
 }>;
 
 
-export type CommandEventsQuery = { __typename?: 'Query', commandEvents: { __typename?: 'CommandEventConnection', edges?: Array<{ __typename?: 'CommandEventEdge', node?: { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string } | null } | null> | null } };
+export type CommandEventsQuery = { __typename?: 'Query', commandEvents: { __typename?: 'CommandEventConnection', edges?: Array<{ __typename?: 'CommandEventEdge', node?: { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string } | null } | null> | null, pageInfo: { __typename?: 'PageInfo', startCursor?: string | null, endCursor?: string | null, hasNextPage: boolean, hasPreviousPage: boolean } } };
 
 export type CreateProjectMutationVariables = Exact<{
   input: CreateProjectInput;
@@ -720,12 +723,24 @@ export type ChangeUserRoleMutationHookResult = ReturnType<typeof useChangeUserRo
 export type ChangeUserRoleMutationResult = Apollo.MutationResult<ChangeUserRoleMutation>;
 export type ChangeUserRoleMutationOptions = Apollo.BaseMutationOptions<ChangeUserRoleMutation, ChangeUserRoleMutationVariables>;
 export const CommandEventsDocument = gql`
-    query CommandEvents($projectId: ID!, $first: Int!) {
-  commandEvents(projectId: $projectId, first: $first) {
+    query CommandEvents($projectId: ID!, $first: Int, $after: String, $before: String, $last: Int) {
+  commandEvents(
+    projectId: $projectId
+    first: $first
+    after: $after
+    before: $before
+    last: $last
+  ) {
     edges {
       node {
         ...CommandEventDetail
       }
+    }
+    pageInfo {
+      startCursor
+      endCursor
+      hasNextPage
+      hasPreviousPage
     }
   }
 }
@@ -745,6 +760,9 @@ export const CommandEventsDocument = gql`
  *   variables: {
  *      projectId: // value for 'projectId'
  *      first: // value for 'first'
+ *      after: // value for 'after'
+ *      before: // value for 'before'
+ *      last: // value for 'last'
  *   },
  * });
  */

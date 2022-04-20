@@ -6,12 +6,20 @@ import {
   CommandEventDetail,
   mapCommandEventDetail,
 } from '@/models/CommandEventDetail';
-import { ApolloClient } from '@apollo/client';
+import {
+  ApolloClient,
+  OperationVariables,
+  QueryOptions,
+} from '@apollo/client';
 import { makeAutoObservable, runInAction } from 'mobx';
 
 class DashboardPageStore {
   commandEvents: CommandEventDetail[] = [];
+  hasNextPage = false;
+  hasPreviousPage = false;
 
+  private currentStartCursor = '';
+  private currentEndCursor = '';
   private client: ApolloClient<object>;
 
   constructor(client: ApolloClient<object>) {
@@ -19,16 +27,41 @@ class DashboardPageStore {
     makeAutoObservable(this);
   }
 
-  async load(projectId: string) {
+  async loadNextPage(projectId: string) {
+    this.loadPage({
+      projectId,
+      first: 20,
+      after: this.currentEndCursor,
+    });
+  }
+
+  async loadPreviousPage(projectId: string) {
+    this.loadPage({
+      projectId,
+      last: 20,
+      before: this.currentStartCursor,
+    });
+  }
+
+  private async loadPage(
+    variables: QueryOptions<
+      OperationVariables,
+      CommandEventsQuery
+    >['variables'],
+  ) {
     // TODO: Do not use command event details here
     const { data } = await this.client.query<CommandEventsQuery>({
       query: CommandEventsDocument,
-      variables: {
-        projectId,
-        first: 2,
-      },
+      variables,
     });
     runInAction(() => {
+      this.hasNextPage = data.commandEvents.pageInfo.hasNextPage;
+      this.hasPreviousPage =
+        data.commandEvents.pageInfo.hasPreviousPage;
+      this.currentStartCursor =
+        data.commandEvents.pageInfo.startCursor ?? '';
+      this.currentEndCursor =
+        data.commandEvents.pageInfo.endCursor ?? '';
       this.commandEvents =
         data.commandEvents.edges
           ?.filter((edge) => edge != null)
