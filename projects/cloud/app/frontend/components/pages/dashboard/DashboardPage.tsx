@@ -15,13 +15,16 @@ import DashboardPageStore from './DashboardPageStore';
 import { useApolloClient } from '@apollo/client';
 import { CommandEventDetail } from '@/models/CommandEventDetail';
 import { observer } from 'mobx-react-lite';
+import { useNavigate } from 'react-router-dom';
+import relativeDate from '@/utilities/relativeDate';
 
-const Dashboard = observer(() => {
+const DashboardPage = observer(() => {
   const { projectStore } = useContext(HomeStoreContext);
   const client = useApolloClient();
   const dashboardPageStore = useRef(
     new DashboardPageStore(client),
   ).current;
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (projectStore.project?.id == null) {
@@ -30,30 +33,14 @@ const Dashboard = observer(() => {
     dashboardPageStore.loadNextPage(projectStore.project.id);
   }, [projectStore.project]);
 
-  const relativeTimeFormatter = new Intl.RelativeTimeFormat('en-GB', {
-    numeric: 'auto',
-  });
-
-  const getRelativeDate = (date: Date) => {
-    const currentDate = new Date();
-    if (date.getUTCDate() === currentDate.getUTCDate()) {
-      if (date.getUTCHours() === currentDate.getUTCHours()) {
-        return relativeTimeFormatter.format(
-          date.getUTCMinutes() - currentDate.getUTCMinutes(),
-          'minutes',
-        );
-      }
-      return relativeTimeFormatter.format(
-        date.getUTCHours() - currentDate.getUTCHours(),
-        'hours',
-      );
-    }
-    return date.toLocaleString();
-  };
-
   const renderItem = (item: CommandEventDetail) => {
     return (
-      <ResourceItem id={item.id} onClick={() => {}}>
+      <ResourceItem
+        id={item.id}
+        onClick={() => {
+          navigate(`command_event/${item.id}`);
+        }}
+      >
         <Stack vertical={true}>
           <TextStyle variation="code">
             {item.commandArguments}
@@ -67,7 +54,7 @@ const Dashboard = observer(() => {
             </Stack>
             <Stack vertical={false} spacing={'baseTight'}>
               <Icon source={CalendarMinor} />
-              <TextStyle>{getRelativeDate(item.createdAt)}</TextStyle>
+              <TextStyle>{relativeDate(item.createdAt)}</TextStyle>
             </Stack>
           </Stack>
         </Stack>
@@ -109,4 +96,4 @@ const Dashboard = observer(() => {
   );
 });
 
-export default Dashboard;
+export default DashboardPage;

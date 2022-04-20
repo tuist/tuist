@@ -340,6 +340,11 @@ type Query {
   accounts: [Account!]!
 
   """
+  Returns a command event with a given id
+  """
+  commandEvent(commandEventId: ID!): CommandEvent!
+
+  """
   Returns all command events for a given project
   """
   commandEvents(

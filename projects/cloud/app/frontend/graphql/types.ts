@@ -261,6 +261,8 @@ export type Query = {
   __typename?: 'Query';
   /** Returns all tied accounts for the authenticated user */
   accounts: Array<Account>;
+  /** Returns a command event with a given id */
+  commandEvent: CommandEvent;
   /** Returns all command events for a given project */
   commandEvents: CommandEventConnection;
   /** Returns invitation for a given token */
@@ -277,6 +279,11 @@ export type Query = {
   projects: Array<Project>;
   /** Returns S3 buckets for an account of a given name */
   s3Buckets: Array<S3Bucket>;
+};
+
+
+export type QueryCommandEventArgs = {
+  commandEventId: Scalars['ID'];
 };
 
 
@@ -399,6 +406,13 @@ export type ChangeUserRoleMutationVariables = Exact<{
 export type ChangeUserRoleMutation = { __typename?: 'Mutation', changeUserRole: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } } };
 
 export type CommandEventDetailFragment = { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string };
+
+export type CommandEventQueryVariables = Exact<{
+  commandEventId: Scalars['ID'];
+}>;
+
+
+export type CommandEventQuery = { __typename?: 'Query', commandEvent: { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string } };
 
 export type CommandEventsQueryVariables = Exact<{
   projectId: Scalars['ID'];
@@ -722,6 +736,41 @@ export function useChangeUserRoleMutation(baseOptions?: Apollo.MutationHookOptio
 export type ChangeUserRoleMutationHookResult = ReturnType<typeof useChangeUserRoleMutation>;
 export type ChangeUserRoleMutationResult = Apollo.MutationResult<ChangeUserRoleMutation>;
 export type ChangeUserRoleMutationOptions = Apollo.BaseMutationOptions<ChangeUserRoleMutation, ChangeUserRoleMutationVariables>;
+export const CommandEventDocument = gql`
+    query CommandEvent($commandEventId: ID!) {
+  commandEvent(commandEventId: $commandEventId) {
+    ...CommandEventDetail
+  }
+}
+    ${CommandEventDetailFragmentDoc}`;
+
+/**
+ * __useCommandEventQuery__
+ *
+ * To run a query within a React component, call `useCommandEventQuery` and pass it any options that fit your needs.
+ * When your component renders, `useCommandEventQuery` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the query, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = useCommandEventQuery({
+ *   variables: {
+ *      commandEventId: // value for 'commandEventId'
+ *   },
+ * });
+ */
+export function useCommandEventQuery(baseOptions: Apollo.QueryHookOptions<CommandEventQuery, CommandEventQueryVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useQuery<CommandEventQuery, CommandEventQueryVariables>(CommandEventDocument, options);
+      }
+export function useCommandEventLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<CommandEventQuery, CommandEventQueryVariables>) {
+          const options = {...defaultOptions, ...baseOptions}
+          return Apollo.useLazyQuery<CommandEventQuery, CommandEventQueryVariables>(CommandEventDocument, options);
+        }
+export type CommandEventQueryHookResult = ReturnType<typeof useCommandEventQuery>;
+export type CommandEventLazyQueryHookResult = ReturnType<typeof useCommandEventLazyQuery>;
+export type CommandEventQueryResult = Apollo.QueryResult<CommandEventQuery, CommandEventQueryVariables>;
 export const CommandEventsDocument = gql`
     query CommandEvents($projectId: ID!, $first: Int, $after: String, $before: String, $last: Int) {
   commandEvents(

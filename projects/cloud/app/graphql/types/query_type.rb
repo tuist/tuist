@@ -73,5 +73,13 @@ module Types
     def command_events(project_id:)
       CommandEventsFetchService.call(project_id: project_id, user: context[:current_user])
     end
+
+    field :command_event, CommandEventType, null: false,
+      description: "Returns a command event with a given id" do
+      argument :command_event_id, ID, required: true
+    end
+    def command_event(command_event_id:)
+      CommandEventFetchService.call(command_event_id: command_event_id, user: context[:current_user])
+    end
   end
 end
