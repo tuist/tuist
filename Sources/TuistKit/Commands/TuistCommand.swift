@@ -51,12 +51,11 @@ public struct TuistCommand: ParsableCommand {
                 try InitCommand.preprocess(processedArguments)
             }
             let command = try parseAsRoot(processedArguments)
-            print(processedArguments)
-            executeCommand = { 
+            executeCommand = {
                 try await execute(
                     command: command,
                     commandArguments: processedArguments
-                ) 
+                )
             }
         } catch {
             parsedError = error
