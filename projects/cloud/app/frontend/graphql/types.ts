@@ -405,6 +405,8 @@ export type ChangeUserRoleMutationVariables = Exact<{
 
 export type ChangeUserRoleMutation = { __typename?: 'Mutation', changeUserRole: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } } };
 
+export type CommandEventFragment = { __typename?: 'CommandEvent', id: string, commandArguments: string, duration: number, createdAt: string };
+
 export type CommandEventDetailFragment = { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string };
 
 export type CommandEventQueryVariables = Exact<{
@@ -423,7 +425,7 @@ export type CommandEventsQueryVariables = Exact<{
 }>;
 
 
-export type CommandEventsQuery = { __typename?: 'Query', commandEvents: { __typename?: 'CommandEventConnection', edges?: Array<{ __typename?: 'CommandEventEdge', node?: { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string } | null } | null> | null, pageInfo: { __typename?: 'PageInfo', startCursor?: string | null, endCursor?: string | null, hasNextPage: boolean, hasPreviousPage: boolean } } };
+export type CommandEventsQuery = { __typename?: 'Query', commandEvents: { __typename?: 'CommandEventConnection', edges?: Array<{ __typename?: 'CommandEventEdge', node?: { __typename?: 'CommandEvent', id: string, commandArguments: string, duration: number, createdAt: string } | null } | null> | null, pageInfo: { __typename?: 'PageInfo', startCursor?: string | null, endCursor?: string | null, hasNextPage: boolean, hasPreviousPage: boolean } } };
 
 export type CreateProjectMutationVariables = Exact<{
   input: CreateProjectInput;
@@ -533,6 +535,14 @@ export type UpdateS3BucketMutation = { __typename?: 'Mutation', updateS3Bucket: 
 
 export type UserBasicInfoFragment = { __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } };
 
+export const CommandEventFragmentDoc = gql`
+    fragment CommandEvent on CommandEvent {
+  id
+  commandArguments
+  duration
+  createdAt
+}
+    `;
 export const CommandEventDetailFragmentDoc = gql`
     fragment CommandEventDetail on CommandEvent {
   id
@@ -782,7 +792,7 @@ export const CommandEventsDocument = gql`
   ) {
     edges {
       node {
-        ...CommandEventDetail
+        ...CommandEvent
       }
     }
     pageInfo {
@@ -793,7 +803,7 @@ export const CommandEventsDocument = gql`
     }
   }
 }
-    ${CommandEventDetailFragmentDoc}`;
+    ${CommandEventFragmentDoc}`;
 
 /**
  * __useCommandEventsQuery__

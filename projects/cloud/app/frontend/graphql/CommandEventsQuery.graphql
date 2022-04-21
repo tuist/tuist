@@ -2,7 +2,7 @@ query CommandEvents($projectId: ID!, $first: Int, $after: String, $before: Strin
   commandEvents(projectId: $projectId, first: $first, after: $after, before: $before, last: $last) {
     edges {
       node {
-        ...CommandEventDetail
+        ...CommandEvent
       }
     }
     pageInfo {

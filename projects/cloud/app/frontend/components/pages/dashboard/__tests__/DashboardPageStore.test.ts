@@ -1,9 +1,9 @@
 import {
-  CommandEventDetailFragment,
+  CommandEventFragment,
   CommandEventsDocument,
   CommandEventsQuery,
 } from '@/graphql/types';
-import { CommandEventDetail } from '@/models/CommandEventDetail';
+import { CommandEvent } from '@/models/CommandEvent';
 import DashboardPageStore from '../DashboardPageStore';
 
 jest.mock('@apollo/client');
@@ -21,31 +21,19 @@ describe('DashboardPageStore', () => {
   it('loads next page', async () => {
     // Given
     const dashboardPageStore = new DashboardPageStore(client);
-    const commandEventDetail: CommandEventDetail = {
-      clientId: 'client-id',
+    const commandEventDetail: CommandEvent = {
       commandArguments: 'generate MyApp',
       createdAt: new Date(),
       duration: 1240,
-      macosVersion: '13.3.0',
-      tuistVersion: '3.3.0',
-      swiftVersion: '5.4.0',
       id: 'command-event-id',
-      name: 'generate',
-      subcommand: null,
     };
     const commandEventDetailFragment = {
-      clientId: commandEventDetail.clientId,
       commandArguments: commandEventDetail.commandArguments,
       createdAt: commandEventDetail.createdAt.toISOString(),
       duration: commandEventDetail.duration,
-      macosVersion: commandEventDetail.macosVersion,
-      tuistVersion: commandEventDetail.tuistVersion,
-      swiftVersion: commandEventDetail.swiftVersion,
       id: commandEventDetail.id,
-      name: commandEventDetail.name,
-      subcommand: commandEventDetail.subcommand,
       __typename: 'CommandEvent',
-    } as CommandEventDetailFragment;
+    } as CommandEventFragment;
     client.query.mockResolvedValueOnce({
       data: {
         commandEvents: {

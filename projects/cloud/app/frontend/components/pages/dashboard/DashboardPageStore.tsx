@@ -2,10 +2,7 @@ import {
   CommandEventsDocument,
   CommandEventsQuery,
 } from '@/graphql/types';
-import {
-  CommandEventDetail,
-  mapCommandEventDetail,
-} from '@/models/CommandEventDetail';
+import { CommandEvent, mapCommandEvent } from '@/models/CommandEvent';
 import {
   ApolloClient,
   OperationVariables,
@@ -14,7 +11,7 @@ import {
 import { makeAutoObservable, runInAction } from 'mobx';
 
 class DashboardPageStore {
-  commandEvents: CommandEventDetail[] = [];
+  commandEvents: CommandEvent[] = [];
   hasNextPage = false;
   hasPreviousPage = false;
 
@@ -49,7 +46,6 @@ class DashboardPageStore {
       CommandEventsQuery
     >['variables'],
   ) {
-    // TODO: Do not use command event details here
     const { data } = await this.client.query<CommandEventsQuery>({
       query: CommandEventsDocument,
       variables,
@@ -69,11 +65,11 @@ class DashboardPageStore {
             if (edge?.node == null) {
               return null;
             } else {
-              return mapCommandEventDetail(edge.node);
+              return mapCommandEvent(edge.node);
             }
           })
           .filter(
-            (commandEvent): commandEvent is CommandEventDetail =>
+            (commandEvent): commandEvent is CommandEvent =>
               commandEvent !== null,
           ) ?? [];
     });
