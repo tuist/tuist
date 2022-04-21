@@ -89,7 +89,6 @@ module.exports = {
         'contributors/reporting-bugs',
         'contributors/architecture',
         'contributors/testing-strategy',
-        'contributors/changelog-guidelines',
         'contributors/core-team',
         'contributors/manifesto',
         'contributors/performance-testing',

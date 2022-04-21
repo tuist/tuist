@@ -55,9 +55,7 @@ Pull requests that change the user interface of Tuist,
 for example adding support for a new argument,
 must include documentation.
 
-**📝 Changelog:** The `CHANGELOG.md` file contains a list of changes that are released with new versions.
-Pull requests should add an entry to that file describing in one sentence what the change is about.
-They should link to the pull request and mention the author or authors of the changes.
+**📝 Changelog:** The PR contains one of the `changelog:*` label, and the title of the PR is an accurate description of the change, in the right form to become part of the Changelog.
 
 **🚦 Continuous integration:** Continuous integration must be happy with the changes.
 The pipelines are designed to bring an extra level of confidence and validate that the changes are right.
