@@ -62,34 +62,49 @@ const DashboardPage = observer(() => {
     );
   };
 
+  const RunsList = () => {
+    return (
+      <>
+        <ResourceList
+          loading={dashboardPageStore.isLoading}
+          items={dashboardPageStore.commandEvents}
+          renderItem={renderItem}
+        />
+        <Pagination
+          hasPrevious={dashboardPageStore.hasPreviousPage}
+          onPrevious={() => {
+            if (projectStore.project?.id == null) {
+              return;
+            }
+            dashboardPageStore.loadPreviousPage(
+              projectStore.project.id,
+            );
+          }}
+          hasNext={dashboardPageStore.hasNextPage}
+          onNext={() => {
+            if (projectStore.project?.id == null) {
+              return;
+            }
+            dashboardPageStore.loadNextPage(projectStore.project.id);
+          }}
+        />
+      </>
+    );
+  };
+
   return (
     <Page>
       <Card title="Runs">
         <Card.Section>
-          <ResourceList
-            items={dashboardPageStore.commandEvents}
-            renderItem={renderItem}
-          />
-          <Pagination
-            hasPrevious={dashboardPageStore.hasPreviousPage}
-            onPrevious={() => {
-              if (projectStore.project?.id == null) {
-                return;
-              }
-              dashboardPageStore.loadPreviousPage(
-                projectStore.project.id,
-              );
-            }}
-            hasNext={dashboardPageStore.hasNextPage}
-            onNext={() => {
-              if (projectStore.project?.id == null) {
-                return;
-              }
-              dashboardPageStore.loadNextPage(
-                projectStore.project.id,
-              );
-            }}
-          />
+          {dashboardPageStore.commandEvents.length > 0 ||
+          dashboardPageStore.isLoading ? (
+            <RunsList />
+          ) : (
+            <TextStyle>
+              You currently have no runs. Login to tuist cloud in your
+              CLI and run a command.
+            </TextStyle>
+          )}
         </Card.Section>
       </Card>
     </Page>

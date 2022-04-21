@@ -14,6 +14,7 @@ class DashboardPageStore {
   commandEvents: CommandEvent[] = [];
   hasNextPage = false;
   hasPreviousPage = false;
+  isLoading = true;
 
   private currentStartCursor = '';
   private currentEndCursor = '';
@@ -46,11 +47,14 @@ class DashboardPageStore {
       CommandEventsQuery
     >['variables'],
   ) {
-    const { data } = await this.client.query<CommandEventsQuery>({
-      query: CommandEventsDocument,
-      variables,
-    });
+    this.isLoading = true;
+    const { data, loading } =
+      await this.client.query<CommandEventsQuery>({
+        query: CommandEventsDocument,
+        variables,
+      });
     runInAction(() => {
+      this.isLoading = loading;
       this.hasNextPage = data.commandEvents.pageInfo.hasNextPage;
       this.hasPreviousPage =
         data.commandEvents.pageInfo.hasPreviousPage;
