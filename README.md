@@ -264,6 +264,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://florian.codes"><img src="https://avatars.githubusercontent.com/u/7734806?v=4" width="100px;" alt=""/><br /><sub><b>Florian Fittschen</b></sub></a></td>
     <td align="center"><a href="https://github.com/jesus-mg-ios"><img src="https://avatars.githubusercontent.com/u/85997060?v=4" width="100px;" alt=""/><br /><sub><b>Jesus (iOS)</b></sub></a></td>
   </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/nicholaskim94"><img src="https://avatars.githubusercontent.com/u/7912759?v=4" width="100px;" alt=""/><br /><sub><b>Nicholas Kim</b></sub></a></td>
+  </tr>
 </table>
 
 <!-- markdownlint-restore -->
