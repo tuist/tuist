@@ -24,8 +24,6 @@ class CommandEventDetailPageStore {
       variables: { commandEventId },
     });
 
-    console.log('load', data);
-
     runInAction(() => {
       this.commandEventDetail = mapCommandEventDetail(
         data.commandEvent,

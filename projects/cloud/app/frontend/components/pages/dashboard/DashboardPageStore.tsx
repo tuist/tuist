@@ -28,7 +28,7 @@ class DashboardPageStore {
   }
 
   async loadNextPage(projectId: string) {
-    this.loadPage({
+    await this.loadPage({
       projectId,
       first: 20,
       after: this.currentEndCursor,
@@ -36,7 +36,7 @@ class DashboardPageStore {
   }
 
   async loadPreviousPage(projectId: string) {
-    this.loadPage({
+    await this.loadPage({
       projectId,
       last: 20,
       before: this.currentStartCursor,
