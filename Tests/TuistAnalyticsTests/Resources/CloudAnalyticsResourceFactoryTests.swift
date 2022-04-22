@@ -30,6 +30,7 @@ final class CloudAnalyticsResourceFactoryTests: TuistUnitTestCase {
             name: "generate",
             subcommand: nil,
             params: [:],
+            commandArguments: ["generate"],
             durationInMs: 20,
             clientId: "123",
             tuistVersion: "1.2.3",

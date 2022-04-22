@@ -7,7 +7,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let name: String
     public let subcommand: String?
     public let params: [String: String]
-    public let commandArguments: String
+    public let commandArguments: [String]
     public let durationInMs: Int
     public let clientId: String
     public let tuistVersion: String
@@ -38,7 +38,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         name: String,
         subcommand: String?,
         params: [String: String],
-        commandArguments: String,
+        commandArguments: [String],
         durationInMs: Int,
         clientId: String,
         tuistVersion: String,

@@ -37,7 +37,7 @@ class CommandEventCreateService < ApplicationService
     CommandEvent.create!(
       name: name,
       subcommand: subcommand,
-      command_arguments: command_arguments,
+      command_arguments: command_arguments.join(" "),
       duration: duration,
       client_id: client_id,
       tuist_version: tuist_version,
