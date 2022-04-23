@@ -18,7 +18,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       token: Devise.friendly_token.first(8),
       remote_cache_storage: @s3_bucket
     )
-    ProjectFetchService.stubs(:call).returns(@project)
+    ProjectFetchService.any_instance.stubs(:fetch_by_name).returns(@project)
     DecipherService.stubs(:call).returns("decoded secret")
   end
 

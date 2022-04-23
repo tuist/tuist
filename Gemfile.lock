@@ -198,7 +198,7 @@ GEM
     graphiql-rails (1.8.0)
       railties
       sprockets-rails
-    graphql (1.13.11)
+    graphql (2.0.5)
     graphql-schema_comparator (1.1.1)
       bundler (>= 1.14)
       graphql (>= 1.10, < 3.0)
@@ -485,7 +485,7 @@ DEPENDENCIES
   foreman (~> 0.87.2)
   google-cloud-storage (~> 1.34)
   graphiql-rails
-  graphql (~> 1.12)
+  graphql (~> 2.0.5)
   graphql-schema_comparator (~> 1.0)
   jbuilder (~> 2.7)
   listen (~> 3.3)

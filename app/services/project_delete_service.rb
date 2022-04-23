@@ -30,11 +30,7 @@ class ProjectDeleteService < ApplicationService
   end
 
   def call
-    begin
-      project = Project.find(id)
-    rescue ActiveRecord::RecordNotFound
-      raise Error::ProjectNotFound.new(id)
-    end
+    project = ProjectFetchService.new.fetch_by_id(project_id: id, user: deleter)
 
     raise Error::Unauthorized.new unless ProjectPolicy.new(deleter, project).update?
 

@@ -70,7 +70,7 @@ class CacheService < ApplicationService
 
   private def fetch_project_if_necessary
     if project.nil?
-      @project = ProjectFetchService.call(
+      @project = ProjectFetchService.new.fetch_by_name(
         name: project_name,
         account_name: account_name,
         user: user

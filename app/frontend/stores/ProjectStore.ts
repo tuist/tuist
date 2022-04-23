@@ -26,15 +26,17 @@ export default class ProjectStore {
         accountName,
       },
     });
-    if (data == null || data.project == null) {
-      return;
-    }
-    this.project = mapProject(data.project);
-    await this.client.mutate<UpdateLastVisitedProjectMutation>({
-      mutation: UpdateLastVisitedProjectDocument,
-      variables: {
-        input: { id: this.project.id },
-      },
+    runInAction(async () => {
+      if (data == null || data.project == null) {
+        return;
+      }
+      this.project = mapProject(data.project);
+      await this.client.mutate<UpdateLastVisitedProjectMutation>({
+        mutation: UpdateLastVisitedProjectDocument,
+        variables: {
+          input: { id: this.project.id },
+        },
+      });
     });
   }
 
