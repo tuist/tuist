@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2022_03_23_204451) do
+ActiveRecord::Schema[7.0].define(version: 2022_04_10_132610) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -23,6 +23,21 @@ ActiveRecord::Schema[7.0].define(version: 2022_03_23_204451) do
     t.index ["name"], name: "index_accounts_on_name", unique: true
     t.index ["owner_id", "owner_type"], name: "index_accounts_on_owner_id_and_owner_type", unique: true
     t.index ["owner_type", "owner_id"], name: "index_accounts_on_owner"
+  end
+
+  create_table "command_events", force: :cascade do |t|
+    t.string "name"
+    t.string "subcommand"
+    t.string "command_arguments"
+    t.integer "duration"
+    t.string "client_id"
+    t.string "tuist_version"
+    t.string "swift_version"
+    t.string "macos_version"
+    t.bigint "project_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["project_id"], name: "index_command_events_on_project_id"
   end
 
   create_table "invitations", force: :cascade do |t|

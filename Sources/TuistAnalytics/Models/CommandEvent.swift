@@ -7,6 +7,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let name: String
     public let subcommand: String?
     public let params: [String: String]
+    public let commandArguments: [String]
     public let durationInMs: Int
     public let clientId: String
     public let tuistVersion: String
@@ -23,6 +24,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case name
         case subcommand
         case params
+        case commandArguments
         case durationInMs = "duration"
         case clientId
         case tuistVersion
@@ -36,6 +38,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         name: String,
         subcommand: String?,
         params: [String: String],
+        commandArguments: [String],
         durationInMs: Int,
         clientId: String,
         tuistVersion: String,
@@ -47,6 +50,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.name = name
         self.subcommand = subcommand
         self.params = params
+        self.commandArguments = commandArguments
         self.durationInMs = durationInMs
         self.clientId = clientId
         self.tuistVersion = tuistVersion

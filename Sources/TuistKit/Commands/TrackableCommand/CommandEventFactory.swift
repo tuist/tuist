@@ -20,6 +20,7 @@ public final class CommandEventFactory {
             name: info.name,
             subcommand: info.subcommand,
             params: info.parameters,
+            commandArguments: info.commandArguments,
             durationInMs: Int(info.durationInMs),
             clientId: machineEnvironment.clientId,
             tuistVersion: Constants.version,

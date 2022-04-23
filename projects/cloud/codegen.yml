@@ -8,3 +8,5 @@ generates:
       - typescript-react-apollo
     config:
       reactApolloVersion: 3
+      scalars:
+        ISO8601DateTime: string

@@ -25,20 +25,11 @@ class ProjectDeleteServicerviceTest < ActiveSupport::TestCase
     organization = Organization.create!
     account = Account.create!(owner: organization, name: "tuist")
     project = Project.create!(name: "tuist-project", account_id: account.id, token: Devise.friendly_token.first(16))
+    deleter.add_role(:user, organization)
 
     # When / Then
     assert_raises(ProjectDeleteService::Error::Unauthorized) do
       ProjectDeleteService.call(id: project.id, deleter: deleter)
-    end
-  end
-
-  test "fails with project not found if the project does not exist" do
-    # Given
-    deleter = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
-
-    # When / Then
-    assert_raises(ProjectDeleteService::Error::ProjectNotFound) do
-      ProjectDeleteService.call(id: 2, deleter: deleter)
     end
   end
 end

@@ -13,7 +13,7 @@ module Types
       description: "Deletes a given project",
       mutation: Mutations::DeleteProject
     field :update_last_visited_project,
-      ProjectType,
+      UserType,
       null: false,
       description: "Updates the last visited project of a user",
       mutation: Mutations::UpdateLastVisitedProject
