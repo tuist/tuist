@@ -6,6 +6,7 @@ let projectPath = "."
 let appPath = "Targets/\(nameAttribute)"
 let kitFrameworkPath = "Targets/\(nameAttribute)Kit"
 let uiFrameworkPath = "Targets/\(nameAttribute)UI"
+let taskPath = "Plugins/\(nameAttribute)"
 
 func templatePath(_ path: String) -> Path {
     "../\(path)"
@@ -53,6 +54,18 @@ let template = Template(
         .file(
             path: uiFrameworkPath + "/Tests/\(nameAttribute)UITests.swift",
             templatePath: templatePath("/UITests.stencil")
+        ),
+        .file(
+            path: taskPath + "/Sources/tuist-my-cli/main.swift",
+            templatePath: templatePath("/main.stencil")
+        ),
+        .file(
+            path: taskPath + "/Package.swift",
+            templatePath: templatePath("/Package.stencil")
+        ),
+        .file(
+            path: taskPath + "/Plugin.swift",
+            templatePath: templatePath("/Plugin.stencil")
         ),
         .file(
             path: ".gitignore",
