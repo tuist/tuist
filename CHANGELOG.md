@@ -2,6 +2,12 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## Next
+
+### Fixed
+
+- Added support for WatchOS UITests with a Target Application [#4382](https://github.com/tuist/tuist/issues/4382) by [Smponias](https://github.com/Smponias)
+
 ## 3.2.0 - 2022-04-11
 
 ### Changed
