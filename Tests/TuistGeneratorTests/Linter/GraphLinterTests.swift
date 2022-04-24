@@ -469,6 +469,154 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Then
         XCTAssertFalse(result.isEmpty)
     }
+    
+    func test_lint_when_watchOS_UITests_depends_on_watch2App() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let watchApp = Target.empty(
+            name: "WatchApp",
+            platform: .watchOS,
+            product: .watch2App
+        )
+        let watchAppTests = Target.empty(
+            name: "WatchAppUITests",
+            platform: .watchOS,
+            product: .uiTests,
+            dependencies: [.target(name: watchApp.name)]
+        )
+        let project = Project.test(path: path, targets: [watchApp, watchAppTests])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: watchApp.name, path: path): Set([]),
+            .target(name: watchAppTests.name, path: path): Set([.target(name: watchApp.name, path: path)]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [watchApp.name: watchApp, watchAppTests.name: watchAppTests]],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
+    
+    func test_lint_when_watchOS_UITests_depends_on_staticLibrary() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let staticLibrary = Target.empty(
+            name: "StaticLibrary",
+            platform: .watchOS,
+            product: .staticLibrary
+        )
+        let watchAppTests = Target.empty(
+            name: "WatchAppUITests",
+            platform: .watchOS,
+            product: .uiTests,
+            dependencies: [.target(name: staticLibrary.name)]
+        )
+        let project = Project.test(path: path, targets: [staticLibrary, watchAppTests])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: staticLibrary.name, path: path): Set([]),
+            .target(name: watchAppTests.name, path: path): Set([.target(name: staticLibrary.name, path: path)]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [staticLibrary.name: staticLibrary, watchAppTests.name: watchAppTests]],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
+    
+    func test_lint_when_watchOS_UITests_depends_on_framework() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let framework = Target.empty(
+            name: "Framework",
+            platform: .watchOS,
+            product: .framework
+        )
+        let watchAppTests = Target.empty(
+            name: "WatchAppUITests",
+            platform: .watchOS,
+            product: .uiTests,
+            dependencies: [.target(name: framework.name)]
+        )
+        let project = Project.test(path: path, targets: [framework, watchAppTests])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: framework.name, path: path): Set([]),
+            .target(name: watchAppTests.name, path: path): Set([.target(name: framework.name, path: path)]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [framework.name: framework, watchAppTests.name: watchAppTests]],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
+    
+    func test_lint_when_watchOS_UITests_depends_on_staticFramework() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let staticFramework = Target.empty(
+            name: "StaticFramework",
+            platform: .watchOS,
+            product: .watch2App
+        )
+        let watchAppTests = Target.empty(
+            name: "WatchAppUITests",
+            platform: .watchOS,
+            product: .uiTests,
+            dependencies: [.target(name: staticFramework.name)]
+        )
+        let project = Project.test(path: path, targets: [staticFramework, watchAppTests])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: staticFramework.name, path: path): Set([]),
+            .target(name: watchAppTests.name, path: path): Set([.target(name: staticFramework.name, path: path)]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [staticFramework.name: staticFramework, watchAppTests.name: watchAppTests]],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
 
     func test_lint_missingProjectConfigurationsFromDependencyProjects() throws {
         // Given
