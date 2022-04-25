@@ -246,7 +246,10 @@ public class GraphLinter: GraphLinting {
     }
 
     private func lint(watchApp: GraphTarget, parentApp: GraphTarget) -> [LintingIssue] {
-        guard watchApp.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
+        let buildSettingRegex = "\\$[\\({](.*)[\\)}]"
+        
+        guard watchApp.target.bundleId.matches(pattern: buildSettingRegex) ||
+                watchApp.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
             return [
                 LintingIssue(reason: """
                 Watch app '\(watchApp.target.name)' bundleId: \(watchApp.target
@@ -257,9 +260,12 @@ public class GraphLinter: GraphLinting {
         }
         return []
     }
-
+    
     private func lint(watchExtension: GraphTarget, parentWatchApp: GraphTarget) -> [LintingIssue] {
-        guard watchExtension.target.bundleId.hasPrefix(parentWatchApp.target.bundleId) else {
+        let buildSettingRegex = "\\$[\\({](.*)[\\)}]"
+        
+        guard watchExtension.target.bundleId.matches(pattern: buildSettingRegex) ||
+                watchExtension.target.bundleId.hasPrefix(parentWatchApp.target.bundleId) else {
             return [
                 LintingIssue(reason: """
                 Watch extension '\(watchExtension.target.name)' bundleId: \(watchExtension.target

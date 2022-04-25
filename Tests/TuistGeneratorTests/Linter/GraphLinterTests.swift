@@ -1486,4 +1486,92 @@ final class GraphLinterTests: TuistUnitTestCase {
             ]
         )
     }
+    
+    func test_lint_when_bundle_id_is_derived_from_build_settings_using_parentheses_pattern() {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            bundleId: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        )
+        let watchApp = Target.test(
+            name: "WatchApp",
+            platform: .watchOS,
+            product: .watch2App,
+            bundleId: "$(WATCH_APP_PRODUCT_BUNDLE_IDENTIFIER)"
+        )
+        let watchExtension = Target.test(
+            name: "WatchExtension",
+            platform: .watchOS,
+            product: .watch2Extension,
+            bundleId: "$(WATCH_EXTENSION_PRODUCT_BUNDLE_IDENTIFIER)"
+        )
+        let project = Project.test(targets: [app, watchApp, watchExtension])
+        
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: path): Set([.target(name: watchApp.name, path: path)]),
+            .target(name: watchApp.name, path: path): Set([.target(name: watchExtension.name, path: path)]),
+            .target(name: watchExtension.name, path: path): Set([]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [app.name: app, watchApp.name: watchApp, watchExtension.name: watchExtension]],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEmpty(got)
+    }
+
+    func test_lint_when_bundle_id_is_derived_from_build_settings_using_braces_pattern() {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            bundleId: "${PRODUCT_BUNDLE_IDENTIFIER}"
+        )
+        let watchApp = Target.test(
+            name: "WatchApp",
+            platform: .watchOS,
+            product: .watch2App,
+            bundleId: "${WATCH_APP_PRODUCT_BUNDLE_IDENTIFIER}"
+        )
+        let watchExtension = Target.test(
+            name: "WatchExtension",
+            platform: .watchOS,
+            product: .watch2Extension,
+            bundleId: "${WATCH_EXTENSION_PRODUCT_BUNDLE_IDENTIFIER}"
+        )
+        let project = Project.test(targets: [app, watchApp, watchExtension])
+        
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: path): Set([.target(name: watchApp.name, path: path)]),
+            .target(name: watchApp.name, path: path): Set([.target(name: watchExtension.name, path: path)]),
+            .target(name: watchExtension.name, path: path): Set([]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [path: [app.name: app, watchApp.name: watchApp, watchExtension.name: watchExtension]],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEmpty(got)
+    }
 }
