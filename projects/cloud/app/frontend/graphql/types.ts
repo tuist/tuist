@@ -56,6 +56,12 @@ export type ChangeUserRoleInput = {
   userId: Scalars['ID'];
 };
 
+export type CommandAverage = {
+  __typename?: 'CommandAverage';
+  date: Scalars['ISO8601DateTime'];
+  durationAverage: Scalars['Int'];
+};
+
 export type CommandEvent = {
   __typename?: 'CommandEvent';
   clientId: Scalars['String'];
@@ -261,6 +267,8 @@ export type Query = {
   __typename?: 'Query';
   /** Returns all tied accounts for the authenticated user */
   accounts: Array<Account>;
+  /** Returns a list of averages, sorted by the date */
+  commandAverages: Array<CommandAverage>;
   /** Returns a command event with a given id */
   commandEvent: CommandEvent;
   /** Returns all command events for a given project */
@@ -279,6 +287,12 @@ export type Query = {
   projects: Array<Project>;
   /** Returns S3 buckets for an account of a given name */
   s3Buckets: Array<S3Bucket>;
+};
+
+
+export type QueryCommandAveragesArgs = {
+  commandName: Scalars['String'];
+  projectId: Scalars['ID'];
 };
 
 
@@ -404,6 +418,16 @@ export type ChangeUserRoleMutationVariables = Exact<{
 
 
 export type ChangeUserRoleMutation = { __typename?: 'Mutation', changeUserRole: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } } };
+
+export type CommandAverageFragment = { __typename?: 'CommandAverage', date: string, durationAverage: number };
+
+export type CommandAveragesQueryVariables = Exact<{
+  projectId: Scalars['ID'];
+  commandName: Scalars['String'];
+}>;
+
+
+export type CommandAveragesQuery = { __typename?: 'Query', commandAverages: Array<{ __typename?: 'CommandAverage', date: string, durationAverage: number }> };
 
 export type CommandEventFragment = { __typename?: 'CommandEvent', id: string, commandArguments: string, duration: number, createdAt: string };
 
@@ -535,6 +559,12 @@ export type UpdateS3BucketMutation = { __typename?: 'Mutation', updateS3Bucket: 
 
 export type UserBasicInfoFragment = { __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } };
 
+export const CommandAverageFragmentDoc = gql`
+    fragment CommandAverage on CommandAverage {
+  date
+  durationAverage
+}
+    `;
 export const CommandEventFragmentDoc = gql`
     fragment CommandEvent on CommandEvent {
   id
@@ -746,6 +776,42 @@ export function useChangeUserRoleMutation(baseOptions?: Apollo.MutationHookOptio
 export type ChangeUserRoleMutationHookResult = ReturnType<typeof useChangeUserRoleMutation>;
 export type ChangeUserRoleMutationResult = Apollo.MutationResult<ChangeUserRoleMutation>;
 export type ChangeUserRoleMutationOptions = Apollo.BaseMutationOptions<ChangeUserRoleMutation, ChangeUserRoleMutationVariables>;
+export const CommandAveragesDocument = gql`
+    query CommandAverages($projectId: ID!, $commandName: String!) {
+  commandAverages(projectId: $projectId, commandName: $commandName) {
+    ...CommandAverage
+  }
+}
+    ${CommandAverageFragmentDoc}`;
+
+/**
+ * __useCommandAveragesQuery__
+ *
+ * To run a query within a React component, call `useCommandAveragesQuery` and pass it any options that fit your needs.
+ * When your component renders, `useCommandAveragesQuery` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the query, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = useCommandAveragesQuery({
+ *   variables: {
+ *      projectId: // value for 'projectId'
+ *      commandName: // value for 'commandName'
+ *   },
+ * });
+ */
+export function useCommandAveragesQuery(baseOptions: Apollo.QueryHookOptions<CommandAveragesQuery, CommandAveragesQueryVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useQuery<CommandAveragesQuery, CommandAveragesQueryVariables>(CommandAveragesDocument, options);
+      }
+export function useCommandAveragesLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<CommandAveragesQuery, CommandAveragesQueryVariables>) {
+          const options = {...defaultOptions, ...baseOptions}
+          return Apollo.useLazyQuery<CommandAveragesQuery, CommandAveragesQueryVariables>(CommandAveragesDocument, options);
+        }
+export type CommandAveragesQueryHookResult = ReturnType<typeof useCommandAveragesQuery>;
+export type CommandAveragesLazyQueryHookResult = ReturnType<typeof useCommandAveragesLazyQuery>;
+export type CommandAveragesQueryResult = Apollo.QueryResult<CommandAveragesQuery, CommandAveragesQueryVariables>;
 export const CommandEventDocument = gql`
     query CommandEvent($commandEventId: ID!) {
   commandEvent(commandEventId: $commandEventId) {

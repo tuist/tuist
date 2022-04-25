@@ -1,6 +1,7 @@
 import React from 'react';
 import { AppProvider } from '@shopify/polaris';
 import { Link as ReactRouterLink } from 'react-router-dom';
+import { PolarisVizProvider } from '@shopify/polaris-viz';
 
 interface TuistCloudAppProviderProps {
   children: JSX.Element;
@@ -53,7 +54,7 @@ const TuistCloudAppProvider = ({
       }}
       linkComponent={Link}
     >
-      {children}
+      <PolarisVizProvider>{children}</PolarisVizProvider>
     </AppProvider>
   );
 };

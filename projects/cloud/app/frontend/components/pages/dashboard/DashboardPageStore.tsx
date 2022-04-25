@@ -1,13 +1,20 @@
 import {
+  CommandAveragesDocument,
+  CommandAveragesQuery,
   CommandEventsDocument,
   CommandEventsQuery,
 } from '@/graphql/types';
+import {
+  CommandAverage,
+  mapCommandAverage,
+} from '@/models/CommandAverage';
 import { CommandEvent, mapCommandEvent } from '@/models/CommandEvent';
 import {
   ApolloClient,
   OperationVariables,
   QueryOptions,
 } from '@apollo/client';
+import { DataPoint } from '@shopify/polaris-viz';
 import { makeAutoObservable, runInAction } from 'mobx';
 
 class DashboardPageStore {
@@ -15,6 +22,8 @@ class DashboardPageStore {
   hasNextPage = false;
   hasPreviousPage = false;
   isLoading = true;
+  commandName = 'generate';
+  commandAveragesData: DataPoint[] = [];
 
   private currentStartCursor = '';
   private currentEndCursor = '';
@@ -23,6 +32,26 @@ class DashboardPageStore {
   constructor(client: ApolloClient<object>) {
     this.client = client;
     makeAutoObservable(this);
+  }
+
+  async loadCommandAverages(projectId: string) {
+    const { data } = await this.client.query<CommandAveragesQuery>({
+      query: CommandAveragesDocument,
+      variables: {
+        projectId,
+        commandName: this.commandName,
+      },
+    });
+    runInAction(() => {
+      this.commandAveragesData = data.commandAverages.map(
+        (commandAverage) => {
+          return {
+            key: new Date(commandAverage.date).toDateString(),
+            value: commandAverage.durationAverage / 1000,
+          };
+        },
+      );
+    });
   }
 
   async loadNextPage(projectId: string) {
