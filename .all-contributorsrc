@@ -839,6 +839,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "Smponias",
+      "name": "Alexandros Smponias",
+      "avatar_url": "https://avatars.githubusercontent.com/u/14213855?v=4",
+      "profile": "https://github.com/Smponias",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
