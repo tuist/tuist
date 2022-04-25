@@ -120,52 +120,52 @@ final class ProductTests: XCTestCase {
             }
         }
     }
-    
+
     func test_can_host_tests() {
         // App
         var subject = Product.app
         XCTAssert(subject.canHostTests())
-        
+
         // App Clip
         subject = Product.appClip
         XCTAssert(subject.canHostTests())
-        
+
         // App Extension
         subject = Product.appExtension
         XCTAssertFalse(subject.canHostTests())
-        
+
         // Watch App
         subject = Product.appClip
         XCTAssert(subject.canHostTests())
-        
+
         // Watch2Extension
         subject = Product.watch2Extension
         XCTAssertFalse(subject.canHostTests())
-        
+
         // UITests
         subject = Product.uiTests
         XCTAssertFalse(subject.canHostTests())
-        
+
         // UnitTests
         subject = Product.unitTests
         XCTAssertFalse(subject.canHostTests())
-        
+
         // Framework
         subject = Product.framework
         XCTAssertFalse(subject.canHostTests())
-        
+
         // Static Framework
         subject = Product.staticFramework
         XCTAssertFalse(subject.canHostTests())
-        
+
         // Static Library
         subject = Product.staticLibrary
         XCTAssertFalse(subject.canHostTests())
-        
+
         // Dynamic Library
         subject = Product.dynamicLibrary
         XCTAssertFalse(subject.canHostTests())
-        
+
         // Bundle
         subject = Product.bundle
         XCTAssertFalse(subject.canHostTests())
@@ -173,7 +173,7 @@ final class ProductTests: XCTestCase {
         // Command Line Tool
         subject = Product.commandLineTool
         XCTAssertFalse(subject.canHostTests())
-        
+
         // Messages Extension
         subject = Product.messagesExtension
         XCTAssertFalse(subject.canHostTests())
@@ -181,7 +181,7 @@ final class ProductTests: XCTestCase {
         // Sticker Pack Extension
         subject = Product.stickerPackExtension
         XCTAssertFalse(subject.canHostTests())
-        
+
         // TV Top Shelf Extension
         subject = Product.tvTopShelfExtension
         XCTAssertFalse(subject.canHostTests())

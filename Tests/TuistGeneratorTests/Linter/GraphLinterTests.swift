@@ -469,7 +469,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Then
         XCTAssertFalse(result.isEmpty)
     }
-    
+
     func test_lint_when_watchOS_UITests_depends_on_watch2App() throws {
         // Given
         let path: AbsolutePath = "/project"
@@ -506,7 +506,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(got.isEmpty)
     }
-    
+
     func test_lint_when_watchOS_UITests_depends_on_staticLibrary() throws {
         // Given
         let path: AbsolutePath = "/project"
@@ -543,7 +543,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(got.isEmpty)
     }
-    
+
     func test_lint_when_watchOS_UITests_depends_on_framework() throws {
         // Given
         let path: AbsolutePath = "/project"
@@ -580,7 +580,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(got.isEmpty)
     }
-    
+
     func test_lint_when_watchOS_UITests_depends_on_staticFramework() throws {
         // Given
         let path: AbsolutePath = "/project"
