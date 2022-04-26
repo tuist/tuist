@@ -49,7 +49,7 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
       elsif day == 30
         15
       else
-        nil
+        0
       end
     }, got.map(&:duration_average)
   end
