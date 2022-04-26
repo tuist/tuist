@@ -52,6 +52,11 @@ input ChangeUserRoleInput {
   userId: ID!
 }
 
+type CommandAverage {
+  date: ISO8601DateTime!
+  durationAverage: Int!
+}
+
 type CommandEvent {
   clientId: String!
   commandArguments: String!
@@ -338,6 +343,11 @@ type Query {
   Returns all tied accounts for the authenticated user
   """
   accounts: [Account!]!
+
+  """
+  Returns a list of averages, sorted by the date
+  """
+  commandAverages(commandName: String!, projectId: ID!): [CommandAverage!]!
 
   """
   Returns a command event with a given id

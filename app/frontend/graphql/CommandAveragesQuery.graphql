@@ -1,0 +1,5 @@
+query CommandAverages($projectId: ID!, $commandName: String!) {
+  commandAverages(projectId: $projectId, commandName: $commandName) {
+    ...CommandAverage
+  }
+}

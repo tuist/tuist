@@ -81,5 +81,18 @@ module Types
     def command_event(command_event_id:)
       CommandEventFetchService.call(command_event_id: command_event_id, user: context[:current_user])
     end
+
+    field :command_averages, [CommandAverageType], null: false,
+      description: "Returns a list of averages, sorted by the date" do
+      argument :command_name, String, required: true
+      argument :project_id, ID, required: true
+    end
+    def command_averages(command_name:, project_id:)
+      CommandAverageService.call(
+        project_id: project_id,
+        command_name: command_name,
+        user: context[:current_user]
+      )
+    end
   end
 end
