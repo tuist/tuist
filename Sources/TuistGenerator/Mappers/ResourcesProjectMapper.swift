@@ -56,7 +56,11 @@ public class ResourcesProjectMapper: ProjectMapping {
         }
 
         if target.supportsSources {
-            let (filePath, data) = synthesizedFile(bundleName: bundleName, target: target, project: project)
+            let (filePath, data) = synthesizedFile(
+                bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
+                target: target,
+                project: project
+            )
 
             let hash = try data.map(contentHasher.hash)
             let sourceFile = SourceFile(path: filePath, contentHash: hash)
