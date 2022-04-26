@@ -89,13 +89,11 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
 
     public func binaryPath(xcframeworkPath: AbsolutePath, libraries: [XCFrameworkInfoPlist.Library]) throws -> AbsolutePath {
         let archs: [BinaryArchitecture] = [.arm64, .x8664]
-        let binaryName = xcframeworkPath.basenameWithoutExt
 
         guard let library = libraries.first(where: {
             let hasValidArchitectures = !$0.architectures.filter(archs.contains).isEmpty
             guard hasValidArchitectures, let binaryPath = try? path(
                 for: $0,
-                binaryName: binaryName,
                 xcframeworkPath: xcframeworkPath
             ) else {
                 return false
@@ -114,12 +112,11 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
             throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(xcframeworkPath)
         }
 
-        return try path(for: library, binaryName: binaryName, xcframeworkPath: xcframeworkPath)
+        return try path(for: library, xcframeworkPath: xcframeworkPath)
     }
 
     private func path(
         for library: XCFrameworkInfoPlist.Library,
-        binaryName: String,
         xcframeworkPath: AbsolutePath
     ) throws -> AbsolutePath {
         let binaryPath: AbsolutePath
@@ -128,7 +125,7 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
         case "framework":
             binaryPath = AbsolutePath(library.identifier, relativeTo: xcframeworkPath)
                 .appending(RelativePath(library.path.pathString))
-                .appending(component: library.path.pathString.replacingOccurrences(of: ".framework", with: ""))
+                .appending(component: library.path.basenameWithoutExt)
         case "a":
             binaryPath = AbsolutePath(library.identifier, relativeTo: xcframeworkPath)
                 .appending(RelativePath(library.path.pathString))
