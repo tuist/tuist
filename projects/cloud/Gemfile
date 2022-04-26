@@ -67,3 +67,5 @@ gem "aws-sdk-s3", "~> 1.112"
 gem "react-rails", "~> 2.6"
 
 gem "webpacker", "~> 5.4"
+
+gem "groupdate", "~> 6.1"

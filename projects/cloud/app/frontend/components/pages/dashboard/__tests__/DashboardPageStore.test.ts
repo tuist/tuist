@@ -1,4 +1,6 @@
 import {
+  CommandAveragesDocument,
+  CommandAveragesQuery,
   CommandEventFragment,
   CommandEventsDocument,
   CommandEventsQuery,
@@ -16,6 +18,65 @@ describe('DashboardPageStore', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('loads command averages for the current command name', async () => {
+    const dashboardPageStore = new DashboardPageStore(client);
+    client.query.mockResolvedValueOnce({
+      data: {
+        commandAverages: [
+          {
+            date: new Date(2022, 5, 2).toString(),
+            durationAverage: 1500,
+          },
+          {
+            date: new Date(2022, 5, 3).toString(),
+            durationAverage: 1000,
+          },
+        ],
+      } as CommandAveragesQuery,
+    });
+    await dashboardPageStore.loadCommandAverages('id');
+    expect(dashboardPageStore.commandAveragesData).toStrictEqual([
+      { key: new Date(2022, 5, 2).toDateString(), value: 1.5 },
+      { key: new Date(2022, 5, 3).toDateString(), value: 1 },
+    ]);
+    expect(client.query).toHaveBeenCalledWith({
+      query: CommandAveragesDocument,
+      variables: {
+        projectId: 'id',
+        commandName: 'generate',
+      },
+    });
+    client.query.mockReset();
+
+    dashboardPageStore.commandName = 'fetch';
+    client.query.mockResolvedValueOnce({
+      data: {
+        commandAverages: [
+          {
+            date: new Date(2022, 5, 1).toString(),
+            durationAverage: 100,
+          },
+          {
+            date: new Date(2022, 5, 2).toString(),
+            durationAverage: 400,
+          },
+        ],
+      } as CommandAveragesQuery,
+    });
+    await dashboardPageStore.loadCommandAverages('id');
+    expect(dashboardPageStore.commandAveragesData).toStrictEqual([
+      { key: new Date(2022, 5, 1).toDateString(), value: 0.1 },
+      { key: new Date(2022, 5, 2).toDateString(), value: 0.4 },
+    ]);
+    expect(client.query).toHaveBeenCalledWith({
+      query: CommandAveragesDocument,
+      variables: {
+        projectId: 'id',
+        commandName: 'fetch',
+      },
+    });
   });
 
   it('loads next page', async () => {
