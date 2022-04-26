@@ -2,6 +2,18 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## 3.3.0 - 2022-04-26
+
+### Added
+
+- Add support for enabling markdown rendering in `Workspace.swift` for README files [#4373](https://github.com/tuist/tuist/pull/4373) by [@jesus-mg-ios](https://github.com/jesus-mg-ios)
+- Sending the whole command to tuist analytics [#4383](https://github.com/tuist/tuist/pull/4383) by [@fortmarek](https://github.com/fortmarek)
+
+### Fixed
+
+- Fix support for frameworks as dependency of tvOS frameworks [#4184](https://github.com/tuist/tuist/pull/4184) by [@zdnk](https://github.com/zdnk)
+- Fix for mapping excluding of single SwiftPackageManager resources [#4368](https://github.com/tuist/tuist/pull/4368) by [@danyf90](https://github.com/danyf90)
+
 ## 3.2.0 - 2022-04-11
 
 ### Changed
