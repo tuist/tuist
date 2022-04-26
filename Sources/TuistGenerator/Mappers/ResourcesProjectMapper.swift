@@ -76,7 +76,7 @@ public class ResourcesProjectMapper: ProjectMapping {
 
         let content: String = ResourcesProjectMapper.fileContent(
             targetName: target.name,
-            bundleName: bundleName,
+            bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
             target: target
         )
         return (filePath, content.data(using: .utf8))
