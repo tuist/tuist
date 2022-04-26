@@ -128,7 +128,7 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
         case "framework":
             binaryPath = AbsolutePath(library.identifier, relativeTo: xcframeworkPath)
                 .appending(RelativePath(library.path.pathString))
-                .appending(component: binaryName)
+                .appending(component: library.path.pathString.replacingOccurrences(of: ".framework", with: ""))
         case "a":
             binaryPath = AbsolutePath(library.identifier, relativeTo: xcframeworkPath)
                 .appending(RelativePath(library.path.pathString))
