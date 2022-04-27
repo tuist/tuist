@@ -104,10 +104,10 @@ const DashboardPage = observer(() => {
               <Select
                 label=""
                 options={[
-                  // TODO: Load this dynamically once command name and subcommand issue is resolved
-                  { label: 'generate', value: 'generate' },
-                  { label: 'fetch', value: 'fetch' },
                   { label: 'build', value: 'build' },
+                  { label: 'cache warm', value: 'cache warm' },
+                  { label: 'fetch', value: 'fetch' },
+                  { label: 'generate', value: 'generate' },
                   { label: 'test', value: 'test' },
                 ]}
                 onChange={(newValue) => {
