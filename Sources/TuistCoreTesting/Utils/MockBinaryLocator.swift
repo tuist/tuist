@@ -31,18 +31,4 @@ public final class MockBinaryLocator: BinaryLocating {
         }
         return stubbedXcbeautifyPathResult
     }
-
-    public var invokedCocoapodsInteractorPath = false
-    public var invokedCocoapodsInteractorPathCount = 0
-    public var stubbedCocoapodsInteractorPathError: Error?
-    public var stubbedCocoapodsInteractorPathResult: AbsolutePath!
-
-    public func cocoapodsInteractorPath() throws -> AbsolutePath {
-        invokedCocoapodsInteractorPath = true
-        invokedCocoapodsInteractorPathCount += 1
-        if let error = stubbedCocoapodsInteractorPathError {
-            throw error
-        }
-        return stubbedCocoapodsInteractorPathResult
-    }
 }
