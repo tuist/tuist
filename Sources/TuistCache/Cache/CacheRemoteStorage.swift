@@ -79,6 +79,7 @@ public final class CacheRemoteStorage: CacheStoring {
     }
 
     public func fetch(name: String, hash: String) async throws -> AbsolutePath {
+        print("Changing something in this framework to make the cache dirty")
         let resource = try cloudCacheResourceFactory.fetchResource(name: name, hash: hash)
         let url = try await cloudClient.request(resource).object.data.url
 
