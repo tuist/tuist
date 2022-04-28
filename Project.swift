@@ -61,7 +61,7 @@ func targets() -> [Target] {
                     .external(name: "Stencil"),
                     .external(name: "StencilSwiftKit"),
                     .external(name: "Swifter"),
-                    .external(name: "SwiftToolsSupport-auto"),
+                    .external(name: "SwiftToolsSupport"),
                     .external(name: "XcodeProj"),
                     .external(name: "Zip"),
                     .target(name: "ProjectDescription"),
@@ -350,7 +350,7 @@ func targets() -> [Target] {
                 hasTests: false,
                 hasTesting: false,
                 dependencies: [
-                    .external(name: "SwiftToolsSupport-auto"),
+                    .external(name: "SwiftToolsSupport"),
                 ]
             ),
             Target.module(
