@@ -43,7 +43,7 @@ extension TuistCore.DependenciesGraph {
 
     // swiftlint:disable:next function_body_length
     public static func test(spmFolder: Path, packageFolder: Path) -> Self {
-        return .init(
+        .init(
             externalDependencies: [
                 "Tuist": [.project(target: "Tuist", path: packageFolder)],
             ],
