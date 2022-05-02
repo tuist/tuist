@@ -8,6 +8,7 @@ import FirebaseCrashlytics
 import FirebaseDatabase
 import FirebaseFirestore
 import IterableSDK
+import TYStatusBarView
 
 public enum AppKit {
     public static func start() {

@@ -7,6 +7,7 @@ let packages: [Package] = [
     .package(url: "https://github.com/firebase/firebase-ios-sdk", .upToNextMajor(from: "8.14.0")),
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture", .upToNextMinor(from: "0.22.0")),
     .package(url: "https://github.com/iterable/swift-sdk", .upToNextMajor(from: "6.0.0")),
+    .package(url: "https://github.com/Trendyol/ios-components", .revision("c9260bfe203a16a278eca5542c98455eece98aa4")),
 ]
 
 let dependencies = Dependencies(
