@@ -417,7 +417,12 @@ extension ProjectDescription.Target {
             packageName: packageName
         )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
-        let resources = ResourceFileElements.from(resources: target.resources, path: path, excluding: target.exclude)
+        let resources = ResourceFileElements.from(
+            sources: target.sources,
+            resources: target.resources,
+            path: path,
+            excluding: target.exclude
+        )
         let headers = try Headers.from(moduleMapType: moduleMap.type, publicHeadersPath: publicHeadersPath)
 
         let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
@@ -592,12 +597,16 @@ extension SourceFilesList {
 
 extension ResourceFileElements {
     fileprivate static func from(
+        sources: [String]?,
         resources: [PackageInfo.Target.Resource],
         path: AbsolutePath,
         excluding: [String]
     ) -> Self? {
-        let customResourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
-        let resourcesPaths = customResourcesPaths + defaultResourcePaths(from: path)
+        var resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
+        if sources == nil {
+            // SPM automatically includes resources only if custom sources are not specified
+            resourcesPaths += defaultResourcePaths(from: path)
+        }
         guard !resourcesPaths.isEmpty else { return nil }
 
         return .init(

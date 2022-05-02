@@ -18,7 +18,7 @@ public enum AppKit {
         _ = BarChartView()
 
         // Use Facebook to make sure it links fine
-        Settings.setAdvertiserTrackingEnabled(true)
+        Settings.shared.isAdvertiserTrackingEnabled = true
 
         // Use FirebaseAnalytics to make sure it links fine
         Analytics.logEvent("Event", parameters: [:])

@@ -43,19 +43,6 @@ extension TuistCore.DependenciesGraph {
 
     // swiftlint:disable:next function_body_length
     public static func test(spmFolder: Path, packageFolder: Path) -> Self {
-        let resources = [
-            .glob(
-                pattern: "\(packageFolder.pathString)/customPath/resources/**",
-                excluding: [
-                    "\(packageFolder.pathString)/customPath/excluded/sources/**",
-                ],
-                tags: []
-            ),
-        ] + defaultResources(
-            folder: "\(packageFolder.pathString)/customPath",
-            excluding: ["\(packageFolder.pathString)/customPath/excluded/sources/**"]
-        )
-
         return .init(
             externalDependencies: [
                 "Tuist": [.project(target: "Tuist", path: packageFolder)],
@@ -92,7 +79,15 @@ extension TuistCore.DependenciesGraph {
                                     excluding: "\(packageFolder.pathString)/customPath/excluded/sources/**"
                                 ),
                             ],
-                            resources: ResourceFileElements(resources: resources),
+                            resources: [
+                                .glob(
+                                    pattern: "\(packageFolder.pathString)/customPath/resources/**",
+                                    excluding: [
+                                        "\(packageFolder.pathString)/customPath/excluded/sources/**",
+                                    ],
+                                    tags: []
+                                ),
+                            ],
                             dependencies: [
                                 .target(name: "TuistKit"),
                                 .project(

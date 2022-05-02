@@ -608,7 +608,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 basePath.appending(RelativePath("Package/Path/Sources/Target1/Another/Subfolder/file.swift"))
                                     .pathString
                             ),
-                        ]
+                        ],
+                        customDefaultResources: []
                     ),
                 ]
             )
@@ -1051,10 +1052,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                     .pathString
                             ),
                         ],
-                        customDefaultResources: .defaultResources(
-                            path: basePath
-                                .appending(components: ["Package", "Path", "Custom", "Path"])
-                        ),
+                        customDefaultResources: [],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Path/Headers"],
                         ],
@@ -2706,6 +2704,7 @@ extension ProjectDescription.Target {
         } else {
             defaultResources = .defaultResources(path: basePath.appending(components: ["Package", "Path", "Sources", name]))
         }
+        let allResources = resources + defaultResources
 
         return .init(
             name: name,
@@ -2716,7 +2715,7 @@ extension ProjectDescription.Target {
             infoPlist: .default,
             sources: customSources ??
                 .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/\(name)/**")).pathString]),
-            resources: ResourceFileElements(resources: resources + defaultResources),
+            resources: allResources.isEmpty ? nil : ResourceFileElements(resources: allResources),
             headers: headers,
             dependencies: dependencies,
             settings: DependenciesGraph.spmSettings(baseSettings: baseSettings, with: customSettings, moduleMap: moduleMap)
