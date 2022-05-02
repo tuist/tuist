@@ -28,7 +28,7 @@ public class FileArchiver: FileArchiving {
 
     public func zip(name: String) throws -> AbsolutePath {
         let destinationZipPath = temporaryDirectory.appending(component: "\(name).zip")
-        try Zip.zipFiles(paths: paths.map(\.url), zipFilePath: destinationZipPath.url, password: nil, progress: nil)
+        try System.shared.run(["zip", "--symlinks", "-r", destinationZipPath.pathString] + paths.map(\.pathString))
         return destinationZipPath
     }
 
