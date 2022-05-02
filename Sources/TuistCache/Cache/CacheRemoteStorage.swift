@@ -90,8 +90,14 @@ public final class CacheRemoteStorage: CacheStoring {
 
     public func store(name: String, hash: String, paths: [AbsolutePath]) async throws {
         let archiver = try fileArchiverFactory.makeFileArchiver(for: paths)
+        var temporaryDirectoryToDelete: AbsolutePath?
         do {
-            let destinationZipPath = try archiver.zip(name: hash)
+            let (destinationZipPath, temporaryDirectory) = try FileHandler.shared.inTemporaryDirectory(removeOnCompletion: false) { temporaryDirectory -> (AbsolutePath, AbsolutePath) in
+                let destinationZipPath = temporaryDirectory.appending(component: "\(name).zip")
+                try System.shared.run(["zip", "--symlinks", "-r", destinationZipPath.pathString] + paths.map(\.pathString))
+                return (destinationZipPath, temporaryDirectory)
+            }
+            temporaryDirectoryToDelete = temporaryDirectory
             let md5 = try FileHandler.shared.urlSafeBase64MD5(path: destinationZipPath)
             let storeResource = try cloudCacheResourceFactory.storeResource(
                 name: name,
@@ -111,6 +117,7 @@ public final class CacheRemoteStorage: CacheStoring {
 
             _ = try await cloudClient.request(verifyUploadResource)
         } catch {
+            try temporaryDirectoryToDelete.map(FileHandler.shared.delete)
             try archiver.delete()
             throw error
         }
