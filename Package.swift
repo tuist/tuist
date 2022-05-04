@@ -58,7 +58,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.5")),
         .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "1.0.0")),
-        .package(url: "https://github.com/weichsel/ZIPFoundation.git", .upToNextMajor(from: "0.9.0")),
+        .package(url: "https://github.com/fortmarek/ZIPFoundation.git", .revision("9dbe729b90202c19d0fe1010f1430fa75a576cd3")),
         .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
         .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.5.0")),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .upToNextMajor(from: "2.8.0")),
