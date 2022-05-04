@@ -63,7 +63,7 @@ func targets() -> [Target] {
                     .external(name: "Swifter"),
                     .external(name: "SwiftToolsSupport-auto"),
                     .external(name: "XcodeProj"),
-                    .external(name: "Zip"),
+                    .external(name: "ZIPFoundation"),
                     .target(name: "ProjectDescription"),
                 ],
                 testingDependencies: [

@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import TSCBasic
+import ZIPFoundation
 
 public enum FileHandlerError: FatalError, Equatable {
     case invalidTextEncoding(AbsolutePath)
@@ -75,6 +76,8 @@ public protocol FileHandling: AnyObject {
     func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath
     func fileAttributes(at path: AbsolutePath) throws -> [FileAttributeKey: Any]
     func filesAndDirectoriesContained(in path: AbsolutePath) -> [AbsolutePath]?
+    func zipItem(at sourcePath: AbsolutePath, to destinationPath: AbsolutePath) throws
+    func unzipItem(at sourcePath: AbsolutePath, to destinationPath: AbsolutePath) throws
 }
 
 public class FileHandler: FileHandling {
@@ -318,5 +321,13 @@ public class FileHandler: FileHandling {
         let newPath = path.removingLastComponent().appending(component: "\(path.basenameWithoutExt).\(sanitizedExtension)")
         try move(from: path, to: newPath)
         return newPath
+    }
+
+    public func zipItem(at sourcePath: AbsolutePath, to destinationPath: AbsolutePath) throws {
+        try fileManager.zipItem(at: sourcePath.asURL, to: destinationPath.asURL, shouldKeepParent: false)
+    }
+
+    public func unzipItem(at sourcePath: AbsolutePath, to destinationPath: AbsolutePath) throws {
+        try fileManager.unzipItem(at: sourcePath.asURL, to: destinationPath.asURL)
     }
 }
