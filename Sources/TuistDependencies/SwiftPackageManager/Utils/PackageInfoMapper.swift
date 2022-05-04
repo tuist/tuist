@@ -417,7 +417,12 @@ extension ProjectDescription.Target {
             packageName: packageName
         )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
-        let resources = ResourceFileElements.from(resources: target.resources, path: path, excluding: target.exclude)
+        let resources = ResourceFileElements.from(
+            sources: target.sources,
+            resources: target.resources,
+            path: path,
+            excluding: target.exclude
+        )
         let headers = try Headers.from(moduleMapType: moduleMap.type, publicHeadersPath: publicHeadersPath)
 
         let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
@@ -592,11 +597,16 @@ extension SourceFilesList {
 
 extension ResourceFileElements {
     fileprivate static func from(
+        sources: [String]?,
         resources: [PackageInfo.Target.Resource],
         path: AbsolutePath,
         excluding: [String]
     ) -> Self? {
-        let resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
+        var resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
+        if sources == nil {
+            // SPM automatically includes resources only if custom sources are not specified
+            resourcesPaths += defaultResourcePaths(from: path)
+        }
         guard !resourcesPaths.isEmpty else { return nil }
 
         return .init(
@@ -612,6 +622,23 @@ extension ResourceFileElements {
                 )
             }
         )
+    }
+
+    // These files are automatically added as resource if they are inside targets directory.
+    // Check https://developer.apple.com/documentation/swift_packages/bundling_resources_with_a_swift_package
+    private static let defaultSpmResourceFileExtensions = [
+        "xib",
+        "storyboard",
+        "xcdatamodeld",
+        "xcmappingmodel",
+        "xcassets",
+        "lproj",
+    ]
+
+    private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
+        ResourceFileElements.defaultSpmResourceFileExtensions.map { fileExtension -> AbsolutePath in
+            path.appending(components: ["**", "*.\(fileExtension)"])
+        }
     }
 }
 

@@ -225,6 +225,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                     basePath.appending(RelativePath("Package/Path/\(alternativeDefaultSource)/Target1/**"))
                                         .pathString,
                                 ]
+                            ),
+                            customDefaultResources: .defaultResources(
+                                path: basePath
+                                    .appending(components: ["Package", "Path", alternativeDefaultSource, "Target1"])
                             )
                         ),
                     ]
@@ -299,7 +303,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         // Tuist needs to escape those definitions for SPM manifests, as SPM is doing, so they can be built the same way.
 
         let basePath = try temporaryPath()
-        let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/com.example.target-1"))
+        let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
         let project = try subject.map(
@@ -308,11 +312,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageInfos: [
                 "Package": .init(
                     products: [
-                        .init(name: "com.example.product-1", type: .library(.automatic), targets: ["com.example.target-1"]),
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                     ],
                     targets: [
                         .test(
-                            name: "com.example.target-1",
+                            name: "Target1",
                             settings: [
                                 .init(tool: .c, name: .define, condition: nil, value: ["FOO1=\"BAR1\""]),
                                 .init(tool: .cxx, name: .define, condition: nil, value: ["FOO2=\"BAR2\""]),
@@ -333,13 +337,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 name: "Package",
                 targets: [
                     .test(
-                        "com_example_target-1",
+                        "Target1",
                         basePath: basePath,
-                        customBundleID: "com.example.target-1",
-                        customSources: .init(globs: [
-                            basePath
-                                .appending(RelativePath("Package/Path/Sources/com.example.target-1/**")).pathString,
-                        ]),
                         customSettings: [
                             "GCC_PREPROCESSOR_DEFINITIONS": [
                                 // Escaped
@@ -356,7 +355,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenNameContainsDot_mapsToUnderscodeInTargetName() throws {
+    func testMap_whenNameContainsDot_mapsToUnderscoreInTargetName() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/com.example.target-1"))
         try fileHandler.createFolder(sourcesPath)
@@ -391,7 +390,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSources: .init(globs: [
                             basePath
                                 .appending(RelativePath("Package/Path/Sources/com.example.target-1/**")).pathString,
-                        ])
+                        ]),
+                        customDefaultResources: .defaultResources(
+                            path: basePath
+                                .appending(components: ["Package", "Path", "Sources", "com.example.target-1"])
+                        )
                     ),
                 ]
             )
@@ -605,7 +608,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 basePath.appending(RelativePath("Package/Path/Sources/Target1/Another/Subfolder/file.swift"))
                                     .pathString
                             ),
-                        ]
+                        ],
+                        customDefaultResources: []
                     ),
                 ]
             )
@@ -706,7 +710,23 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 ],
                                 tags: []
                             ),
-                        ]
+                        ],
+                        customDefaultResources: .defaultResources(
+                            path: basePath.appending(components: ["Package", "Path", "Sources", "Target1"]),
+                            excluding: [.init(
+                                basePath
+                                    .appending(components: [
+                                        "Package",
+                                        "Path",
+                                        "Sources",
+                                        "Target1",
+                                        "AnotherOne",
+                                        "Resource",
+                                        "**",
+                                    ])
+                                    .pathString
+                            )]
+                        )
                     ),
                 ]
             )
@@ -1032,6 +1052,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                     .pathString
                             ),
                         ],
+                        customDefaultResources: [],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Path/Headers"],
                         ],
@@ -2519,6 +2540,23 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 }
 
+private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ResourceFileElements {
+    let fullPath: String
+    if let customPath = customPath {
+        fullPath = customPath
+    } else {
+        fullPath = "/Package/Path/Sources/\(target)"
+    }
+    return [
+        "\(fullPath)/**/*.xib",
+        "\(fullPath)/**/*.storyboard",
+        "\(fullPath)/**/*.xcdatamodeld",
+        "\(fullPath)/**/*.xcmappingmodel",
+        "\(fullPath)/**/*.xcassets",
+        "\(fullPath)/**/*.lproj",
+    ]
+}
+
 extension PackageInfoMapping {
     fileprivate func map(
         package: String,
@@ -2653,13 +2691,22 @@ extension ProjectDescription.Target {
         deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "9.0", devices: [.iphone, .ipad]),
         customSources: SourceFilesList? = nil,
         resources: [ProjectDescription.ResourceFileElement] = [],
+        customDefaultResources: [ProjectDescription.ResourceFileElement]? = nil,
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
         baseSettings: ProjectDescription.Settings = .settings(),
         customSettings: ProjectDescription.SettingsDictionary = [:],
         moduleMap: String? = nil
     ) -> Self {
-        .init(
+        let defaultResources: [ProjectDescription.ResourceFileElement]
+        if let customDefaultResources = customDefaultResources {
+            defaultResources = customDefaultResources
+        } else {
+            defaultResources = .defaultResources(path: basePath.appending(components: ["Package", "Path", "Sources", name]))
+        }
+        let allResources = resources + defaultResources
+
+        return .init(
             name: name,
             platform: platform,
             product: product,
@@ -2668,10 +2715,25 @@ extension ProjectDescription.Target {
             infoPlist: .default,
             sources: customSources ??
                 .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/\(name)/**")).pathString]),
-            resources: resources.isEmpty ? nil : ResourceFileElements(resources: resources),
+            resources: allResources.isEmpty ? nil : ResourceFileElements(resources: allResources),
             headers: headers,
             dependencies: dependencies,
             settings: DependenciesGraph.spmSettings(baseSettings: baseSettings, with: customSettings, moduleMap: moduleMap)
         )
+    }
+}
+
+extension Array where Element == ProjectDescription.ResourceFileElement {
+    static func defaultResources(
+        path: AbsolutePath,
+        excluding: [Path] = []
+    ) -> Self {
+        ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
+            .map { file -> ProjectDescription.ResourceFileElement in
+                ResourceFileElement.glob(
+                    pattern: Path("\(path.appending(component: "**").pathString)/*.\(file)"),
+                    excluding: excluding
+                )
+            }
     }
 }
