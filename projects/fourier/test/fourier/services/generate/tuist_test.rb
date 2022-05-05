@@ -9,7 +9,8 @@ module Fourier
         def test_calls_tuist_with_the_right_arguments
           # Given
           Utilities::System.expects(:tuist).with("fetch")
-          Utilities::System.expects(:tuist).with("cache", "warm", "--dependencies-only", "--xcframeworks", "Target1", "Target2")
+          Utilities::System.expects(:tuist).with("cache", "warm", "--dependencies-only", "--xcframeworks", "Target1",
+            "Target2")
           Utilities::System.expects(:tuist).with("generate", "--xcframeworks", "Target1", "Target2")
 
           # When/Then
@@ -20,7 +21,8 @@ module Fourier
         def test_calls_tuist_with_the_right_arguments_when_no_open_is_true
           # Given
           Utilities::System.expects(:tuist).with("fetch")
-          Utilities::System.expects(:tuist).with("cache", "warm", "--dependencies-only", "--xcframeworks", "Target1", "Target2")
+          Utilities::System.expects(:tuist).with("cache", "warm", "--dependencies-only", "--xcframeworks", "Target1",
+            "Target2")
           Utilities::System.expects(:tuist).with("generate", "--xcframeworks", "Target1", "Target2", "--no-open")
 
           # When/Then
