@@ -27,13 +27,13 @@ public class FileArchiver: FileArchiving {
 
     public func zip(name: String) throws -> AbsolutePath {
         let destinationZipPath = temporaryDirectory.appending(component: "\(name).zip")
-        // ZIPFoundation does not support zipping array of items, we instead copy them all to a single directory
-        let pathsPath = temporaryDirectory.appending(component: "\(name)-paths")
-        try FileHandler.shared.createFolder(pathsPath)
+        /// ZIPFoundation does not support zipping array of items, we instead copy them all to a single directory
+        let pathsDirectoryPath = temporaryDirectory.appending(component: "\(name)-paths")
+        try FileHandler.shared.createFolder(pathsDirectoryPath)
         try paths.forEach {
-            try FileHandler.shared.copy(from: $0, to: pathsPath.appending(component: $0.basename))
+            try FileHandler.shared.copy(from: $0, to: pathsDirectoryPath.appending(component: $0.basename))
         }
-        try FileHandler.shared.zipItem(at: pathsPath, to: destinationZipPath)
+        try FileHandler.shared.zipItem(at: pathsDirectoryPath, to: destinationZipPath)
         return destinationZipPath
     }
 
