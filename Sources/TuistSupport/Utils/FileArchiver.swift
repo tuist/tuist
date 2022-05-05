@@ -26,6 +26,7 @@ public class FileArchiver: FileArchiving {
     }
 
     public func zip(name: String) throws -> AbsolutePath {
+        print("Dirty cache")
         let destinationZipPath = temporaryDirectory.appending(component: "\(name).zip")
         // ZIPFoundation does not support zipping array of items, we instead copy them all to a single directory
         let pathsPath = temporaryDirectory.appending(component: "\(name)-paths")
