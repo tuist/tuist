@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2022_04_10_132610) do
+ActiveRecord::Schema[7.0].define(version: 2022_05_05_193115) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -25,6 +25,12 @@ ActiveRecord::Schema[7.0].define(version: 2022_04_10_132610) do
     t.index ["owner_type", "owner_id"], name: "index_accounts_on_owner"
   end
 
+  create_table "cache_warm_metadata_command_events", force: :cascade do |t|
+    t.string "cacheable_targets"
+    t.string "local_cache_target_hits"
+    t.string "remote_cache_target_hits"
+  end
+
   create_table "command_events", force: :cascade do |t|
     t.string "name"
     t.string "subcommand"
@@ -37,6 +43,9 @@ ActiveRecord::Schema[7.0].define(version: 2022_04_10_132610) do
     t.bigint "project_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "metadata_type"
+    t.bigint "metadata_id"
+    t.index ["metadata_type", "metadata_id"], name: "index_command_events_on_metadata"
     t.index ["project_id"], name: "index_command_events_on_project_id"
   end
 

@@ -75,6 +75,6 @@ private struct TestCommand: ParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
 
     func run() throws {
-        TestCommand.analyticsDelegate?.willRun(withParameters: ["flag": String(flag)])
+        TestCommand.analyticsDelegate?.addParameters(["flag": String(flag)])
     }
 }

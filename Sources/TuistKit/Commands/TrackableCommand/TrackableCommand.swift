@@ -7,7 +7,7 @@ import TuistSupport
 public struct TrackableCommandInfo {
     let name: String
     let subcommand: String?
-    let parameters: [String: String]
+    let parameters: [String: AnyEncodable]
     let commandArguments: [String]
     let durationInMs: Int
 }
@@ -16,7 +16,7 @@ public struct TrackableCommandInfo {
 public class TrackableCommand: TrackableParametersDelegate {
     private var command: ParsableCommand
     private let clock: Clock
-    private var trackedParameters: [String: String] = [:]
+    private var trackedParameters: [String: AnyEncodable] = [:]
     private let commandArguments: [String]
     private let commandEventFactory: CommandEventFactory
     private let asyncQueue: AsyncQueuing
@@ -60,8 +60,18 @@ public class TrackableCommand: TrackableParametersDelegate {
         try asyncQueue.dispatch(event: commandEvent)
     }
 
-    func willRun(withParameters parameters: [String: String]) {
-        trackedParameters = parameters
+    func addParameters(_ parameters: [String: String]) {
+        trackedParameters.merge(
+            parameters.mapValues(AnyEncodable.init),
+            uniquingKeysWith: { oldKey, newKey in newKey }
+        )
+    }
+    
+    func addParameters(_ parameters: [String: AnyEncodable]) {
+        trackedParameters.merge(
+            parameters,
+            uniquingKeysWith: { oldKey, newKey in newKey }
+        )
     }
 
     private func extractCommandName(from configuration: CommandConfiguration) -> (name: String, subcommand: String?) {

@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistCache
 
 struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
@@ -51,13 +52,6 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     var ignoreCache: Bool = false
 
     func runAsync() async throws {
-        GenerateCommand.analyticsDelegate?.willRun(withParameters: [
-            "no_open": String(noOpen),
-            "xcframeworks": String(xcframeworks),
-            "no_cache": String(ignoreCache),
-            "n_targets": String(sources.count),
-        ])
-
         try await GenerateService().run(
             path: path,
             sources: Set(sources),
@@ -65,6 +59,17 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
             xcframeworks: xcframeworks,
             profile: profile,
             ignoreCache: ignoreCache
+        )
+        GenerateCommand.analyticsDelegate?.addParameters(
+            [
+                "no_open": String(noOpen),
+                "xcframeworks": String(xcframeworks),
+                "no_cache": String(ignoreCache),
+                "n_targets": String(sources.count),
+                "cacheable_targets": CacheAnalytics.cacheableTargets.joined(separator: ";"),
+                "local_cache_target_hits": CacheAnalytics.localCacheTargetsHits.joined(separator: ";"),
+                "remote_cache_target_hits": CacheAnalytics.remoteCacheTargetsHits.joined(separator: ";")
+            ]
         )
     }
 }

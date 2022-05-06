@@ -2,7 +2,8 @@
 
 class CommandEventCreateService < ApplicationService
   attr_reader :account_name, :project_name, :user, :name, :subcommand, :command_arguments, :duration, :client_id,
-    :tuist_version, :swift_version, :macos_version
+    :tuist_version, :swift_version, :macos_version, :cacheable_targets, :local_cache_target_hits,
+    :remote_cache_target_hits
 
   def initialize(
     project_slug:,
@@ -14,7 +15,10 @@ class CommandEventCreateService < ApplicationService
     client_id:,
     tuist_version:,
     swift_version:,
-    macos_version:
+    macos_version:,
+    cacheable_targets:,
+    local_cache_target_hits:,
+    remote_cache_target_hits:
   )
     super()
     split_project_slug = project_slug.split("/")
@@ -29,12 +33,15 @@ class CommandEventCreateService < ApplicationService
     @tuist_version = tuist_version
     @swift_version = swift_version
     @macos_version = macos_version
+    @cacheable_targets = cacheable_targets
+    @local_cache_target_hits = local_cache_target_hits
+    @remote_cache_target_hits = remote_cache_target_hits
   end
 
   def call
     project = ProjectFetchService.new.fetch_by_name(name: project_name, account_name: account_name, user: user)
 
-    CommandEvent.create!(
+    command_event = CommandEvent.create!(
       name: name,
       subcommand: subcommand,
       command_arguments: command_arguments.join(" "),
@@ -45,5 +52,16 @@ class CommandEventCreateService < ApplicationService
       macos_version: macos_version,
       project: project
     )
+
+    if name == "cache" && subcommand == "warm"
+      CacheWarmMetadataCommandEvent.create!(
+        command_event: command_event,
+        cacheable_targets: cacheable_targets.join(";"),
+        local_cache_target_hits: local_cache_target_hits.join(";"),
+        remote_cache_target_hits: remote_cache_target_hits.join(";")
+      )
+    end
+
+    command_event
   end
 end
