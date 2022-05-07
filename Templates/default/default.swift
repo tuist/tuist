@@ -60,6 +60,10 @@ let template = Template(
             templatePath: templatePath("/main.stencil")
         ),
         .file(
+            path: taskPath + "/ProjectDescriptionHelpers/LocalHelper.swift",
+            templatePath: templatePath("/LocalHelper.stencil")
+        ),
+        .file(
             path: taskPath + "/Package.swift",
             templatePath: templatePath("/Package.stencil")
         ),
