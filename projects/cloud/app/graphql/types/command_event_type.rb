@@ -12,8 +12,20 @@ module Types
     field :swift_version, String, null: false
     field :macos_version, String, null: false
     field :cacheable_targets, [String], null: true
-    field :local_cache_target_hits, [String], null: true,
+    field :local_cache_target_hits, [String], null: true
     field :remote_cache_target_hits, [String], null: true
     field :created_at, GraphQL::Types::ISO8601DateTime, null: false
+
+    def cacheable_targets
+      object.cacheable_targets.split(";")
+    end
+
+    def local_cache_target_hits
+      object.local_cache_target_hits.split(";")
+    end
+
+    def remote_cache_target_hits
+      object.remote_cache_target_hits.split(";")
+    end
   end
 end
