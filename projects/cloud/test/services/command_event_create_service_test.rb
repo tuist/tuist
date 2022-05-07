@@ -28,7 +28,9 @@ class CommandEventCreateServiceTest < ActiveSupport::TestCase
 
     # Then
     assert_equal project.command_events, [got]
-    assert_nil got.metadata
+    assert_nil got.cacheable_targets
+    assert_nil got.local_cache_target_hits
+    assert_nil got.remote_cache_target_hits
     assert_equal "fetch", got.name
   end
 
@@ -58,8 +60,8 @@ class CommandEventCreateServiceTest < ActiveSupport::TestCase
     # Then
     assert_equal project.command_events, [got]
     assert_equal "cache", got.name
-    assert_equal "Target1;Target2;Target3;Target4", got.metadata.cacheable_targets
-    assert_equal "Target1", got.metadata.local_cache_target_hits
-    assert_equal "Target2;Target4", got.metadata.remote_cache_target_hits
+    assert_equal "Target1;Target2;Target3;Target4", got.cacheable_targets
+    assert_equal "Target1", got.local_cache_target_hits
+    assert_equal "Target2;Target4", got.remote_cache_target_hits
   end
 end

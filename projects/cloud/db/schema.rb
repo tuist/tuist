@@ -25,12 +25,6 @@ ActiveRecord::Schema[7.0].define(version: 2022_05_05_193115) do
     t.index ["owner_type", "owner_id"], name: "index_accounts_on_owner"
   end
 
-  create_table "cache_warm_metadata_command_events", force: :cascade do |t|
-    t.string "cacheable_targets"
-    t.string "local_cache_target_hits"
-    t.string "remote_cache_target_hits"
-  end
-
   create_table "command_events", force: :cascade do |t|
     t.string "name"
     t.string "subcommand"
@@ -43,9 +37,9 @@ ActiveRecord::Schema[7.0].define(version: 2022_05_05_193115) do
     t.bigint "project_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "metadata_type"
-    t.bigint "metadata_id"
-    t.index ["metadata_type", "metadata_id"], name: "index_command_events_on_metadata"
+    t.string "cacheable_targets"
+    t.string "local_cache_target_hits"
+    t.string "remote_cache_target_hits"
     t.index ["project_id"], name: "index_command_events_on_project_id"
   end
 

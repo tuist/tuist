@@ -11,7 +11,9 @@ module Types
     field :tuist_version, String, null: false
     field :swift_version, String, null: false
     field :macos_version, String, null: false
-    field :metadata, MetadataType, null: true
+    field :cacheable_targets, [String], null: true
+    field :local_cache_target_hits, [String], null: true,
+    field :remote_cache_target_hits, [String], null: true
     field :created_at, GraphQL::Types::ISO8601DateTime, null: false
   end
 end

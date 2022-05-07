@@ -13,6 +13,7 @@ let dependencies = Dependencies(
                 url: "https://github.com/fortmarek/ZIPFoundation.git",
                 .revision("9dbe729b90202c19d0fe1010f1430fa75a576cd3")
             ),
+            .package(url: "https://github.com/Flight-School/AnyCodable", from: "0.6.0"),
             .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
             .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.14.1")),
             .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .upToNextMajor(from: "2.8.0")),

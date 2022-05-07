@@ -1,29 +1,13 @@
 import Foundation
 import TuistCore
-
-public struct CommandEventParameter: Encodable, Equatable {
-    private let _encode: (Encoder) throws -> Void
-
-    public init<T: Codable & Equatable>(_ wrapped: T) {
-        _encode = wrapped.encode
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        try _encode(encoder)
-    }
-    
-    public static func ==(lhs: CommandEventParameter, rhs: CommandEventParameter) -> Bool {
-        let encoder = JSONEncoder()
-        return (try? encoder.encode(lhs)) == (try? encoder.encode(rhs))
-    }
-}
+import AnyCodable
 
 /// A `CommandEvent` is the analytics event to track the execution of a Tuist command
 /// Stats are public and reported at https://backbone.tuist.io/
-public struct CommandEvent: Encodable, Equatable, AsyncQueueEvent {
+public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let name: String
     public let subcommand: String?
-    public let params: [String: CommandEventParameter]
+    public let params: [String: AnyCodable]
     public let commandArguments: [String]
     public let durationInMs: Int
     public let clientId: String
@@ -54,7 +38,7 @@ public struct CommandEvent: Encodable, Equatable, AsyncQueueEvent {
     public init(
         name: String,
         subcommand: String?,
-        params: [String: CommandEventParameter],
+        params: [String: AnyCodable],
         commandArguments: [String],
         durationInMs: Int,
         clientId: String,

@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TuistCache
+import AnyCodable
 
 struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
@@ -62,13 +63,13 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
         )
         GenerateCommand.analyticsDelegate?.addParameters(
             [
-                "no_open": String(noOpen),
-                "xcframeworks": String(xcframeworks),
-                "no_cache": String(ignoreCache),
-                "n_targets": String(sources.count),
-                "cacheable_targets": CacheAnalytics.cacheableTargets.joined(separator: ";"),
-                "local_cache_target_hits": CacheAnalytics.localCacheTargetsHits.joined(separator: ";"),
-                "remote_cache_target_hits": CacheAnalytics.remoteCacheTargetsHits.joined(separator: ";")
+                "no_open": AnyCodable(noOpen),
+                "xcframeworks": AnyCodable(xcframeworks),
+                "no_cache": AnyCodable(ignoreCache),
+                "n_targets": AnyCodable(sources.count),
+                "cacheable_targets": AnyCodable(CacheAnalytics.cacheableTargets),
+                "local_cache_target_hits": AnyCodable(CacheAnalytics.localCacheTargetsHits),
+                "remote_cache_target_hits": AnyCodable(CacheAnalytics.remoteCacheTargetsHits)
             ]
         )
     }

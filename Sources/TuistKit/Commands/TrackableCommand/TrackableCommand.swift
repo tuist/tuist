@@ -2,12 +2,13 @@ import ArgumentParser
 import Foundation
 import TuistAsyncQueue
 import TuistSupport
+import AnyCodable
 
 /// `TrackableCommandInfo` contains the information to report the execution of a command
 public struct TrackableCommandInfo {
     let name: String
     let subcommand: String?
-    let parameters: [String: AnyEncodable]
+    let parameters: [String: AnyCodable]
     let commandArguments: [String]
     let durationInMs: Int
 }
@@ -16,7 +17,7 @@ public struct TrackableCommandInfo {
 public class TrackableCommand: TrackableParametersDelegate {
     private var command: ParsableCommand
     private let clock: Clock
-    private var trackedParameters: [String: AnyEncodable] = [:]
+    private var trackedParameters: [String: AnyCodable] = [:]
     private let commandArguments: [String]
     private let commandEventFactory: CommandEventFactory
     private let asyncQueue: AsyncQueuing
@@ -59,15 +60,8 @@ public class TrackableCommand: TrackableParametersDelegate {
         let commandEvent = commandEventFactory.make(from: info)
         try asyncQueue.dispatch(event: commandEvent)
     }
-
-    func addParameters(_ parameters: [String: String]) {
-        trackedParameters.merge(
-            parameters.mapValues(AnyEncodable.init),
-            uniquingKeysWith: { oldKey, newKey in newKey }
-        )
-    }
     
-    func addParameters(_ parameters: [String: AnyEncodable]) {
+    func addParameters(_ parameters: [String: AnyCodable]) {
         trackedParameters.merge(
             parameters,
             uniquingKeysWith: { oldKey, newKey in newKey }

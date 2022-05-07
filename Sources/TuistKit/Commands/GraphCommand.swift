@@ -5,6 +5,7 @@ import TSCBasic
 import TuistGenerator
 import TuistLoader
 import TuistSupport
+import AnyCodable
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
 struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
@@ -60,10 +61,10 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     func runAsync() async throws {
         GraphCommand.analyticsDelegate?.addParameters(
             [
-                "format": format.rawValue,
-                "algorithm": layoutAlgorithm.rawValue,
-                "skip_external_dependencies": String(skipExternalDependencies),
-                "skip_test_targets": String(skipExternalDependencies),
+                "format": AnyCodable(format.rawValue),
+                "algorithm": AnyCodable(layoutAlgorithm.rawValue),
+                "skip_external_dependencies": AnyCodable(skipExternalDependencies),
+                "skip_test_targets": AnyCodable(skipExternalDependencies),
             ]
         )
         try await GraphService().run(

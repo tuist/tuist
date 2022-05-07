@@ -41,7 +41,7 @@ class CommandEventCreateService < ApplicationService
   def call
     project = ProjectFetchService.new.fetch_by_name(name: project_name, account_name: account_name, user: user)
 
-    command_event = CommandEvent.create!(
+    CommandEvent.create!(
       name: name,
       subcommand: subcommand,
       command_arguments: command_arguments.join(" "),
@@ -50,18 +50,10 @@ class CommandEventCreateService < ApplicationService
       tuist_version: tuist_version,
       swift_version: swift_version,
       macos_version: macos_version,
-      project: project
+      project: project,
+      cacheable_targets: cacheable_targets.nil? ? nil : cacheable_targets.join(";"),
+      local_cache_target_hits: local_cache_target_hits.nil? ? nil : local_cache_target_hits.join(";"),
+      remote_cache_target_hits: remote_cache_target_hits.nil? ? nil : remote_cache_target_hits.join(";")
     )
-
-    if name == "cache" && subcommand == "warm"
-      CacheWarmMetadataCommandEvent.create!(
-        command_event: command_event,
-        cacheable_targets: cacheable_targets.join(";"),
-        local_cache_target_hits: local_cache_target_hits.join(";"),
-        remote_cache_target_hits: remote_cache_target_hits.join(";")
-      )
-    end
-
-    command_event
   end
 end

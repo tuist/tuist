@@ -9,11 +9,7 @@ fragment CommandEventDetail on CommandEvent {
   swiftVersion
   macosVersion
   createdAt
-  metadata {
-    ... on CacheWarmMetadata {
-      cacheableTargets
-      localCacheTargetHits
-      remoteCacheTargetHits
-    }
-  }
+  cacheableTargets
+  localCacheTargetHits
+  remoteCacheTargetHits
 }
