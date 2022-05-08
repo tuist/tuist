@@ -1,3 +1,4 @@
+import AnyCodable
 import ArgumentParser
 import Foundation
 import TSCBasic
@@ -7,7 +8,6 @@ import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport
-import AnyCodable
 
 private typealias Platform = TuistGraph.Platform
 private typealias Product = TuistGraph.Product
@@ -76,7 +76,7 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
     func run() throws {
         InitCommand.analyticsDelegate?.addParameters(
             [
-                "platform": AnyCodable(platform ?? "unknown")
+                "platform": AnyCodable(platform ?? "unknown"),
             ]
         )
         try InitService().run(

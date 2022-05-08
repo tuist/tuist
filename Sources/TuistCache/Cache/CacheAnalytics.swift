@@ -1,7 +1,7 @@
 import Foundation
 import TuistSupport
 
-public final class CacheAnalytics {
+public enum CacheAnalytics {
     @Atomic
     public static var localCacheTargetsHits: Set<String> = []
     @Atomic

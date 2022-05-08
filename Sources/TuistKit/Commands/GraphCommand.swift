@@ -1,3 +1,4 @@
+import AnyCodable
 import ArgumentParser
 import Foundation
 import GraphViz
@@ -5,7 +6,6 @@ import TSCBasic
 import TuistGenerator
 import TuistLoader
 import TuistSupport
-import AnyCodable
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
 struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {

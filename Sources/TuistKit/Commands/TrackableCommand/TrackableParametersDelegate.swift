@@ -1,5 +1,5 @@
-import Foundation
 import AnyCodable
+import Foundation
 
 /// Commands that conform to `HasTrackableParameters` can report extra parameters that are only known at runtime
 protocol HasTrackableParameters {

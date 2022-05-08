@@ -1,8 +1,8 @@
+import AnyCodable
 import ArgumentParser
 import Foundation
 import TuistAsyncQueue
 import TuistSupport
-import AnyCodable
 
 /// `TrackableCommandInfo` contains the information to report the execution of a command
 public struct TrackableCommandInfo {
@@ -60,11 +60,11 @@ public class TrackableCommand: TrackableParametersDelegate {
         let commandEvent = commandEventFactory.make(from: info)
         try asyncQueue.dispatch(event: commandEvent)
     }
-    
+
     func addParameters(_ parameters: [String: AnyCodable]) {
         trackedParameters.merge(
             parameters,
-            uniquingKeysWith: { oldKey, newKey in newKey }
+            uniquingKeysWith: { _, newKey in newKey }
         )
     }
 

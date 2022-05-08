@@ -1,6 +1,6 @@
+import AnyCodable
 import Foundation
 import TuistCore
-import AnyCodable
 
 /// A `CommandEvent` is the analytics event to track the execution of a Tuist command
 /// Stats are public and reported at https://backbone.tuist.io/

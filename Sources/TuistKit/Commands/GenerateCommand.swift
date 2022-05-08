@@ -1,7 +1,7 @@
+import AnyCodable
 import ArgumentParser
 import Foundation
 import TuistCache
-import AnyCodable
 
 struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
@@ -69,7 +69,7 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
                 "n_targets": AnyCodable(sources.count),
                 "cacheable_targets": AnyCodable(CacheAnalytics.cacheableTargets),
                 "local_cache_target_hits": AnyCodable(CacheAnalytics.localCacheTargetsHits),
-                "remote_cache_target_hits": AnyCodable(CacheAnalytics.remoteCacheTargetsHits)
+                "remote_cache_target_hits": AnyCodable(CacheAnalytics.remoteCacheTargetsHits),
             ]
         )
     }

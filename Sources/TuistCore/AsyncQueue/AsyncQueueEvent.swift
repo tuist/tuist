@@ -1,6 +1,6 @@
 import Foundation
 
-public protocol AsyncQueueEvent: Encodable {
+public protocol AsyncQueueEvent: Codable {
     /// Unique identifier.
     var id: UUID { get }
 
