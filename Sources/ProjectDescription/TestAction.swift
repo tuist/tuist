@@ -99,12 +99,14 @@ public struct TestAction: Equatable, Codable {
     /// - Parameters:
     ///   - testPlans: List of test plans to run.
     ///   - configuration: Configuration to be used.
+    ///   - attachDebugger: A boolean controlling whether a debugger is attached to the process running the tests.
     ///   - preActions: Actions to execute before running the tests.
     ///   - postActions: Actions to execute after running the tests.
     /// - Returns: A test action.
     public static func testPlans(
         _ testPlans: [Path],
         configuration: ConfigurationName = .debug,
+        attachDebugger: Bool = true,
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = []
     ) -> Self {
@@ -113,7 +115,7 @@ public struct TestAction: Equatable, Codable {
             targets: [],
             arguments: nil,
             configuration: configuration,
-            attachDebugger: true,
+            attachDebugger: attachDebugger,
             expandVariableFromTarget: nil,
             preActions: preActions,
             postActions: postActions,
