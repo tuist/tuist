@@ -1486,7 +1486,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func test_lint_when_bundle_id_is_derived_from_build_settings_using_parentheses_pattern() {
         // Given
         let path: AbsolutePath = "/project"
@@ -1508,7 +1508,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             bundleId: "$(WATCH_EXTENSION_PRODUCT_BUNDLE_IDENTIFIER)"
         )
         let project = Project.test(targets: [app, watchApp, watchExtension])
-        
+
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: path): Set([.target(name: watchApp.name, path: path)]),
             .target(name: watchApp.name, path: path): Set([.target(name: watchExtension.name, path: path)]),
@@ -1552,7 +1552,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             bundleId: "${WATCH_EXTENSION_PRODUCT_BUNDLE_IDENTIFIER}"
         )
         let project = Project.test(targets: [app, watchApp, watchExtension])
-        
+
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: path): Set([.target(name: watchApp.name, path: path)]),
             .target(name: watchApp.name, path: path): Set([.target(name: watchExtension.name, path: path)]),
