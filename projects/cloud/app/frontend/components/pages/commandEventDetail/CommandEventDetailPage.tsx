@@ -5,6 +5,7 @@ import { observer } from 'mobx-react-lite';
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import CommandEventDetailPageStore from './CommandEventDetailPageStore';
+import CacheCardSection from './components/CacheCardSection';
 
 const CommandEventDetailPage = observer(() => {
   const client = useApolloClient();
@@ -65,6 +66,26 @@ const CommandEventDetailPage = observer(() => {
             </Stack>
           </Stack>
         </Card.Section>
+        <CacheCardSection
+          cacheableTargets={
+            commandEventDetailPageStore.commandEventDetail
+              .cacheableTargets
+          }
+          localCacheTargetHits={
+            commandEventDetailPageStore.commandEventDetail
+              .localCacheTargetHits
+          }
+          remoteCacheTargetHits={
+            commandEventDetailPageStore.commandEventDetail
+              .remoteCacheTargetHits
+          }
+          cacheTargetMisses={
+            commandEventDetailPageStore.cacheTargetMisses
+          }
+          cacheTargetHitRate={
+            commandEventDetailPageStore.cacheTargetHitRate
+          }
+        />
         <Card.Section title="Environment">
           <Stack vertical>
             <Stack>

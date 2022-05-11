@@ -32,6 +32,9 @@ describe('CommandEventDetailPageStore', () => {
       id: 'command-event-id',
       name: 'generate',
       subcommand: null,
+      cacheableTargets: ['Target1', 'Target2', 'Target3', 'Target4'],
+      localCacheTargetHits: ['Target2', 'Target4'],
+      remoteCacheTargetHits: ['Target3'],
     };
     const commandEventDetailFragment = {
       clientId: commandEventDetail.clientId,
@@ -44,6 +47,9 @@ describe('CommandEventDetailPageStore', () => {
       id: commandEventDetail.id,
       name: commandEventDetail.name,
       subcommand: commandEventDetail.subcommand,
+      cacheableTargets: commandEventDetail.cacheableTargets,
+      localCacheTargetHits: commandEventDetail.localCacheTargetHits,
+      remoteCacheTargetHits: commandEventDetail.remoteCacheTargetHits,
       __typename: 'CommandEvent',
     } as CommandEventDetailFragment;
     client.query.mockResolvedValueOnce({
@@ -59,5 +65,11 @@ describe('CommandEventDetailPageStore', () => {
     expect(commandEventDetailPageStore.commandEventDetail).toEqual(
       commandEventDetail,
     );
+    expect(commandEventDetailPageStore.cacheTargetHitRate).toEqual(
+      '75 %',
+    );
+    expect(commandEventDetailPageStore.cacheTargetMisses).toEqual([
+      'Target1',
+    ]);
   });
 });

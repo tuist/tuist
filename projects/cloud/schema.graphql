@@ -58,13 +58,16 @@ type CommandAverage {
 }
 
 type CommandEvent {
+  cacheableTargets: [String!]
   clientId: String!
   commandArguments: String!
   createdAt: ISO8601DateTime!
   duration: Int!
   id: ID!
+  localCacheTargetHits: [String!]
   macosVersion: String!
   name: String!
+  remoteCacheTargetHits: [String!]
   subcommand: String
   swiftVersion: String!
   tuistVersion: String!

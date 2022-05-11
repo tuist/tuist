@@ -11,6 +11,15 @@
         }
       },
       {
+        "package": "AnyCodable",
+        "repositoryURL": "https://github.com/Flight-School/AnyCodable",
+        "state": {
+          "branch": null,
+          "revision": "f9fda69a7b704d46fb5123005f2f7e43dbb8a0fa",
+          "version": "0.6.5"
+        }
+      },
+      {
         "package": "Checksum",
         "repositoryURL": "https://github.com/rnine/Checksum.git",
         "state": {

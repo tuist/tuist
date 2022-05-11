@@ -1,3 +1,4 @@
+import AnyCodable
 import Foundation
 import TuistCore
 
@@ -6,7 +7,7 @@ import TuistCore
 public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let name: String
     public let subcommand: String?
-    public let params: [String: String]
+    public let params: [String: AnyCodable]
     public let commandArguments: [String]
     public let durationInMs: Int
     public let clientId: String
@@ -37,7 +38,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public init(
         name: String,
         subcommand: String?,
-        params: [String: String],
+        params: [String: AnyCodable],
         commandArguments: [String],
         durationInMs: Int,
         clientId: String,

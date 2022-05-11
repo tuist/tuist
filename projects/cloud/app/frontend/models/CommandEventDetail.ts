@@ -11,6 +11,9 @@ export interface CommandEventDetail {
   swiftVersion: string;
   macosVersion: string;
   createdAt: Date;
+  cacheableTargets: string[] | null;
+  localCacheTargetHits: string[] | null;
+  remoteCacheTargetHits: string[] | null;
 }
 
 export const mapCommandEventDetail = ({
@@ -24,6 +27,9 @@ export const mapCommandEventDetail = ({
   swiftVersion,
   macosVersion,
   createdAt,
+  cacheableTargets,
+  localCacheTargetHits,
+  remoteCacheTargetHits,
 }: CommandEventDetailFragment) => {
   return {
     id,
@@ -36,5 +42,8 @@ export const mapCommandEventDetail = ({
     swiftVersion,
     macosVersion,
     createdAt: new Date(createdAt),
+    cacheableTargets,
+    localCacheTargetHits,
+    remoteCacheTargetHits,
   } as CommandEventDetail;
 };
