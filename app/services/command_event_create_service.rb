@@ -2,7 +2,8 @@
 
 class CommandEventCreateService < ApplicationService
   attr_reader :account_name, :project_name, :user, :name, :subcommand, :command_arguments, :duration, :client_id,
-    :tuist_version, :swift_version, :macos_version
+    :tuist_version, :swift_version, :macos_version, :cacheable_targets, :local_cache_target_hits,
+    :remote_cache_target_hits
 
   def initialize(
     project_slug:,
@@ -14,7 +15,10 @@ class CommandEventCreateService < ApplicationService
     client_id:,
     tuist_version:,
     swift_version:,
-    macos_version:
+    macos_version:,
+    cacheable_targets:,
+    local_cache_target_hits:,
+    remote_cache_target_hits:
   )
     super()
     split_project_slug = project_slug.split("/")
@@ -29,6 +33,9 @@ class CommandEventCreateService < ApplicationService
     @tuist_version = tuist_version
     @swift_version = swift_version
     @macos_version = macos_version
+    @cacheable_targets = cacheable_targets
+    @local_cache_target_hits = local_cache_target_hits
+    @remote_cache_target_hits = remote_cache_target_hits
   end
 
   def call
@@ -43,7 +50,10 @@ class CommandEventCreateService < ApplicationService
       tuist_version: tuist_version,
       swift_version: swift_version,
       macos_version: macos_version,
-      project: project
+      project: project,
+      cacheable_targets: cacheable_targets.nil? ? nil : cacheable_targets.join(";"),
+      local_cache_target_hits: local_cache_target_hits.nil? ? nil : local_cache_target_hits.join(";"),
+      remote_cache_target_hits: remote_cache_target_hits.nil? ? nil : remote_cache_target_hits.join(";")
     )
   end
 end

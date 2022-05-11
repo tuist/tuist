@@ -18,6 +18,51 @@ class CommandEventDetailPageStore {
     makeAutoObservable(this);
   }
 
+  get cacheTargetHitRate(): string {
+    if (this.commandEventDetail == null) {
+      return '';
+    }
+    const {
+      cacheableTargets,
+      localCacheTargetHits,
+      remoteCacheTargetHits,
+    } = this.commandEventDetail;
+    if (
+      cacheableTargets === null ||
+      localCacheTargetHits === null ||
+      remoteCacheTargetHits === null
+    ) {
+      return '';
+    }
+
+    const cacheTargetHitRate = Math.ceil(
+      ((localCacheTargetHits.length + remoteCacheTargetHits.length) /
+        cacheableTargets.length) *
+        100,
+    );
+
+    return `${cacheTargetHitRate} %`;
+  }
+
+  get cacheTargetMisses(): string[] {
+    if (this.commandEventDetail?.cacheableTargets == null) {
+      return [];
+    }
+
+    return this.commandEventDetail.cacheableTargets.filter(
+      (target) => {
+        return !(
+          this.commandEventDetail?.localCacheTargetHits?.includes(
+            target,
+          ) ||
+          this.commandEventDetail?.remoteCacheTargetHits?.includes(
+            target,
+          )
+        );
+      },
+    );
+  }
+
   async load(commandEventId: string) {
     const { data } = await this.client.query<CommandEventQuery>({
       query: CommandEventDocument,

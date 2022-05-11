@@ -64,13 +64,16 @@ export type CommandAverage = {
 
 export type CommandEvent = {
   __typename?: 'CommandEvent';
+  cacheableTargets?: Maybe<Array<Scalars['String']>>;
   clientId: Scalars['String'];
   commandArguments: Scalars['String'];
   createdAt: Scalars['ISO8601DateTime'];
   duration: Scalars['Int'];
   id: Scalars['ID'];
+  localCacheTargetHits?: Maybe<Array<Scalars['String']>>;
   macosVersion: Scalars['String'];
   name: Scalars['String'];
+  remoteCacheTargetHits?: Maybe<Array<Scalars['String']>>;
   subcommand?: Maybe<Scalars['String']>;
   swiftVersion: Scalars['String'];
   tuistVersion: Scalars['String'];
@@ -431,14 +434,14 @@ export type CommandAveragesQuery = { __typename?: 'Query', commandAverages: Arra
 
 export type CommandEventFragment = { __typename?: 'CommandEvent', id: string, commandArguments: string, duration: number, createdAt: string };
 
-export type CommandEventDetailFragment = { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string };
+export type CommandEventDetailFragment = { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string, cacheableTargets?: Array<string> | null, localCacheTargetHits?: Array<string> | null, remoteCacheTargetHits?: Array<string> | null };
 
 export type CommandEventQueryVariables = Exact<{
   commandEventId: Scalars['ID'];
 }>;
 
 
-export type CommandEventQuery = { __typename?: 'Query', commandEvent: { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string } };
+export type CommandEventQuery = { __typename?: 'Query', commandEvent: { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string, cacheableTargets?: Array<string> | null, localCacheTargetHits?: Array<string> | null, remoteCacheTargetHits?: Array<string> | null } };
 
 export type CommandEventsQueryVariables = Exact<{
   projectId: Scalars['ID'];
@@ -585,6 +588,9 @@ export const CommandEventDetailFragmentDoc = gql`
   swiftVersion
   macosVersion
   createdAt
+  cacheableTargets
+  localCacheTargetHits
+  remoteCacheTargetHits
 }
     `;
 export const PendingInvitationFragmentDoc = gql`
