@@ -143,15 +143,15 @@ extension SettingsDictionary {
     // MARK: - Apple Clang - Custom Compiler Flags
     
     /// Sets `"OTHER_CFLAGS"` to `flags`
-    public func otherCFlags(_ flags: String...) -> SettingsDictionary {
-        merging(["OTHER_CFLAGS": SettingValue(flags.joined(separator: " "))])
+    public func otherCFlags(_ flags: [String]) -> SettingsDictionary {
+        merging(["OTHER_CFLAGS": .array(flags)])
     }
     
     // MARK: - Linking
 
     /// Sets `"OTHER_LDFLAGS"` to `flags`
-    public func otherLinkerFlags(_ flags: String...) -> SettingsDictionary {
-        merging(["OTHER_LDFLAGS": SettingValue(flags.joined(separator: " "))])
+    public func otherLinkerFlags(_ flags: [String]) -> SettingsDictionary {
+        merging(["OTHER_LDFLAGS": .array(flags)])
     }
 
     // MARK: - Bitcode

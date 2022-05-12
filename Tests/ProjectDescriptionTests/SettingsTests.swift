@@ -100,8 +100,8 @@ final class SettingsTests: XCTestCase {
             .debugInformationFormat(.dwarf)
             .swiftActiveCompilationConditions("FIRST", "SECOND", "THIRD")
             .swiftObjcBridingHeaderPath("/my/briding/header/path.h")
-            .otherCFlags("$(inherited) -my-c-flag")
-            .otherLinkerFlags("$(inherited) -my-linker-flag")
+            .otherCFlags(["$(inherited)", "-my-c-flag"])
+            .otherLinkerFlags(["$(inherited)", "-my-linker-flag"])
 
         /// Then
         XCTAssertEqual(settings, [
@@ -120,8 +120,8 @@ final class SettingsTests: XCTestCase {
             "DEBUG_INFORMATION_FORMAT": "dwarf",
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "FIRST SECOND THIRD",
             "SWIFT_OBJC_BRIDGING_HEADER": "/my/briding/header/path.h",
-            "OTHER_CFLAGS": "$(inherited) -my-c-flag",
-            "OTHER_LDFLAGS": "$(inherited) -my-linker-flag"
+            "OTHER_CFLAGS": ["$(inherited)", "-my-c-flag"],
+            "OTHER_LDFLAGS": ["$(inherited)", "-my-linker-flag"]
         ])
     }
 
@@ -212,22 +212,22 @@ final class SettingsTests: XCTestCase {
     func test_settingsDictionary_otherCFlags() {
         /// Given/When
         let settings = SettingsDictionary()
-            .otherCFlags("$(inherited) -my-c-flag")
+            .otherCFlags(["$(inherited)", "-my-c-flag"])
 
         /// Then
         XCTAssertEqual(settings, [
-            "OTHER_CFLAGS": "$(inherited) -my-c-flag"
+            "OTHER_CFLAGS": ["$(inherited)", "-my-c-flag"]
         ])
     }
     
     func test_settingsDictionary_otherLinkerFlags() {
         /// Given/When
         let settings = SettingsDictionary()
-            .otherLinkerFlags("$(inherited) -my-linker-flag")
+            .otherLinkerFlags(["$(inherited)", "-my-linker-flag"])
 
         /// Then
         XCTAssertEqual(settings, [
-            "OTHER_LDFLAGS": "$(inherited) -my-linker-flag"
+            "OTHER_LDFLAGS": ["$(inherited)", "-my-linker-flag"]
         ])
     }
 
