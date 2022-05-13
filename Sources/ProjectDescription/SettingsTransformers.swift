@@ -137,7 +137,9 @@ extension SettingsDictionary {
 
     /// Sets `"SWIFT_OBJC_BRIDGING_HEADER"` to `path`
     public func swiftObjcBridingHeaderPath(_ path: String) -> SettingsDictionary {
-        merging(["SWIFT_OBJC_BRIDGING_HEADER": SettingValue(path)])
+        var settings = self
+        settings["SWIFT_OBJC_BRIDGING_HEADER"] = SettingValue(path)
+        return settings
     }
     
     // MARK: - Apple Clang - Custom Compiler Flags
