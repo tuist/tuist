@@ -876,6 +876,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "dogo",
+      "name": "Diogo Autilio",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1487375?v=4",
+      "profile": "http://dogoautilio.wordpress.com/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
