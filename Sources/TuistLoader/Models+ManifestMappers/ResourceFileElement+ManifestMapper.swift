@@ -31,7 +31,7 @@ extension TuistGraph.ResourceFileElement {
                 .filter { !excluded.contains($0) }
 
             // FIXME: Do not hardcode this
-            if files.isEmpty && !path.pathString.contains("Tuist/Dependencies/SwiftPackageManager/.build/checkouts") {
+            if files.isEmpty, !path.pathString.contains("Tuist/Dependencies/SwiftPackageManager/.build/checkouts") {
                 if FileHandler.shared.isFolder(path) {
                     logger.warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
                 } else {
