@@ -137,7 +137,7 @@ final class SettingsTests: XCTestCase {
             "PROVISIONING_PROFILE_SPECIFIER": "ABC",
         ])
     }
-    
+
     func test_settingsDictionary_swiftActiveCompilationConditions() {
         /// Given/When
         let settings = SettingsDictionary()
@@ -197,7 +197,7 @@ final class SettingsTests: XCTestCase {
             "SWIFT_OPTIMIZATION_LEVEL": "-Osize",
         ])
     }
-    
+
     func test_settingsDictionary_swiftObjcBridingHeaderPath() {
         /// Given/When
         let settings = SettingsDictionary()
@@ -208,7 +208,7 @@ final class SettingsTests: XCTestCase {
             "SWIFT_OBJC_BRIDGING_HEADER": "/my/briding/header/path.h"
         ])
     }
-    
+
     func test_settingsDictionary_otherCFlags() {
         /// Given/When
         let settings = SettingsDictionary()
@@ -219,7 +219,7 @@ final class SettingsTests: XCTestCase {
             "OTHER_CFLAGS": ["$(inherited)", "-my-c-flag"]
         ])
     }
-    
+
     func test_settingsDictionary_otherLinkerFlags() {
         /// Given/When
         let settings = SettingsDictionary()
