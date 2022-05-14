@@ -121,7 +121,7 @@ final class SettingsTests: XCTestCase {
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "FIRST SECOND THIRD",
             "SWIFT_OBJC_BRIDGING_HEADER": "/my/briding/header/path.h",
             "OTHER_CFLAGS": ["$(inherited)", "-my-c-flag"],
-            "OTHER_LDFLAGS": ["$(inherited)", "-my-linker-flag"]
+            "OTHER_LDFLAGS": ["$(inherited)", "-my-linker-flag"],
         ])
     }
 
@@ -145,7 +145,7 @@ final class SettingsTests: XCTestCase {
 
         /// Then
         XCTAssertEqual(settings, [
-            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "FIRST SECOND THIRD"
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "FIRST SECOND THIRD",
         ])
     }
 
@@ -205,7 +205,7 @@ final class SettingsTests: XCTestCase {
 
         /// Then
         XCTAssertEqual(settings, [
-            "SWIFT_OBJC_BRIDGING_HEADER": "/my/briding/header/path.h"
+            "SWIFT_OBJC_BRIDGING_HEADER": "/my/briding/header/path.h",
         ])
     }
 
@@ -216,7 +216,7 @@ final class SettingsTests: XCTestCase {
 
         /// Then
         XCTAssertEqual(settings, [
-            "OTHER_CFLAGS": ["$(inherited)", "-my-c-flag"]
+            "OTHER_CFLAGS": ["$(inherited)", "-my-c-flag"],
         ])
     }
 
@@ -227,7 +227,7 @@ final class SettingsTests: XCTestCase {
 
         /// Then
         XCTAssertEqual(settings, [
-            "OTHER_LDFLAGS": ["$(inherited)", "-my-linker-flag"]
+            "OTHER_LDFLAGS": ["$(inherited)", "-my-linker-flag"],
         ])
     }
 
