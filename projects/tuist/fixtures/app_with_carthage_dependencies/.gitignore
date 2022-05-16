@@ -63,5 +63,4 @@ DerivedData/
 *.xcworkspace
 
 ### Tuist managed dependencies ###
-Tuist/Dependencies/Carthage
-Tuist/Dependencies/graph.json
+Tuist/Dependencies
