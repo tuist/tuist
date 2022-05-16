@@ -37,6 +37,10 @@ protocol SchemeDescriptorsGenerating {
     ) throws -> [SchemeDescriptor]
 }
 
+public extension XCScheme {
+    static let posixSpawnLauncher = "Xcode.IDEFoundation.Launcher.PosixSpawn"
+}
+
 // swiftlint:disable:next type_body_length
 final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     private enum Constants {
@@ -61,7 +65,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
             static var `extension`: LaunchAction {
                 LaunchAction(
-                    launcher: "Xcode.IDEFoundation.Launcher.PosixSpawn",
+                    launcher: XCScheme.posixSpawnLauncher,
                     askForAppToLaunch: true,
                     launchAutomaticallySubstyle: "2"
                 )
@@ -377,6 +381,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             preActions: preActions,
             postActions: postActions,
             selectedDebuggerIdentifier: testAction.attachDebugger ? XCScheme.defaultDebugger : "",
+            selectedLauncherIdentifier: testAction.attachDebugger ? XCScheme.defaultLauncher : XCScheme.posixSpawnLauncher,
             shouldUseLaunchSchemeArgsEnv: shouldUseLaunchSchemeArgsEnv,
             codeCoverageEnabled: testAction.coverage,
             codeCoverageTargets: codeCoverageTargets,

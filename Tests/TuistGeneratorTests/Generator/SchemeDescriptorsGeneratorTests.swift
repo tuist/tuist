@@ -667,6 +667,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.selectedDebuggerIdentifier, "")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
     }
 
     func test_schemeBuildAction() throws {
