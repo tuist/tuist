@@ -1,0 +1,2 @@
+github "Alamofire/Alamofire" "5.4.4"
+github "Quick/Nimble" "v9.2.1"

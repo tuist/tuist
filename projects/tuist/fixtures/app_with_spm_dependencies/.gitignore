@@ -63,4 +63,5 @@ DerivedData/
 *.xcworkspace
 
 ### Tuist managed dependencies ###
-Tuist/Dependencies
+Tuist/Dependencies/SwiftPackageManager
+Tuist/Dependencies/graph.json
