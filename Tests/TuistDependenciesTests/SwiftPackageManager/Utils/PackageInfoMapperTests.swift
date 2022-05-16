@@ -2609,6 +2609,7 @@ extension PackageInfoMapping {
             targetToPlatform: preprocessInfo.targetToPlatform,
             targetToProducts: preprocessInfo.targetToProducts,
             targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
+            targetToModuleMap: preprocessInfo.targetToModuleMap,
             packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
                 ($0, basePath.appending(component: $0).appending(component: "Path"))
             }),
