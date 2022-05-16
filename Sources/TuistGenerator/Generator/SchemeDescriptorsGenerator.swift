@@ -454,17 +454,21 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let disableMainThreadChecker = scheme.runAction?.diagnosticsOptions.contains(.mainThreadChecker) == false
 
         let launchActionConstants: Constants.LaunchAction
+        let launcherIdentifier: String
         let debuggerIdentifier: String
         let isSchemeForAppExtension = isSchemeForAppExtension(scheme: scheme, graphTraverser: graphTraverser)
         if isSchemeForAppExtension == true {
             launchActionConstants = .extension
             debuggerIdentifier = ""
+            launcherIdentifier = launchActionConstants.launcher
         } else {
             launchActionConstants = .default
             if let runAction = scheme.runAction {
                 debuggerIdentifier = runAction.attachDebugger ? XCScheme.defaultDebugger : ""
+                launcherIdentifier = runAction.attachDebugger ? launchActionConstants.launcher : XCScheme.posixSpawnLauncher
             } else {
                 debuggerIdentifier = XCScheme.defaultDebugger
+                launcherIdentifier = launchActionConstants.launcher
             }
         }
 
@@ -517,7 +521,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             postActions: postActions,
             macroExpansion: macroExpansion,
             selectedDebuggerIdentifier: debuggerIdentifier,
-            selectedLauncherIdentifier: launchActionConstants.launcher,
+            selectedLauncherIdentifier: launcherIdentifier,
             askForAppToLaunch: launchActionConstants.askForAppToLaunch,
             pathRunnable: pathRunnable,
             locationScenarioReference: locationScenarioReference,
