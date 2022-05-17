@@ -58,7 +58,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
         switch self {
         case let .defaultPathNotFound(packageFolder, targetName):
             return """
-            Default source path not found for package at \(packageFolder.pathString). \
+            Default source path not found for target \(targetName) in package at \(packageFolder.pathString). \
             Source path must be one of \(PackageInfoMapper.predefinedSourceDirectories.map { "\($0)/\(targetName)" })
             """
         case let .minDeploymentTargetParsingFailed(platform):
@@ -129,6 +129,7 @@ public protocol PackageInfoMapping {
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
+        targetToModuleMap: [String: ModuleMap],
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project?
@@ -141,6 +142,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let targetToPlatform: [String: ProjectDescription.Platform]
         let targetToProducts: [String: Set<PackageInfo.Product>]
         let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
+        let targetToModuleMap: [String: ModuleMap]
     }
 
     // Predefined source directories, in order of preference.
@@ -257,6 +259,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 )
             }
         }
+
         let minDeploymentTargets = Platform.oldestVersions.reduce(
             into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()
         ) { acc, next in
@@ -272,12 +275,24 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
+        let targetToModuleMap: [String: ModuleMap]
+        targetToModuleMap = try packageInfos.reduce(into: [:]) { result, packageInfo in
+            try packageInfo.value.targets.forEach { target in
+                guard target.type == .regular else { return }
+                result[target.name] = try moduleMapGenerator.generate(
+                    moduleName: target.name,
+                    publicHeadersPath: target.publicHeadersPath(packageFolder: packageToFolder[packageInfo.key]!)
+                )
+            }
+        }
+
         return .init(
             platformToMinDeploymentTarget: minDeploymentTargets,
             productToExternalDependencies: externalDependencies,
             targetToPlatform: targetToPlatforms,
             targetToProducts: targetToProducts,
-            targetToResolvedDependencies: resolvedDependencies
+            targetToResolvedDependencies: resolvedDependencies,
+            targetToModuleMap: targetToModuleMap
         )
     }
 
@@ -294,6 +309,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
+        targetToModuleMap: [String: ModuleMap],
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project? {
@@ -347,7 +363,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 platforms: targetToPlatform,
                 minDeploymentTargets: minDeploymentTargets,
                 targetToResolvedDependencies: targetToResolvedDependencies,
-                moduleMapGenerator: moduleMapGenerator
+                targetToModuleMap: targetToModuleMap
             )
         }
 
@@ -392,7 +408,7 @@ extension ProjectDescription.Target {
         platforms: [String: ProjectDescription.Platform],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
+        targetToModuleMap: [String: ModuleMap]
     ) throws -> Self? {
         guard target.type == .regular else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
@@ -407,7 +423,7 @@ extension ProjectDescription.Target {
 
         let path = try target.basePath(packageFolder: packageFolder)
         let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
-        let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: publicHeadersPath)
+        let moduleMap = targetToModuleMap[target.name]!
 
         let platform = platforms[target.name]!
         let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
@@ -423,7 +439,7 @@ extension ProjectDescription.Target {
             path: path,
             excluding: target.exclude
         )
-        let headers = try Headers.from(moduleMapType: moduleMap.type, publicHeadersPath: publicHeadersPath)
+        let headers = try Headers.from(moduleMap: moduleMap, publicHeadersPath: publicHeadersPath)
 
         let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
 
@@ -442,7 +458,7 @@ extension ProjectDescription.Target {
             targetToResolvedDependencies: targetToResolvedDependencies,
             settings: target.settings,
             platform: platform,
-            moduleMap: moduleMap,
+            targetToModuleMap: targetToModuleMap,
             baseSettings: baseSettings,
             targetSettings: targetSettings
         )
@@ -682,10 +698,10 @@ extension ProjectDescription.TargetDependency {
 }
 
 extension ProjectDescription.Headers {
-    fileprivate static func from(moduleMapType: ModuleMapType, publicHeadersPath: AbsolutePath) throws -> Self? {
+    fileprivate static func from(moduleMap: ModuleMap, publicHeadersPath: AbsolutePath) throws -> Self? {
         // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
-        switch moduleMapType {
+        switch moduleMap {
         case .header, .nestedHeader:
             let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
                 .filter { $0.extension == "h" }
@@ -708,7 +724,7 @@ extension ProjectDescription.Settings {
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform,
-        moduleMap: (type: ModuleMapType, path: AbsolutePath?),
+        targetToModuleMap: [String: ModuleMap],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary]
     ) throws -> Self? {
@@ -723,7 +739,8 @@ extension ProjectDescription.Settings {
         let mainPath = try target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
 
-        if moduleMap.type != .none {
+        let moduleMap = targetToModuleMap[target.name]!
+        if moduleMap != .none {
             let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
             let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
             headerSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
@@ -738,10 +755,16 @@ extension ProjectDescription.Settings {
 
         headerSearchPaths += try allDependencies
             .compactMap { dependency in
+                // Add dependencies search paths if they require a modulemap
                 guard let packagePath = packageToProject[dependency.package] else { return nil }
                 let headersPath = try dependency.target.publicHeadersPath(packageFolder: packagePath)
-                guard FileHandler.shared.exists(headersPath) else { return nil }
-                return "$(SRCROOT)/\(headersPath.relative(to: packageFolder))"
+                let moduleMap = targetToModuleMap[dependency.target.name]!
+                switch moduleMap {
+                case .none, .header, .nestedHeader:
+                    return nil
+                case .directory, .custom:
+                    return "$(SRCROOT)/\(headersPath.relative(to: packageFolder))"
+                }
             }
             .sorted()
 
