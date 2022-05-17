@@ -37,7 +37,7 @@ protocol SchemeDescriptorsGenerating {
     ) throws -> [SchemeDescriptor]
 }
 
-public extension XCScheme {
+extension XCScheme {
     static let posixSpawnLauncher = "Xcode.IDEFoundation.Launcher.PosixSpawn"
 }
 

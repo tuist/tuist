@@ -525,7 +525,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
         XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        
         let codeCoverageTargetsBuildableReference = try XCTUnwrap(result.codeCoverageTargets)
         XCTAssertEqual(result.onlyGenerateCoverageForSpecifiedTargets, true)
         XCTAssertEqual(codeCoverageTargetsBuildableReference.count, 1)
@@ -587,7 +586,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.testPlans?.count, 1)
         XCTAssertEqual(result.testPlans?.first?.reference, "container:folder/Plan.xctestplan")
     }
-    
+
     func test_schemeTestAction_when_usingTestPlans_with_disabled_attachDebugger() throws {
         // Given
         let project = Project.test()
@@ -655,7 +654,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             rootPath: project.path,
             generatedProjects: createGeneratedProjects(projects: [project])
         )
-        
+
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
         XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
@@ -1127,7 +1126,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             rootPath: projectPath,
             generatedProjects: createGeneratedProjects(projects: [project])
         )
-        
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
         XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
