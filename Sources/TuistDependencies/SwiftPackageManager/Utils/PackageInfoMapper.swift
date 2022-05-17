@@ -129,7 +129,7 @@ public protocol PackageInfoMapping {
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        targetToModuleMap: [String: (type: ModuleMapType, path: AbsolutePath?)],
+        targetToModuleMap: [String: ModuleMap],
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project?
@@ -142,7 +142,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let targetToPlatform: [String: ProjectDescription.Platform]
         let targetToProducts: [String: Set<PackageInfo.Product>]
         let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
-        let targetToModuleMap: [String: (type: ModuleMapType, path: AbsolutePath?)]
+        let targetToModuleMap: [String: ModuleMap]
     }
 
     // Predefined source directories, in order of preference.
@@ -275,7 +275,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        let targetToModuleMap: [String: (type: ModuleMapType, path: AbsolutePath?)]
+        let targetToModuleMap: [String: ModuleMap]
         targetToModuleMap = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
                 guard target.type == .regular else { return }
@@ -309,7 +309,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        targetToModuleMap: [String: (type: ModuleMapType, path: AbsolutePath?)],
+        targetToModuleMap: [String: ModuleMap],
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project? {
@@ -408,7 +408,7 @@ extension ProjectDescription.Target {
         platforms: [String: ProjectDescription.Platform],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        targetToModuleMap: [String: (type: ModuleMapType, path: AbsolutePath?)]
+        targetToModuleMap: [String: ModuleMap]
     ) throws -> Self? {
         guard target.type == .regular else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
@@ -439,7 +439,7 @@ extension ProjectDescription.Target {
             path: path,
             excluding: target.exclude
         )
-        let headers = try Headers.from(moduleMapType: moduleMap.type, publicHeadersPath: publicHeadersPath)
+        let headers = try Headers.from(moduleMap: moduleMap, publicHeadersPath: publicHeadersPath)
 
         let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
 
@@ -698,10 +698,10 @@ extension ProjectDescription.TargetDependency {
 }
 
 extension ProjectDescription.Headers {
-    fileprivate static func from(moduleMapType: ModuleMapType, publicHeadersPath: AbsolutePath) throws -> Self? {
+    fileprivate static func from(moduleMap: ModuleMap, publicHeadersPath: AbsolutePath) throws -> Self? {
         // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
-        switch moduleMapType {
+        switch moduleMap {
         case .header, .nestedHeader:
             let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
                 .filter { $0.extension == "h" }
@@ -724,7 +724,7 @@ extension ProjectDescription.Settings {
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform,
-        targetToModuleMap: [String: (type: ModuleMapType, path: AbsolutePath?)],
+        targetToModuleMap: [String: ModuleMap],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary]
     ) throws -> Self? {
@@ -740,7 +740,7 @@ extension ProjectDescription.Settings {
         let mainRelativePath = mainPath.relative(to: packageFolder)
 
         let moduleMap = targetToModuleMap[target.name]!
-        if moduleMap.type != .none {
+        if moduleMap != .none {
             let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
             let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
             headerSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
@@ -759,7 +759,7 @@ extension ProjectDescription.Settings {
                 guard let packagePath = packageToProject[dependency.package] else { return nil }
                 let headersPath = try dependency.target.publicHeadersPath(packageFolder: packagePath)
                 let moduleMap = targetToModuleMap[dependency.target.name]!
-                switch moduleMap.type {
+                switch moduleMap {
                 case .none, .header, .nestedHeader:
                     return nil
                 case .directory, .custom:
