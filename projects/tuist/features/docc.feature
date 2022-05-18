@@ -1,4 +1,4 @@
-Feature: Tuist docc.
+Feature: Tuist docc
 
     Scenario: The project is an application with docc documentation (app_with_docc)
         Given that tuist is available
