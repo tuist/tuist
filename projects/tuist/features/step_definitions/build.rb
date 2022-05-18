@@ -51,6 +51,8 @@ Then(/^xcodebuild compiles the docc archive for ([a-zA-Z\-]+)$/) do |scheme|
   args = [
     "docbuild",
     "-scheme", scheme,
+    "-configuration", "Release",
+    "-sdk", "iphoneos"           
   ]
   
   args.concat(["-project", @xcodeproj_path]) unless @xcodeproj_path.nil?
