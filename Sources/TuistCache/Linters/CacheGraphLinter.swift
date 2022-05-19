@@ -23,8 +23,8 @@ public final class CacheGraphLinter: CacheGraphLinting {
             The following targets contain scripts that might introduce non-cacheable side-effects: \(targetsWithScripts
                 .map(\.target.name).joined(separator: ", ")).
             Note that a side-effect is an action that affects the target built products based on a given input (e.g. Xcode build variable).
-            These warnings can be ignored when the scripts do not have side effects. Please report eventual use cases to the community forum \(Constants
-                .communityURL).
+            These warnings can be ignored when the scripts do not have side effects. Please open a GitHub discussions (\(Constants
+                .discussionsURL)) to report eventual use cases.
             """
             logger.warning(message)
         }

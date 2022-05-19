@@ -5,9 +5,7 @@ public enum Constants {
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
     public static let gitRepositoryURL = "https://github.com/tuist/tuist.git"
-    public static let githubAPIURL = "https://api.github.com"
-    public static let githubSlug = "tuist/tuist"
-    public static let communityURL = "https://community.tuist.io"
+    public static let discussionsURL = "https://community.tuist.io"
     public static let backboneURL = URL(string: "https://backbone.tuist.io")!
     public static let version = "3.4.0"
     public static let bundleName: String = "tuist.zip"
@@ -24,7 +22,6 @@ public enum Constants {
     public static let resourceSynthesizersDirectoryName: String = "ResourceSynthesizers"
     public static let vendorDirectoryName: String = "vendor"
     public static let twitterHandle: String = "tuistio"
-    public static let joinSlackURL: String = "https://slack.tuist.io/"
     public static let tuistGeneratedFileName = ".tuist-generated"
 
     /// The cache version.
