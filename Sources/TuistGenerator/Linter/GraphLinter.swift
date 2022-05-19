@@ -109,8 +109,6 @@ public class GraphLinter: GraphLinting {
     }
 
     private func lintDependency(from: GraphTarget, to: GraphTarget) -> [LintingIssue] {
-        var issues: [LintingIssue] = []
-
         let fromTarget = LintableTarget(
             platform: from.target.platform,
             product: from.target.product
@@ -120,22 +118,19 @@ public class GraphLinter: GraphLinting {
             product: to.target.product
         )
 
-        if !GraphLinter.validLinks.keys.contains(fromTarget) {
+        guard let supportedTargets = GraphLinter.validLinks[fromTarget] else {
             let reason =
-                "Target \(from.target.name) has a platform '\(from.target.platform)' and product '\(from.target.product)' invalid or not supported yet."
-            let issue = LintingIssue(reason: reason, severity: .error)
-            issues.append(issue)
-        }
-        let supportedTargets = GraphLinter.validLinks[fromTarget]
-
-        if supportedTargets == nil || supportedTargets?.contains(toTarget) == false {
-            let reason =
-                "Target \(from.target.name) has a dependency with target \(to.target.name) of type \(to.target.product) for platform '\(to.target.platform)' which is invalid or not supported yet."
-            let issue = LintingIssue(reason: reason, severity: .error)
-            issues.append(issue)
+                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)': invalid or not supported yet."
+            return [LintingIssue(reason: reason, severity: .error)]
         }
 
-        return issues
+        guard supportedTargets.contains(toTarget) else {
+            let reason =
+                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)': dependency from target \(to.target.name) of type \(to.target.product) and platform '\(to.target.platform)' is invalid or not supported yet."
+            return [LintingIssue(reason: reason, severity: .error)]
+        }
+
+        return []
     }
 
     private func lintMismatchingConfigurations(graphTraverser: GraphTraversing) -> [LintingIssue] {
