@@ -11,7 +11,7 @@ let templateTwo = Template(
     description: "Custom template",
     attributes: [
         nameAttributeTwo,
-        platformAttributeTwo
+        platformAttributeTwo,
     ],
     items: [
         .string(path: "\(nameAttributeTwo)/custom.swift", contents: testContentsTwo),
