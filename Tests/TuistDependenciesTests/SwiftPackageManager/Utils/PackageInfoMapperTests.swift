@@ -2726,7 +2726,7 @@ extension ProjectDescription.Target {
         customSettings: ProjectDescription.SettingsDictionary = [:],
         moduleMap: String? = nil
     ) -> Self {
-        return .init(
+        .init(
             name: name,
             platform: platform,
             product: product,

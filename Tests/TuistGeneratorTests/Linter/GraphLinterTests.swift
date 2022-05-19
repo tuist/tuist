@@ -43,7 +43,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(
@@ -62,7 +62,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         let reason =
@@ -80,7 +80,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         let reason =
@@ -98,7 +98,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(result.contains(LintingIssue(reason: "Could not determine Xcode version", severity: .error)))
@@ -144,7 +144,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -190,7 +190,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -239,7 +239,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -269,7 +269,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -299,7 +299,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -332,7 +332,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -365,7 +365,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -404,7 +404,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertFalse(result.isEmpty)
@@ -434,7 +434,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(result.isEmpty)
@@ -464,7 +464,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertFalse(result.isEmpty)
@@ -501,7 +501,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -538,7 +538,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -575,7 +575,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -612,7 +612,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -670,7 +670,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEqual(result, [
@@ -744,7 +744,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEqual(result, [
@@ -820,7 +820,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let result = subject.lint(graphTraverser: graphTraverser)
+        let result = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEqual(result, [])
@@ -864,7 +864,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -908,7 +908,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -961,7 +961,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertTrue(got.isEmpty)
@@ -1006,7 +1006,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -1048,7 +1048,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -1091,7 +1091,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -1157,7 +1157,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEqual(got, [
@@ -1210,7 +1210,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEmpty(got)
@@ -1249,7 +1249,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEmpty(got)
@@ -1288,7 +1288,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEmpty(got)
@@ -1338,7 +1338,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEmpty(got)
@@ -1380,7 +1380,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEmpty(got)
@@ -1425,7 +1425,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEmpty(got)
@@ -1436,7 +1436,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: .test())
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEmpty(got)
@@ -1455,7 +1455,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEmpty(got)
@@ -1499,7 +1499,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEmpty(got)
@@ -1516,7 +1516,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         ))
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEqual(
@@ -1560,7 +1560,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEmpty(got)
@@ -1577,7 +1577,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         ))
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEqual(
@@ -1621,7 +1621,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lint(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser, disableStaticProductsLint: false)
 
         // Then
         XCTAssertEqual(

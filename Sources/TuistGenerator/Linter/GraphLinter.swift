@@ -5,7 +5,7 @@ import TuistGraph
 import TuistSupport
 
 public protocol GraphLinting: AnyObject {
-    func lint(graphTraverser: GraphTraversing) -> [LintingIssue]
+    func lint(graphTraverser: GraphTraversing, disableStaticProductsLint: Bool) -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
@@ -36,14 +36,18 @@ public class GraphLinter: GraphLinting {
 
     // MARK: - GraphLinting
 
-    public func lint(graphTraverser: GraphTraversing) -> [LintingIssue] {
+    public func lint(graphTraverser: GraphTraversing, disableStaticProductsLint: Bool) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: graphTraverser.projects.flatMap { project -> [LintingIssue] in
             projectLinter.lint(project.value)
         })
-        issues.append(contentsOf: lintDependencies(graphTraverser: graphTraverser))
+        issues
+            .append(contentsOf: lintDependencies(
+                graphTraverser: graphTraverser,
+                disableStaticProductsLint: disableStaticProductsLint
+            ))
         issues.append(contentsOf: lintMismatchingConfigurations(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintWatchBundleIndentifiers(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintWatchBundleIdentifiers(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintCodeCoverageMode(graphTraverser: graphTraverser))
         return issues
     }
@@ -87,7 +91,7 @@ public class GraphLinter: GraphLinting {
         }
     }
 
-    private func lintDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
+    private func lintDependencies(graphTraverser: GraphTraversing, disableStaticProductsLint: Bool) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, toDependencies -> [LintingIssue] in
             toDependencies.flatMap { toDependency -> [LintingIssue] in
@@ -100,7 +104,9 @@ public class GraphLinter: GraphLinting {
         }
 
         issues.append(contentsOf: dependencyIssues)
-        issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser))
+        if !disableStaticProductsLint {
+            issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser))
+        }
         issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintAppClip(graphTraverser: graphTraverser))
@@ -220,7 +226,7 @@ public class GraphLinter: GraphLinting {
             .map { LintingIssue(reason: "Framework not found at path \($0.pathString)", severity: .error) }
     }
 
-    private func lintWatchBundleIndentifiers(graphTraverser: GraphTraversing) -> [LintingIssue] {
+    private func lintWatchBundleIdentifiers(graphTraverser: GraphTraversing) -> [LintingIssue] {
         let apps = graphTraverser.apps()
 
         let issues = apps.flatMap { app -> [LintingIssue] in
