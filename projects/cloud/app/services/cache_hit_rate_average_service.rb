@@ -34,6 +34,7 @@ class CacheHitRateAverageService < ApplicationService
 
     project.command_events
       .where(created_at: 30.days.ago.., name: name, subcommand: subcommand)
+      .where.not(cacheable_targets: "")
       .group_by_day(:created_at, range: 30.days.ago..Time.now)
       .average("(#{query('local_cache_target_hits')} + #{query('remote_cache_target_hits')}) / #{query('cacheable_targets')}")
       .map { |key, value| CacheHitRateAverage.new(date: key, cache_hit_rate_average: value.nil? ? 0 : value) }
