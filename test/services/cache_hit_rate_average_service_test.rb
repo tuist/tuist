@@ -55,6 +55,13 @@ class CacheHitRateAverageServiceTest < ActiveSupport::TestCase
       remote_cache_target_hits: "C",
       created_at: Time.new(2022, 03, 30)
     )
+    create_command_event(
+      name: "generate",
+      cacheable_targets: "",
+      local_cache_target_hits: "",
+      remote_cache_target_hits: "",
+      created_at: Time.new(2022, 03, 30)
+    )
     create_command_event(name: "fetch", created_at: Time.new(2022, 03, 30))
     create_command_event(name: "generate", created_at: Time.new(2022, 03, 05))
 
@@ -64,9 +71,7 @@ class CacheHitRateAverageServiceTest < ActiveSupport::TestCase
     # Then
     assert_equal (1..31).map { |day| Date.new(2022, 03, day) }, got.map(&:date)
     assert_equal (1..31).map { |day|
-      if day == 05
-        0
-      elsif day == 30
+      if day == 30
         0.5
       else
         0
