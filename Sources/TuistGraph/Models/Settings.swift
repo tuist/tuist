@@ -82,7 +82,6 @@ public struct Settings: Equatable, Codable {
     public let defaultSettings: DefaultSettings
     public let imparted: SettingsDictionary
 
-
     // MARK: - Init
 
     public init(

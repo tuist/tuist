@@ -170,11 +170,10 @@ final class LinkGenerator: LinkGenerating {
             path: path,
             graphTraverser: graphTraverser
         )
-        
+
         try setupImpartedSettings(
             target: target,
             pbxTarget: pbxTarget,
-            sourceRootPath: sourceRootPath,
             path: path,
             graphTraverser: graphTraverser
         )
@@ -359,11 +358,10 @@ final class LinkGenerator: LinkGenerating {
             sourceRootPath: sourceRootPath
         )
     }
-    
+
     func setupImpartedSettings(
         target: Target,
         pbxTarget: PBXTarget,
-        sourceRootPath: AbsolutePath,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
     ) throws {

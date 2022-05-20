@@ -373,7 +373,7 @@ public class GraphTraverser: GraphTraversing {
         }
         return Set(libraryPublicHeaders)
     }
-    
+
     public func impartedSettings(path: AbsolutePath, name: String) -> [SettingsDictionary] {
         let dependencies = graph.dependencies[.target(name: name, path: path), default: []]
         return dependencies

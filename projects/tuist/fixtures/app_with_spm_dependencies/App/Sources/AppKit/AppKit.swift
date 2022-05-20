@@ -40,6 +40,5 @@ public enum AppKit {
 
         // Use Realm to make sure it links fine
         _ = try? Realm()
-
     }
 }

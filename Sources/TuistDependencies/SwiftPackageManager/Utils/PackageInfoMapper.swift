@@ -864,7 +864,8 @@ extension ProjectDescription.Settings {
             settings: baseSettings,
             adding: settingsDictionary,
             packageFolder: packageFolder,
-            imparted: impartedSettings)
+            imparted: impartedSettings
+        )
     }
 
     fileprivate struct PackageTarget: Hashable {
