@@ -1,4 +1,6 @@
 import {
+  CacheHitRateAveragesDocument,
+  CacheHitRateAveragesQuery,
   CommandAveragesDocument,
   CommandAveragesQuery,
   CommandEventFragment,
@@ -75,6 +77,69 @@ describe('DashboardPageStore', () => {
       variables: {
         projectId: 'id',
         commandName: 'fetch',
+      },
+    });
+  });
+
+  it('loads cache hit rate averages for the current command name', async () => {
+    const dashboardPageStore = new DashboardPageStore(client);
+    client.query.mockResolvedValueOnce({
+      data: {
+        cacheHitRateAverages: [
+          {
+            date: new Date(2022, 5, 2).toString(),
+            cacheHitRateAverage: 0.253,
+          },
+          {
+            date: new Date(2022, 5, 3).toString(),
+            cacheHitRateAverage: 0.552,
+          },
+        ],
+      } as CacheHitRateAveragesQuery,
+    });
+    await dashboardPageStore.loadCacheHitRateAverages('id');
+    expect(dashboardPageStore.cacheHitRateAveragesData).toStrictEqual(
+      [
+        { key: new Date(2022, 5, 2).toDateString(), value: 25.3 },
+        { key: new Date(2022, 5, 3).toDateString(), value: 55.2 },
+      ],
+    );
+    expect(client.query).toHaveBeenCalledWith({
+      query: CacheHitRateAveragesDocument,
+      variables: {
+        projectId: 'id',
+        commandName: 'generate',
+      },
+    });
+    client.query.mockReset();
+
+    dashboardPageStore.cacheHitRateCommandName = 'cache warm';
+    client.query.mockResolvedValueOnce({
+      data: {
+        cacheHitRateAverages: [
+          {
+            date: new Date(2022, 5, 1).toString(),
+            cacheHitRateAverage: 1.0,
+          },
+          {
+            date: new Date(2022, 5, 2).toString(),
+            cacheHitRateAverage: 0.4,
+          },
+        ],
+      } as CacheHitRateAveragesQuery,
+    });
+    await dashboardPageStore.loadCacheHitRateAverages('id');
+    expect(dashboardPageStore.cacheHitRateAveragesData).toStrictEqual(
+      [
+        { key: new Date(2022, 5, 1).toDateString(), value: 100 },
+        { key: new Date(2022, 5, 2).toDateString(), value: 40 },
+      ],
+    );
+    expect(client.query).toHaveBeenCalledWith({
+      query: CacheHitRateAveragesDocument,
+      variables: {
+        projectId: 'id',
+        commandName: 'cache warm',
       },
     });
   });
