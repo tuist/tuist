@@ -94,5 +94,21 @@ module Types
         user: context[:current_user]
       )
     end
+
+    field :cache_hit_rate_averages, [CacheHitRateAverageType], null: false,
+      description: "Returns a list of cache hit rate averages, sorted by the date" do
+      argument :command_name, String, required: true
+      argument :project_id, ID, required: true
+    end
+    def cache_hit_rate_averages(command_name:, project_id:)
+      averages = CacheHitRateAverageService.call(
+        project_id: project_id,
+        command_name: command_name,
+        user: context[:current_user]
+      )
+      puts "ola"
+      puts averages.map(&:cache_hit_rate_average)
+      averages
+    end
   end
 end
