@@ -101,14 +101,11 @@ module Types
       argument :project_id, ID, required: true
     end
     def cache_hit_rate_averages(command_name:, project_id:)
-      averages = CacheHitRateAverageService.call(
+      CacheHitRateAverageService.call(
         project_id: project_id,
         command_name: command_name,
         user: context[:current_user]
       )
-      puts "ola"
-      puts averages.map(&:cache_hit_rate_average)
-      averages
     end
   end
 end
