@@ -10,5 +10,8 @@ let workspace = Workspace(
         "Documentation/**",
         .folderReference(path: "Website"),
     ],
-    generationOptions: .options(enableAutomaticXcodeSchemes: false)
+    generationOptions: .options(
+        enableAutomaticXcodeSchemes: false,
+        renderMarkdownReadme: true
+    )
 )

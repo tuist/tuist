@@ -1,8 +1,8 @@
 import Foundation
 
-// MARK: - Scheme
-
-/// A `Scheme` defines a collection of targets to Build, Run, Test, Profile, Analyze and Archive.
+/// A custom scheme for a project.
+///
+/// A scheme defines a collection of targets to Build, Run, Test, Profile, Analyze and Archive.
 public struct Scheme: Equatable, Codable {
     /// The name of the scheme.
     public let name: String

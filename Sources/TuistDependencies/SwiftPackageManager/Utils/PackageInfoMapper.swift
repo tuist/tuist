@@ -58,7 +58,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
         switch self {
         case let .defaultPathNotFound(packageFolder, targetName):
             return """
-            Default source path not found for package at \(packageFolder.pathString). \
+            Default source path not found for target \(targetName) in package at \(packageFolder.pathString). \
             Source path must be one of \(PackageInfoMapper.predefinedSourceDirectories.map { "\($0)/\(targetName)" })
             """
         case let .minDeploymentTargetParsingFailed(platform):
@@ -129,6 +129,7 @@ public protocol PackageInfoMapping {
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
+        targetToModuleMap: [String: ModuleMap],
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project?
@@ -141,6 +142,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let targetToPlatform: [String: ProjectDescription.Platform]
         let targetToProducts: [String: Set<PackageInfo.Product>]
         let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
+        let targetToModuleMap: [String: ModuleMap]
     }
 
     // Predefined source directories, in order of preference.
@@ -257,6 +259,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 )
             }
         }
+
         let minDeploymentTargets = Platform.oldestVersions.reduce(
             into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()
         ) { acc, next in
@@ -272,15 +275,28 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
+        let targetToModuleMap: [String: ModuleMap]
+        targetToModuleMap = try packageInfos.reduce(into: [:]) { result, packageInfo in
+            try packageInfo.value.targets.forEach { target in
+                guard target.type == .regular else { return }
+                result[target.name] = try moduleMapGenerator.generate(
+                    moduleName: target.name,
+                    publicHeadersPath: target.publicHeadersPath(packageFolder: packageToFolder[packageInfo.key]!)
+                )
+            }
+        }
+
         return .init(
             platformToMinDeploymentTarget: minDeploymentTargets,
             productToExternalDependencies: externalDependencies,
             targetToPlatform: targetToPlatforms,
             targetToProducts: targetToProducts,
-            targetToResolvedDependencies: resolvedDependencies
+            targetToResolvedDependencies: resolvedDependencies,
+            targetToModuleMap: targetToModuleMap
         )
     }
 
+    // swiftlint:disable:next function_body_length
     public func map(
         packageInfo: PackageInfo,
         packageInfos: [String: PackageInfo],
@@ -293,6 +309,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
+        targetToModuleMap: [String: ModuleMap],
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project? {
@@ -320,6 +337,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "SnapshotTesting", // https://github.com/pointfreeco/swift-snapshot-testing
                     "TempuraTesting", // https://github.com/BendingSpoons/tempura-swift
                     "TSCTestSupport", // https://github.com/apple/swift-tools-support-core
+                    "ViewInspector", // https://github.com/nalexn/ViewInspector
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }
@@ -345,7 +363,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 platforms: targetToPlatform,
                 minDeploymentTargets: minDeploymentTargets,
                 targetToResolvedDependencies: targetToResolvedDependencies,
-                moduleMapGenerator: moduleMapGenerator
+                targetToModuleMap: targetToModuleMap
             )
         }
 
@@ -356,14 +374,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
         return ProjectDescription.Project(
             name: name,
             options: .options(
-                // Use `.singleScheme` to reduce number of generated schemes
-                automaticSchemesOptions: .enabled(
-                    targetSchemesGrouping: .singleScheme
-                ),
+                automaticSchemesOptions: .disabled, // disable schemes for dependencies
                 disableBundleAccessors: false,
                 disableSynthesizedResourceAccessors: false
             ),
-            settings: packageInfo.projectSettings(swiftToolsVersion: swiftToolsVersion),
+            settings: packageInfo.projectSettings(
+                swiftToolsVersion: swiftToolsVersion,
+                buildConfigs: baseSettings.configurations.map { key, _ in key }
+            ),
             targets: targets,
             resourceSynthesizers: []
         )
@@ -390,7 +408,7 @@ extension ProjectDescription.Target {
         platforms: [String: ProjectDescription.Platform],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
+        targetToModuleMap: [String: ModuleMap]
     ) throws -> Self? {
         guard target.type == .regular else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
@@ -405,7 +423,7 @@ extension ProjectDescription.Target {
 
         let path = try target.basePath(packageFolder: packageFolder)
         let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
-        let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: publicHeadersPath)
+        let moduleMap = targetToModuleMap[target.name]!
 
         let platform = platforms[target.name]!
         let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
@@ -415,8 +433,13 @@ extension ProjectDescription.Target {
             packageName: packageName
         )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
-        let resources = ResourceFileElements.from(resources: target.resources, path: path, excluding: target.exclude)
-        let headers = try Headers.from(moduleMapType: moduleMap.type, publicHeadersPath: publicHeadersPath)
+        let resources = ResourceFileElements.from(
+            sources: target.sources,
+            resources: target.resources,
+            path: path,
+            excluding: target.exclude
+        )
+        let headers = try Headers.from(moduleMap: moduleMap, publicHeadersPath: publicHeadersPath)
 
         let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
 
@@ -435,7 +458,7 @@ extension ProjectDescription.Target {
             targetToResolvedDependencies: targetToResolvedDependencies,
             settings: target.settings,
             platform: platform,
-            moduleMap: moduleMap,
+            targetToModuleMap: targetToModuleMap,
             baseSettings: baseSettings,
             targetSettings: targetSettings
         )
@@ -492,10 +515,14 @@ extension ProjectDescription.DeploymentTarget {
         package: [PackageInfo.Platform],
         packageName _: String
     ) throws -> Self {
-        if let packagePlatform = package.first(where: { $0.platformName == platform.rawValue }) {
+        if let packagePlatform = package.first(where: { $0.tuistPlatformName == platform.rawValue }) {
             switch platform {
             case .iOS:
-                return .iOS(targetVersion: packagePlatform.version, devices: [.iphone, .ipad])
+                let hasMacCatalyst = package.contains(where: { $0.platformName == "maccatalyst" })
+                return .iOS(
+                    targetVersion: packagePlatform.version,
+                    devices: hasMacCatalyst ? [.iphone, .ipad, .mac] : [.iphone, .ipad]
+                )
             case .macOS:
                 return .macOS(targetVersion: packagePlatform.version)
             case .watchOS:
@@ -585,8 +612,17 @@ extension SourceFilesList {
 }
 
 extension ResourceFileElements {
-    fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) -> Self? {
-        let resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
+    fileprivate static func from(
+        sources: [String]?,
+        resources: [PackageInfo.Target.Resource],
+        path: AbsolutePath,
+        excluding: [String]
+    ) -> Self? {
+        var resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
+        if sources == nil {
+            // SPM automatically includes resources only if custom sources are not specified
+            resourcesPaths += defaultResourcePaths(from: path)
+        }
         guard !resourcesPaths.isEmpty else { return nil }
 
         return .init(
@@ -602,6 +638,23 @@ extension ResourceFileElements {
                 )
             }
         )
+    }
+
+    // These files are automatically added as resource if they are inside targets directory.
+    // Check https://developer.apple.com/documentation/swift_packages/bundling_resources_with_a_swift_package
+    private static let defaultSpmResourceFileExtensions = [
+        "xib",
+        "storyboard",
+        "xcdatamodeld",
+        "xcmappingmodel",
+        "xcassets",
+        "lproj",
+    ]
+
+    private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
+        ResourceFileElements.defaultSpmResourceFileExtensions.map { fileExtension -> AbsolutePath in
+            path.appending(components: ["**", "*.\(fileExtension)"])
+        }
     }
 }
 
@@ -645,10 +698,10 @@ extension ProjectDescription.TargetDependency {
 }
 
 extension ProjectDescription.Headers {
-    fileprivate static func from(moduleMapType: ModuleMapType, publicHeadersPath: AbsolutePath) throws -> Self? {
+    fileprivate static func from(moduleMap: ModuleMap, publicHeadersPath: AbsolutePath) throws -> Self? {
         // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
-        switch moduleMapType {
+        switch moduleMap {
         case .header, .nestedHeader:
             let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
                 .filter { $0.extension == "h" }
@@ -671,13 +724,13 @@ extension ProjectDescription.Settings {
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform,
-        moduleMap: (type: ModuleMapType, path: AbsolutePath?),
+        targetToModuleMap: [String: ModuleMap],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary]
     ) throws -> Self? {
         var headerSearchPaths: [String] = []
-        var defines: [String: String] = ["SWIFT_PACKAGE": "1"]
-        var swiftDefines: [String] = ["SWIFT_PACKAGE"]
+        var defines = ["SWIFT_PACKAGE": "1"]
+        var swiftDefines = ["SWIFT_PACKAGE"]
         var cFlags: [String] = []
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
@@ -687,7 +740,8 @@ extension ProjectDescription.Settings {
         let mainPath = try target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
 
-        if moduleMap.type != .none {
+        let moduleMap = targetToModuleMap[target.name]!
+        if moduleMap != .none {
             let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
             let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
             headerSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
@@ -703,10 +757,16 @@ extension ProjectDescription.Settings {
 
         headerSearchPaths += try allDependencies
             .compactMap { dependency in
+                // Add dependencies search paths if they require a modulemap
                 guard let packagePath = packageToProject[dependency.package] else { return nil }
                 let headersPath = try dependency.target.publicHeadersPath(packageFolder: packagePath)
-                guard FileHandler.shared.exists(headersPath) else { return nil }
-                return "$(SRCROOT)/\(headersPath.relative(to: packageFolder))"
+                let moduleMap = targetToModuleMap[dependency.target.name]!
+                switch moduleMap {
+                case .none, .header, .nestedHeader:
+                    return nil
+                case .directory, .custom:
+                    return "$(SRCROOT)/\(headersPath.relative(to: packageFolder))"
+                }
             }
             .sorted()
 
@@ -878,7 +938,7 @@ extension TuistGraph.Platform {
 extension PackageInfo.Platform {
     fileprivate func descriptionPlatform() throws -> ProjectDescription.Platform {
         switch platformName {
-        case "ios":
+        case "ios", "maccatalyst":
             return .iOS
         case "macos":
             return .macOS
@@ -1018,7 +1078,8 @@ extension ProjectDescription.DeploymentDevice {
 
 extension PackageInfo {
     fileprivate func projectSettings(
-        swiftToolsVersion: TSCUtility.Version?
+        swiftToolsVersion: TSCUtility.Version?,
+        buildConfigs: [BuildConfiguration]? = nil
     ) -> ProjectDescription.Settings? {
         var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
 
@@ -1034,7 +1095,21 @@ extension PackageInfo {
             settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
         }
 
-        return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
+        if let buildConfigs = buildConfigs {
+            let configs = buildConfigs
+                .sorted()
+                .map { config -> ProjectDescription.Configuration in
+                    switch config.variant {
+                    case .debug:
+                        return ProjectDescription.Configuration.debug(name: .configuration(config.name))
+                    case .release:
+                        return ProjectDescription.Configuration.release(name: .configuration(config.name))
+                    }
+                }
+            return .settings(base: settingsDictionary, configurations: configs)
+        } else {
+            return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
+        }
     }
 
     private func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {
@@ -1146,5 +1221,12 @@ extension PackageInfoMapper {
                 }
             }
         }
+    }
+}
+
+extension PackageInfo.Platform {
+    var tuistPlatformName: String {
+        // catalyst is mapped to iOS platform in tuist
+        platformName == "maccatalyst" ? "ios" : platformName
     }
 }

@@ -1,3 +1,4 @@
+import AnyCodable
 import Foundation
 @testable import TuistAnalytics
 
@@ -5,7 +6,8 @@ extension CommandEvent {
     static func test(
         name: String = "generate",
         subcommand: String? = nil,
-        params: [String: String] = [:],
+        params: [String: AnyCodable] = [:],
+        commandArguments: [String] = [],
         durationInMs: Int = 20,
         clientId: String = "123",
         tuistVersion: String = "1.2.3",
@@ -17,6 +19,7 @@ extension CommandEvent {
             name: name,
             subcommand: subcommand,
             params: params,
+            commandArguments: commandArguments,
             durationInMs: durationInMs,
             clientId: clientId,
             tuistVersion: tuistVersion,

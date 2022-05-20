@@ -1,0 +1,5 @@
+mutation DeleteProject($input: DeleteProjectInput!) {
+  deleteProject(input: $input) {
+    slug
+  }
+}

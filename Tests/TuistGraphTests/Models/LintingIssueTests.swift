@@ -11,13 +11,13 @@ final class LintingIssueTests: TuistUnitTestCase {
         XCTAssertEqual(subject.description, "whatever")
     }
 
-    func test_printAndThrowIfNeeded() throws {
+    func test_printAndThrowErrorsIfNeeded() throws {
         let first = LintingIssue(reason: "error", severity: .error)
         let second = LintingIssue(reason: "warning", severity: .warning)
 
-        XCTAssertThrowsError(try [first, second].printAndThrowIfNeeded())
+        XCTAssertThrowsError(try [first, second].printAndThrowErrorsIfNeeded())
 
-        XCTAssertPrinterOutputContains(
+        XCTAssertPrinterOutputNotContains(
             """
             warning
             """
@@ -29,14 +29,26 @@ final class LintingIssueTests: TuistUnitTestCase {
         )
     }
 
-    func test_printAndThrowIfNeeded_whenErrorsOnly() throws {
+    func test_printAndThrowErrorsIfNeeded_whenErrorsOnly() throws {
         let first = LintingIssue(reason: "error", severity: .error)
 
-        XCTAssertThrowsError(try [first].printAndThrowIfNeeded())
+        XCTAssertThrowsError(try [first].printAndThrowErrorsIfNeeded())
 
         XCTAssertPrinterErrorContains(
             """
             error
+            """
+        )
+    }
+
+    func test_printWarningsIfNeeded() throws {
+        let first = LintingIssue(reason: "warning", severity: .warning)
+
+        XCTAssertNoThrow(try [first].printWarningsIfNeeded())
+
+        XCTAssertPrinterOutputContains(
+            """
+            warning
             """
         )
     }

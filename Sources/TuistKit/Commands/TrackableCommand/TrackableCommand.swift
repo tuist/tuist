@@ -1,3 +1,4 @@
+import AnyCodable
 import ArgumentParser
 import Foundation
 import TuistAsyncQueue
@@ -7,7 +8,8 @@ import TuistSupport
 public struct TrackableCommandInfo {
     let name: String
     let subcommand: String?
-    let parameters: [String: String]
+    let parameters: [String: AnyCodable]
+    let commandArguments: [String]
     let durationInMs: Int
 }
 
@@ -15,17 +17,20 @@ public struct TrackableCommandInfo {
 public class TrackableCommand: TrackableParametersDelegate {
     private var command: ParsableCommand
     private let clock: Clock
-    private var trackedParameters: [String: String] = [:]
+    private var trackedParameters: [String: AnyCodable] = [:]
+    private let commandArguments: [String]
     private let commandEventFactory: CommandEventFactory
     private let asyncQueue: AsyncQueuing
 
     public init(
         command: ParsableCommand,
+        commandArguments: [String],
         clock: Clock = WallClock(),
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
         asyncQueue: AsyncQueuing = AsyncQueue.sharedInstance
     ) {
         self.command = command
+        self.commandArguments = commandArguments
         self.clock = clock
         self.commandEventFactory = commandEventFactory
         self.asyncQueue = asyncQueue
@@ -49,14 +54,18 @@ public class TrackableCommand: TrackableParametersDelegate {
             name: name,
             subcommand: subcommand,
             parameters: trackedParameters,
+            commandArguments: commandArguments,
             durationInMs: durationInMs
         )
         let commandEvent = commandEventFactory.make(from: info)
         try asyncQueue.dispatch(event: commandEvent)
     }
 
-    func willRun(withParameters parameters: [String: String]) {
-        trackedParameters = parameters
+    func addParameters(_ parameters: [String: AnyCodable]) {
+        trackedParameters.merge(
+            parameters,
+            uniquingKeysWith: { _, newKey in newKey }
+        )
     }
 
     private func extractCommandName(from configuration: CommandConfiguration) -> (name: String, subcommand: String?) {

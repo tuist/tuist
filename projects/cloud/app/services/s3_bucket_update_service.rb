@@ -21,14 +21,15 @@ class S3BucketUpdateService < ApplicationService
     end
   end
 
-  attr_reader :id, :name, :access_key_id, :secret_access_key, :user
+  attr_reader :id, :name, :access_key_id, :secret_access_key, :region, :user
 
-  def initialize(id:, name:, access_key_id:, secret_access_key:, user:)
+  def initialize(id:, name:, access_key_id:, secret_access_key:, region:, user:)
     super()
     @id = id
     @name = name
     @access_key_id = access_key_id
     @secret_access_key = secret_access_key
+    @region = region
     @user = user
   end
 
@@ -51,12 +52,14 @@ class S3BucketUpdateService < ApplicationService
         name: name,
         access_key_id: access_key_id,
         secret_access_key: Base64.encode64(encrypted_secret_access_key),
+        region: region,
         iv: Base64.encode64(iv)
       )
     else
       bucket.update(
         name: name,
-        access_key_id: access_key_id
+        access_key_id: access_key_id,
+        region: region
       )
     end
     bucket

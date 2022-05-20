@@ -12,6 +12,8 @@ import {
   Button,
   Select,
   Stack,
+  FooterHelp,
+  Link,
 } from '@shopify/polaris';
 import RemoteCachePageStore from './RemoteCachePageStore';
 import { observer } from 'mobx-react-lite';
@@ -41,6 +43,15 @@ const RemoteCachePage = observer(() => {
     (newValue) => {
       runInAction(() => {
         remoteCachePageStore.bucketName = newValue;
+      });
+    },
+    [remoteCachePageStore],
+  );
+
+  const handleRegionChange = useCallback(
+    (newValue) => {
+      runInAction(() => {
+        remoteCachePageStore.region = newValue;
       });
     },
     [remoteCachePageStore],
@@ -95,6 +106,12 @@ const RemoteCachePage = observer(() => {
           />
           <TextField
             type="text"
+            label="Region"
+            value={remoteCachePageStore.region}
+            onChange={handleRegionChange}
+          />
+          <TextField
+            type="text"
             label="Access key ID"
             value={remoteCachePageStore.accessKeyId}
             onChange={handleAccessKeyIdChange}
@@ -127,7 +144,30 @@ const RemoteCachePage = observer(() => {
               ? 'Create bucket'
               : 'Edit bucket'}
           </Button>
+          <FooterHelp>
+            Learn more about getting{' '}
+            <Link
+              external={true}
+              url="https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html"
+            >
+              access key to your bucket
+            </Link>
+          </FooterHelp>
         </FormLayout>
+      </Card>
+      <Card title="CI cloud token" sectioned>
+        <Button
+          loading={remoteCachePageStore.isCopyProjectButtonLoading}
+          onClick={() => {
+            remoteCachePageStore.copyProjectToken();
+          }}
+        >
+          Copy CI cloud token
+        </Button>
+        <FooterHelp>
+          Save this token on your CI to the{' '}
+          <b>TUIST_CONFIG_CLOUD_TOKEN</b> variable
+        </FooterHelp>
       </Card>
     </Page>
   );

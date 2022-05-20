@@ -1,0 +1,15 @@
+fragment CommandEventDetail on CommandEvent {
+  id
+  name
+  subcommand
+  commandArguments
+  duration
+  clientId
+  tuistVersion
+  swiftVersion
+  macosVersion
+  createdAt
+  cacheableTargets
+  localCacheTargetHits
+  remoteCacheTargetHits
+}

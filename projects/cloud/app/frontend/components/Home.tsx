@@ -1,9 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import {
-  useMeQuery,
-  useOrganizationQuery,
-  useProjectQuery,
-} from '@/graphql/types';
+import { useMeQuery, useProjectQuery } from '@/graphql/types';
 import {
   useParams,
   useNavigate,
@@ -38,10 +34,12 @@ import {
   HomeMajor,
   PackageMajor,
   PlusMinor,
+  SettingsMajor,
 } from '@shopify/polaris-icons';
 import { HomeStore, HomeStoreContext } from '@/stores/HomeStore';
 import { observer } from 'mobx-react-lite';
 import { useApolloClient } from '@apollo/client';
+import csrfToken from '@/utilities/csrfToken';
 
 const Home = observer(() => {
   const { projectName, accountName } = useParams();
@@ -95,15 +93,24 @@ const Home = observer(() => {
     <Toast onDismiss={toggleToastActive} content="Changes saved" />
   ) : null;
 
-  const goToOrganizations = useCallback(() => {
-    navigate('/organizations');
-  }, []);
+  const signOut = useCallback(() => {
+    setIsLoading(true);
+    fetch('/users/sign_out', {
+      method: 'delete',
+      headers: { 'X-CSRF-Token': csrfToken ?? '' },
+    })
+      .then(() => {
+        window.location.assign('/user/sign_in');
+      })
+      .catch((error) => {
+        setIsLoading(false);
+        throw error;
+      });
+  }, [document, setIsLoading]);
 
   const userMenuActions: { items: IconableAction[] }[] = [
     {
-      items: [
-        { content: 'Organizations', onAction: goToOrganizations },
-      ],
+      items: [{ content: 'Sign out', onAction: signOut }],
     },
   ];
 
@@ -220,6 +227,12 @@ const Home = observer(() => {
       selected: location.pathname.endsWith('organization'),
     });
   }
+  navigationItems.push({
+    label: 'Settings',
+    icon: SettingsMajor,
+    url: 'settings',
+    selected: location.pathname.endsWith('settings'),
+  });
 
   const navigationMarkup = (
     <Navigation location="/">

@@ -36,20 +36,26 @@ public struct LintingIssue: CustomStringConvertible, Equatable {
 // MARK: - Array Extension (Linting issues)
 
 extension Array where Element == LintingIssue {
-    public func printAndThrowIfNeeded() throws {
+    public func printAndThrowErrorsIfNeeded() throws {
         if count == 0 { return }
 
         let errorIssues = filter { $0.severity == .error }
-        let warningIssues = filter { $0.severity == .warning }
-
-        for issue in warningIssues {
-            logger.warning("\(issue.description)")
-        }
 
         for issue in errorIssues {
             logger.error("\(issue.description)")
         }
 
         if !errorIssues.isEmpty { throw LintingError() }
+    }
+
+    public func printWarningsIfNeeded() {
+        if count == 0 { return }
+
+        let warningIssues = filter { $0.severity == .warning }
+        logger.warning("")
+        for issue in warningIssues {
+            logger.warning("Warning: \(issue.description)")
+        }
+        logger.warning("")
     }
 }

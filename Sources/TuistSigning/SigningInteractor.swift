@@ -7,7 +7,7 @@ import TuistSupport
 /// Interacts with signing
 public protocol SigningInteracting {
     /// Install signing for a given graph
-    func install(graphTraverser: GraphTraversing) throws
+    func install(graphTraverser: GraphTraversing) throws -> [LintingIssue]
 }
 
 public final class SigningInteractor: SigningInteracting {
@@ -49,12 +49,12 @@ public final class SigningInteractor: SigningInteracting {
         self.signingCipher = signingCipher
     }
 
-    public func install(graphTraverser: GraphTraversing) throws {
+    public func install(graphTraverser: GraphTraversing) throws -> [LintingIssue] {
         let entryPath = graphTraverser.path
         guard let signingDirectory = try signingFilesLocator.locateSigningDirectory(from: entryPath),
               let derivedDirectory = rootDirectoryLocator.locate(from: entryPath)?
               .appending(component: Constants.DerivedDirectory.name)
-        else { return }
+        else { return [] }
 
         let keychainPath = derivedDirectory.appending(component: Constants.DerivedDirectory.signingKeychain)
 
@@ -71,7 +71,7 @@ public final class SigningInteractor: SigningInteracting {
 
         let (certificates, provisioningProfiles) = try signingMatcher.match(from: graphTraverser.path)
 
-        try graphTraverser.allTargets().sorted().forEach { target in
+        return try graphTraverser.allTargets().sorted().flatMap { target in
             try install(
                 target: target,
                 keychainPath: keychainPath,
@@ -88,7 +88,7 @@ public final class SigningInteractor: SigningInteracting {
         keychainPath: AbsolutePath,
         certificates: [Fingerprint: Certificate],
         provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]
-    ) throws {
+    ) throws -> [LintingIssue] {
         let targetConfigurations = target.target.settings?.configurations ?? [:]
         /// Filtering certificate-provisioning profile pairs, so they are installed only when necessary (they correspond to some configuration and target in the project)
         let signingPairs = Set(
@@ -111,14 +111,27 @@ public final class SigningInteractor: SigningInteracting {
         try signingPairs.map(\.certificate).forEach {
             try signingInstaller.installCertificate($0, keychainPath: keychainPath)
         }
-        try signingPairs.map(\.provisioningProfile)
-            .flatMap(signingInstaller.installProvisioningProfile)
-            .printAndThrowIfNeeded()
-        try signingPairs.map(\.provisioningProfile).flatMap {
-            signingLinter.lint(provisioningProfile: $0, target: target.target)
-        }.printAndThrowIfNeeded()
 
-        try signingPairs.flatMap(signingLinter.lint).printAndThrowIfNeeded()
-        try signingPairs.map(\.certificate).flatMap(signingLinter.lint).printAndThrowIfNeeded()
+        let provisioningProfileInstallLintIssues = try signingPairs.map(\.provisioningProfile)
+            .flatMap(signingInstaller.installProvisioningProfile)
+        try provisioningProfileInstallLintIssues.printAndThrowErrorsIfNeeded()
+
+        let provisioningProfileLintIssues = signingPairs.map(\.provisioningProfile).flatMap {
+            signingLinter.lint(provisioningProfile: $0, target: target.target)
+        }
+        try provisioningProfileLintIssues.printAndThrowErrorsIfNeeded()
+
+        let signingPairLintIssues = signingPairs.flatMap(signingLinter.lint)
+        try signingPairLintIssues.printAndThrowErrorsIfNeeded()
+
+        let certificateLintIssues = signingPairs.map(\.certificate).flatMap(signingLinter.lint)
+        try certificateLintIssues.printAndThrowErrorsIfNeeded()
+
+        return [
+            provisioningProfileInstallLintIssues,
+            provisioningProfileLintIssues,
+            signingPairLintIssues,
+            certificateLintIssues,
+        ].flatMap { $0 }
     }
 }

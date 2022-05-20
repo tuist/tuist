@@ -1,6 +1,6 @@
 import Foundation
 
-/// Represents launch argument that is passed by when running a scheme
+/// A launch argument, passed when running a scheme.
 public struct LaunchArgument: Equatable, Codable {
     // MARK: - Attributes
 

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Template manifest - used with `tuist scaffold`
+/// A scaffold template model.
 public struct Template: Codable, Equatable {
     /// Description of template
     public let description: String

@@ -1,6 +1,8 @@
 import Foundation
 
-/// It represents the scheme action that profiles the built products on the supported platforms. It's initialized with the `.profileAction` static method
+/// An action that profiles the built products.
+///
+/// It's initialized with the `.profileAction` static method
 public struct ProfileAction: Equatable, Codable {
     /// Indicates the build configuration the product should be profiled with.
     public let configuration: ConfigurationName
@@ -31,7 +33,7 @@ public struct ProfileAction: Equatable, Codable {
         self.arguments = arguments
     }
 
-    /// Initializes a profile action.
+    /// Returns a profile action.
     /// - Parameters:
     ///   - configuration: Indicates the build configuration the product should be profiled with.
     ///   - preActions: A list of actions that are executed before starting the profile process.

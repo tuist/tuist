@@ -1,6 +1,7 @@
 import React from 'react';
 import { AppProvider } from '@shopify/polaris';
 import { Link as ReactRouterLink } from 'react-router-dom';
+import { PolarisVizProvider } from '@shopify/polaris-viz';
 
 interface TuistCloudAppProviderProps {
   children: JSX.Element;
@@ -53,7 +54,7 @@ const TuistCloudAppProvider = ({
       }}
       linkComponent={Link}
     >
-      {children}
+      <PolarisVizProvider>{children}</PolarisVizProvider>
     </AppProvider>
   );
 };
@@ -61,10 +62,12 @@ const TuistCloudAppProvider = ({
 export default TuistCloudAppProvider;
 
 /// Inspired by: https://github.com/Shopify/polaris-react/issues/2575#issuecomment-574269370
-const Link = ({ url, children, className, ...rest }) => {
-  return (
-    <ReactRouterLink to={url} {...{ className }} {...rest}>
-      {children}
-    </ReactRouterLink>
-  );
+const Link = (props) => {
+  const { url, external, ...rest } = props;
+  if (external) {
+    const target = external ? '_blank' : undefined;
+    const rel = external ? 'noopener noreferrer' : undefined;
+    return <a target={target} href={url} rel={rel} {...rest} />;
+  }
+  return <ReactRouterLink to={url} {...rest} />;
 };

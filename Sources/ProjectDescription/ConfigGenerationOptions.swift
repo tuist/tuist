@@ -1,5 +1,5 @@
 extension Config {
-    /// Contains options related to the project generation.
+    /// Options for project generation.
     public struct GenerationOptions: Codable, Equatable {
         /// When passed, Xcode will resolve its Package Manager dependencies using the system-defined
         /// accounts (for example, git) instead of the Xcode-defined accounts

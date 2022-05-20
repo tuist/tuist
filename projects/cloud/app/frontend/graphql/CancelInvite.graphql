@@ -1,0 +1,5 @@
+mutation CancelInvite($input: CancelInviteInput!) {
+  cancelInvite(input: $input) {
+    id
+  }
+}

@@ -1,6 +1,8 @@
 import Foundation
 
-/// A path represents a path to a file, directory, or a group of files represented by a glob expression. Paths can be relative and absolute. We discourage using absolute paths because they create a dependency with the environment where they are defined.
+/// A path represents to a file, directory, or a group of files represented by a glob expression.
+///
+/// Paths can be relative and absolute. We discourage using absolute paths because they create a dependency with the environment where they are defined.
 public struct Path: ExpressibleByStringInterpolation, Codable, Hashable {
     public enum PathType: String, Codable {
         case relativeToCurrentFile

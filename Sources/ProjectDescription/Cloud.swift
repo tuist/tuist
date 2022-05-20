@@ -1,10 +1,13 @@
 import Foundation
 
-/// Cloud represents the configuration to connect to the server.
+/// A cloud configuration, used for remote caching.
 public struct Cloud: Codable, Equatable {
-    /// Cloud option.
+    /// Options for cloud configuration.
     public enum Option: String, Codable, Equatable {
         case analytics
+        /// Marks whether cloud connection is optional.
+        /// If not present, tuist commands will fail regardless of whether an authentication token is available locally from `tuist cloud auth` or not.
+        case optional
     }
 
     /// The base URL that points to the Cloud server
@@ -13,10 +16,10 @@ public struct Cloud: Codable, Equatable {
     /// The project unique identifier.
     public let projectId: String
 
-    /// Cloud options.
+    /// The configuration options.
     public let options: [Option]
 
-    /// Initializes a new Cloud configuration instance.
+    /// Returns a generic cloud configuration.
     /// - Parameters:
     ///   - projectId: Project unique identifier.
     ///   - url: Base URL to the Cloud server.

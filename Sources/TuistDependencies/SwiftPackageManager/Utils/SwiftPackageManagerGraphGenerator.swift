@@ -144,6 +144,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 targetToPlatform: preprocessInfo.targetToPlatform,
                 targetToProducts: preprocessInfo.targetToProducts,
                 targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
+                targetToModuleMap: preprocessInfo.targetToModuleMap,
                 packageToProject: packageToProject,
                 swiftToolsVersion: swiftToolsVersion
             )

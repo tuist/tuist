@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Platform
 
-/// The platform type represents the platform a target is built for. It can be any of the following types.
+/// A supported platform representation.
 public enum Platform: String, Codable, Equatable, CaseIterable {
     /// The iOS platform
     case iOS = "ios"

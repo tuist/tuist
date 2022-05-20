@@ -1,6 +1,5 @@
 <div align="center">
 <img src="assets/header.gif"/>
-  <a href="#contributors-"><img src="https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square" alt="All contributors"></a>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
   <img src="https://img.shields.io/github/v/release/tuist/tuist?include_prereleases&style=flat-square" alt="Latest Version">
   <a href="http://community.tuist.io"><img src="https://img.shields.io/badge/community-tuist-blue?style=flat-square" alt="Community"></a>
@@ -11,10 +10,9 @@
   <img src="https://img.shields.io/github/commits-since/tuist/tuist/latest?style=flat-square" alt="Latest Commits">
   <a href="http://twitter.com/tuistio"><img src="https://img.shields.io/twitter/follow/tuistio?style=flat-square" alt="Twitter Followers"></a>
   <img src="https://img.shields.io/opencollective/sponsors/tuistapp?style=flat-square" alt="Sponsors">
-  <img src="https://img.shields.io/opencollective/all/tuistapp?style=flat-square" alt="Backers and sponsors">
+  <img src="https://img.shields.io/opencollective/backers/tuistapp?style=flat-square" alt="Backers">
   <img src="https://img.shields.io/github/license/tuist/tuist?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/Powered%20by-Tuist-blue" alt="Powered by Tuist">
-  <a href="#contributors-"><img src="https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square" alt="Contributors"></a>
 </div>
 
 ## What's Tuist 🕺
@@ -57,7 +55,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
 
 ## Companies using Tuist
 
-<div align="center">
+<div align="center" style="background-color: white">
   <a href="https://play.tv2.no/" target="_blank">
     <img src="assets/companies/TV2_Logo.svg" style="width: 20px" hspace="8"/>
   </a>
@@ -65,7 +63,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <img src="assets/companies/Depop Logo.svg" style="width: 100px;" hspace="8"/>
   </a>
   <a href="https://bendingspoons.com/" target="_blank">
-    <img src="assets/companies/Bending Spoons - Logo, black.svg" style="width: 50px;" hspace="8"/>
+    <img src="assets/companies/Bending Spoons - Logo, black.svg" style="width: 60px;" hspace="8"/>
   </a>
   <a href="https://globekeeper.com/" target="_blank">
     <img src="assets/companies/globekeeper.png" style="width: 130px;" hspace="8"/>
@@ -85,14 +83,23 @@ The financial sustainability of the project is possible thanks to the ongoing co
   <a href="https://angrynerds.co" target="_blank">
     <img src="assets/companies/angry_nerds_logo_black.svg" style="width: 110px;" hspace="8"/>
   </a>
-  <a href="https://www.compass.com/" target="_blank">
+  <a href="https://www.compass.com" target="_blank">
     <img src="assets/companies/Compass Black Logo.png" style="width: 110px;" hspace="8"/>
   </a>
   <a href="https://www.wefox.com" target="_blank">
     <img src="assets/companies/Wefox_2021.png" style="width: 110px;" hspace="8"/>
   </a>
-  <a href="https://www.hedvig.com/" target="_blank">
+  <a href="https://www.hedvig.com" target="_blank">
     <img src="assets/companies/Hedvig.svg" style="width: 110px;" hspace="8"/>
+  </a>
+  <a href="https://www.takeoutcentral.com" target="_blank">
+    <img src="assets/companies/takeout_central.svg" style="width: 110px;" hspace="8"/>
+  </a>
+  <a href="https://www.olx.com.br" target="_blank">
+    <img src="assets/companies/olx.svg" style="width: 60px;" hspace="8"/>
+  </a>
+  <a href="https://www.justeattakeaway.com/" target="_blank">
+    <img src="assets/companies/justeattakeaway.svg" style="width: 110px;" hspace="8"/>
   </a>
 </div>
 
@@ -253,6 +260,20 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/paulsamuels"><img src="https://avatars.githubusercontent.com/u/527091?v=4" width="100px;" alt=""/><br /><sub><b>paul.s</b></sub></a></td>
+    <td align="center"><a href="https://github.com/aniltaskiran"><img src="https://avatars.githubusercontent.com/u/16738729?v=4" width="100px;" alt=""/><br /><sub><b>aniltaskiran</b></sub></a></td>
+    <td align="center"><a href="https://github.com/unxavi"><img src="https://avatars.githubusercontent.com/u/3817679?v=4" width="100px;" alt=""/><br /><sub><b>Javier Vieira</b></sub></a></td>
+    <td align="center"><a href="https://github.com/a-sarris"><img src="https://avatars.githubusercontent.com/u/78614622?v=4" width="100px;" alt=""/><br /><sub><b>Aris Sarris</b></sub></a></td>
+    <td align="center"><a href="https://xxw9999.notion.site/xxw9999/iOS-8585a34b2886419586960c5c02b9d845"><img src="https://avatars.githubusercontent.com/u/67373938?v=4" width="100px;" alt=""/><br /><sub><b>kimxwan0319</b></sub></a></td>
+    <td align="center"><a href="https://florian.codes"><img src="https://avatars.githubusercontent.com/u/7734806?v=4" width="100px;" alt=""/><br /><sub><b>Florian Fittschen</b></sub></a></td>
+    <td align="center"><a href="https://github.com/jesus-mg-ios"><img src="https://avatars.githubusercontent.com/u/85997060?v=4" width="100px;" alt=""/><br /><sub><b>Jesus (iOS)</b></sub></a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/nicholaskim94"><img src="https://avatars.githubusercontent.com/u/7912759?v=4" width="100px;" alt=""/><br /><sub><b>Nicholas Kim</b></sub></a></td>
+    <td align="center"><a href="https://github.com/Smponias"><img src="https://avatars.githubusercontent.com/u/14213855?v=4" width="100px;" alt=""/><br /><sub><b>Alexandros Smponias</b></sub></a></td>
+    <td align="center"><a href="https://github.com/mangofever"><img src="https://avatars.githubusercontent.com/u/724343?v=4" width="100px;" alt=""/><br /><sub><b>Go</b></sub></a></td>
+    <td align="center"><a href="https://github.com/AlbGarciam"><img src="https://avatars.githubusercontent.com/u/45308839?v=4" width="100px;" alt=""/><br /><sub><b>Alberto Garcia</b></sub></a></td>
+    <td align="center"><a href="https://www.linkedin.com/in/andreascuderi/"><img src="https://avatars.githubusercontent.com/u/8319309?v=4" width="100px;" alt=""/><br /><sub><b>Andrea Scuderi</b></sub></a></td>
+    <td align="center"><a href="http://dogoautilio.wordpress.com/"><img src="https://avatars.githubusercontent.com/u/1487375?v=4" width="100px;" alt=""/><br /><sub><b>Diogo Autilio</b></sub></a></td>
   </tr>
 </table>
 

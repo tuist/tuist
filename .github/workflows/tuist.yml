@@ -12,6 +12,7 @@ on:
       - Package.swift
       - Project.swift
       - Sources/**
+      - Templates/**
       - Tests/**
       - projects/tuist/features/**
       - projects/tuist/fixtures/**

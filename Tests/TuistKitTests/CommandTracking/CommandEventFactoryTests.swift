@@ -31,12 +31,14 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             name: "cache",
             subcommand: "warm",
             parameters: ["foo": "bar"],
+            commandArguments: ["cache", "warm"],
             durationInMs: 5000
         )
         let expectedEvent = CommandEvent(
             name: "cache",
             subcommand: "warm",
             params: ["foo": "bar"],
+            commandArguments: ["cache", "warm"],
             durationInMs: 5000,
             clientId: "123",
             tuistVersion: Constants.version,

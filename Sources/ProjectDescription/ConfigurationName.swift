@@ -1,8 +1,10 @@
 import Foundation
 
-/// `ConfigurationName` is a wrapper around `String` to type the project or workspace configurations.
+/// A configuration name.
 ///
-/// The type provides the `.debug` and .release static variables for the `Debug` and `Release` configuration respectively, and we recommend adding new configurations using a extension:
+/// It has build-in support for ``debug`` and ``release`` configurations.
+///
+/// You can extend with your own configurations using a extension:
 /// ```
 /// import ProjectDescription
 /// extension ConfigurationName {
@@ -12,36 +14,32 @@ import Foundation
 /// }
 /// ```
 public struct ConfigurationName: ExpressibleByStringLiteral, Codable, Equatable {
-    /// Configuration name.
+    /// The configuration name.
     public let rawValue: String
 
     internal init(_ rawValue: String) {
         self.rawValue = rawValue
     }
 
-    /// Initializes a configuration name with its name.
+    /// Creates a configuration name with its name.
     /// - Parameter value: Configuration name.
     public init(stringLiteral value: StringLiteralType) {
         self.init(value)
     }
 
-    /// Initializes a configuration name with its name.
+    /// Returns a configuration name with its name.
     /// - Parameter name: Configuration name.
     /// - Returns: Initialized configuration name.
     public static func configuration(_ name: String) -> ConfigurationName {
         self.init(name)
     }
-}
 
-// Defaults provided by Tuist
-
-extension ConfigurationName {
     /// Returns a configuration named "Debug"
     public static var debug: ConfigurationName {
         ConfigurationName("Debug")
     }
 
-    // Returns a configuration named "Release"
+    /// Returns a configuration named "Release"
     public static var release: ConfigurationName {
         ConfigurationName("Release")
     }

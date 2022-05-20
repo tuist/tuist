@@ -117,6 +117,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             name: "event",
             subcommand: nil,
             params: [:],
+            commandArguments: ["event"],
             durationInMs: 100,
             clientId: "client",
             tuistVersion: "2.0.0",

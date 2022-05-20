@@ -68,7 +68,11 @@ public final class CacheRemoteStorage: CacheStoring {
             let successRange = 200 ..< 300
             let resource = try cloudCacheResourceFactory.existsResource(name: name, hash: hash)
             let (_, response) = try await cloudClient.request(resource)
-            return successRange.contains(response.statusCode)
+            let exists = successRange.contains(response.statusCode)
+            if exists {
+                CacheAnalytics.remoteCacheTargetsHits.insert(name)
+            }
+            return exists
         } catch {
             if case let HTTPRequestDispatcherError.serverSideError(_, response) = error, response.statusCode == 404 {
                 return false

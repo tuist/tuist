@@ -42,11 +42,6 @@ module Fourier
               )
 
               FileUtils.cp_r(
-                File.expand_path("projects/cocoapods-interactor", Constants::ROOT_DIRECTORY),
-                File.expand_path("cocoapods-interactor", build_directory)
-              )
-              FileUtils.rm_r(File.expand_path("cocoapods-interactor/test", build_directory))
-              FileUtils.cp_r(
                 File.expand_path("projects/tuist/vendor", Constants::ROOT_DIRECTORY),
                 File.expand_path("vendor", build_directory)
               )
@@ -72,7 +67,6 @@ module Fourier
                   "ProjectDescription.framework.dSYM",
                   "Templates",
                   "vendor",
-                  "cocoapods-interactor"
                 )
               end
             end

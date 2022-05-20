@@ -5,24 +5,20 @@ import TuistCore
 public final class Cache: CacheStoring {
     // MARK: - Attributes
 
-    private let storageProvider: CacheStorageProviding
-
-    /// An instance that returns the storages to be used.
-    private var storages: [CacheStoring] {
-        (try? storageProvider.storages()) ?? []
-    }
+    private let storages: [CacheStoring]
 
     // MARK: - Init
 
     /// Initializes the cache with its attributes.
-    /// - Parameter storageProvider: An instance that returns the storages to be used.
-    public init(storageProvider: CacheStorageProviding) {
-        self.storageProvider = storageProvider
+    /// - Parameter storages: List of storages for retrieving and saving items.
+    public init(storages: [CacheStoring]) {
+        self.storages = storages
     }
 
     // MARK: - CacheStoring
 
     public func exists(name: String, hash: String) async throws -> Bool {
+        CacheAnalytics.cacheableTargets.append(name)
         for storage in storages {
             if try await storage.exists(name: name, hash: hash) {
                 return true

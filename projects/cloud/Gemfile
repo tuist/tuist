@@ -23,7 +23,7 @@ gem "google-cloud-storage", "~> 1.34"
 gem "faker", "~> 2.19"
 
 # GraphQL
-gem "graphql", "~> 1.12"
+gem "graphql", "~> 2.0.5"
 gem "graphiql-rails", group: :development
 gem "graphql-schema_comparator", "~> 1.0"
 
@@ -67,3 +67,5 @@ gem "aws-sdk-s3", "~> 1.112"
 gem "react-rails", "~> 2.6"
 
 gem "webpacker", "~> 5.4"
+
+gem "groupdate", "~> 6.1"

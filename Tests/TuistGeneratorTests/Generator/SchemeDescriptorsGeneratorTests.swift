@@ -406,6 +406,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.buildConfiguration, "Debug")
         XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
         XCTAssertNil(result.macroExpansion)
         let testable = try XCTUnwrap(result.testables.first)
@@ -460,6 +461,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.buildConfiguration, "Debug")
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
         let testable = try XCTUnwrap(result.testables.first)
         let buildableReference = testable.buildableReference
@@ -520,8 +523,9 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         let codeCoverageTargetsBuildableReference = try XCTUnwrap(result.codeCoverageTargets)
-
         XCTAssertEqual(result.onlyGenerateCoverageForSpecifiedTargets, true)
         XCTAssertEqual(codeCoverageTargetsBuildableReference.count, 1)
         XCTAssertEqual(codeCoverageTargetsBuildableReference.first?.buildableName, "App.app")
@@ -548,6 +552,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // When
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.buildConfiguration, "Debug")
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, false)
         XCTAssertNil(result.macroExpansion)
         XCTAssertEqual(result.testables.count, 0)
@@ -575,6 +581,36 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // When
         let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
+        XCTAssertEqual(result.testPlans?.count, 1)
+        XCTAssertEqual(result.testPlans?.first?.reference, "container:folder/Plan.xctestplan")
+    }
+
+    func test_schemeTestAction_when_usingTestPlans_with_disabled_attachDebugger() throws {
+        // Given
+        let project = Project.test()
+        let planPath = AbsolutePath(project.path, "folder/Plan.xctestplan")
+        let planList = [TestPlan(path: planPath, isDefault: true)]
+        let scheme = Scheme.test(testAction: TestAction.test(attachDebugger: false, testPlans: planList))
+        let generatedProject = GeneratedProject.test()
+        let graph = Graph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // Then
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: project.path,
+            generatedProjects: [project.path: generatedProject]
+        )
+
+        // When
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
         XCTAssertEqual(result.testPlans?.count, 1)
         XCTAssertEqual(result.testPlans?.first?.reference, "container:folder/Plan.xctestplan")
     }
@@ -619,8 +655,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             generatedProjects: createGeneratedProjects(projects: [project])
         )
 
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
+
         // Then
-        let testableTargetReference = got!.testables[0]
+        let testableTargetReference = result.testables[0]
         XCTAssertEqual(testableTargetReference.skipped, false)
         XCTAssertEqual(testableTargetReference.parallelizable, true)
         XCTAssertEqual(testableTargetReference.randomExecutionOrdering, true)
@@ -667,6 +707,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.selectedDebuggerIdentifier, "")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
     }
 
     func test_schemeBuildAction() throws {
@@ -709,6 +750,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         XCTAssertEqual(result.buildConfiguration, "Debug")
         XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
         XCTAssertNil(result.macroExpansion)
@@ -776,6 +819,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.language, "es")
         XCTAssertEqual(result.region, "ES")
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
 
         XCTAssertEqual(result.preActions.first?.title, "Pre Action")
         XCTAssertEqual(result.preActions.first?.scriptText, "echo Pre Actions")
@@ -853,7 +898,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let result = try XCTUnwrap(got)
-
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         XCTAssertNil(result.macroExpansion)
 
         let buildableReference = try XCTUnwrap(result.runnable?.buildableReference)
@@ -928,6 +974,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
 
         XCTAssertEqual(result.commandlineArguments, XCScheme.CommandLineArguments(arguments: [
             XCScheme.CommandLineArguments.CommandLineArgument(name: "arg4", enabled: true),
@@ -972,6 +1020,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         XCTAssertNil(result.runnable?.buildableReference)
         XCTAssertEqual(result.buildConfiguration, "Debug")
         XCTAssertEqual(result.pathRunnable?.filePath, "/usr/bin/foo")
@@ -1016,6 +1066,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         XCTAssertNil(result.runnable?.buildableReference)
 
         XCTAssertEqual(result.buildConfiguration, "Debug")
@@ -1074,6 +1126,9 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             rootPath: projectPath,
             generatedProjects: createGeneratedProjects(projects: [project])
         )
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
 
         // Then
         XCTAssertEqual(got?.preActions.first?.title, "Pre Action")
@@ -1119,6 +1174,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.selectedDebuggerIdentifier, "")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
     }
 
     func test_schemeLaunchAction_without_explicit_runAction() throws {
@@ -1153,6 +1209,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
     }
 
     func test_schemeLaunchAction_for_app_extension() throws {

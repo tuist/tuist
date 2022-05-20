@@ -1,3 +1,4 @@
+import AnyCodable
 import ArgumentParser
 import Foundation
 import TSCBasic
@@ -73,7 +74,11 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
     }
 
     func run() throws {
-        InitCommand.analyticsDelegate?.willRun(withParameters: ["platform": platform ?? "unknown"])
+        InitCommand.analyticsDelegate?.addParameters(
+            [
+                "platform": AnyCodable(platform ?? "unknown"),
+            ]
+        )
         try InitService().run(
             name: name,
             platform: platform,

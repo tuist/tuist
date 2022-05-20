@@ -4,12 +4,10 @@ import { baseURL } from '@/shared/constants';
 import { ApolloLink } from 'apollo-link';
 import { createHttpLink } from 'apollo-link-http';
 import logoutLink from './logoutLink';
+import csrfToken from '@/utilities/csrfToken';
 
 const httpLink = createHttpLink({ uri: '/graphql' });
 const middlewareLink = new ApolloLink((operation, forward) => {
-  const csrfToken = document
-    ?.querySelector('meta[name=csrf-token]')
-    ?.getAttribute('content');
   operation.setContext({
     credentials: 'same-origin',
     headers: { 'X-CSRF-Token': csrfToken },

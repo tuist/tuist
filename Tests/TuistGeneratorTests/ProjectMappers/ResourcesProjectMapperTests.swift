@@ -247,4 +247,30 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotProject.targets, [target])
         XCTAssertEmpty(gotSideEffects)
     }
+
+    func test_map_when_a_target_that_has_name_with_hyphen() throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(name: "test-tuist", product: .staticLibrary, resources: resources)
+        project = Project.test(targets: [target])
+
+        // Got
+        let (_, gotSideEffects) = try subject.map(project: project)
+
+        // Then: Side effects
+        XCTAssertEqual(gotSideEffects.count, 1)
+        let sideEffect = try XCTUnwrap(gotSideEffects.first)
+        guard case let SideEffectDescriptor.file(file) = sideEffect else {
+            XCTFail("Expected file descriptor")
+            return
+        }
+        let expectedPath = project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: Constants.DerivedDirectory.sources)
+            .appending(component: "Bundle+\(target.name).swift")
+        let expectedContents = ResourcesProjectMapper
+            .fileContent(targetName: target.name, bundleName: "test_tuistResources", target: target)
+        XCTAssertEqual(file.path, expectedPath)
+        XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
+    }
 }

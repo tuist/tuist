@@ -98,6 +98,10 @@ final class SettingsTests: XCTestCase {
             .otherSwiftFlags("first", "second", "third")
             .bitcodeEnabled(true)
             .debugInformationFormat(.dwarf)
+            .swiftActiveCompilationConditions("FIRST", "SECOND", "THIRD")
+            .swiftObjcBridingHeaderPath("/my/briding/header/path.h")
+            .otherCFlags(["$(inherited)", "-my-c-flag"])
+            .otherLinkerFlags(["$(inherited)", "-my-linker-flag"])
 
         /// Then
         XCTAssertEqual(settings, [
@@ -114,6 +118,10 @@ final class SettingsTests: XCTestCase {
             "OTHER_SWIFT_FLAGS": "first second third",
             "ENABLE_BITCODE": "YES",
             "DEBUG_INFORMATION_FORMAT": "dwarf",
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "FIRST SECOND THIRD",
+            "SWIFT_OBJC_BRIDGING_HEADER": "/my/briding/header/path.h",
+            "OTHER_CFLAGS": ["$(inherited)", "-my-c-flag"],
+            "OTHER_LDFLAGS": ["$(inherited)", "-my-linker-flag"],
         ])
     }
 
@@ -127,6 +135,17 @@ final class SettingsTests: XCTestCase {
             "CODE_SIGN_STYLE": "Manual",
             "CODE_SIGN_IDENTITY": "Apple Distribution",
             "PROVISIONING_PROFILE_SPECIFIER": "ABC",
+        ])
+    }
+
+    func test_settingsDictionary_swiftActiveCompilationConditions() {
+        /// Given/When
+        let settings = SettingsDictionary()
+            .swiftActiveCompilationConditions("FIRST", "SECOND", "THIRD")
+
+        /// Then
+        XCTAssertEqual(settings, [
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "FIRST SECOND THIRD",
         ])
     }
 
@@ -176,6 +195,39 @@ final class SettingsTests: XCTestCase {
         /// Then
         XCTAssertEqual(settings3, [
             "SWIFT_OPTIMIZATION_LEVEL": "-Osize",
+        ])
+    }
+
+    func test_settingsDictionary_swiftObjcBridingHeaderPath() {
+        /// Given/When
+        let settings = SettingsDictionary()
+            .swiftObjcBridingHeaderPath("/my/briding/header/path.h")
+
+        /// Then
+        XCTAssertEqual(settings, [
+            "SWIFT_OBJC_BRIDGING_HEADER": "/my/briding/header/path.h",
+        ])
+    }
+
+    func test_settingsDictionary_otherCFlags() {
+        /// Given/When
+        let settings = SettingsDictionary()
+            .otherCFlags(["$(inherited)", "-my-c-flag"])
+
+        /// Then
+        XCTAssertEqual(settings, [
+            "OTHER_CFLAGS": ["$(inherited)", "-my-c-flag"],
+        ])
+    }
+
+    func test_settingsDictionary_otherLinkerFlags() {
+        /// Given/When
+        let settings = SettingsDictionary()
+            .otherLinkerFlags(["$(inherited)", "-my-linker-flag"])
+
+        /// Then
+        XCTAssertEqual(settings, [
+            "OTHER_LDFLAGS": ["$(inherited)", "-my-linker-flag"],
         ])
     }
 

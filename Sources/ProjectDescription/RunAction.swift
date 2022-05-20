@@ -1,6 +1,8 @@
 import Foundation
 
-/// It represents the scheme action that runs the built products on the supported platforms. It's initialized with the .runAction static method.
+/// An action that runs the built products.
+///
+/// It's initialized with the .runAction static method.
 public struct RunAction: Equatable, Codable {
     /// Indicates the build configuration the product should run with.
     public let configuration: ConfigurationName
@@ -46,7 +48,7 @@ public struct RunAction: Equatable, Codable {
         self.diagnosticsOptions = diagnosticsOptions
     }
 
-    /// Initializes a new instance of a run action.
+    /// Returns a run action.
     /// - Parameters:
     ///   - configuration: Indicates the build configuration the product should run with.
     ///   - attachDebugger: Whether a debugger should be attached to the run process or not.

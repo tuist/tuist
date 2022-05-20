@@ -7,5 +7,6 @@ module Types
     field :users, [UserType], null: false
     field :admins, [UserType], null: false
     field :name, String, null: false
+    field :invitations, [InvitationType], null: false
   end
 end

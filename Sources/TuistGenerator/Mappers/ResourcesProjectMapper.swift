@@ -76,7 +76,7 @@ public class ResourcesProjectMapper: ProjectMapping {
 
         let content: String = ResourcesProjectMapper.fileContent(
             targetName: target.name,
-            bundleName: bundleName,
+            bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
             target: target
         )
         return (filePath, content.data(using: .utf8))
@@ -96,7 +96,8 @@ public class ResourcesProjectMapper: ProjectMapping {
             private class BundleFinder {}
 
             extension Foundation.Bundle {
-                /// Since \(targetName) is a \(target.product), the bundle for classes within this module can be used directly.
+                /// Since \(targetName) is a \(target
+                .product), the bundle containing the resources is copied into the final product.
                 static var module: Bundle = {
                     let bundleName = "\(bundleName)"
 
@@ -141,7 +142,7 @@ public class ResourcesProjectMapper: ProjectMapping {
 
             extension Foundation.Bundle {
                 /// Since \(targetName) is a \(target
-                .product), the bundle containing the resources is copied into the final product.
+                .product), the bundle for classes within this module can be used directly.
                 static var module: Bundle = {
                     return Bundle(for: BundleFinder.self)
                 }()

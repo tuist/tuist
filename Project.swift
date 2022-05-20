@@ -1,7 +1,7 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-let baseSettings: SettingsDictionary = ["EXCLUDED_ARCHS": "arm64"]
+let baseSettings: SettingsDictionary = [:]
 
 func debugSettings() -> SettingsDictionary {
     var settings = baseSettings
@@ -61,9 +61,9 @@ func targets() -> [Target] {
                     .external(name: "Stencil"),
                     .external(name: "StencilSwiftKit"),
                     .external(name: "Swifter"),
-                    .external(name: "SwiftToolsSupport-auto"),
+                    .external(name: "SwiftToolsSupport"),
                     .external(name: "XcodeProj"),
-                    .external(name: "Zip"),
+                    .external(name: "ZIPFoundation"),
                     .target(name: "ProjectDescription"),
                 ],
                 testingDependencies: [
@@ -350,7 +350,7 @@ func targets() -> [Target] {
                 hasTests: false,
                 hasTesting: false,
                 dependencies: [
-                    .external(name: "SwiftToolsSupport-auto"),
+                    .external(name: "SwiftToolsSupport"),
                 ]
             ),
             Target.module(
@@ -379,6 +379,7 @@ func targets() -> [Target] {
                     .target(name: "TuistCore"),
                     .target(name: "TuistGraph"),
                     .target(name: "TuistLoader"),
+                    .external(name: "AnyCodable"),
                 ],
                 testDependencies: [
                     .target(name: "TuistSupportTesting"),

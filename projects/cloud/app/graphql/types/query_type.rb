@@ -39,7 +39,7 @@ module Types
       argument :account_name, String, required: true
     end
     def project(name:, account_name:)
-      ProjectFetchService.call(name: name, account_name: account_name, user: context[:current_user])
+      ProjectFetchService.new.fetch_by_name(name: name, account_name: account_name, user: context[:current_user])
     end
 
     field :organization, OrganizationType, null: true,
@@ -64,6 +64,35 @@ module Types
     end
     def s3_buckets(account_name:)
       S3BucketsFetchService.call(account_name: account_name, user: context[:current_user])
+    end
+
+    field :command_events, CommandEventType.connection_type, null: false,
+      description: "Returns all command events for a given project" do
+      argument :project_id, ID, required: true
+    end
+    def command_events(project_id:)
+      CommandEventsFetchService.call(project_id: project_id, user: context[:current_user])
+    end
+
+    field :command_event, CommandEventType, null: false,
+      description: "Returns a command event with a given id" do
+      argument :command_event_id, ID, required: true
+    end
+    def command_event(command_event_id:)
+      CommandEventFetchService.call(command_event_id: command_event_id, user: context[:current_user])
+    end
+
+    field :command_averages, [CommandAverageType], null: false,
+      description: "Returns a list of averages, sorted by the date" do
+      argument :command_name, String, required: true
+      argument :project_id, ID, required: true
+    end
+    def command_averages(command_name:, project_id:)
+      CommandAverageService.call(
+        project_id: project_id,
+        command_name: command_name,
+        user: context[:current_user]
+      )
     end
   end
 end

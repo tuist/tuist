@@ -372,6 +372,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
+            LintableTarget(platform: .iOS, product: .staticFramework),
         ],
         //        LintableTarget(platform: .iOS, product: .messagesApplication): [
 //            LintableTarget(platform: .iOS, product: .messagesExtension),
@@ -464,11 +465,13 @@ public class GraphLinter: GraphLinting {
         LintableTarget(platform: .tvOS, product: .staticLibrary): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),
             LintableTarget(platform: .tvOS, product: .staticFramework),
+            LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .tvOS, product: .bundle),
         ],
         LintableTarget(platform: .tvOS, product: .staticFramework): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),
             LintableTarget(platform: .tvOS, product: .staticFramework),
+            LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .tvOS, product: .bundle),
         ],
         LintableTarget(platform: .tvOS, product: .dynamicLibrary): [
@@ -530,6 +533,12 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .watchOS, product: .framework),
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .watch2Extension),
+        ],
+        LintableTarget(platform: .watchOS, product: .uiTests): [
+            LintableTarget(platform: .watchOS, product: .staticLibrary),
+            LintableTarget(platform: .watchOS, product: .framework),
+            LintableTarget(platform: .watchOS, product: .staticFramework),
+            LintableTarget(platform: .watchOS, product: .watch2App),
         ],
         //        LintableTarget(platform: .watchOS, product: .watchExtension): [
 //            LintableTarget(platform: .watchOS, product: .staticLibrary),

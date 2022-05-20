@@ -4,10 +4,13 @@ import ComposableArchitecture
 import FBSDKCoreKit
 import FirebaseAnalytics
 import FirebaseCore
+import FirebaseCrashlytics
 import FirebaseDatabase
 import FirebaseFirestore
-import UIKit
+import IterableSDK
 import RealmSwift
+import TYStatusBarView
+import UIKit
 
 public enum AppKit {
     public static func start() {
@@ -18,7 +21,7 @@ public enum AppKit {
         _ = BarChartView()
 
         // Use Facebook to make sure it links fine
-        Settings.setAdvertiserTrackingEnabled(true)
+        Settings.shared.isAdvertiserTrackingEnabled = true
 
         // Use FirebaseAnalytics to make sure it links fine
         Analytics.logEvent("Event", parameters: [:])
@@ -26,14 +29,17 @@ public enum AppKit {
         // Use FirebaseDatabase to make sure it links fine
         Database.database(app: FirebaseApp.app()!).reference().setValue("value")
 
+        // Use FirebaseCrashlytics to make sure it links fine
+        _ = Crashlytics.crashlytics()
+
         // Use FirebaseFirestore to make sure it links fine
         _ = Firestore.firestore()
 
+        // Use IterableSDK to make sure it links fine
+        _ = IterableSDK.IterableAPI.sdkVersion
+
         // Use Realm to make sure it links fine
         _ = try? Realm()
-    }
 
-    func hello() -> String {
-        "AppDelegate.hello()"
     }
 }

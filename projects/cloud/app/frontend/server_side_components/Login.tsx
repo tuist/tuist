@@ -7,6 +7,7 @@ import {
   Checkbox,
   Stack,
   Button,
+  Banner,
 } from '@shopify/polaris';
 import TuistCloudAppProvider from '../components/TuistCloudAppProvider';
 import LinkButton from './LinkButton';
@@ -15,12 +16,16 @@ interface LoginProps {
   omniauthProviders: [{ title: string; link: string }];
   authenticityToken: string;
   signUpURL: string;
+  notice?: string | null;
+  alert?: string | null;
 }
 
 const Login = ({
   omniauthProviders,
   authenticityToken,
   signUpURL,
+  notice,
+  alert,
 }: LoginProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,6 +33,10 @@ const Login = ({
   const [isSignUpButtonLoading, setIsSignUpButtonLoading] =
     useState(false);
   const [isConfirmationSentVisible, setIsConfirmationSentVisible] =
+    useState(false);
+  const [isNoticeBannerHidden, setIsNoticeBannerHidden] =
+    useState(false);
+  const [isAlertBannerHidden, setIsAlertBannerHidden] =
     useState(false);
   return (
     <TuistCloudAppProvider>
@@ -106,6 +115,10 @@ const Login = ({
           <Card.Section title="Social login">
             <Stack vertical={false}>
               {omniauthProviders.map((provider) => {
+                // TODO: Fix gitlab
+                if (provider.title === 'GitLab') {
+                  return null;
+                }
                 return (
                   <LinkButton
                     href={provider.link}
@@ -117,6 +130,25 @@ const Login = ({
                 );
               })}
             </Stack>
+          </Card.Section>
+          <Card.Section>
+            {alert && !isAlertBannerHidden && (
+              <Banner
+                status="warning"
+                title={alert}
+                onDismiss={() => {
+                  setIsAlertBannerHidden(true);
+                }}
+              />
+            )}
+            {notice && !isNoticeBannerHidden && (
+              <Banner
+                title={notice}
+                onDismiss={() => {
+                  setIsNoticeBannerHidden(true);
+                }}
+              />
+            )}
           </Card.Section>
         </Card>
       </Page>

@@ -162,8 +162,16 @@ open class TuistTestCase: XCTestCase {
         XCTAssertPrinterContains(expected, at: .warning, >=, file: file, line: line)
     }
 
+    public func XCTAssertPrinterOutputNotContains(_ notExpected: String, file: StaticString = #file, line: UInt = #line) {
+        XCTAssertPrinterNotContains(notExpected, at: .warning, >=, file: file, line: line)
+    }
+
     public func XCTAssertPrinterErrorContains(_ expected: String, file: StaticString = #file, line: UInt = #line) {
         XCTAssertPrinterContains(expected, at: .error, <=, file: file, line: line)
+    }
+
+    public func XCTAssertPrinterErrorNotContains(_ notExpected: String, file: StaticString = #file, line: UInt = #line) {
+        XCTAssertPrinterNotContains(notExpected, at: .error, <=, file: file, line: line)
     }
 
     public func XCTAssertPrinterContains(

@@ -1,23 +1,5 @@
 query Project($name: String!, $accountName: String!) {
   project(name: $name, accountName: $accountName) {
-    id
-    account {
-      id
-      name
-      owner {
-        ... on Organization {
-          id
-        }
-
-        ... on User {
-          id
-        }
-      }
-    }
-    remoteCacheStorage {
-      ... on S3Bucket {
-        ...S3BucketInfo
-      }
-    }
+    ...ProjectDetail
   }
 }

@@ -200,6 +200,6 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
     }
 
     public func canHostTests() -> Bool {
-        [.app, .appClip].contains(self)
+        [.app, .appClip, .watch2App].contains(self)
     }
 }

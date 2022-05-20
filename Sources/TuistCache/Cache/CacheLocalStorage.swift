@@ -37,9 +37,13 @@ public final class CacheLocalStorage: CacheStoring {
 
     // MARK: - CacheStoring
 
-    public func exists(name _: String, hash: String) throws -> Bool {
+    public func exists(name: String, hash: String) throws -> Bool {
         let hashFolder = cacheDirectory.appending(component: hash)
-        return lookupCompiledArtifact(directory: hashFolder) != nil
+        let exists = lookupCompiledArtifact(directory: hashFolder) != nil
+        if exists {
+            CacheAnalytics.localCacheTargetsHits.insert(name)
+        }
+        return exists
     }
 
     public func fetch(name _: String, hash: String) throws -> AbsolutePath {

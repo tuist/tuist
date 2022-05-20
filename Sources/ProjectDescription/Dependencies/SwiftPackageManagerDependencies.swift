@@ -1,6 +1,6 @@
 import Foundation
 
-/// Contains the description of a dependency that can be installed using Swift Package Manager.
+/// A collection of Swift Package Manager dependencies.
 public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// List of packages that will be installed using Swift Package Manager.
     public let packages: [Package]
