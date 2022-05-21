@@ -22,7 +22,7 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     }
 
     func test_generate_when_custom_module_map() throws {
-        try test_generate(for: .custom)
+        try test_generate(for: .custom("/Absolute/Public/Headers/Path/module.modulemap"))
     }
 
     func test_generate_when_umbrella_header() throws {
@@ -33,10 +33,10 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
         try test_generate(for: .nestedHeader)
     }
 
-    private func test_generate(for moduleMapType: ModuleMapType) throws {
+    private func test_generate(for moduleMap: ModuleMap) throws {
         var writeCalled = false
         fileHandler.stubContentsOfDirectory = { _ in
-            switch moduleMapType {
+            switch moduleMap {
             case .none:
                 return []
             case .custom:
@@ -52,13 +52,13 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
         fileHandler.stubExists = { path in
             switch path {
             case "/Absolute/Public/Headers/Path":
-                return moduleMapType != .none
+                return moduleMap != .none
             case "/Absolute/Public/Headers/Path/module.modulemap":
-                return moduleMapType == .custom
+                return moduleMap == .custom("/Absolute/Public/Headers/Path/module.modulemap")
             case "/Absolute/Public/Headers/Path/Module.h":
-                return moduleMapType == .header
+                return moduleMap == .header
             case "/Absolute/Public/Headers/Path/Module/Module.h":
-                return moduleMapType == .nestedHeader
+                return moduleMap == .nestedHeader
             default:
                 XCTFail("Unexpected exists call: \(path)")
                 return false
@@ -67,7 +67,7 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
         fileHandler.stubWrite = { content, path, atomically in
             writeCalled = true
             let expectedContent: String
-            switch moduleMapType {
+            switch moduleMap {
             case .none, .custom, .header:
                 XCTFail("FileHandler.write should not be called")
                 return
@@ -92,17 +92,9 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             XCTAssertEqual(path, "/Absolute/Public/Headers/Path/Module.modulemap")
             XCTAssertTrue(atomically)
         }
-        let moduleMap = try subject.generate(moduleName: "Module", publicHeadersPath: "/Absolute/Public/Headers/Path")
-        XCTAssertEqual(moduleMap.type, moduleMapType)
-        switch moduleMapType {
-        case .none, .header, .nestedHeader:
-            XCTAssertNil(moduleMap.path)
-        case .custom:
-            XCTAssertEqual(moduleMap.path, "/Absolute/Public/Headers/Path/module.modulemap")
-        case .directory:
-            XCTAssertEqual(moduleMap.path, "/Absolute/Public/Headers/Path/Module.modulemap")
-        }
-        switch moduleMapType {
+        let got = try subject.generate(moduleName: "Module", publicHeadersPath: "/Absolute/Public/Headers/Path")
+        XCTAssertEqual(got, moduleMap)
+        switch moduleMap {
         case .none, .custom, .header, .nestedHeader:
             XCTAssertFalse(writeCalled)
         case .directory:

@@ -5,6 +5,7 @@ class AnalyticsController < APIController
     CommandEventCreateService.call(
       project_slug: params[:project_id],
       user: current_user,
+      project: @project,
       name: params[:name],
       subcommand: params[:subcommand],
       command_arguments: params[:command_arguments],

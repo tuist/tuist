@@ -55,7 +55,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
 
 ## Companies using Tuist
 
-<div align="center">
+<div align="center" style="background-color: white">
   <a href="https://play.tv2.no/" target="_blank">
     <img src="assets/companies/TV2_Logo.svg" style="width: 20px" hspace="8"/>
   </a>
@@ -63,7 +63,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <img src="assets/companies/Depop Logo.svg" style="width: 100px;" hspace="8"/>
   </a>
   <a href="https://bendingspoons.com/" target="_blank">
-    <img src="assets/companies/Bending Spoons - Logo, black.svg" style="width: 50px;" hspace="8"/>
+    <img src="assets/companies/Bending Spoons - Logo, black.svg" style="width: 60px;" hspace="8"/>
   </a>
   <a href="https://globekeeper.com/" target="_blank">
     <img src="assets/companies/globekeeper.png" style="width: 130px;" hspace="8"/>
@@ -97,6 +97,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
   </a>
   <a href="https://www.olx.com.br" target="_blank">
     <img src="assets/companies/olx.svg" style="width: 60px;" hspace="8"/>
+  </a>
+  <a href="https://www.justeattakeaway.com/" target="_blank">
+    <img src="assets/companies/justeattakeaway.svg" style="width: 110px;" hspace="8"/>
   </a>
 </div>
 

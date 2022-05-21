@@ -37,6 +37,10 @@ protocol SchemeDescriptorsGenerating {
     ) throws -> [SchemeDescriptor]
 }
 
+extension XCScheme {
+    static let posixSpawnLauncher = "Xcode.IDEFoundation.Launcher.PosixSpawn"
+}
+
 // swiftlint:disable:next type_body_length
 final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     private enum Constants {
@@ -61,7 +65,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
             static var `extension`: LaunchAction {
                 LaunchAction(
-                    launcher: "Xcode.IDEFoundation.Launcher.PosixSpawn",
+                    launcher: XCScheme.posixSpawnLauncher,
                     askForAppToLaunch: true,
                     launchAutomaticallySubstyle: "2"
                 )
@@ -377,6 +381,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             preActions: preActions,
             postActions: postActions,
             selectedDebuggerIdentifier: testAction.attachDebugger ? XCScheme.defaultDebugger : "",
+            selectedLauncherIdentifier: testAction.attachDebugger ? XCScheme.defaultLauncher : XCScheme.posixSpawnLauncher,
             shouldUseLaunchSchemeArgsEnv: shouldUseLaunchSchemeArgsEnv,
             codeCoverageEnabled: testAction.coverage,
             codeCoverageTargets: codeCoverageTargets,
@@ -449,17 +454,21 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let disableMainThreadChecker = scheme.runAction?.diagnosticsOptions.contains(.mainThreadChecker) == false
 
         let launchActionConstants: Constants.LaunchAction
+        let launcherIdentifier: String
         let debuggerIdentifier: String
         let isSchemeForAppExtension = isSchemeForAppExtension(scheme: scheme, graphTraverser: graphTraverser)
         if isSchemeForAppExtension == true {
             launchActionConstants = .extension
             debuggerIdentifier = ""
+            launcherIdentifier = launchActionConstants.launcher
         } else {
             launchActionConstants = .default
             if let runAction = scheme.runAction {
                 debuggerIdentifier = runAction.attachDebugger ? XCScheme.defaultDebugger : ""
+                launcherIdentifier = runAction.attachDebugger ? launchActionConstants.launcher : XCScheme.posixSpawnLauncher
             } else {
                 debuggerIdentifier = XCScheme.defaultDebugger
+                launcherIdentifier = launchActionConstants.launcher
             }
         }
 
@@ -512,7 +521,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             postActions: postActions,
             macroExpansion: macroExpansion,
             selectedDebuggerIdentifier: debuggerIdentifier,
-            selectedLauncherIdentifier: launchActionConstants.launcher,
+            selectedLauncherIdentifier: launcherIdentifier,
             askForAppToLaunch: launchActionConstants.askForAppToLaunch,
             pathRunnable: pathRunnable,
             locationScenarioReference: locationScenarioReference,

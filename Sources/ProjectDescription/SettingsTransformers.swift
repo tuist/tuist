@@ -97,17 +97,26 @@ extension SettingsDictionary {
         return merging(versionSettings)
     }
 
-    // MARK: - Swift Settings
+    // MARK: - Swift Compiler - Language
 
     /// Sets `"SWIFT_VERSION"` to `version`
     public func swiftVersion(_ version: String) -> SettingsDictionary {
         merging(["SWIFT_VERSION": SettingValue(version)])
     }
 
+    // MARK: - Swift Compiler - Custom Flags
+
     /// Sets `"OTHER_SWIFT_FLAGS"` to `flags`
     public func otherSwiftFlags(_ flags: String...) -> SettingsDictionary {
         merging(["OTHER_SWIFT_FLAGS": SettingValue(flags.joined(separator: " "))])
     }
+
+    /// Sets `"SWIFT_ACTIVE_COMPILATION_CONDITIONS"` to `conditions`
+    public func swiftActiveCompilationConditions(_ conditions: String...) -> SettingsDictionary {
+        merging(["SWIFT_ACTIVE_COMPILATION_CONDITIONS": SettingValue(conditions.joined(separator: " "))])
+    }
+
+    // MARK: - Swift Compiler - Code Generation
 
     /// Sets `"SWIFT_COMPILATION_MODE"` to the available `SwiftCompilationMode` (`"singlefile"` or `"wholemodule"`)
     public func swiftCompilationMode(_ mode: SwiftCompilationMode) -> SettingsDictionary {
@@ -122,6 +131,29 @@ extension SettingsDictionary {
     /// Sets `"SWIFT_OPTIMIZE_OBJECT_LIFETIME"` to `"YES"` or `"NO"`
     public func swiftOptimizeObjectLifetimes(_ enabled: Bool) -> SettingsDictionary {
         merging(["SWIFT_OPTIMIZE_OBJECT_LIFETIME": SettingValue(enabled)])
+    }
+
+    // MARK: - Swift Compiler - General
+
+    /// Sets `"SWIFT_OBJC_BRIDGING_HEADER"` to `path`
+    public func swiftObjcBridingHeaderPath(_ path: String) -> SettingsDictionary {
+        var settings = self
+        settings["SWIFT_OBJC_BRIDGING_HEADER"] = SettingValue(path)
+        return settings
+    }
+
+    // MARK: - Apple Clang - Custom Compiler Flags
+
+    /// Sets `"OTHER_CFLAGS"` to `flags`
+    public func otherCFlags(_ flags: [String]) -> SettingsDictionary {
+        merging(["OTHER_CFLAGS": .array(flags)])
+    }
+
+    // MARK: - Linking
+
+    /// Sets `"OTHER_LDFLAGS"` to `flags`
+    public func otherLinkerFlags(_ flags: [String]) -> SettingsDictionary {
+        merging(["OTHER_LDFLAGS": .array(flags)])
     }
 
     // MARK: - Bitcode

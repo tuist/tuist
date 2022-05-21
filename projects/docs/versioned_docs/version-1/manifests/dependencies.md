@@ -55,4 +55,4 @@ Contains the description of a dependency that can be installed using Swift Packa
 | Property   | Description                                                          | Type                                      | Required | Default |
 | ---------- | -------------------------------------------------------------------- | ----------------------------------------- | -------- | ------- |
 | `packages` | List of packages that will be installed using Swift Package Manager. | [`[Package]`](manifests/project.md#package) | Yes      |         |
-| `productTypes` | Mapping from SPM targets to custom Tuist product types. If not specified, the SPM defined product is used, or `staticFramwork` if the SPM product is automatic. | [`[String: Product]`](manifests/project.md#product) | Yes      |         |
+| `productTypes` | Mapping from SPM targets to custom Tuist product types. If not specified, the SPM defined product is used, or `staticFramework` if the SPM product is automatic. | [`[String: Product]`](manifests/project.md#product) | Yes      |         |
