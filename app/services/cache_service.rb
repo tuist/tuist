@@ -1,7 +1,27 @@
 # frozen_string_literal: true
 
+include Rails.application.routes.url_helpers
+
 class CacheService < ApplicationService
-  attr_reader :account_name, :project_name, :hash, :name, :user, :object_key, :project
+  attr_reader :account_name, :project_name, :project_slug, :hash, :name, :user, :object_key, :project
+
+  module Error
+    class MissingRemoteCacheStorage < CloudError
+      attr_reader :project_slug
+
+      def initialize(project_slug)
+        @project_slug = project_slug
+      end
+
+      def message
+        remote_cache_storage_url = URI.join(root_url, "#{project_slug}/remote-cache")
+        """
+Project #{project_slug} has no remote cache. \
+Define your remote cache at the following url: #{remote_cache_storage_url}.
+        """
+      end
+    end
+  end
 
   def initialize(project_slug:, hash:, name:, user:, project:)
     super()
@@ -18,6 +38,9 @@ class CacheService < ApplicationService
 
   def object_exists?
     fetch_project_if_necessary
+    if project.remote_cache_storage.nil?
+      raise Error::MissingRemoteCacheStorage.new(project_slug)
+    end
     s3_client = s3_client(s3_bucket: project.remote_cache_storage)
     begin
       s3_client.head_object(
