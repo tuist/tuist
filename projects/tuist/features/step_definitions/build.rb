@@ -47,15 +47,10 @@ Then(/^tuist builds the project at (.+)$/) do |path|
   system(@tuist, "build", "--path", File.join(@dir, path))
 end
 
-Then(/^xcodebuild compiles the docc archive for ([a-zA-Z\-]+)$/) do |scheme|
+Then(/^xcodebuild compiles the docc archive$/) do
   args = [
-    "docbuild",
-    "-scheme", scheme,
-    "-configuration", "Release",
-    "-sdk", "iphoneos"           
+    "docbuild"      
   ]
-  
   args.concat(["-project", @xcodeproj_path]) unless @xcodeproj_path.nil?
-  
   xcodebuild(*args)
 end
