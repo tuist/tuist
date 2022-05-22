@@ -120,13 +120,13 @@ public class GraphLinter: GraphLinting {
 
         guard let supportedTargets = GraphLinter.validLinks[fromTarget] else {
             let reason =
-                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)': invalid or not supported yet."
+                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' which is an invalid or not supported yet combination."
             return [LintingIssue(reason: reason, severity: .error)]
         }
 
         guard supportedTargets.contains(toTarget) else {
             let reason =
-                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)': dependency from target \(to.target.name) of type \(to.target.product) and platform '\(to.target.platform)' is invalid or not supported yet."
+                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' and depends on target \(to.target.name) of type \(to.target.product) and platform '\(to.target.platform)' which is an invalid or not supported yet combination."
             return [LintingIssue(reason: reason, severity: .error)]
         }
 
