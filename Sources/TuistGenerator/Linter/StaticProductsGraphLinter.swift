@@ -18,7 +18,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             return []
         }
 
-        warnings(in: Array(graphTraverser.dependencies.keys), graphTraverser: graphTraverser)
+        return warnings(in: Array(graphTraverser.dependencies.keys), graphTraverser: graphTraverser)
             .sorted()
             .map(lintIssue)
     }

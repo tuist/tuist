@@ -77,7 +77,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.install(graphTraverser: graphTraverser)
+        _ = try subject.install(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(masterKey, receivedMasterKey)
@@ -110,7 +110,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.install(graphTraverser: graphTraverser)
+        _ = try subject.install(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(masterKey, receivedMasterKey)
@@ -142,7 +142,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.install(graphTraverser: graphTraverser)
+        _ = try subject.install(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(masterKey, receivedMasterKey)
@@ -171,7 +171,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.install(graphTraverser: graphTraverser)
+        _ = try subject.install(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(signingPath, entryPath)
@@ -200,7 +200,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.install(graphTraverser: graphTraverser)
+        _ = try subject.install(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(signingPath, entryPath)
@@ -259,7 +259,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.install(graphTraverser: graphTraverser)
+        _ = try subject.install(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual([expectedCertificate], installedCertificates)
