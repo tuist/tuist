@@ -14,6 +14,10 @@ protocol StaticProductsGraphLinting {
 
 class StaticProductsGraphLinter: StaticProductsGraphLinting {
     func lint(graphTraverser: GraphTraversing) -> [LintingIssue] {
+        guard !graphTraverser.workspace.generationOptions.disableStaticProductsLint else {
+            return []
+        }
+
         warnings(in: Array(graphTraverser.dependencies.keys), graphTraverser: graphTraverser)
             .sorted()
             .map(lintIssue)

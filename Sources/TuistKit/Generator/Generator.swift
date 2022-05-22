@@ -55,10 +55,7 @@ class Generator: Generating {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // Lint
-        try lint(
-            graphTraverser: graphTraverser,
-            disableStaticProductsLint: graph.workspace.generationOptions.disableStaticProductsLint
-        )
+        try lint(graphTraverser: graphTraverser)
 
         // Generate
         let workspaceDescriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
@@ -90,14 +87,14 @@ class Generator: Generating {
         return (graph, sideEffectDescriptors)
     }
 
-    private func lint(graphTraverser: GraphTraversing, disableStaticProductsLint: Bool) throws {
+    private func lint(graphTraverser: GraphTraversing) throws {
         let config = try configLoader.loadConfig(path: graphTraverser.path)
 
         let environmentIssues = try environmentLinter.lint(config: config)
         try environmentIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: environmentIssues)
 
-        let graphIssues = graphLinter.lint(graphTraverser: graphTraverser, disableStaticProductsLint: disableStaticProductsLint)
+        let graphIssues = graphLinter.lint(graphTraverser: graphTraverser)
         try graphIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: graphIssues)
     }

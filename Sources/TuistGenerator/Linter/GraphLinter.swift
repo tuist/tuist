@@ -5,7 +5,7 @@ import TuistGraph
 import TuistSupport
 
 public protocol GraphLinting: AnyObject {
-    func lint(graphTraverser: GraphTraversing, disableStaticProductsLint: Bool) -> [LintingIssue]
+    func lint(graphTraverser: GraphTraversing) -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
@@ -36,16 +36,12 @@ public class GraphLinter: GraphLinting {
 
     // MARK: - GraphLinting
 
-    public func lint(graphTraverser: GraphTraversing, disableStaticProductsLint: Bool) -> [LintingIssue] {
+    public func lint(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: graphTraverser.projects.flatMap { project -> [LintingIssue] in
             projectLinter.lint(project.value)
         })
-        issues
-            .append(contentsOf: lintDependencies(
-                graphTraverser: graphTraverser,
-                disableStaticProductsLint: disableStaticProductsLint
-            ))
+        issues.append(contentsOf: lintDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintMismatchingConfigurations(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintWatchBundleIdentifiers(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintCodeCoverageMode(graphTraverser: graphTraverser))
@@ -91,7 +87,7 @@ public class GraphLinter: GraphLinting {
         }
     }
 
-    private func lintDependencies(graphTraverser: GraphTraversing, disableStaticProductsLint: Bool) -> [LintingIssue] {
+    private func lintDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, toDependencies -> [LintingIssue] in
             toDependencies.flatMap { toDependency -> [LintingIssue] in
@@ -104,9 +100,7 @@ public class GraphLinter: GraphLinting {
         }
 
         issues.append(contentsOf: dependencyIssues)
-        if !disableStaticProductsLint {
-            issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser))
-        }
+        issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintAppClip(graphTraverser: graphTraverser))
