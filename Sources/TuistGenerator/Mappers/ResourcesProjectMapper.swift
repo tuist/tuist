@@ -72,7 +72,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         let filePath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
-            .appending(component: "Bundle+\(target.name).swift")
+            .appending(component: "TuistBundle+\(target.name).swift")
 
         let content: String = ResourcesProjectMapper.fileContent(
             targetName: target.name,
