@@ -93,6 +93,7 @@ jobs:
             'cache-frameworks',
             'cache-xcframeworks',
             'dependencies',
+            'docc',
             'edit',
             'env',
             'generate-1',
