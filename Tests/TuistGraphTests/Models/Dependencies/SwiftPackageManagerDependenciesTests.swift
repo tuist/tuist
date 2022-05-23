@@ -12,7 +12,9 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ],
             productTypes: [:],
             baseSettings: .init(configurations: [:]),
-            targetSettings: [:]
+            targetSettings: [:],
+            options: .test(),
+            resourceSynthesizers: [.test()]
         )
 
         // When
@@ -46,7 +48,9 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ],
             productTypes: [:],
             baseSettings: .init(configurations: [:]),
-            targetSettings: [:]
+            targetSettings: [:],
+            options: .test(),
+            resourceSynthesizers: [.test()]
         )
 
         // When
@@ -80,7 +84,9 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ],
             productTypes: [:],
             baseSettings: .init(configurations: [:]),
-            targetSettings: [:]
+            targetSettings: [:],
+            options: .test(),
+            resourceSynthesizers: [.test()]
         )
 
         // When
@@ -114,7 +120,9 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ],
             productTypes: [:],
             baseSettings: .init(configurations: [:]),
-            targetSettings: [:]
+            targetSettings: [:],
+            options: .test(),
+            resourceSynthesizers: [.test()]
         )
 
         // When

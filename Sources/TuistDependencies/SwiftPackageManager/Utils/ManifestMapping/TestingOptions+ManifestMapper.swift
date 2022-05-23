@@ -1,12 +1,19 @@
+//
+//  TestingOptions+ManifestMapper.swift
+//  TuistDependencies
+//
+//  Created by Shahzad Majeed on 5/23/22.
+//
+
 import ProjectDescription
 import TuistGraph
 
-extension TuistGraph.TestingOptions {
-    /// Maps a ProjectDescription.TestingOptions instance into a TuistGraph.TestingOptions instance.
+extension ProjectDescription.TestingOptions {
+    /// Maps a TuistGraph.TestingOptions instance into a ProjectDescription.TestingOptions instance.
     /// - Parameters:
-    ///   - manifest: Manifest representation of testing options.
+    /// - manifest: Manifest representation of testing options.
     static func from(
-        manifest: ProjectDescription.TestingOptions
+        manifest: TuistGraph.TestingOptions
     ) -> Self {
         var options: Self = []
 

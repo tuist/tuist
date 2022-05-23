@@ -125,6 +125,8 @@ public protocol PackageInfoMapping {
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
+        options: TuistGraph.Project.Options,
+        resourceSynthesizers: [TuistGraph.ResourceSynthesizer],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
@@ -305,6 +307,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
+        options: TuistGraph.Project.Options,
+        resourceSynthesizers: [TuistGraph.ResourceSynthesizer],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
@@ -371,19 +375,15 @@ public final class PackageInfoMapper: PackageInfoMapping {
             return nil
         }
 
-        return ProjectDescription.Project(
+        return ProjectDescription.Project.from(
             name: name,
-            options: .options(
-                automaticSchemesOptions: .disabled, // disable schemes for dependencies
-                disableBundleAccessors: false,
-                disableSynthesizedResourceAccessors: false
-            ),
             settings: packageInfo.projectSettings(
                 swiftToolsVersion: swiftToolsVersion,
                 buildConfigs: baseSettings.configurations.map { key, _ in key }
             ),
             targets: targets,
-            resourceSynthesizers: []
+            options: options,
+            resourceSynthesizers: resourceSynthesizers
         )
     }
 

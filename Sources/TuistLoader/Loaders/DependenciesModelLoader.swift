@@ -17,6 +17,7 @@ public protocol DependenciesModelLoading {
 
 public class DependenciesModelLoader: DependenciesModelLoading {
     private let manifestLoader: ManifestLoading
+    private let resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating = ResourceSynthesizerPathLocator()
 
     public init(manifestLoader: ManifestLoading = ManifestLoader()) {
         self.manifestLoader = manifestLoader
@@ -27,6 +28,11 @@ public class DependenciesModelLoader: DependenciesModelLoading {
         let manifest = try manifestLoader.loadDependencies(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
 
-        return try TuistGraph.Dependencies.from(manifest: manifest, generatorPaths: generatorPaths)
+        return try TuistGraph.Dependencies.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            plugins: plugins,
+            resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
+        )
     }
 }

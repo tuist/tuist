@@ -1,18 +1,25 @@
+//
+//  ProjectOption+ManifestMapper.swift
+//  TuistDependencies
+//
+//  Created by Shahzad Majeed on 5/23/22.
+//
+
 import ProjectDescription
 import TuistGraph
 
-extension TuistGraph.Project.Options {
-    /// Maps a ProjectDescription.ProjectOption instance into a TuistGraph.ProjectOption instance.
+extension ProjectDescription.Project.Options {
+    /// Maps a TuistGraph.ProjectOption instance into a ProjectDescription.ProjectOption instance.
     /// - Parameters:
-    ///   - manifest: Manifest representation of project options.
-    static func from(manifest: ProjectDescription.Project.Options) -> Self {
-        .init(
+    /// - manifest: Manifest representation of project options.
+    static func from(manifest: TuistGraph.Project.Options) -> Self {
+        options(
             automaticSchemesOptions: .from(manifest: manifest.automaticSchemesOptions),
             developmentRegion: manifest.developmentRegion,
             disableBundleAccessors: manifest.disableBundleAccessors,
             disableShowEnvironmentVarsInScriptPhases: manifest.disableShowEnvironmentVarsInScriptPhases,
             disableSynthesizedResourceAccessors: manifest.disableSynthesizedResourceAccessors,
-            textSettings: .init(
+            textSettings: .textSettings(
                 usesTabs: manifest.textSettings.usesTabs,
                 indentWidth: manifest.textSettings.indentWidth,
                 tabWidth: manifest.textSettings.tabWidth,
@@ -23,9 +30,9 @@ extension TuistGraph.Project.Options {
     }
 }
 
-extension TuistGraph.Project.Options.AutomaticSchemesOptions {
+extension ProjectDescription.Project.Options.AutomaticSchemesOptions {
     static func from(
-        manifest: ProjectDescription.Project.Options.AutomaticSchemesOptions
+        manifest: TuistGraph.Project.Options.AutomaticSchemesOptions
     ) -> Self {
         switch manifest {
         case let .enabled(targetSchemesGrouping, codeCoverageEnabled, testingOptions):
@@ -40,9 +47,9 @@ extension TuistGraph.Project.Options.AutomaticSchemesOptions {
     }
 }
 
-extension TuistGraph.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping {
+extension ProjectDescription.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping {
     static func from(
-        manifest: ProjectDescription.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping
+        manifest: TuistGraph.Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping
     ) -> Self {
         switch manifest {
         case .singleScheme:

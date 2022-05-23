@@ -6,6 +6,9 @@ extension Project {
         /// Defines how to generate automatic schemes
         public let automaticSchemesOptions: AutomaticSchemesOptions
 
+        /// Configures the development region.
+        public let developmentRegion: String?
+
         /// Disables generating Bundle accessors.
         public let disableBundleAccessors: Bool
 
@@ -18,18 +21,25 @@ extension Project {
         /// Text settings to override user ones for current project
         public let textSettings: TextSettings
 
+        /// Configures the name of the generated .xcodeproj.
+        public let xcodeProjectName: String?
+
         public init(
             automaticSchemesOptions: AutomaticSchemesOptions,
+            developmentRegion: String? = nil,
             disableBundleAccessors: Bool,
             disableShowEnvironmentVarsInScriptPhases: Bool,
             disableSynthesizedResourceAccessors: Bool,
-            textSettings: TextSettings
+            textSettings: TextSettings,
+            xcodeProjectName: String? = nil
         ) {
             self.automaticSchemesOptions = automaticSchemesOptions
             self.disableBundleAccessors = disableBundleAccessors
             self.disableShowEnvironmentVarsInScriptPhases = disableShowEnvironmentVarsInScriptPhases
             self.disableSynthesizedResourceAccessors = disableSynthesizedResourceAccessors
             self.textSettings = textSettings
+            self.developmentRegion = developmentRegion
+            self.xcodeProjectName = xcodeProjectName
         }
     }
 }
