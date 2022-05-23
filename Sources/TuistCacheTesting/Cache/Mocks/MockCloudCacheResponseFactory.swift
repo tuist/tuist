@@ -18,13 +18,13 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
     public var stubbedExistsResourceResult: CloudExistsResource = HTTPResource(
         request: { URLRequest.test() },
         parse: { _, _ in CloudResponse(status: "HEAD", data: CloudEmptyResponse()) },
-        parseError: { _, _ in CloudEmptyResponseError() }
+        parseError: { _, _ in CloudResponseError.test() }
     )
 
     public func existsResource(
         name: String,
         hash: String
-    ) throws -> HTTPResource<CloudResponse<CloudEmptyResponse>, CloudEmptyResponseError> {
+    ) throws -> HTTPResource<CloudResponse<CloudEmptyResponse>, CloudResponseError> {
         invokedExistsResource = true
         invokedExistsResourceCount += 1
         invokedExistsResourceParameters = (name, hash, ())
