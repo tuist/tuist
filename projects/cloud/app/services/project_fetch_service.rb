@@ -42,7 +42,7 @@ class ProjectFetchService < ApplicationService
   end
 
   def fetch_by_name(name:, account_name:, user:)
-    account = Account.find_by(name: account_name)
+    account = AccountFetchService.call(name: account_name)
     begin
       project = Project.find_by!(account_id: account.id, name: name)
     rescue ActiveRecord::RecordNotFound
