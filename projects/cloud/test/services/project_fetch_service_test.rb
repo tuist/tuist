@@ -67,4 +67,14 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
     # Then
     assert_equal project, got
   end
+
+  test "fails with account not found when account does not exist" do
+    # Given
+    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+
+    # When / Then
+    assert_raises(AccountFetchService::Error::AccountNotFound) do
+      ProjectFetchService.new.fetch_by_name(name: "tuist", account_name: "tuist", user: user)
+    end
+  end
 end
