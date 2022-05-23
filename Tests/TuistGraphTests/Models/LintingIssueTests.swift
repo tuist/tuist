@@ -44,7 +44,7 @@ final class LintingIssueTests: TuistUnitTestCase {
     func test_printWarningsIfNeeded() throws {
         let first = LintingIssue(reason: "warning", severity: .warning)
 
-        XCTAssertNoThrow(try [first].printWarningsIfNeeded())
+        XCTAssertNoThrow([first].printWarningsIfNeeded())
 
         XCTAssertPrinterOutputContains(
             """

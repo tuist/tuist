@@ -33,9 +33,9 @@ Scenario: The ios app with framework has disabled resources (ios_app_with_framew
     And I have a working directory
     Then I copy the fixture ios_app_with_framework_and_disabled_resources into the working directory
     Then tuist generates the project
-    Then a file App/Derived/Sources/Bundle+App.swift does not exist
-    Then a file Framework1/Derived/Sources/Bundle+Framework1.swift does not exist
-    Then a file StaticFramework/Derived/Sources/Bundle+StaticFramework.swift does not exist
+    Then a file App/Derived/Sources/TuistBundle+App.swift does not exist
+    Then a file Framework1/Derived/Sources/TuistBundle+Framework1.swift does not exist
+    Then a file StaticFramework/Derived/Sources/TuistBundle+StaticFramework.swift does not exist
 
 Scenario: The project is a macOS app with extensions (macos_app_with_extensions)
     Given that tuist is available
