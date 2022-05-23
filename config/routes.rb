@@ -22,6 +22,7 @@ Rails.application.routes.draw do
   get "/auth", to: "auth#authenticate"
 
   get "/api/cache", to: "cache#cache"
+  get "/api/cache/exists", to: "cache#exists"
   post "/api/cache", to: "cache#upload_cache_artifact"
   post "/api/cache/verify_upload", to: "cache#verify_upload"
 
