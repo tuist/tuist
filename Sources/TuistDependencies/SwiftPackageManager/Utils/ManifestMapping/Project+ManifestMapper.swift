@@ -11,23 +11,38 @@ import TuistGraph
 extension ProjectDescription.Project {
     /// Maps a TuistGraph.Project instance into a ProjectDescription.Project instance.
     /// - Parameters:
-    /// - manifest: Manifest representation of tuist project
+    /// - name: Swift Package / Project name
+    /// - settings:  Project Settings
+    /// - targets:  Project Targets
+    /// - configuration: Configure automatic schemes and resource accessors generation
+    /// for Swift Packages i.e ["package_name":  ProjectConfiguration]
     static func from(
         name: String,
         settings: ProjectDescription.Settings?,
         targets: [ProjectDescription.Target],
-        options: TuistGraph.Project.Options,
-        resourceSynthesizers _: [TuistGraph.ResourceSynthesizer]
+        projectConfiguration: TuistGraph.Project.ProjectConfiguration?
     ) -> Self {
-        /// TODO: Ignore `resourceSynthesizers` param for now as it requires us to expose some dependencies
-        /// from `TuistLoader`. Also, mapping from `.file` to `.plugin` isn't straightforward. This work can be
-        /// done incrementally in another PR
-        ProjectDescription.Project(
+        let options: ProjectDescription.Project.Options
+        let resourceSynthesizers: [ProjectDescription.ResourceSynthesizer]
+
+        if let configuration = projectConfiguration,
+           let mappedConfiguration = try? ProjectDescription.Project.ProjectConfiguration.from(manifest: configuration)
+        {
+            options = mappedConfiguration.options
+            resourceSynthesizers = mappedConfiguration.resourceSynthesizers
+        } else {
+            /// Default options
+            /// Avoid polluting workspace with unnecessary schemes
+            options = .options(automaticSchemesOptions: .disabled)
+            resourceSynthesizers = []
+        }
+
+        return ProjectDescription.Project(
             name: name,
-            options: .from(manifest: options),
+            options: options,
             settings: settings,
             targets: targets,
-            resourceSynthesizers: .default
+            resourceSynthesizers: resourceSynthesizers
         )
     }
 }

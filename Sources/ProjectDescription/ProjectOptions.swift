@@ -24,15 +24,6 @@ extension Project {
         /// Configures the name of the generated .xcodeproj.
         public let xcodeProjectName: String?
 
-        /// Automatic schemes are disabled for swift packages by default
-        public static func defaultSwiftPackageOptions() -> Self {
-            options(
-                automaticSchemesOptions: .disabled, // disable schemes for dependencies
-                disableBundleAccessors: false,
-                disableSynthesizedResourceAccessors: false
-            )
-        }
-
         public static func options(
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
             developmentRegion: String? = nil,

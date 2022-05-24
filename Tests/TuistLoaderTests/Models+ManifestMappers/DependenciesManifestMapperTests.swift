@@ -6,6 +6,7 @@ import TuistGraph
 import TuistSupport
 import XCTest
 
+import TuistLoaderTesting
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
@@ -32,7 +33,12 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try TuistGraph.Dependencies.from(manifest: manifest, generatorPaths: generatorPaths)
+        let got = try TuistGraph.Dependencies.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            plugins: .none,
+            resourceSynthesizerPathLocator: MockResourceSynthesizerPathLocator()
+        )
 
         // Then
         let expected: TuistGraph.Dependencies = .init(

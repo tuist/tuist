@@ -14,11 +14,8 @@ public struct SwiftPackageManagerDependencies: Equatable {
     /// The custom `Settings` to be applied to SPM targets
     public let targetSettings: [String: SettingsDictionary]
 
-    /// The project options.
-    public let options: TuistGraph.Project.Options
-
-    /// The resource synthesizers for the project to generate accessors for resources.
-    public let resourceSynthesizers: [TuistGraph.ResourceSynthesizer]
+    /// Options for generating automatic schemes and resource assessors for each generated project (from a swift package)
+    public let projectConfigurations: [String: TuistGraph.Project.ProjectConfiguration]
 
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
@@ -26,22 +23,22 @@ public struct SwiftPackageManagerDependencies: Equatable {
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
     ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
-    ///    - options: Options to control automatic resource accessors generation for Swift Packages.
-    ///    - resourceSynthesizers: The resource synthesizers for the project to generate accessors for resources.
+    ///    - projectConfigurations: Options to control automatic schemes and resource accessors generation
+    ///     for Swift Packages i.e ["package_name":  ProjectConfiguration]
+    /// Note: You can specify wildcard pattern if you want to use same configuration for all swift packages i.e ["*": ProjectConfiguration]
+
     public init(
         _ packages: [Package],
         productTypes: [String: Product],
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
-        options: TuistGraph.Project.Options,
-        resourceSynthesizers: [TuistGraph.ResourceSynthesizer]
+        projectConfigurations: [String: TuistGraph.Project.ProjectConfiguration] = [:]
     ) {
         self.packages = packages
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
-        self.options = options
-        self.resourceSynthesizers = resourceSynthesizers
+        self.projectConfigurations = projectConfigurations
     }
 }
 

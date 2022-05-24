@@ -110,6 +110,7 @@ public protocol PackageInfoMapping {
     ///   - productTypes: Product type mapping
     ///   - baseSettings: Base settings
     ///   - targetSettings: Settings to apply to denoted targets
+    ///   - projectConfiguration: Configure automatic schemes and resource accessors generation for Swift Package
     ///   - minDeploymentTargets: Minimum support deployment target per platform
     ///   - targetToPlatform: Mapping from a target name to its platform
     ///   - targetToProducts: Mapping from a target name to its products
@@ -125,8 +126,7 @@ public protocol PackageInfoMapping {
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
-        options: TuistGraph.Project.Options,
-        resourceSynthesizers: [TuistGraph.ResourceSynthesizer],
+        projectConfiguration: TuistGraph.Project.ProjectConfiguration?,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
@@ -307,8 +307,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
-        options: TuistGraph.Project.Options,
-        resourceSynthesizers: [TuistGraph.ResourceSynthesizer],
+        projectConfiguration: TuistGraph.Project.ProjectConfiguration?,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
@@ -382,8 +381,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 buildConfigs: baseSettings.configurations.map { key, _ in key }
             ),
             targets: targets,
-            options: options,
-            resourceSynthesizers: resourceSynthesizers
+            projectConfiguration: projectConfiguration
         )
     }
 

@@ -114,8 +114,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             baseSettings: dependencies.baseSettings,
             targetSettings: dependencies.targetSettings,
             swiftToolsVersion: swiftToolsVersion,
-            options: dependencies.options,
-            resourceSynthesizers: dependencies.resourceSynthesizers
+            projectConfigurations: dependencies.projectConfigurations
         )
 
         logger.info("Swift Package Manager dependencies installed successfully.", metadata: .subsection)
