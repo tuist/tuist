@@ -27,7 +27,7 @@ env:
 jobs:
   lint_lockfiles:
     name: Lint lockfiles
-    runs-on: macOS-11
+    runs-on: macOS-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
