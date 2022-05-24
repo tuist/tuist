@@ -45,12 +45,14 @@ final class SettingsTests: XCTestCase {
         let recommendedSubject = Settings(
             base: [:],
             configurations: [],
-            defaultSettings: .recommended(excluding: ["someRecommendedKey", "anotherKey"])
+            defaultSettings: .recommended(excluding: ["someRecommendedKey", "anotherKey"]),
+            imparted: [:]
         )
         let essentialSubject = Settings(
             base: [:],
             configurations: [],
-            defaultSettings: .essential(excluding: ["someEssentialKey", "anotherKey"])
+            defaultSettings: .essential(excluding: ["someEssentialKey", "anotherKey"]),
+            imparted: [:]
         )
 
         // Then

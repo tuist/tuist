@@ -470,4 +470,8 @@ final class MockGraphTraverser: GraphTraversing {
     func schemes() -> [Scheme] {
         schemesStub?() ?? []
     }
+
+    func impartedSettings(path: AbsolutePath, name: String) -> [SettingsDictionary] {
+        return []
+    }
 }

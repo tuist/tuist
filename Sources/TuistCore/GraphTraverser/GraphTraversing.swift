@@ -167,10 +167,14 @@ public protocol GraphTraversing {
 
     /// Returns true if the given target depends on XCTest.
     /// - Parameters:
-    ///   - path: Path to the project tha defines the target.
+    ///   - path: Path to the project that defines the target.
     ///   - name: Target name.
     func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool
 
+    /// Returns the imparted settings from the dependencies of the given target.
+    /// - Parameters:
+    ///   - path: Path to the project that defines the target.
+    ///   - name: Target name.   
     func impartedSettings(path: AbsolutePath, name: String) -> [SettingsDictionary]
 }
 
