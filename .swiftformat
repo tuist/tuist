@@ -17,7 +17,7 @@
 --exponentgrouping disabled
 --extensionacl on-declarations
 --fractiongrouping disabled
---header ignore
+--header strip
 --hexgrouping 4,8
 --hexliteralcase uppercase
 --ifdef indent

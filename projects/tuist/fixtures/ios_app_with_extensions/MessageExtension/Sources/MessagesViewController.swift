@@ -1,10 +1,3 @@
-//
-//  MessagesViewController.swift
-//  MyMessageExtension
-//
-//  Created by Kassem Wridan on 30/06/2020.
-//
-
 import Messages
 import UIKit
 

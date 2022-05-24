@@ -316,7 +316,7 @@ extension XCTestCase {
 
     @discardableResult public func XCTAssertContainsElementOfType<T>(
         _ collection: [Any],
-        _ element: T.Type,
+        _: T.Type,
         file: StaticString = #file,
         line: UInt = #line
     ) -> T? {
