@@ -134,7 +134,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
 
         versionResolver.resolveStub = { _ in ResolvedVersion.undefined }
 
-        versionsController.semverVersionsStub = [Version(string: "3.2.1")!]
+        versionsController.semverVersionsStub = [Version("3.2.1")]
         versionsController.pathStub = {
             $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
         }
@@ -153,7 +153,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
 
         versionsController.semverVersionsStub = []
         updater.updateStub = {
-            self.versionsController.semverVersionsStub = [Version(string: "3.2.1")!]
+            self.versionsController.semverVersionsStub = [Version("3.2.1")]
         }
 
         versionsController.pathStub = {
@@ -190,7 +190,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
 
         versionResolver.resolveStub = { _ in ResolvedVersion.undefined }
 
-        versionsController.semverVersionsStub = [Version(string: "3.2.1")!]
+        versionsController.semverVersionsStub = [Version("3.2.1")]
         versionsController.pathStub = {
             $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
         }

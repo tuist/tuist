@@ -274,6 +274,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/AlbGarciam"><img src="https://avatars.githubusercontent.com/u/45308839?v=4" width="100px;" alt=""/><br /><sub><b>Alberto Garcia</b></sub></a></td>
     <td align="center"><a href="https://www.linkedin.com/in/andreascuderi/"><img src="https://avatars.githubusercontent.com/u/8319309?v=4" width="100px;" alt=""/><br /><sub><b>Andrea Scuderi</b></sub></a></td>
     <td align="center"><a href="http://dogoautilio.wordpress.com/"><img src="https://avatars.githubusercontent.com/u/1487375?v=4" width="100px;" alt=""/><br /><sub><b>Diogo Autilio</b></sub></a></td>
+    <td align="center"><a href="https://github.com/shahzadmajeed"><img src="https://avatars.githubusercontent.com/u/1209459?v=4" width="100px;" alt=""/><br /><sub><b>Shahzad Majeed</b></sub></a></td>
   </tr>
 </table>
 
