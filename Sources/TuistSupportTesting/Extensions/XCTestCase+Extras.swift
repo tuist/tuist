@@ -316,39 +316,37 @@ extension XCTestCase {
 
     @discardableResult public func XCTAssertContainsElementOfType<T>(
         _ collection: [Any],
-        _: T.Type,
+        _ type: T.Type,
         file: StaticString = #file,
         line: UInt = #line
     ) -> T? {
         guard let element = collection.first(where: { $0 is T }) else {
-            XCTFail("Didn't find an element of type \(String(describing: element))", file: file, line: line)
+            XCTFail("Didn't find an element of type \(String(describing: type))", file: file, line: line)
             return nil
         }
         return element as? T
     }
 
-    @discardableResult public func XCTAssertDoesntContainElementOfType<T>(
+    public func XCTAssertDoesntContainElementOfType<T>(
         _ collection: [Any],
-        _ element: T.Type,
+        _ type: T.Type,
         file: StaticString = #file,
         line: UInt = #line
-    ) -> T? {
+    ) -> Void {
         if let element = collection.first(where: { $0 is T }) {
-            XCTFail("Found an element of type \(String(describing: element))", file: file, line: line)
-            return nil
+            XCTFail("Found an element of type \(String(describing: type)): \(element)", file: file, line: line)
         }
-        return element as? T
     }
 
     @discardableResult public func XCTAssertContainsElementOfType<T, U>(
         _ collection: [Any],
-        _ element: T.Type,
+        _ type: T.Type,
         after: U.Type,
         file: StaticString = #file,
         line: UInt = #line
     ) -> T? {
         guard let elementIndex = collection.lastIndex(where: { $0 is T }) else {
-            XCTFail("Didn't found an element of type \(String(describing: element))", file: file, line: line)
+            XCTFail("Didn't found an element of type \(String(describing: type))", file: file, line: line)
             return nil
         }
         guard let previousElementIndex = collection.firstIndex(where: { $0 is U }) else {
@@ -357,7 +355,7 @@ extension XCTestCase {
         }
         XCTAssertTrue(
             elementIndex > previousElementIndex,
-            "Expected element of type \(String(describing: element)) to be after an element of type \(String(describing: after)) but it's not",
+            "Expected element of type \(String(describing: type)) to be after an element of type \(String(describing: after)) but it's not",
             file: file,
             line: line
         )
@@ -366,13 +364,13 @@ extension XCTestCase {
 
     @discardableResult public func XCTAssertContainsElementOfType<T, U>(
         _ collection: [Any],
-        _ element: T.Type,
+        _ type: T.Type,
         before: U.Type,
         file: StaticString = #file,
         line: UInt = #line
     ) -> T? {
         guard let elementIndex = collection.firstIndex(where: { $0 is T }) else {
-            XCTFail("Didn't found an element of type \(String(describing: element))", file: file, line: line)
+            XCTFail("Didn't found an element of type \(String(describing: type))", file: file, line: line)
             return nil
         }
         guard let afterElementIndex = collection.lastIndex(where: { $0 is U }) else {
@@ -381,7 +379,7 @@ extension XCTestCase {
         }
         XCTAssertTrue(
             elementIndex < afterElementIndex,
-            "Expected element of type \(String(describing: element)) to be before an element of type \(String(describing: before)) but it's not",
+            "Expected element of type \(String(describing: type)) to be before an element of type \(String(describing: before)) but it's not",
             file: file,
             line: line
         )
