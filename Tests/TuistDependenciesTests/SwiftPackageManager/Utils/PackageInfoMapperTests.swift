@@ -2605,7 +2605,7 @@ extension PackageInfoMapping {
             productTypes: [:],
             baseSettings: baseSettings,
             targetSettings: targetSettings,
-            projectConfiguration: nil,
+            configuration: nil,
             minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
             targetToPlatform: preprocessInfo.targetToPlatform,
             targetToProducts: preprocessInfo.targetToProducts,

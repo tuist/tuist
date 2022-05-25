@@ -1,13 +1,13 @@
 import Foundation
 
-extension TuistGraph.Project {
-    public struct ProjectConfiguration: Codable, Equatable {
+extension ProjectDescription.Project {
+    public struct Configuration: Codable, Equatable {
         /// The project options.
         public let options: Project.Options
     }
 }
 
-extension TuistGraph.Project.ProjectConfiguration {
+extension ProjectDescription.Project.Configuration {
     public static func configuration(options: Project.Options) -> Self {
         .init(options: options)
     }

@@ -15,7 +15,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
     public let targetSettings: [String: SettingsDictionary]
 
     /// The custom project options for each project generated from a swift package
-    public let projectConfigurations: [String: TuistGraph.Project.ProjectConfiguration]
+    public let configurations: [String: TuistGraph.Project.Configuration]
 
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
@@ -23,20 +23,20 @@ public struct SwiftPackageManagerDependencies: Equatable {
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
     ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
-    ///    - projectConfigurations: The custom project options for each project generated from a swift package
+    ///    - configurations: The custom project options for each project generated from a swift package
 
     public init(
         _ packages: [Package],
         productTypes: [String: Product],
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
-        projectConfigurations: [String: TuistGraph.Project.ProjectConfiguration] = [:]
+        configurations: [String: TuistGraph.Project.Configuration] = [:]
     ) {
         self.packages = packages
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
-        self.projectConfigurations = projectConfigurations
+        self.configurations = configurations
     }
 }
 

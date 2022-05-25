@@ -15,28 +15,27 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     public let targetSettings: [String: SettingsDictionary]
 
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
-    public let projectConfigurations: [String: ProjectDescription.Project.ProjectConfiguration]
+    public let configurations: [String: ProjectDescription.Project.Configuration]
 
     /// Creates `SwiftPackageManagerDependencies` instance.
     /// - Parameter packages: List of packages that will be installed using Swift Package Manager.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-Suggested change 
-    /// - Parameter projectConfigurations: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    /// - Parameter configurations: Custom project configurations to be used for projects generated from SwiftPackageManager.
 
     public init(
         _ packages: [Package],
         productTypes: [String: Product] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary] = [:],
-        projectConfigurations: [String: ProjectDescription.Project.ProjectConfiguration] = [:]
+        configurations: [String: ProjectDescription.Project.Configuration] = [:]
     ) {
         self.packages = packages
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
-        self.projectConfigurations = projectConfigurations
+        self.configurations = configurations
     }
 }
 

@@ -44,7 +44,7 @@ public protocol SwiftPackageManagerGraphGenerating {
     /// - Parameter baseSettings: base `Settings` for targets.
     /// - Parameter targetSettings: `SettingsDictionary` overrides for targets.
     /// - Parameter swiftToolsVersion: The version of Swift tools that will be used to generate dependencies.
-    /// - Parameter projectConfigurations: The custom configurations for generated projects.
+    /// - Parameter configurations: The custom configurations for generated projects.
     func generate(
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
@@ -52,7 +52,7 @@ public protocol SwiftPackageManagerGraphGenerating {
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
         swiftToolsVersion: TSCUtility.Version?,
-        projectConfigurations: [String: TuistGraph.Project.ProjectConfiguration]
+        configurations: [String: TuistGraph.Project.Configuration]
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -76,7 +76,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
         swiftToolsVersion: TSCUtility.Version?,
-        projectConfigurations: [String: TuistGraph.Project.ProjectConfiguration]
+        configurations: [String: TuistGraph.Project.Configuration]
     ) throws -> TuistCore.DependenciesGraph {
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")
@@ -143,7 +143,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 productTypes: productTypes,
                 baseSettings: baseSettings,
                 targetSettings: targetSettings,
-                projectConfiguration: projectConfigurations[packageInfo.name],
+                configuration: configurations[packageInfo.name],
                 minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
                 targetToPlatform: preprocessInfo.targetToPlatform,
                 targetToProducts: preprocessInfo.targetToProducts,

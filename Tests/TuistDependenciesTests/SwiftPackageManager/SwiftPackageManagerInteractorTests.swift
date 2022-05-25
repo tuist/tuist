@@ -66,14 +66,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         swiftPackageManagerGraphGenerator
             .generateStub =
-            { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion, projectConfiguration in
+            { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion, configuration in
                 XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
                 XCTAssertEqual(platforms, [.iOS])
                 XCTAssertEqual(automaticProductType, [:])
                 XCTAssertEqual(baseSettings, .default)
                 XCTAssertEqual(targetSettings, [:])
                 XCTAssertNil(swiftToolsVersion)
-                XCTAssertEqual(projectConfiguration, [:])
+                XCTAssertEqual(configuration, [:])
                 return .test()
             }
 
@@ -160,15 +160,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
 
         swiftPackageManagerGraphGenerator
-            .generateStub =
-            { path, automaticProductType, platforms, baseSettings, targetSettings, swiftVersion, projectConfiguration in
+            .generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftVersion, configuration in
                 XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
                 XCTAssertEqual(automaticProductType, [:])
                 XCTAssertEqual(platforms, [.iOS])
                 XCTAssertEqual(baseSettings, .default)
                 XCTAssertEqual(targetSettings, [:])
                 XCTAssertEqual(swiftVersion, swiftToolsVersion)
-                XCTAssertEqual(projectConfiguration, [:])
+                XCTAssertEqual(configuration, [:])
                 return .test()
             }
 
@@ -252,14 +251,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         swiftPackageManagerGraphGenerator
             .generateStub =
-            { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion, projectConfiguration in
+            { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion, configuration in
                 XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
                 XCTAssertEqual(automaticProductType, [:])
                 XCTAssertEqual(platforms, [.iOS])
                 XCTAssertEqual(baseSettings, .default)
                 XCTAssertEqual(targetSettings, [:])
                 XCTAssertNil(swiftToolsVersion)
-                XCTAssertEqual(projectConfiguration, [:])
+                XCTAssertEqual(configuration, [:])
                 return .test()
             }
 

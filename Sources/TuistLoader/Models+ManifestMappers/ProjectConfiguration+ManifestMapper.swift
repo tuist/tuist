@@ -1,11 +1,11 @@
 import ProjectDescription
 import TuistGraph
 
-extension TuistGraph.Project.ProjectConfiguration {
-    /// Maps a ProjectDescription.Project.ProjectConfiguration instance into a TuistGraph.Project.ProjectConfiguration instance.
+extension TuistGraph.Project.Configuration {
+    /// Maps a ProjectDescription.Project.Configuration instance into a TuistGraph.Project.Configuration instance.
     /// - Parameters:
-    ///   - manifest: See ProjectConfiguration
-    static func from(manifest: ProjectDescription.Project.ProjectConfiguration) throws -> Self {
+    ///   - manifest: See Project.Configuration
+    static func from(manifest: ProjectDescription.Project.Configuration) -> Self {
         .configuration(options: .from(manifest: manifest.options))
     }
 }
