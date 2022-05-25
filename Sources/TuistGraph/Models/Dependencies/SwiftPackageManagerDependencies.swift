@@ -14,7 +14,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
     /// The custom `Settings` to be applied to SPM targets
     public let targetSettings: [String: SettingsDictionary]
 
-    /// Options for generating automatic schemes and resource assessors for each generated project (from a swift package)
+    /// The custom project options for each project generated from a swift package
     public let projectConfigurations: [String: TuistGraph.Project.ProjectConfiguration]
 
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
@@ -23,8 +23,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
     ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
-    ///    - projectConfigurations: Options to control automatic schemes and resource accessors generation
-    ///     for Swift Packages i.e ["package_name":  ProjectConfiguration]
+    ///    - projectConfigurations: The custom project options for each project generated from a swift package
 
     public init(
         _ packages: [Package],

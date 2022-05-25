@@ -14,7 +14,7 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     // Additional settings to be added to targets generated from SwiftPackageManager.
     public let targetSettings: [String: SettingsDictionary]
 
-    /// Options for generating automatic schemes and resource assessors for each generated project (from a swift package)
+    /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public let projectConfigurations: [String: ProjectDescription.Project.ProjectConfiguration]
 
     /// Creates `SwiftPackageManagerDependencies` instance.
@@ -22,8 +22,8 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-    /// - Parameter projectConfigurations: Options to control automatic schemes and resource accessors generation
-    ///  for Swift Packages i.e ["package_name":  ProjectConfiguration]
+Suggested change 
+    /// - Parameter projectConfigurations: Custom project configurations to be used for projects generated from SwiftPackageManager.
 
     public init(
         _ packages: [Package],

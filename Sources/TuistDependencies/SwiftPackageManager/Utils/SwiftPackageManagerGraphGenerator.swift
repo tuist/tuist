@@ -44,8 +44,7 @@ public protocol SwiftPackageManagerGraphGenerating {
     /// - Parameter baseSettings: base `Settings` for targets.
     /// - Parameter targetSettings: `SettingsDictionary` overrides for targets.
     /// - Parameter swiftToolsVersion: The version of Swift tools that will be used to generate dependencies.
-    /// - Parameter projectConfigurations: Configure automatic schemes and resource accessors generation
-    /// for Swift Packages i.e ["package_name":  ProjectConfiguration]
+    /// - Parameter projectConfigurations: The custom configurations for generated projects.
     func generate(
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
@@ -134,10 +133,6 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
             platforms: platforms
         )
-
-        if projectConfigurations.keys.isEmpty, !packageInfos.isEmpty {
-            logger.log(level: .debug, "No ProjectConfiguration provided for swift packages. Skipping resource accessors...")
-        }
 
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(

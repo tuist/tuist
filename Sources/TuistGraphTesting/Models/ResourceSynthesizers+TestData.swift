@@ -1,10 +1,3 @@
-//
-//  ResourceSynthesizers+TestData.swift
-//  TuistGraphTesting
-//
-//  Created by Shahzad Majeed on 5/23/22.
-//
-
 import Foundation
 @testable import TuistGraph
 

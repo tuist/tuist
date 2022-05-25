@@ -15,15 +15,9 @@ extension TuistGraph.SwiftPackageManagerDependencies {
         let productTypes = manifest.productTypes.mapValues { TuistGraph.Product.from(manifest: $0) }
         let baseSettings = try TuistGraph.Settings.from(manifest: manifest.baseSettings, generatorPaths: generatorPaths)
         let targetSettings = manifest.targetSettings.mapValues { TuistGraph.SettingsDictionary.from(manifest: $0) }
-        let projectConfigurations: [String: TuistGraph.Project.ProjectConfiguration] = try manifest.projectConfigurations
-            .reduce([:]) { result, keyValuePair in
-                var configurations = result
-                let (packageName, projectConfiguration) = keyValuePair
-                configurations[packageName] = try TuistGraph.Project.ProjectConfiguration.from(
-                    manifest: projectConfiguration
-                )
-                return configurations
-            }
+        let projectConfigurations: [String: TuistGraph.Project.ProjectConfiguration] = try manifest.projectConfigurations.mapValues { configuration
+            try TuistGraph.Project.ProjectConfiguration.from(manifest: configuration
+        }
 
         return .init(
             packages,
