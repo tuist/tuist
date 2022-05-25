@@ -101,6 +101,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
   <a href="https://www.justeattakeaway.com/" target="_blank">
     <img src="assets/companies/justeattakeaway.svg" style="width: 110px;" hspace="8"/>
   </a>
+  <a href="https://www.dodopizza.com/" target="_blank">
+    <img src="assets/companies/DodoPizzaLogo.svg" style="width: 50px;" hspace="8/>
+  </a>
 </div>
 
 ## Documentation 📝
