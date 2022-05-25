@@ -8,22 +8,7 @@ extension TuistGraph.Project.ProjectConfiguration {
     ///   - generatorPaths: See GeneratorPaths
     ///   - plugins: See Plugins
     ///   - resourceSynthesizerPathLocator: See ResourceSynthesizerPathLocating
-    static func from(
-        manifest: ProjectDescription.Project.ProjectConfiguration,
-        generatorPaths: GeneratorPaths,
-        plugins: Plugins,
-        resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
-    ) throws -> Self {
-        let options = TuistGraph.Project.Options.from(manifest: manifest.options)
-        let resourceSynthesizers = try manifest.resourceSynthesizers.map {
-            try TuistGraph.ResourceSynthesizer.from(
-                manifest: $0,
-                generatorPaths: generatorPaths,
-                plugins: plugins,
-                resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
-            )
-        }
-
-        return .configuration(options: options, resourceSynthesizers: resourceSynthesizers)
+    static func from(manifest: ProjectDescription.Project.ProjectConfiguration) throws -> Self {
+        .configuration(options: .from(manifest: manifest.options))
     }
 }

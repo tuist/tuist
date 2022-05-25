@@ -135,12 +135,8 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             platforms: platforms
         )
 
-        let packageToProjectConfiguration = map(
-            configurations: projectConfigurations.filter { !$0.key.isEmpty },
-            packages: packageInfos.map(\.name)
-        )
-        if packageToProjectConfiguration.keys.isEmpty, !packageInfos.isEmpty {
-            logger.log(level: .info, "No ProjectConfiguration provided for swift packages. Skipping resource accessors...")
+        if projectConfigurations.keys.isEmpty, !packageInfos.isEmpty {
+            logger.log(level: .debug, "No ProjectConfiguration provided for swift packages. Skipping resource accessors...")
         }
 
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
@@ -152,7 +148,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 productTypes: productTypes,
                 baseSettings: baseSettings,
                 targetSettings: targetSettings,
-                projectConfiguration: packageToProjectConfiguration[packageInfo.name],
+                projectConfiguration: projectConfigurations[packageInfo.name],
                 minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
                 targetToPlatform: preprocessInfo.targetToPlatform,
                 targetToProducts: preprocessInfo.targetToProducts,
@@ -168,29 +164,5 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             externalDependencies: preprocessInfo.productToExternalDependencies,
             externalProjects: externalProjects
         )
-    }
-}
-
-extension SwiftPackageManagerGraphGenerator {
-    fileprivate typealias Configurations = [String: TuistGraph.Project.ProjectConfiguration]
-
-    /// Allow wildcard pattern to specify a single ProjectConfiguration for all swift packages
-    /// In most of the cases you don't want to enumerate on packages and specify a different configuration so
-    /// just providing ["*": ProjectConfiguration] should be enough
-    private func map(configurations: Configurations, packages: [String]) -> Configurations {
-        guard configurations.count == 1,
-              let package = configurations.keys.first,
-              let config = configurations.values.first,
-              package == "*"
-        else {
-            return configurations
-        }
-
-        logger.log(
-            level: .notice,
-            "Wildcard configuration detected. Applying to all packages: \(packages.joined(separator: ", "))"
-        )
-
-        return Dictionary(uniqueKeysWithValues: packages.map { ($0, config) })
     }
 }

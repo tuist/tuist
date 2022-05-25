@@ -6,11 +6,8 @@ extension ProjectDescription.Project.ProjectConfiguration {
     /// - Parameters:
     ///   - manifest: See ProjectConfiguration
     static func from(manifest: TuistGraph.Project.ProjectConfiguration) throws -> Self {
-        let options = ProjectDescription.Project.Options.from(manifest: manifest.options)
-
-        /// TODO: Ignore `resourceSynthesizers` param for now as it requires us to expose some dependencies
-        /// from `TuistLoader`. Also, mapping from `.file` to `.plugin` isn't straightforward. This work can be
-        /// done incrementally in another PR
-        return .configuration(options: options, resourceSynthesizers: .default)
+        .configuration(
+            options: .from(manifest: manifest.options)
+        )
     }
 }

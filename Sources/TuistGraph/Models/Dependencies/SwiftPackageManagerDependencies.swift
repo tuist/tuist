@@ -25,7 +25,6 @@ public struct SwiftPackageManagerDependencies: Equatable {
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
     ///    - projectConfigurations: Options to control automatic schemes and resource accessors generation
     ///     for Swift Packages i.e ["package_name":  ProjectConfiguration]
-    /// Note: You can specify wildcard pattern if you want to use same configuration for all swift packages i.e ["*": ProjectConfiguration]
 
     public init(
         _ packages: [Package],

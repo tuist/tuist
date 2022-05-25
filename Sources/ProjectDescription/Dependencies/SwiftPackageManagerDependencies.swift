@@ -24,7 +24,6 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter projectConfigurations: Options to control automatic schemes and resource accessors generation
     ///  for Swift Packages i.e ["package_name":  ProjectConfiguration]
-    ///  Note: You can specify wildcard pattern if you want to use same configuration for all swift packages i.e ["*": ProjectConfiguration]
 
     public init(
         _ packages: [Package],

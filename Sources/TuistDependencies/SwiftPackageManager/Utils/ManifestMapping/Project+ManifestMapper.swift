@@ -22,19 +22,14 @@ extension ProjectDescription.Project {
         targets: [ProjectDescription.Target],
         projectConfiguration: TuistGraph.Project.ProjectConfiguration?
     ) -> Self {
-        let options: ProjectDescription.Project.Options
-        let resourceSynthesizers: [ProjectDescription.ResourceSynthesizer]
+        /// Default options
+        /// Avoid polluting workspace with unnecessary schemes
+        var options: ProjectDescription.Project.Options = .options(automaticSchemesOptions: .disabled)
 
         if let configuration = projectConfiguration,
            let mappedConfiguration = try? ProjectDescription.Project.ProjectConfiguration.from(manifest: configuration)
         {
             options = mappedConfiguration.options
-            resourceSynthesizers = mappedConfiguration.resourceSynthesizers
-        } else {
-            /// Default options
-            /// Avoid polluting workspace with unnecessary schemes
-            options = .options(automaticSchemesOptions: .disabled)
-            resourceSynthesizers = []
         }
 
         return ProjectDescription.Project(
@@ -42,7 +37,7 @@ extension ProjectDescription.Project {
             options: options,
             settings: settings,
             targets: targets,
-            resourceSynthesizers: resourceSynthesizers
+            resourceSynthesizers: .default
         )
     }
 }

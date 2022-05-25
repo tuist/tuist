@@ -9,9 +9,7 @@ extension TuistGraph.SwiftPackageManagerDependencies {
     /// Creates `TuistGraph.SwiftPackageManagerDependencies` instance from `ProjectDescription.SwiftPackageManagerDependencies` instance.
     static func from(
         manifest: ProjectDescription.SwiftPackageManagerDependencies,
-        generatorPaths: GeneratorPaths,
-        plugins: Plugins,
-        resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
+        generatorPaths: GeneratorPaths
     ) throws -> Self {
         let packages = try manifest.packages.map { try TuistGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let productTypes = manifest.productTypes.mapValues { TuistGraph.Product.from(manifest: $0) }
@@ -22,10 +20,7 @@ extension TuistGraph.SwiftPackageManagerDependencies {
                 var configurations = result
                 let (packageName, projectConfiguration) = keyValuePair
                 configurations[packageName] = try TuistGraph.Project.ProjectConfiguration.from(
-                    manifest: projectConfiguration,
-                    generatorPaths: generatorPaths,
-                    plugins: plugins,
-                    resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
+                    manifest: projectConfiguration
                 )
                 return configurations
             }
