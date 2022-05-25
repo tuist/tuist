@@ -15,7 +15,6 @@ extension ProjectDescription.Project.Options {
     static func from(manifest: TuistGraph.Project.Options) -> Self {
         options(
             automaticSchemesOptions: .from(manifest: manifest.automaticSchemesOptions),
-            developmentRegion: manifest.developmentRegion,
             disableBundleAccessors: manifest.disableBundleAccessors,
             disableShowEnvironmentVarsInScriptPhases: manifest.disableShowEnvironmentVarsInScriptPhases,
             disableSynthesizedResourceAccessors: manifest.disableSynthesizedResourceAccessors,
@@ -24,8 +23,7 @@ extension ProjectDescription.Project.Options {
                 indentWidth: manifest.textSettings.indentWidth,
                 tabWidth: manifest.textSettings.tabWidth,
                 wrapsLines: manifest.textSettings.wrapsLines
-            ),
-            xcodeProjectName: manifest.xcodeProjectName
+            )
         )
     }
 }

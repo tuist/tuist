@@ -8,7 +8,6 @@ extension TuistGraph.Project.Options {
     static func from(manifest: ProjectDescription.Project.Options) -> Self {
         .init(
             automaticSchemesOptions: .from(manifest: manifest.automaticSchemesOptions),
-            developmentRegion: manifest.developmentRegion,
             disableBundleAccessors: manifest.disableBundleAccessors,
             disableShowEnvironmentVarsInScriptPhases: manifest.disableShowEnvironmentVarsInScriptPhases,
             disableSynthesizedResourceAccessors: manifest.disableSynthesizedResourceAccessors,
@@ -17,8 +16,7 @@ extension TuistGraph.Project.Options {
                 indentWidth: manifest.textSettings.indentWidth,
                 tabWidth: manifest.textSettings.tabWidth,
                 wrapsLines: manifest.textSettings.wrapsLines
-            ),
-            xcodeProjectName: manifest.xcodeProjectName
+            )
         )
     }
 }
