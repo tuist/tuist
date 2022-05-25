@@ -332,7 +332,7 @@ extension XCTestCase {
         _ type: T.Type,
         file: StaticString = #file,
         line: UInt = #line
-    ) -> Void {
+    ) {
         if let element = collection.first(where: { $0 is T }) {
             XCTFail("Found an element of type \(String(describing: type)): \(element)", file: file, line: line)
         }

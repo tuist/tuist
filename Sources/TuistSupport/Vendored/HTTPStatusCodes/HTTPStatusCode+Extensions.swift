@@ -1,3 +1,12 @@
+// https://github.com/rhodgkins/SwiftHTTPStatusCodes
+//
+//  HTTPStatusCodes+Extensions.swift
+//  HTTPStatusCodes
+//
+//  Created by Richard Hodgkins on 07/06/2016.
+//  Copyright © 2016 Rich H. All rights reserved.
+//
+
 import Foundation
 
 extension HTTPStatusCode {
