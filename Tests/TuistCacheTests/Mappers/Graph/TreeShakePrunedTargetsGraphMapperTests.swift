@@ -129,7 +129,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
                 .test(
                     buildAction: .test(targets: []),
                     testAction: .test(targets: [], testPlans: [.init(path: "/Test.xctestplan", isDefault: true)])
-                )
+                ),
             ]
         )
     }
