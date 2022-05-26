@@ -1,5 +1,5 @@
 <div align="center">
-<img src="assets/header.gif"/>
+  <img src="assets/header.gif"/><br>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
   <img src="https://img.shields.io/github/v/release/tuist/tuist?include_prereleases&style=flat-square" alt="Latest Version">
   <a href="http://community.tuist.io"><img src="https://img.shields.io/badge/community-tuist-blue?style=flat-square" alt="Community"></a>
