@@ -1,6 +1,5 @@
 import Foundation
 import TSCBasic
-import Zip
 
 /// An interface to archive files in a zip file.
 public protocol FileArchiving {
@@ -28,7 +27,13 @@ public class FileArchiver: FileArchiving {
 
     public func zip(name: String) throws -> AbsolutePath {
         let destinationZipPath = temporaryDirectory.appending(component: "\(name).zip")
-        try Zip.zipFiles(paths: paths.map(\.url), zipFilePath: destinationZipPath.url, password: nil, progress: nil)
+        /// ZIPFoundation does not support zipping array of items, we instead copy them all to a single directory
+        let pathsDirectoryPath = temporaryDirectory.appending(component: "\(name)-paths")
+        try FileHandler.shared.createFolder(pathsDirectoryPath)
+        try paths.forEach {
+            try FileHandler.shared.copy(from: $0, to: pathsDirectoryPath.appending(component: $0.basename))
+        }
+        try FileHandler.shared.zipItem(at: pathsDirectoryPath, to: destinationZipPath)
         return destinationZipPath
     }
 

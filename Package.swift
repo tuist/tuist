@@ -58,7 +58,8 @@ let package = Package(
         ),
         .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.5")),
         .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "1.0.0")),
-        .package(url: "https://github.com/marmelroy/Zip.git", .upToNextMajor(from: "2.1.1")),
+        .package(url: "https://github.com/fortmarek/ZIPFoundation.git", .revision("9dbe729b90202c19d0fe1010f1430fa75a576cd3")),
+        .package(url: "https://github.com/Flight-School/AnyCodable", from: "0.6.0"),
         .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
         .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.5.0")),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .upToNextMajor(from: "2.8.0")),
@@ -220,7 +221,7 @@ let package = Package(
                 loggingDependency,
                 "KeychainAccess",
                 swifterDependency,
-                "Zip",
+                "ZIPFoundation",
                 "Checksum",
                 "ProjectDescription",
             ]
@@ -608,6 +609,7 @@ let package = Package(
         .target(
             name: "TuistAnalytics",
             dependencies: [
+                .byName(name: "AnyCodable"),
                 "TuistAsyncQueue",
                 "TuistCloud",
                 "TuistCore",

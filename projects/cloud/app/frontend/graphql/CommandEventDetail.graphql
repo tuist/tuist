@@ -9,4 +9,7 @@ fragment CommandEventDetail on CommandEvent {
   swiftVersion
   macosVersion
   createdAt
+  cacheableTargets
+  localCacheTargetHits
+  remoteCacheTargetHits
 }

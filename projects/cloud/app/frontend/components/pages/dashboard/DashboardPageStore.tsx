@@ -1,4 +1,6 @@
 import {
+  CacheHitRateAveragesDocument,
+  CacheHitRateAveragesQuery,
   CommandAveragesDocument,
   CommandAveragesQuery,
   CommandEventsDocument,
@@ -24,6 +26,8 @@ class DashboardPageStore {
   isLoading = true;
   commandName = 'generate';
   commandAveragesData: DataPoint[] = [];
+  cacheHitRateCommandName = 'generate';
+  cacheHitRateAveragesData: DataPoint[] = [];
 
   private currentStartCursor = '';
   private currentEndCursor = '';
@@ -48,6 +52,30 @@ class DashboardPageStore {
           return {
             key: new Date(commandAverage.date).toDateString(),
             value: commandAverage.durationAverage / 1000,
+          };
+        },
+      );
+    });
+  }
+
+  async loadCacheHitRateAverages(projectId: string) {
+    const { data, error } =
+      await this.client.query<CacheHitRateAveragesQuery>({
+        query: CacheHitRateAveragesDocument,
+        variables: {
+          projectId,
+          commandName: this.cacheHitRateCommandName,
+        },
+      });
+    runInAction(() => {
+      this.cacheHitRateAveragesData = data.cacheHitRateAverages.map(
+        (cacheHitRateAverage) => {
+          return {
+            key: new Date(cacheHitRateAverage.date).toDateString(),
+            value:
+              Math.round(
+                cacheHitRateAverage.cacheHitRateAverage * 100 * 10,
+              ) / 10,
           };
         },
       );

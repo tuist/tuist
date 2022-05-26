@@ -1,3 +1,4 @@
+import AnyCodable
 import ArgumentParser
 import Foundation
 import GraphViz
@@ -58,12 +59,14 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     var outputPath: String?
 
     func runAsync() async throws {
-        GraphCommand.analyticsDelegate?.willRun(withParameters: [
-            "format": format.rawValue,
-            "algorithm": layoutAlgorithm.rawValue,
-            "skip_external_dependencies": String(skipExternalDependencies),
-            "skip_test_targets": String(skipExternalDependencies),
-        ])
+        GraphCommand.analyticsDelegate?.addParameters(
+            [
+                "format": AnyCodable(format.rawValue),
+                "algorithm": AnyCodable(layoutAlgorithm.rawValue),
+                "skip_external_dependencies": AnyCodable(skipExternalDependencies),
+                "skip_test_targets": AnyCodable(skipExternalDependencies),
+            ]
+        )
         try await GraphService().run(
             format: format,
             layoutAlgorithm: layoutAlgorithm,

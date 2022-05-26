@@ -79,4 +79,4 @@ The pipeline consists of the following stages & steps that are performed sequent
 - **Write Descriptors**: The workspace, project and scheme descriptors are serialized to disk concurrently via `XcodeProjWriter`
 - **Perform Side Effects**: All accumulated side effect descriptors are performed using `SideEffectDescriptorExecutor`
 - **Run Post Generation Interactors**: Finally, specialized side effects that can't be represented using descriptors are performed
-  - Examples include `SwiftPackageManagerInteractor`, `SigningInteractor`, `CocoaPodsInteractor`
+  - Examples include `SwiftPackageManagerInteractor`, `SigningInteractor`

@@ -214,6 +214,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary"))
+        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TestUtilities"))
 
         let testPath = AbsolutePath("/tmp/localPackage")
         try checkGenerated(
@@ -269,6 +270,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary"))
+        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TestUtilities"))
         try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TuistKit"))
 
         let testPath = AbsolutePath("/tmp/localPackage")
@@ -325,6 +327,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary"))
+        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TestUtilities"))
         try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TuistKit"))
 
         let testPath = AbsolutePath("/tmp/localPackage")
@@ -440,6 +443,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
         dependenciesGraph: TuistCore.DependenciesGraph
     ) throws {
         // Given
+        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TestUtilities"))
         fileHandler.stubReadFile = {
             XCTAssertEqual($0, self.path.appending(component: "workspace-state.json"))
             return """

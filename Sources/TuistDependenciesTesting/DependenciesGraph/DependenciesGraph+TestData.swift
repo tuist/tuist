@@ -121,6 +121,9 @@ extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/TuistKit/**",
                             ],
+                            resources: ResourceFileElements(
+                                resources: defaultResources(folder: "\(packageFolder.pathString)/Sources/TuistKit")
+                            ),
                             dependencies: [
                                 .project(
                                     target: "AnotherLibrary",
@@ -172,6 +175,9 @@ extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/ALibrary/**",
                             ],
+                            resources: ResourceFileElements(
+                                resources: defaultResources(folder: "\(packageFolder.pathString)/Sources/ALibrary")
+                            ),
                             dependencies: [
                                 .target(name: "ALibraryUtils"),
                             ],
@@ -187,6 +193,9 @@ extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
                             ],
+                            resources: ResourceFileElements(
+                                resources: defaultResources(folder: "\(packageFolder.pathString)/Sources/ALibraryUtils")
+                            ),
                             settings: Self.spmSettings()
                         ),
                     ],
@@ -230,6 +239,9 @@ extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/AnotherLibrary/**",
                             ],
+                            resources: ResourceFileElements(
+                                resources: defaultResources(folder: "\(packageFolder.pathString)/Sources/AnotherLibrary")
+                            ),
                             settings: Self.spmSettings()
                         ),
                     ],
@@ -268,6 +280,9 @@ extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Source/**",
                             ],
+                            resources: ResourceFileElements(
+                                resources: defaultResources(folder: "\(packageFolder.pathString)/Source")
+                            ),
                             dependencies: [
                                 .sdk(name: "CFNetwork", type: .framework, status: .required),
                             ],
@@ -324,6 +339,9 @@ extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**",
                             ],
+                            resources: ResourceFileElements(
+                                resources: defaultResources(folder: "\(packageFolder.pathString)/GoogleAppMeasurementWrapper")
+                            ),
                             dependencies: [
                                 .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework"),
                                 .project(
@@ -360,6 +378,11 @@ extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**",
                             ],
+                            resources: ResourceFileElements(
+                                resources: defaultResources(
+                                    folder: "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper"
+                                )
+                            ),
                             dependencies: [
                                 .xcframework(
                                     path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"
@@ -431,6 +454,9 @@ extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**",
                             ],
+                            resources: ResourceFileElements(
+                                resources: defaultResources(folder: "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler")
+                            ),
                             settings: Self.spmSettings()
                         ),
                         .init(
@@ -443,6 +469,9 @@ extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**",
                             ],
+                            resources: ResourceFileElements(
+                                resources: defaultResources(folder: "\(packageFolder.pathString)/Sources/GULMethodSwizzler")
+                            ),
                             settings: Self.spmSettings()
                         ),
                         .init(
@@ -455,6 +484,9 @@ extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULNSData/**",
                             ],
+                            resources: ResourceFileElements(
+                                resources: defaultResources(folder: "\(packageFolder.pathString)/Sources/GULNSData")
+                            ),
                             settings: Self.spmSettings()
                         ),
                         .init(
@@ -467,6 +499,9 @@ extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULNetwork/**",
                             ],
+                            resources: ResourceFileElements(
+                                resources: defaultResources(folder: "\(packageFolder.pathString)/Sources/GULNetwork")
+                            ),
                             settings: Self.spmSettings()
                         ),
                     ],
@@ -508,6 +543,9 @@ extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/nanopb/**",
                             ],
+                            resources: ResourceFileElements(
+                                resources: defaultResources(folder: "\(packageFolder.pathString)/Sources/nanopb")
+                            ),
                             settings: Self.spmSettings()
                         ),
                     ],
@@ -515,6 +553,17 @@ extension TuistCore.DependenciesGraph {
                 ),
             ]
         )
+    }
+
+    private static func defaultResources(folder: String, excluding: [String] = []) -> [ResourceFileElement] {
+        let fileExtensions = ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
+
+        return fileExtensions.map { fileExtension in
+            .glob(
+                pattern: "\(folder)/**/*.\(fileExtension)",
+                excluding: excluding.map(Path.init(stringLiteral:))
+            )
+        }
     }
 }
 

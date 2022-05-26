@@ -22,8 +22,14 @@ class CommandAverageService < ApplicationService
   def call
     project = ProjectFetchService.new.fetch_by_id(project_id: project_id, user: user)
 
+    split_command_name = command_name.split(" ")
+    name = split_command_name.first
+    if split_command_name.length > 1
+      subcommand = command_name.split(" ").drop(1)
+    end
+
     project.command_events
-      .where("created_at > ? AND name = ?", 30.days.ago, command_name)
+      .where(created_at: 30.days.ago.., name: name, subcommand: subcommand)
       .group_by_day(:created_at, range: 30.days.ago..Time.now)
       .average(:duration)
       .map { |key, value| CommandAverage.new(date: key, duration_average: value.nil? ? 0 : value) }

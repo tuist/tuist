@@ -28,6 +28,7 @@ class Generator: Generating {
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let configLoader: ConfigLoading
     private let manifestGraphLoader: ManifestGraphLoading
+    private var lintingIssues: [LintingIssue] = []
 
     init(
         manifestLoader: ManifestLoading,
@@ -71,6 +72,8 @@ class Generator: Generating {
             workspaceName: workspaceDescriptor.xcworkspacePath.basename
         )
 
+        printAndFlushPendingLintWarnings()
+
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
 
@@ -79,24 +82,37 @@ class Generator: Generating {
     }
 
     func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor]) {
-        try await manifestGraphLoader.load(path: path)
+        let (graph, sideEffectDescriptors, issues) = try await manifestGraphLoader.load(path: path)
+        lintingIssues.append(contentsOf: issues)
+        return (graph, sideEffectDescriptors)
     }
 
     private func lint(graphTraverser: GraphTraversing) throws {
         let config = try configLoader.loadConfig(path: graphTraverser.path)
 
-        try environmentLinter.lint(config: config).printAndThrowIfNeeded()
-        try graphLinter.lint(graphTraverser: graphTraverser).printAndThrowIfNeeded()
+        let environmentIssues = try environmentLinter.lint(config: config)
+        try environmentIssues.printAndThrowErrorsIfNeeded()
+        lintingIssues.append(contentsOf: environmentIssues)
+
+        let graphIssues = graphLinter.lint(graphTraverser: graphTraverser)
+        try graphIssues.printAndThrowErrorsIfNeeded()
+        lintingIssues.append(contentsOf: graphIssues)
     }
 
     private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) async throws {
         let config = try configLoader.loadConfig(path: graphTraverser.path)
 
-        try signingInteractor.install(graphTraverser: graphTraverser)
+        lintingIssues.append(contentsOf: try signingInteractor.install(graphTraverser: graphTraverser))
         try await swiftPackageManagerInteractor.install(
             graphTraverser: graphTraverser,
             workspaceName: workspaceName,
             config: config
         )
+    }
+
+    private func printAndFlushPendingLintWarnings() {
+        // Print out warnings, if any
+        lintingIssues.printWarningsIfNeeded()
+        lintingIssues.removeAll()
     }
 }

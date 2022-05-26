@@ -70,7 +70,7 @@ jobs:
           bundle exec rails test
   lint:
     name: Lint
-    runs-on: macOS-11
+    runs-on: macOS-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode

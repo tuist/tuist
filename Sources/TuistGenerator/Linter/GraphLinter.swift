@@ -109,8 +109,6 @@ public class GraphLinter: GraphLinting {
     }
 
     private func lintDependency(from: GraphTarget, to: GraphTarget) -> [LintingIssue] {
-        var issues: [LintingIssue] = []
-
         let fromTarget = LintableTarget(
             platform: from.target.platform,
             product: from.target.product
@@ -120,22 +118,19 @@ public class GraphLinter: GraphLinting {
             product: to.target.product
         )
 
-        if !GraphLinter.validLinks.keys.contains(fromTarget) {
+        guard let supportedTargets = GraphLinter.validLinks[fromTarget] else {
             let reason =
-                "Target \(from.target.name) has a platform '\(from.target.platform)' and product '\(from.target.product)' invalid or not supported yet."
-            let issue = LintingIssue(reason: reason, severity: .error)
-            issues.append(issue)
-        }
-        let supportedTargets = GraphLinter.validLinks[fromTarget]
-
-        if supportedTargets == nil || supportedTargets?.contains(toTarget) == false {
-            let reason =
-                "Target \(from.target.name) has a dependency with target \(to.target.name) of type \(to.target.product) for platform '\(to.target.platform)' which is invalid or not supported yet."
-            let issue = LintingIssue(reason: reason, severity: .error)
-            issues.append(issue)
+                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' which is an invalid or not supported yet combination."
+            return [LintingIssue(reason: reason, severity: .error)]
         }
 
-        return issues
+        guard supportedTargets.contains(toTarget) else {
+            let reason =
+                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' and depends on target \(to.target.name) of type \(to.target.product) and platform '\(to.target.platform)' which is an invalid or not supported yet combination."
+            return [LintingIssue(reason: reason, severity: .error)]
+        }
+
+        return []
     }
 
     private func lintMismatchingConfigurations(graphTraverser: GraphTraversing) -> [LintingIssue] {
@@ -372,6 +367,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
+            LintableTarget(platform: .iOS, product: .staticFramework),
         ],
         //        LintableTarget(platform: .iOS, product: .messagesApplication): [
 //            LintableTarget(platform: .iOS, product: .messagesExtension),
@@ -532,6 +528,12 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .watchOS, product: .framework),
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .watch2Extension),
+        ],
+        LintableTarget(platform: .watchOS, product: .uiTests): [
+            LintableTarget(platform: .watchOS, product: .staticLibrary),
+            LintableTarget(platform: .watchOS, product: .framework),
+            LintableTarget(platform: .watchOS, product: .staticFramework),
+            LintableTarget(platform: .watchOS, product: .watch2App),
         ],
         //        LintableTarget(platform: .watchOS, product: .watchExtension): [
 //            LintableTarget(platform: .watchOS, product: .staticLibrary),

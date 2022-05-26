@@ -19,7 +19,7 @@ import TuistSupport
 protocol ManifestGraphLoading {
     /// Loads a Workspace or Project Graph at a given path based on manifest availability
     /// - Note: This will search for a Workspace manifest first, then fallback to searching for a Project manifest
-    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor])
+    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue])
 }
 
 final class ManifestGraphLoader: ManifestGraphLoading {
@@ -83,7 +83,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         self.graphMapper = graphMapper
     }
 
-    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor]) {
+    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue]) {
         let manifests = manifestLoader.manifests(at: path)
         guard manifests.contains(.workspace) || manifests.contains(.project) else {
             throw ManifestLoaderError.manifestNotFound(path)
@@ -102,9 +102,8 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         )
 
         // Lint Manifests
-        try manifestProjects.flatMap {
-            manifestLinter.lint(project: $0.value)
-        }.printAndThrowIfNeeded()
+        let lintingIssues = manifestProjects.flatMap { manifestLinter.lint(project: $0.value) }
+        try lintingIssues.printAndThrowErrorsIfNeeded()
 
         // Convert to models
         let projectsModels = try convert(
@@ -134,7 +133,8 @@ final class ManifestGraphLoader: ManifestGraphLoading {
 
         return (
             mappedGraph,
-            modelMapperSideEffects + graphMapperSideEffects
+            modelMapperSideEffects + graphMapperSideEffects,
+            lintingIssues
         )
     }
 

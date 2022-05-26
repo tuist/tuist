@@ -27,12 +27,6 @@ module Fourier
         Services::Lint::Cloud.call(fix: options[:fix])
       end
 
-      desc "cocoapods-interactor", "Lint the Ruby code of the CocoaPods interactor project"
-      option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
-      def cocoapods_interactor
-        Services::Lint::CocoapodsInteractor.call(fix: options[:fix])
-      end
-
       desc "fixturegen", "Lint the Swift code of the fixturegen project"
       option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
       def fixturegen
@@ -57,7 +51,6 @@ module Fourier
         lint_tuist(fix: options[:fix])
         Services::Lint::Tuistbench.call(fix: options[:fix])
         Services::Lint::Fixturegen.call(fix: options[:fix])
-        Services::Lint::CocoapodsInteractor.call(fix: options[:fix])
         Services::Lint::Fourier.call(fix: options[:fix])
         Services::Lint::Cloud.call(fix: options[:fix])
         Services::Lint::Backbone.call(fix: options[:fix])

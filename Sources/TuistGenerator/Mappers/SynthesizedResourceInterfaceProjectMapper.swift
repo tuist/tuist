@@ -130,7 +130,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             let name = target.name.camelized.uppercasingFirst
             renderedInterfaces = [
                 (
-                    templateName + "+" + name,
+                    "Tuist\(templateName)+\(name)",
                     try synthesizedResourceInterfacesGenerator.render(
                         parser: resourceSynthesizer.parser,
                         templateString: templateString,

@@ -50,6 +50,19 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         )
     }
 
+    func test_binaryPath_when_frameworkIsPresentAndHasDifferentName() throws {
+        // Given
+        let frameworkPath = fixturePath(path: RelativePath("MyFrameworkDifferentProductName.xcframework"))
+        let infoPlist = try subject.infoPlist(xcframeworkPath: frameworkPath)
+        let binaryPath = try subject.binaryPath(xcframeworkPath: frameworkPath, libraries: infoPlist.libraries)
+
+        // Then
+        XCTAssertEqual(
+            binaryPath,
+            frameworkPath.appending(RelativePath("ios-x86_64-simulator/MyFramework.framework/MyFramework"))
+        )
+    }
+
     func test_libraries_when_staticLibraryIsPresent() throws {
         // Given
         let frameworkPath = fixturePath(path: RelativePath("MyStaticLibrary.xcframework"))

@@ -1,6 +1,5 @@
 import Foundation
 import TSCBasic
-import Zip
 
 /// An interface to unarchive files from a zip file.
 public protocol FileUnarchiving {
@@ -26,7 +25,7 @@ public class FileUnarchiver: FileUnarchiving {
     }
 
     public func unzip() throws -> AbsolutePath {
-        try Zip.unzipFile(path.url, destination: temporaryDirectory.url, overwrite: true, password: nil)
+        try FileHandler.shared.unzipItem(at: path, to: temporaryDirectory)
         return temporaryDirectory
     }
 

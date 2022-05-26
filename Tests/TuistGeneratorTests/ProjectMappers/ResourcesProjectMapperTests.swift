@@ -46,7 +46,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let expectedPath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
-            .appending(component: "Bundle+\(target.name).swift")
+            .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
             .fileContent(targetName: target.name, bundleName: "\(target.name)Resources", target: target)
         XCTAssertEqual(file.path, expectedPath)
@@ -114,7 +114,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let expectedPath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
-            .appending(component: "Bundle+\(target.name).swift")
+            .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
             .fileContent(targetName: target.name, bundleName: "\(target.name)Resources", target: target)
         XCTAssertEqual(file.path, expectedPath)
@@ -161,7 +161,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let expectedPath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
-            .appending(component: "Bundle+\(target.name).swift")
+            .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
             .fileContent(targetName: target.name, bundleName: "\(target.name)Resources", target: target)
         XCTAssertEqual(file.path, expectedPath)
@@ -199,7 +199,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let expectedPath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
-            .appending(component: "Bundle+\(target.name).swift")
+            .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
             .fileContent(targetName: target.name, bundleName: "\(target.name)Resources", target: target)
         XCTAssertEqual(file.path, expectedPath)
@@ -267,7 +267,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let expectedPath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
-            .appending(component: "Bundle+\(target.name).swift")
+            .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
             .fileContent(targetName: target.name, bundleName: "test_tuistResources", target: target)
         XCTAssertEqual(file.path, expectedPath)

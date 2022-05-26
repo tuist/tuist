@@ -1,5 +1,5 @@
 <div align="center">
-<img src="assets/header.gif"/>
+  <img src="assets/header.gif"/><br>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
   <img src="https://img.shields.io/github/v/release/tuist/tuist?include_prereleases&style=flat-square" alt="Latest Version">
   <a href="http://community.tuist.io"><img src="https://img.shields.io/badge/community-tuist-blue?style=flat-square" alt="Community"></a>
@@ -55,7 +55,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
 
 ## Companies using Tuist
 
-<div align="center">
+<div align="center" style="background-color: white">
   <a href="https://play.tv2.no/" target="_blank">
     <img src="assets/companies/TV2_Logo.svg" style="width: 20px" hspace="8"/>
   </a>
@@ -63,7 +63,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <img src="assets/companies/Depop Logo.svg" style="width: 100px;" hspace="8"/>
   </a>
   <a href="https://bendingspoons.com/" target="_blank">
-    <img src="assets/companies/Bending Spoons - Logo, black.svg" style="width: 50px;" hspace="8"/>
+    <img src="assets/companies/Bending Spoons - Logo, black.svg" style="width: 60px;" hspace="8"/>
   </a>
   <a href="https://globekeeper.com/" target="_blank">
     <img src="assets/companies/globekeeper.png" style="width: 130px;" hspace="8"/>
@@ -97,6 +97,12 @@ The financial sustainability of the project is possible thanks to the ongoing co
   </a>
   <a href="https://www.olx.com.br" target="_blank">
     <img src="assets/companies/olx.svg" style="width: 60px;" hspace="8"/>
+  </a>
+  <a href="https://www.justeattakeaway.com/" target="_blank">
+    <img src="assets/companies/justeattakeaway.svg" style="width: 110px;" hspace="8"/>
+  </a>
+  <a href="https://www.dodopizza.com/" target="_blank">
+    <img src="assets/companies/DodoPizzaLogo.svg" style="width: 50px;" hspace="8"/>
   </a>
 </div>
 
@@ -268,6 +274,10 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/nicholaskim94"><img src="https://avatars.githubusercontent.com/u/7912759?v=4" width="100px;" alt=""/><br /><sub><b>Nicholas Kim</b></sub></a></td>
     <td align="center"><a href="https://github.com/Smponias"><img src="https://avatars.githubusercontent.com/u/14213855?v=4" width="100px;" alt=""/><br /><sub><b>Alexandros Smponias</b></sub></a></td>
     <td align="center"><a href="https://github.com/mangofever"><img src="https://avatars.githubusercontent.com/u/724343?v=4" width="100px;" alt=""/><br /><sub><b>Go</b></sub></a></td>
+    <td align="center"><a href="https://github.com/AlbGarciam"><img src="https://avatars.githubusercontent.com/u/45308839?v=4" width="100px;" alt=""/><br /><sub><b>Alberto Garcia</b></sub></a></td>
+    <td align="center"><a href="https://www.linkedin.com/in/andreascuderi/"><img src="https://avatars.githubusercontent.com/u/8319309?v=4" width="100px;" alt=""/><br /><sub><b>Andrea Scuderi</b></sub></a></td>
+    <td align="center"><a href="http://dogoautilio.wordpress.com/"><img src="https://avatars.githubusercontent.com/u/1487375?v=4" width="100px;" alt=""/><br /><sub><b>Diogo Autilio</b></sub></a></td>
+    <td align="center"><a href="https://github.com/shahzadmajeed"><img src="https://avatars.githubusercontent.com/u/1209459?v=4" width="100px;" alt=""/><br /><sub><b>Shahzad Majeed</b></sub></a></td>
   </tr>
 </table>
 

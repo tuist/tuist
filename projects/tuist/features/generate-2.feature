@@ -35,9 +35,9 @@ Feature: Generate a new project using Tuist (suite 2)
     Then the product 'StaticFramework2Resources.bundle' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework2Resources-tuist.png'
     Then the product 'StaticFramework3Resources.bundle' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework3Resources-tuist.png'
     Then the product 'StaticFramework4Resources.bundle' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework4Resources-tuist.png'
-    Then a file App/Derived/Sources/Bundle+App.swift exists
-    Then a file App/Derived/Sources/Strings+App.swift exists
-    Then a file App/Derived/Sources/Assets+App.swift exists
-    Then a file App/Derived/Sources/Fonts+App.swift exists
-    Then a file App/Derived/Sources/Plists+App.swift exists
-    Then a file StaticFramework3/Derived/Sources/Assets+StaticFramework3.swift exists
+    Then a file App/Derived/Sources/TuistBundle+App.swift exists
+    Then a file App/Derived/Sources/TuistStrings+App.swift exists
+    Then a file App/Derived/Sources/TuistAssets+App.swift exists
+    Then a file App/Derived/Sources/TuistFonts+App.swift exists
+    Then a file App/Derived/Sources/TuistPlists+App.swift exists
+    Then a file StaticFramework3/Derived/Sources/TuistAssets+StaticFramework3.swift exists

@@ -6,7 +6,6 @@ import {
   Pagination,
   ResourceItem,
   ResourceList,
-  Select,
   Stack,
   TextStyle,
 } from '@shopify/polaris';
@@ -18,7 +17,8 @@ import { CommandEventDetail } from '@/models/CommandEventDetail';
 import { observer } from 'mobx-react-lite';
 import { useNavigate } from 'react-router-dom';
 import relativeDate from '@/utilities/relativeDate';
-import { LineChart } from '@shopify/polaris-viz';
+import AverageCommandDurationCard from './AverageCommandDurationCard';
+import CacheHitRateAveragesCard from './CacheHitRateAveragesCard';
 
 const DashboardPage = observer(() => {
   const { projectStore } = useContext(HomeStoreContext);
@@ -34,6 +34,9 @@ const DashboardPage = observer(() => {
     }
     dashboardPageStore.loadNextPage(projectStore.project.id);
     dashboardPageStore.loadCommandAverages(projectStore.project.id);
+    dashboardPageStore.loadCacheHitRateAverages(
+      projectStore.project.id,
+    );
   }, [projectStore.project]);
 
   const renderItem = (item: CommandEventDetail) => {
@@ -95,59 +98,16 @@ const DashboardPage = observer(() => {
     );
   };
 
-  const AverageCommandDurationCard = observer(() => {
-    return (
-      <Card title="Average command duration">
-        <Card.Section>
-          <Stack vertical distribution="center">
-            <Stack>
-              <Select
-                label=""
-                options={[
-                  // TODO: Load this dynamically once command name and subcommand issue is resolved
-                  { label: 'generate', value: 'generate' },
-                  { label: 'fetch', value: 'fetch' },
-                  { label: 'build', value: 'build' },
-                  { label: 'test', value: 'test' },
-                ]}
-                onChange={(newValue) => {
-                  if (projectStore.project?.id == null) {
-                    return;
-                  }
-                  dashboardPageStore.commandName = newValue;
-                  dashboardPageStore.loadCommandAverages(
-                    projectStore.project.id,
-                  );
-                }}
-                value={dashboardPageStore.commandName}
-              />
-            </Stack>
-            <LineChart
-              isAnimated
-              theme="Light"
-              data={[
-                {
-                  data: dashboardPageStore.commandAveragesData,
-                  name: `${dashboardPageStore.commandName} average duration`,
-                },
-              ]}
-              showLegend
-              xAxisOptions={{
-                hide: true,
-              }}
-              yAxisOptions={{
-                labelFormatter: (value) => `${value} s`,
-              }}
-            />
-          </Stack>
-        </Card.Section>
-      </Card>
-    );
-  });
-
   return (
     <Page>
-      <AverageCommandDurationCard />
+      <AverageCommandDurationCard
+        projectStore={projectStore}
+        dashboardPageStore={dashboardPageStore}
+      />
+      <CacheHitRateAveragesCard
+        projectStore={projectStore}
+        dashboardPageStore={dashboardPageStore}
+      />
       <Card title="Runs">
         <Card.Section>
           {dashboardPageStore.commandEvents.length > 0 ||

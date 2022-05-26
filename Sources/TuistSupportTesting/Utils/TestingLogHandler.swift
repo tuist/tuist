@@ -1,10 +1,3 @@
-//
-//  TestLoggingHandler.swift
-//  TuistSupportTesting
-//
-//  Created by Atkinson, Oliver (Developer) on 20/02/2020.
-//
-
 import Foundation
 import TuistSupport
 

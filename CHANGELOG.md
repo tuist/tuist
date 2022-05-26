@@ -2,6 +2,30 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## 3.4.0 - 2022-05-14
+
+### Changed
+
+- Make `TargetReference` conform to `Hashable` [#4407](https://github.com/tuist/tuist/pull/4407) by [@danyf90](https://github.com/danyf90)
+- Defer the display of warnings untill after project generation [#4387](https://github.com/tuist/tuist/pull/4387) by [@nicholaskim94](https://github.com/nicholaskim94)
+
+### Added
+
+- Support for watchOS UI test targets [#4389](https://github.com/tuist/tuist/pull/4389) by [@Smponias](https://github.com/Smponias)
+- Add support for automatic resources in SwiftPackageManager [#4413](https://github.com/tuist/tuist/pull/4413) by [@danyf90](https://github.com/danyf90)
+- Add attachDebugger parameter to TestAction.testPlans(...) [#4425](https://github.com/tuist/tuist/pull/4425) by [@Andrea-Scuderi](https://github.com/Andrea-Scuderi)
+- Add local tuist plugin to `tuist init` generated project [#4388](https://github.com/tuist/tuist/pull/4388) by [@leszko11](https://github.com/leszko11)
+- Send cache targets hits analytics metadata [#4429](https://github.com/tuist/tuist/pull/4429) by [@fortmarek](https://github.com/fortmarek)
+
+### Fixed
+
+- Fix resource mapping when target name contains hyphens [#4400](https://github.com/tuist/tuist/pull/4400) by [@mangofever](https://github.com/mangofever)
+- Fix xcframework import when framework name is different from xcframework name [#4401](https://github.com/tuist/tuist/pull/4401) by [@AlbGarciam](https://github.com/AlbGarciam)
+- Allow AppClips to link Static Frameworks [#4420](https://github.com/tuist/tuist/pull/4420) by [@regularberry](https://github.com/regularberry)
+- Fix zipping and unzipping cached frameworks with symlinks [#4355](https://github.com/tuist/tuist/pull/4355) by [@fortmarek](https://github.com/fortmarek)
+- Fix: swap comments inside generated resources finder file [#4441](https://github.com/tuist/tuist/pull/4441) by [@GermanVelibekovHouzz](https://github.com/GermanVelibekovHouzz)
+- Skip resources warning for SPM dependencies [#4447](https://github.com/tuist/tuist/pull/4447) by [@fortmarek](https://github.com/fortmarek)
+
 ## 3.3.0 - 2022-04-26
 
 ### Added

@@ -51,7 +51,7 @@ final class VersionsControllerTests: TuistUnitTestCase {
         let versions = subject.versions()
 
         XCTAssertTrue(versions.contains(.reference("ref")))
-        XCTAssertTrue(versions.contains(.semver(Version(string: "3.2.1")!)))
+        XCTAssertTrue(versions.contains(.semver(Version("3.2.1"))))
     }
 
     func test_semverVersions_ordered() throws {

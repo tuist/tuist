@@ -1,3 +1,4 @@
+import AnyCodable
 import ArgumentParser
 import Combine
 import Foundation
@@ -38,7 +39,7 @@ final class TrackableCommandTests: TuistTestCase {
     func test_whenParamsHaveFlagTrue_dispatchesEventWithExpectedParameters() async throws {
         // Given
         makeSubject(flag: true)
-        let expectedParams = ["flag": "true"]
+        let expectedParams: [String: AnyCodable] = ["flag": true]
 
         // When
         try await subject.run()
@@ -53,7 +54,7 @@ final class TrackableCommandTests: TuistTestCase {
     func test_whenParamsHaveFlagFalse_dispatchesEventWithExpectedParameters() async throws {
         // Given
         makeSubject(flag: false)
-        let expectedParams = ["flag": "false"]
+        let expectedParams: [String: AnyCodable] = ["flag": false]
         // When
         try await subject.run()
 
@@ -75,6 +76,6 @@ private struct TestCommand: ParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
 
     func run() throws {
-        TestCommand.analyticsDelegate?.willRun(withParameters: ["flag": String(flag)])
+        TestCommand.analyticsDelegate?.addParameters(["flag": AnyCodable(flag)])
     }
 }

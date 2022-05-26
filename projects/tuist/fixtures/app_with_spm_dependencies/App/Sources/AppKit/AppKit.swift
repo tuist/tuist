@@ -8,6 +8,7 @@ import FirebaseCrashlytics
 import FirebaseDatabase
 import FirebaseFirestore
 import IterableSDK
+import TYStatusBarView
 
 public enum AppKit {
     public static func start() {
@@ -18,7 +19,7 @@ public enum AppKit {
         _ = BarChartView()
 
         // Use Facebook to make sure it links fine
-        Settings.setAdvertiserTrackingEnabled(true)
+        Settings.shared.isAdvertiserTrackingEnabled = true
 
         // Use FirebaseAnalytics to make sure it links fine
         Analytics.logEvent("Event", parameters: [:])
