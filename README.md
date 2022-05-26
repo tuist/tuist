@@ -1,5 +1,5 @@
 <div align="center">
-<img src="assets/header.gif"/>
+  <img src="assets/header.gif"/><br>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
   <img src="https://img.shields.io/github/v/release/tuist/tuist?include_prereleases&style=flat-square" alt="Latest Version">
   <a href="http://community.tuist.io"><img src="https://img.shields.io/badge/community-tuist-blue?style=flat-square" alt="Community"></a>
@@ -102,7 +102,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
     <img src="assets/companies/justeattakeaway.svg" style="width: 110px;" hspace="8"/>
   </a>
   <a href="https://www.dodopizza.com/" target="_blank">
-    <img src="assets/companies/DodoPizzaLogo.svg" style="width: 50px;" hspace="8/>
+    <img src="assets/companies/DodoPizzaLogo.svg" style="width: 50px;" hspace="8"/>
   </a>
 </div>
 
