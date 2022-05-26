@@ -379,7 +379,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
             let config = ProjectDescription.Project.Configuration.from(manifest: configuration)
             options = config.options
         } else {
-            options = .options(automaticSchemesOptions: .disabled)
+            options = .options(
+                automaticSchemesOptions: .disabled,
+                disableSynthesizedResourceAccessors: true
+            )
         }
 
         return ProjectDescription.Project(
