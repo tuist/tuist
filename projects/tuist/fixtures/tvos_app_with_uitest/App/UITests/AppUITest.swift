@@ -1,5 +1,3 @@
-// Copyright © 2019 Sky. All rights reserved.
-
 import XCTest
 
 class AppUITest: XCTestCase {

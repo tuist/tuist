@@ -1,10 +1,3 @@
-//
-//  SHA256Digest.swift
-//  TuistSupport
-//
-//  Created by Maksym Prokopchuk on 23.11.19.
-//
-
 import CommonCrypto
 import Foundation
 
