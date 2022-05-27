@@ -1,7 +1,5 @@
 import ProjectDescription
 
-typealias Configuration = ProjectDescription.Project.Configuration
-
 let packages: [Package] = [
     .package(url: "https://github.com/Alamofire/Alamofire", .upToNextMajor(from: "5.6.0")),
     .package(url: "https://github.com/danielgindi/Charts", .upToNextMajor(from: "4.0.0")),
@@ -13,7 +11,10 @@ let packages: [Package] = [
     .local(path: "LocalSwiftPackage"),
 ]
 
-let configuration: Configuration = .configuration(options: .options())
+let options: Project.Options = .options(
+    automaticSchemesOptions: .disabled,
+    disableSynthesizedResourceAccessors: false
+)
 
 let dependencies = Dependencies(
     swiftPackageManager: .init(
@@ -23,7 +24,7 @@ let dependencies = Dependencies(
             .release(name: .release),
             .release(name: "Internal"),
         ]),
-        configurations: ["LocalSwiftPackage": configuration]
+        generationOptions: ["LocalSwiftPackage": options]
     ),
     platforms: [.iOS]
 )

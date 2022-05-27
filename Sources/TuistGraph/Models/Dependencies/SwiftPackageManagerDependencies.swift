@@ -1,6 +1,21 @@
 import Foundation
 
 /// Contains the description of a dependency that can be installed using Swift Package Manager.
+///
+/// Example:
+///
+/// ```swift
+/// let packageManager = SwiftPackageManagerDependencies(
+///     packages: [
+///         .package(url: "https://github.com/Alamofire/Alamofire", .upToNextMajor(from: "5.6.0")),
+///         .local(path: "MySwiftPackage")
+///     ],
+///     baseSettings: .settings(configurations: [.debug(name: .debug), .release(name: .release)]),
+///     targetSettings: ["MySwiftPackageTarget": ["IPHONEOS_DEPLOYMENT_TARGET": SettingValue.string("13.0")]],
+///     generationOptions: ["MySwiftPackage":  .options(.disableSynthesizedResourceAccessors: false)]
+/// )
+/// ```
+
 public struct SwiftPackageManagerDependencies: Equatable {
     /// List of packages that will be installed using Swift Package Manager.
     public let packages: [Package]
@@ -15,7 +30,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
     public let targetSettings: [String: SettingsDictionary]
 
     /// The custom project options for each project generated from a swift package
-    public let configurations: [String: TuistGraph.Project.Configuration]
+    public let generationOptions: [String: TuistGraph.Project.Options]
 
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
@@ -23,20 +38,20 @@ public struct SwiftPackageManagerDependencies: Equatable {
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
     ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
-    ///    - configurations: The custom project options for each project generated from a swift package
+    ///    - generationOptions: The custom project options for each project generated from a swift package
 
     public init(
         _ packages: [Package],
         productTypes: [String: Product],
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
-        configurations: [String: TuistGraph.Project.Configuration] = [:]
+        generationOptions: [String: TuistGraph.Project.Options] = [:]
     ) {
         self.packages = packages
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
-        self.configurations = configurations
+        self.generationOptions = generationOptions
     }
 }
 

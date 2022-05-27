@@ -52,7 +52,7 @@ public protocol SwiftPackageManagerGraphGenerating {
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
         swiftToolsVersion: TSCUtility.Version?,
-        configurations: [String: TuistGraph.Project.Configuration]
+        generationOptions: [String: TuistGraph.Project.Options]
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -76,7 +76,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
         swiftToolsVersion: TSCUtility.Version?,
-        configurations: [String: TuistGraph.Project.Configuration]
+        generationOptions: [String: TuistGraph.Project.Options]
     ) throws -> TuistCore.DependenciesGraph {
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")
@@ -143,7 +143,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 productTypes: productTypes,
                 baseSettings: baseSettings,
                 targetSettings: targetSettings,
-                configuration: configurations[packageInfo.name],
+                generationOptions: generationOptions[packageInfo.name],
                 minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
                 targetToPlatform: preprocessInfo.targetToPlatform,
                 targetToProducts: preprocessInfo.targetToProducts,
