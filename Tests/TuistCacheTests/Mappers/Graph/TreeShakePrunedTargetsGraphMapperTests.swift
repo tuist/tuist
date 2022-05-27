@@ -75,16 +75,17 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
     func test_map_removes_project_schemes_with_whose_all_targets_have_been_removed() throws {
         // Given
         let path = AbsolutePath("/project")
-        let target = Target.test(name: "first", prune: true)
+        let prunedTarget = Target.test(name: "first", prune: true)
+        let keptTarget = Target.test(name: "second", prune: false)
         let schemes: [Scheme] = [
-            .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)])),
+            .test(buildAction: .test(targets: [.init(projectPath: path, name: prunedTarget.name)])),
         ]
-        let project = Project.test(path: path, targets: [target], schemes: schemes)
+        let project = Project.test(path: path, targets: [prunedTarget, keptTarget], schemes: schemes)
 
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [target.name: target]],
+            targets: [project.path: [prunedTarget.name: prunedTarget, keptTarget.name: keptTarget]],
             dependencies: [:]
         )
 
@@ -93,11 +94,44 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEmpty(gotSideEffects)
-        XCTAssertEqual(gotGraph.projects.count, 0)
-        let valueProjectSchemes = gotGraph.projects.values.first?.schemes ?? []
-        XCTAssertEmpty(valueProjectSchemes)
-        let valueTargets = gotGraph.targets.flatMap(\.value)
-        XCTAssertEqual(valueTargets.count, 0)
+        XCTAssertNotEmpty(gotGraph.projects)
+        XCTAssertEmpty(gotGraph.projects.values.flatMap(\.schemes))
+    }
+
+    func test_map_keeps_project_schemes_with_whose_all_targets_have_been_removed_but_have_test_plans() throws {
+        let path = AbsolutePath("/project")
+        let prunedTarget = Target.test(name: "first", prune: true)
+        let keptTarget = Target.test(name: "second", prune: false)
+        let schemes: [Scheme] = [
+            .test(
+                buildAction: .test(targets: [.init(projectPath: path, name: prunedTarget.name)]),
+                testAction: .test(testPlans: [.init(path: "/Test.xctestplan", isDefault: true)])
+            ),
+        ]
+        let project = Project.test(path: path, targets: [prunedTarget, keptTarget], schemes: schemes)
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [prunedTarget.name: prunedTarget, keptTarget.name: keptTarget]],
+            dependencies: [:]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertNotEmpty(gotGraph.projects)
+        XCTAssertEqual(
+            gotGraph.projects.values.flatMap(\.schemes),
+            [
+                .test(
+                    buildAction: .test(targets: []),
+                    testAction: .test(targets: [], testPlans: [.init(path: "/Test.xctestplan", isDefault: true)])
+                ),
+            ]
+        )
     }
 
     func test_map_removes_the_workspace_projects_that_no_longer_exist() throws {
