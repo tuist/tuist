@@ -74,7 +74,7 @@ class CacheServiceTest < ActiveSupport::TestCase
     assert_equal true, got
   end
 
-  test "object does not exists when not found AWS error is thrown" do
+  test "object does not exist when not found AWS error is thrown" do
     # Given
     Aws::S3::Client.any_instance.stubs(:head_object).raises(Aws::S3::Errors::NotFound.new("", ""))
 
@@ -90,6 +90,23 @@ class CacheServiceTest < ActiveSupport::TestCase
 
     # Then
     assert_equal false, got
+  end
+
+  test "catches forbidden AWS error" do
+    # Given
+    Aws::S3::Client.any_instance.stubs(:head_object).raises(Aws::S3::Errors::Forbidden.new("", ""))
+
+    # When / Then
+    assert_raises(CacheService::Error::S3BucketForbidden) do
+      CacheService.new(
+        project_slug: "my-project/tuist",
+        hash: "artifact-hash",
+        name: "MyFramework",
+        user: nil,
+        project: @project
+      )
+        .object_exists?
+    end
   end
 
   test "upload returns presigned url for uploading file" do
