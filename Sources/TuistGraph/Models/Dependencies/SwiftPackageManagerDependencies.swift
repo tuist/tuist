@@ -12,7 +12,7 @@ import Foundation
 ///     ],
 ///     baseSettings: .settings(configurations: [.debug(name: .debug), .release(name: .release)]),
 ///     targetSettings: ["MySwiftPackageTarget": ["IPHONEOS_DEPLOYMENT_TARGET": SettingValue.string("13.0")]],
-///     projectOptions: ["MySwiftPackage":  .options(.disableSynthesizedResourceAccessors: false)]
+///     projectOptions: ["MySwiftPackage":  .options(disableSynthesizedResourceAccessors: false)]
 /// )
 /// ```
 

@@ -9,7 +9,7 @@ import Foundation
 ///     packages: [
 ///         .local(path: "MySwiftPackage")
 ///     ],
-///     projectOptions: ["MySwiftPackage":  .options(.disableSynthesizedResourceAccessors: false)]
+///     projectOptions: ["MySwiftPackage":  .options(disableSynthesizedResourceAccessors: false)]
 /// )
 /// ```
 
