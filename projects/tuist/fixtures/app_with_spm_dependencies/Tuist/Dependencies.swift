@@ -11,7 +11,7 @@ let packages: [Package] = [
     .local(path: "LocalSwiftPackage"),
 ]
 
-let options: Project.Options = .options(
+let projectOptions: Project.Options = .options(
     automaticSchemesOptions: .disabled,
     disableSynthesizedResourceAccessors: false
 )
@@ -24,7 +24,7 @@ let dependencies = Dependencies(
             .release(name: .release),
             .release(name: "Internal"),
         ]),
-        generationOptions: ["LocalSwiftPackage": options]
+        projectOptions: ["LocalSwiftPackage": projectOptions]
     ),
     platforms: [.iOS]
 )

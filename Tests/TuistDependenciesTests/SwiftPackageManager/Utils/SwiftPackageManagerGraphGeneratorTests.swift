@@ -474,7 +474,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             baseSettings: .default,
             targetSettings: [:],
             swiftToolsVersion: nil,
-            generationOptions: [:]
+            projectOptions: [:]
         )
 
         // Then

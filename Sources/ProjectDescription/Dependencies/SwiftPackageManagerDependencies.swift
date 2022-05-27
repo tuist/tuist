@@ -12,7 +12,7 @@ import Foundation
 ///     ],
 ///     baseSettings: .settings(configurations: [.debug(name: .debug), .release(name: .release)]),
 ///     targetSettings: ["MySwiftPackageTarget": ["IPHONEOS_DEPLOYMENT_TARGET": SettingValue.string("13.0")]],
-///     generationOptions: ["MySwiftPackage":  .options(.disableSynthesizedResourceAccessors: false)]
+///     projectOptions: ["MySwiftPackage":  .options(.disableSynthesizedResourceAccessors: false)]
 /// )
 /// ```
 
@@ -30,7 +30,7 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     public let targetSettings: [String: SettingsDictionary]
 
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
-    public let generationOptions: [String: ProjectDescription.Project.Options]
+    public let projectOptions: [String: ProjectDescription.Project.Options]
 
     /// Creates `SwiftPackageManagerDependencies` instance.
     /// - Parameter packages: List of packages that will be installed using Swift Package Manager.
@@ -44,13 +44,13 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
         productTypes: [String: Product] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary] = [:],
-        generationOptions: [String: ProjectDescription.Project.Options] = [:]
+        projectOptions: [String: ProjectDescription.Project.Options] = [:]
     ) {
         self.packages = packages
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
-        self.generationOptions = generationOptions
+        self.projectOptions = projectOptions
     }
 }
 

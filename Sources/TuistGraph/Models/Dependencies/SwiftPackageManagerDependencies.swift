@@ -12,7 +12,7 @@ import Foundation
 ///     ],
 ///     baseSettings: .settings(configurations: [.debug(name: .debug), .release(name: .release)]),
 ///     targetSettings: ["MySwiftPackageTarget": ["IPHONEOS_DEPLOYMENT_TARGET": SettingValue.string("13.0")]],
-///     generationOptions: ["MySwiftPackage":  .options(.disableSynthesizedResourceAccessors: false)]
+///     projectOptions: ["MySwiftPackage":  .options(.disableSynthesizedResourceAccessors: false)]
 /// )
 /// ```
 
@@ -30,7 +30,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
     public let targetSettings: [String: SettingsDictionary]
 
     /// The custom project options for each project generated from a swift package
-    public let generationOptions: [String: TuistGraph.Project.Options]
+    public let projectOptions: [String: TuistGraph.Project.Options]
 
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
@@ -45,13 +45,13 @@ public struct SwiftPackageManagerDependencies: Equatable {
         productTypes: [String: Product],
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
-        generationOptions: [String: TuistGraph.Project.Options] = [:]
+        projectOptions: [String: TuistGraph.Project.Options] = [:]
     ) {
         self.packages = packages
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
-        self.generationOptions = generationOptions
+        self.projectOptions = projectOptions
     }
 }
 

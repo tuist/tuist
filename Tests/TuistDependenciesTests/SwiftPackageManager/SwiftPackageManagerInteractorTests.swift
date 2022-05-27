@@ -66,14 +66,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         swiftPackageManagerGraphGenerator
             .generateStub =
-            { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion, configuration in
+            { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion, projectOptions in
                 XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
                 XCTAssertEqual(platforms, [.iOS])
                 XCTAssertEqual(automaticProductType, [:])
                 XCTAssertEqual(baseSettings, .default)
                 XCTAssertEqual(targetSettings, [:])
                 XCTAssertNil(swiftToolsVersion)
-                XCTAssertEqual(configuration, [:])
+                XCTAssertEqual(projectOptions, [:])
                 return .test()
             }
 
@@ -160,14 +160,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
 
         swiftPackageManagerGraphGenerator
-            .generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftVersion, configuration in
+            .generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftVersion, projectOptions in
                 XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
                 XCTAssertEqual(automaticProductType, [:])
                 XCTAssertEqual(platforms, [.iOS])
                 XCTAssertEqual(baseSettings, .default)
                 XCTAssertEqual(targetSettings, [:])
                 XCTAssertEqual(swiftVersion, swiftToolsVersion)
-                XCTAssertEqual(configuration, [:])
+                XCTAssertEqual(projectOptions, [:])
                 return .test()
             }
 

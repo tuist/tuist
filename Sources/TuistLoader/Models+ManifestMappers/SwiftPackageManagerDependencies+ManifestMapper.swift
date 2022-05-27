@@ -15,8 +15,8 @@ extension TuistGraph.SwiftPackageManagerDependencies {
         let productTypes = manifest.productTypes.mapValues { TuistGraph.Product.from(manifest: $0) }
         let baseSettings = try TuistGraph.Settings.from(manifest: manifest.baseSettings, generatorPaths: generatorPaths)
         let targetSettings = manifest.targetSettings.mapValues { TuistGraph.SettingsDictionary.from(manifest: $0) }
-        let generationOptions: [String: TuistGraph.Project.Options] = manifest
-            .generationOptions
+        let projectOptions: [String: TuistGraph.Project.Options] = manifest
+            .projectOptions
             .mapValues { .from(manifest: $0) }
 
         return .init(
@@ -24,7 +24,7 @@ extension TuistGraph.SwiftPackageManagerDependencies {
             productTypes: productTypes,
             baseSettings: baseSettings,
             targetSettings: targetSettings,
-            generationOptions: generationOptions
+            projectOptions: projectOptions
         )
     }
 }

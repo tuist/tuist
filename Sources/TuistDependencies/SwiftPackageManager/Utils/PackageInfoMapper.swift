@@ -126,7 +126,7 @@ public protocol PackageInfoMapping {
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
-        generationOptions: TuistGraph.Project.Options?,
+        projectOptions: TuistGraph.Project.Options?,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
@@ -307,7 +307,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
-        generationOptions: TuistGraph.Project.Options?,
+        projectOptions: TuistGraph.Project.Options?,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
@@ -375,8 +375,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         }
 
         let options: ProjectDescription.Project.Options
-        if let generationOptions = generationOptions {
-            options = .from(manifest: generationOptions)
+        if let projectOptions = projectOptions {
+            options = .from(manifest: projectOptions)
         } else {
             options = .options(
                 automaticSchemesOptions: .disabled,

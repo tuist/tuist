@@ -2566,7 +2566,7 @@ extension PackageInfoMapping {
         baseSettings: TuistGraph.Settings = .default,
         targetSettings: [String: TuistGraph.SettingsDictionary] = [:],
         swiftToolsVersion: TSCUtility.Version? = nil,
-        generationOptions: TuistGraph.Project.Options? = nil
+        projectOptions: TuistGraph.Project.Options? = nil
     ) throws -> ProjectDescription.Project? {
         let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
             for product in packageInfo.value.products {
@@ -2606,7 +2606,7 @@ extension PackageInfoMapping {
             productTypes: [:],
             baseSettings: baseSettings,
             targetSettings: targetSettings,
-            generationOptions: generationOptions,
+            projectOptions: projectOptions,
             minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
             targetToPlatform: preprocessInfo.targetToPlatform,
             targetToProducts: preprocessInfo.targetToProducts,
