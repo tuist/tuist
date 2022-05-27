@@ -71,7 +71,7 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
         let infoPlistPath = project.path
             .appending(component: derivedDirectoryName)
             .appending(component: infoPlistsDirectoryName)
-            .appending(component: "\(target.name).plist")
+            .appending(component: "\(target.name)-Info.plist")
         let sideEffect = SideEffectDescriptor.file(FileDescriptor(path: infoPlistPath, contents: data))
 
         let newTarget = target.with(infoPlist: InfoPlist.generatedFile(path: infoPlistPath, data: data))
