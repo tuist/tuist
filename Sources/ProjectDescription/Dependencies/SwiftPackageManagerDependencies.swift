@@ -2,16 +2,13 @@ import Foundation
 
 /// A collection of Swift Package Manager dependencies.
 ///
-/// Example:
+/// For example, to enabled resource accessors on projects generated from Swift Package Manager:
 ///
 /// ```swift
 /// let packageManager = SwiftPackageManagerDependencies(
 ///     packages: [
-///         .package(url: "https://github.com/Alamofire/Alamofire", .upToNextMajor(from: "5.6.0")),
 ///         .local(path: "MySwiftPackage")
 ///     ],
-///     baseSettings: .settings(configurations: [.debug(name: .debug), .release(name: .release)]),
-///     targetSettings: ["MySwiftPackageTarget": ["IPHONEOS_DEPLOYMENT_TARGET": SettingValue.string("13.0")]],
 ///     projectOptions: ["MySwiftPackage":  .options(.disableSynthesizedResourceAccessors: false)]
 /// )
 /// ```
