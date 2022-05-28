@@ -43,23 +43,23 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(mappedProject.targets.count, 2)
 
         try XCTAssertSideEffectsCreateDerivedInfoPlist(
-            named: "A.plist",
+            named: "A-Info.plist",
             content: ["A": "A_VALUE"],
             projectPath: project.path,
             sideEffects: sideEffects
         )
         try XCTAssertSideEffectsCreateDerivedInfoPlist(
-            named: "B.plist",
+            named: "B-Info.plist",
             content: ["B": "B_VALUE"],
             projectPath: project.path,
             sideEffects: sideEffects
         )
         XCTAssertTargetExistsWithDerivedInfoPlist(
-            named: "A.plist",
+            named: "A-Info.plist",
             project: mappedProject
         )
         XCTAssertTargetExistsWithDerivedInfoPlist(
-            named: "B.plist",
+            named: "B-Info.plist",
             project: mappedProject
         )
     }

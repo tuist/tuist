@@ -252,7 +252,7 @@ GEM
       net-protocol
       timeout
     nio4r (2.5.8)
-    nokogiri (1.13.4)
+    nokogiri (1.13.6)
       mini_portile2 (~> 2.8.0)
       racc (~> 1.4)
     oauth2 (1.4.9)
@@ -289,7 +289,7 @@ GEM
     pundit (2.2.0)
       activesupport (>= 3.0.0)
     racc (1.6.0)
-    rack (2.2.3)
+    rack (2.2.3.1)
     rack-mini-profiler (2.3.4)
       rack (>= 1.2.0)
     rack-protection (2.2.0)
