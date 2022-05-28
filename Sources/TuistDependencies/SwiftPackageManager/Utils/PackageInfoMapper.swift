@@ -741,34 +741,15 @@ extension ProjectDescription.Settings {
         let mainRelativePath = mainPath.relative(to: packageFolder)
 
         let moduleMap = targetToModuleMap[target.name]!
-        if moduleMap != .none {
+        switch moduleMap {
+        case .none, .header, .nestedHeader:
+            break
+        case .directory, .custom:
             let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
             let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
             headerSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
             impartedSettings["HEADER_SEARCH_PATHS"] = .array(["$(inherited)", publicHeadersPath.pathString])
         }
-
-        let allDependencies = Self.recursiveTargetDependencies(
-            of: target,
-            packageName: packageName,
-            packageInfos: packageInfos,
-            targetToResolvedDependencies: targetToResolvedDependencies
-        )
-
-        headerSearchPaths += try allDependencies
-            .compactMap { dependency in
-                // Add dependencies search paths if they require a modulemap
-                guard let packagePath = packageToProject[dependency.package] else { return nil }
-                let headersPath = try dependency.target.publicHeadersPath(packageFolder: packagePath)
-                let moduleMap = targetToModuleMap[dependency.target.name]!
-                switch moduleMap {
-                case .none, .header, .nestedHeader:
-                    return nil
-                case .directory, .custom:
-                    return "$(SRCROOT)/\(headersPath.relative(to: packageFolder))"
-                }
-            }
-            .sorted()
 
         try settings.forEach { setting in
             if let condition = setting.condition {

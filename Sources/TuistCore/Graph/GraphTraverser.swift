@@ -378,7 +378,7 @@ public class GraphTraverser: GraphTraversing {
         let dependencies = graph.dependencies[.target(name: name, path: path), default: []]
         return dependencies
             .compactMap { dependency -> SettingsDictionary? in
-                guard case let GraphDependency.target(name, path) = dependency else { return nil }
+                guard case let .target(name, path) = dependency else { return nil }
                 return target(path: path, name: name)?.target.settings?.imparted
             }
     }

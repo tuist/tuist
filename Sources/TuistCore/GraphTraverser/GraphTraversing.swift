@@ -174,7 +174,7 @@ public protocol GraphTraversing {
     /// Returns the imparted settings from the dependencies of the given target.
     /// - Parameters:
     ///   - path: Path to the project that defines the target.
-    ///   - name: Target name.   
+    ///   - name: Target name.
     func impartedSettings(path: AbsolutePath, name: String) -> [SettingsDictionary]
 }
 
