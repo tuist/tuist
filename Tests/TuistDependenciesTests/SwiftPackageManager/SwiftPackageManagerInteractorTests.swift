@@ -61,7 +61,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
-            XCTAssertNil(version) // swift-tools-version is not specified
+            XCTAssertEqual(version, TSCUtility.Version(5, 6, 0))
         }
 
         swiftPackageManagerGraphGenerator
@@ -153,10 +153,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
-            XCTAssertEqual(
-                version,
-                swiftToolsVersion.description
-            ) // version should be equal to the version that has been specified
+            XCTAssertEqual(version, swiftToolsVersion)
         }
 
         swiftPackageManagerGraphGenerator
@@ -246,7 +243,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
-            XCTAssertNil(version) // swift-tools-version is not specified
+            XCTAssertEqual(version, Version("5.6.0"))
         }
 
         swiftPackageManagerGraphGenerator

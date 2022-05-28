@@ -29,21 +29,12 @@
         }
       },
       {
-        "package": "combine-schedulers",
-        "repositoryURL": "https://github.com/pointfreeco/combine-schedulers",
-        "state": {
-          "branch": null,
-          "revision": "f1250faa1c1436ca83950ce676a4fe97a309a457",
-          "version": "0.4.1"
-        }
-      },
-      {
         "package": "CombineExt",
         "repositoryURL": "https://github.com/CombineCommunity/CombineExt.git",
         "state": {
           "branch": null,
-          "revision": "5b8a0c0f178527f9204200505c5fefa6847e528f",
-          "version": "1.3.0"
+          "revision": "38a4d4cb01f8c7750671c786d33dfbea00cbd131",
+          "version": "1.6.1"
         }
       },
       {
@@ -60,8 +51,8 @@
         "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift.git",
         "state": {
           "branch": null,
-          "revision": "8d4f6384e0a8cc41f2005247241dd553963a492a",
-          "version": "1.4.1"
+          "revision": "039f56c5d7960f277087a0be51f5eb04ed0ec073",
+          "version": "1.5.1"
         }
       },
       {
@@ -96,8 +87,17 @@
         "repositoryURL": "https://github.com/shibapm/Komondor.git",
         "state": {
           "branch": null,
-          "revision": "855c74f395a4dc9e02828f58d931be6920bcbf6f",
-          "version": "1.0.6"
+          "revision": "dedffeaf42a1b52bf072a9dc47afb35000a8b265",
+          "version": "1.1.4"
+        }
+      },
+      {
+        "package": "Logger",
+        "repositoryURL": "https://github.com/shibapm/Logger",
+        "state": {
+          "branch": null,
+          "revision": "53c3ecca5abe8cf46697e33901ee774236d94cce",
+          "version": "0.2.3"
         }
       },
       {
@@ -105,8 +105,8 @@
         "repositoryURL": "https://github.com/shibapm/PackageConfig.git",
         "state": {
           "branch": null,
-          "revision": "bf90dc69fa0792894b08a0b74cf34029694ae486",
-          "version": "0.13.0"
+          "revision": "58523193c26fb821ed1720dcd8a21009055c7cdb",
+          "version": "1.1.3"
         }
       },
       {
@@ -128,12 +128,30 @@
         }
       },
       {
+        "package": "Rocket",
+        "repositoryURL": "https://github.com/f-meloni/Rocket",
+        "state": {
+          "branch": null,
+          "revision": "9880a5beb7fcb9e61ddd5764edc1700b8c418deb",
+          "version": "1.2.1"
+        }
+      },
+      {
         "package": "ShellOut",
         "repositoryURL": "https://github.com/JohnSundell/ShellOut.git",
         "state": {
           "branch": null,
           "revision": "e1577acf2b6e90086d01a6d5e2b8efdaae033568",
           "version": "2.3.0"
+        }
+      },
+      {
+        "package": "SourceKitten",
+        "repositoryURL": "https://github.com/jpsim/SourceKitten.git",
+        "state": {
+          "branch": null,
+          "revision": "817dfa6f2e09b0476f3a6c9dbc035991f02f0241",
+          "version": "0.32.0"
         }
       },
       {
@@ -150,8 +168,8 @@
         "repositoryURL": "https://github.com/stencilproject/Stencil.git",
         "state": {
           "branch": null,
-          "revision": "973e190edf5d09274e4a6bc2e636c86899ed84c3",
-          "version": "0.14.1"
+          "revision": "ccd9402682f4c07dac9561befd207c8156e80e20",
+          "version": "0.14.2"
         }
       },
       {
@@ -168,8 +186,8 @@
         "repositoryURL": "https://github.com/apple/swift-argument-parser.git",
         "state": {
           "branch": null,
-          "revision": "e1465042f195f374b94f915ba8ca49de24300a0d",
-          "version": "1.0.2"
+          "revision": "f3c9084a71ef4376f2fabbdf1d3d90a49f1fabdb",
+          "version": "1.1.2"
         }
       },
       {
@@ -209,6 +227,15 @@
         }
       },
       {
+        "package": "SwiftFormat",
+        "repositoryURL": "https://github.com/nicklockwood/SwiftFormat.git",
+        "state": {
+          "branch": null,
+          "revision": "f8e35f6716c369c8412664052a0a7337da2ca0e3",
+          "version": "0.49.9"
+        }
+      },
+      {
         "package": "SwiftGen",
         "repositoryURL": "https://github.com/SwiftGen/SwiftGen",
         "state": {
@@ -218,21 +245,48 @@
         }
       },
       {
+        "package": "SwiftLint",
+        "repositoryURL": "https://github.com/Realm/SwiftLint.git",
+        "state": {
+          "branch": null,
+          "revision": "e8ef21fef61f12536964c4e3cf6d5a6e3ad81e49",
+          "version": "0.46.5"
+        }
+      },
+      {
+        "package": "SwiftShell",
+        "repositoryURL": "https://github.com/kareman/SwiftShell",
+        "state": {
+          "branch": null,
+          "revision": "a6014fe94c3dbff0ad500e8da4f251a5d336530b",
+          "version": "5.1.0-beta.1"
+        }
+      },
+      {
+        "package": "SwiftyTextTable",
+        "repositoryURL": "https://github.com/scottrhoyt/SwiftyTextTable.git",
+        "state": {
+          "branch": null,
+          "revision": "c6df6cf533d120716bff38f8ff9885e1ce2a4ac3",
+          "version": "0.9.0"
+        }
+      },
+      {
+        "package": "SWXMLHash",
+        "repositoryURL": "https://github.com/drmohundro/SWXMLHash.git",
+        "state": {
+          "branch": null,
+          "revision": "6469881a3f30417c5bb02404ea4b69207f297592",
+          "version": "6.0.0"
+        }
+      },
+      {
         "package": "XcodeProj",
         "repositoryURL": "https://github.com/tuist/XcodeProj.git",
         "state": {
           "branch": null,
           "revision": "c75c3acc25460195cfd203a04dde165395bf00e0",
           "version": "8.7.1"
-        }
-      },
-      {
-        "package": "xctest-dynamic-overlay",
-        "repositoryURL": "https://github.com/pointfreeco/xctest-dynamic-overlay",
-        "state": {
-          "branch": null,
-          "revision": "603974e3909ad4b48ba04aad7e0ceee4f077a518",
-          "version": "0.1.0"
         }
       },
       {

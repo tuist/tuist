@@ -11,20 +11,22 @@ let packages: [Package] = [
     .local(path: "LocalSwiftPackage"),
 ]
 
-let projectOptions: Project.Options = .options(
-    automaticSchemesOptions: .disabled,
-    disableSynthesizedResourceAccessors: false
-)
-
 let dependencies = Dependencies(
     swiftPackageManager: .init(
         packages,
-        baseSettings: .settings(configurations: [
-            .debug(name: .debug),
-            .release(name: .release),
-            .release(name: "Internal"),
-        ]),
-        projectOptions: ["LocalSwiftPackage": projectOptions]
+        baseSettings: .settings(
+            configurations: [
+                .debug(name: .debug),
+                .release(name: .release),
+                .release(name: "Internal"),
+            ]
+        ),
+        projectOptions: [
+            "LocalSwiftPackage": .options(
+                automaticSchemesOptions: .disabled,
+                disableSynthesizedResourceAccessors: false
+            )
+        ]
     ),
     platforms: [.iOS]
 )
