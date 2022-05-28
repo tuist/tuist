@@ -210,7 +210,8 @@ extension ProjectAutomation.Target {
         ProjectAutomation.Target(
             name: target.name,
             product: target.product.rawValue,
-            sources: target.sources.map(\.path.pathString)
+            sources: target.sources.map(\.path.pathString),
+            resources: target.resources.map(\.path.pathString)
         )
     }
 }
