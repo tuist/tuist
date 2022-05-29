@@ -113,7 +113,7 @@ public struct TuistCommand: ParsableCommand {
             try await trackableCommand.run()
         } else {
             if var asyncCommand = command as? AsyncParsableCommand {
-                try await asyncCommand.runAsync()
+                try await asyncCommand.run()
             } else {
                 try command.run()
             }

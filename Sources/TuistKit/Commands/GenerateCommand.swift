@@ -52,7 +52,7 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var ignoreCache: Bool = false
 
-    func runAsync() async throws {
+    func run() async throws {
         try await GenerateService().run(
             path: path,
             sources: Set(sources),

@@ -46,7 +46,7 @@ struct BuildCommand: AsyncParsableCommand {
     )
     var buildOutputPath: String?
 
-    func runAsync() async throws {
+    func run() async throws {
         let absolutePath: AbsolutePath
         if let path = path {
             absolutePath = AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)

@@ -28,7 +28,7 @@ struct CacheWarmCommand: AsyncParsableCommand {
     )
     var dependenciesOnly: Bool = false
 
-    func runAsync() async throws {
+    func run() async throws {
         try await CacheWarmService().run(
             path: options.path,
             profile: options.profile,
