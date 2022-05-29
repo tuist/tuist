@@ -25,7 +25,7 @@ let dependencies = Dependencies(
             "LocalSwiftPackage": .options(
                 automaticSchemesOptions: .disabled,
                 disableSynthesizedResourceAccessors: false
-            )
+            ),
         ]
     ),
     platforms: [.iOS]
