@@ -110,6 +110,7 @@ public protocol PackageInfoMapping {
     ///   - productTypes: Product type mapping
     ///   - baseSettings: Base settings
     ///   - targetSettings: Settings to apply to denoted targets
+    ///   - configuration: Configure automatic schemes and resource accessors generation for Swift Package
     ///   - minDeploymentTargets: Minimum support deployment target per platform
     ///   - targetToPlatform: Mapping from a target name to its platform
     ///   - targetToProducts: Mapping from a target name to its products
@@ -125,6 +126,7 @@ public protocol PackageInfoMapping {
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
+        projectOptions: TuistGraph.Project.Options?,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
@@ -305,6 +307,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
+        projectOptions: TuistGraph.Project.Options?,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
@@ -371,19 +374,25 @@ public final class PackageInfoMapper: PackageInfoMapping {
             return nil
         }
 
+        let options: ProjectDescription.Project.Options
+        if let projectOptions = projectOptions {
+            options = .from(manifest: projectOptions)
+        } else {
+            options = .options(
+                automaticSchemesOptions: .disabled,
+                disableSynthesizedResourceAccessors: true
+            )
+        }
+
         return ProjectDescription.Project(
             name: name,
-            options: .options(
-                automaticSchemesOptions: .disabled, // disable schemes for dependencies
-                disableBundleAccessors: false,
-                disableSynthesizedResourceAccessors: false
-            ),
+            options: options,
             settings: packageInfo.projectSettings(
                 swiftToolsVersion: swiftToolsVersion,
                 buildConfigs: baseSettings.configurations.map { key, _ in key }
             ),
             targets: targets,
-            resourceSynthesizers: []
+            resourceSynthesizers: .default
         )
     }
 

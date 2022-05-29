@@ -13,6 +13,7 @@ let project = Project(
             dependencies: [
                 .target(name: "AppKit"),
                 .project(target: "FeatureOneFramework", path: .relativeToRoot("Features/FeatureOne")),
+                .external(name: "Styles"),
             ]
         ),
         Target(

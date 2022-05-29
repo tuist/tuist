@@ -44,13 +44,15 @@ public protocol SwiftPackageManagerGraphGenerating {
     /// - Parameter baseSettings: base `Settings` for targets.
     /// - Parameter targetSettings: `SettingsDictionary` overrides for targets.
     /// - Parameter swiftToolsVersion: The version of Swift tools that will be used to generate dependencies.
+    /// - Parameter configurations: The custom configurations for generated projects.
     func generate(
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
-        swiftToolsVersion: TSCUtility.Version?
+        swiftToolsVersion: TSCUtility.Version?,
+        projectOptions: [String: TuistGraph.Project.Options]
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -73,7 +75,8 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         platforms: Set<TuistGraph.Platform>,
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
-        swiftToolsVersion: TSCUtility.Version?
+        swiftToolsVersion: TSCUtility.Version?,
+        projectOptions: [String: TuistGraph.Project.Options]
     ) throws -> TuistCore.DependenciesGraph {
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")
@@ -140,6 +143,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 productTypes: productTypes,
                 baseSettings: baseSettings,
                 targetSettings: targetSettings,
+                projectOptions: projectOptions[packageInfo.name],
                 minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
                 targetToPlatform: preprocessInfo.targetToPlatform,
                 targetToProducts: preprocessInfo.targetToProducts,

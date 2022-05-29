@@ -27,6 +27,9 @@ public class DependenciesModelLoader: DependenciesModelLoading {
         let manifest = try manifestLoader.loadDependencies(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
 
-        return try TuistGraph.Dependencies.from(manifest: manifest, generatorPaths: generatorPaths)
+        return try TuistGraph.Dependencies.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
     }
 }

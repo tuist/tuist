@@ -53,7 +53,7 @@ extension TuistCore.DependenciesGraph {
                     options: .options(
                         automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: false,
+                        disableSynthesizedResourceAccessors: true,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     settings: .settings(
@@ -133,7 +133,7 @@ extension TuistCore.DependenciesGraph {
                             settings: Self.spmSettings()
                         ),
                     ],
-                    resourceSynthesizers: []
+                    resourceSynthesizers: .default
                 ),
             ]
         )
@@ -155,7 +155,7 @@ extension TuistCore.DependenciesGraph {
                     options: .options(
                         automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: false,
+                        disableSynthesizedResourceAccessors: true,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     settings: .settings(
@@ -199,7 +199,7 @@ extension TuistCore.DependenciesGraph {
                             settings: Self.spmSettings()
                         ),
                     ],
-                    resourceSynthesizers: []
+                    resourceSynthesizers: .default
                 ),
             ]
         )
@@ -219,7 +219,7 @@ extension TuistCore.DependenciesGraph {
                     options: .options(
                         automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: false,
+                        disableSynthesizedResourceAccessors: true,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     settings: .settings(
@@ -245,7 +245,7 @@ extension TuistCore.DependenciesGraph {
                             settings: Self.spmSettings()
                         ),
                     ],
-                    resourceSynthesizers: []
+                    resourceSynthesizers: .default
                 ),
             ]
         )
@@ -265,7 +265,7 @@ extension TuistCore.DependenciesGraph {
                     options: .options(
                         automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: false,
+                        disableSynthesizedResourceAccessors: true,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
@@ -289,7 +289,7 @@ extension TuistCore.DependenciesGraph {
                             settings: Self.spmSettings()
                         ),
                     ],
-                    resourceSynthesizers: []
+                    resourceSynthesizers: .default
                 ),
             ]
         )
@@ -315,7 +315,7 @@ extension TuistCore.DependenciesGraph {
                     options: .options(
                         automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: false,
+                        disableSynthesizedResourceAccessors: true,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     settings: .settings(
@@ -412,7 +412,7 @@ extension TuistCore.DependenciesGraph {
                             settings: Self.spmSettings()
                         ),
                     ],
-                    resourceSynthesizers: []
+                    resourceSynthesizers: .default
                 ),
             ]
         )
@@ -434,7 +434,7 @@ extension TuistCore.DependenciesGraph {
                     options: .options(
                         automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: false,
+                        disableSynthesizedResourceAccessors: true,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     settings: .settings(
@@ -505,7 +505,7 @@ extension TuistCore.DependenciesGraph {
                             settings: Self.spmSettings()
                         ),
                     ],
-                    resourceSynthesizers: []
+                    resourceSynthesizers: .default
                 ),
             ]
         )
@@ -523,7 +523,7 @@ extension TuistCore.DependenciesGraph {
                     options: .options(
                         automaticSchemesOptions: .disabled,
                         disableBundleAccessors: false,
-                        disableSynthesizedResourceAccessors: false,
+                        disableSynthesizedResourceAccessors: true,
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     settings: .settings(
@@ -549,7 +549,7 @@ extension TuistCore.DependenciesGraph {
                             settings: Self.spmSettings()
                         ),
                     ],
-                    resourceSynthesizers: []
+                    resourceSynthesizers: .default
                 ),
             ]
         )

@@ -2565,7 +2565,8 @@ extension PackageInfoMapping {
         platforms: Set<TuistGraph.Platform> = [.iOS],
         baseSettings: TuistGraph.Settings = .default,
         targetSettings: [String: TuistGraph.SettingsDictionary] = [:],
-        swiftToolsVersion: TSCUtility.Version? = nil
+        swiftToolsVersion: TSCUtility.Version? = nil,
+        projectOptions: TuistGraph.Project.Options? = nil
     ) throws -> ProjectDescription.Project? {
         let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
             for product in packageInfo.value.products {
@@ -2605,6 +2606,7 @@ extension PackageInfoMapping {
             productTypes: [:],
             baseSettings: baseSettings,
             targetSettings: targetSettings,
+            projectOptions: projectOptions,
             minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
             targetToPlatform: preprocessInfo.targetToPlatform,
             targetToProducts: preprocessInfo.targetToProducts,
@@ -2658,12 +2660,12 @@ extension ProjectDescription.Project {
             options: .options(
                 automaticSchemesOptions: .disabled,
                 disableBundleAccessors: false,
-                disableSynthesizedResourceAccessors: false,
+                disableSynthesizedResourceAccessors: true,
                 textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
             ),
             settings: settings,
             targets: targets,
-            resourceSynthesizers: []
+            resourceSynthesizers: .default
         )
     }
 
