@@ -136,7 +136,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         dependencies: TuistGraph.SwiftPackageManagerDependencies,
         swiftToolsVersion: TSCUtility.Version?
     ) throws {
-        let version = try TSCUtility.Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)
+        let version = try swiftToolsVersion ??
+            TSCUtility.Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)
         let isLegacy = version < TSCUtility.Version(5, 6, 0)
 
         // copy `Package.resolved` directory from lockfiles folder
@@ -155,7 +156,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         // set `swift-tools-version` in `Package.swift`
         try swiftPackageManagerController.setToolsVersion(
             at: pathsProvider.destinationSwiftPackageManagerDirectory,
-            to: swiftToolsVersion?.description
+            to: version
         )
 
         let generatedManifestContent = try fileHandler.readTextFile(packageManifestPath)
