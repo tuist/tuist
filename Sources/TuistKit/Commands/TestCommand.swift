@@ -65,7 +65,7 @@ struct TestCommand: AsyncParsableCommand {
     )
     var retryCount: Int = 0
 
-    func runAsync() async throws {
+    func run() async throws {
         let absolutePath: AbsolutePath
 
         if let path = path {

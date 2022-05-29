@@ -29,7 +29,7 @@ struct FetchCommand: AsyncParsableCommand {
     )
     var update: Bool = false
 
-    func runAsync() async throws {
+    func run() async throws {
         try await FetchService().run(
             path: path,
             update: update
