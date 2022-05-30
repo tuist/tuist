@@ -11,7 +11,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         "playground",
     ]
     public static let validFolderExtensions: [String] = [
-        "framework", "bundle", "app", "xcassets", "appiconset", "scnassets",
+        "framework", "bundle", "app", "xcassets", "appiconset", "scnassets", "lproj",
     ]
 
     // MARK: - Attributes
