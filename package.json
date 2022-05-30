@@ -38,8 +38,8 @@
   },
   "dependencies": {
     "@apollo/client": "^3.6.2",
-    "@babel/preset-react": "^7.16.7",
-    "@babel/preset-typescript": "^7.16.7",
+    "@babel/preset-react": "^7.17.12",
+    "@babel/preset-typescript": "^7.17.12",
     "@juggle/resize-observer": "^3.3.1",
     "@rails/ujs": "^6.1.6",
     "@rails/webpacker": "5.4.3",
