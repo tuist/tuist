@@ -265,6 +265,7 @@ final class TargetTests: TuistUnitTestCase {
             "resources/d.xcassets",
             "resources/d.scnassets",
             "resources/g.bundle",
+            "resources/h.lproj",
         ])
 
         let files = try createFiles([
@@ -287,6 +288,7 @@ final class TargetTests: TuistUnitTestCase {
             "resources/d.xcassets",
             "resources/d.scnassets",
             "resources/g.bundle",
+            "resources/h.lproj",
             "resources/a.png",
             "resources/b.jpg",
             "resources/b.jpeg",
