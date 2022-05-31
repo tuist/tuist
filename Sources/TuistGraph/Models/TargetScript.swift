@@ -19,7 +19,7 @@ public struct TargetScript: Equatable, Codable {
     /// - embedded: Executes the embedded script. This should be a short command.
     public enum Script: Equatable, Codable {
         case tool(path: String, args: [String] = [])
-        case scriptPath(path: AbsolutePath, args: [String] = [])
+        case scriptPath(path: AbsolutePath, args: [String] = [], skipWhenTesting: Bool)
         case embedded(String)
     }
 
@@ -49,7 +49,7 @@ public struct TargetScript: Equatable, Codable {
 
     /// Path to the script to execute.
     public var path: AbsolutePath? {
-        if case let Script.scriptPath(path, _) = script {
+        if case let Script.scriptPath(path, _, _) = script {
             return path
         }
 
@@ -62,7 +62,7 @@ public struct TargetScript: Equatable, Codable {
     /// Arguments that to be passed
     public var arguments: [String] {
         switch script {
-        case let .scriptPath(_, args), let .tool(_, args):
+        case let .scriptPath(_, args, _), let .tool(_, args):
             return args
 
         case .embedded:
@@ -91,6 +91,9 @@ public struct TargetScript: Equatable, Codable {
     /// Whether this script only runs on install builds (default is false)
     public let runForInstallBuildsOnly: Bool
 
+    /// Whether this script is run when testing.
+    public let skipWhenTesting: Bool
+
     /// The path to the shell which shall execute this script.
     public let shellPath: String
 
@@ -108,6 +111,7 @@ public struct TargetScript: Equatable, Codable {
     ///   - showEnvVarsInLog: Show environment variables in the logs
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - skipWhenTesting: Whether this script is run when testing. (default is false)   
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     public init(
         name: String,
@@ -120,6 +124,7 @@ public struct TargetScript: Equatable, Codable {
         showEnvVarsInLog: Bool = true,
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
+        skipWhenTesting: Bool = false,
         shellPath: String = "/bin/sh"
     ) {
         self.name = name
@@ -132,6 +137,7 @@ public struct TargetScript: Equatable, Codable {
         self.showEnvVarsInLog = showEnvVarsInLog
         self.basedOnDependencyAnalysis = basedOnDependencyAnalysis
         self.runForInstallBuildsOnly = runForInstallBuildsOnly
+        self.skipWhenTesting = skipWhenTesting
         self.shellPath = shellPath
     }
 }

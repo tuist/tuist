@@ -15,8 +15,12 @@ extension TargetScript {
         case let .embedded(text):
             return text.spm_chomp().spm_chuzzle() ?? ""
 
-        case let .scriptPath(path, args: args):
+        case let .scriptPath(path, args: args, skipWhenTesting: skipWhenTesting):
+            if skipWhenTesting {
             return "\"$SRCROOT\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))"
+            } else {
+                return "\"$SRCROOT\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))"
+            }
 
         case let .tool(tool, args):
             return try "\(System.shared.which(tool).spm_chomp().spm_chuzzle()!) \(args.joined(separator: " "))"
