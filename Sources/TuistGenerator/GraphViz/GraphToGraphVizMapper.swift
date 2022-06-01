@@ -20,7 +20,9 @@ public protocol GraphToGraphVizMapping {
 
     /// Maps the project graph into a dot graph representation.
     ///
-    /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
+    /// - Parameters
+    ///  - graph: Graph to be used for attributing
+    ///  - targetsAndDependencies: Targets to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
     func map(
         graph: TuistGraph.Graph,
@@ -77,10 +79,12 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
         }
     }
 
-    /// Maps the project graph into a GraphViz graph representation.
+    /// Maps the project graph into a dot graph representation.
     ///
-    /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
-    /// - Returns: The GraphViz.Graph representation.
+    /// - Parameters
+    ///  - graph: Graph to be used for attributing
+    ///  - targetsAndDependencies: Targets to be converted into a GraphViz.Graph.
+    /// - Returns: The GraphViz.Graph representation
     public func map(
         graph: TuistGraph.Graph,
         targetsAndDependencies: [GraphTarget: Set<GraphDependency>]

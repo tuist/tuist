@@ -54,7 +54,7 @@ final class GraphService {
             try FileHandler.shared.delete(filePath)
         }
 
-        let targetsAndDependencies = graphVizMapper.filter(
+        let filteredTargetsAndDependencies = graphVizMapper.filter(
             graph: graph,
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
@@ -65,14 +65,14 @@ final class GraphService {
         case .dot, .png:
             let graphVizGraph = graphVizMapper.map(
                 graph: graph,
-                targetsAndDependencies: targetsAndDependencies
+                targetsAndDependencies: filteredTargetsAndDependencies
             )
 
             try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
         case .json:
             let outputGraph = ProjectAutomation.Graph.from(
                 graph: graph,
-                targetsAndDependencies: targetsAndDependencies
+                targetsAndDependencies: filteredTargetsAndDependencies
             )
             try outputGraph.export(to: filePath)
         }
@@ -154,17 +154,14 @@ extension ProjectAutomation.Graph {
         graph: TuistGraph.Graph,
         targetsAndDependencies: [GraphTarget: Set<GraphDependency>]
     ) -> ProjectAutomation.Graph {
-        let targetsProjects = targetsAndDependencies.reduce(
-            into: Set<TuistGraph.Project>()
-        ) {
-            $0.insert($1.key.project)
-        }
-
-        let projects = targetsProjects.reduce(
-            into: [String: ProjectAutomation.Project]()
-        ) {
-            $0[$1.path.pathString] = ProjectAutomation.Project.from($1)
-        }
+        // generate targets projects only
+        let projects = targetsAndDependencies
+            .map(\.key.project)
+            .reduce(
+                into: [String: ProjectAutomation.Project]()
+            ) {
+                $0[$1.path.pathString] = ProjectAutomation.Project.from($1)
+            }
 
         return ProjectAutomation.Graph(name: graph.name, path: graph.path.pathString, projects: projects)
     }
