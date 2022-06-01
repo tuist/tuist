@@ -7,17 +7,6 @@ import TuistSupport
 
 /// Interface that describes a mapper that converts a project graph into a GraphViz graph.
 public protocol GraphToGraphVizMapping {
-    /// Filtes the project graph
-    /// - Parameters:
-    ///   - graph: Graph to be filtered
-    /// - Returns: Filtered graph targets and dependencies
-    func filter(
-        graph: TuistGraph.Graph,
-        skipTestTargets: Bool,
-        skipExternalDependencies: Bool,
-        targetsToFilter: [String]
-    ) -> [GraphTarget: Set<GraphDependency>]
-
     /// Maps the project graph into a dot graph representation.
     ///
     /// - Parameters
@@ -32,52 +21,6 @@ public protocol GraphToGraphVizMapping {
 
 public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
     public init() {}
-
-    /// Filtes the project graph
-    /// - Parameters:
-    ///   - graph: Graph to be filtered
-    /// - Returns: Filtered graph targets and dependencies
-    public func filter(
-        graph: TuistGraph.Graph,
-        skipTestTargets: Bool,
-        skipExternalDependencies: Bool,
-        targetsToFilter: [String]
-    ) -> [GraphTarget: Set<GraphDependency>] {
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        let allTargets: Set<GraphTarget> = skipExternalDependencies ? graphTraverser.allInternalTargets() : graphTraverser
-            .allTargets()
-        let filteredTargets: Set<GraphTarget> = allTargets.filter { target in
-            if skipTestTargets, graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name) {
-                return false
-            }
-
-            if !targetsToFilter.isEmpty, !targetsToFilter.contains(target.target.name) {
-                return false
-            }
-
-            return true
-        }
-
-        let filteredTargetsAndDependencies: Set<GraphTarget> = filteredTargets.union(
-            transitiveClosure(Array(filteredTargets)) { target in
-                Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name))
-            }
-        )
-
-        return filteredTargetsAndDependencies.reduce(into: [GraphTarget: Set<GraphDependency>]()) { result, target in
-            if skipExternalDependencies, target.project.isExternal { return }
-
-            guard let targetDependencies = graphTraverser.dependencies[.target(name: target.target.name, path: target.path)]
-            else { return }
-
-            result[target] = targetDependencies
-                .filter { dependency in
-                    if skipExternalDependencies, dependency.isExternal(graph.projects) { return false }
-                    return true
-                }
-        }
-    }
 
     /// Maps the project graph into a dot graph representation.
     ///
@@ -124,15 +67,6 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 }
 
 extension GraphDependency {
-    fileprivate func isExternal(_ projects: [AbsolutePath: Project]) -> Bool {
-        switch self {
-        case let .target(_, path):
-            return projects[path]?.isExternal ?? false
-        case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk:
-            return true
-        }
-    }
-
     fileprivate var name: String {
         switch self {
         case let .target(name: name, path: _):
