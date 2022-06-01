@@ -2,10 +2,6 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
-## Next
-### Changed
-- Validating if graphviz is installed by checking if dot command exists [#4516](https://github.com/tuist/tuist/pull/4516) by [@nagra](https://github.com/nagra)
-
 ## 3.5.0 - 2022-05-29
 
 ### Changed
