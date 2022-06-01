@@ -8,15 +8,15 @@ import TuistKit
 final class MockGraphToGraphVizMapper: GraphToGraphVizMapping {
     var stubMap: GraphViz.Graph?
     func filter(
-        graph: TuistGraph.Graph,
-        skipTestTargets: Bool,
-        skipExternalDependencies: Bool,
-        targetsToFilter: [String]
+        graph _: TuistGraph.Graph,
+        skipTestTargets _: Bool,
+        skipExternalDependencies _: Bool,
+        targetsToFilter _: [String]
     ) -> [GraphTarget: Set<GraphDependency>] { [:] }
-    
+
     func map(
-        graph: TuistGraph.Graph,
-        targetsAndDependencies: [GraphTarget: Set<GraphDependency>]
+        graph _: TuistGraph.Graph,
+        targetsAndDependencies _: [GraphTarget: Set<GraphDependency>]
     ) -> GraphViz.Graph {
         stubMap ?? GraphViz.Graph()
     }

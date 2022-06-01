@@ -58,8 +58,9 @@ final class GraphService {
             graph: graph,
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
-            targetsToFilter: targetsToFilter)
-        
+            targetsToFilter: targetsToFilter
+        )
+
         switch format {
         case .dot, .png:
             let graphVizGraph = graphVizMapper.map(
@@ -151,13 +152,14 @@ private enum GraphServiceError: FatalError {
 extension ProjectAutomation.Graph {
     fileprivate static func from(
         graph: TuistGraph.Graph,
-        targetsAndDependencies: [GraphTarget: Set<GraphDependency>])
-    -> ProjectAutomation.Graph {
-        let targetsProjects = targetsAndDependencies.reduce(into: Set<TuistGraph.Project>()
+        targetsAndDependencies: [GraphTarget: Set<GraphDependency>]
+    ) -> ProjectAutomation.Graph {
+        let targetsProjects = targetsAndDependencies.reduce(
+            into: Set<TuistGraph.Project>()
         ) {
             $0.insert($1.key.project)
         }
-        
+
         let projects = targetsProjects.reduce(
             into: [String: ProjectAutomation.Project]()
         ) {

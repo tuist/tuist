@@ -7,7 +7,6 @@ import TuistSupport
 
 /// Interface that describes a mapper that converts a project graph into a GraphViz graph.
 public protocol GraphToGraphVizMapping {
-    
     /// Filtes the project graph
     /// - Parameters:
     ///   - graph: Graph to be filtered
@@ -18,7 +17,7 @@ public protocol GraphToGraphVizMapping {
         skipExternalDependencies: Bool,
         targetsToFilter: [String]
     ) -> [GraphTarget: Set<GraphDependency>]
-    
+
     /// Maps the project graph into a dot graph representation.
     ///
     /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
@@ -42,7 +41,6 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
         skipExternalDependencies: Bool,
         targetsToFilter: [String]
     ) -> [GraphTarget: Set<GraphDependency>] {
-        
         let graphTraverser = GraphTraverser(graph: graph)
 
         let allTargets: Set<GraphTarget> = skipExternalDependencies ? graphTraverser.allInternalTargets() : graphTraverser
@@ -78,7 +76,7 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
                 }
         }
     }
-    
+
     /// Maps the project graph into a GraphViz graph representation.
     ///
     /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
@@ -93,8 +91,7 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 
         let graphTraverser = GraphTraverser(graph: graph)
 
-        targetsAndDependencies.forEach { (target, targetDependencies)  in
-
+        targetsAndDependencies.forEach { target, targetDependencies in
             var leftNode = GraphViz.Node(target.target.name)
 
             leftNode.applyAttributes(attributes: target.styleAttributes)
