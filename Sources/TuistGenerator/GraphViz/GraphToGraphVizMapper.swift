@@ -8,6 +8,10 @@ import TuistSupport
 /// Interface that describes a mapper that converts a project graph into a GraphViz graph.
 public protocol GraphToGraphVizMapping {
     
+    /// Filtes the project graph
+    /// - Parameters:
+    ///   - graph: Graph to be filtered
+    /// - Returns: Filtered graph targets and dependencies
     func filter(
         graph: TuistGraph.Graph,
         skipTestTargets: Bool,
@@ -28,6 +32,10 @@ public protocol GraphToGraphVizMapping {
 public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
     public init() {}
 
+    /// Filtes the project graph
+    /// - Parameters:
+    ///   - graph: Graph to be filtered
+    /// - Returns: Filtered graph targets and dependencies
     public func filter(
         graph: TuistGraph.Graph,
         skipTestTargets: Bool,
