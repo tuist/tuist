@@ -106,7 +106,7 @@ final class GraphService {
         at filePath: AbsolutePath,
         layoutAlgorithm: LayoutAlgorithm
     ) throws {
-        if try !isGraphVizInstalled() {
+        if !isGraphVizInstalled() {
             try installGraphViz()
         }
         let data = try graphVizGraph.render(using: layoutAlgorithm, to: .png)
@@ -114,8 +114,8 @@ final class GraphService {
         try System.shared.async(["open", filePath.pathString])
     }
 
-    private func isGraphVizInstalled() throws -> Bool {
-        try System.shared.capture(["brew", "list", "--formula"]).contains("graphviz")
+    private func isGraphVizInstalled() -> Bool {
+        System.shared.commandExists("dot")
     }
 
     private func installGraphViz() throws {
