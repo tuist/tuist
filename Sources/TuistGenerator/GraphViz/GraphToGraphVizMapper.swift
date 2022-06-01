@@ -7,35 +7,34 @@ import TuistSupport
 
 /// Interface that describes a mapper that converts a project graph into a GraphViz graph.
 public protocol GraphToGraphVizMapping {
+    
+    func filter(
+        graph: TuistGraph.Graph,
+        skipTestTargets: Bool,
+        skipExternalDependencies: Bool,
+        targetsToFilter: [String]
+    ) -> [GraphTarget: Set<GraphDependency>]
+    
     /// Maps the project graph into a dot graph representation.
     ///
     /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
     func map(
         graph: TuistGraph.Graph,
-        skipTestTargets: Bool,
-        skipExternalDependencies: Bool,
-        targetsToFilter: [String]
+        targetsAndDependencies: [GraphTarget: Set<GraphDependency>]
     ) -> GraphViz.Graph
 }
 
 public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
     public init() {}
 
-    /// Maps the project graph into a GraphViz graph representation.
-    ///
-    /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
-    /// - Returns: The GraphViz.Graph representation.
-    public func map(
+    public func filter(
         graph: TuistGraph.Graph,
         skipTestTargets: Bool,
         skipExternalDependencies: Bool,
         targetsToFilter: [String]
-    ) -> GraphViz.Graph {
-        var nodes: [GraphViz.Node] = []
-        var dependencies: [GraphViz.Edge] = []
-        var graphVizGraph = GraphViz.Graph(directed: true)
-
+    ) -> [GraphTarget: Set<GraphDependency>] {
+        
         let graphTraverser = GraphTraverser(graph: graph)
 
         let allTargets: Set<GraphTarget> = skipExternalDependencies ? graphTraverser.allInternalTargets() : graphTraverser
@@ -58,22 +57,42 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
             }
         )
 
-        filteredTargetsAndDependencies.forEach { target in
+        return filteredTargetsAndDependencies.reduce(into: [GraphTarget: Set<GraphDependency>]()) { result, target in
             if skipExternalDependencies, target.project.isExternal { return }
+
+            guard let targetDependencies = graphTraverser.dependencies[.target(name: target.target.name, path: target.path)]
+            else { return }
+
+            result[target] = targetDependencies
+                .filter { dependency in
+                    if skipExternalDependencies, dependency.isExternal(graph.projects) { return false }
+                    return true
+                }
+        }
+    }
+    
+    /// Maps the project graph into a GraphViz graph representation.
+    ///
+    /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
+    /// - Returns: The GraphViz.Graph representation.
+    public func map(
+        graph: TuistGraph.Graph,
+        targetsAndDependencies: [GraphTarget: Set<GraphDependency>]
+    ) -> GraphViz.Graph {
+        var nodes: [GraphViz.Node] = []
+        var dependencies: [GraphViz.Edge] = []
+        var graphVizGraph = GraphViz.Graph(directed: true)
+
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        targetsAndDependencies.forEach { (target, targetDependencies)  in
 
             var leftNode = GraphViz.Node(target.target.name)
 
             leftNode.applyAttributes(attributes: target.styleAttributes)
             nodes.append(leftNode)
 
-            guard let targetDependencies = graphTraverser.dependencies[.target(name: target.target.name, path: target.path)]
-            else { return }
-
             targetDependencies
-                .filter { dependency in
-                    if skipExternalDependencies, dependency.isExternal(graph.projects) { return false }
-                    return true
-                }
                 .forEach { dependency in
                     var rightNode = GraphViz.Node(dependency.name)
                     rightNode.applyAttributes(

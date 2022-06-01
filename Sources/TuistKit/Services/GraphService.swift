@@ -54,18 +54,25 @@ final class GraphService {
             try FileHandler.shared.delete(filePath)
         }
 
+        let targetsAndDependencies = graphVizMapper.filter(
+            graph: graph,
+            skipTestTargets: skipTestTargets,
+            skipExternalDependencies: skipExternalDependencies,
+            targetsToFilter: targetsToFilter)
+        
         switch format {
         case .dot, .png:
             let graphVizGraph = graphVizMapper.map(
                 graph: graph,
-                skipTestTargets: skipTestTargets,
-                skipExternalDependencies: skipExternalDependencies,
-                targetsToFilter: targetsToFilter
+                targetsAndDependencies: targetsAndDependencies
             )
 
             try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
         case .json:
-            let outputGraph = ProjectAutomation.Graph.from(graph)
+            let outputGraph = ProjectAutomation.Graph.from(
+                graph: graph,
+                targetsAndDependencies: targetsAndDependencies
+            )
             try outputGraph.export(to: filePath)
         }
 
@@ -142,7 +149,10 @@ private enum GraphServiceError: FatalError {
 }
 
 extension ProjectAutomation.Graph {
-    fileprivate static func from(_ graph: TuistGraph.Graph) -> ProjectAutomation.Graph {
+    fileprivate static func from(
+        graph: TuistGraph.Graph,
+        targetsAndDependencies: [GraphTarget: Set<GraphDependency>])
+    -> ProjectAutomation.Graph {
         let projects = graph.projects.reduce(
             into: [String: ProjectAutomation.Project]()
         ) {
