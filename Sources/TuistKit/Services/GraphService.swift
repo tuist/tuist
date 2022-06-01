@@ -76,7 +76,7 @@ final class GraphService {
             try outputGraph.export(to: filePath)
         }
 
-        logger.notice("Graph exported to \(filePath.pathString).", metadata: .success)
+        logger.notice("Graph exported to \(filePath.pathString)", metadata: .success)
     }
 
     private func export(
