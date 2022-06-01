@@ -80,7 +80,7 @@ final class GraphService {
         logger.notice("Graph exported to \(filePath.pathString)", metadata: .success)
     }
 
-    /// Filtes the project graph
+    /// Filters the project graph
     /// - Parameters:
     ///   - graph: Graph to be filtered
     /// - Returns: Filtered graph targets and dependencies
