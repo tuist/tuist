@@ -153,10 +153,15 @@ extension ProjectAutomation.Graph {
         graph: TuistGraph.Graph,
         targetsAndDependencies: [GraphTarget: Set<GraphDependency>])
     -> ProjectAutomation.Graph {
-        let projects = graph.projects.reduce(
+        let targetsProjects = targetsAndDependencies.reduce(into: Set<TuistGraph.Project>()
+        ) {
+            $0.insert($1.key.project)
+        }
+        
+        let projects = targetsProjects.reduce(
             into: [String: ProjectAutomation.Project]()
         ) {
-            $0[$1.key.pathString] = ProjectAutomation.Project.from($1.value)
+            $0[$1.path.pathString] = ProjectAutomation.Project.from($1)
         }
 
         return ProjectAutomation.Graph(name: graph.name, path: graph.path.pathString, projects: projects)
