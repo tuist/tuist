@@ -1,6 +1,5 @@
 import Foundation
 import GraphViz
-import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistSupport
