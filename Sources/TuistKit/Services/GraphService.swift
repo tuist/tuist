@@ -54,22 +54,29 @@ final class GraphService {
             try FileHandler.shared.delete(filePath)
         }
 
+        let filteredTargetsAndDependencies = graph.filter(
+            skipTestTargets: skipTestTargets,
+            skipExternalDependencies: skipExternalDependencies,
+            targetsToFilter: targetsToFilter
+        )
+
         switch format {
         case .dot, .png:
             let graphVizGraph = graphVizMapper.map(
                 graph: graph,
-                skipTestTargets: skipTestTargets,
-                skipExternalDependencies: skipExternalDependencies,
-                targetsToFilter: targetsToFilter
+                targetsAndDependencies: filteredTargetsAndDependencies
             )
 
             try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
         case .json:
-            let outputGraph = ProjectAutomation.Graph.from(graph)
+            let outputGraph = ProjectAutomation.Graph.from(
+                graph: graph,
+                targetsAndDependencies: filteredTargetsAndDependencies
+            )
             try outputGraph.export(to: filePath)
         }
 
-        logger.notice("Graph exported to \(filePath.pathString).", metadata: .success)
+        logger.notice("Graph exported to \(filePath.pathString)", metadata: .success)
     }
 
     private func export(
@@ -142,12 +149,16 @@ private enum GraphServiceError: FatalError {
 }
 
 extension ProjectAutomation.Graph {
-    fileprivate static func from(_ graph: TuistGraph.Graph) -> ProjectAutomation.Graph {
-        let projects = graph.projects.reduce(
-            into: [String: ProjectAutomation.Project]()
-        ) {
-            $0[$1.key.pathString] = ProjectAutomation.Project.from($1.value)
-        }
+    fileprivate static func from(
+        graph: TuistGraph.Graph,
+        targetsAndDependencies: [GraphTarget: Set<GraphDependency>]
+    ) -> ProjectAutomation.Graph {
+        // generate targets projects only
+        let projects = targetsAndDependencies
+            .map(\.key.project)
+            .reduce(into: [String: ProjectAutomation.Project]()) {
+                $0[$1.path.pathString] = ProjectAutomation.Project.from($1)
+            }
 
         return ProjectAutomation.Graph(name: graph.name, path: graph.path.pathString, projects: projects)
     }
