@@ -12,18 +12,41 @@ extension TargetScript {
     /// - Throws: An error if the tool absolute path cannot be obtained.
     public func shellScript(sourceRootPath: AbsolutePath) throws -> String {
         switch script {
-        case let .embedded(text):
-            return text.spm_chomp().spm_chuzzle() ?? ""
+        case let .embedded(text, affectsBuiltProduct: affectsBuiltProduct):
+            switch affectsBuiltProduct {
+            case true:
+                return """
+                    if [ ! $TUIST_BUILD_FOR_DEVELOPMENT ]; then
+                        \(text.spm_chomp().spm_chuzzle() ?? "")
+                    fi
+                    """
+            case false:
+                return text.spm_chomp().spm_chuzzle() ?? ""
+            }
 
-        case let .scriptPath(path, args: args, skipWhenTesting: skipWhenTesting):
-            if skipWhenTesting {
-            return "\"$SRCROOT\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))"
-            } else {
+        case let .scriptPath(path, args: args, affectsBuiltProduct: affectsBuiltProduct):
+            switch affectsBuiltProduct {
+            case true:
+                return """
+                    if [ ! $TUIST_BUILD_FOR_DEVELOPMENT ]; then
+                      \"$SRCROOT\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))
+                    fi
+                    """
+            case false:
                 return "\"$SRCROOT\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))"
             }
 
-        case let .tool(tool, args):
-            return try "\(System.shared.which(tool).spm_chomp().spm_chuzzle()!) \(args.joined(separator: " "))"
+        case let .tool(tool, args, affectsBuiltProduct: affectsBuiltProduct):
+            switch affectsBuiltProduct {
+            case true:
+                return """
+                    if [ ! $TUIST_BUILD_FOR_DEVELOPMENT ]; then
+                        \(try "\(System.shared.which(tool).spm_chomp().spm_chuzzle()!) \(args.joined(separator: " "))")
+                    fi
+                    """
+            case false:
+                return try "\(System.shared.which(tool).spm_chomp().spm_chuzzle()!) \(args.joined(separator: " "))"
+            }
         }
     }
 }

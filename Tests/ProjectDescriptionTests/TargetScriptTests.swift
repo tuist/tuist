@@ -5,6 +5,11 @@ import XCTest
 @testable import ProjectDescription
 
 final class TargetScriptTests: XCTestCase {
+    func test_affectsBuiltProduct() {
+        let subject = TargetScript.post(path: "path", arguments: ["arg"], name: "name", affectsBuiltProduct: true)
+        XCTAssertTrue(subject.affectsBuiltProduct)
+    }
+
     func test_toJSON_whenPath() {
         let subject = TargetScript.post(path: "path", arguments: ["arg"], name: "name")
         XCTAssertCodable(subject)

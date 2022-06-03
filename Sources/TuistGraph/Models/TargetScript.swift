@@ -18,9 +18,9 @@ public struct TargetScript: Equatable, Codable {
     /// - scriptPath: Executes the file at the path with the given arguments.
     /// - embedded: Executes the embedded script. This should be a short command.
     public enum Script: Equatable, Codable {
-        case tool(path: String, args: [String] = [])
-        case scriptPath(path: AbsolutePath, args: [String] = [], skipWhenTesting: Bool)
-        case embedded(String)
+        case tool(path: String, args: [String] = [], affectsBuiltProduct: Bool)
+        case scriptPath(path: AbsolutePath, args: [String] = [], affectsBuiltProduct: Bool)
+        case embedded(String, affectsBuiltProduct: Bool)
     }
 
     /// Name of the build phase when the project gets generated
@@ -31,7 +31,7 @@ public struct TargetScript: Equatable, Codable {
 
     /// The text of the embedded script
     public var embeddedScript: String? {
-        if case let Script.embedded(embeddedScript) = script {
+        if case let Script.embedded(embeddedScript, _) = script {
             return embeddedScript
         }
 
@@ -40,7 +40,7 @@ public struct TargetScript: Equatable, Codable {
 
     /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     public var tool: String? {
-        if case let Script.tool(tool, _) = script {
+        if case let Script.tool(tool, _, _) = script {
             return tool
         }
 
@@ -62,7 +62,7 @@ public struct TargetScript: Equatable, Codable {
     /// Arguments that to be passed
     public var arguments: [String] {
         switch script {
-        case let .scriptPath(_, args, _), let .tool(_, args):
+        case let .scriptPath(_, args, _), let .tool(_, args, _):
             return args
 
         case .embedded:
@@ -91,8 +91,8 @@ public struct TargetScript: Equatable, Codable {
     /// Whether this script only runs on install builds (default is false)
     public let runForInstallBuildsOnly: Bool
 
-    /// Whether this script is run when testing.
-    public let skipWhenTesting: Bool
+    /// Whether this script is run in build phase.
+    public let affectsBuiltProduct: Bool
 
     /// The path to the shell which shall execute this script.
     public let shellPath: String
@@ -111,12 +111,12 @@ public struct TargetScript: Equatable, Codable {
     ///   - showEnvVarsInLog: Show environment variables in the logs
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
-    ///   - skipWhenTesting: Whether this script is run when testing. (default is false)   
+    ///   - affectsBuiltProduct: Whether this script is run in build phase. (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     public init(
         name: String,
         order: Order,
-        script: Script = .embedded(""),
+        script: Script = .embedded("", affectsBuiltProduct: false),
         inputPaths: [AbsolutePath] = [],
         inputFileListPaths: [AbsolutePath] = [],
         outputPaths: [AbsolutePath] = [],
@@ -124,7 +124,7 @@ public struct TargetScript: Equatable, Codable {
         showEnvVarsInLog: Bool = true,
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
-        skipWhenTesting: Bool = false,
+        affectsBuiltProduct: Bool = false,
         shellPath: String = "/bin/sh"
     ) {
         self.name = name
@@ -137,7 +137,7 @@ public struct TargetScript: Equatable, Codable {
         self.showEnvVarsInLog = showEnvVarsInLog
         self.basedOnDependencyAnalysis = basedOnDependencyAnalysis
         self.runForInstallBuildsOnly = runForInstallBuildsOnly
-        self.skipWhenTesting = skipWhenTesting
+        self.affectsBuiltProduct = affectsBuiltProduct
         self.shellPath = shellPath
     }
 }

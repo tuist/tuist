@@ -65,6 +65,7 @@ final class TestService {
         self.simulatorController = simulatorController
         self.contentHasher = contentHasher
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        try? ProcessEnv.setVar(Constants.EnvironmentVariables.tuistBuildForDevelopment, value: "true")
     }
 
     // swiftlint:disable:next function_body_length

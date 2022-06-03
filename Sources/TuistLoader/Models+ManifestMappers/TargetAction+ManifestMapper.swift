@@ -21,19 +21,20 @@ extension TuistGraph.TargetScript {
         let outputFileListPaths = try absolutePaths(for: manifest.outputFileListPaths, generatorPaths: generatorPaths)
         let basedOnDependencyAnalysis = manifest.basedOnDependencyAnalysis
         let runForInstallBuildsOnly = manifest.runForInstallBuildsOnly
+        let affectsBuiltProduct = manifest.affectsBuiltProduct
         let shellPath = manifest.shellPath
 
         let script: TuistGraph.TargetScript.Script
         switch manifest.script {
-        case let .embedded(text):
-            script = .embedded(text)
+        case let .embedded(text, affectsBuiltProduct):
+            script = .embedded(text, affectsBuiltProduct: affectsBuiltProduct)
 
-        case let .scriptPath(path, arguments):
+        case let .scriptPath(path, arguments, affectsBuiltProduct):
             let scriptPath = try generatorPaths.resolve(path: path)
-            script = .scriptPath(path: scriptPath, args: arguments)
+            script = .scriptPath(path: scriptPath, args: arguments, affectsBuiltProduct: affectsBuiltProduct)
 
-        case let .tool(tool, arguments):
-            script = .tool(path: tool, args: arguments)
+        case let .tool(tool, arguments, affectsBuiltProduct):
+            script = .tool(path: tool, args: arguments, affectsBuiltProduct: affectsBuiltProduct)
         }
 
         return TargetScript(
@@ -46,6 +47,7 @@ extension TuistGraph.TargetScript {
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
+            affectsBuiltProduct: affectsBuiltProduct,
             shellPath: shellPath
         )
     }
