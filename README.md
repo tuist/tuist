@@ -92,6 +92,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
   <a href="https://www.hedvig.com" target="_blank">
     <img src="assets/companies/Hedvig.svg" style="width: 110px;" hspace="8"/>
   </a>
+  <a href="https://vk.company/" target="_blank">
+    <img src="assets/companies/VK_logo.svg" style="width: 50px;" hspace="8"/>
+  </a>
   <a href="https://www.takeoutcentral.com" target="_blank">
     <img src="assets/companies/takeout_central.svg" style="width: 110px;" hspace="8"/>
   </a>
