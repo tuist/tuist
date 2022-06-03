@@ -26,7 +26,14 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let graph = try makeGivenGraph()
 
         // When
-        let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: false, targetsToFilter: [])
+        let got = subject.map(
+            graph: graph,
+            targetsAndDependencies: graph.filter(
+                skipTestTargets: false,
+                skipExternalDependencies: false,
+                targetsToFilter: []
+            )
+        )
         let expected = makeExpectedGraphViz()
         let gotNodeIds = got.nodes.map(\.id).sorted()
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
@@ -41,7 +48,14 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let graph = try makeGivenGraph()
 
         // When
-        let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: true, targetsToFilter: [])
+        let got = subject.map(
+            graph: graph,
+            targetsAndDependencies: graph.filter(
+                skipTestTargets: false,
+                skipExternalDependencies: true,
+                targetsToFilter: []
+            )
+        )
         let expected = makeExpectedGraphViz(includeExternalDependencies: false)
         let gotNodeIds = got.nodes.map(\.id).sorted()
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
@@ -57,7 +71,14 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let graph = try makeGivenGraph()
 
         // When
-        let got = subject.map(graph: graph, skipTestTargets: true, skipExternalDependencies: false, targetsToFilter: [])
+        let got = subject.map(
+            graph: graph,
+            targetsAndDependencies: graph.filter(
+                skipTestTargets: true,
+                skipExternalDependencies: false,
+                targetsToFilter: []
+            )
+        )
         let expected = makeExpectedGraphViz(includeTests: false)
         let gotNodeIds = got.nodes.map(\.id).sorted()
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
@@ -80,9 +101,11 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         // When
         let got = subject.map(
             graph: graph,
-            skipTestTargets: false,
-            skipExternalDependencies: true,
-            targetsToFilter: ["Tuist iOS"]
+            targetsAndDependencies: graph.filter(
+                skipTestTargets: false,
+                skipExternalDependencies: true,
+                targetsToFilter: ["Tuist iOS"]
+            )
         )
 
         // Then
