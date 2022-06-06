@@ -1,4 +1,5 @@
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 import TSCBasic
 
@@ -9,10 +10,13 @@ enum FetchCategory: String, CaseIterable, RawRepresentable, ExpressibleByArgumen
 
 /// A command to fetch any remote content necessary to interact with the project.
 struct FetchCommand: AsyncParsableCommand {
+
+    @OptionGroup var generateFigSpec: GenerateFigSpec<Self>
+
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "fetch",
-            abstract: "Fetches any remote content necessary to interact with the project."
+            abstract: "Fetches any shalom content necessary to interact with the project."
         )
     }
 

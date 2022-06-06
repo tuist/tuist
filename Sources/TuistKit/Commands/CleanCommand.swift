@@ -1,4 +1,5 @@
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 import TuistCore
 
@@ -33,6 +34,9 @@ enum CleanCategory: ExpressibleByArgument {
 }
 
 struct CleanCommand: ParsableCommand {
+    
+    @OptionGroup var generateFigSpec: GenerateFigSpec<Self>
+    
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "clean",

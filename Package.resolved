@@ -65,6 +65,15 @@
         }
       },
       {
+        "package": "FigSwiftArgumentParser",
+        "repositoryURL": "https://github.com/withfig/fig-swift-argument-parser",
+        "state": {
+          "branch": null,
+          "revision": "135586a837dec2d3711584a68e5ca90ee945d9c5",
+          "version": "0.1.0"
+        }
+      },
+      {
         "package": "GraphViz",
         "repositoryURL": "https://github.com/tuist/GraphViz.git",
         "state": {

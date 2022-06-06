@@ -1,8 +1,12 @@
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 import TSCBasic
 
 struct MigrationCommand: ParsableCommand {
+    
+    @OptionGroup var generateFigSpec: GenerateFigSpec<Self>
+    
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "migration",

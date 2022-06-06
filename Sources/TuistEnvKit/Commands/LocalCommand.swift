@@ -1,9 +1,13 @@
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 import TSCBasic
 import TuistSupport
 
 struct LocalCommand: ParsableCommand {
+
+    @OptionGroup var generateFigSpec: GenerateFigSpec<Self>
+
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "local",

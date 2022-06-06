@@ -1,8 +1,12 @@
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 
 /// Command that installs new versions of Tuist in the system.
 struct InstallCommand: ParsableCommand {
+
+    @OptionGroup var generateFigSpec: GenerateFigSpec<Self>
+
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "install",

@@ -1,9 +1,13 @@
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 import TSCBasic
 import TuistSupport
 
 struct MigrationCheckEmptyBuildSettingsCommand: ParsableCommand {
+    
+    @OptionGroup var generateFigSpec: GenerateFigSpec<Self>
+    
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "check-empty-settings",

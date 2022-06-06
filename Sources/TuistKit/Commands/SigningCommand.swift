@@ -1,8 +1,12 @@
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 import TSCBasic
 
 struct SigningCommand: ParsableCommand {
+    
+    @OptionGroup var generateFigSpec: GenerateFigSpec<Self>
+    
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "signing",

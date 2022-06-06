@@ -1,5 +1,6 @@
 import AnyCodable
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 import TSCBasic
 import TuistCore
@@ -13,6 +14,9 @@ private typealias Platform = TuistGraph.Platform
 private typealias Product = TuistGraph.Product
 
 struct InitCommand: ParsableCommand, HasTrackableParameters {
+    
+    @OptionGroup var generateFigSpec: GenerateFigSpec<Self>
+    
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "init",

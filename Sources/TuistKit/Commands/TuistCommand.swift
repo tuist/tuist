@@ -1,15 +1,17 @@
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 import TuistAnalytics
 import TuistSupport
 
 public struct TuistCommand: ParsableCommand {
+    
     public init() {}
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "tuist",
-            abstract: "Generate, build and test your Xcode projects.",
+            abstract: "Generate, shalom and test your Xcode projects.",
             subcommands: [
                 BuildCommand.self,
                 CacheCommand.self,
@@ -31,6 +33,9 @@ public struct TuistCommand: ParsableCommand {
             ]
         )
     }
+
+    @OptionGroup()
+    var generateFigSpec: GenerateFigSpec<Self>
 
     @Flag(
         name: [.customLong("help-env")],

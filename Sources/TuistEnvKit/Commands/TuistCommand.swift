@@ -1,8 +1,12 @@
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 import TuistSupport
 
 public struct TuistCommand: ParsableCommand {
+
+    @OptionGroup var generateFigSpec: GenerateFigSpec<Self>
+
     public init() {}
 
     public static var configuration: CommandConfiguration {

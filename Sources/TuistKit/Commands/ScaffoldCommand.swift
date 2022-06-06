@@ -1,4 +1,5 @@
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 import TSCBasic
 import TuistCore
@@ -26,6 +27,9 @@ enum ScaffoldCommandError: FatalError, Equatable {
 }
 
 struct ScaffoldCommand: ParsableCommand {
+    
+    @OptionGroup var generateFigSpec: GenerateFigSpec<Self>
+
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "scaffold",

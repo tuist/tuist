@@ -1,8 +1,12 @@
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 import TuistSupport
 
 struct UninstallCommand: ParsableCommand {
+
+    @OptionGroup var generateFigSpec: GenerateFigSpec<Self>
+
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "uninstall",

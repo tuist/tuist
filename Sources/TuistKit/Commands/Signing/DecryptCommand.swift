@@ -1,4 +1,5 @@
 import ArgumentParser
+import FigSwiftArgumentParser
 import Foundation
 import TSCBasic
 import TuistCore
@@ -6,6 +7,9 @@ import TuistSigning
 import TuistSupport
 
 struct DecryptCommand: ParsableCommand {
+    
+    @OptionGroup var generateFigSpec: GenerateFigSpec<Self>
+    
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "decrypt",

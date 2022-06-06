@@ -75,6 +75,7 @@ func targets() -> [Target] {
                 hasTesting: false,
                 hasIntegrationTests: true,
                 dependencies: [
+                    .external(name: "FigSwiftArgumentParser"),
                     .target(name: "TuistSupport"),
                     .target(name: "TuistGenerator"),
                     .target(name: "TuistCache"),
@@ -126,6 +127,7 @@ func targets() -> [Target] {
                 name: "TuistEnvKit",
                 hasTesting: false,
                 dependencies: [
+                    .external(name: "FigSwiftArgumentParser"),
                     .target(name: "TuistSupport"),
                 ],
                 testDependencies: [

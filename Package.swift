@@ -5,6 +5,7 @@ import PackageDescription
 let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
 let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
+let figArgumentParserDependency: Target.Dependency = .product(name: "FigSwiftArgumentParser", package: "fig-swift-argument-parser")
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
 let swifterDependency: Target.Dependency = .byName(name: "Swifter")
 let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
@@ -58,6 +59,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.5")),
         .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "1.0.0")),
+        .package(url: "https://github.com/withfig/fig-swift-argument-parser", .upToNextMinor(from: "0.1.0")),
         .package(url: "https://github.com/fortmarek/ZIPFoundation.git", .revision("9dbe729b90202c19d0fe1010f1430fa75a576cd3")),
         .package(url: "https://github.com/Flight-School/AnyCodable", from: "0.6.0"),
         .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
@@ -111,6 +113,7 @@ let package = Package(
                 "XcodeProj",
                 swiftToolsSupportDependency,
                 argumentParserDependency,
+                figArgumentParserDependency,
                 "TuistSupport",
                 "TuistGenerator",
                 "TuistCache",
@@ -179,6 +182,7 @@ let package = Package(
             name: "TuistEnvKit",
             dependencies: [
                 argumentParserDependency,
+                figArgumentParserDependency,
                 swiftToolsSupportDependency,
                 "TuistSupport",
             ]
