@@ -16,7 +16,7 @@ struct FetchCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "fetch",
-            abstract: "Fetches any shalom content necessary to interact with the project."
+            abstract: "Fetches any remote content necessary to interact with the project."
         )
     }
 
