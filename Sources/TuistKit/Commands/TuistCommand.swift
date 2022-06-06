@@ -11,7 +11,7 @@ public struct TuistCommand: ParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "tuist",
-            abstract: "Generate, shalom and test your Xcode projects.",
+            abstract: "Generate, build and test your Xcode projects.",
             subcommands: [
                 BuildCommand.self,
                 CacheCommand.self,
