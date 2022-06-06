@@ -661,8 +661,8 @@ extension ResourceFileElements {
     ]
 
     private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
-        ResourceFileElements.defaultSpmResourceFileExtensions.map { fileExtension -> AbsolutePath in
-            path.appending(components: ["**", "*.\(fileExtension)"])
+        ResourceFileElements.defaultSpmResourceFileExtensions.flatMap {
+            FileHandler.shared.glob(path, glob: "**/*.\($0)")
         }
     }
 }
