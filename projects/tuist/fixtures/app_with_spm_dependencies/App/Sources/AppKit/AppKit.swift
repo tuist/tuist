@@ -8,6 +8,7 @@ import FirebaseCrashlytics
 import FirebaseDatabase
 import FirebaseFirestore
 import IterableSDK
+import StripeCore
 import TYStatusBarView
 
 public enum AppKit {
@@ -32,6 +33,9 @@ public enum AppKit {
 
         // Use FirebaseFirestore to make sure it links fine
         _ = Firestore.firestore()
+
+        // Use Strip to make sure it links fine
+        _ = StripeCore.module
 
         // Use IterableSDK to make sure it links fine
         _ = IterableSDK.IterableAPI.sdkVersion

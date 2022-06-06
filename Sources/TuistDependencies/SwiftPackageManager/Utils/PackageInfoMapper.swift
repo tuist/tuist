@@ -657,7 +657,7 @@ extension ResourceFileElements {
         "xcdatamodeld",
         "xcmappingmodel",
         "xcassets",
-        "lproj",
+        "strings",
     ]
 
     private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
