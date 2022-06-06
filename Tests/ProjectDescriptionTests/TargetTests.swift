@@ -23,7 +23,7 @@ final class TargetTests: XCTestCase {
             ),
             entitlements: "entitlement",
             scripts: [
-                TargetScript.post(path: "path", arguments: ["arg"], name: "name"),
+                TargetScript.post(path: "path", arguments: ["arg"], name: "name", affectsBuiltProduct: true),
             ],
             dependencies: [
                 .framework(path: "path"),
@@ -69,7 +69,7 @@ final class TargetTests: XCTestCase {
             ),
             entitlements: "entitlement",
             scripts: [
-                TargetScript.post(path: "path", arguments: ["arg"], name: "name"),
+                TargetScript.post(path: "path", arguments: ["arg"], name: "name", affectsBuiltProduct: true),
             ],
             dependencies: [
                 .framework(path: "path"),

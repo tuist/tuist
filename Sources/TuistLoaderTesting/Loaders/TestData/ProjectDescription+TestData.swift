@@ -105,11 +105,12 @@ extension TargetScript {
         inputPaths: [Path] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = []
+        outputFileListPaths: [Path] = [],
+        affectsBuiltProduct: Bool = false
     ) -> TargetScript {
         TargetScript(
             name: name,
-            script: .tool(path: tool, args: arguments),
+            script: .tool(path: tool, args: arguments, affectsBuiltProduct: affectsBuiltProduct),
             order: order,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,

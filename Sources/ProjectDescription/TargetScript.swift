@@ -19,9 +19,9 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     /// - scriptPath: Executes the file at the path with the given arguments.
     /// - text: Executes the embedded script. This should be a short command.
     public enum Script: Equatable, Codable {
-        case tool(path: String, args: [String])
-        case scriptPath(path: Path, args: [String])
-        case embedded(String)
+        case tool(path: String, args: [String], affectsBuiltProduct: Bool)
+        case scriptPath(path: Path, args: [String], affectsBuiltProduct: Bool)
+        case embedded(String, affectsBuiltProduct: Bool)
     }
 
     /// Name of the build phase when the project gets generated.
@@ -51,6 +51,9 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     /// Whether this script only runs on install builds (default is false)
     public let runForInstallBuildsOnly: Bool
 
+    /// Whether this script is run in build phase.
+    public let affectsBuiltProduct: Bool
+
     /// The path to the shell which shall execute this script.
     public let shellPath: String
 
@@ -66,10 +69,11 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - affectsBuiltProduct: Whether this script is run in build phase. (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     init(
         name: String,
-        script: Script = .embedded(""),
+        script: Script = .embedded("", affectsBuiltProduct: false),
         order: Order,
         inputPaths: [Path] = [],
         inputFileListPaths: [Path] = [],
@@ -77,6 +81,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         outputFileListPaths: [Path] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
+        affectsBuiltProduct: Bool = false,
         shellPath: String = "/bin/sh"
     ) {
         self.name = name
@@ -88,6 +93,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         self.outputFileListPaths = outputFileListPaths
         self.basedOnDependencyAnalysis = basedOnDependencyAnalysis
         self.runForInstallBuildsOnly = runForInstallBuildsOnly
+        self.affectsBuiltProduct = affectsBuiltProduct
         self.shellPath = shellPath
     }
 
@@ -105,6 +111,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - affectsBuiltProduct: Whether this script is run in build phase. (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
     public static func pre(
@@ -117,11 +124,12 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         outputFileListPaths: [Path] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
+        affectsBuiltProduct: Bool = false,
         shellPath: String = "/bin/sh"
     ) -> TargetScript {
         TargetScript(
             name: name,
-            script: .scriptPath(path: path, args: arguments),
+            script: .scriptPath(path: path, args: arguments, affectsBuiltProduct: affectsBuiltProduct),
             order: .pre,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -129,6 +137,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
+            affectsBuiltProduct: affectsBuiltProduct,
             shellPath: shellPath
         )
     }
@@ -145,6 +154,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - affectsBuiltProduct: Whether this script is run in build phase. (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
     public static func pre(
@@ -157,11 +167,12 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         outputFileListPaths: [Path] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
+        affectsBuiltProduct: Bool = false,
         shellPath: String = "/bin/sh"
     ) -> TargetScript {
         TargetScript(
             name: name,
-            script: .scriptPath(path: path, args: arguments),
+            script: .scriptPath(path: path, args: arguments, affectsBuiltProduct: affectsBuiltProduct),
             order: .pre,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -169,6 +180,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
+            affectsBuiltProduct: affectsBuiltProduct,
             shellPath: shellPath
         )
     }
@@ -185,6 +197,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - affectsBuiltProduct: Whether this script is run in build phase. (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
     public static func post(
@@ -197,11 +210,12 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         outputFileListPaths: [Path] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
+        affectsBuiltProduct: Bool = false,
         shellPath: String = "/bin/sh"
     ) -> TargetScript {
         TargetScript(
             name: name,
-            script: .scriptPath(path: path, args: arguments),
+            script: .scriptPath(path: path, args: arguments, affectsBuiltProduct: affectsBuiltProduct),
             order: .post,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -209,6 +223,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
+            affectsBuiltProduct: affectsBuiltProduct,
             shellPath: shellPath
         )
     }
@@ -225,6 +240,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - affectsBuiltProduct: Whether this script is run in build phase. (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
     public static func post(
@@ -237,11 +253,12 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         outputFileListPaths: [Path] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
+        affectsBuiltProduct: Bool = false,
         shellPath: String = "/bin/sh"
     ) -> TargetScript {
         TargetScript(
             name: name,
-            script: .scriptPath(path: path, args: arguments),
+            script: .scriptPath(path: path, args: arguments, affectsBuiltProduct: affectsBuiltProduct),
             order: .post,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -249,6 +266,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
+            affectsBuiltProduct: affectsBuiltProduct,
             shellPath: shellPath
         )
     }
@@ -267,6 +285,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - affectsBuiltProduct: Whether this script is run in build phase. (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
     public static func pre(
@@ -279,11 +298,12 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         outputFileListPaths: [Path] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
+        affectsBuiltProduct: Bool = false,
         shellPath: String = "/bin/sh"
     ) -> TargetScript {
         TargetScript(
             name: name,
-            script: .tool(path: tool, args: arguments),
+            script: .tool(path: tool, args: arguments, affectsBuiltProduct: affectsBuiltProduct),
             order: .pre,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -291,6 +311,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
+            affectsBuiltProduct: affectsBuiltProduct,
             shellPath: shellPath
         )
     }
@@ -307,6 +328,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - affectsBuiltProduct: Whether this script is run in build phase. (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
     public static func pre(
@@ -319,11 +341,12 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         outputFileListPaths: [Path] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
+        affectsBuiltProduct: Bool = false,
         shellPath: String = "/bin/sh"
     ) -> TargetScript {
         TargetScript(
             name: name,
-            script: .tool(path: tool, args: arguments),
+            script: .tool(path: tool, args: arguments, affectsBuiltProduct: affectsBuiltProduct),
             order: .pre,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -331,6 +354,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
+            affectsBuiltProduct: affectsBuiltProduct,
             shellPath: shellPath
         )
     }
@@ -347,6 +371,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - affectsBuiltProduct: Whether this script is run in build phase. (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
     public static func post(
@@ -359,11 +384,12 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         outputFileListPaths: [Path] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
+        affectsBuiltProduct: Bool = false,
         shellPath: String = "/bin/sh"
     ) -> TargetScript {
         TargetScript(
             name: name,
-            script: .tool(path: tool, args: arguments),
+            script: .tool(path: tool, args: arguments, affectsBuiltProduct: affectsBuiltProduct),
             order: .post,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -371,6 +397,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
+            affectsBuiltProduct: affectsBuiltProduct,
             shellPath: shellPath
         )
     }
@@ -387,6 +414,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - affectsBuiltProduct: Whether this script is run in build phase. (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
     public static func post(
@@ -399,11 +427,12 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         outputFileListPaths: [Path] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
+        affectsBuiltProduct: Bool = false,
         shellPath: String = "/bin/sh"
     ) -> TargetScript {
         TargetScript(
             name: name,
-            script: .tool(path: tool, args: arguments),
+            script: .tool(path: tool, args: arguments, affectsBuiltProduct: affectsBuiltProduct),
             order: .post,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -411,6 +440,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
+            affectsBuiltProduct: affectsBuiltProduct,
             shellPath: shellPath
         )
     }
@@ -429,6 +459,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - affectsBuiltProduct: Whether this script is run in build phase. (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
     public static func pre(
@@ -440,11 +471,12 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         outputFileListPaths: [Path] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
+        affectsBuiltProduct: Bool = false,
         shellPath: String = "/bin/sh"
     ) -> TargetScript {
         TargetScript(
             name: name,
-            script: .embedded(script),
+            script: .embedded(script, affectsBuiltProduct: affectsBuiltProduct),
             order: .pre,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -452,6 +484,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
+            affectsBuiltProduct: affectsBuiltProduct,
             shellPath: shellPath
         )
     }
@@ -468,6 +501,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - affectsBuiltProduct: Whether this script is run in build phase. (default is false)   
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target script.
     public static func post(
@@ -479,11 +513,12 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         outputFileListPaths: [Path] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
+        affectsBuiltProduct: Bool = false,
         shellPath: String = "/bin/sh"
     ) -> TargetScript {
         TargetScript(
             name: name,
-            script: .embedded(script),
+            script: .embedded(script, affectsBuiltProduct: affectsBuiltProduct),
             order: .post,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -491,6 +526,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
+            affectsBuiltProduct: affectsBuiltProduct,
             shellPath: shellPath
         )
     }
