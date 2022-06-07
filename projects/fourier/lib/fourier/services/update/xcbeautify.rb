@@ -7,14 +7,19 @@ module Fourier
   module Services
     module Update
       class Xcbeautify < Base
-        VERSION = "0.10.1"
+        VERSION = "0.13.0"
         SOURCE_TAR_URL = "https://github.com/thii/xcbeautify/archive/#{VERSION}.zip"
         OUTPUT_DIRECTORY = File.join(Constants::TUIST_VENDOR_DIRECTORY, "xcbeautify")
 
         attr_reader :swift_build_directory
+        attr_reader :xcode_paths
 
-        def initialize(swift_build_directory:)
+        def initialize(
+          swift_build_directory:,
+          xcode_paths:
+        )
           @swift_build_directory = swift_build_directory
+          @xcode_paths = xcode_paths
           super()
         end
 
@@ -53,7 +58,8 @@ module Fourier
               product: "xcbeautify",
               binary_name: "xcbeautify",
               output_directory: into,
-              swift_build_directory: swift_build_directory
+              swift_build_directory: swift_build_directory,
+              xcode_paths: xcode_paths
             )
           end
       end

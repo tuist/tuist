@@ -14,6 +14,7 @@ module Fourier
         def test_call
           supressing_output do
             # Given
+            xcode_paths = Utilities::Xcode::Paths.new(default: nil, libraries: nil)
             temporary_dir = File.join(@tmp_dir, "temporary_dir")
             swift_build_directory = File.join(@tmp_dir, "swift_build_directory")
             temporary_output_directory = File.join(@tmp_dir, "temporary_output_directory")
@@ -42,7 +43,8 @@ module Fourier
                 product: "swiftformat",
                 binary_name: "swiftformat",
                 output_directory: temporary_output_directory,
-                swift_build_directory: swift_build_directory
+                swift_build_directory: swift_build_directory,
+                xcode_paths: xcode_paths
               )
             FileUtils
               .expects(:copy_entry)
@@ -52,7 +54,10 @@ module Fourier
               .with(temporary_output_directory, Swiftformat::OUTPUT_DIRECTORY, false, false, true)
 
             # When/then
-            Update::Swiftformat.call(swift_build_directory: swift_build_directory)
+            Update::Swiftformat.call(
+              swift_build_directory: swift_build_directory,
+              xcode_paths: xcode_paths
+            )
           end
         end
       end

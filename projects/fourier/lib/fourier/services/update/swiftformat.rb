@@ -12,9 +12,14 @@ module Fourier
         OUTPUT_DIRECTORY = File.join(Constants::VENDOR_DIRECTORY, "swiftformat")
 
         attr_reader :swift_build_directory
+        attr_reader :xcode_paths
 
-        def initialize(swift_build_directory:)
+        def initialize(
+          swift_build_directory:,
+          xcode_paths:
+        )
           @swift_build_directory = swift_build_directory
+          @xcode_paths = xcode_paths
           super()
         end
 
@@ -54,7 +59,8 @@ module Fourier
               product: "swiftformat",
               binary_name: "swiftformat",
               output_directory: into,
-              swift_build_directory: swift_build_directory
+              swift_build_directory: swift_build_directory,
+              xcode_paths: xcode_paths
             )
           end
       end
