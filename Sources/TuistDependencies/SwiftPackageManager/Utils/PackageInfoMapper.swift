@@ -389,7 +389,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             options: options,
             settings: packageInfo.projectSettings(
                 swiftToolsVersion: swiftToolsVersion,
-                baseSettings: baseSettings
+                buildConfigs: baseSettings.configurations.map { key, _ in key }
             ),
             targets: targets,
             resourceSynthesizers: .default
@@ -1029,11 +1029,11 @@ extension ProjectDescription.Configuration {
     fileprivate static func from(
         buildConfiguration: BuildConfiguration,
         configuration: TuistGraph.Configuration?,
-        packageFolder _: AbsolutePath
+        packageFolder: AbsolutePath
     ) -> Self {
         let name = ConfigurationName(stringLiteral: buildConfiguration.name)
         let settings = ProjectDescription.SettingsDictionary.from(settingsDictionary: configuration?.settings ?? [:])
-        let xcconfig = configuration?.xcconfig.map { Path($0.pathString) }
+        let xcconfig = configuration?.xcconfig.map { Path($0.relative(to: packageFolder).pathString) }
         switch buildConfiguration.variant {
         case .debug:
             return .debug(name: name, settings: settings, xcconfig: xcconfig)
@@ -1080,7 +1080,7 @@ extension ProjectDescription.DeploymentDevice {
 extension PackageInfo {
     fileprivate func projectSettings(
         swiftToolsVersion: TSCUtility.Version?,
-        baseSettings: TuistGraph.Settings
+        buildConfigs: [BuildConfiguration]? = nil
     ) -> ProjectDescription.Settings? {
         var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
 
@@ -1096,38 +1096,21 @@ extension PackageInfo {
             settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
         }
 
-        let buildConfigs: [ProjectDescription.Configuration] = baseSettings
-            .configurations
-            .compactMap { config, settings in
-                guard let buildSettings = settings else { return nil }
-
-                var path: Path?
-                if let xcconfig = buildSettings.xcconfig {
-                    path = Path(xcconfig.pathString)
+        if let buildConfigs = buildConfigs {
+            let configs = buildConfigs
+                .sorted()
+                .map { config -> ProjectDescription.Configuration in
+                    switch config.variant {
+                    case .debug:
+                        return ProjectDescription.Configuration.debug(name: .configuration(config.name))
+                    case .release:
+                        return ProjectDescription.Configuration.release(name: .configuration(config.name))
+                    }
                 }
-                switch config.variant {
-                case .debug:
-                    return ProjectDescription.Configuration.debug(
-                        name: .configuration(config.name),
-                        settings: .from(settingsDictionary: buildSettings.settings),
-                        xcconfig: path
-                    )
-                case .release:
-                    return ProjectDescription.Configuration.release(
-                        name: .configuration(config.name),
-                        settings: .from(
-                            settingsDictionary: buildSettings
-                                .settings
-                        ),
-                        xcconfig: path
-                    )
-                }
-            }
-
-        guard !buildConfigs.isEmpty else {
+            return .settings(base: settingsDictionary, configurations: configs)
+        } else {
             return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
         }
-        return .settings(base: settingsDictionary, configurations: buildConfigs)
     }
 
     private func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {

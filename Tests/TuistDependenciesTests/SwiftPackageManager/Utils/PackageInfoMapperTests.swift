@@ -1710,12 +1710,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .debug(
                                     name: "Debug",
                                     settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
-                                    xcconfig: .relativeToRoot("Sources/Target1/Config.xcconfig")
+                                    xcconfig: "Sources/Target1/Config.xcconfig"
                                 ),
                                 .release(
                                     name: "Release",
                                     settings: ["CUSTOM_SETTING_2": .string("CUSTOM_VALUE_2")],
-                                    xcconfig: .relativeToRoot("Sources/Target1/Config.xcconfig")
+                                    xcconfig: "Sources/Target1/Config.xcconfig"
                                 ),
                             ],
                             defaultSettings: .recommended
