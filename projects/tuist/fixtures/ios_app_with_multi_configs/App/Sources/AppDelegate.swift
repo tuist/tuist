@@ -1,6 +1,5 @@
 import Framework1
 import Framework2
-import MyLogger
 import UIKit
 
 @UIApplicationMain
@@ -11,12 +10,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let framework1 = Framework1File()
         let framework2 = Framework2File()
 
-        let logger = MyLogger()
-        logger.log(hello())
+        print(hello())
 
-        logger.log("AppDelegate -> \(framework1.hello())")
-        logger.log("AppDelegate -> \(framework1.helloFromFramework2())")
-        logger.log("AppDelegate -> \(framework2.hello())")
+        print("AppDelegate -> \(framework1.hello())")
+        print("AppDelegate -> \(framework1.helloFromFramework2())")
+        print("AppDelegate -> \(framework2.hello())")
     }
 
     func hello() -> String {

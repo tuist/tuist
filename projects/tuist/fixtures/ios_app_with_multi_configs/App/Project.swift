@@ -35,7 +35,6 @@ let project = Project(
             dependencies: [
                 .project(target: "Framework1", path: "../Framework1"),
                 .project(target: "Framework2", path: "../Framework2"),
-                .external(name: "MyLogger"),
             ]
         ),
         Target(
