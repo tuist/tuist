@@ -37,7 +37,7 @@
     "webpack-dev-server": "^3"
   },
   "dependencies": {
-    "@apollo/client": "^3.6.2",
+    "@apollo/client": "^3.6.5",
     "@babel/preset-react": "^7.17.12",
     "@babel/preset-typescript": "^7.17.12",
     "@juggle/resize-observer": "^3.3.1",
@@ -48,7 +48,7 @@
     "apollo-link": "^1.2.14",
     "apollo-link-http": "^1.5.17",
     "babel-plugin-transform-react-remove-prop-types": "^0.4.24",
-    "mobx": "^6.5.0",
+    "mobx": "^6.6.0",
     "mobx-react-lite": "^3.4.0",
     "prop-types": "^15.8.1",
     "react": "^17.0.2",
