@@ -29,7 +29,7 @@
     "gatsby-image": "^3.11.0",
     "gatsby-plugin-feed": "^4.11.1",
     "gatsby-plugin-manifest": "^4.11.1",
-    "gatsby-plugin-mdx": "^3.11.1",
+    "gatsby-plugin-mdx": "^3.15.2",
     "gatsby-plugin-meta-redirect": "^1.1.1",
     "gatsby-plugin-netlify": "^3.14.0",
     "gatsby-plugin-next-seo": "^1.10.0",
