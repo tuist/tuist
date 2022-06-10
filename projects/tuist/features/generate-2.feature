@@ -28,13 +28,13 @@ Feature: Generate a new project using Tuist (suite 2)
     Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain resource 'do_not_include.dat'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'StaticFrameworkResources.bundle'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework2Resources.bundle'
-    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework3Resources.bundle'
-    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework4Resources.bundle'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework3_StaticFramework3.bundle'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework4_StaticFramework4.bundle'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers
     Then the product 'StaticFrameworkResources.bundle' with destination 'Debug-iphonesimulator' contains resource 'tuist-bundle.png'
     Then the product 'StaticFramework2Resources.bundle' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework2Resources-tuist.png'
-    Then the product 'StaticFramework3Resources.bundle' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework3Resources-tuist.png'
-    Then the product 'StaticFramework4Resources.bundle' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework4Resources-tuist.png'
+    Then the product 'StaticFramework3_StaticFramework3.bundle' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework3Resources-tuist.png'
+    Then the product 'StaticFramework4_StaticFramework4.bundle' with destination 'Debug-iphonesimulator' contains resource 'StaticFramework4Resources-tuist.png'
     Then a file App/Derived/Sources/TuistBundle+App.swift exists
     Then a file App/Derived/Sources/TuistStrings+App.swift exists
     Then a file App/Derived/Sources/TuistAssets+App.swift exists
