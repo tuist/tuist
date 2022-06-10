@@ -11,6 +11,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let framework2 = Framework2File()
 
         print(hello())
+
         print("AppDelegate -> \(framework1.hello())")
         print("AppDelegate -> \(framework1.helloFromFramework2())")
         print("AppDelegate -> \(framework2.hello())")

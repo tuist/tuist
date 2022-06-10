@@ -1033,7 +1033,7 @@ extension ProjectDescription.Configuration {
     ) -> Self {
         let name = ConfigurationName(stringLiteral: buildConfiguration.name)
         let settings = ProjectDescription.SettingsDictionary.from(settingsDictionary: configuration?.settings ?? [:])
-        let xcconfig = configuration?.xcconfig.map { Path.relativeToRoot($0.relative(to: packageFolder).pathString) }
+        let xcconfig = configuration?.xcconfig.map { Path($0.relative(to: packageFolder).pathString) }
         switch buildConfiguration.variant {
         case .debug:
             return .debug(name: name, settings: settings, xcconfig: xcconfig)
