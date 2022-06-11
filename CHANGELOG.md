@@ -2,6 +2,17 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## 3.6.0 - 2022-06-11
+
+### Fixed
+
+- Wait for analytics to finish when on CI [#4506](https://github.com/tuist/tuist/pull/4506) by [@fortmarek](https://github.com/fortmarek)
+- Fix check for `graphviz` availability when not installed through `brew` [#4516](https://github.com/tuist/tuist/pull/4516) by [@nagra](https://github.com/nagra)
+- Fix handling of `--skip-external-dependencies` parameter in `tuist graph` command when `--format json` is specified [#4517](https://github.com/tuist/tuist/pull/4517) by [@GermanVelibekovHouzz](https://github.com/GermanVelibekovHouzz)
+- Fix crash during `tuist cache warm` when cloud is configured and a lot of targets are present in the project [#4533](https://github.com/tuist/tuist/pull/4533) by [@danyf90](https://github.com/danyf90)
+- Fix XCConfig path for swift package dependencies [#4536](https://github.com/tuist/tuist/pull/4536) by [@shahzadmajeed](https://github.com/shahzadmajeed)
+- Fix default resources warnings for local packages [#4530](https://github.com/tuist/tuist/pull/4530) by [@danyf90](https://github.com/danyf90)
+
 ## 3.5.0 - 2022-05-29
 
 ### Changed
