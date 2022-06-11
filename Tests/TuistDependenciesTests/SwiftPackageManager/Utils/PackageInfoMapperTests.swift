@@ -88,7 +88,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     swiftLanguageVersions: nil
                 ),
             ],
-            productToPackage: [:],
+            idToPackage: [:],
             packageToFolder: ["Package": basePath],
             packageToTargetsToArtifactPaths: ["Package": ["Target_1": .init("/artifacts/Package/Target_1.xcframework")]],
             platforms: [.iOS]
@@ -115,6 +115,61 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
                     .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
                 ],
+            ]
+        )
+    }
+
+    func testPreprocess_whenPackageIDDifferentThanName() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Target_2")))
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package2/Sources/Target_2")))
+        let preprocessInfo = try subject.preprocess(
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target_1",
+                            dependencies: [
+                                .product(name: "Product2", package: "Package2_different_name", condition: nil),
+                            ]
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+                "Package2": .init(
+                    products: [
+                        .init(name: "Product2", type: .library(.automatic), targets: ["Target_2"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_2"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            idToPackage: ["package2_different_name": "Package2"],
+            packageToFolder: [
+                "Package": basePath.appending(component: "Package"),
+                "Package2": basePath.appending(component: "Package2"),
+            ],
+            packageToTargetsToArtifactPaths: [:],
+            platforms: [.iOS]
+        )
+
+        XCTAssertEqual(
+            preprocessInfo.targetToResolvedDependencies,
+            [
+                "Target_1": [.externalTarget(package: "Package2", target: "Target_2")],
+                "Target_2": [],
             ]
         )
     }
@@ -155,7 +210,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     swiftLanguageVersions: nil
                 ),
             ],
-            productToPackage: [:],
+            idToPackage: [:],
             packageToFolder: [
                 "Package": basePath.appending(component: "Package"),
                 "com.example.dep-1": basePath.appending(component: "com.example.dep-1"),
@@ -2568,11 +2623,6 @@ extension PackageInfoMapping {
         swiftToolsVersion: TSCUtility.Version? = nil,
         projectOptions: TuistGraph.Project.Options? = nil
     ) throws -> ProjectDescription.Project? {
-        let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
-            for product in packageInfo.value.products {
-                result[product.name] = packageInfo.key
-            }
-        }
         let packageToFolder: [String: AbsolutePath] = packageInfos.keys.reduce(into: [:]) { result, packageName in
             result[packageName] = basePath.appending(component: packageName)
         }
@@ -2592,7 +2642,7 @@ extension PackageInfoMapping {
 
         let preprocessInfo = try preprocess(
             packageInfos: packageInfos,
-            productToPackage: productToPackage,
+            idToPackage: [:],
             packageToFolder: packageToFolder,
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
             platforms: platforms

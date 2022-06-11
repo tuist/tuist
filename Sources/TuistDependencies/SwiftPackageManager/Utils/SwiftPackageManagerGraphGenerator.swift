@@ -83,7 +83,9 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
         let workspaceState = try JSONDecoder()
             .decode(SwiftPackageManagerWorkspaceState.self, from: try FileHandler.shared.readFile(workspacePath))
-        let packageInfos: [(name: String, folder: AbsolutePath, targetToArtifactPaths: [String: AbsolutePath], info: PackageInfo)]
+        let packageInfos: [
+            (id: String, name: String, folder: AbsolutePath, targetToArtifactPaths: [String: AbsolutePath], info: PackageInfo)
+        ]
         packageInfos = try workspaceState.object.dependencies.map(context: .concurrent) { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
@@ -108,6 +110,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 }
 
             return (
+                id: dependency.packageRef.identity.lowercased(),
                 name: name,
                 folder: packageFolder,
                 targetToArtifactPaths: targetToArtifactPaths,
@@ -115,10 +118,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             )
         }
 
-        let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
-            packageInfo.info.products.forEach { result[$0.name] = packageInfo.name }
-        }
-
+        let idToPackage: [String: String] = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.name) })
         let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
         let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
@@ -128,7 +128,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
         let preprocessInfo = try packageInfoMapper.preprocess(
             packageInfos: packageInfoDictionary,
-            productToPackage: productToPackage,
+            idToPackage: idToPackage,
             packageToFolder: packageToFolder,
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
             platforms: platforms
