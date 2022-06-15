@@ -12,14 +12,9 @@ module Fourier
         OUTPUT_DIRECTORY = File.join(Constants::TUIST_VENDOR_DIRECTORY, "xcbeautify")
 
         attr_reader :swift_build_directory
-        attr_reader :xcode_paths
 
-        def initialize(
-          swift_build_directory:,
-          xcode_paths:
-        )
+        def initialize(swift_build_directory:)
           @swift_build_directory = swift_build_directory
-          @xcode_paths = xcode_paths
           super()
         end
 
@@ -58,8 +53,7 @@ module Fourier
               product: "xcbeautify",
               binary_name: "xcbeautify",
               output_directory: into,
-              swift_build_directory: swift_build_directory,
-              xcode_paths: xcode_paths
+              swift_build_directory: swift_build_directory
             )
           end
       end
