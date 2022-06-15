@@ -19,7 +19,6 @@ module Fourier
 
       desc "xcbeautify", "Update the vendored xcbeautify binary"
       def xcbeautify
-
         Dir.mktmpdir do |swift_build_directory|
           puts(::CLI::UI.fmt("Updating {{info:xcbeautify}}"))
           Services::Update::Xcbeautify.call(swift_build_directory: swift_build_directory)
