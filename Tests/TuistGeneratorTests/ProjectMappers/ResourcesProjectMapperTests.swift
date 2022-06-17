@@ -10,6 +10,9 @@ import XCTest
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
+// Bundle name is irrelevant if the target supports resources.
+private let irrelevantBundleName = ""
+
 final class ResourcesProjectMapperTests: TuistUnitTestCase {
     var project: Project!
     var subject: ResourcesProjectMapper!
@@ -163,7 +166,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: "", target: target)
+            .fileContent(targetName: target.name, bundleName: irrelevantBundleName, target: target)
         XCTAssertEqual(file.path, expectedPath)
         XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
 
@@ -201,7 +204,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: "", target: target)
+            .fileContent(targetName: target.name, bundleName: irrelevantBundleName, target: target)
         XCTAssertEqual(file.path, expectedPath)
         XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
 
