@@ -207,11 +207,46 @@ extension ProjectAutomation.Package {
 
 extension ProjectAutomation.Target {
     fileprivate static func from(_ target: TuistGraph.Target) -> ProjectAutomation.Target {
-        ProjectAutomation.Target(
+        let dependencies = target.dependencies.map { Self.from($0) }
+        return ProjectAutomation.Target(
             name: target.name,
             product: target.product.rawValue,
-            sources: target.sources.map(\.path.pathString)
+            sources: target.sources.map(\.path.pathString),
+            resources: target.resources.map(\.path.pathString),
+            dependencies: dependencies
         )
+    }
+
+    private static func from(_ dependency: TuistGraph.TargetDependency) -> ProjectAutomation.TargetDependency {
+        switch dependency {
+        case let .target(name):
+            return .target(name: name)
+        case let .project(target, path):
+            return .project(target: target, path: path.pathString)
+        case let .framework(path):
+            return .framework(path: path.pathString)
+        case let .xcframework(path):
+            return .xcframework(path: path.pathString)
+        case let .library(path, publicHeaders, swiftModuleMap):
+            return .library(
+                path: path.pathString,
+                publicHeaders: publicHeaders.pathString,
+                swiftModuleMap: swiftModuleMap?.pathString
+            )
+        case let .package(product):
+            return .package(product: product)
+        case let .sdk(name, status):
+            let projectAutomationStatus: ProjectAutomation.SDKStatus
+            switch status {
+            case .optional:
+                projectAutomationStatus = .optional
+            case .required:
+                projectAutomationStatus = .required
+            }
+            return .sdk(name: name, status: projectAutomationStatus)
+        case .xctest:
+            return .xctest
+        }
     }
 }
 
