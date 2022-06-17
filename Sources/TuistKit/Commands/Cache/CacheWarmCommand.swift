@@ -1,14 +1,14 @@
+import AnyCodable
 import ArgumentParser
 import Foundation
 import TSCBasic
-import TuistSupport
-import AnyCodable
 import TuistCache
+import TuistSupport
 
 /// Command to cache targets as `.(xc)framework`s and speed up your and your peers' build times.
 struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
-    
+
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "warm",
