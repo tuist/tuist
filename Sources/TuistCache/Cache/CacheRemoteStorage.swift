@@ -74,7 +74,7 @@ public final class CacheRemoteStorage: CacheStoring {
             }
             return exists
         } catch {
-            if case let HTTPRequestDispatcherError.serverSideError(_, response) = error, response.statusCode == 404 {
+            if case let HTTPRequestDispatcherError.serverSideError(_, _, response) = error, response.statusCode == 404 {
                 return false
             } else {
                 throw error
@@ -86,7 +86,7 @@ public final class CacheRemoteStorage: CacheStoring {
         let resource = try cloudCacheResourceFactory.fetchResource(name: name, hash: hash)
         let url = try await cloudClient.request(resource).object.data.url
 
-        logger.info("Downloading cache artifact with hash \(hash).")
+        logger.info("Downloading cache artifact for target \(name) with hash \(hash).")
         let filePath = try await fileClient.download(url: url)
         return try unzip(downloadedArchive: filePath, hash: hash)
     }
