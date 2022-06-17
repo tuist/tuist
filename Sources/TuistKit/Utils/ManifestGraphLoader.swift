@@ -20,6 +20,7 @@ protocol ManifestGraphLoading {
     /// Loads a Workspace or Project Graph at a given path based on manifest availability
     /// - Note: This will search for a Workspace manifest first, then fallback to searching for a Project manifest
     func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue])
+    // swiftlint:disable:previous large_tuple
 }
 
 final class ManifestGraphLoader: ManifestGraphLoading {
@@ -83,6 +84,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         self.graphMapper = graphMapper
     }
 
+    // swiftlint:disable:next large_tuple
     func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue]) {
         let manifests = manifestLoader.manifests(at: path)
         guard manifests.contains(.workspace) || manifests.contains(.project) else {

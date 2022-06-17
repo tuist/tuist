@@ -14,6 +14,7 @@ public struct Path: ExpressibleByStringInterpolation, Codable, Hashable {
     public let pathString: String
     public let callerPath: String?
 
+    /// Default PathType is `.relativeToManifest`
     public init(_ path: String) {
         self.init(path, type: .relativeToManifest)
     }
@@ -45,6 +46,7 @@ public struct Path: ExpressibleByStringInterpolation, Codable, Hashable {
 
     // MARK: - ExpressibleByStringInterpolation
 
+    /// Initializer uses `.relativeToRoot` if path starts with `//` otherwise it is `.relativeToManifest` by default
     public init(stringLiteral: String) {
         if stringLiteral.starts(with: "//") {
             self.init(stringLiteral.replacingOccurrences(of: "//", with: ""), type: .relativeToRoot)

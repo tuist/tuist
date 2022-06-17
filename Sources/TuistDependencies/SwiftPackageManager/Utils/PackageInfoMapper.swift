@@ -88,14 +88,14 @@ public protocol PackageInfoMapping {
     /// Preprocesses SwiftPackageManager dependencies.
     /// - Parameters:
     ///   - packageInfos: All available `PackageInfo`s
-    ///   - productToPackage: Mapping from a product to its package
+    ///   - idToPackage: Mapping from an identifier to its package
     ///   - packageToFolder: Mapping from a package name to its local folder
     ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
     ///   - platforms: The configured platforms
     /// - Returns: Mapped project
     func preprocess(
         packageInfos: [String: PackageInfo],
-        productToPackage: [String: String],
+        idToPackage: [String: String],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         platforms: Set<TuistGraph.Platform>
@@ -159,14 +159,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
     /// Resolves all SwiftPackageManager dependencies.
     /// - Parameters:
     ///   - packageInfos: All available `PackageInfo`s
-    ///   - productToPackage: Mapping from a product to its package
+    ///   - idToPackage: Mapping from an identifier to its package
     ///   - packageToFolder: Mapping from a package name to its local folder
     ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
     ///   - platforms: The configured platforms
     /// - Returns: Mapped project
     public func preprocess( // swiftlint:disable:this function_body_length
         packageInfos: [String: PackageInfo],
-        productToPackage: [String: String],
+        idToPackage: [String: String],
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         platforms: Set<TuistGraph.Platform>
@@ -223,7 +223,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                             dependencies: target.dependencies,
                             packageInfo: packageInfo,
                             packageInfos: packageInfos,
-                            productToPackage: productToPackage,
+                            idToPackage: idToPackage,
                             targetDependencyToFramework: targetDependencyToFramework
                         )
                     }
@@ -661,8 +661,8 @@ extension ResourceFileElements {
     ]
 
     private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
-        ResourceFileElements.defaultSpmResourceFileExtensions.map { fileExtension -> AbsolutePath in
-            path.appending(components: ["**", "*.\(fileExtension)"])
+        ResourceFileElements.defaultSpmResourceFileExtensions.flatMap {
+            FileHandler.shared.glob(path, glob: "**/*.\($0)")
         }
     }
 }
@@ -1033,7 +1033,7 @@ extension ProjectDescription.Configuration {
     ) -> Self {
         let name = ConfigurationName(stringLiteral: buildConfiguration.name)
         let settings = ProjectDescription.SettingsDictionary.from(settingsDictionary: configuration?.settings ?? [:])
-        let xcconfig = configuration?.xcconfig.map { Path.relativeToRoot($0.relative(to: packageFolder).pathString) }
+        let xcconfig = configuration?.xcconfig.map { Path($0.relative(to: packageFolder).pathString) }
         switch buildConfiguration.variant {
         case .debug:
             return .debug(name: name, settings: settings, xcconfig: xcconfig)
@@ -1161,7 +1161,7 @@ extension PackageInfoMapper {
             dependencies: [PackageInfo.Target.Dependency],
             packageInfo: PackageInfo,
             packageInfos: [String: PackageInfo],
-            productToPackage _: [String: String],
+            idToPackage: [String: String],
             targetDependencyToFramework: [String: Path]
         ) throws -> [ResolvedDependency] {
             try dependencies.flatMap { dependency -> [Self] in
@@ -1170,7 +1170,7 @@ extension PackageInfoMapper {
                     return Self.fromTarget(name: name, targetDependencyToFramework: targetDependencyToFramework)
                 case let .product(name, package, _):
                     return try Self.fromProduct(
-                        package: package,
+                        package: idToPackage[package.lowercased()] ?? package,
                         product: name,
                         packageInfos: packageInfos,
                         targetDependencyToFramework: targetDependencyToFramework

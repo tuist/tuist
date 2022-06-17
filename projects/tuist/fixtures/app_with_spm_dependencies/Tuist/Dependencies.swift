@@ -1,4 +1,5 @@
 import ProjectDescription
+import ProjectDescriptionHelpers
 
 let packages: [Package] = [
     .package(url: "https://github.com/Alamofire/Alamofire", .upToNextMajor(from: "5.6.0")),
@@ -14,18 +15,9 @@ let packages: [Package] = [
 let dependencies = Dependencies(
     swiftPackageManager: .init(
         packages,
-        baseSettings: .settings(
-            configurations: [
-                .debug(name: .debug),
-                .release(name: .release),
-                .release(name: "Internal"),
-            ]
-        ),
+        baseSettings: .targetSettings,
         projectOptions: [
-            "LocalSwiftPackage": .options(
-                automaticSchemesOptions: .disabled,
-                disableSynthesizedResourceAccessors: false
-            ),
+            "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
         ]
     ),
     platforms: [.iOS]
