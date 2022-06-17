@@ -37,6 +37,7 @@ let project = Project(
                 .external(name: "FirebaseDatabase"),
                 .external(name: "FirebaseFirestore"),
                 .external(name: "IterableSDK"),
+                .external(name: "Stripe"),
                 .external(name: "TYStatusBarView"),
             ],
             settings: .targetSettings
