@@ -2,6 +2,21 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## 3.7.0 - 2022-06-19
+
+### Changed
+
+- Update target resource name [#4542](https://github.com/tuist/tuist/pull/4542) by [@wangjiejacques](https://github.com/wangjiejacques)
+
+### Added
+
+- Send cache hit rate analytics for cache warm command [#4519](https://github.com/tuist/tuist/pull/4519) by [@fortmarek](https://github.com/fortmarek)
+
+### Fixed
+
+- Fix `tuist fetch` for dependencies when using Xcode 14 [#4543](https://github.com/tuist/tuist/pull/4543) by [@danyf90](https://github.com/danyf90)
+- Improve cache errors logging [#4555](https://github.com/tuist/tuist/pull/4555) by [@danyf90](https://github.com/danyf90)
+
 ## 3.6.0 - 2022-06-11
 
 ### Fixed
