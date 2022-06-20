@@ -83,7 +83,7 @@ public final class CacheRemoteStorage: CacheStoring {
             }
         } catch {
             logger.warning(
-                "Check of \(name) binary artifact existence failed, using local cache only. Error: \(error.localizedDescription)"
+                "Check existence of \(name) binary artifact failed, using local cache only. Error: \(error.localizedDescription)"
             )
             return false
         }
