@@ -71,17 +71,10 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         cloudClient.mock(error: CloudEmptyResponseError())
 
         // When
-        do {
-            _ = try await subject.exists(name: "targetName", hash: "acho tio")
-            XCTFail("Expected result to complete with error, but result was successful.")
-        } catch {
-            // Then
-            if error is CloudEmptyResponseError {
-                XCTAssertEqual(error as! CloudEmptyResponseError, CloudEmptyResponseError())
-            } else {
-                XCTFail("Expected result to complete with error, but result error wasn't the expected type.")
-            }
-        }
+        let result = await subject.exists(name: "targetName", hash: "acho tio")
+
+        // Then
+        XCTAssertFalse(result)
     }
 
     func test_exists_whenClientReturnsAnHTTPError() async throws {
@@ -91,7 +84,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         cloudClient.mock(object: cloudResponse, response: httpResponse)
 
         // When
-        let result = try await subject.exists(name: "targetName", hash: "acho tio")
+        let result = await subject.exists(name: "targetName", hash: "acho tio")
 
         // Then
         XCTAssertFalse(result)
@@ -104,7 +97,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         cloudClient.mock(object: cloudResponse, response: httpResponse)
 
         // When
-        let result = try await subject.exists(name: "targetName", hash: "acho tio")
+        let result = await subject.exists(name: "targetName", hash: "acho tio")
 
         // Then
         XCTAssertTrue(result)
@@ -117,7 +110,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         cloudClient.mock(object: cloudResponse, response: httpResponse)
 
         // When
-        let result = try await subject.exists(name: "targetName", hash: "acho tio")
+        let result = await subject.exists(name: "targetName", hash: "acho tio")
 
         // Then
         XCTAssertTrue(result)
@@ -130,18 +123,11 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         let expectedError: CloudResponseError = .test()
         cloudClient.mock(error: expectedError)
 
-        do {
-            // When
-            _ = try await subject.fetch(name: "targetName", hash: "acho tio")
-            XCTFail("Expected result to complete with error, but result was successful.")
-        } catch {
-            // Then
-            if error is CloudResponseError {
-                XCTAssertEqual(error as! CloudResponseError, expectedError)
-            } else {
-                XCTFail("Expected result to complete with error, but result error wasn't the expected type.")
-            }
-        }
+        // When
+        let result = await subject.fetch(name: "targetName", hash: "acho tio")
+
+        // Then
+        XCTAssertNil(result)
     }
 
     func test_fetch_whenArchiveContainsIncorrectRootFolderAfterUnzipping_expectErrorThrown() async throws {
@@ -155,18 +141,11 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         let paths = try createFolders(["Unarchived/\(hash)/IncorrectRootFolderAfterUnzipping"])
         fileUnarchiver.stubbedUnzipResult = paths.first
 
-        do {
-            // When
-            _ = try await subject.fetch(name: "targetName", hash: hash)
-            XCTFail("Expected result to complete with error, but result was successful.")
-        } catch {
-            // Then
-            if error is CacheRemoteStorageError {
-                XCTAssertEqual(error as! CacheRemoteStorageError, CacheRemoteStorageError.artifactNotFound(hash: hash))
-            } else {
-                XCTFail("Expected result to complete with error, but result error wasn't the expected type.")
-            }
-        }
+        // When
+        let result = await subject.fetch(name: "targetName", hash: hash)
+
+        // Then
+        XCTAssertNil(result)
     }
 
     func test_fetch_whenClientReturnsASuccess_returnsCorrectRootFolderAfterUnzipping() async throws {
@@ -181,7 +160,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileUnarchiver.stubbedUnzipResult = paths.first?.parentDirectory
 
         // When
-        let result = try await subject.fetch(name: "targetName", hash: hash)
+        let result = await subject.fetch(name: "targetName", hash: hash)
 
         // Then
         let expectedPath = cacheDirectoriesProvider.cacheDirectory(for: .builds)
@@ -202,7 +181,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileUnarchiver.stubbedUnzipResult = paths.first!.parentDirectory
 
         // When
-        _ = try await subject.fetch(name: "targetName", hash: hash)
+        _ = await subject.fetch(name: "targetName", hash: hash)
 
         // Then
         XCTAssertEqual(fileClient.invokedDownloadParameters?.url, url)
@@ -221,7 +200,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         let hash = "foo_bar"
 
         // When
-        _ = try await subject.fetch(name: "targetName", hash: hash)
+        _ = await subject.fetch(name: "targetName", hash: hash)
 
         // Then
         XCTAssertTrue(fileUnarchiver.invokedUnzip)
@@ -234,18 +213,11 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         let expectedError = CloudResponseError.test()
         cloudClient.mock(error: expectedError)
 
-        do {
-            // When
-            _ = try await subject.store(name: "targetName", hash: "acho tio", paths: [.root])
-            XCTFail("Expected result to complete with error, but result was successful.")
-        } catch {
-            // Then
-            if error is CloudResponseError {
-                XCTAssertEqual(error as! CloudResponseError, expectedError)
-            } else {
-                XCTFail("Expected result to complete with error, but result error wasn't the expected type.")
-            }
-        }
+        // When
+        await subject.store(name: "targetName", hash: "acho tio", paths: [.root])
+
+        // Then
+        XCTAssertEqual(fileClient.invokedUploadCount, 0)
     }
 
     func test_store_whenClientReturnsASuccess_returnsURLToUpload() async throws {
@@ -253,7 +225,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         configureCloudClientForSuccessfulUpload()
 
         // When
-        _ = try await subject.store(name: "targetName", hash: "foo_bar", paths: [.root])
+        _ = await subject.store(name: "targetName", hash: "foo_bar", paths: [.root])
 
         // Then
         if let tuple = fileClient.invokedUploadParameters {
@@ -269,7 +241,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         configureCloudClientForSuccessfulUpload()
 
         // When
-        _ = try await subject.store(name: "targetName", hash: hash, paths: [.root])
+        _ = await subject.store(name: "targetName", hash: hash, paths: [.root])
 
         // Then
         if let tuple = fileClient.invokedUploadParameters {
@@ -286,7 +258,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileArchiver.stubbedZipResult = zipPath
 
         // When
-        _ = try await subject.store(name: "targetName", hash: hash, paths: [.root])
+        _ = await subject.store(name: "targetName", hash: hash, paths: [.root])
 
         // Then
         if let tuple = fileClient.invokedUploadParameters {
@@ -302,7 +274,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         cloudClient.mock(error: expectedError)
 
         // When
-        _ = try? await subject.store(name: "targetName", hash: "acho tio", paths: [.root])
+        _ = await subject.store(name: "targetName", hash: "acho tio", paths: [.root])
 
         // Then
         XCTAssertFalse(mockCloudCacheResourceFactory.invokedVerifyUploadResource)
@@ -314,7 +286,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileClient.stubbedUploadError = TestError("Error uploading file")
 
         // When
-        _ = try? await subject.store(name: "targetName", hash: "acho tio", paths: [.root])
+        _ = await subject.store(name: "targetName", hash: "acho tio", paths: [.root])
 
         // Then
         XCTAssertEqual(fileArchiver.invokedDeleteCount, 1)
@@ -326,7 +298,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileClient.stubbedUploadError = TestError("Error uploading file")
 
         // When
-        _ = try? await subject.store(name: "targetName", hash: "acho tio", paths: [.root])
+        _ = await subject.store(name: "targetName", hash: "acho tio", paths: [.root])
 
         // Then
         XCTAssertFalse(mockCloudCacheResourceFactory.invokedVerifyUploadResource)
@@ -337,7 +309,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         configureCloudClientForSuccessfulUploadAndFailedVerify()
 
         // When
-        _ = try? await subject.store(name: "targetName", hash: "verify fails hash", paths: [.root])
+        _ = await subject.store(name: "targetName", hash: "verify fails hash", paths: [.root])
 
         // Then
         XCTAssertEqual(fileArchiver.invokedDeleteCount, 1)

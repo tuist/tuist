@@ -27,17 +27,13 @@ public final class Cache: CacheStoring {
         return false
     }
 
-    public func fetch(name: String, hash: String) async throws -> AbsolutePath {
-        var throwingError: Error = CacheLocalStorageError.compiledArtifactNotFound(hash: hash)
+    public func fetch(name: String, hash: String) async throws -> AbsolutePath? {
         for storage in storages {
-            do {
-                return try await storage.fetch(name: name, hash: hash)
-            } catch {
-                throwingError = error
-                continue
+            if let path = try await storage.fetch(name: name, hash: hash) {
+                return path
             }
         }
-        throw throwingError
+        return nil
     }
 
     public func store(name: String, hash: String, paths: [AbsolutePath]) async throws {

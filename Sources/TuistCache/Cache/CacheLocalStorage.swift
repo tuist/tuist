@@ -3,23 +3,6 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-enum CacheLocalStorageError: FatalError, Equatable {
-    case compiledArtifactNotFound(hash: String)
-
-    var type: ErrorType {
-        switch self {
-        case .compiledArtifactNotFound: return .abort
-        }
-    }
-
-    var description: String {
-        switch self {
-        case let .compiledArtifactNotFound(hash):
-            return "xcframework with hash '\(hash)' not found in the local cache"
-        }
-    }
-}
-
 public final class CacheLocalStorage: CacheStoring {
     // MARK: - Attributes
 
@@ -37,7 +20,7 @@ public final class CacheLocalStorage: CacheStoring {
 
     // MARK: - CacheStoring
 
-    public func exists(name: String, hash: String) throws -> Bool {
+    public func exists(name: String, hash: String) -> Bool {
         let hashFolder = cacheDirectory.appending(component: hash)
         let exists = lookupCompiledArtifact(directory: hashFolder) != nil
         if exists {
@@ -46,13 +29,9 @@ public final class CacheLocalStorage: CacheStoring {
         return exists
     }
 
-    public func fetch(name _: String, hash: String) throws -> AbsolutePath {
+    public func fetch(name _: String, hash: String) -> AbsolutePath? {
         let hashFolder = cacheDirectory.appending(component: hash)
-        guard let path = lookupCompiledArtifact(directory: hashFolder) else {
-            throw CacheLocalStorageError.compiledArtifactNotFound(hash: hash)
-        }
-
-        return path
+        return lookupCompiledArtifact(directory: hashFolder)
     }
 
     public func store(name _: String, hash: String, paths: [AbsolutePath]) throws {

@@ -88,7 +88,7 @@ final class CacheTests: TuistUnitTestCase {
         firstCache.fetchStub = { name, hash in
             XCTAssertEqual(name, "targetName")
             XCTAssertEqual(hash, "1234")
-            throw TestError("")
+            return nil
         }
         secondCache.fetchStub = { name, hash in
             XCTAssertEqual(name, "targetName")
@@ -99,20 +99,18 @@ final class CacheTests: TuistUnitTestCase {
         XCTAssertEqual(result, "/Absolute/Path")
     }
 
-    func test_fetch_when_not_in_cache_checks_both_and_throws() async {
+    func test_fetch_when_not_in_cache_checks_both_and_throws() async throws {
         firstCache.fetchStub = { name, hash in
             XCTAssertEqual(name, "targetName")
             XCTAssertEqual(hash, "1234")
-            throw TestError("")
+            return nil
         }
         secondCache.fetchStub = { name, hash in
             XCTAssertEqual(name, "targetName")
             XCTAssertEqual(hash, "1234")
-            throw TestError("")
+            return nil
         }
-        await XCTAssertThrowsSpecific(
-            try await subject.fetch(name: "targetName", hash: "1234"),
-            TestError("")
-        )
+        let fetch = try await subject.fetch(name: "targetName", hash: "1234")
+        XCTAssertNil(fetch)
     }
 }

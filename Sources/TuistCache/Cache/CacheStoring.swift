@@ -11,13 +11,13 @@ public protocol CacheStoring {
     func exists(name: String, hash: String) async throws -> Bool
 
     /// For the target with the given hash, it fetches it from the cache and returns a path
-    /// pointint to the .xcframework that represents it.
+    /// pointing to the .xcframework that represents it.
     ///
     /// - Parameters:
     ///   - name: Target's name.
     ///   - hash: Target's hash.
     /// - Returns: An observable that returns a boolean indicating whether the target is cached.
-    func fetch(name: String, hash: String) async throws -> AbsolutePath
+    func fetch(name: String, hash: String) async throws -> AbsolutePath?
 
     /// It stores the xcframework at the given path in the cache.
     /// - Parameters:

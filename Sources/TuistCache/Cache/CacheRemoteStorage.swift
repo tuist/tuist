@@ -63,59 +63,75 @@ public final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - CacheStoring
 
-    public func exists(name: String, hash: String) async throws -> Bool {
+    public func exists(name: String, hash: String) async -> Bool {
         do {
-            let successRange = 200 ..< 300
-            let resource = try cloudCacheResourceFactory.existsResource(name: name, hash: hash)
-            let (_, response) = try await cloudClient.request(resource)
-            let exists = successRange.contains(response.statusCode)
-            if exists {
-                CacheAnalytics.remoteCacheTargetsHits.insert(name)
+            do {
+                let successRange = 200 ..< 300
+                let resource = try cloudCacheResourceFactory.existsResource(name: name, hash: hash)
+                let (_, response) = try await cloudClient.request(resource)
+                let exists = successRange.contains(response.statusCode)
+                if exists {
+                    CacheAnalytics.remoteCacheTargetsHits.insert(name)
+                }
+                return exists
+            } catch {
+                if case let HTTPRequestDispatcherError.serverSideError(_, _, response) = error, response.statusCode == 404 {
+                    return false
+                } else {
+                    throw error
+                }
             }
-            return exists
         } catch {
-            if case let HTTPRequestDispatcherError.serverSideError(_, _, response) = error, response.statusCode == 404 {
-                return false
-            } else {
-                throw error
-            }
+            logger.warning(
+                "Check of \(name) binary artifact existence failed, using local cache only. Error: \(error.localizedDescription)"
+            )
+            return false
         }
     }
 
-    public func fetch(name: String, hash: String) async throws -> AbsolutePath {
-        let resource = try cloudCacheResourceFactory.fetchResource(name: name, hash: hash)
-        let url = try await cloudClient.request(resource).object.data.url
+    public func fetch(name: String, hash: String) async -> AbsolutePath? {
+        do {
+            let resource = try cloudCacheResourceFactory.fetchResource(name: name, hash: hash)
+            let url = try await cloudClient.request(resource).object.data.url
 
-        logger.info("Downloading cache artifact for target \(name) with hash \(hash).")
-        let filePath = try await fileClient.download(url: url)
-        return try unzip(downloadedArchive: filePath, hash: hash)
+            logger.info("Downloading cache artifact for target \(name) with hash \(hash).")
+            let filePath = try await fileClient.download(url: url)
+            return try unzip(downloadedArchive: filePath, hash: hash)
+        } catch {
+            logger.warning("Fetch of \(name) binary artifact failed, using source instead. Error: \(error.localizedDescription)")
+            return nil
+        }
     }
 
-    public func store(name: String, hash: String, paths: [AbsolutePath]) async throws {
-        let archiver = try fileArchiverFactory.makeFileArchiver(for: paths)
+    public func store(name: String, hash: String, paths: [AbsolutePath]) async {
         do {
-            let destinationZipPath = try archiver.zip(name: hash)
-            let md5 = try FileHandler.shared.urlSafeBase64MD5(path: destinationZipPath)
-            let storeResource = try cloudCacheResourceFactory.storeResource(
-                name: name,
-                hash: hash,
-                contentMD5: md5
-            )
+            let archiver = try fileArchiverFactory.makeFileArchiver(for: paths)
+            do {
+                let destinationZipPath = try archiver.zip(name: hash)
+                let md5 = try FileHandler.shared.urlSafeBase64MD5(path: destinationZipPath)
+                let storeResource = try cloudCacheResourceFactory.storeResource(
+                    name: name,
+                    hash: hash,
+                    contentMD5: md5
+                )
 
-            let url = try await cloudClient.request(storeResource).object.data.url
+                let url = try await cloudClient.request(storeResource).object.data.url
 
-            _ = try await fileClient.upload(file: destinationZipPath, hash: hash, to: url)
+                _ = try await fileClient.upload(file: destinationZipPath, hash: hash, to: url)
 
-            let verifyUploadResource = try cloudCacheResourceFactory.verifyUploadResource(
-                name: name,
-                hash: hash,
-                contentMD5: md5
-            )
+                let verifyUploadResource = try cloudCacheResourceFactory.verifyUploadResource(
+                    name: name,
+                    hash: hash,
+                    contentMD5: md5
+                )
 
-            _ = try await cloudClient.request(verifyUploadResource)
+                _ = try await cloudClient.request(verifyUploadResource)
+            } catch {
+                try archiver.delete()
+                throw error
+            }
         } catch {
-            try archiver.delete()
-            throw error
+            logger.warning("Store of \(name) binary artifact failed. Error: \(error.localizedDescription)")
         }
     }
 

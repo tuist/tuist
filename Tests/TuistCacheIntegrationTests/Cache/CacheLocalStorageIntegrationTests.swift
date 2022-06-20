@@ -31,20 +31,20 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        let got = try subject.exists(name: "ignored", hash: hash)
+        let got = subject.exists(name: "ignored", hash: hash)
 
         // Then
-        XCTAssertTrue(got == true)
+        XCTAssertTrue(got)
     }
 
     func test_exists_when_a_cached_xcframework_does_not_exist() async throws {
         // When
         let hash = "abcde"
 
-        let got = try subject.exists(name: "ignored", hash: hash)
+        let got = subject.exists(name: "ignored", hash: hash)
 
         // Then
-        XCTAssertTrue(got == false)
+        XCTAssertFalse(got)
     }
 
     func test_fetch_when_a_cached_xcframework_exists() async throws {
@@ -57,19 +57,14 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        let got = try subject.fetch(name: "ignored", hash: hash)
+        let got = subject.fetch(name: "ignored", hash: hash)
 
         // Then
-        XCTAssertTrue(got == xcframeworkPath)
+        XCTAssertEqual(got, xcframeworkPath)
     }
 
     func test_fetch_when_a_cached_xcframework_does_not_exist() async throws {
-        let hash = "abcde"
-
-        await XCTAssertThrowsSpecific(
-            try subject.fetch(name: "ignored", hash: hash),
-            CacheLocalStorageError.compiledArtifactNotFound(hash: hash)
-        )
+        XCTAssertNil(subject.fetch(name: "ignored", hash: "abcde"))
     }
 
     func test_store() async throws {
