@@ -23,9 +23,7 @@ enum TuistApp {
 
         try TuistSupport.Environment.shared.bootstrap()
 
-        Task.detached(priority: .background) {
-            try TuistAnalytics.bootstrap(config: ConfigLoader().loadConfig(path: path))
-        }
+        try TuistAnalytics.bootstrap(config: ConfigLoader().loadConfig(path: path))
 
         await TuistCommand.main()
     }
