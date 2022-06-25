@@ -9,7 +9,7 @@ extension TuistGraph.InfoPlist {
     /// - Parameters:
     ///   - manifest: Manifest representation of the Info plist model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.InfoPlist, generatorPaths: GeneratorPaths) throws -> TuistGraph.InfoPlist {
+    static func from(manifest: ProjectDescription.InfoPlist?, generatorPaths: GeneratorPaths) throws -> TuistGraph.InfoPlist? {
         switch manifest {
         case let .file(infoplistPath):
             return .file(path: try generatorPaths.resolve(path: infoplistPath))
@@ -22,6 +22,8 @@ extension TuistGraph.InfoPlist {
                 with:
                 dictionary.mapValues { TuistGraph.InfoPlist.Value.from(manifest: $0) }
             )
+        case .none:
+            return .none
         }
     }
 }

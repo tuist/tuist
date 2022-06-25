@@ -21,7 +21,7 @@ public struct Target: Codable, Equatable {
     public let deploymentTarget: DeploymentTarget?
 
     /// The Info.plist representation.
-    public let infoPlist: InfoPlist
+    public let infoPlist: InfoPlist?
 
     /// The source files of the target.
     /// Note: any playgrounds matched by the globs used in this property will be automatically added.
@@ -68,7 +68,7 @@ public struct Target: Codable, Equatable {
         productName: String? = nil,
         bundleId: String,
         deploymentTarget: DeploymentTarget? = nil,
-        infoPlist: InfoPlist = .default,
+        infoPlist: InfoPlist? = .default,
         sources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil,
         copyFiles: [CopyFilesAction]? = nil,
