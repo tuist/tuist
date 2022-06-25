@@ -252,6 +252,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 }
             }
 
+
+        // TODO: Check if the change in ProjectDescription.Platform.from will already result in multiple platforms per target
         let targetToPlatforms: [String: ProjectDescription.Platform] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
                 result[target.name] = try ProjectDescription.Platform.from(
@@ -329,6 +331,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             ),
             uniquingKeysWith: { userDefined, _ in userDefined }
         )
+
         let targetSettings = targetSettings.merging(
             // Force enable testing search paths
             Dictionary(
@@ -501,6 +504,7 @@ extension ProjectDescription.Platform {
         )
         let validPlatforms = configuredPlatforms.intersection(packagePlatforms)
 
+        // TODO: Do not only return ios, instead return the actual configured platform 
         if validPlatforms.contains(.iOS) {
             return .iOS
         }
