@@ -128,7 +128,7 @@ public protocol PackageInfoMapping {
         targetSettings: [String: TuistGraph.SettingsDictionary],
         projectOptions: TuistGraph.Project.Options?,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
-        targetToPlatform: [String: ProjectDescription.Platform],
+        targetToPlatform: [String: Set<ProjectDescription.Platform>],
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap],
@@ -311,7 +311,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetSettings: [String: TuistGraph.SettingsDictionary],
         projectOptions: TuistGraph.Project.Options?,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
-        targetToPlatform: [String: ProjectDescription.Platform],
+        targetToPlatform: [String: Set<ProjectDescription.Platform>],
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap],
@@ -353,25 +353,28 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         )
 
-        let targets = try packageInfo.targets.compactMap { target -> ProjectDescription.Target? in
-            guard let products = targetToProducts[target.name] else { return nil }
-            return try Target.from(
-                target: target,
-                products: products,
-                packageName: name,
-                packageInfo: packageInfo,
-                packageInfos: packageInfos,
-                packageFolder: path,
-                packageToProject: packageToProject,
-                productTypes: productTypes,
-                baseSettings: baseSettings,
-                targetSettings: targetSettings,
-                platforms: targetToPlatform,
-                minDeploymentTargets: minDeploymentTargets,
-                targetToResolvedDependencies: targetToResolvedDependencies,
-                targetToModuleMap: targetToModuleMap
-            )
-        }
+        let targets = try packageInfo.targets
+            .compactMap { target -> [ProjectDescription.Target]? in
+                guard let products = targetToProducts[target.name] else { return nil }
+
+                return try Array<ProjectDescription.Target>.from(
+                    target: target,
+                    products: products,
+                    packageName: name,
+                    packageInfo: packageInfo,
+                    packageInfos: packageInfos,
+                    packageFolder: path,
+                    packageToProject: packageToProject,
+                    productTypes: productTypes,
+                    baseSettings: baseSettings,
+                    targetSettings: targetSettings,
+                    platforms: targetToPlatform,
+                    minDeploymentTargets: minDeploymentTargets,
+                    targetToResolvedDependencies: targetToResolvedDependencies,
+                    targetToModuleMap: targetToModuleMap
+                )
+            }
+            .reduce([], +)
 
         guard !targets.isEmpty else {
             return nil
@@ -401,6 +404,101 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
     fileprivate class func sanitize(targetName: String) -> String {
         targetName.replacingOccurrences(of: ".", with: "_")
+    }
+}
+
+extension Array where Element == ProjectDescription.Target {
+    fileprivate static func from(
+        target: PackageInfo.Target,
+        products: Set<PackageInfo.Product>,
+        packageName: String,
+        packageInfo: PackageInfo,
+        packageInfos: [String: PackageInfo],
+        packageFolder: AbsolutePath,
+        packageToProject: [String: AbsolutePath],
+        productTypes: [String: TuistGraph.Product],
+        baseSettings: TuistGraph.Settings,
+        targetSettings: [String: TuistGraph.SettingsDictionary],
+        platforms: [String: Set<ProjectDescription.Platform>],
+        minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
+        targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
+        targetToModuleMap: [String: ModuleMap]
+    ) throws -> Self? {
+        let platforms = platforms[target.name]!
+
+        var result: [ProjectDescription.Target] = []
+
+        for platform in platforms {
+            guard target.type == .regular else {
+                logger.debug("Target \(target.name) of type \(target.type) ignored")
+                return nil
+            }
+
+            guard let product = ProjectDescription.Product.from(name: target.name, products: products, productTypes: productTypes)
+            else {
+                logger.debug("Target \(target.name) ignored by product type")
+                return nil
+            }
+
+            let path = try target.basePath(packageFolder: packageFolder)
+            let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
+            let moduleMap = targetToModuleMap[target.name]!
+
+            let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
+                platform: platform,
+                minDeploymentTargets: minDeploymentTargets,
+                package: packageInfo.platforms,
+                packageName: packageName
+            )
+            let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
+            let resources = ResourceFileElements.from(
+                sources: target.sources,
+                resources: target.resources,
+                path: path,
+                excluding: target.exclude
+            )
+            let headers = try Headers.from(moduleMap: moduleMap, publicHeadersPath: publicHeadersPath)
+
+            let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
+
+            let dependencies = try ProjectDescription.TargetDependency.from(
+                resolvedDependencies: resolvedDependencies,
+                platform: platform,
+                settings: target.settings,
+                packageToProject: packageToProject
+            )
+            let settings = try Settings.from(
+                target: target,
+                packageFolder: packageFolder,
+                packageName: packageName,
+                packageInfos: packageInfos,
+                packageToProject: packageToProject,
+                targetToResolvedDependencies: targetToResolvedDependencies,
+                settings: target.settings,
+                platform: platform,
+                targetToModuleMap: targetToModuleMap,
+                baseSettings: baseSettings,
+                targetSettings: targetSettings
+            )
+
+            result.append(
+                ProjectDescription.Target(
+                    name: "\(PackageInfoMapper.sanitize(targetName: target.name))_\(platform.rawValue)",
+                    platform: platform,
+                    product: product,
+                    productName: PackageInfoMapper.sanitize(targetName: target.name),
+                    bundleId: target.name.replacingOccurrences(of: "_", with: "-"),
+                    deploymentTarget: deploymentTarget,
+                    infoPlist: .default,
+                    sources: sources,
+                    resources: resources,
+                    headers: headers,
+                    dependencies: dependencies,
+                    settings: settings
+                )
+            )
+        }
+        return result
     }
 }
 

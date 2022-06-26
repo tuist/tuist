@@ -29,7 +29,8 @@ extension TuistGraph.TargetDependency {
     static func from(
         manifest: ProjectDescription.TargetDependency,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [String: [TuistGraph.TargetDependency]]
+        externalDependencies: [String: [TuistGraph.TargetDependency]],
+        platform: TuistGraph.Platform
     ) throws -> [TuistGraph.TargetDependency] {
         switch manifest {
         case let .target(name):
@@ -63,7 +64,10 @@ extension TuistGraph.TargetDependency {
             guard let dependencies = externalDependencies[name] else {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name)
             }
-            return dependencies
+            return dependencies.compactMap { dep in
+                guard case let .project(target, path) = dep else { return nil }
+                return .project(target: "\(target)_\(platform.rawValue)" , path: path)
+            }
         }
     }
 }

@@ -42,7 +42,8 @@ extension TuistGraph.Target {
             try TuistGraph.TargetDependency.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies
+                externalDependencies: externalDependencies,
+                platform: platform
             )
         }
 
