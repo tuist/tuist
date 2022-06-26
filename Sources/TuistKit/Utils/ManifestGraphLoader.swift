@@ -143,7 +143,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     private func convert(
         projects: [AbsolutePath: ProjectDescription.Project],
         plugins: Plugins,
-        externalDependencies: [String: [TuistGraph.TargetDependency]],
+        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]],
         context: ExecutionContext = .concurrent
     ) throws -> [TuistGraph.Project] {
         let tuples = projects.map { (path: $0.key, manifest: $0.value) }

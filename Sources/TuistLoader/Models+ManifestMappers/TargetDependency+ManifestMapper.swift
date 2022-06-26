@@ -26,13 +26,11 @@ extension TuistGraph.TargetDependency {
     ///   - manifest: Manifest representation of the target dependency model.
     ///   - generatorPaths: Generator paths.
     ///   - externalDependencies: External dependencies graph.
-    ///   - resolveExternalWithPlatformSuffix: Flag to indicate to use the platform suffix for target resolution
     static func from(
         manifest: ProjectDescription.TargetDependency,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [String: [TuistGraph.TargetDependency]],
-        platform: TuistGraph.Platform,
-        resolveExternalWithPlatformSuffix: Bool
+        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]],
+        platform: TuistGraph.Platform
     ) throws -> [TuistGraph.TargetDependency] {
         switch manifest {
         case let .target(name):
@@ -63,13 +61,13 @@ extension TuistGraph.TargetDependency {
         case .xctest:
             return [.xctest]
         case let .external(name):
-            guard let dependencies = externalDependencies[name] else {
+            guard let dependencies = externalDependencies[platform]?[name] else {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name)
             }
             return dependencies.compactMap { dep in
                 guard case let .project(target, path) = dep else { return nil }
 
-                if resolveExternalWithPlatformSuffix {
+                if externalDependencies.hasMultiplePlatforms {
                     guard target.hasSuffix(platform.rawValue) else { return nil }
                 }
 

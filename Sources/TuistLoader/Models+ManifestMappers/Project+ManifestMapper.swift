@@ -17,7 +17,7 @@ extension TuistGraph.Project {
         manifest: ProjectDescription.Project,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
-        externalDependencies: [String: [TuistGraph.TargetDependency]],
+        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]],
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating,
         isExternal: Bool
     ) throws -> TuistGraph.Project {
@@ -28,13 +28,11 @@ extension TuistGraph.Project {
         let options = TuistGraph.Project.Options.from(manifest: manifest.options)
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        let platforms = manifest.targets.map(\.platform).uniqued()
         let targets = try manifest.targets.map {
             try TuistGraph.Target.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies,
-                resolveExternalWithPlatformSuffix: platforms.count != 1 // When only 1 platform is requested no platform suffix is used
+                externalDependencies: externalDependencies
             )
         }
         let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
