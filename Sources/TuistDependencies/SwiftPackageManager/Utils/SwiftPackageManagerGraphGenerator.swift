@@ -161,3 +161,24 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         )
     }
 }
+
+
+
+
+extension ProjectDescription.Platform {
+    /// Maps a TuistGraph.Platform instance into a  ProjectDescription.Platform instance.
+    /// - Parameters:
+    ///   - manifest: Graph representation of platform model.
+    static func from(graph: TuistGraph.Platform) -> ProjectDescription.Platform {
+        switch graph {
+        case .macOS:
+            return .macOS
+        case .iOS:
+            return .iOS
+        case .tvOS:
+            return .tvOS
+        case .watchOS:
+            return .watchOS
+        }
+    }
+}

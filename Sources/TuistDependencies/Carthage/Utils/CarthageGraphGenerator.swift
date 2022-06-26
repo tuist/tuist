@@ -24,9 +24,28 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
         let products = try versionFilePaths
             .map { try FileHandler.shared.readFile($0) }
             .map { try jsonDecoder.decode(CarthageVersionFile.self, from: $0) }
-            .flatMap(\.allProducts)
 
-        let externalDependencies: [String: [TargetDependency]] = Dictionary(grouping: products, by: \.name)
+        let iOSProducts = products.flatMap { $0.iOS ?? [] }
+        let watchOSProducts = products.flatMap { $0.watchOS ?? [] }
+        let macOSProducts = products.flatMap { $0.macOS ?? [] }
+        let tvOSProducts = products.flatMap { $0.tvOS ?? [] }
+
+        let externalDependencies: [ProjectDescription.Platform: [String: [TargetDependency]]] = [
+            .iOS: self.groupDependencies(products: iOSProducts),
+            .watchOS: self.groupDependencies(products: watchOSProducts),
+            .macOS: self.groupDependencies(products: macOSProducts),
+            .tvOS: self.groupDependencies(products: tvOSProducts)
+        ]
+
+        return DependenciesGraph(externalDependencies: externalDependencies, externalProjects: [:])
+    }
+}
+
+// MARK: - Helpers
+extension CarthageGraphGenerator {
+
+    private func groupDependencies(products: [CarthageVersionFile.Product]) -> [String: [TargetDependency]] {
+        Dictionary(grouping: products, by: \.name)
             .compactMapValues { products in
                 guard let product = products.first else { return nil }
 
@@ -46,7 +65,5 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
 
                 return [.xcframework(path: Path(pathString))]
             }
-
-        return DependenciesGraph(externalDependencies: externalDependencies, externalProjects: [:])
     }
 }

@@ -25,10 +25,12 @@ extension TuistGraph.Target {
     ///   - manifest: Manifest representation of  the target.
     ///   - generatorPaths: Generator paths.
     ///   - externalDependencies: External dependencies graph.
+    ///   - resolveExternalWithPlatformSuffix: Flag to indicate to use the platform suffix for target resolution
     static func from(
         manifest: ProjectDescription.Target,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [String: [TuistGraph.TargetDependency]]
+        externalDependencies: [String: [TuistGraph.TargetDependency]],
+        resolveExternalWithPlatformSuffix: Bool
     ) throws -> TuistGraph.Target {
         let name = manifest.name
         let platform = try TuistGraph.Platform.from(manifest: manifest.platform)
@@ -43,7 +45,8 @@ extension TuistGraph.Target {
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies,
-                platform: platform
+                platform: platform,
+                resolveExternalWithPlatformSuffix: resolveExternalWithPlatformSuffix
             )
         }
 

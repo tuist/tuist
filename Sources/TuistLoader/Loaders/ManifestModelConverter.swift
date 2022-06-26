@@ -22,13 +22,13 @@ public protocol ManifestModelConverting {
 public final class ManifestModelConverter: ManifestModelConverting {
     private let manifestLoader: ManifestLoading
     private let resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
-
+    
     public convenience init() {
         self.init(
             manifestLoader: ManifestLoader()
         )
     }
-
+    
     public convenience init(
         manifestLoader: ManifestLoading
     ) {
@@ -37,7 +37,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
             resourceSynthesizerPathLocator: ResourceSynthesizerPathLocator()
         )
     }
-
+    
     init(
         manifestLoader: ManifestLoading,
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating = ResourceSynthesizerPathLocator()
@@ -45,7 +45,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
         self.manifestLoader = manifestLoader
         self.resourceSynthesizerPathLocator = resourceSynthesizerPathLocator
     }
-
+    
     public func convert(
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
@@ -63,7 +63,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
             isExternal: isExternal
         )
     }
-
+    
     public func convert(
         manifest: ProjectDescription.Workspace,
         path: AbsolutePath
@@ -77,22 +77,33 @@ public final class ManifestModelConverter: ManifestModelConverting {
         )
         return workspace
     }
-
+    
     public func convert(
         manifest: TuistCore.DependenciesGraph,
         path: AbsolutePath
     ) throws -> TuistGraph.DependenciesGraph {
-        let externalDependencies = try manifest.externalDependencies.mapValues { targetDependencies in
-            try targetDependencies.flatMap { targetDependencyManifest in
-                try TuistGraph.TargetDependency.from(
-                    manifest: targetDependencyManifest,
-                    generatorPaths: GeneratorPaths(manifestDirectory: path),
-                    externalDependencies: [:], // externalDependencies manifest can't contain other external dependencies,
-                    platform: .iOS // TODO:
-                )
+        
+        var interim = [[String: [TuistGraph.TargetDependency]]]()
+        
+        try manifest.externalDependencies.forEach { platform, targets in
+            let b: [String: [TuistGraph.TargetDependency]] = try targets.mapValues { targetDependencies in
+                try targetDependencies.flatMap { targetDependencyManifest in
+                    try TuistGraph.TargetDependency.from(
+                        manifest: targetDependencyManifest,
+                        generatorPaths: GeneratorPaths(manifestDirectory: path),
+                        externalDependencies: [:], // externalDependencies manifest can't contain other external dependencies,
+                        platform: TuistGraph.Platform.from(manifest: platform),
+                        resolveExternalWithPlatformSuffix: manifest.externalDependencies.keys.count != 1 // When only 1 platform is requested no platform suffix is used
+                    )
+                }
             }
+            interim.append(b)
         }
-
+        
+        let tupleArray: [(String,  [TuistGraph.TargetDependency])] = interim.flatMap { $0 }
+        let externalDependencies = Dictionary(tupleArray, uniquingKeysWith: { (first, last) in first + last })
+        
+        
         let externalProjects = try [AbsolutePath: TuistGraph.Project](
             uniqueKeysWithValues: manifest.externalProjects
                 .map { project in
@@ -109,7 +120,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
                     return (projectPath, project)
                 }
         )
-
+        
         return .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
     }
 }

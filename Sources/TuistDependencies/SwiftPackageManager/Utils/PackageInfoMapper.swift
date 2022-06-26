@@ -138,9 +138,10 @@ public protocol PackageInfoMapping {
 }
 
 public final class PackageInfoMapper: PackageInfoMapping {
+
     public struct PreprocessInfo {
         let platformToMinDeploymentTarget: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
-        let productToExternalDependencies: [String: [ProjectDescription.TargetDependency]]
+        let productToExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]]
         let targetToPlatform: [String: Set<ProjectDescription.Platform>]
         let targetToProducts: [String: Set<PackageInfo.Product>]
         let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
@@ -171,6 +172,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         platforms: Set<TuistGraph.Platform>
     ) throws -> PreprocessInfo {
+
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
                 guard target.type == .binary else { return }
@@ -229,33 +231,37 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     }
             }
 
-        let externalDependencies: [String: [ProjectDescription.TargetDependency]] = try packageInfos
-            .reduce(into: [:]) { result, packageInfo in
-                try packageInfo.value.products.forEach { product in
-                    result[product.name] = try product.targets.flatMap { target in
-                        try ResolvedDependency.fromTarget(name: target, targetDependencyToFramework: targetDependencyToFramework)
-                            .map {
-                                switch $0 {
-                                case let .xcframework(path):
-                                    return .xcframework(path: path)
-                                case let .target(name):
-                                    return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
-                                case .externalTarget:
-                                    throw PackageInfoMapperError.unknownProductTarget(
-                                        package: packageInfo.key,
-                                        product: product.name,
-                                        target: target
-                                    )
+        var externalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = .init()
+
+        for platform in platforms {
+            externalDependencies[ProjectDescription.Platform.from(graph: platform)] = try packageInfos
+                .reduce(into: [:]) { result, packageInfo in
+                    try packageInfo.value.products.forEach { product in
+                        result[product.name] = try product.targets.flatMap { target in
+                            try ResolvedDependency.fromTarget(name: target, targetDependencyToFramework: targetDependencyToFramework)
+                                .map {
+                                    switch $0 {
+                                    case let .xcframework(path):
+                                        return .xcframework(path: path)
+                                    case let .target(name):
+                                        let name = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
+                                        return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
+                                    case .externalTarget:
+                                        throw PackageInfoMapperError.unknownProductTarget(
+                                            package: packageInfo.key,
+                                            product: product.name,
+                                            target: target
+                                        )
+                                    }
                                 }
-                            }
+                        }
                     }
                 }
-            }
+        }
 
         let targetToPlatforms: [String: Set<ProjectDescription.Platform>] = try packageInfos
             .reduce(into: [:]) { result, packageInfo in
                 try packageInfo.value.targets.forEach { target in
-
                     result[target.name] = try Set<ProjectDescription.Platform>.from(
                         configured: platforms,
                         package: packageInfo.value.platforms,
@@ -482,7 +488,7 @@ extension Array where Element == ProjectDescription.Target {
 
             result.append(
                 ProjectDescription.Target(
-                    name: "\(PackageInfoMapper.sanitize(targetName: target.name))_\(platform.rawValue)",
+                    name: platforms.count == 1 ? PackageInfoMapper.sanitize(targetName: target.name) : "\(PackageInfoMapper.sanitize(targetName: target.name))_\(platform.rawValue)",
                     platform: platform,
                     product: product,
                     productName: PackageInfoMapper.sanitize(targetName: target.name),
@@ -498,93 +504,6 @@ extension Array where Element == ProjectDescription.Target {
             )
         }
         return result
-    }
-}
-
-extension ProjectDescription.Target {
-    // swiftlint:disable:next function_body_length
-    fileprivate static func from(
-        target: PackageInfo.Target,
-        products: Set<PackageInfo.Product>,
-        packageName: String,
-        packageInfo: PackageInfo,
-        packageInfos: [String: PackageInfo],
-        packageFolder: AbsolutePath,
-        packageToProject: [String: AbsolutePath],
-        productTypes: [String: TuistGraph.Product],
-        baseSettings: TuistGraph.Settings,
-        targetSettings: [String: TuistGraph.SettingsDictionary],
-        platforms: [String: ProjectDescription.Platform],
-        minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
-        targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        targetToModuleMap: [String: ModuleMap]
-    ) throws -> Self? {
-        guard target.type == .regular else {
-            logger.debug("Target \(target.name) of type \(target.type) ignored")
-            return nil
-        }
-
-        guard let product = ProjectDescription.Product.from(name: target.name, products: products, productTypes: productTypes)
-        else {
-            logger.debug("Target \(target.name) ignored by product type")
-            return nil
-        }
-
-        let path = try target.basePath(packageFolder: packageFolder)
-        let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
-        let moduleMap = targetToModuleMap[target.name]!
-
-        let platform = platforms[target.name]!
-        let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
-            platform: platform,
-            minDeploymentTargets: minDeploymentTargets,
-            package: packageInfo.platforms,
-            packageName: packageName
-        )
-        let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
-        let resources = ResourceFileElements.from(
-            sources: target.sources,
-            resources: target.resources,
-            path: path,
-            excluding: target.exclude
-        )
-        let headers = try Headers.from(moduleMap: moduleMap, publicHeadersPath: publicHeadersPath)
-
-        let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
-
-        let dependencies = try ProjectDescription.TargetDependency.from(
-            resolvedDependencies: resolvedDependencies,
-            platform: platform,
-            settings: target.settings,
-            packageToProject: packageToProject
-        )
-        let settings = try Settings.from(
-            target: target,
-            packageFolder: packageFolder,
-            packageName: packageName,
-            packageInfos: packageInfos,
-            packageToProject: packageToProject,
-            targetToResolvedDependencies: targetToResolvedDependencies,
-            settings: target.settings,
-            platform: platform,
-            targetToModuleMap: targetToModuleMap,
-            baseSettings: baseSettings,
-            targetSettings: targetSettings
-        )
-
-        return ProjectDescription.Target(
-            name: PackageInfoMapper.sanitize(targetName: target.name),
-            platform: platform,
-            product: product,
-            bundleId: target.name.replacingOccurrences(of: "_", with: "-"),
-            deploymentTarget: deploymentTarget,
-            infoPlist: .default,
-            sources: sources,
-            resources: resources,
-            headers: headers,
-            dependencies: dependencies,
-            settings: settings
-        )
     }
 }
 
