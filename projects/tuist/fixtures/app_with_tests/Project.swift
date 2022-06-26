@@ -10,7 +10,7 @@ let project = Project(
             product: .app,
             bundleId: "io.tuist.app",
             deploymentTarget: .iOS(targetVersion: "13.0", devices: .iphone),
-            infoPlist: nil,
+            infoPlist: .default,
             sources: ["Targets/App/Sources/**"]
         ),
         Target(
@@ -18,7 +18,7 @@ let project = Project(
             platform: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
-            infoPlist: nil,
+            infoPlist: .default,
             sources: ["Targets/App/Tests/**"],
             dependencies: [
                 .target(name: "App"),
@@ -29,7 +29,7 @@ let project = Project(
             platform: .tvOS,
             product: .framework,
             bundleId: "io.tuist.tvOSFramework",
-            infoPlist: nil,
+            infoPlist: .default,
             sources: "Targets/tvOSFramework/Sources/**"
         ),
         Target(
@@ -37,7 +37,7 @@ let project = Project(
             platform: .tvOS,
             product: .unitTests,
             bundleId: "io.tuist.tvOSFrameworkTests",
-            infoPlist: nil,
+            infoPlist: .default,
             sources: "Targets/tvOSFramework/Tests/**",
             dependencies: [
                 .target(name: "tvOSFramework"),
@@ -49,7 +49,7 @@ let project = Project(
             product: .framework,
             bundleId: "io.tuist.MacFramework",
             deploymentTarget: .macOS(targetVersion: "10.15"),
-            infoPlist: nil,
+            infoPlist: .default,
             sources: "Targets/MacFramework/Sources/**",
             settings: .settings(
                 base: [
@@ -64,7 +64,7 @@ let project = Project(
             product: .unitTests,
             bundleId: "io.tuist.MacFrameworkTests",
             deploymentTarget: .macOS(targetVersion: "10.15"),
-            infoPlist: nil,
+            infoPlist: .default,
             sources: "Targets/MacFramework/Tests/**",
             dependencies: [
                 .target(name: "MacFramework"),
