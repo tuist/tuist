@@ -128,7 +128,7 @@ public protocol PackageInfoMapping {
         targetSettings: [String: TuistGraph.SettingsDictionary],
         projectOptions: TuistGraph.Project.Options?,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
-        targetToPlatform: [String: Set<ProjectDescription.Platform>],
+        targetToPlatform: Set<ProjectDescription.Platform>,
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap],
@@ -142,7 +142,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
     public struct PreprocessInfo {
         let platformToMinDeploymentTarget: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
         let productToExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]]
-        let targetToPlatform: [String: Set<ProjectDescription.Platform>]
+        let targetToPlatform: Set<ProjectDescription.Platform>
         let targetToProducts: [String: Set<PackageInfo.Product>]
         let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
         let targetToModuleMap: [String: ModuleMap]
@@ -259,17 +259,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 }
         }
 
-        let targetToPlatforms: [String: Set<ProjectDescription.Platform>] = try packageInfos
-            .reduce(into: [:]) { result, packageInfo in
-                try packageInfo.value.targets.forEach { target in
-                    result[target.name] = try Set<ProjectDescription.Platform>.from(
-                        configured: platforms,
-                        package: packageInfo.value.platforms,
-                        packageName: packageInfo.key
-                    )
-                }
-            }
-
         let minDeploymentTargets = Platform.oldestVersions.reduce(
             into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()
         ) { acc, next in
@@ -296,10 +285,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
+
+
         return .init(
             platformToMinDeploymentTarget: minDeploymentTargets,
             productToExternalDependencies: externalDependencies,
-            targetToPlatform: targetToPlatforms,
+            targetToPlatform: Set(platforms.map { ProjectDescription.Platform.from(graph: $0)}),
             targetToProducts: targetToProducts,
             targetToResolvedDependencies: resolvedDependencies,
             targetToModuleMap: targetToModuleMap
@@ -317,7 +308,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetSettings: [String: TuistGraph.SettingsDictionary],
         projectOptions: TuistGraph.Project.Options?,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
-        targetToPlatform: [String: Set<ProjectDescription.Platform>],
+        targetToPlatform: Set<ProjectDescription.Platform>,
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap],
@@ -424,13 +415,11 @@ extension Array where Element == ProjectDescription.Target {
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
-        platforms: [String: Set<ProjectDescription.Platform>],
+        platforms: Set<ProjectDescription.Platform>,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap]
     ) throws -> Self {
-        let platforms = platforms[target.name]!
-
         var result: [ProjectDescription.Target] = []
 
         for platform in platforms {
