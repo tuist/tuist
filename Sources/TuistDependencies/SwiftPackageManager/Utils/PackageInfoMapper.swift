@@ -353,9 +353,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         )
 
-        let targets = try packageInfo.targets
-            .compactMap { target -> [ProjectDescription.Target]? in
-                guard let products = targetToProducts[target.name] else { return nil }
+        let targets: [ProjectDescription.Target] = try packageInfo.targets
+            .flatMap { target -> [ProjectDescription.Target] in
+                guard let products = targetToProducts[target.name] else { return [] }
 
                 return try Array<ProjectDescription.Target>.from(
                     target: target,
@@ -374,7 +374,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     targetToModuleMap: targetToModuleMap
                 )
             }
-            .reduce([], +)
 
         guard !targets.isEmpty else {
             return nil
@@ -423,7 +422,7 @@ extension Array where Element == ProjectDescription.Target {
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap]
-    ) throws -> Self? {
+    ) throws -> Self {
         let platforms = platforms[target.name]!
 
         var result: [ProjectDescription.Target] = []
@@ -431,13 +430,13 @@ extension Array where Element == ProjectDescription.Target {
         for platform in platforms {
             guard target.type == .regular else {
                 logger.debug("Target \(target.name) of type \(target.type) ignored")
-                return nil
+                continue
             }
 
             guard let product = ProjectDescription.Product.from(name: target.name, products: products, productTypes: productTypes)
             else {
                 logger.debug("Target \(target.name) ignored by product type")
-                return nil
+                continue
             }
 
             let path = try target.basePath(packageFolder: packageFolder)
