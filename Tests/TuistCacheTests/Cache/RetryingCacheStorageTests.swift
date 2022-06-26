@@ -12,7 +12,6 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
-
 final class RetryingCacheStorageTests: TuistUnitTestCase {
     var subject: RetryingCacheStorage!
     var storage: MockCacheStorage!
@@ -75,8 +74,8 @@ final class RetryingCacheStorageTests: TuistUnitTestCase {
 
         // When
         await XCTAssertThrowsSpecific(
-          try await subject.exists(name: "targetName", hash: "acho tio"),
-          error
+            try await subject.exists(name: "targetName", hash: "acho tio"),
+            error
         )
         XCTAssertEqual(existsCalls, 2)
     }
@@ -126,8 +125,8 @@ final class RetryingCacheStorageTests: TuistUnitTestCase {
 
         // When
         await XCTAssertThrowsSpecific(
-          try await subject.fetch(name: "targetName", hash: "acho tio"),
-          error
+            try await subject.fetch(name: "targetName", hash: "acho tio"),
+            error
         )
         XCTAssertEqual(fetchCalls, 2)
     }
@@ -172,8 +171,8 @@ final class RetryingCacheStorageTests: TuistUnitTestCase {
 
         // When
         await XCTAssertThrowsSpecific(
-          try await subject.store(name: "targetName", hash: "acho tio", paths: []),
-          error
+            try await subject.store(name: "targetName", hash: "acho tio", paths: []),
+            error
         )
         XCTAssertEqual(storeCalls, 2)
     }

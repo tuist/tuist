@@ -46,7 +46,7 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         let got = try subject.storages()
 
         // Then
-        XCTAssertContainsElementOfType(got, CacheRemoteStorage.self)
+        XCTAssertContainsElementOfType(got, RetryingCacheStorage.self)
         XCTAssertContainsElementOfType(got, CacheLocalStorage.self)
     }
 

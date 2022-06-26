@@ -13,28 +13,33 @@ public final class RetryingCacheStorage: CacheStoring {
     }
 
     public func exists(name: String, hash: String) async throws -> Bool {
-        try await retryOnceOnError(label: "exists", name: name, hash: hash) {
-            return try await cacheStoring.exists(name: name, hash: hash)
+        try await retryOnceOnError(label: "check existence", name: name, hash: hash) {
+            try await cacheStoring.exists(name: name, hash: hash)
         }
     }
 
     public func fetch(name: String, hash: String) async throws -> AbsolutePath {
         try await retryOnceOnError(label: "fetch", name: name, hash: hash) {
-            return try await cacheStoring.fetch(name: name, hash: hash)
+            try await cacheStoring.fetch(name: name, hash: hash)
         }
     }
 
     public func store(name: String, hash: String, paths: [AbsolutePath]) async throws {
         try await retryOnceOnError(label: "store", name: name, hash: hash) { () -> Void in
-            return try await cacheStoring.store(name: name, hash: hash, paths: paths)
+            try await cacheStoring.store(name: name, hash: hash, paths: paths)
         }
     }
 
-    private func retryOnceOnError<T>(label: String, name: String, hash: String, _ closure: () async throws -> T) async throws -> T {
+    private func retryOnceOnError<T>(
+        label: String,
+        name: String,
+        hash: String,
+        _ closure: () async throws -> T
+    ) async throws -> T {
         do {
             return try await closure()
         } catch {
-            logger.warning("Retrying failed `\(label)` for target \(name) with hash \(hash)")
+            logger.warning("Failed to `\(label)` target \(name) with hash \(hash), Retrying…")
             return try await closure()
         }
     }
