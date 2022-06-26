@@ -141,7 +141,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
     public struct PreprocessInfo {
         let platformToMinDeploymentTarget: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
         let productToExternalDependencies: [String: [ProjectDescription.TargetDependency]]
-        let targetToPlatform: [String: ProjectDescription.Platform]
+        let targetToPlatform: [String: Set<ProjectDescription.Platform>]
         let targetToProducts: [String: Set<PackageInfo.Product>]
         let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
         let targetToModuleMap: [String: ModuleMap]
@@ -252,17 +252,17 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 }
             }
 
+        let targetToPlatforms: [String: Set<ProjectDescription.Platform>] = try packageInfos
+            .reduce(into: [:]) { result, packageInfo in
+                try packageInfo.value.targets.forEach { target in
 
-        // TODO: Check if the change in ProjectDescription.Platform.from will already result in multiple platforms per target
-        let targetToPlatforms: [String: ProjectDescription.Platform] = try packageInfos.reduce(into: [:]) { result, packageInfo in
-            try packageInfo.value.targets.forEach { target in
-                result[target.name] = try ProjectDescription.Platform.from(
-                    configured: platforms,
-                    package: packageInfo.value.platforms,
-                    packageName: packageInfo.key
-                )
+                    result[target.name] = try Set<ProjectDescription.Platform>.from(
+                        configured: platforms,
+                        package: packageInfo.value.platforms,
+                        packageName: packageInfo.key
+                    )
+                }
             }
-        }
 
         let minDeploymentTargets = Platform.oldestVersions.reduce(
             into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()
@@ -491,7 +491,7 @@ extension ProjectDescription.Target {
     }
 }
 
-extension ProjectDescription.Platform {
+extension Set where Element == ProjectDescription.Platform {
     fileprivate static func from(
         configured: Set<TuistGraph.Platform>,
         package: [PackageInfo.Platform],
@@ -504,12 +504,7 @@ extension ProjectDescription.Platform {
         )
         let validPlatforms = configuredPlatforms.intersection(packagePlatforms)
 
-        // TODO: Do not only return ios, instead return the actual configured platform 
-        if validPlatforms.contains(.iOS) {
-            return .iOS
-        }
-
-        guard let platform = validPlatforms.first else {
+        guard !validPlatforms.isEmpty else {
             throw PackageInfoMapperError.noSupportedPlatforms(
                 name: packageName,
                 configured: configuredPlatforms,
@@ -517,7 +512,7 @@ extension ProjectDescription.Platform {
             )
         }
 
-        return platform
+        return validPlatforms
     }
 }
 
