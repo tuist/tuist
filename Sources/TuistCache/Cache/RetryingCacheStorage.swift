@@ -13,7 +13,7 @@ public final class RetryingCacheStorage: CacheStoring {
     }
 
     public func exists(name: String, hash: String) async throws -> Bool {
-        try await retryOnceOnError(label: "check existence", name: name, hash: hash) {
+        try await retryOnceOnError(label: "check existence of", name: name, hash: hash) {
             try await cacheStoring.exists(name: name, hash: hash)
         }
     }
@@ -39,7 +39,7 @@ public final class RetryingCacheStorage: CacheStoring {
         do {
             return try await closure()
         } catch {
-            logger.warning("Failed to `\(label)` target \(name) with hash \(hash), Retrying…")
+            logger.warning("Failed to \(label) target \(name) with hash \(hash), Retrying…")
             return try await closure()
         }
     }
