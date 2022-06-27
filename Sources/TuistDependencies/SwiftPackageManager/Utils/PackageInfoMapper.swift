@@ -138,7 +138,6 @@ public protocol PackageInfoMapping {
 }
 
 public final class PackageInfoMapper: PackageInfoMapping {
-
     public struct PreprocessInfo {
         let platformToMinDeploymentTarget: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
         let productToExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]]
@@ -172,7 +171,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         platforms: Set<TuistGraph.Platform>
     ) throws -> PreprocessInfo {
-
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
                 guard target.type == .binary else { return }
@@ -238,24 +236,27 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 .reduce(into: [:]) { result, packageInfo in
                     try packageInfo.value.products.forEach { product in
                         result[product.name] = try product.targets.flatMap { target in
-                            try ResolvedDependency.fromTarget(name: target, targetDependencyToFramework: targetDependencyToFramework)
-                                .map {
-                                    switch $0 {
-                                    case let .xcframework(path):
-                                        return .xcframework(path: path)
-                                    case let .target(name):
+                            try ResolvedDependency.fromTarget(
+                                name: target,
+                                targetDependencyToFramework: targetDependencyToFramework
+                            )
+                            .map {
+                                switch $0 {
+                                case let .xcframework(path):
+                                    return .xcframework(path: path)
+                                case let .target(name):
 
-                                        // When multiple platforms are supported, add the platform name as a suffix to the target
-                                        let name = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
-                                        return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
-                                    case .externalTarget:
-                                        throw PackageInfoMapperError.unknownProductTarget(
-                                            package: packageInfo.key,
-                                            product: product.name,
-                                            target: target
-                                        )
-                                    }
+                                    // When multiple platforms are supported, add the platform name as a suffix to the target
+                                    let name = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
+                                    return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
+                                case .externalTarget:
+                                    throw PackageInfoMapperError.unknownProductTarget(
+                                        package: packageInfo.key,
+                                        product: product.name,
+                                        target: target
+                                    )
                                 }
+                            }
                         }
                     }
                 }
@@ -290,7 +291,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         return .init(
             platformToMinDeploymentTarget: minDeploymentTargets,
             productToExternalDependencies: externalDependencies,
-            targetToPlatform: Set(platforms.map { ProjectDescription.Platform.from(graph: $0)}),
+            targetToPlatform: Set(platforms.map { ProjectDescription.Platform.from(graph: $0) }),
             targetToProducts: targetToProducts,
             targetToResolvedDependencies: resolvedDependencies,
             targetToModuleMap: targetToModuleMap
@@ -354,7 +355,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             .flatMap { target -> [ProjectDescription.Target] in
                 guard let products = targetToProducts[target.name] else { return [] }
 
-                return try Array<ProjectDescription.Target>.from(
+                return try [ProjectDescription.Target].from(
                     target: target,
                     products: products,
                     packageName: name,
@@ -404,6 +405,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 }
 
 extension Array where Element == ProjectDescription.Target {
+    // swiftlint:disable:next function_body_length
     fileprivate static func from(
         target: PackageInfo.Target,
         products: Set<PackageInfo.Product>,
@@ -477,7 +479,9 @@ extension Array where Element == ProjectDescription.Target {
 
             result.append(
                 ProjectDescription.Target(
-                    name: platforms.count == 1 ? PackageInfoMapper.sanitize(targetName: target.name) : "\(PackageInfoMapper.sanitize(targetName: target.name))_\(platform.rawValue)",
+                    name: platforms.count == 1 ? PackageInfoMapper
+                        .sanitize(targetName: target.name) :
+                        "\(PackageInfoMapper.sanitize(targetName: target.name))_\(platform.rawValue)",
                     platform: platform,
                     product: product,
                     productName: PackageInfoMapper.sanitize(targetName: target.name),

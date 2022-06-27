@@ -162,9 +162,6 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
     }
 }
 
-
-
-
 extension ProjectDescription.Platform {
     /// Maps a TuistGraph.Platform instance into a  ProjectDescription.Platform instance.
     /// - Parameters:

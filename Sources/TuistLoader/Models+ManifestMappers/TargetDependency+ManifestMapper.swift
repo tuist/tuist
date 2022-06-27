@@ -64,7 +64,7 @@ extension TuistGraph.TargetDependency {
             guard let dependencies = externalDependencies[platform]?[name] else {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name)
             }
-           return dependencies
+            return dependencies
         }
     }
 }

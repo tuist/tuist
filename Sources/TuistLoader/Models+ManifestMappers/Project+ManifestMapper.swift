@@ -3,6 +3,7 @@ import ProjectDescription
 import TSCBasic
 import TuistGraph
 
+// swiftlint:disable function_body_length
 extension TuistGraph.Project {
     /// Maps a `ProjectDescription.Project` instance into a `TuistGraph.Project` instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.

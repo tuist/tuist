@@ -31,10 +31,10 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
         let tvOSProducts = products.flatMap { $0.tvOS ?? [] }
 
         let externalDependencies: [ProjectDescription.Platform: [String: [TargetDependency]]] = [
-            .iOS: self.groupDependencies(products: iOSProducts),
-            .watchOS: self.groupDependencies(products: watchOSProducts),
-            .macOS: self.groupDependencies(products: macOSProducts),
-            .tvOS: self.groupDependencies(products: tvOSProducts)
+            .iOS: groupDependencies(products: iOSProducts),
+            .watchOS: groupDependencies(products: watchOSProducts),
+            .macOS: groupDependencies(products: macOSProducts),
+            .tvOS: groupDependencies(products: tvOSProducts),
         ]
 
         return DependenciesGraph(externalDependencies: externalDependencies, externalProjects: [:])
@@ -42,8 +42,8 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
 }
 
 // MARK: - Helpers
-extension CarthageGraphGenerator {
 
+extension CarthageGraphGenerator {
     private func groupDependencies(products: [CarthageVersionFile.Product]) -> [String: [TargetDependency]] {
         Dictionary(grouping: products, by: \.name)
             .compactMapValues { products in

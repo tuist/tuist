@@ -22,13 +22,13 @@ public protocol ManifestModelConverting {
 public final class ManifestModelConverter: ManifestModelConverting {
     private let manifestLoader: ManifestLoading
     private let resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
-    
+
     public convenience init() {
         self.init(
             manifestLoader: ManifestLoader()
         )
     }
-    
+
     public convenience init(
         manifestLoader: ManifestLoading
     ) {
@@ -37,7 +37,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
             resourceSynthesizerPathLocator: ResourceSynthesizerPathLocator()
         )
     }
-    
+
     init(
         manifestLoader: ManifestLoading,
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating = ResourceSynthesizerPathLocator()
@@ -45,7 +45,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
         self.manifestLoader = manifestLoader
         self.resourceSynthesizerPathLocator = resourceSynthesizerPathLocator
     }
-    
+
     public func convert(
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
@@ -63,7 +63,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
             isExternal: isExternal
         )
     }
-    
+
     public func convert(
         manifest: ProjectDescription.Workspace,
         path: AbsolutePath
@@ -77,15 +77,11 @@ public final class ManifestModelConverter: ManifestModelConverting {
         )
         return workspace
     }
-    
+
     public func convert(
         manifest: TuistCore.DependenciesGraph,
         path: AbsolutePath
     ) throws -> TuistGraph.DependenciesGraph {
-        
-        var interim = [[String: [TuistGraph.TargetDependency]]]()
-
-
         var externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]] = .init()
 
         try manifest.externalDependencies.forEach { platform, targets in
@@ -118,7 +114,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
                     return (projectPath, project)
                 }
         )
-        
+
         return .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
     }
 }
