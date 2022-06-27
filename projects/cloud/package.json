@@ -37,7 +37,7 @@
     "webpack-dev-server": "^3"
   },
   "dependencies": {
-    "@apollo/client": "^3.6.5",
+    "@apollo/client": "^3.6.8",
     "@babel/preset-react": "^7.17.12",
     "@babel/preset-typescript": "^7.17.12",
     "@juggle/resize-observer": "^3.3.1",
