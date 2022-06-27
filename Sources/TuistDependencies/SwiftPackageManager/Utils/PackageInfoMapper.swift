@@ -351,15 +351,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         )
 
-//        // Actually check which platforms to consider for this package.
-//        // It could be that the user has configured [.tvOS, .iOS, .watchOS]
-//        // But this package only considers 
-//        let platformsToCheck = try Set<ProjectDescription.Platform>.from(
-//            configured: Set(targetToPlatform.map { try TuistGraph.Platform.from(manifest: $0)}),
-//            package: packageInfo.platforms,
-//            packageName:name
-//        )
-
         let targets: [ProjectDescription.Target] = try packageInfo.targets
             .flatMap { target -> [ProjectDescription.Target] in
                 guard let products = targetToProducts[target.name] else { return [] }
@@ -1246,25 +1237,5 @@ extension PackageInfo.Platform {
     var tuistPlatformName: String {
         // catalyst is mapped to iOS platform in tuist
         platformName == "maccatalyst" ? "ios" : platformName
-    }
-}
-
-
-extension TuistGraph.Platform {
-    /// Maps a ProjectDescription.Platform instance into a TuistGraph.Platform instance.
-    /// - Parameters:
-    ///   - manifest: Manifest representation of platform model.
-    ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Platform) throws -> TuistGraph.Platform {
-        switch manifest {
-        case .macOS:
-            return .macOS
-        case .iOS:
-            return .iOS
-        case .tvOS:
-            return .tvOS
-        case .watchOS:
-            return .watchOS
-        }
     }
 }

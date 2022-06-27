@@ -92,7 +92,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 XCTAssertEqual(packagePath, self.path.appending(component: "checkouts").appending(component: "Alamofire"))
                 return PackageInfo.alamofire
             },
-            dependenciesGraph: DependenciesGraph.alamofire(spmFolder: spmFolder)
+            dependenciesGraph: DependenciesGraph.alamofire(spmFolder: spmFolder, platforms: [.iOS])
         )
     }
 
@@ -115,7 +115,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 XCTAssertEqual(packagePath, self.path.appending(component: "checkouts").appending(component: "Alamofire"))
                 return PackageInfo.alamofire
             },
-            dependenciesGraph: DependenciesGraph.alamofire(spmFolder: spmFolder)
+            dependenciesGraph: DependenciesGraph.alamofire(spmFolder: spmFolder, platforms: [.iOS])
         )
     }
 
@@ -197,15 +197,16 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                     return .test
                 }
             },
-            dependenciesGraph: try DependenciesGraph.googleAppMeasurement(spmFolder: spmFolder)
+            dependenciesGraph: try DependenciesGraph.googleAppMeasurement(spmFolder: spmFolder, platforms: [.iOS])
                 .merging(with: DependenciesGraph.googleUtilities(
                     spmFolder: spmFolder,
                     customProductTypes: [
                         "GULMethodSwizzler": .framework,
                         "GULNetwork": .dynamicLibrary,
-                    ]
+                    ],
+                    platforms: [.iOS]
                 ))
-                .merging(with: DependenciesGraph.nanopb(spmFolder: spmFolder))
+                .merging(with: DependenciesGraph.nanopb(spmFolder: spmFolder, platforms: [.iOS]))
         )
         // swiftformat:enable wrap
     }
@@ -260,9 +261,9 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                     return .test
                 }
             },
-            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString))
-                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
-                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder))
+            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString), platforms: [.iOS])
+                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
+                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
         )
     }
 
@@ -317,9 +318,9 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                     return .test
                 }
             },
-            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString))
-                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
-                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder))
+            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString), platforms: [.iOS])
+                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
+                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
         )
     }
 
@@ -374,9 +375,9 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                     return .test
                 }
             },
-            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString))
-                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
-                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder))
+            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString), platforms: [.iOS])
+                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
+                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
         )
     }
 
@@ -430,9 +431,9 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                     return .test
                 }
             },
-            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString))
-                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
-                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder))
+            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString), platforms: [.iOS])
+                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
+                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
         )
     }
 

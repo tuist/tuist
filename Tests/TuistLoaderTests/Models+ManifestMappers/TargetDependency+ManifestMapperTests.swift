@@ -20,8 +20,9 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [
-                "library": [.xcframework(path: "/path.xcframework")],
-            ]
+                .iOS: ["library": [.xcframework(path: "/path.xcframework")]],
+            ],
+            platform: .iOS
         )
 
         // Then
@@ -43,8 +44,9 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [
-                "library": [.project(target: "Target", path: "/Project")],
-            ]
+                .iOS: [ "library": [.project(target: "Target", path: "/Project")]],
+            ],
+            platform: .iOS
         )
 
         // Then
@@ -67,11 +69,14 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [
-                "library": [
-                    .xcframework(path: "/path.xcframework"),
-                    .project(target: "Target", path: "/Project"),
+                .iOS: [
+                    "library": [
+                        .xcframework(path: "/path.xcframework"),
+                        .project(target: "Target", path: "/Project"),
+                    ]
                 ],
-            ]
+            ],
+            platform: .iOS
         )
 
         // Then
@@ -99,7 +104,8 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [:]
+            externalDependencies: [:],
+            platform: .iOS
         )
 
         // Then
@@ -121,7 +127,8 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [:]
+            externalDependencies: [:],
+            platform: .iOS
         )
 
         // Then

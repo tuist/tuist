@@ -23,7 +23,7 @@ extension TuistCore.DependenciesGraph {
     }
 
     public static func test(
-        externalDependencies: [String: [TargetDependency]] = [:],
+        externalDependencies: [Platform: [String: [TargetDependency]]] = [:],
         externalProjects: [Path: Project] = [:]
     ) -> Self {
         .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
@@ -31,22 +31,39 @@ extension TuistCore.DependenciesGraph {
 
     public static func testXCFramework(
         name: String = "Test",
-        path: Path = Path(AbsolutePath.root.appending(RelativePath("Test.xcframework")).pathString)
+        path: Path = Path(AbsolutePath.root.appending(RelativePath("Test.xcframework")).pathString),
+        platforms: Set<Platform>
     ) -> Self {
-        .init(
-            externalDependencies: [
-                name: [.xcframework(path: path)],
-            ],
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [name: [.xcframework(path: path)]]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [:]
         )
     }
 
     // swiftlint:disable:next function_body_length
-    public static func test(spmFolder: Path, packageFolder: Path) -> Self {
-        .init(
-            externalDependencies: [
-                "Tuist": [.project(target: "Tuist", path: packageFolder)],
-            ],
+    public static func test(
+        spmFolder: Path,
+        packageFolder: Path,
+        platforms: Set<Platform>
+    ) -> Self {
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
+                "Tuist": [
+                    .project(
+                        target: self.resolveTargetName(targetName: "Tuist", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    )
+                ]
+            ]
+        }
+
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
                     name: "test",
@@ -137,15 +154,29 @@ extension TuistCore.DependenciesGraph {
     }
 
     // swiftlint:disable:next function_body_length
-    public static func aDependency(spmFolder: Path) -> Self {
+    public static func aDependency(
+        spmFolder: Path,
+        platforms: Set<Platform>
+    ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
-        return .init(
-            externalDependencies: [
+
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
                 "ALibrary": [
-                    .project(target: "ALibrary", path: packageFolder),
-                    .project(target: "ALibraryUtils", path: packageFolder),
-                ],
-            ],
+                    .project(
+                        target: self.resolveTargetName(targetName: "ALibrary", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    ),
+                    .project(
+                        target: self.resolveTargetName(targetName: "ALibraryUtils", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    ),
+                ]
+            ]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
                     name: "a-dependency",
@@ -196,14 +227,25 @@ extension TuistCore.DependenciesGraph {
         )
     }
 
-    public static func anotherDependency(spmFolder: Path) -> Self {
+    public static func anotherDependency(
+        spmFolder: Path,
+        platforms: Set<Platform>
+    ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
-        return .init(
-            externalDependencies: [
+
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
                 "AnotherLibrary": [
-                    .project(target: "AnotherLibrary", path: packageFolder),
-                ],
-            ],
+                    .project(
+                        target: self.resolveTargetName(targetName: "AnotherLibrary", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    )
+                ]
+            ]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
                     name: "another-dependency",
@@ -239,14 +281,25 @@ extension TuistCore.DependenciesGraph {
         )
     }
 
-    public static func alamofire(spmFolder: Path) -> Self {
+    public static func alamofire(
+        spmFolder: Path,
+        platforms: Set<Platform>
+    ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "Alamofire")
-        return .init(
-            externalDependencies: [
+
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
                 "Alamofire": [
-                    .project(target: "Alamofire", path: packageFolder),
-                ],
-            ],
+                    .project(
+                        target: self.resolveTargetName(targetName: "Alamofire", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    )
+                ]
+            ]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
                     name: "Alamofire",
@@ -281,19 +334,32 @@ extension TuistCore.DependenciesGraph {
     }
 
     // swiftlint:disable:next function_body_length
-    public static func googleAppMeasurement(spmFolder: Path) -> Self {
+    public static func googleAppMeasurement(
+        spmFolder: Path,
+        platforms: Set<Platform>
+    ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
         let artifactsFolder = Self.artifactsFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
 
-        return .init(
-            externalDependencies: [
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] =  [
                 "GoogleAppMeasurement": [
-                    .project(target: "GoogleAppMeasurementTarget", path: packageFolder),
+                    .project(
+                        target: self.resolveTargetName(targetName: "GoogleAppMeasurementTarget", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    )
                 ],
                 "GoogleAppMeasurementWithoutAdIdSupport": [
-                    .project(target: "GoogleAppMeasurementWithoutAdIdSupportTarget", path: packageFolder),
-                ],
-            ],
+                    .project(
+                        target: self.resolveTargetName(targetName: "GoogleAppMeasurementWithoutAdIdSupportTarget", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    )
+                ]
+            ]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
                     name: "GoogleAppMeasurement",
@@ -396,15 +462,44 @@ extension TuistCore.DependenciesGraph {
     }
 
     // swiftlint:disable:next function_body_length
-    public static func googleUtilities(spmFolder: Path, customProductTypes: [String: Product] = [:]) -> Self {
+    public static func googleUtilities(
+        spmFolder: Path,
+        customProductTypes: [String: Product] = [:],
+        platforms: Set<Platform>
+    ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
+                "GULAppDelegateSwizzler": [
+                    .project(
+                        target: self.resolveTargetName(targetName: "GULAppDelegateSwizzler", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    )
+                ],
+                "GULMethodSwizzler": [
+                    .project(
+                        target: self.resolveTargetName(targetName: "GULMethodSwizzler", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    )
+                ],
+                "GULNSData": [
+                    .project(
+                        target: self.resolveTargetName(targetName: "GULNSData", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    )
+                ],
+                "GULNetwork": [
+                    .project(
+                        target: self.resolveTargetName(targetName: "GULNetwork", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    )
+                ],
+            ]
+        }
+
         return .init(
-            externalDependencies: [
-                "GULAppDelegateSwizzler": [.project(target: "GULAppDelegateSwizzler", path: packageFolder)],
-                "GULMethodSwizzler": [.project(target: "GULMethodSwizzler", path: packageFolder)],
-                "GULNSData": [.project(target: "GULNSData", path: packageFolder)],
-                "GULNetwork": [.project(target: "GULNetwork", path: packageFolder)],
-            ],
+            externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
                     name: "GoogleUtilities",
@@ -476,12 +571,22 @@ extension TuistCore.DependenciesGraph {
         )
     }
 
-    public static func nanopb(spmFolder: Path) -> Self {
+    public static func nanopb(
+        spmFolder: Path,
+        platforms: Set<Platform>
+    ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
+
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
+                "nanopb": [
+                    .project(target: self.resolveTargetName(targetName: "nanopb", for: platform, addSuffix: platforms.count != 1), path: packageFolder)
+                ]
+            ]
+        }
+        
         return .init(
-            externalDependencies: [
-                "nanopb": [.project(target: "nanopb", path: packageFolder)],
-            ],
+            externalDependencies: externalDependencies,
             externalProjects: [
                 packageFolder: .init(
                     name: "nanopb",
@@ -590,5 +695,12 @@ extension DependenciesGraph {
             configurations: baseSettings.configurations,
             defaultSettings: baseSettings.defaultSettings
         )
+    }
+}
+
+// MARK: - Helpers
+extension DependenciesGraph {
+    fileprivate static func resolveTargetName(targetName: String, for platform: Platform, addSuffix: Bool) -> String{
+        return addSuffix ? "\(targetName)_\(platform.rawValue)" : targetName
     }
 }
