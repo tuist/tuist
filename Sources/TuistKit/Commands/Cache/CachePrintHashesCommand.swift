@@ -15,7 +15,7 @@ struct CachePrintHashesCommand: AsyncParsableCommand {
     @OptionGroup()
     var options: CacheOptions
 
-    func runAsync() async throws {
+    func run() async throws {
         try await CachePrintHashesService().run(
             path: options.path,
             xcframeworks: options.xcframeworks,

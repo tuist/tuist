@@ -12,7 +12,8 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ],
             productTypes: [:],
             baseSettings: .init(configurations: [:]),
-            targetSettings: [:]
+            targetSettings: [:],
+            projectOptions: [:]
         )
 
         // When
@@ -46,7 +47,8 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ],
             productTypes: [:],
             baseSettings: .init(configurations: [:]),
-            targetSettings: [:]
+            targetSettings: [:],
+            projectOptions: [:]
         )
 
         // When
@@ -80,7 +82,8 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ],
             productTypes: [:],
             baseSettings: .init(configurations: [:]),
-            targetSettings: [:]
+            targetSettings: [:],
+            projectOptions: [:]
         )
 
         // When
@@ -114,7 +117,8 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             ],
             productTypes: [:],
             baseSettings: .init(configurations: [:]),
-            targetSettings: [:]
+            targetSettings: [:],
+            projectOptions: [:]
         )
 
         // When

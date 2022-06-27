@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 
 enum FileClientError: LocalizedError, FatalError {
-    case urlSessionError(Error, AbsolutePath?)
+    case urlSessionError(URLRequest, Error, AbsolutePath?)
     case serverSideError(URLRequest, HTTPURLResponse, AbsolutePath?)
     case invalidResponse(URLRequest, AbsolutePath?)
     case noLocalURL(URLRequest)
@@ -10,27 +10,16 @@ enum FileClientError: LocalizedError, FatalError {
     // MARK: - FatalError
 
     public var description: String {
-        var output: String
-
         switch self {
-        case let .urlSessionError(error, path):
-            output = "Received a session error"
-            output.append(pathSubstring(path))
-            if let error = error as? LocalizedError {
-                output.append(": \(error.localizedDescription)")
-            }
-        case let .invalidResponse(urlRequest, path):
-            output = "Received unexpected response from the network with \(urlRequest.descriptionForError)"
-            output.append(pathSubstring(path))
+        case let .urlSessionError(request, error, path):
+            return "Received a session error\(pathSubstring(path)) when performing \(request.descriptionForError): \(error.localizedDescription)"
+        case let .invalidResponse(request, path):
+            return "Received unexpected response from the network when performing \(request.descriptionForError)\(pathSubstring(path))"
         case let .serverSideError(request, response, path):
-            output =
-                "Got error code: \(response.statusCode) returned by the server after performing \(request.descriptionForError)"
-            output.append(pathSubstring(path))
+            return "Received error \(response.statusCode) when performing \(request.descriptionForError)\(pathSubstring(path))"
         case let .noLocalURL(request):
-            output = "Could not locate file on disk the downloaded file after performing \(request.descriptionForError)"
+            return "Could not locate on disk the downloaded file after performing \(request.descriptionForError)"
         }
-
-        return output
     }
 
     var type: ErrorType {
@@ -87,7 +76,7 @@ public class FileClient: FileClienting {
             if error is FileClientError {
                 throw error
             } else {
-                throw FileClientError.urlSessionError(error, nil)
+                throw FileClientError.urlSessionError(request, error, nil)
             }
         }
     }
@@ -110,7 +99,7 @@ public class FileClient: FileClienting {
             if error is FileClientError {
                 throw error
             } else {
-                throw FileClientError.urlSessionError(error, file)
+                throw FileClientError.urlSessionError(request, error, file)
             }
         }
     }

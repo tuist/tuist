@@ -3,7 +3,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-typealias CloudExistsResource = HTTPResource<CloudResponse<CloudEmptyResponse>, CloudEmptyResponseError>
+typealias CloudExistsResource = HTTPResource<CloudResponse<CloudEmptyResponse>, CloudResponseError>
 typealias CloudCacheResource = HTTPResource<CloudResponse<CloudCacheResponse>, CloudResponseError>
 typealias CloudVerifyUploadResource = HTTPResource<CloudResponse<CloudVerifyUploadResponse>, CloudResponseError>
 
@@ -23,14 +23,14 @@ class CloudCacheResourceFactory: CloudCacheResourceFactorying {
     }
 
     func existsResource(name: String, hash: String) throws -> CloudExistsResource {
-        let url = try apiCacheURL(name: name, hash: hash, cacheURL: cloudConfig.url, projectId: cloudConfig.projectId)
-        var request = URLRequest(url: url)
-        request.httpMethod = "HEAD"
-        return HTTPResource(
-            request: { request },
-            parse: { _, _ in CloudResponse(status: "HEAD", data: CloudEmptyResponse()) },
-            parseError: { _, _ in CloudEmptyResponseError() }
+        let url = try apiCacheURL(
+            name: name,
+            hash: hash,
+            cacheURL: cloudConfig.url,
+            path: "/api/cache/exists",
+            projectId: cloudConfig.projectId
         )
+        return .jsonResource(for: url, httpMethod: "GET")
     }
 
     func fetchResource(name: String, hash: String) throws -> CloudCacheResource {
@@ -38,6 +38,7 @@ class CloudCacheResourceFactory: CloudCacheResourceFactorying {
             name: name,
             hash: hash,
             cacheURL: cloudConfig.url,
+            path: "/api/cache",
             projectId: cloudConfig.projectId
         )
         return HTTPResource.jsonResource(for: url, httpMethod: "GET")
@@ -48,6 +49,7 @@ class CloudCacheResourceFactory: CloudCacheResourceFactorying {
             name: name,
             hash: hash,
             cacheURL: cloudConfig.url,
+            path: "/api/cache",
             projectId: cloudConfig.projectId,
             contentMD5: contentMD5
         )
@@ -71,6 +73,7 @@ class CloudCacheResourceFactory: CloudCacheResourceFactorying {
         name: String,
         hash: String,
         cacheURL: URL,
+        path: String,
         projectId: String,
         contentMD5: String? = nil
     ) throws -> URL {
@@ -84,7 +87,7 @@ class CloudCacheResourceFactory: CloudCacheResourceFactorying {
             queryItems.append(URLQueryItem(name: "content_md5", value: contentMD5))
         }
 
-        urlComponents.path = "/api/cache"
+        urlComponents.path = path
         urlComponents.queryItems = queryItems
         return urlComponents.url!
     }

@@ -74,7 +74,12 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.dSYM").count, 1)
         let frameworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.framework").first)
         XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)
-        XCTAssertTrue(try architectures(path: frameworkPath).contains(.x8664))
+        switch DeveloperEnvironment.shared.architecture {
+        case .arm64:
+            XCTAssertTrue(try architectures(path: frameworkPath).contains(.arm64))
+        case .x8664:
+            XCTAssertTrue(try architectures(path: frameworkPath).contains(.x8664))
+        }
         XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
     }
 

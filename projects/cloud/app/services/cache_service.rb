@@ -21,6 +21,12 @@ Define your remote cache at the following url: #{remote_cache_storage_url}.
         """
       end
     end
+
+    class S3BucketForbidden < CloudError
+      def message
+        "Ensure your secret access key is set correctly, following the instructions here: https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html."
+      end
+    end
   end
 
   def initialize(project_slug:, hash:, name:, user:, project:)
@@ -50,6 +56,8 @@ Define your remote cache at the following url: #{remote_cache_storage_url}.
       true
     rescue Aws::S3::Errors::NotFound
       false
+    rescue Aws::S3::Errors::Forbidden
+      raise Error::S3BucketForbidden.new
     end
   end
 

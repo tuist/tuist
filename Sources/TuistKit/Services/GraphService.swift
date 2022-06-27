@@ -54,22 +54,29 @@ final class GraphService {
             try FileHandler.shared.delete(filePath)
         }
 
+        let filteredTargetsAndDependencies = graph.filter(
+            skipTestTargets: skipTestTargets,
+            skipExternalDependencies: skipExternalDependencies,
+            targetsToFilter: targetsToFilter
+        )
+
         switch format {
         case .dot, .png:
             let graphVizGraph = graphVizMapper.map(
                 graph: graph,
-                skipTestTargets: skipTestTargets,
-                skipExternalDependencies: skipExternalDependencies,
-                targetsToFilter: targetsToFilter
+                targetsAndDependencies: filteredTargetsAndDependencies
             )
 
             try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
         case .json:
-            let outputGraph = ProjectAutomation.Graph.from(graph)
+            let outputGraph = ProjectAutomation.Graph.from(
+                graph: graph,
+                targetsAndDependencies: filteredTargetsAndDependencies
+            )
             try outputGraph.export(to: filePath)
         }
 
-        logger.notice("Graph exported to \(filePath.pathString).", metadata: .success)
+        logger.notice("Graph exported to \(filePath.pathString)", metadata: .success)
     }
 
     private func export(
@@ -98,7 +105,7 @@ final class GraphService {
         at filePath: AbsolutePath,
         layoutAlgorithm: LayoutAlgorithm
     ) throws {
-        if try !isGraphVizInstalled() {
+        if !isGraphVizInstalled() {
             try installGraphViz()
         }
         let data = try graphVizGraph.render(using: layoutAlgorithm, to: .png)
@@ -106,8 +113,8 @@ final class GraphService {
         try System.shared.async(["open", filePath.pathString])
     }
 
-    private func isGraphVizInstalled() throws -> Bool {
-        try System.shared.capture(["brew", "list", "--formula"]).contains("graphviz")
+    private func isGraphVizInstalled() -> Bool {
+        System.shared.commandExists("dot")
     }
 
     private func installGraphViz() throws {
@@ -142,12 +149,16 @@ private enum GraphServiceError: FatalError {
 }
 
 extension ProjectAutomation.Graph {
-    fileprivate static func from(_ graph: TuistGraph.Graph) -> ProjectAutomation.Graph {
-        let projects = graph.projects.reduce(
-            into: [String: ProjectAutomation.Project]()
-        ) {
-            $0[$1.key.pathString] = ProjectAutomation.Project.from($1.value)
-        }
+    fileprivate static func from(
+        graph: TuistGraph.Graph,
+        targetsAndDependencies: [GraphTarget: Set<GraphDependency>]
+    ) -> ProjectAutomation.Graph {
+        // generate targets projects only
+        let projects = targetsAndDependencies
+            .map(\.key.project)
+            .reduce(into: [String: ProjectAutomation.Project]()) {
+                $0[$1.path.pathString] = ProjectAutomation.Project.from($1)
+            }
 
         return ProjectAutomation.Graph(name: graph.name, path: graph.path.pathString, projects: projects)
     }
@@ -196,11 +207,46 @@ extension ProjectAutomation.Package {
 
 extension ProjectAutomation.Target {
     fileprivate static func from(_ target: TuistGraph.Target) -> ProjectAutomation.Target {
-        ProjectAutomation.Target(
+        let dependencies = target.dependencies.map { Self.from($0) }
+        return ProjectAutomation.Target(
             name: target.name,
             product: target.product.rawValue,
-            sources: target.sources.map(\.path.pathString)
+            sources: target.sources.map(\.path.pathString),
+            resources: target.resources.map(\.path.pathString),
+            dependencies: dependencies
         )
+    }
+
+    private static func from(_ dependency: TuistGraph.TargetDependency) -> ProjectAutomation.TargetDependency {
+        switch dependency {
+        case let .target(name):
+            return .target(name: name)
+        case let .project(target, path):
+            return .project(target: target, path: path.pathString)
+        case let .framework(path):
+            return .framework(path: path.pathString)
+        case let .xcframework(path):
+            return .xcframework(path: path.pathString)
+        case let .library(path, publicHeaders, swiftModuleMap):
+            return .library(
+                path: path.pathString,
+                publicHeaders: publicHeaders.pathString,
+                swiftModuleMap: swiftModuleMap?.pathString
+            )
+        case let .package(product):
+            return .package(product: product)
+        case let .sdk(name, status):
+            let projectAutomationStatus: ProjectAutomation.SDKStatus
+            switch status {
+            case .optional:
+                projectAutomationStatus = .optional
+            case .required:
+                projectAutomationStatus = .required
+            }
+            return .sdk(name: name, status: projectAutomationStatus)
+        case .xctest:
+            return .xctest
+        }
     }
 }
 

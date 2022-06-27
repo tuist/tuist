@@ -61,11 +61,12 @@ final class CacheStorageProvider: CacheStorageProviding {
         var storages: [CacheStoring] = [CacheLocalStorage(cacheDirectoriesProvider: cacheDirectoriesProvider)]
         if let cloudConfig = config.cloud {
             if try cloudAuthenticationController.authenticationToken(serverURL: cloudConfig.url)?.isEmpty == false {
-                let storage = CacheRemoteStorage(
+                let remoteStorage = CacheRemoteStorage(
                     cloudConfig: cloudConfig,
                     cloudClient: CloudClient(),
                     cacheDirectoriesProvider: cacheDirectoriesProvider
                 )
+                let storage = RetryingCacheStorage(cacheStoring: remoteStorage)
                 storages.append(storage)
             } else {
                 if cloudConfig.options.contains(.optional) {

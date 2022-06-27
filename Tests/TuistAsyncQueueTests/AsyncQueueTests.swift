@@ -197,6 +197,34 @@ final class AsyncQueueTests: TuistUnitTestCase {
         XCTAssertEqual(mockPersistor.invokedDeleteEventCount, 0)
     }
 
+    func test_waits_for_queue_to_finish_when_CI() throws {
+        // Given
+        let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
+        mockPersistor.stubbedReadAllResult = [eventTuple1]
+        mockCIChecker.isCIStub = true
+
+        // When
+        subject = makeSubject(queue: Queuer.shared)
+        subject.start()
+
+        // Then
+        XCTAssertEqual(Queuer.shared.operationCount, 0)
+    }
+
+    func test_does_not_wait_for_queue_to_finish_when_not_CI() throws {
+        // Given
+        let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
+        mockPersistor.stubbedReadAllResult = [eventTuple1]
+        mockCIChecker.isCIStub = false
+
+        // When
+        subject = makeSubject(queue: Queuer.shared)
+        subject.start()
+
+        // Then
+        XCTAssertEqual(Queuer.shared.operationCount, 1)
+    }
+
     func test_start_readsPersistedEventsInitialization() throws {
         // Given
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)

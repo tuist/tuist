@@ -291,6 +291,285 @@ extension PackageInfo {
         """
     }
 
+    public static var testJSONXcode14: String {
+        """
+        {
+          "cLanguageStandard" : "c99",
+          "cxxLanguageStandard" : null,
+          "dependencies" : [
+            {
+              "name" : "a-dependency",
+              "productFilter" : null,
+              "requirement" : {
+                "range" : [
+                  {
+                    "lowerBound" : "0.4.0",
+                    "upperBound" : "1.0.0"
+                  }
+                ]
+              },
+              "url" : "https://github.com/tuist/a-dependency"
+            },
+            {
+              "name" : "another-dependency",
+              "productFilter" : null,
+              "requirement" : {
+                "range" : [
+                  {
+                    "lowerBound" : "0.1.3",
+                    "upperBound" : "1.0.0"
+                  }
+                ]
+              },
+              "url" : "https://github.com/tuist/another-dependency"
+            }
+          ],
+          "name" : "tuist",
+          "packageKind" : "root",
+          "pkgConfig" : null,
+          "platforms" : [
+            {
+              "options" : [
+
+              ],
+              "platformName" : "ios",
+              "version" : "13.0"
+            },
+            {
+              "options" : [
+
+              ],
+              "platformName" : "macos",
+              "version" : "10.15"
+            },
+            {
+              "options" : [
+
+              ],
+              "platformName" : "watchos",
+              "version" : "6.0"
+            }
+          ],
+          "products" : [
+            {
+              "name" : "Tuist",
+              "targets" : [
+                "Tuist"
+              ],
+              "type" : {
+                "library" : [
+                  "static"
+                ]
+              }
+            }
+          ],
+          "providers" : null,
+          "swiftLanguageVersions" : null,
+          "targets" : [
+            {
+              "dependencies" : [
+                {
+                  "target" : [
+                    "TuistKit",
+                    null
+                  ]
+                },
+                {
+                  "product" : [
+                    "ALibrary",
+                    "a-dependency",
+                    {
+                      "platformNames" : [
+                        "ios"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "exclude" : [
+                "excluded/sources"
+              ],
+              "name" : "Tuist",
+              "path" : "customPath",
+              "publicHeadersPath" : "custom/Public/Headers/Path",
+              "sources": [
+                "customSources"
+              ],
+              "resources" : [
+                {
+                  "rule": {
+                    "copy": {
+                    }
+                  },
+                  "path": "resources"
+                }
+              ],
+              "settings" : [
+                {
+                  "tool": "c",
+                  "kind": {
+                    "headerSearchPath": {
+                      "_0": "cSearchPath"
+                    }
+                  }
+                },
+                {
+                  "tool": "cxx",
+                  "kind": {
+                    "headerSearchPath": {
+                      "_0": "cxxSearchPath"
+                    }
+                  }
+                },
+                {
+                  "tool": "c",
+                  "kind": {
+                    "unsafeFlags": {
+                      "_0": ["CUSTOM_C_FLAG"]
+                    }
+                  }
+                },
+                {
+                  "tool": "cxx",
+                  "kind": {
+                    "unsafeFlags": {
+                      "_0": ["CUSTOM_CXX_FLAG"]
+                    }
+                  }
+                },
+                {
+                  "tool": "swift",
+                  "kind": {
+                    "unsafeFlags": {
+                      "_0": ["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"]
+                    }
+                  }
+                },
+                {
+                  "tool": "c",
+                  "kind": {
+                    "define": {
+                      "_0": "C_DEFINE=C_VALUE"
+                    }
+                  }
+                },
+                {
+                  "tool": "cxx",
+                  "kind": {
+                    "define": {
+                      "_0": "CXX_DEFINE=CXX_VALUE"
+                    }
+                  }
+                },
+                {
+                  "tool": "swift",
+                  "kind": {
+                    "define": {
+                      "_0": "SWIFT_DEFINE"
+                    }
+                  }
+                },
+                {
+                  "condition" : {
+                    "platformNames" : [
+                      "watchos"
+                    ]
+                  },
+                  "kind": {
+                    "linkedFramework": {
+                      "_0": "WatchKit"
+                    }
+                  },
+                  "tool" : "linker",
+                },
+                {
+                  "condition" : {
+                    "platformNames" : [
+                      "tvos"
+                    ]
+                  },
+                  "tool": "swift",
+                  "kind": {
+                    "define": {
+                      "_0": "SWIFT_TVOS_DEFINE"
+                    }
+                  }
+                }
+              ],
+              "type" : "regular"
+            },
+            {
+              "dependencies" : [
+                {
+                  "product" : [
+                    "AnotherLibrary",
+                    "another-dependency",
+                    null
+                  ]
+                }
+              ],
+              "exclude" : [
+
+              ],
+              "name" : "TuistKit",
+              "resources" : [
+
+              ],
+              "settings" : [
+
+              ],
+              "type" : "regular"
+            },
+            {
+              "dependencies" : [],
+              "exclude" : [
+
+              ],
+              "name" : "TestUtilities",
+              "resources" : [
+
+              ],
+              "settings" : [
+
+              ],
+              "type" : "regular"
+            },
+            {
+              "dependencies" : [
+                {
+                  "byName" : [
+                    "TuistKit",
+                    null
+                  ]
+                },
+                {
+                  "byName" : [
+                    "TestUtilities",
+                    null
+                  ]
+                }
+              ],
+              "exclude" : [
+
+              ],
+              "name" : "TuistKitTests",
+              "resources" : [
+
+              ],
+              "settings" : [
+
+              ],
+              "type" : "test"
+            }
+          ],
+          "toolsVersion" : {
+            "_version" : "5.1.0"
+          }
+        }
+
+        """
+    }
+
     public static var test: PackageInfo {
         .init(
             products: [

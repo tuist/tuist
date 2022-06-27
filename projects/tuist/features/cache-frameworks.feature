@@ -45,9 +45,9 @@ Feature: Focuses projects with pre-compiled cached xcframeworks
     Then App links the framework B from the cache
     Then App links the framework C from the cache
     Then App links the framework D from the cache
-    Then App copies the bundle AResources from the cache
-    Then App copies the bundle BResources from the cache
-    Then App copies the bundle CResources from the cache
+    Then App copies the bundle A_A from the cache
+    Then App copies the bundle B_B from the cache
+    Then App copies the bundle C_C from the cache
     Then I should be able to build for iOS the scheme App
 
   Scenario: The project is an application with static frameworks that each has resources and a target is modified after being cached (ios_app_with_static_frameworks_with_resources)
@@ -61,7 +61,7 @@ Feature: Focuses projects with pre-compiled cached xcframeworks
     Then App links the framework B from the cache
     Then App links the framework C from the cache
     Then App links the framework D from the cache
-    Then App copies the bundle AResources from the build directory
-    Then App copies the bundle BResources from the cache
-    Then App copies the bundle CResources from the cache
+    Then App copies the bundle A_A from the build directory
+    Then App copies the bundle B_B from the cache
+    Then App copies the bundle C_C from the cache
     Then I should be able to build for iOS the scheme App

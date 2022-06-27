@@ -9,9 +9,7 @@ final class MockGraphToGraphVizMapper: GraphToGraphVizMapping {
     var stubMap: GraphViz.Graph?
     func map(
         graph _: TuistGraph.Graph,
-        skipTestTargets _: Bool,
-        skipExternalDependencies _: Bool,
-        targetsToFilter _: [String]
+        targetsAndDependencies _: [GraphTarget: Set<GraphDependency>]
     ) -> GraphViz.Graph {
         stubMap ?? GraphViz.Graph()
     }

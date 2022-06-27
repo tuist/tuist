@@ -2,19 +2,65 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## 3.7.0 - 2022-06-19
+
+### Changed
+
+- Update target resource name [#4542](https://github.com/tuist/tuist/pull/4542) by [@wangjiejacques](https://github.com/wangjiejacques)
+
+### Added
+
+- Send cache hit rate analytics for cache warm command [#4519](https://github.com/tuist/tuist/pull/4519) by [@fortmarek](https://github.com/fortmarek)
+
+### Fixed
+
+- Fix `tuist fetch` for dependencies when using Xcode 14 [#4543](https://github.com/tuist/tuist/pull/4543) by [@danyf90](https://github.com/danyf90)
+- Improve cache errors logging [#4555](https://github.com/tuist/tuist/pull/4555) by [@danyf90](https://github.com/danyf90)
+
+## 3.6.0 - 2022-06-11
+
+### Fixed
+
+- Wait for analytics to finish when on CI [#4506](https://github.com/tuist/tuist/pull/4506) by [@fortmarek](https://github.com/fortmarek)
+- Fix check for `graphviz` availability when not installed through `brew` [#4516](https://github.com/tuist/tuist/pull/4516) by [@nagra](https://github.com/nagra)
+- Fix handling of `--skip-external-dependencies` parameter in `tuist graph` command when `--format json` is specified [#4517](https://github.com/tuist/tuist/pull/4517) by [@GermanVelibekovHouzz](https://github.com/GermanVelibekovHouzz)
+- Fix crash during `tuist cache warm` when cloud is configured and a lot of targets are present in the project [#4533](https://github.com/tuist/tuist/pull/4533) by [@danyf90](https://github.com/danyf90)
+- Fix XCConfig path for swift package dependencies [#4536](https://github.com/tuist/tuist/pull/4536) by [@shahzadmajeed](https://github.com/shahzadmajeed)
+- Fix default resources warnings for local packages [#4530](https://github.com/tuist/tuist/pull/4530) by [@danyf90](https://github.com/danyf90)
+
+## 3.5.0 - 2022-05-29
+
+### Changed
+
+- Avoid generated file name conflicts by prepending Tuist to them [#4478](https://github.com/tuist/tuist/pull/4478) by [@danyf90](https://github.com/danyf90)
+
+### Added
+
+- Feature: Add four new SettingsTransformers [#4427](https://github.com/tuist/tuist/pull/4427) by [@dogo](https://github.com/dogo)
+- Support for custom Project.Options for swift packages in Dependencies.swift [#4487](https://github.com/tuist/tuist/pull/4487) by [@shahzadmajeed](https://github.com/shahzadmajeed)
+
+### Fixed
+
+- Fix `selectedLauncherIdentifier` when `attachDebug` is false in `LaunchAction` and `TestAction` [#4458](https://github.com/tuist/tuist/pull/4458) by [@Andrea-Scuderi](https://github.com/Andrea-Scuderi)
+- Fix for importing `Firebase 9.x` though `SwiftPackageManger` in `Dependencies.swift` [#4456](https://github.com/tuist/tuist/pull/4456) by [@danyf90](https://github.com/danyf90)
+- Fixed rendering of generated `Info.plist` in Xcode [#4493](https://github.com/tuist/tuist/pull/4493) by [@mikchmie](https://github.com/mikchmie)
+- Avoid pruning schemes with test plans [#4495](https://github.com/tuist/tuist/pull/4495) by [@danyf90](https://github.com/danyf90)
+- Fix showing cloud errors [#4480](https://github.com/tuist/tuist/pull/4480) by [@fortmarek](https://github.com/fortmarek)
+- Generate Package.swift with correct format when custom swift version is specified [#4503](https://github.com/tuist/tuist/pull/4503) by [@danyf90](https://github.com/danyf90)
+
 ## 3.4.0 - 2022-05-14
 
 ### Changed
 
 - Make `TargetReference` conform to `Hashable` [#4407](https://github.com/tuist/tuist/pull/4407) by [@danyf90](https://github.com/danyf90)
-- Defer the display of warnings untill after project generation [#4387](https://github.com/tuist/tuist/pull/4387) by [@nicholaskim94](https://github.com/nicholaskim94)
+- Defer the display of warnings until after project generation [#4387](https://github.com/tuist/tuist/pull/4387) by [@nicholaskim94](https://github.com/nicholaskim94)
 
 ### Added
 
 - Support for watchOS UI test targets [#4389](https://github.com/tuist/tuist/pull/4389) by [@Smponias](https://github.com/Smponias)
 - Add support for automatic resources in SwiftPackageManager [#4413](https://github.com/tuist/tuist/pull/4413) by [@danyf90](https://github.com/danyf90)
 - Add attachDebugger parameter to TestAction.testPlans(...) [#4425](https://github.com/tuist/tuist/pull/4425) by [@Andrea-Scuderi](https://github.com/Andrea-Scuderi)
-- Add local tuist plugin to `tuist init` generated project [#4388](https://github.com/tuist/tuist/pull/4388) by [@leszko11](https://github.com/leszko11)
+- Add local Tuist plugin to `tuist init` generated project [#4388](https://github.com/tuist/tuist/pull/4388) by [@leszko11](https://github.com/leszko11)
 - Send cache targets hits analytics metadata [#4429](https://github.com/tuist/tuist/pull/4429) by [@fortmarek](https://github.com/fortmarek)
 
 ### Fixed
@@ -24,7 +70,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Allow AppClips to link Static Frameworks [#4420](https://github.com/tuist/tuist/pull/4420) by [@regularberry](https://github.com/regularberry)
 - Fix zipping and unzipping cached frameworks with symlinks [#4355](https://github.com/tuist/tuist/pull/4355) by [@fortmarek](https://github.com/fortmarek)
 - Fix: swap comments inside generated resources finder file [#4441](https://github.com/tuist/tuist/pull/4441) by [@GermanVelibekovHouzz](https://github.com/GermanVelibekovHouzz)
-- Skip resources warning for SPM dependencies [#4447](https://github.com/tuist/tuist/pull/4447) by [@fortmarek](https://github.com/fortmarek)
 
 ## 3.3.0 - 2022-04-26
 

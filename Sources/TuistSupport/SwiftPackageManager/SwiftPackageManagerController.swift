@@ -1,24 +1,25 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
 public protocol SwiftPackageManagerControlling {
     /// Resolves package dependencies.
     /// - Parameters:
     ///   - path: Directory where the `Package.swift` is defined.
-    ///   - printOutput: When true it prints the Swift Package Manager's ouput.
+    ///   - printOutput: When true it prints the Swift Package Manager's output.
     func resolve(at path: AbsolutePath, printOutput: Bool) throws
 
     /// Updates package dependencies.
     /// - Parameters:
     ///   - path: Directory where the `Package.swift` is defined.
-    ///   - printOutput: When true it prints the Swift Package Manager's ouput.
+    ///   - printOutput: When true it prints the Swift Package Manager's output.
     func update(at path: AbsolutePath, printOutput: Bool) throws
 
     /// Sets tools version of package to the given value.
     /// - Parameter path: Directory where the `Package.swift` is defined.
     /// - Parameter version: Version of tools. When `nil` then the environment’s version will be set.
-    func setToolsVersion(at path: AbsolutePath, to version: String?) throws
+    func setToolsVersion(at path: AbsolutePath, to version: Version) throws
 
     /// Loads the information from the package.
     /// - Parameter path: Directory where the `Package.swift` is defined.
@@ -57,13 +58,8 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
             try System.shared.run(command)
     }
 
-    public func setToolsVersion(at path: AbsolutePath, to version: String?) throws {
-        let extraArguments: [String]
-        if let version = version {
-            extraArguments = ["tools-version", "--set", version]
-        } else {
-            extraArguments = ["tools-version", "--set-current"]
-        }
+    public func setToolsVersion(at path: AbsolutePath, to version: Version) throws {
+        let extraArguments = ["tools-version", "--set", "\(version.major).\(version.minor)"]
 
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 

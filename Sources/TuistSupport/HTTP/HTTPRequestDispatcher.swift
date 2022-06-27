@@ -2,10 +2,10 @@ import Combine
 import Foundation
 
 public enum HTTPRequestDispatcherError: LocalizedError, FatalError {
-    case urlSessionError(Error)
-    case parseError(Error)
-    case invalidResponse
-    case serverSideError(Error, HTTPURLResponse)
+    case urlSessionError(URLRequest, Error)
+    case parseError(URLRequest, Error)
+    case invalidResponse(URLRequest)
+    case serverSideError(URLRequest, Error, HTTPURLResponse)
 
     // MARK: - LocalizedError
 
@@ -15,35 +15,19 @@ public enum HTTPRequestDispatcherError: LocalizedError, FatalError {
 
     public var description: String {
         switch self {
-        case let .urlSessionError(error):
-            if let error = error as? LocalizedError {
-                return error.localizedDescription
-            } else {
-                return "Received a session error."
-            }
-        case let .parseError(error):
-            if let error = error as? LocalizedError {
-                return error.localizedDescription
-            } else {
-                return "Error parsing the network response."
-            }
-        case .invalidResponse: return "Received unexpected response from the network."
-        case let .serverSideError(error, response):
-            let url: URL = response.url!
-            if let error = error as? LocalizedError {
-                return """
-                Error returned by the server:
-                  - URL: \(url.absoluteString)
-                  - Code: \(response.statusCode)
-                  - Description: \(error.localizedDescription)
-                """
-            } else {
-                return """
-                Error returned by the server:
-                  - URL: \(url.absoluteString)
-                  - Code: \(response.statusCode)
-                """
-            }
+        case let .urlSessionError(request, error):
+            return "Received a session error when performing \(request.descriptionForError): \(error.localizedDescription)"
+        case let .parseError(request, error):
+            return "Error parsing the network response of \(request.descriptionForError): \(error.localizedDescription)"
+        case let .invalidResponse(request):
+            return "Received unexpected response from the network when performing \(request.descriptionForError)"
+        case let .serverSideError(request, error, response):
+            return """
+            Error returned by the server when performing \(request.descriptionForError):
+              - URL: \(response.url!.absoluteString)
+              - Code: \(response.statusCode)
+              - Description: \(error.localizedDescription)
+            """
         }
     }
 
@@ -69,10 +53,11 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
     }
 
     public func dispatch<T, E: Error>(resource: HTTPResource<T, E>) async throws -> (object: T, response: HTTPURLResponse) {
+        let request = resource.request()
         do {
-            let (data, response) = try await session.data(for: resource.request())
+            let (data, response) = try await session.data(for: request)
             guard let response = response as? HTTPURLResponse else {
-                throw HTTPRequestDispatcherError.invalidResponse
+                throw HTTPRequestDispatcherError.invalidResponse(request)
             }
             switch response.statusCode {
             case 200 ..< 300:
@@ -80,15 +65,15 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
                     let object = try resource.parse(data, response)
                     return (object: object, response: response)
                 } catch {
-                    throw HTTPRequestDispatcherError.parseError(error)
+                    throw HTTPRequestDispatcherError.parseError(request, error)
                 }
             default: // Error
                 let thrownError: Error
                 do {
                     let parsedError = try resource.parseError(data, response)
-                    thrownError = HTTPRequestDispatcherError.serverSideError(parsedError, response)
+                    thrownError = HTTPRequestDispatcherError.serverSideError(request, parsedError, response)
                 } catch {
-                    thrownError = HTTPRequestDispatcherError.parseError(error)
+                    thrownError = HTTPRequestDispatcherError.parseError(request, error)
                 }
                 throw thrownError
             }
@@ -96,7 +81,7 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
             if error is HTTPRequestDispatcherError {
                 throw error
             } else {
-                throw HTTPRequestDispatcherError.urlSessionError(error)
+                throw HTTPRequestDispatcherError.urlSessionError(request, error)
             }
         }
     }

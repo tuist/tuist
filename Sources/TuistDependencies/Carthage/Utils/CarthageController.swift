@@ -61,14 +61,14 @@ public protocol CarthageControlling {
     /// - Parameters:
     ///   - path: Directory where project's dependencies will be installed.
     ///   - platforms: The platforms to build for.
-    ///   - printOutput: When true it prints the Carthage's ouput.
+    ///   - printOutput: When true it prints the Carthage's output.
     func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, printOutput: Bool) throws
 
     /// Updates and rebuilds the project's dependencies
     /// - Parameters:
     ///   - path: Directory where project's dependencies will be installed.
     ///   - platforms: The platforms to build for.
-    ///   - printOutput: When true it prints the Carthage's ouput.
+    ///   - printOutput: When true it prints the Carthage's output.
     func update(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, printOutput: Bool) throws
 }
 

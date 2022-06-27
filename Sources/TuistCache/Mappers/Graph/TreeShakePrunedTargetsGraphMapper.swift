@@ -82,19 +82,19 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         schemes.compactMap { scheme -> Scheme? in
             var scheme = scheme
 
-            var buildAction = scheme.buildAction
-            buildAction?.targets = scheme.buildAction?.targets.filter(sourceTargets.contains) ?? []
+            if let buildAction = scheme.buildAction {
+                scheme.buildAction?.targets = buildAction.targets.filter(sourceTargets.contains)
+            }
 
-            var testAction = scheme.testAction
-            testAction?.targets = scheme.testAction?.targets.filter { sourceTargets.contains($0.target) } ?? []
-            testAction?.codeCoverageTargets = scheme.testAction?.codeCoverageTargets.filter(sourceTargets.contains) ?? []
+            if let testAction = scheme.testAction {
+                scheme.testAction?.targets = testAction.targets.filter { sourceTargets.contains($0.target) }
+                scheme.testAction?.codeCoverageTargets = testAction.codeCoverageTargets.filter(sourceTargets.contains)
+            }
 
-            scheme.buildAction = buildAction
-            scheme.testAction = testAction
-
-            guard buildAction?.targets.isEmpty == false ||
-                testAction?.targets.isEmpty == false
-            else {
+            let hasBuildTargets = !(scheme.buildAction?.targets ?? []).isEmpty
+            let hasTestTargets = !(scheme.testAction?.targets ?? []).isEmpty
+            let hasTestPlans = !(scheme.testAction?.testPlans ?? []).isEmpty
+            guard hasBuildTargets || hasTestTargets || hasTestPlans else {
                 return nil
             }
 

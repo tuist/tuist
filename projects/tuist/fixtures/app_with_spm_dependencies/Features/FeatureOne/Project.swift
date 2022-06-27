@@ -1,7 +1,9 @@
 import ProjectDescription
+import ProjectDescriptionHelpers
 
 let project = Project(
     name: "FeatureOne",
+    settings: .projectSettings,
     targets: [
         Target(
             name: "FeatureOneFramework",
@@ -11,7 +13,9 @@ let project = Project(
             sources: ["Sources/**"],
             dependencies: [
                 .external(name: "Alamofire"),
-            ]
+            ],
+            settings: .targetSettings
         ),
-    ]
+    ],
+    schemes: Scheme.allSchemes(for: ["FeatureOneFramework"])
 )

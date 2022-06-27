@@ -1,6 +1,5 @@
 import Foundation
 import GraphViz
-import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -9,28 +8,28 @@ import TuistSupport
 public protocol GraphToGraphVizMapping {
     /// Maps the project graph into a dot graph representation.
     ///
-    /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
+    /// - Parameters
+    ///  - graph: Graph to be used for attributing
+    ///  - targetsAndDependencies: Targets to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
     func map(
         graph: TuistGraph.Graph,
-        skipTestTargets: Bool,
-        skipExternalDependencies: Bool,
-        targetsToFilter: [String]
+        targetsAndDependencies: [GraphTarget: Set<GraphDependency>]
     ) -> GraphViz.Graph
 }
 
 public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
     public init() {}
 
-    /// Maps the project graph into a GraphViz graph representation.
+    /// Maps the project graph into a dot graph representation.
     ///
-    /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
-    /// - Returns: The GraphViz.Graph representation.
+    /// - Parameters
+    ///  - graph: Graph to be used for attributing
+    ///  - targetsAndDependencies: Targets to be converted into a GraphViz.Graph.
+    /// - Returns: The GraphViz.Graph representation
     public func map(
         graph: TuistGraph.Graph,
-        skipTestTargets: Bool,
-        skipExternalDependencies: Bool,
-        targetsToFilter: [String]
+        targetsAndDependencies: [GraphTarget: Set<GraphDependency>]
     ) -> GraphViz.Graph {
         var nodes: [GraphViz.Node] = []
         var dependencies: [GraphViz.Edge] = []
@@ -38,42 +37,13 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 
         let graphTraverser = GraphTraverser(graph: graph)
 
-        let allTargets: Set<GraphTarget> = skipExternalDependencies ? graphTraverser.allInternalTargets() : graphTraverser
-            .allTargets()
-        let filteredTargets: Set<GraphTarget> = allTargets.filter { target in
-            if skipTestTargets, graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name) {
-                return false
-            }
-
-            if !targetsToFilter.isEmpty, !targetsToFilter.contains(target.target.name) {
-                return false
-            }
-
-            return true
-        }
-
-        let filteredTargetsAndDependencies: Set<GraphTarget> = filteredTargets.union(
-            transitiveClosure(Array(filteredTargets)) { target in
-                Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name))
-            }
-        )
-
-        filteredTargetsAndDependencies.forEach { target in
-            if skipExternalDependencies, target.project.isExternal { return }
-
+        targetsAndDependencies.forEach { target, targetDependencies in
             var leftNode = GraphViz.Node(target.target.name)
 
             leftNode.applyAttributes(attributes: target.styleAttributes)
             nodes.append(leftNode)
 
-            guard let targetDependencies = graphTraverser.dependencies[.target(name: target.target.name, path: target.path)]
-            else { return }
-
             targetDependencies
-                .filter { dependency in
-                    if skipExternalDependencies, dependency.isExternal(graph.projects) { return false }
-                    return true
-                }
                 .forEach { dependency in
                     var rightNode = GraphViz.Node(dependency.name)
                     rightNode.applyAttributes(
@@ -96,15 +66,6 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 }
 
 extension GraphDependency {
-    fileprivate func isExternal(_ projects: [AbsolutePath: Project]) -> Bool {
-        switch self {
-        case let .target(_, path):
-            return projects[path]?.isExternal ?? false
-        case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk:
-            return true
-        }
-    }
-
     fileprivate var name: String {
         switch self {
         case let .target(name: name, path: _):
