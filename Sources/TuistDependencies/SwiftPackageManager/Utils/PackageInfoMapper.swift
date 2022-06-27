@@ -244,6 +244,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                                     case let .xcframework(path):
                                         return .xcframework(path: path)
                                     case let .target(name):
+
+                                        // When multiple platforms are supported, add the platform name as a suffix to the target
                                         let name = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
                                         return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
                                     case .externalTarget:
@@ -284,8 +286,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 )
             }
         }
-
-
 
         return .init(
             platformToMinDeploymentTarget: minDeploymentTargets,
