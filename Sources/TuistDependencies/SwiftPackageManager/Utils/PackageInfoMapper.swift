@@ -128,7 +128,7 @@ public protocol PackageInfoMapping {
         targetSettings: [String: TuistGraph.SettingsDictionary],
         projectOptions: TuistGraph.Project.Options?,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
-        targetToPlatform: Set<ProjectDescription.Platform>,
+        platforms: Set<ProjectDescription.Platform>,
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap],
@@ -141,7 +141,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
     public struct PreprocessInfo {
         let platformToMinDeploymentTarget: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
         let productToExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]]
-        let targetToPlatform: Set<ProjectDescription.Platform>
+        let platforms: Set<ProjectDescription.Platform>
         let targetToProducts: [String: Set<PackageInfo.Product>]
         let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
         let targetToModuleMap: [String: ModuleMap]
@@ -291,7 +291,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         return .init(
             platformToMinDeploymentTarget: minDeploymentTargets,
             productToExternalDependencies: externalDependencies,
-            targetToPlatform: Set(platforms.map { ProjectDescription.Platform.from(graph: $0) }),
+            platforms: Set(platforms.map { ProjectDescription.Platform.from(graph: $0) }),
             targetToProducts: targetToProducts,
             targetToResolvedDependencies: resolvedDependencies,
             targetToModuleMap: targetToModuleMap
@@ -309,7 +309,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetSettings: [String: TuistGraph.SettingsDictionary],
         projectOptions: TuistGraph.Project.Options?,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
-        targetToPlatform: Set<ProjectDescription.Platform>,
+        platforms: Set<ProjectDescription.Platform>,
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap],
@@ -351,6 +351,15 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         )
 
+//        // Actually check which platforms to consider for this package.
+//        // It could be that the user has configured [.tvOS, .iOS, .watchOS]
+//        // But this package only considers 
+//        let platformsToCheck = try Set<ProjectDescription.Platform>.from(
+//            configured: Set(targetToPlatform.map { try TuistGraph.Platform.from(manifest: $0)}),
+//            package: packageInfo.platforms,
+//            packageName:name
+//        )
+
         let targets: [ProjectDescription.Target] = try packageInfo.targets
             .flatMap { target -> [ProjectDescription.Target] in
                 guard let products = targetToProducts[target.name] else { return [] }
@@ -366,7 +375,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     productTypes: productTypes,
                     baseSettings: baseSettings,
                     targetSettings: targetSettings,
-                    platforms: targetToPlatform,
+                    platforms: platforms,
                     minDeploymentTargets: minDeploymentTargets,
                     targetToResolvedDependencies: targetToResolvedDependencies,
                     targetToModuleMap: targetToModuleMap
@@ -1237,5 +1246,25 @@ extension PackageInfo.Platform {
     var tuistPlatformName: String {
         // catalyst is mapped to iOS platform in tuist
         platformName == "maccatalyst" ? "ios" : platformName
+    }
+}
+
+
+extension TuistGraph.Platform {
+    /// Maps a ProjectDescription.Platform instance into a TuistGraph.Platform instance.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of platform model.
+    ///   - generatorPaths: Generator paths.
+    static func from(manifest: ProjectDescription.Platform) throws -> TuistGraph.Platform {
+        switch manifest {
+        case .macOS:
+            return .macOS
+        case .iOS:
+            return .iOS
+        case .tvOS:
+            return .tvOS
+        case .watchOS:
+            return .watchOS
+        }
     }
 }
