@@ -61,7 +61,11 @@ final class EnvInstallerTests: TuistUnitTestCase {
             temporaryDirectory.path.pathString,
         ])
         system.succeedCommand([
-            "cp",
+            "rm",
+            "/path/to/tuist",
+        ])
+        system.succeedCommand([
+            "mv",
             temporaryDirectory.path.appending(component: "tuistenv").pathString,
             "/path/to/tuist",
         ])
@@ -110,7 +114,12 @@ final class EnvInstallerTests: TuistUnitTestCase {
         ])
         system.succeedCommand([
             "sudo",
-            "cp",
+            "rm",
+            "/path/to/tuist",
+        ])
+        system.succeedCommand([
+            "sudo",
+            "mv",
             temporaryDirectory.path.appending(component: "tuistenv").pathString,
             "/path/to/tuist",
         ])
