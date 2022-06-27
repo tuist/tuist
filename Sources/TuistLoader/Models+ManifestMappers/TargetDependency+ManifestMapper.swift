@@ -64,14 +64,21 @@ extension TuistGraph.TargetDependency {
             guard let dependencies = externalDependencies[platform]?[name] else {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name)
             }
-            return dependencies.compactMap { dep in
-                guard case let .project(target, path) = dep else { return nil }
 
-                if externalDependencies.hasMultiplePlatforms {
-                    guard target.hasSuffix(platform.rawValue) else { return nil }
+            return dependencies.compactMap { dep in
+                // For projects in external projects we have the special suffix rule and need to check it and only use the
+                // .project dependencies that match the rule
+                if case let .project(target, path) = dep {
+                    if externalDependencies.hasMultiplePlatforms {
+                        guard target.hasSuffix(platform.rawValue) else { return nil }
+                    }
+                    return .project(target: target , path: path)
+                } else {
+                    // Old logic, no validation checks in terms of platform
+                    return dep
                 }
 
-                return .project(target: target , path: path)
+
             }
         }
     }
