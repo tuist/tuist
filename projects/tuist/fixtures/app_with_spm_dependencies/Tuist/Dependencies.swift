@@ -21,5 +21,5 @@ let dependencies = Dependencies(
             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
         ]
     ),
-    platforms: [.iOS]
+    platforms: [.iOS, .watchOS]
 )
