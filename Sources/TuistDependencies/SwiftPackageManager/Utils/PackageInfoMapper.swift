@@ -245,10 +245,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
                                 case let .xcframework(path):
                                     return .xcframework(path: path)
                                 case let .target(name):
-
                                     // When multiple platforms are supported, add the platform name as a suffix to the target
-                                    let name = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
-                                    return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
+                                    let targetName = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
+                                    return .project(target: targetName, path: Path(packageToFolder[packageInfo.key]!.pathString))
                                 case .externalTarget:
                                     throw PackageInfoMapperError.unknownProductTarget(
                                         package: packageInfo.key,
@@ -400,7 +399,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
     }
 
     fileprivate class func sanitize(targetName: String) -> String {
-        targetName.replacingOccurrences(of: ".", with: "_")
+        targetName.replacingOccurrences(of: ".", with: "_").replacingOccurrences(of: "-", with: "_")
     }
 }
 
@@ -461,7 +460,8 @@ extension Array where Element == ProjectDescription.Target {
                 resolvedDependencies: resolvedDependencies,
                 platform: platform,
                 settings: target.settings,
-                packageToProject: packageToProject
+                packageToProject: packageToProject,
+                addPlatformSuffix: platforms.count != 1
             )
             let settings = try Settings.from(
                 target: target,
@@ -680,16 +680,17 @@ extension ProjectDescription.TargetDependency {
         resolvedDependencies: [PackageInfoMapper.ResolvedDependency],
         platform: ProjectDescription.Platform,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
-        packageToProject: [String: AbsolutePath]
+        packageToProject: [String: AbsolutePath],
+        addPlatformSuffix: Bool
     ) throws -> [Self] {
         let targetDependencies = resolvedDependencies.map { dependency -> Self in
             switch dependency {
             case let .target(name):
-                return .target(name: name)
+                return .target(name: addPlatformSuffix ? "\(name)_\(platform.rawValue)" : name)
             case let .xcframework(path):
                 return .xcframework(path: path)
             case let .externalTarget(project, target):
-                return .project(target: target, path: Path(packageToProject[project]!.pathString))
+                return .project(target: addPlatformSuffix ? "\(target)_\(platform.rawValue)" : target, path: Path(packageToProject[project]!.pathString))
             }
         }
 
