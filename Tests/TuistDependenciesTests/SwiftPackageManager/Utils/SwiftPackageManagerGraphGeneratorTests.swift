@@ -485,12 +485,29 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
 
 extension TuistCore.DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
-        let mergedExternalDependencies = other.externalDependencies.reduce(into: externalDependencies) { result, entry in
-            result[entry.key] = entry.value
+        let mergedExternalDependencies = try other.externalDependencies.reduce(into: externalDependencies) { result1, entry1 in
+
+            let platform = entry1.key
+
+            let mine = externalDependencies[platform] ?? [:]
+            let other2 = other.externalDependencies[platform] ?? [:]
+
+            let result = other2.reduce(into: mine) { result2, entry2 in
+                if let alreadyPresent = result2[entry2.key] {
+                    fatalError("Dupliacted Entry(\(entry2.key), \(alreadyPresent), \(entry2.value)")
+                }
+                result2[entry2.key] = entry2.value
+            }
+            result1[entry1.key] = result
         }
+
         let mergedExternalProjects = other.externalProjects.reduce(into: externalProjects) { result, entry in
+            if let alreadyPresent = result[entry.key] {
+                fatalError("Dupliacted Entry(\(entry.key), \(alreadyPresent), \(entry.value)")
+            }
             result[entry.key] = entry.value
         }
+
         return .init(externalDependencies: mergedExternalDependencies, externalProjects: mergedExternalProjects)
     }
 }
