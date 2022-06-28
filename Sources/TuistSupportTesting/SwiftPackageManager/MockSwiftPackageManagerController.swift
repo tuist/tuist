@@ -1,4 +1,5 @@
 import TSCBasic
+import TSCUtility
 @testable import TuistSupport
 
 public final class MockSwiftPackageManagerController: SwiftPackageManagerControlling {
@@ -19,8 +20,8 @@ public final class MockSwiftPackageManagerController: SwiftPackageManagerControl
     }
 
     public var invokedSetToolsVersion = false
-    public var setToolsVersionStub: ((AbsolutePath, String?) throws -> Void)?
-    public func setToolsVersion(at path: AbsolutePath, to version: String?) throws {
+    public var setToolsVersionStub: ((AbsolutePath, Version) throws -> Void)?
+    public func setToolsVersion(at path: AbsolutePath, to version: Version) throws {
         invokedSetToolsVersion = true
         try setToolsVersionStub?(path, version)
     }

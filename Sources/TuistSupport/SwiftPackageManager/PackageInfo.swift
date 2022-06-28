@@ -243,6 +243,42 @@ extension PackageInfo.Target {
         public enum Rule: String, Decodable, Hashable {
             case process
             case copy
+
+            public init(from decoder: Decoder) throws {
+                // Xcode 14 format
+                enum RuleXcode14: Codable, Equatable {
+                    case process(localization: String?)
+                    case copy
+                }
+
+                if let kind = try? RuleXcode14(from: decoder) {
+                    switch kind {
+                    case .process:
+                        self = .process
+                    case .copy:
+                        self = .copy
+                    }
+                } else if let singleValue = try? decoder.singleValueContainer().decode(String.self) {
+                    switch singleValue {
+                    case "process":
+                        self = .process
+                    case "copy":
+                        self = .copy
+                    default:
+                        throw DecodingError
+                            .dataCorrupted(.init(
+                                codingPath: decoder.codingPath,
+                                debugDescription: "Invalid value for Resource.Rule: \(singleValue)"
+                            ))
+                    }
+                } else {
+                    throw DecodingError
+                        .dataCorrupted(.init(
+                            codingPath: decoder.codingPath,
+                            debugDescription: "Invalid content for Resource decoder"
+                        ))
+                }
+            }
         }
 
         public enum Localization: String, Decodable, Hashable {
@@ -329,6 +365,48 @@ extension PackageInfo.Target {
                 self.name = name
                 self.condition = condition
                 self.value = value
+            }
+
+            private enum CodingKeys: String, CodingKey {
+                case tool, name, condition, value, kind
+            }
+
+            public init(from decoder: Decoder) throws {
+                // Xcode 14 format
+                enum Kind: Codable, Equatable {
+                    case headerSearchPath(String)
+                    case define(String)
+                    case linkedLibrary(String)
+                    case linkedFramework(String)
+                    case unsafeFlags([String])
+                }
+
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+
+                tool = try container.decode(Tool.self, forKey: .tool)
+                condition = try container.decodeIfPresent(PackageInfo.PackageConditionDescription.self, forKey: .condition)
+                if let kind = try? container.decode(Kind.self, forKey: .kind) {
+                    switch kind {
+                    case let .headerSearchPath(value):
+                        name = .headerSearchPath
+                        self.value = [value]
+                    case let .define(value):
+                        name = .define
+                        self.value = [value]
+                    case let .linkedLibrary(value):
+                        name = .linkedLibrary
+                        self.value = [value]
+                    case let .linkedFramework(value):
+                        name = .linkedFramework
+                        self.value = [value]
+                    case let .unsafeFlags(value):
+                        name = .unsafeFlags
+                        self.value = value
+                    }
+                } else {
+                    name = try container.decode(SettingName.self, forKey: .name)
+                    value = try container.decode([String].self, forKey: .value)
+                }
             }
         }
     }

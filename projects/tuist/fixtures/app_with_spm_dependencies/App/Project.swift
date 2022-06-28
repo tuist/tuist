@@ -1,7 +1,9 @@
 import ProjectDescription
+import ProjectDescriptionHelpers
 
 let project = Project(
     name: "App",
+    settings: .projectSettings,
     targets: [
         Target(
             name: "App",
@@ -13,7 +15,9 @@ let project = Project(
             dependencies: [
                 .target(name: "AppKit"),
                 .project(target: "FeatureOneFramework", path: .relativeToRoot("Features/FeatureOne")),
-            ]
+                .external(name: "Styles"),
+            ],
+            settings: .targetSettings
         ),
         Target(
             name: "AppKit",
@@ -35,8 +39,11 @@ let project = Project(
                 .external(name: "IterableSDK"),
                 .external(name: "Realm"),
                 .external(name: "RealmSwift"),
+                .external(name: "Stripe"),
                 .external(name: "TYStatusBarView"),
-            ]
+            ],
+            settings: .targetSettings
         ),
-    ]
+    ],
+    schemes: Scheme.allSchemes(for: ["App", "AppKit"], executable: "App")
 )

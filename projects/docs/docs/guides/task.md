@@ -88,6 +88,8 @@ You might wonder what the return value of `Tuist.graph()` is - the method return
 | `name`| Name of the target | `String` |
 | `product` | Product type the target produces | `String` |
 | `sources` | List of file paths that are the target's sources. | `[String]` |
+| `resources` | List of file paths that are the target's resources. | `[String]` |
+| `dependencies` | The target’s dependencies. | `[TargetDependency]` |
 
 #### Package
 

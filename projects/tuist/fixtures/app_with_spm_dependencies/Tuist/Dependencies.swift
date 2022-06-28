@@ -1,4 +1,5 @@
 import ProjectDescription
+import ProjectDescriptionHelpers
 
 let dependencies = Dependencies(
     swiftPackageManager: .init(
@@ -11,12 +12,17 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/iterable/swift-sdk", .upToNextMajor(from: "6.4.0")),
             .package(url: "https://github.com/Trendyol/ios-components", .revision("c9260bfe203a16a278eca5542c98455eece98aa4")),
             .package(url: "https://github.com/realm/realm-cocoa.git", .upToNextMajor(from: "10.24.0")),
+            .package(url: "https://github.com/stripe/stripe-ios", .upToNextMajor(from: "22.4.0")),
+            .local(path: "LocalSwiftPackage"),
         ],
         baseSettings: .settings(configurations: [
             .debug(name: .debug),
             .release(name: .release),
             .release(name: "Internal"),
-        ])
+        ]),
+        projectOptions: [
+            "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
+        ]
     ),
     platforms: [.iOS]
 )

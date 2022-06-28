@@ -20,7 +20,7 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/FabrizioBrancati/Queuer.git", .upToNextMajor(from: "2.1.1")),
             .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.4.1")),
             .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
-            .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "1.0.0")),
+            .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "1.1.1")),
             .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.5.0")),
             .package(url: "https://github.com/kylef/PathKit.git", .upToNextMajor(from: "1.0.0")),
         ],

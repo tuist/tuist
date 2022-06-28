@@ -61,17 +61,19 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
-            XCTAssertNil(version) // swift-tools-version is not specified
+            XCTAssertEqual(version, TSCUtility.Version(5, 6, 0))
         }
 
         swiftPackageManagerGraphGenerator
-            .generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion in
+            .generateStub =
+            { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion, projectOptions in
                 XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
                 XCTAssertEqual(platforms, [.iOS])
                 XCTAssertEqual(automaticProductType, [:])
                 XCTAssertEqual(baseSettings, .default)
                 XCTAssertEqual(targetSettings, [:])
                 XCTAssertNil(swiftToolsVersion)
+                XCTAssertEqual(projectOptions, [:])
                 return .test()
             }
 
@@ -151,20 +153,18 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
-            XCTAssertEqual(
-                version,
-                swiftToolsVersion.description
-            ) // version should be equal to the version that has been specified
+            XCTAssertEqual(version, swiftToolsVersion)
         }
 
         swiftPackageManagerGraphGenerator
-            .generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftVersion in
+            .generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftVersion, projectOptions in
                 XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
                 XCTAssertEqual(automaticProductType, [:])
                 XCTAssertEqual(platforms, [.iOS])
                 XCTAssertEqual(baseSettings, .default)
                 XCTAssertEqual(targetSettings, [:])
                 XCTAssertEqual(swiftVersion, swiftToolsVersion)
+                XCTAssertEqual(projectOptions, [:])
                 return .test()
             }
 
@@ -243,17 +243,19 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
-            XCTAssertNil(version) // swift-tools-version is not specified
+            XCTAssertEqual(version, Version("5.6.0"))
         }
 
         swiftPackageManagerGraphGenerator
-            .generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion in
+            .generateStub =
+            { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion, configuration in
                 XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
                 XCTAssertEqual(automaticProductType, [:])
                 XCTAssertEqual(platforms, [.iOS])
                 XCTAssertEqual(baseSettings, .default)
                 XCTAssertEqual(targetSettings, [:])
                 XCTAssertNil(swiftToolsVersion)
+                XCTAssertEqual(configuration, [:])
                 return .test()
             }
 

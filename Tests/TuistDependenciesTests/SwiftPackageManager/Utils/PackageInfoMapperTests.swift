@@ -88,7 +88,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     swiftLanguageVersions: nil
                 ),
             ],
-            productToPackage: [:],
+            idToPackage: [:],
             packageToFolder: ["Package": basePath],
             packageToTargetsToArtifactPaths: ["Package": ["Target_1": .init("/artifacts/Package/Target_1.xcframework")]],
             platforms: [.iOS]
@@ -115,6 +115,61 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
                     .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
                 ],
+            ]
+        )
+    }
+
+    func testPreprocess_whenPackageIDDifferentThanName() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Target_2")))
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package2/Sources/Target_2")))
+        let preprocessInfo = try subject.preprocess(
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target_1",
+                            dependencies: [
+                                .product(name: "Product2", package: "Package2_different_name", condition: nil),
+                            ]
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+                "Package2": .init(
+                    products: [
+                        .init(name: "Product2", type: .library(.automatic), targets: ["Target_2"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_2"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            idToPackage: ["package2_different_name": "Package2"],
+            packageToFolder: [
+                "Package": basePath.appending(component: "Package"),
+                "Package2": basePath.appending(component: "Package2"),
+            ],
+            packageToTargetsToArtifactPaths: [:],
+            platforms: [.iOS]
+        )
+
+        XCTAssertEqual(
+            preprocessInfo.targetToResolvedDependencies,
+            [
+                "Target_1": [.externalTarget(package: "Package2", target: "Target_2")],
+                "Target_2": [],
             ]
         )
     }
@@ -155,7 +210,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     swiftLanguageVersions: nil
                 ),
             ],
-            productToPackage: [:],
+            idToPackage: [:],
             packageToFolder: [
                 "Package": basePath.appending(component: "Package"),
                 "com.example.dep-1": basePath.appending(component: "com.example.dep-1"),
@@ -282,10 +337,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                     basePath.appending(RelativePath("Package/\(alternativeDefaultSource)/Target1/**"))
                                         .pathString,
                                 ]
-                            ),
-                            customDefaultResources: .defaultResources(
-                                path: basePath
-                                    .appending(components: ["Package", alternativeDefaultSource, "Target1"])
                             )
                         ),
                     ]
@@ -447,11 +498,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSources: .init(globs: [
                             basePath
                                 .appending(RelativePath("Package/Sources/com.example.target-1/**")).pathString,
-                        ]),
-                        customDefaultResources: .defaultResources(
-                            path: basePath
-                                .appending(components: ["Package", "Sources", "com.example.target-1"])
-                        )
+                        ])
                     ),
                 ]
             )
@@ -615,8 +662,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 basePath.appending(RelativePath("Package/Sources/Target1/Another/Subfolder/file.swift"))
                                     .pathString
                             ),
-                        ],
-                        customDefaultResources: []
+                        ]
                     ),
                 ]
             )
@@ -717,22 +763,60 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 ],
                                 tags: []
                             ),
-                        ],
-                        customDefaultResources: .defaultResources(
-                            path: basePath.appending(components: ["Package", "Sources", "Target1"]),
-                            excluding: [.init(
-                                basePath
-                                    .appending(components: [
-                                        "Package",
-                                        "Sources",
-                                        "Target1",
-                                        "AnotherOne",
-                                        "Resource",
-                                        "**",
-                                    ])
-                                    .pathString
-                            )]
-                        )
+                        ]
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenHasDefaultResources() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(RelativePath("Package/Sources/Target1"))
+        let defaultResourcePath = sourcesPath.appending(RelativePath("Resources/file.xib"))
+        try fileHandler.createFolder(sourcesPath)
+        fileHandler.stubGlob = { path, glob in
+            XCTAssertEqual(path, sourcesPath)
+            if glob == "**/*.xib" {
+                return [defaultResourcePath]
+            } else {
+                return []
+            }
+        }
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        resources: [
+                            .glob(
+                                pattern: Path(defaultResourcePath.pathString),
+                                excluding: [],
+                                tags: []
+                            ),
+                        ]
                     ),
                 ]
             )
@@ -1058,7 +1142,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                     .pathString
                             ),
                         ],
-                        customDefaultResources: [],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Headers"],
                         ],
@@ -1710,12 +1793,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .debug(
                                     name: "Debug",
                                     settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
-                                    xcconfig: .relativeToRoot("Sources/Target1/Config.xcconfig")
+                                    xcconfig: "Sources/Target1/Config.xcconfig"
                                 ),
                                 .release(
                                     name: "Release",
                                     settings: ["CUSTOM_SETTING_2": .string("CUSTOM_VALUE_2")],
-                                    xcconfig: .relativeToRoot("Sources/Target1/Config.xcconfig")
+                                    xcconfig: "Sources/Target1/Config.xcconfig"
                                 ),
                             ],
                             defaultSettings: .recommended
@@ -2565,13 +2648,9 @@ extension PackageInfoMapping {
         platforms: Set<TuistGraph.Platform> = [.iOS],
         baseSettings: TuistGraph.Settings = .default,
         targetSettings: [String: TuistGraph.SettingsDictionary] = [:],
-        swiftToolsVersion: TSCUtility.Version? = nil
+        swiftToolsVersion: TSCUtility.Version? = nil,
+        projectOptions: TuistGraph.Project.Options? = nil
     ) throws -> ProjectDescription.Project? {
-        let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
-            for product in packageInfo.value.products {
-                result[product.name] = packageInfo.key
-            }
-        }
         let packageToFolder: [String: AbsolutePath] = packageInfos.keys.reduce(into: [:]) { result, packageName in
             result[packageName] = basePath.appending(component: packageName)
         }
@@ -2591,7 +2670,7 @@ extension PackageInfoMapping {
 
         let preprocessInfo = try preprocess(
             packageInfos: packageInfos,
-            productToPackage: productToPackage,
+            idToPackage: [:],
             packageToFolder: packageToFolder,
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
             platforms: platforms
@@ -2605,6 +2684,7 @@ extension PackageInfoMapping {
             productTypes: [:],
             baseSettings: baseSettings,
             targetSettings: targetSettings,
+            projectOptions: projectOptions,
             minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
             targetToPlatform: preprocessInfo.targetToPlatform,
             targetToProducts: preprocessInfo.targetToProducts,
@@ -2658,12 +2738,12 @@ extension ProjectDescription.Project {
             options: .options(
                 automaticSchemesOptions: .disabled,
                 disableBundleAccessors: false,
-                disableSynthesizedResourceAccessors: false,
+                disableSynthesizedResourceAccessors: true,
                 textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
             ),
             settings: settings,
             targets: targets,
-            resourceSynthesizers: []
+            resourceSynthesizers: .default
         )
     }
 
@@ -2692,22 +2772,13 @@ extension ProjectDescription.Target {
         deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "9.0", devices: [.iphone, .ipad]),
         customSources: SourceFilesList? = nil,
         resources: [ProjectDescription.ResourceFileElement] = [],
-        customDefaultResources: [ProjectDescription.ResourceFileElement]? = nil,
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
         baseSettings: ProjectDescription.Settings = .settings(),
         customSettings: ProjectDescription.SettingsDictionary = [:],
         moduleMap: String? = nil
     ) -> Self {
-        let defaultResources: [ProjectDescription.ResourceFileElement]
-        if let customDefaultResources = customDefaultResources {
-            defaultResources = customDefaultResources
-        } else {
-            defaultResources = .defaultResources(path: basePath.appending(components: ["Package", "Sources", name]))
-        }
-        let allResources = resources + defaultResources
-
-        return .init(
+        .init(
             name: name,
             platform: platform,
             product: product,
@@ -2716,7 +2787,7 @@ extension ProjectDescription.Target {
             infoPlist: .default,
             sources: customSources ??
                 .init(globs: [basePath.appending(RelativePath("Package/Sources/\(name)/**")).pathString]),
-            resources: allResources.isEmpty ? nil : ResourceFileElements(resources: allResources),
+            resources: resources.isEmpty ? nil : ResourceFileElements(resources: resources),
             headers: headers,
             dependencies: dependencies,
             settings: DependenciesGraph.spmSettings(baseSettings: baseSettings, with: customSettings, moduleMap: moduleMap)

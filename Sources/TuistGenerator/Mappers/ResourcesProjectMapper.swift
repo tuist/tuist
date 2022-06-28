@@ -32,7 +32,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
 
-        let bundleName = "\(target.name)Resources"
+        let bundleName = "\(project.name)_\(target.name)"
         var modifiedTarget = target
 
         if !target.supportsResources {

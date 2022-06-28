@@ -75,7 +75,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
     <img src="assets/companies/emplate_logo_full_black.svg" style="width: 120px;" hspace="8"/>
   </a>
   <a href="https://hh.ru/" target="_blank">
-    <img src="assets/companies/hh mono.svg" style="width: 40px;" hspace="8/>
+    <img src="assets/companies/hh mono.svg" style="width: 40px;" hspace="8"/>
   </a>
   <a href="https://www.trendyol.com/" target="_blank">
     <img src="assets/companies/Trendyol_online.png" style="width: 120px;" hspace="8"/>
@@ -103,6 +103,12 @@ The financial sustainability of the project is possible thanks to the ongoing co
   </a>
   <a href="https://www.dodopizza.com/" target="_blank">
     <img src="assets/companies/DodoPizzaLogo.svg" style="width: 50px;" hspace="8"/>
+  </a>
+    <a href="https://www.olimp.bet/" target="_blank">
+    <img src="assets/companies/OlimpBet Logo.svg" style="width: 50px;" hspace="8"/>
+  </a>
+  <a href="https://vk.company/" target="_blank">
+    <img src="assets/companies/VK_logo.svg" style="width: 50px;" hspace="8"/>
   </a>
 </div>
 

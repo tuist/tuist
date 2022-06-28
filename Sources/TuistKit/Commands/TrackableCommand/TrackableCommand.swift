@@ -42,7 +42,7 @@ public class TrackableCommand: TrackableParametersDelegate {
             type(of: command).analyticsDelegate = self
         }
         if var asyncCommand = command as? AsyncParsableCommand {
-            try await asyncCommand.runAsync()
+            try await asyncCommand.run()
         } else {
             try command.run()
         }

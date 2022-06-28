@@ -41,6 +41,7 @@ public class AsyncQueue: AsyncQueuing {
     public func start() {
         loadEvents()
         queue.resume()
+        waitIfCI()
     }
 
     public func dispatch<T: AsyncQueueEvent>(event: T) throws {

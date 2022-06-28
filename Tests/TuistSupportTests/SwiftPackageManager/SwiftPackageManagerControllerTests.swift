@@ -1,4 +1,5 @@
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -53,7 +54,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     func test_setToolsVersion_specificVersion() throws {
         // Given
         let path = try temporaryPath()
-        let version = "5.4"
+        let version = Version("5.4.0")
         system.succeedCommand([
             "swift",
             "package",
@@ -61,27 +62,11 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             path.pathString,
             "tools-version",
             "--set",
-            version,
+            "5.4",
         ])
 
         // When / Then
         XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: version))
-    }
-
-    func test_setToolsVersion_currentVersion() throws {
-        // Given
-        let path = try temporaryPath()
-        system.succeedCommand([
-            "swift",
-            "package",
-            "--package-path",
-            path.pathString,
-            "tools-version",
-            "--set-current",
-        ])
-
-        // When / Then
-        XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: nil))
     }
 
     func test_loadPackageInfo() throws {
@@ -96,6 +81,27 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
                 "dump-package",
             ],
             output: PackageInfo.testJSON
+        )
+
+        // When
+        let packageInfo = try subject.loadPackageInfo(at: path)
+
+        // Then
+        XCTAssertEqual(packageInfo, PackageInfo.test)
+    }
+
+    func test_loadPackageInfo_Xcode14() throws {
+        // Given
+        let path = try temporaryPath()
+        system.succeedCommand(
+            [
+                "swift",
+                "package",
+                "--package-path",
+                path.pathString,
+                "dump-package",
+            ],
+            output: PackageInfo.testJSONXcode14
         )
 
         // When

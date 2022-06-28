@@ -1,10 +1,14 @@
+import AnyCodable
 import ArgumentParser
 import Foundation
 import TSCBasic
+import TuistCache
 import TuistSupport
 
 /// Command to cache targets as `.(xc)framework`s and speed up your and your peers' build times.
-struct CacheWarmCommand: AsyncParsableCommand {
+struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
+    static var analyticsDelegate: TrackableParametersDelegate?
+
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "warm",
@@ -28,13 +32,22 @@ struct CacheWarmCommand: AsyncParsableCommand {
     )
     var dependenciesOnly: Bool = false
 
-    func runAsync() async throws {
+    func run() async throws {
         try await CacheWarmService().run(
             path: options.path,
             profile: options.profile,
             xcframeworks: options.xcframeworks,
             targets: Set(targets),
             dependenciesOnly: dependenciesOnly
+        )
+        CacheWarmCommand.analyticsDelegate?.addParameters(
+            [
+                "xcframeworks": AnyCodable(options.xcframeworks),
+                "n_targets": AnyCodable(targets.count),
+                "cacheable_targets": AnyCodable(CacheAnalytics.cacheableTargets),
+                "local_cache_target_hits": AnyCodable(CacheAnalytics.localCacheTargetsHits),
+                "remote_cache_target_hits": AnyCodable(CacheAnalytics.remoteCacheTargetsHits),
+            ]
         )
     }
 }
