@@ -20,6 +20,7 @@ class RemoteCachePageStore {
   accessKeyId = '';
   secretAccessKey = '';
   region = '';
+  isDefaultBucket = false;
   s3Buckets: S3Bucket[] = [];
   isApplyChangesButtonLoading = false;
   isCopyProjectButtonLoading = false;
@@ -54,7 +55,12 @@ class RemoteCachePageStore {
         value: 'new',
       },
       ...this.s3Buckets.map((s3Bucket) => {
-        return { label: s3Bucket.name, value: s3Bucket.name };
+        return {
+          label: s3Bucket.isDefault
+            ? 'Default bucket'
+            : s3Bucket.name,
+          value: s3Bucket.name,
+        };
       }),
     ];
   }
@@ -124,6 +130,7 @@ class RemoteCachePageStore {
     this.accessKeyId = s3Bucket.accessKeyId;
     this.secretAccessKey = s3Bucket.secretAccessKey;
     this.region = s3Bucket.region;
+    this.isDefaultBucket = s3Bucket.isDefault;
     this.changeRemoteCacheStorage();
   }
 
@@ -172,6 +179,8 @@ class RemoteCachePageStore {
         this.projectStore.project.remoteCacheStorage.secretAccessKey;
       this.region =
         this.projectStore.project.remoteCacheStorage.region;
+      this.isDefaultBucket =
+        this.projectStore.project.remoteCacheStorage.isDefault;
     });
   }
 
