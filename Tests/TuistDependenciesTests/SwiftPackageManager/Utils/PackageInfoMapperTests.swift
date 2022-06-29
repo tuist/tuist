@@ -224,7 +224,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
-                "Target_1": [.externalTarget(package: "com.example.dep-1", target: "com_example_dep-1")],
+                "Target_1": [
+                    .externalTarget(package: "com.example.dep-1", target: "com_example_dep-1")
+                ],
                 "com.example.dep-1": [],
             ]
         )
@@ -490,6 +492,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
+
         XCTAssertEqual(
             project,
             .testWithDefaultConfigs(
@@ -498,6 +501,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "com_example_target-1",
                         basePath: basePath,
+                        customProductName: "com_example_target_1",
                         customBundleID: "com.example.target-1",
                         customSources: .init(globs: [
                             basePath
@@ -2597,6 +2601,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Quick": ["ANOTHER_SETTING": "YES"],
             ]
         )
+
         XCTAssertEqual(
             project,
             .testWithDefaultConfigs(
@@ -2605,15 +2610,25 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test("RxSwift", basePath: basePath, product: .framework),
                 ] + testTargets.map {
                     let customSettings: ProjectDescription.SettingsDictionary
+                    var customProductName: String?
                     switch $0 {
                     case "Nimble":
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "NO", "ANOTHER_SETTING": "YES"]
                     case "Quick":
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES", "ANOTHER_SETTING": "YES"]
+                    case "RxTest-Dynamic": // because RxTest does have an "-" we need to account for the custom mapping to product names
+                        customProductName = "RxTest_Dynamic"
+                        customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
                     default:
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
                     }
-                    return .test($0, basePath: basePath, customSettings: customSettings)
+
+                    return .test(
+                        $0,
+                        basePath: basePath,
+                        customProductName: customProductName,
+                        customSettings: customSettings
+                    )
                 }
             )
         )

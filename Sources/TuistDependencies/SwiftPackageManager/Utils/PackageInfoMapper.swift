@@ -399,7 +399,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
     }
 
     fileprivate class func sanitize(targetName: String) -> String {
-        targetName.replacingOccurrences(of: ".", with: "_").replacingOccurrences(of: "-", with: "_")
+        targetName.replacingOccurrences(of: ".", with: "_")
     }
 }
 
@@ -484,8 +484,11 @@ extension Array where Element == ProjectDescription.Target {
                         "\(PackageInfoMapper.sanitize(targetName: target.name))_\(platform.rawValue)",
                     platform: platform,
                     product: product,
-                    productName: PackageInfoMapper.sanitize(targetName: target.name),
-                    bundleId: target.name.replacingOccurrences(of: "_", with: "-"),
+                    productName: PackageInfoMapper
+                        .sanitize(targetName: target.name)
+                        .replacingOccurrences(of: "-", with: "_"),
+                    bundleId: target.name
+                        .replacingOccurrences(of: "_", with: "-"),
                     deploymentTarget: deploymentTarget,
                     infoPlist: .default,
                     sources: sources,
