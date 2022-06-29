@@ -489,13 +489,12 @@ extension TuistCore.DependenciesGraph {
         var mergedExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = externalDependencies
 
         other.externalDependencies.forEach { platform, otherPlatformDependencies in
-            let mergedPlatformDependencies = otherPlatformDependencies.reduce(into: externalDependencies[platform] ?? [:]) { result, entry in
-                if let alreadyPresent = result[entry.key] {
-                    fatalError("Dupliacted Entry(\(entry.key), \(alreadyPresent), \(entry.value)")
+            otherPlatformDependencies.forEach { name, dependency in
+              if let alreadyPresent = mergedExternalDependencies[platform]?[name] {
+                  fatalError("Dupliacted Entry(\(name), \(alreadyPresent), \(dependency)")
                 }
-                result[entry.key] = entry.value
+                mergedExternalDependencies[platform, default: [:]][name] = dependency
             }
-            mergedExternalDependencies[platform] = mergedPlatformDependencies
         }
 
         let mergedExternalProjects = other.externalProjects.reduce(into: externalProjects) { result, entry in
