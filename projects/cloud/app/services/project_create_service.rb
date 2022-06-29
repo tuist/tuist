@@ -30,7 +30,7 @@ class ProjectCreateService < ApplicationService
         access_key_id: Rails.application.credentials.aws[:access_key_id],
         secret_access_key: Rails.application.credentials.aws[:secret_access_key],
         region: "eu-west-1",
-        account_id: account_id,
+        account_id: organization_name.nil? ? account_id : organization.account.id,
         is_default: true
       )
       project.update(remote_cache_storage: s3_bucket)

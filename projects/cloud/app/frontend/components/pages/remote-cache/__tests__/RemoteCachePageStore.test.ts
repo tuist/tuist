@@ -107,6 +107,7 @@ describe('RemoteCachePageStore', () => {
       name: 'bucket',
       secretAccessKey: 'secret',
       region: 'region',
+      isDefault: false,
     };
 
     // When
@@ -117,6 +118,44 @@ describe('RemoteCachePageStore', () => {
 
     // Then
     expect(remoteCachePageStore.selectedOption).toEqual('bucket');
+  });
+
+  it('sets isDefaultBucket to true', async () => {
+    // Given
+    projectStore.project!.remoteCacheStorage = {
+      accessKeyId: 'accessKeyId',
+      id: 'id',
+      name: 'bucket',
+      secretAccessKey: 'secret',
+      region: 'region',
+      isDefault: true,
+    };
+
+    const remoteCachePageStore = new RemoteCachePageStore(
+      client,
+      projectStore,
+    );
+    client.query.mockResolvedValueOnce({
+      data: {
+        s3Buckets: [
+          {
+            accessKeyId: 'key-id-1',
+            accountId: 'account-id-1',
+            id: 'id',
+            name: 'S3 bucket one',
+            region: 'region',
+            isDefault: true,
+            __typename: 'S3Bucket',
+          },
+        ] as S3BucketInfoFragment[],
+      },
+    });
+
+    // When
+    await remoteCachePageStore.load();
+
+    // Then
+    expect(remoteCachePageStore.isDefaultBucket).toEqual(true);
   });
 
   it('copy pastes project token of the remote cache', () => {
@@ -165,6 +204,7 @@ describe('RemoteCachePageStore', () => {
       name: 'S3 bucket one',
       secretAccessKey: 'secret',
       region: 'region',
+      isDefault: false,
     };
     const remoteCachePageStore = new RemoteCachePageStore(
       client,
@@ -240,6 +280,7 @@ describe('RemoteCachePageStore', () => {
       name: 'S3 bucket one',
       secretAccessKey: 'secret',
       region: 'region',
+      isDefault: false,
     };
     const remoteCachePageStore = new RemoteCachePageStore(
       client,
@@ -303,6 +344,7 @@ describe('RemoteCachePageStore', () => {
           name: 'S3 bucket',
           secretAccessKey: 'secret',
           region: 'region',
+          isDefault: false,
           __typename: 'S3Bucket',
         },
       },
@@ -313,6 +355,7 @@ describe('RemoteCachePageStore', () => {
       name: 'S3 bucket',
       secretAccessKey: 'secret',
       region: 'region',
+      isDefault: false,
     };
 
     // When
@@ -337,6 +380,7 @@ describe('RemoteCachePageStore', () => {
       name: 'S3 bucket',
       secretAccessKey: 'secret',
       region: 'region',
+      isDefault: false,
     };
     const remoteCachePageStore = new RemoteCachePageStore(
       client,
@@ -348,6 +392,7 @@ describe('RemoteCachePageStore', () => {
       name: 'new name',
       secretAccessKey: 'new secret',
       region: 'region',
+      isDefault: false,
     };
     client.mutate.mockReturnValueOnce({
       data: {
@@ -358,6 +403,7 @@ describe('RemoteCachePageStore', () => {
           name: expectedS3Bucket.name,
           secretAccessKey: expectedS3Bucket.secretAccessKey,
           region: expectedS3Bucket.region,
+          isDefault: expectedS3Bucket.isDefault,
           __typename: 'S3Bucket',
         },
       },

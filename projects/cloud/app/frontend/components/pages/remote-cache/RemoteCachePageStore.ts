@@ -171,16 +171,18 @@ class RemoteCachePageStore {
         this.region = '';
         return;
       }
-      this.bucketName =
-        this.projectStore.project.remoteCacheStorage.name;
-      this.accessKeyId =
-        this.projectStore.project.remoteCacheStorage.accessKeyId;
-      this.secretAccessKey =
-        this.projectStore.project.remoteCacheStorage.secretAccessKey;
-      this.region =
-        this.projectStore.project.remoteCacheStorage.region;
-      this.isDefaultBucket =
-        this.projectStore.project.remoteCacheStorage.isDefault;
+      const {
+        name,
+        accessKeyId,
+        secretAccessKey,
+        region,
+        isDefault,
+      } = this.projectStore.project.remoteCacheStorage;
+      this.bucketName = name;
+      this.accessKeyId = accessKeyId;
+      this.secretAccessKey = secretAccessKey;
+      this.region = region;
+      this.isDefaultBucket = isDefault;
     });
   }
 
