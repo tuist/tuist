@@ -354,7 +354,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             .flatMap { target -> [ProjectDescription.Target] in
                 guard let products = targetToProducts[target.name] else { return [] }
 
-                let targets: [ProjectDescription.Target] = try platforms.compactMap { platform in
+                return try platforms.compactMap { platform in
                     return try ProjectDescription.Target.from(
                         target: target,
                         products: products,
@@ -373,7 +373,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         addPlatformSuffix: platforms.count != 1
                     )
                 }
-                return targets
             }
 
         guard !targets.isEmpty else {
