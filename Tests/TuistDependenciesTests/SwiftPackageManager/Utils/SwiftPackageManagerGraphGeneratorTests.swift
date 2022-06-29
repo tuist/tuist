@@ -8,6 +8,7 @@ import XCTest
 @testable import TuistDependenciesTesting
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
+import CustomDump
 
 class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
@@ -485,20 +486,19 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
 
 extension TuistCore.DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
-        let mergedExternalDependencies = try other.externalDependencies.reduce(into: externalDependencies) { result1, entry1 in
 
-            let platform = entry1.key
+        // Per default set it to the own externalDependencies, avoid missing dependencies for a platform that is missing in `other`
+        var mergedExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = externalDependencies
 
-            let mine = externalDependencies[platform] ?? [:]
-            let other2 = other.externalDependencies[platform] ?? [:]
-
-            let result = other2.reduce(into: mine) { result2, entry2 in
-                if let alreadyPresent = result2[entry2.key] {
-                    fatalError("Dupliacted Entry(\(entry2.key), \(alreadyPresent), \(entry2.value)")
+        // Then iterate over all platforms of `other` and merge them into self.externalDependencies for the specified platform
+        other.externalDependencies.forEach { platform, otherPlatformDependencies in
+            let mergedPlatformDependencies = otherPlatformDependencies.reduce(into: externalDependencies[platform] ?? [:]) { result, entry in
+                if let alreadyPresent = result[entry.key] {
+                    fatalError("Dupliacted Entry(\(entry.key), \(alreadyPresent), \(entry.value)")
                 }
-                result2[entry2.key] = entry2.value
+                result[entry.key] = entry.value
             }
-            result1[entry1.key] = result
+            mergedExternalDependencies[platform] = mergedPlatformDependencies
         }
 
         let mergedExternalProjects = other.externalProjects.reduce(into: externalProjects) { result, entry in
