@@ -487,10 +487,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
 extension TuistCore.DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
 
-        // Per default set it to the own externalDependencies, avoid missing dependencies for a platform that is missing in `other`
         var mergedExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = externalDependencies
 
-        // Then iterate over all platforms of `other` and merge them into self.externalDependencies for the specified platform
         other.externalDependencies.forEach { platform, otherPlatformDependencies in
             let mergedPlatformDependencies = otherPlatformDependencies.reduce(into: externalDependencies[platform] ?? [:]) { result, entry in
                 if let alreadyPresent = result[entry.key] {
