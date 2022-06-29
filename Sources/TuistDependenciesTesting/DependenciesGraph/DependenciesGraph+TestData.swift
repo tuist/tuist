@@ -760,13 +760,13 @@ extension DependenciesGraph {
     fileprivate static func resolveDeploymentTarget(for platform: Platform) -> DeploymentTarget {
         switch platform {
         case .iOS:
-            return .iOS(targetVersion: PLATFORM_TEST_INFO[.iOS]!, devices: [.iphone, .ipad])
+            return .iOS(targetVersion: PLATFORM_TEST_VERSION[.iOS]!, devices: [.iphone, .ipad])
         case .watchOS:
-            return .watchOS(targetVersion: PLATFORM_TEST_INFO[.watchOS]!)
+            return .watchOS(targetVersion: PLATFORM_TEST_VERSION[.watchOS]!)
         case .macOS:
-            return .macOS(targetVersion: PLATFORM_TEST_INFO[.macOS]!)
+            return .macOS(targetVersion: PLATFORM_TEST_VERSION[.macOS]!)
         case .tvOS:
-            return .tvOS(targetVersion: PLATFORM_TEST_INFO[.tvOS]!)
+            return .tvOS(targetVersion: PLATFORM_TEST_VERSION[.tvOS]!)
         }
     }
 }

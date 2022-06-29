@@ -500,31 +500,6 @@ extension Array where Element == ProjectDescription.Target {
     }
 }
 
-extension Set where Element == ProjectDescription.Platform {
-    fileprivate static func from(
-        configured: Set<TuistGraph.Platform>,
-        package: [PackageInfo.Platform],
-        packageName: String
-    ) throws -> Self {
-        let configuredPlatforms = Set(configured.map(\.descriptionPlatform))
-        let packagePlatforms = Set(
-            package.isEmpty ? ProjectDescription.Platform.allCases : try package
-                .map { try $0.descriptionPlatform() }
-        )
-        let validPlatforms = configuredPlatforms.intersection(packagePlatforms)
-
-        guard !validPlatforms.isEmpty else {
-            throw PackageInfoMapperError.noSupportedPlatforms(
-                name: packageName,
-                configured: configuredPlatforms,
-                package: packagePlatforms
-            )
-        }
-
-        return validPlatforms
-    }
-}
-
 extension ProjectDescription.DeploymentTarget {
     fileprivate static func from(
         platform: ProjectDescription.Platform,
