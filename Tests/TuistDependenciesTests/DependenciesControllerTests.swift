@@ -189,10 +189,12 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             graphManifest,
             .init(
                 externalDependencies: [
-                    .iOS : [
-                        "Carthage": TuistCore.DependenciesGraph.testXCFramework(name: "Carthage", platforms: [.iOS]).externalDependencies[.iOS]!.values.first!,
-                        "SPM": TuistCore.DependenciesGraph.testXCFramework(name: "SPM", platforms: [.iOS]).externalDependencies[.iOS]!.values.first!
-                    ]
+                    .iOS: [
+                        "Carthage": TuistCore.DependenciesGraph.testXCFramework(name: "Carthage", platforms: [.iOS])
+                            .externalDependencies[.iOS]!.values.first!,
+                        "SPM": TuistCore.DependenciesGraph.testXCFramework(name: "SPM", platforms: [.iOS])
+                            .externalDependencies[.iOS]!.values.first!,
+                    ],
                 ],
                 externalProjects: [:]
             )
@@ -495,8 +497,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             externalDependencies: [
                 .iOS: [
                     "library": [.xcframework(path: "/library.xcframework")],
-                    "anotherLibrary": [.project(target: "Target", path: "/anotherLibrary")]
-                ]
+                    "anotherLibrary": [.project(target: "Target", path: "/anotherLibrary")],
+                ],
             ],
             externalProjects: [
                 "/anotherLibrary": .test(),

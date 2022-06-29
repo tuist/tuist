@@ -49,12 +49,12 @@ let project = Project(
             bundleId: "io.tuist.app.watchapp",
             infoPlist: .extendingDefault(
                 with: [
-                    "WKCompanionAppBundleIdentifier": "io.tuist.app"
+                    "WKCompanionAppBundleIdentifier": "io.tuist.app",
                 ]
             ),
             sources: ["Sources/Watch/App/**"],
             dependencies: [
-                .target(name: "WatchExtension")
+                .target(name: "WatchExtension"),
             ]
         ),
         Target(
@@ -63,10 +63,10 @@ let project = Project(
             product: .watch2Extension,
             bundleId: "io.tuist.app.watchapp.extension",
             sources: ["Sources/Watch/Extension/**"],
-             dependencies: [
-                .external(name: "Alamofire")
+            dependencies: [
+                .external(name: "Alamofire"),
             ]
-        )
+        ),
     ],
     schemes: Scheme.allSchemes(for: ["App", "AppKit"], executable: "App")
 )

@@ -355,7 +355,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 guard let products = targetToProducts[target.name] else { return [] }
 
                 return try platforms.compactMap { platform in
-                    return try ProjectDescription.Target.from(
+                    try ProjectDescription.Target.from(
                         target: target,
                         products: products,
                         packageName: name,
@@ -425,7 +425,6 @@ extension ProjectDescription.Target {
         targetToModuleMap: [String: ModuleMap],
         addPlatformSuffix: Bool
     ) throws -> Self? {
-
         guard target.type == .regular else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
@@ -480,8 +479,9 @@ extension ProjectDescription.Target {
         )
 
         return ProjectDescription.Target(
-            name: addPlatformSuffix ? "\(PackageInfoMapper.sanitize(targetName: target.name))_\(platform.rawValue)" : PackageInfoMapper
-                .sanitize(targetName: target.name) ,
+            name: addPlatformSuffix ? "\(PackageInfoMapper.sanitize(targetName: target.name))_\(platform.rawValue)" :
+                PackageInfoMapper
+                .sanitize(targetName: target.name),
             platform: platform,
             product: product,
             productName: PackageInfoMapper
@@ -665,7 +665,10 @@ extension ProjectDescription.TargetDependency {
             case let .xcframework(path):
                 return .xcframework(path: path)
             case let .externalTarget(project, target):
-                return .project(target: addPlatformSuffix ? "\(target)_\(platform.rawValue)" : target, path: Path(packageToProject[project]!.pathString))
+                return .project(
+                    target: addPlatformSuffix ? "\(target)_\(platform.rawValue)" : target,
+                    path: Path(packageToProject[project]!.pathString)
+                )
             }
         }
 

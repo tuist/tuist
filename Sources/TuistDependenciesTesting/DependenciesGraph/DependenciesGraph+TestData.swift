@@ -59,13 +59,13 @@ extension TuistCore.DependenciesGraph {
                     .project(
                         target: self.resolveTargetName(targetName: "Tuist", for: platform, addSuffix: addPlatfomSuffix),
                         path: packageFolder
-                    )
-                ]
+                    ),
+                ],
             ]
         }
 
         let targets: [Target] = platforms.flatMap { platform in
-            return [
+            [
                 .init(
                     name: self.resolveTargetName(targetName: "Tuist", for: platform, addSuffix: addPlatfomSuffix),
                     platform: platform,
@@ -96,7 +96,11 @@ extension TuistCore.DependenciesGraph {
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
                         ),
                         .project(
-                            target: self.resolveTargetName(targetName: "ALibraryUtils", for: platform, addSuffix: addPlatfomSuffix),
+                            target: self.resolveTargetName(
+                                targetName: "ALibraryUtils",
+                                for: platform,
+                                addSuffix: addPlatfomSuffix
+                            ),
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
                         ),
                     ],
@@ -125,7 +129,11 @@ extension TuistCore.DependenciesGraph {
                     ],
                     dependencies: [
                         .project(
-                            target: self.resolveTargetName(targetName: "AnotherLibrary", for: platform, addSuffix: addPlatfomSuffix),
+                            target: self.resolveTargetName(
+                                targetName: "AnotherLibrary",
+                                for: platform,
+                                addSuffix: addPlatfomSuffix
+                            ),
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
                         ),
                     ],
@@ -178,15 +186,19 @@ extension TuistCore.DependenciesGraph {
                         path: packageFolder
                     ),
                     .project(
-                        target: self.resolveTargetName(targetName: "ALibraryUtils", for: platform, addSuffix: platforms.count != 1),
+                        target: self.resolveTargetName(
+                            targetName: "ALibraryUtils",
+                            for: platform,
+                            addSuffix: platforms.count != 1
+                        ),
                         path: packageFolder
                     ),
-                ]
+                ],
             ]
         }
 
         let targets: [Target] = platforms.flatMap { platform in
-            return [
+            [
                 .init(
                     name: resolveTargetName(targetName: "ALibrary", for: platform, addSuffix: addPlatfomSuffix),
                     platform: platform,
@@ -199,7 +211,10 @@ extension TuistCore.DependenciesGraph {
                         "\(packageFolder.pathString)/Sources/ALibrary/**",
                     ],
                     dependencies: [
-                        .target(name: self.resolveTargetName(targetName: "ALibraryUtils", for: platform, addSuffix: addPlatfomSuffix)),
+                        .target(
+                            name: self
+                                .resolveTargetName(targetName: "ALibraryUtils", for: platform, addSuffix: addPlatfomSuffix)
+                        ),
                     ],
                     settings: Self.spmSettings()
                 ),
@@ -254,15 +269,19 @@ extension TuistCore.DependenciesGraph {
             result[platform] = [
                 "AnotherLibrary": [
                     .project(
-                        target: self.resolveTargetName(targetName: "AnotherLibrary", for: platform, addSuffix: platforms.count != 1),
+                        target: self.resolveTargetName(
+                            targetName: "AnotherLibrary",
+                            for: platform,
+                            addSuffix: platforms.count != 1
+                        ),
                         path: packageFolder
-                    )
-                ]
+                    ),
+                ],
             ]
         }
 
         let targets: [Target] = platforms.map { platform in
-            return .init(
+            .init(
                 name: self.resolveTargetName(targetName: "AnotherLibrary", for: platform, addSuffix: addPlatfomSuffix),
                 platform: platform,
                 product: .staticFramework,
@@ -314,13 +333,13 @@ extension TuistCore.DependenciesGraph {
                     .project(
                         target: self.resolveTargetName(targetName: "Alamofire", for: platform, addSuffix: addPlatfomSuffix),
                         path: packageFolder
-                    )
-                ]
+                    ),
+                ],
             ]
         }
 
         let targets: [Target] = platforms.map { platform in
-            return .init(
+            .init(
                 name: self.resolveTargetName(targetName: "Alamofire", for: platform, addSuffix: addPlatfomSuffix),
                 platform: platform,
                 product: .staticFramework,
@@ -367,26 +386,38 @@ extension TuistCore.DependenciesGraph {
 
         let addPlatfomSuffix = platforms.count != 1
         let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
-            result[platform] =  [
+            result[platform] = [
                 "GoogleAppMeasurement": [
                     .project(
-                        target: self.resolveTargetName(targetName: "GoogleAppMeasurementTarget", for: platform, addSuffix: addPlatfomSuffix),
+                        target: self.resolveTargetName(
+                            targetName: "GoogleAppMeasurementTarget",
+                            for: platform,
+                            addSuffix: addPlatfomSuffix
+                        ),
                         path: packageFolder
-                    )
+                    ),
                 ],
                 "GoogleAppMeasurementWithoutAdIdSupport": [
                     .project(
-                        target: self.resolveTargetName(targetName: "GoogleAppMeasurementWithoutAdIdSupportTarget", for: platform, addSuffix: addPlatfomSuffix),
+                        target: self.resolveTargetName(
+                            targetName: "GoogleAppMeasurementWithoutAdIdSupportTarget",
+                            for: platform,
+                            addSuffix: addPlatfomSuffix
+                        ),
                         path: packageFolder
-                    )
-                ]
+                    ),
+                ],
             ]
         }
 
         let targets: [Target] = platforms.flatMap { platform in
-            return [
+            [
                 .init(
-                    name: self.resolveTargetName(targetName: "GoogleAppMeasurementTarget", for: platform, addSuffix: addPlatfomSuffix),
+                    name: self.resolveTargetName(
+                        targetName: "GoogleAppMeasurementTarget",
+                        for: platform,
+                        addSuffix: addPlatfomSuffix
+                    ),
                     platform: platform,
                     product: .staticFramework,
                     productName: "GoogleAppMeasurementTarget",
@@ -399,11 +430,19 @@ extension TuistCore.DependenciesGraph {
                     dependencies: [
                         .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework"),
                         .project(
-                            target: self.resolveTargetName(targetName: "GULAppDelegateSwizzler", for: platform, addSuffix: addPlatfomSuffix),
+                            target: self.resolveTargetName(
+                                targetName: "GULAppDelegateSwizzler",
+                                for: platform,
+                                addSuffix: addPlatfomSuffix
+                            ),
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                         ),
                         .project(
-                            target: self.resolveTargetName(targetName: "GULMethodSwizzler", for: platform, addSuffix: addPlatfomSuffix),
+                            target: self.resolveTargetName(
+                                targetName: "GULMethodSwizzler",
+                                for: platform,
+                                addSuffix: addPlatfomSuffix
+                            ),
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                         ),
                         .project(
@@ -426,7 +465,11 @@ extension TuistCore.DependenciesGraph {
                     settings: Self.spmSettings()
                 ),
                 .init(
-                    name: self.resolveTargetName(targetName: "GoogleAppMeasurementWithoutAdIdSupportTarget", for: platform, addSuffix: addPlatfomSuffix),
+                    name: self.resolveTargetName(
+                        targetName: "GoogleAppMeasurementWithoutAdIdSupportTarget",
+                        for: platform,
+                        addSuffix: addPlatfomSuffix
+                    ),
                     platform: platform,
                     product: .staticFramework,
                     productName: "GoogleAppMeasurementWithoutAdIdSupportTarget",
@@ -441,11 +484,19 @@ extension TuistCore.DependenciesGraph {
                             path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"
                         ),
                         .project(
-                            target: self.resolveTargetName(targetName: "GULAppDelegateSwizzler", for: platform, addSuffix: addPlatfomSuffix),
+                            target: self.resolveTargetName(
+                                targetName: "GULAppDelegateSwizzler",
+                                for: platform,
+                                addSuffix: addPlatfomSuffix
+                            ),
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                         ),
                         .project(
-                            target: self.resolveTargetName(targetName: "GULMethodSwizzler", for: platform, addSuffix: addPlatfomSuffix),
+                            target: self.resolveTargetName(
+                                targetName: "GULMethodSwizzler",
+                                for: platform,
+                                addSuffix: addPlatfomSuffix
+                            ),
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                         ),
                         .project(
@@ -466,7 +517,7 @@ extension TuistCore.DependenciesGraph {
                         .sdk(name: "StoreKit", type: .framework, status: .required),
                     ],
                     settings: Self.spmSettings()
-                )
+                ),
             ]
         }
 
@@ -511,35 +562,47 @@ extension TuistCore.DependenciesGraph {
             result[platform] = [
                 "GULAppDelegateSwizzler": [
                     .project(
-                        target: self.resolveTargetName(targetName: "GULAppDelegateSwizzler", for: platform, addSuffix: addPlatfomSuffix),
+                        target: self.resolveTargetName(
+                            targetName: "GULAppDelegateSwizzler",
+                            for: platform,
+                            addSuffix: addPlatfomSuffix
+                        ),
                         path: packageFolder
-                    )
+                    ),
                 ],
                 "GULMethodSwizzler": [
                     .project(
-                        target: self.resolveTargetName(targetName: "GULMethodSwizzler", for: platform, addSuffix: addPlatfomSuffix),
+                        target: self.resolveTargetName(
+                            targetName: "GULMethodSwizzler",
+                            for: platform,
+                            addSuffix: addPlatfomSuffix
+                        ),
                         path: packageFolder
-                    )
+                    ),
                 ],
                 "GULNSData": [
                     .project(
                         target: self.resolveTargetName(targetName: "GULNSData", for: platform, addSuffix: addPlatfomSuffix),
                         path: packageFolder
-                    )
+                    ),
                 ],
                 "GULNetwork": [
                     .project(
                         target: self.resolveTargetName(targetName: "GULNetwork", for: platform, addSuffix: addPlatfomSuffix),
                         path: packageFolder
-                    )
+                    ),
                 ],
             ]
         }
 
         let targets: [Target] = platforms.flatMap { platform in
-            return [
+            [
                 .init(
-                    name: self.resolveTargetName(targetName: "GULAppDelegateSwizzler", for: platform, addSuffix: addPlatfomSuffix),
+                    name: self.resolveTargetName(
+                        targetName: "GULAppDelegateSwizzler",
+                        for: platform,
+                        addSuffix: addPlatfomSuffix
+                    ),
                     platform: platform,
                     product: customProductTypes["GULAppDelegateSwizzler"] ?? .staticFramework,
                     productName: "GULAppDelegateSwizzler",
@@ -629,14 +692,17 @@ extension TuistCore.DependenciesGraph {
         let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
             result[platform] = [
                 "nanopb": [
-                    .project(target: self.resolveTargetName(targetName: "nanopb", for: platform, addSuffix: platforms.count != 1), path: packageFolder)
-                ]
+                    .project(
+                        target: self.resolveTargetName(targetName: "nanopb", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    ),
+                ],
             ]
         }
 
         let targets: [Target] = platforms.map { platform in
-           return .init(
-                name:  self.resolveTargetName(targetName: "nanopb", for: platform, addSuffix: addPlatfomSuffix),
+            .init(
+                name: self.resolveTargetName(targetName: "nanopb", for: platform, addSuffix: addPlatfomSuffix),
                 platform: platform,
                 product: .staticFramework,
                 productName: "nanopb",
@@ -649,7 +715,7 @@ extension TuistCore.DependenciesGraph {
                 settings: Self.spmSettings()
             )
         }
-        
+
         return .init(
             externalDependencies: externalDependencies,
             externalProjects: [
@@ -751,11 +817,11 @@ extension DependenciesGraph {
 }
 
 // MARK: - Helpers
+
 extension DependenciesGraph {
     fileprivate static func resolveTargetName(targetName: String, for platform: Platform, addSuffix: Bool) -> String {
-        return addSuffix ? "\(targetName)_\(platform.rawValue)" : targetName
+        addSuffix ? "\(targetName)_\(platform.rawValue)" : targetName
     }
-
 
     fileprivate static func resolveDeploymentTarget(for platform: Platform) -> DeploymentTarget {
         switch platform {

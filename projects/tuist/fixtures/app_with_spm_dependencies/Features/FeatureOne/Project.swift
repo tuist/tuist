@@ -13,7 +13,7 @@ let project = Project(
             sources: ["Sources/**"],
             settings: .targetSettings
         ),
-         Target(
+        Target(
             name: "FeatureOneFramework_watchOS",
             platform: .watchOS,
             product: .framework,
@@ -23,7 +23,7 @@ let project = Project(
                 .external(name: "Alamofire"),
             ],
             settings: .targetSettings
-        )
+        ),
     ],
     schemes: Scheme.allSchemes(for: ["FeatureOneFramework"])
 )

@@ -935,7 +935,7 @@ extension PackageInfo {
                 .init(platformName: "macos", version: PLATFORM_TEST_VERSION[.macOS]!, options: []),
                 .init(platformName: "ios", version: PLATFORM_TEST_VERSION[.iOS]!, options: []),
                 .init(platformName: "tvos", version: PLATFORM_TEST_VERSION[.tvOS]!, options: []),
-                .init(platformName: "watchos", version:  PLATFORM_TEST_VERSION[.watchOS]!, options: []),
+                .init(platformName: "watchos", version: PLATFORM_TEST_VERSION[.watchOS]!, options: []),
             ],
             cLanguageStandard: nil,
             cxxLanguageStandard: nil,

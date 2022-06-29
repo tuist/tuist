@@ -261,9 +261,13 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                     return .test
                 }
             },
-            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString), platforms: [.iOS])
-                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
-                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
+            dependenciesGraph: DependenciesGraph.test(
+                spmFolder: spmFolder,
+                packageFolder: Path(testPath.pathString),
+                platforms: [.iOS]
+            )
+            .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
+            .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
         )
     }
 
@@ -318,9 +322,13 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                     return .test
                 }
             },
-            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString), platforms: [.iOS])
-                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
-                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
+            dependenciesGraph: DependenciesGraph.test(
+                spmFolder: spmFolder,
+                packageFolder: Path(testPath.pathString),
+                platforms: [.iOS]
+            )
+            .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
+            .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
         )
     }
 
@@ -375,9 +383,13 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                     return .test
                 }
             },
-            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString), platforms: [.iOS])
-                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
-                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
+            dependenciesGraph: DependenciesGraph.test(
+                spmFolder: spmFolder,
+                packageFolder: Path(testPath.pathString),
+                platforms: [.iOS]
+            )
+            .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
+            .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
         )
     }
 
@@ -431,9 +443,13 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                     return .test
                 }
             },
-            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString), platforms: [.iOS])
-                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
-                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
+            dependenciesGraph: DependenciesGraph.test(
+                spmFolder: spmFolder,
+                packageFolder: Path(testPath.pathString),
+                platforms: [.iOS]
+            )
+            .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
+            .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
         )
     }
 
@@ -485,13 +501,13 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
 
 extension TuistCore.DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
-
-        var mergedExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = externalDependencies
+        var mergedExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] =
+            externalDependencies
 
         other.externalDependencies.forEach { platform, otherPlatformDependencies in
             otherPlatformDependencies.forEach { name, dependency in
-              if let alreadyPresent = mergedExternalDependencies[platform]?[name] {
-                  fatalError("Dupliacted Entry(\(name), \(alreadyPresent), \(dependency)")
+                if let alreadyPresent = mergedExternalDependencies[platform]?[name] {
+                    fatalError("Dupliacted Entry(\(name), \(alreadyPresent), \(dependency)")
                 }
                 mergedExternalDependencies[platform, default: [:]][name] = dependency
             }

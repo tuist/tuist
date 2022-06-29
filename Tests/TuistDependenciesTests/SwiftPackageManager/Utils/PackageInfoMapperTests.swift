@@ -115,7 +115,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     "Product1": [
                         .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
                         .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
-                    ]
+                    ],
                 ],
             ]
         )
@@ -225,7 +225,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             preprocessInfo.targetToResolvedDependencies,
             [
                 "Target_1": [
-                    .externalTarget(package: "com.example.dep-1", target: "com_example_dep-1")
+                    .externalTarget(package: "com.example.dep-1", target: "com_example_dep-1"),
                 ],
                 "com.example.dep-1": [],
             ]
@@ -1245,13 +1245,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let expected: ProjectDescription.Project = .testWithDefaultConfigs(
             name: "Package",
             targets: [
-                .test("Target1_tvos",
-                      basePath: basePath,
-                      platform: .tvOS,
-                      customProductName: "Target1",
-                      customBundleID: "Target1",
-                      deploymentTarget: .tvOS(targetVersion: "9.0"),
-                      customSources: .init(globs: [basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString])
+                .test(
+                    "Target1_tvos",
+                    basePath: basePath,
+                    platform: .tvOS,
+                    customProductName: "Target1",
+                    customBundleID: "Target1",
+                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    customSources: .init(globs: [basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString])
                 ),
                 .test(
                     "Target1_ios",
@@ -2826,8 +2827,8 @@ extension Array where Element == ProjectDescription.ResourceFileElement {
 
 extension Sequence {
     func sorted<T: Comparable>(by keyPath: KeyPath<Element, T>) -> [Element] {
-        return sorted { a, b in
-            return a[keyPath: keyPath] < b[keyPath: keyPath]
+        sorted { a, b in
+            a[keyPath: keyPath] < b[keyPath: keyPath]
         }
     }
 }
