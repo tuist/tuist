@@ -8,7 +8,6 @@ import XCTest
 @testable import TuistDependenciesTesting
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
-import CustomDump
 
 class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
