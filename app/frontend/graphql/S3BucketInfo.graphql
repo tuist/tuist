@@ -5,4 +5,5 @@ fragment S3BucketInfo on S3Bucket {
   secretAccessKey
   accountId
   region
+  isDefault
 }

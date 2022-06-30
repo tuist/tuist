@@ -98,61 +98,81 @@ const RemoteCachePage = observer(() => {
             onChange={handleSelectChange}
             value={remoteCachePageStore.selectedOption}
           />
-          <TextField
-            type="text"
-            label="Bucket name"
-            value={remoteCachePageStore.bucketName}
-            onChange={handleBucketNameChange}
-          />
-          <TextField
-            type="text"
-            label="Region"
-            value={remoteCachePageStore.region}
-            onChange={handleRegionChange}
-          />
-          <TextField
-            type="text"
-            label="Access key ID"
-            value={remoteCachePageStore.accessKeyId}
-            onChange={handleAccessKeyIdChange}
-          />
-          <Stack alignment="trailing" distribution="fill">
+          {!remoteCachePageStore.isDefaultBucket && (
             <TextField
-              disabled={
-                remoteCachePageStore.isSecretAccessKeyTextFieldDisabled
-              }
-              type="password"
-              label="Secret access key"
-              value={remoteCachePageStore.secretAccessKey}
-              onChange={handleSecretAccessKeyChange}
+              type="text"
+              label="Bucket name"
+              value={remoteCachePageStore.bucketName}
+              onChange={handleBucketNameChange}
             />
-            {remoteCachePageStore.isCreatingBucket === false && (
-              <Button onClick={handleRemoveSecretAccessKey}>
-                Remove access key
-              </Button>
-            )}
-          </Stack>
-          <Button
-            primary
-            loading={remoteCachePageStore.isApplyChangesButtonLoading}
-            disabled={
-              remoteCachePageStore.isApplyChangesButtonDisabled
-            }
-            onClick={handleApplyChangesClicked}
-          >
-            {remoteCachePageStore.isCreatingBucket
-              ? 'Create bucket'
-              : 'Edit bucket'}
-          </Button>
-          <FooterHelp>
-            Learn more about getting{' '}
-            <Link
-              external={true}
-              url="https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html"
+          )}
+          {!remoteCachePageStore.isDefaultBucket && (
+            <TextField
+              type="text"
+              label="Region"
+              value={remoteCachePageStore.region}
+              onChange={handleRegionChange}
+            />
+          )}
+          {!remoteCachePageStore.isDefaultBucket && (
+            <TextField
+              type="text"
+              label="Access key ID"
+              value={remoteCachePageStore.accessKeyId}
+              onChange={handleAccessKeyIdChange}
+            />
+          )}
+          {!remoteCachePageStore.isDefaultBucket && (
+            <Stack alignment="trailing" distribution="fill">
+              <TextField
+                disabled={
+                  remoteCachePageStore.isSecretAccessKeyTextFieldDisabled
+                }
+                type="password"
+                label="Secret access key"
+                value={remoteCachePageStore.secretAccessKey}
+                onChange={handleSecretAccessKeyChange}
+              />
+              {remoteCachePageStore.isCreatingBucket === false && (
+                <Button onClick={handleRemoveSecretAccessKey}>
+                  Remove access key
+                </Button>
+              )}
+            </Stack>
+          )}
+          {!remoteCachePageStore.isDefaultBucket && (
+            <Button
+              primary
+              loading={
+                remoteCachePageStore.isApplyChangesButtonLoading
+              }
+              disabled={
+                remoteCachePageStore.isApplyChangesButtonDisabled
+              }
+              onClick={handleApplyChangesClicked}
             >
-              access key to your bucket
-            </Link>
-          </FooterHelp>
+              {remoteCachePageStore.isCreatingBucket
+                ? 'Create bucket'
+                : 'Edit bucket'}
+            </Button>
+          )}
+          {remoteCachePageStore.isDefaultBucket && (
+            <FooterHelp>
+              Default bucket created by Tuist Cloud. You can configure
+              your own if you want to own the data.
+            </FooterHelp>
+          )}
+          {!remoteCachePageStore.isDefaultBucket && (
+            <FooterHelp>
+              Learn more about getting{' '}
+              <Link
+                external={true}
+                url="https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html"
+              >
+                access key to your bucket
+              </Link>
+            </FooterHelp>
+          )}
         </FormLayout>
       </Card>
       <Card title="CI cloud token" sectioned>
