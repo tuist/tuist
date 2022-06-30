@@ -3,6 +3,11 @@
 require "test_helper"
 
 class ProjectCreateServiceTest < ActiveSupport::TestCase
+  setup do
+    client = Aws::S3::Client.new(stub_responses: true)
+    Aws::S3::Client.stubs(:new).returns(client)
+  end
+
   test "creates a project with a given account_id" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
@@ -15,6 +20,8 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
     # Then
     assert_equal project_name, got.name
     assert_equal account, got.account
+    assert_equal "#{account.name}-#{project_name}", got.remote_cache_storage.name
+    assert_equal true, got.remote_cache_storage.is_default
   end
 
   test "creates a project and a new organization" do
