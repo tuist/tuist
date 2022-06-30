@@ -74,9 +74,9 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginCFingerprint = "\(pluginCGitURL)-\(pluginCGitTag)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginAGitURL, gitReference: .sha(pluginAGitSha)),
-                .git(url: pluginBGitURL, gitReference: .tag(pluginBGitTag)),
-                .git(url: pluginCGitURL, gitReference: .tag(pluginCGitTag)),
+                .git(url: pluginAGitURL, gitReference: .sha(pluginAGitSha), subfolder: nil),
+                .git(url: pluginBGitURL, gitReference: .tag(pluginBGitTag), subfolder: nil),
+                .git(url: pluginCGitURL, gitReference: .tag(pluginCGitTag), subfolder: "Sub/Subfolder"),
             ]
         )
         let pluginADirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
@@ -105,7 +105,8 @@ final class PluginServiceTests: TuistUnitTestCase {
                     releasePath: pluginBDirectory.appending(component: PluginServiceConstants.release)
                 ),
                 RemotePluginPaths(
-                    repositoryPath: pluginCDirectory.appending(component: PluginServiceConstants.repository),
+                    repositoryPath: pluginCDirectory.appending(component: PluginServiceConstants.repository)
+                        .appending(component: "Sub").appending(component: "Subfolder"),
                     releasePath: nil
                 ),
             ])
@@ -119,7 +120,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitSha)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginGitURL, gitReference: .sha(pluginGitSha)),
+                .git(url: pluginGitURL, gitReference: .sha(pluginGitSha), subfolder: nil),
             ]
         )
         var invokedCloneURL: String?
@@ -160,7 +161,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitTag)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag)),
+                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag), subfolder: nil),
             ]
         )
         var invokedCloneURL: String?
@@ -201,7 +202,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitTag)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag)),
+                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag), subfolder: nil),
             ]
         )
 
@@ -268,8 +269,9 @@ final class PluginServiceTests: TuistUnitTestCase {
 
         try fileHandler.createFolder(cachedPluginPath.appending(component: Constants.helpersDirectoryName))
 
-        let config =
-            mockConfig(plugins: [TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference))])
+        let config = mockConfig(plugins: [
+            TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), subfolder: nil),
+        ])
 
         // When
         let plugins = try subject.loadPlugins(using: config)
@@ -330,7 +332,9 @@ final class PluginServiceTests: TuistUnitTestCase {
         }
 
         let config =
-            mockConfig(plugins: [TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference))])
+            mockConfig(plugins: [
+                TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), subfolder: nil),
+            ])
 
         // When
         let plugins = try subject.loadPlugins(using: config)
@@ -399,7 +403,10 @@ final class PluginServiceTests: TuistUnitTestCase {
         }
 
         let config =
-            mockConfig(plugins: [TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference))])
+            mockConfig(plugins: [
+                TuistGraph.PluginLocation
+                    .git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), subfolder: nil),
+            ])
 
         // Then
         let plugins = try subject.loadPlugins(using: config)
@@ -412,7 +419,10 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"
         let config =
-            mockConfig(plugins: [TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference))])
+            mockConfig(plugins: [
+                TuistGraph.PluginLocation
+                    .git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), subfolder: nil),
+            ])
 
         // When / Then
         XCTAssertThrowsSpecific(
