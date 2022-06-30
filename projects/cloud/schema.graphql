@@ -463,6 +463,7 @@ type S3Bucket {
   accessKeyId: String!
   accountId: ID!
   id: ID!
+  isDefault: Boolean!
   name: String!
   region: String!
   secretAccessKey: String

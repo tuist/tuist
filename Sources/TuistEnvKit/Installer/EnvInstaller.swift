@@ -86,12 +86,20 @@ final class EnvInstaller: EnvInstalling {
         logger.notice("Installing…")
         try System.shared.run(["/usr/bin/unzip", "-q", downloadPath.pathString, "tuistenv", "-d", temporaryDirectory.pathString])
 
-        // Copy
-        let cpArgs = ["cp", temporaryDirectory.appending(component: "tuistenv").pathString, installationPath]
+        // Remove old version
+        let rmArgs = ["rm", installationPath]
         do {
-            try System.shared.run(cpArgs)
+            try System.shared.run(rmArgs)
         } catch {
-            try System.shared.run(["sudo"] + cpArgs)
+            try System.shared.run(["sudo"] + rmArgs)
+        }
+
+        // Move
+        let mvArgs = ["mv", temporaryDirectory.appending(component: "tuistenv").pathString, installationPath]
+        do {
+            try System.shared.run(mvArgs)
+        } catch {
+            try System.shared.run(["sudo"] + mvArgs)
         }
 
         logger.notice("TuistEnv Version \(version) installed")

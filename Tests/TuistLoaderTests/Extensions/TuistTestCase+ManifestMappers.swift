@@ -45,7 +45,12 @@ extension TuistTestCase {
         XCTAssertEqual(target.bundleId, manifest.bundleId, file: file, line: line)
         XCTAssertTrue(target.platform == manifest.platform, file: file, line: line)
         XCTAssertTrue(target.product == manifest.product, file: file, line: line)
-        XCTAssertEqual(target.infoPlist?.path, try generatorPaths.resolve(path: manifest.infoPlist.path!), file: file, line: line)
+        XCTAssertEqual(
+            target.infoPlist?.path,
+            try generatorPaths.resolve(path: manifest.infoPlist!.path!),
+            file: file,
+            line: line
+        )
         XCTAssertEqual(
             target.entitlements,
             try manifest.entitlements.map { try generatorPaths.resolve(path: $0) },

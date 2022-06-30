@@ -8,7 +8,7 @@ let project = Project(
             platform: .iOS,
             product: .staticLibrary,
             bundleId: "io.tuist.A",
-            infoPlist: "Info.plist",
+            infoPlist: nil,
             sources: "Sources/**",
             dependencies: [
                 .project(target: "B", path: "../B"),
@@ -26,7 +26,7 @@ let project = Project(
             platform: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.ATests",
-            infoPlist: "Tests.plist",
+            infoPlist: nil,
             sources: "Tests/**",
             dependencies: [
                 .target(name: "A"),
