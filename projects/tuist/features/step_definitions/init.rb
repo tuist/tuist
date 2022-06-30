@@ -10,5 +10,5 @@ When(/^I initialize a (.+) application named ([a-zA-Z\-_]+)$/) do |platform, nam
 end
 
 When(/^I initialize a project from the template (.+)$/) do |template_url|
-  system(@tuist, "init", "--path", @dir, "-t", template_url)
+  system(@tuist, "init", "--name", "example", "--path", @dir, "--template", template_url)
 end
