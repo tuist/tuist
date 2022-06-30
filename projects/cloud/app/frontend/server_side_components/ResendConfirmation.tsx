@@ -26,6 +26,7 @@ const ResendConfirmation = ({
                 onChange={(newValue) => {
                   setEmail(newValue);
                 }}
+                autoComplete={'email'}
               />
               <LinkButton
                 href={`/users/confirmation?authenticity_token=${authenticityToken}&user[email]=${email}`}

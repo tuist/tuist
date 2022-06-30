@@ -43,7 +43,7 @@
     "@juggle/resize-observer": "^3.3.1",
     "@rails/ujs": "^6.1.6",
     "@rails/webpacker": "5.4.3",
-    "@shopify/polaris": "^6.6.0",
+    "@shopify/polaris": "^9.19.0",
     "@shopify/polaris-viz": "^1.11.1",
     "apollo-link": "^1.2.14",
     "apollo-link-http": "^1.5.17",
