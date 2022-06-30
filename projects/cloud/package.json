@@ -29,11 +29,11 @@
     "rollup": "^2.62.0",
     "ts-jest": "^27.1.2",
     "typescript": "^4.6.2",
-    "vite": "^2.7.6",
+    "vite": "^2.9.13",
     "vite-plugin-bugsnag": "^1.0.2",
     "vite-plugin-environment": "^1.0.1",
     "vite-plugin-full-reload": "^0.2.2",
-    "vite-plugin-ruby": "^3.0.8",
+    "vite-plugin-ruby": "^3.0.12",
     "webpack-dev-server": "^3"
   },
   "dependencies": {
