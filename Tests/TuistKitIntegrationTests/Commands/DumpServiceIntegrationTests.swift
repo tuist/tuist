@@ -20,7 +20,7 @@ final class DumpServiceTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_prints_the_manifest_when_project_manifest() throws {
+    func test_prints_the_manifest_when_project_manifest() async throws {
         let tmpDir = try temporaryPath()
         let config = """
         import ProjectDescription
@@ -38,7 +38,7 @@ final class DumpServiceTests: TuistTestCase {
             atomically: true,
             encoding: .utf8
         )
-        try subject.run(path: tmpDir.pathString, manifest: .project)
+        try await subject.run(path: tmpDir.pathString, manifest: .project)
         let expectedStart = """
         {
           "additionalFiles": [
@@ -89,7 +89,7 @@ final class DumpServiceTests: TuistTestCase {
         XCTAssertPrinterOutputContains(expectedEnd)
     }
 
-    func test_prints_the_manifest_when_workspace_manifest() throws {
+    func test_prints_the_manifest_when_workspace_manifest() async throws {
         let tmpDir = try temporaryPath()
         let config = """
         import ProjectDescription
@@ -107,7 +107,7 @@ final class DumpServiceTests: TuistTestCase {
             atomically: true,
             encoding: .utf8
         )
-        try subject.run(path: tmpDir.pathString, manifest: .workspace)
+        try await subject.run(path: tmpDir.pathString, manifest: .workspace)
         let expected = """
         {
           "additionalFiles": [
@@ -141,7 +141,7 @@ final class DumpServiceTests: TuistTestCase {
         XCTAssertPrinterOutputContains(expected)
     }
 
-    func test_prints_the_manifest_when_config_manifest() throws {
+    func test_prints_the_manifest_when_config_manifest() async throws {
         let tmpDir = try temporaryPath()
         let config = """
         import ProjectDescription
@@ -161,7 +161,7 @@ final class DumpServiceTests: TuistTestCase {
             atomically: true,
             encoding: .utf8
         )
-        try subject.run(path: tmpDir.pathString, manifest: .config)
+        try await subject.run(path: tmpDir.pathString, manifest: .config)
         let expected = """
         {
           "compatibleXcodeVersions": {
@@ -183,7 +183,7 @@ final class DumpServiceTests: TuistTestCase {
         XCTAssertPrinterOutputContains(expected)
     }
 
-    func test_prints_the_manifest_when_template_manifest() throws {
+    func test_prints_the_manifest_when_template_manifest() async throws {
         let tmpDir = try temporaryPath()
         let config = """
         import ProjectDescription
@@ -199,7 +199,7 @@ final class DumpServiceTests: TuistTestCase {
             atomically: true,
             encoding: .utf8
         )
-        try subject.run(path: tmpDir.pathString, manifest: .template)
+        try await subject.run(path: tmpDir.pathString, manifest: .template)
         let expected = """
         {
           "attributes": [
@@ -216,7 +216,7 @@ final class DumpServiceTests: TuistTestCase {
         XCTAssertPrinterOutputContains(expected)
     }
 
-    func test_prints_the_manifest_when_plugin_manifest() throws {
+    func test_prints_the_manifest_when_plugin_manifest() async throws {
         let tmpDir = try temporaryPath()
         let config = """
         import ProjectDescription
@@ -230,7 +230,7 @@ final class DumpServiceTests: TuistTestCase {
             atomically: true,
             encoding: .utf8
         )
-        try subject.run(path: tmpDir.pathString, manifest: .plugin)
+        try await subject.run(path: tmpDir.pathString, manifest: .plugin)
         let expected = """
         {
           "name": "tuist"
@@ -241,7 +241,7 @@ final class DumpServiceTests: TuistTestCase {
         XCTAssertPrinterOutputContains(expected)
     }
 
-    func test_prints_the_manifest_when_dependencies_manifest() throws {
+    func test_prints_the_manifest_when_dependencies_manifest() async throws {
         let tmpDir = try temporaryPath()
         let config = """
         import ProjectDescription
@@ -258,7 +258,7 @@ final class DumpServiceTests: TuistTestCase {
             atomically: true,
             encoding: .utf8
         )
-        try subject.run(path: tmpDir.pathString, manifest: .dependencies)
+        try await subject.run(path: tmpDir.pathString, manifest: .dependencies)
         let expected = """
         {
           "platforms": [
@@ -271,31 +271,31 @@ final class DumpServiceTests: TuistTestCase {
         XCTAssertPrinterOutputContains(expected)
     }
 
-    func test_run_throws_when_project_and_file_doesnt_exist() throws {
-        try assertLoadingRaisesWhenManifestNotFound(manifest: .project)
+    func test_run_throws_when_project_and_file_doesnt_exist() async throws {
+        try await assertLoadingRaisesWhenManifestNotFound(manifest: .project)
     }
 
-    func test_run_throws_when_workspace_and_file_doesnt_exist() throws {
-        try assertLoadingRaisesWhenManifestNotFound(manifest: .workspace)
+    func test_run_throws_when_workspace_and_file_doesnt_exist() async throws {
+        try await assertLoadingRaisesWhenManifestNotFound(manifest: .workspace)
     }
 
-    func test_run_throws_when_config_and_file_doesnt_exist() throws {
-        try assertLoadingRaisesWhenManifestNotFound(manifest: .config)
+    func test_run_throws_when_config_and_file_doesnt_exist() async throws {
+        try await assertLoadingRaisesWhenManifestNotFound(manifest: .config)
     }
 
-    func test_run_throws_when_template_and_file_doesnt_exist() throws {
-        try assertLoadingRaisesWhenManifestNotFound(manifest: .template)
+    func test_run_throws_when_template_and_file_doesnt_exist() async throws {
+        try await assertLoadingRaisesWhenManifestNotFound(manifest: .template)
     }
 
-    func test_run_throws_when_dependencies_and_file_doesnt_exist() throws {
-        try assertLoadingRaisesWhenManifestNotFound(manifest: .dependencies)
+    func test_run_throws_when_dependencies_and_file_doesnt_exist() async throws {
+        try await assertLoadingRaisesWhenManifestNotFound(manifest: .dependencies)
     }
 
-    func test_run_throws_when_plugin_and_file_doesnt_exist() throws {
-        try assertLoadingRaisesWhenManifestNotFound(manifest: .plugin)
+    func test_run_throws_when_plugin_and_file_doesnt_exist() async throws {
+        try await assertLoadingRaisesWhenManifestNotFound(manifest: .plugin)
     }
 
-    func test_run_throws_when_the_manifest_loading_fails() throws {
+    func test_run_throws_when_the_manifest_loading_fails() async throws {
         for manifest in DumpableManifest.allCases {
             let tmpDir = try temporaryPath()
             try "invalid config".write(
@@ -303,23 +303,26 @@ final class DumpServiceTests: TuistTestCase {
                 atomically: true,
                 encoding: .utf8
             )
-            XCTAssertThrowsError(try subject.run(path: tmpDir.pathString, manifest: manifest))
+            await XCTAssertThrowsSpecific(
+                try await subject.run(path: tmpDir.pathString, manifest: manifest),
+                TestError("ciao")
+            )
         }
     }
 
     // MARK: - Helpers
 
-    private func assertLoadingRaisesWhenManifestNotFound(manifest: DumpableManifest) throws {
-        try fileHandler.inTemporaryDirectory { tmpDir in
+    private func assertLoadingRaisesWhenManifestNotFound(manifest: DumpableManifest) async throws {
+        try await fileHandler.inTemporaryDirectory { tmpDir in
             var expectedDirectory = tmpDir
             if manifest == .config || manifest == .dependencies {
                 expectedDirectory = expectedDirectory.appending(component: Constants.tuistDirectoryName)
-                if !fileHandler.exists(expectedDirectory) {
-                    try fileHandler.createFolder(expectedDirectory)
+                if !self.fileHandler.exists(expectedDirectory) {
+                    try self.fileHandler.createFolder(expectedDirectory)
                 }
             }
-            XCTAssertThrowsSpecific(
-                try subject.run(path: tmpDir.pathString, manifest: manifest),
+            await self.XCTAssertThrowsSpecific(
+                try await self.subject.run(path: tmpDir.pathString, manifest: manifest),
                 ManifestLoaderError.manifestNotFound(manifest.manifest, expectedDirectory)
             )
         }

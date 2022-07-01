@@ -24,8 +24,8 @@ struct DumpCommand: ParsableCommand {
     @Argument(help: "The manifest to be dumped")
     var manifest: DumpableManifest = .project
 
-    func run() throws {
-        try DumpService().run(path: path, manifest: manifest)
+    func run() async throws {
+        try await DumpService().run(path: path, manifest: manifest)
     }
 }
 

@@ -46,7 +46,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_load_template_options() throws {
+    func test_load_template_options() async throws {
         // Given
         templateLoader.loadTemplateStub = { _ in
             Template(
@@ -66,7 +66,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         let expectedOptions = (required: ["required"], optional: ["optional"])
 
         // When
-        let options = try subject.loadTemplateOptions(
+        let options = try await subject.loadTemplateOptions(
             templateName: "template",
             path: nil
         )
@@ -76,7 +76,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         XCTAssertEqual(options.optional, expectedOptions.optional)
     }
 
-    func test_load_template_plugin_options() throws {
+    func test_load_template_plugin_options() async throws {
         // Given
         templateLoader.loadTemplateStub = { _ in
             Template(
@@ -101,7 +101,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         }
 
         // When
-        let options = try subject.loadTemplateOptions(
+        let options = try await subject.loadTemplateOptions(
             templateName: "PluginTemplate",
             path: nil
         )
@@ -111,15 +111,15 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         XCTAssertEqual(options.optional, expectedOptions.optional)
     }
 
-    func test_fails_when_template_not_found() throws {
+    func test_fails_when_template_not_found() async throws {
         let templateName = "template"
-        XCTAssertThrowsSpecific(
-            try subject.testRun(templateName: templateName),
+        await XCTAssertThrowsSpecific(
+            try await subject.testRun(templateName: templateName),
             ScaffoldServiceError.templateNotFound(templateName, searchPaths: [])
         )
     }
 
-    func test_fails_when_required_attribute_not_provided() throws {
+    func test_fails_when_required_attribute_not_provided() async throws {
         // Given
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [.required("required")])
@@ -130,13 +130,13 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertThrowsSpecific(
-            try subject.testRun(),
+        await XCTAssertThrowsSpecific(
+            try await subject.testRun(),
             ScaffoldServiceError.attributeNotProvided("required")
         )
     }
 
-    func test_optional_attribute_is_taken_from_template() throws {
+    func test_optional_attribute_is_taken_from_template() async throws {
         // Given
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [.optional("optional", default: "optionalValue")])
@@ -152,7 +152,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun()
+        try await subject.testRun()
 
         // Then
         XCTAssertEqual(
@@ -161,7 +161,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_attributes_are_passed_to_generator() throws {
+    func test_attributes_are_passed_to_generator() async throws {
         // Given
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [
@@ -180,7 +180,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             requiredTemplateOptions: ["required": "requiredValue"],
             optionalTemplateOptions: ["optional": "optionalValue"]
         )
@@ -202,8 +202,8 @@ extension ScaffoldService {
         templateName: String = "template",
         requiredTemplateOptions: [String: String] = [:],
         optionalTemplateOptions: [String: String] = [:]
-    ) throws {
-        try run(
+    ) async throws {
+        try await run(
             path: path,
             templateName: templateName,
             requiredTemplateOptions: requiredTemplateOptions,

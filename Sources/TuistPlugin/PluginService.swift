@@ -50,10 +50,7 @@ public protocol PluginServicing {
     /// Loads the `Plugins` and returns them as defined in given config.
     /// - Throws: An error if there are issues loading a plugin.
     /// - Returns: The loaded `Plugins` representation.
-    func loadPlugins(using config: Config) throws -> Plugins
-    /// Fetches all remote plugins defined in a given config.
-    /// - Returns: The loaded `Plugins` representation.
-    func fetchRemotePlugins(using config: Config) async throws
+    func loadPlugins(using config: Config) async throws -> Plugins
     /// - Returns: Array of `RemotePluginPaths` for each remote plugin.
     func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths]
 }
@@ -99,21 +96,6 @@ public final class PluginService: PluginServicing {
         self.fileClient = fileClient
     }
 
-    public func fetchRemotePlugins(using config: Config) async throws {
-        for pluginLocation in config.plugins {
-            switch pluginLocation {
-            case let .git(url, gitReference):
-                try await fetchRemotePlugin(
-                    url: url,
-                    gitReference: gitReference,
-                    config: config
-                )
-            case .local:
-                continue
-            }
-        }
-    }
-
     public func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths] {
         try config.plugins.compactMap { pluginLocation in
             switch pluginLocation {
@@ -144,8 +126,10 @@ public final class PluginService: PluginServicing {
         }
     }
 
-    public func loadPlugins(using config: Config) throws -> Plugins {
+    public func loadPlugins(using config: Config) async throws -> Plugins {
         guard !config.plugins.isEmpty else { return .none }
+
+        try await fetchRemotePlugins(using: config)
 
         let localPluginPaths: [AbsolutePath] = config.plugins
             .compactMap { pluginLocation in
@@ -194,6 +178,21 @@ public final class PluginService: PluginServicing {
             templatePaths: templatePaths,
             resourceSynthesizers: resourceSynthesizerPlugins
         )
+    }
+
+    func fetchRemotePlugins(using config: Config) async throws {
+        for pluginLocation in config.plugins {
+            switch pluginLocation {
+            case let .git(url, gitReference):
+                try await fetchRemotePlugin(
+                    url: url,
+                    gitReference: gitReference,
+                    config: config
+                )
+            case .local:
+                continue
+            }
+        }
     }
 
     private func fetchRemotePlugin(

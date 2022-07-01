@@ -45,7 +45,7 @@ public struct TuistCommand: ParsableCommand {
         var parsedError: Error?
         do {
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
-                try ScaffoldCommand.preprocess(processedArguments)
+                try await ScaffoldCommand.preprocess(processedArguments)
             }
             if processedArguments.first == InitCommand.configuration.commandName {
                 try InitCommand.preprocess(processedArguments)

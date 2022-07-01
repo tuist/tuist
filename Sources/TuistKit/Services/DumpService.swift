@@ -12,7 +12,7 @@ final class DumpService {
         self.manifestLoader = manifestLoader
     }
 
-    func run(path: String?, manifest: DumpableManifest) throws {
+    func run(path: String?, manifest: DumpableManifest) async throws {
         let projectPath: AbsolutePath
         if let path = path {
             projectPath = AbsolutePath(path, relativeTo: AbsolutePath.current)
@@ -25,7 +25,7 @@ final class DumpService {
             workspaceMapper: SequentialWorkspaceMapper(mappers: []),
             graphMapper: SequentialGraphMapper([])
         )
-        try manifestGraphLoader.loadPlugins(at: projectPath)
+        try await manifestGraphLoader.loadPlugins(at: projectPath)
 
         let encoded: Encodable
         switch manifest {

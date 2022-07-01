@@ -31,8 +31,8 @@ struct EditCommand: ParsableCommand {
     )
     var onlyCurrentDirectory: Bool = false
 
-    func run() throws {
-        try EditService().run(
+    func run() async throws {
+        try await EditService().run(
             path: path,
             permanent: permanent,
             onlyCurrentDirectory: onlyCurrentDirectory
