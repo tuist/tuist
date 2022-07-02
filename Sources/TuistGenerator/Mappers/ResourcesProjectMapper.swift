@@ -44,6 +44,12 @@ public class ResourcesProjectMapper: ProjectMapping {
                 bundleId: "\(target.bundleId).resources",
                 deploymentTarget: target.deploymentTarget,
                 infoPlist: .extendingDefault(with: [:]),
+                settings: Settings(
+                    base: [
+                        "CODE_SIGNING_ALLOWED": "NO",
+                    ],
+                    configurations: [:]
+                ),
                 resources: target.resources,
                 copyFiles: target.copyFiles,
                 coreDataModels: target.coreDataModels,

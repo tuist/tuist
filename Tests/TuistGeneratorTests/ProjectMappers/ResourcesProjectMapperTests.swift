@@ -75,6 +75,9 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.deploymentTarget, target.deploymentTarget)
         XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
         XCTAssertEqual(resourcesTarget.resources, resources)
+        XCTAssertEqual(resourcesTarget.settings?.base, [
+            "CODE_SIGNING_ALLOWED": "NO",
+        ])
     }
 
     func testMap_whenDisableBundleAccessorsIsTrue_doesNotGenerateAccessors() throws {
