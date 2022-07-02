@@ -303,10 +303,12 @@ final class DumpServiceTests: TuistTestCase {
                 atomically: true,
                 encoding: .utf8
             )
-            await XCTAssertThrowsSpecific(
-                try await subject.run(path: tmpDir.pathString, manifest: manifest),
-                TestError("ciao")
-            )
+            do {
+                try await subject.run(path: tmpDir.pathString, manifest: manifest)
+                XCTFail("Expected error not thrown")
+            } catch {
+                // can't use XCTAssertError because it doesn't support async
+            }
         }
     }
 
