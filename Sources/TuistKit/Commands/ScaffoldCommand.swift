@@ -25,7 +25,7 @@ enum ScaffoldCommandError: FatalError, Equatable {
     }
 }
 
-struct ScaffoldCommand: ParsableCommand {
+struct ScaffoldCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "scaffold",

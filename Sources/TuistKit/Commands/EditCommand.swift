@@ -4,7 +4,7 @@ import TSCBasic
 import TuistGenerator
 import TuistSupport
 
-struct EditCommand: ParsableCommand {
+struct EditCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "edit",

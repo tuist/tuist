@@ -3,7 +3,7 @@ import Foundation
 import TuistAnalytics
 import TuistSupport
 
-public struct TuistCommand: ParsableCommand {
+public struct TuistCommand: AsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {

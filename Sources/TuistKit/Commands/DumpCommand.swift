@@ -4,7 +4,7 @@ import TSCBasic
 import TuistLoader
 import TuistSupport
 
-struct DumpCommand: ParsableCommand {
+struct DumpCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "dump",

@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct ListCommand: ParsableCommand {
+struct ListCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list",
