@@ -49,6 +49,8 @@ Remote plugins are stored on a remote server and can be downloaded by Tuist and 
 A common place to store plugins is in a git repository which is uploaded to a remote server. You can specify where to download the plugin as well as what version of the plugin to take.
 This allows you to version your plugins and share them with others.
 
+Optionally, you can also specify a directory where the plugin is located, in case it's not at the root of the repository.
+
 You can choose to collect a plugin at a specific git tag:
 
 ```swift

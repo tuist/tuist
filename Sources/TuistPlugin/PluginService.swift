@@ -119,29 +119,29 @@ public final class PluginService: PluginServicing {
             switch pluginLocation {
             case .local:
                 return nil
-            case let .git(url: url, gitReference: .sha(sha), subfolder):
+            case let .git(url: url, gitReference: .sha(sha), directory):
                 let pluginCacheDirectory = try self.pluginCacheDirectory(
                     url: url,
                     gitId: sha,
                     config: config
                 )
                 var repositoryPath = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
-                if let subfolder = subfolder {
-                    repositoryPath = repositoryPath.appending(RelativePath(subfolder))
+                if let directory = directory {
+                    repositoryPath = repositoryPath.appending(RelativePath(directory))
                 }
                 return RemotePluginPaths(
                     repositoryPath: repositoryPath,
                     releasePath: nil
                 )
-            case let .git(url: url, gitReference: .tag(tag), subfolder):
+            case let .git(url: url, gitReference: .tag(tag), directory):
                 let pluginCacheDirectory = try self.pluginCacheDirectory(
                     url: url,
                     gitId: tag,
                     config: config
                 )
                 var repositoryPath = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
-                if let subfolder = subfolder {
-                    repositoryPath = repositoryPath.appending(RelativePath(subfolder))
+                if let directory = directory {
+                    repositoryPath = repositoryPath.appending(RelativePath(directory))
                 }
                 let releasePath = pluginCacheDirectory.appending(component: PluginServiceConstants.release)
                 return RemotePluginPaths(

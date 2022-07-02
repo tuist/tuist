@@ -15,14 +15,14 @@ public enum PluginLocation: Hashable, Equatable {
     /// ```
     case local(path: String)
 
-    /// A `URL` to a `git` repository pointing at a `GitReference` (either sha or tag), and optionally a subfolder
+    /// A `URL` to a `git` repository pointing at a `GitReference` (either sha or tag), and optionally a directory
     ///
     /// Examples:
     /// ```
     /// .git(url: "https://git/helpers.git", gitReference: .tag("1.0.0"))
     /// .git(url: "https://git/helpers.git", gitReference: .sha("1.0.0"))
     /// ```
-    case git(url: String, gitReference: GitReference, subfolder: String?)
+    case git(url: String, gitReference: GitReference, directory: String?)
 }
 
 // MARK: - description
@@ -32,10 +32,10 @@ extension PluginLocation: CustomStringConvertible {
         switch self {
         case let .local(path):
             return "local path: \(path)"
-        case let .git(url, .tag(tag), subfolder):
-            return "git url: \(url), tag: \(tag), subfolder: \(subfolder ?? "nil")"
-        case let .git(url, .sha(sha), subfolder):
-            return "git url: \(url), sha: \(sha), subfolder: \(subfolder ?? "nil")"
+        case let .git(url, .tag(tag), directory):
+            return "git url: \(url), tag: \(tag), directory: \(directory ?? "nil")"
+        case let .git(url, .sha(sha), directory):
+            return "git url: \(url), sha: \(sha), directory: \(directory ?? "nil")"
         }
     }
 }
