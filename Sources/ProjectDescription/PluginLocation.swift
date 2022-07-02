@@ -16,23 +16,25 @@ public struct PluginLocation: Codable, Equatable {
     }
 
     /// A `URL` to a `git` repository pointing at a `tag`.
+    /// You can also specify a custom directory in case the plugin is not located at the root of the repository.
     ///
     /// Example:
     /// ```
-    /// .git(url: "https://git/plugin.git", tag: "1.0.0")
+    /// .git(url: "https://git/plugin.git", tag: "1.0.0", directory: "PluginDirectory")
     /// ```
-    public static func git(url: String, tag: String) -> Self {
-        PluginLocation(type: .gitWithTag(url: url, tag: tag))
+    public static func git(url: String, tag: String, directory: String? = nil) -> Self {
+        PluginLocation(type: .gitWithTag(url: url, tag: tag, directory: directory))
     }
 
     /// A `URL` to a `git` repository pointing at a commit `sha`.
+    /// You can also specify a custom directory in case the plugin is not located at the root of the repository.
     ///
     /// Example:
     /// ```
     /// .git(url: "https://git/plugin.git", sha: "d06b4b3d")
     /// ```
-    public static func git(url: String, sha: String) -> Self {
-        PluginLocation(type: .gitWithSha(url: url, sha: sha))
+    public static func git(url: String, sha: String, directory: String? = nil) -> Self {
+        PluginLocation(type: .gitWithSha(url: url, sha: sha, directory: directory))
     }
 }
 
@@ -41,7 +43,7 @@ public struct PluginLocation: Codable, Equatable {
 extension PluginLocation {
     public enum LocationType: Codable, Equatable {
         case local(path: Path)
-        case gitWithTag(url: String, tag: String)
-        case gitWithSha(url: String, sha: String)
+        case gitWithTag(url: String, tag: String, directory: String?)
+        case gitWithSha(url: String, sha: String, directory: String?)
     }
 }
