@@ -36,7 +36,7 @@ final class ListServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_lists_available_templates_table_format() throws {
+    func test_lists_available_templates_table_format() async throws {
         // Given
         let expectedTemplates = ["template", "customTemplate"]
         let expectedOutput = """
@@ -55,13 +55,13 @@ final class ListServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.run(path: nil, outputFormat: .table)
+        try await subject.run(path: nil, outputFormat: .table)
 
         // Then
         XCTAssertPrinterContains(expectedOutput, at: .info, ==)
     }
 
-    func test_lists_available_templates_json_format() throws {
+    func test_lists_available_templates_json_format() async throws {
         // Given
         let expectedTemplates = ["template", "customTemplate"]
         let expectedOutput = """
@@ -86,13 +86,13 @@ final class ListServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.run(path: nil, outputFormat: .json)
+        try await subject.run(path: nil, outputFormat: .json)
 
         // Then
         XCTAssertPrinterContains(expectedOutput, at: .info, ==)
     }
 
-    func test_lists_available_templates_with_plugins() throws {
+    func test_lists_available_templates_with_plugins() async throws {
         // Given
         let expectedTemplates = ["template", "customTemplate", "pluginTemplate"]
         let expectedOutput = """
@@ -117,7 +117,7 @@ final class ListServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.run(path: nil, outputFormat: .table)
+        try await subject.run(path: nil, outputFormat: .table)
 
         // Then
         XCTAssertPrinterContains(expectedOutput, at: .info, ==)

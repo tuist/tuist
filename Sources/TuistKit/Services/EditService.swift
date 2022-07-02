@@ -51,8 +51,9 @@ final class EditService {
         path: String?,
         permanent: Bool,
         onlyCurrentDirectory: Bool
-    ) throws {
+    ) async throws {
         let path = self.path(path)
+        let plugins = await loadPlugins(at: path)
 
         if !permanent {
             try withTemporaryDirectory(removeTreeOnDeinit: true) { generationDirectory in
@@ -67,7 +68,6 @@ final class EditService {
                     throw EditServiceError.xcodeNotSelected
                 }
 
-                let plugins = loadPlugins(at: path)
                 let workspacePath = try projectEditor.edit(
                     at: path,
                     in: generationDirectory,
@@ -78,7 +78,6 @@ final class EditService {
                 try opener.open(path: workspacePath, application: selectedXcode.path, wait: true)
             }
         } else {
-            let plugins = loadPlugins(at: path)
             let workspacePath = try projectEditor.edit(
                 at: path,
                 in: path,
@@ -99,13 +98,13 @@ final class EditService {
         }
     }
 
-    private func loadPlugins(at path: AbsolutePath) -> Plugins {
+    private func loadPlugins(at path: AbsolutePath) async -> Plugins {
         guard let config = try? configLoader.loadConfig(path: path) else {
             logger.warning("Unable to load Config.swift, fix any compiler errors and re-run for plugins to be loaded.")
             return .none
         }
 
-        guard let plugins = try? pluginService.loadPlugins(using: config) else {
+        guard let plugins = try? await pluginService.loadPlugins(using: config) else {
             logger.warning("Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
             return .none
         }

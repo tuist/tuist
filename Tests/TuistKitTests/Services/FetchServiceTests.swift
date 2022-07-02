@@ -118,8 +118,9 @@ final class FetchServiceTests: TuistUnitTestCase {
             config
         }
         var invokedConfig: Config?
-        pluginService.fetchRemotePluginsStub = { config in
+        pluginService.loadPluginsStub = { config in
             invokedConfig = config
+            return .test()
         }
 
         // When
@@ -129,9 +130,7 @@ final class FetchServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            config, invokedConfig
-        )
+        XCTAssertEqual(invokedConfig, config)
     }
 
     func test_run_when_fetching_dependencies() async throws {

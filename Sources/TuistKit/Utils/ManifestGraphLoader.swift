@@ -92,7 +92,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         }
 
         // Load Plugins
-        let plugins = try loadPlugins(at: path)
+        let plugins = try await loadPlugins(at: path)
 
         // Load DependenciesGraph
         let dependenciesGraph = try dependenciesGraphController.load(at: path)
@@ -159,9 +159,9 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     }
 
     @discardableResult
-    func loadPlugins(at path: AbsolutePath) throws -> Plugins {
+    func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
         let config = try configLoader.loadConfig(path: path)
-        let plugins = try pluginsService.loadPlugins(using: config)
+        let plugins = try await pluginsService.loadPlugins(using: config)
         try manifestLoader.register(plugins: plugins)
         return plugins
     }
