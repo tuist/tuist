@@ -407,21 +407,6 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
-    func test_cacheConfiguration_WHEN_loadPlugin() throws {
-        // Given
-        let pluginGitUrl = "https://url/to/repo.git"
-        let pluginGitReference = "1.0.0"
-        let config =
-            mockConfig(plugins: [TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference))])
-
-        // When / Then
-        XCTAssertThrowsSpecific(
-            { try await self.subject.loadPlugins(using: config) },
-            PluginServiceError.missingRemotePlugins(["Plugin"])
-        )
-        XCTAssertEqual(cacheDirectoryProviderFactory.cacheDirectoriesConfig, config)
-    }
-
     private func mockConfig(plugins: [TuistGraph.PluginLocation]) -> TuistGraph.Config {
         Config(
             compatibleXcodeVersions: .all,
