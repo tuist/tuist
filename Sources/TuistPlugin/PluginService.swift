@@ -101,25 +101,33 @@ public final class PluginService: PluginServicing {
             switch pluginLocation {
             case .local:
                 return nil
-            case let .git(url: url, gitReference: .sha(sha)):
+            case let .git(url: url, gitReference: .sha(sha), directory):
                 let pluginCacheDirectory = try self.pluginCacheDirectory(
                     url: url,
                     gitId: sha,
                     config: config
                 )
+                var repositoryPath = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
+                if let directory = directory {
+                    repositoryPath = repositoryPath.appending(RelativePath(directory))
+                }
                 return RemotePluginPaths(
-                    repositoryPath: pluginCacheDirectory.appending(component: PluginServiceConstants.repository),
+                    repositoryPath: repositoryPath,
                     releasePath: nil
                 )
-            case let .git(url: url, gitReference: .tag(tag)):
+            case let .git(url: url, gitReference: .tag(tag), directory):
                 let pluginCacheDirectory = try self.pluginCacheDirectory(
                     url: url,
                     gitId: tag,
                     config: config
                 )
+                var repositoryPath = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
+                if let directory = directory {
+                    repositoryPath = repositoryPath.appending(RelativePath(directory))
+                }
                 let releasePath = pluginCacheDirectory.appending(component: PluginServiceConstants.release)
                 return RemotePluginPaths(
-                    repositoryPath: pluginCacheDirectory.appending(component: PluginServiceConstants.repository),
+                    repositoryPath: repositoryPath,
                     releasePath: FileHandler.shared.exists(releasePath) ? releasePath : nil
                 )
             }
@@ -183,7 +191,7 @@ public final class PluginService: PluginServicing {
     func fetchRemotePlugins(using config: Config) async throws {
         for pluginLocation in config.plugins {
             switch pluginLocation {
-            case let .git(url, gitReference):
+            case let .git(url, gitReference, _):
                 try await fetchRemotePlugin(
                     url: url,
                     gitReference: gitReference,

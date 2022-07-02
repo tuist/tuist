@@ -71,6 +71,7 @@ const SettingsPage = observer(() => {
                 settingsPageStore.currentProjectSlugToDelete =
                   newValue;
               }}
+              autoComplete="off"
             />
             <Button
               destructive={true}
