@@ -1,7 +1,7 @@
 import React from 'react';
 import GraphqlProvider from '@/networking/GraphqlProvider';
 import ErrorBoundary from '@/components/boundaries/ErrorBoundary';
-import '@shopify/polaris/dist/styles.css';
+import '@shopify/polaris/build/esm/styles.css';
 import '@shopify/polaris-viz/build/esm/styles.css';
 import {
   Routes,

@@ -53,6 +53,7 @@ const Login = ({
                   setEmail(newValue);
                   setIsConfirmationSentVisible(false);
                 }}
+                autoComplete={'email'}
               />
               <TextField
                 type="password"
@@ -63,6 +64,7 @@ const Login = ({
                   setPassword(newValue);
                   setIsConfirmationSentVisible(false);
                 }}
+                autoComplete={'password'}
               />
               <Stack alignment="center">
                 <LinkButton
