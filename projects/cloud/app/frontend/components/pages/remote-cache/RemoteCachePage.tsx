@@ -104,6 +104,7 @@ const RemoteCachePage = observer(() => {
               label="Bucket name"
               value={remoteCachePageStore.bucketName}
               onChange={handleBucketNameChange}
+              autoComplete="off"
             />
           )}
           {!remoteCachePageStore.isDefaultBucket && (
@@ -112,6 +113,7 @@ const RemoteCachePage = observer(() => {
               label="Region"
               value={remoteCachePageStore.region}
               onChange={handleRegionChange}
+              autoComplete="off"
             />
           )}
           {!remoteCachePageStore.isDefaultBucket && (
@@ -120,6 +122,7 @@ const RemoteCachePage = observer(() => {
               label="Access key ID"
               value={remoteCachePageStore.accessKeyId}
               onChange={handleAccessKeyIdChange}
+              autoComplete="off"
             />
           )}
           {!remoteCachePageStore.isDefaultBucket && (
@@ -132,6 +135,7 @@ const RemoteCachePage = observer(() => {
                 label="Secret access key"
                 value={remoteCachePageStore.secretAccessKey}
                 onChange={handleSecretAccessKeyChange}
+                autoComplete="password"
               />
               {remoteCachePageStore.isCreatingBucket === false && (
                 <Button onClick={handleRemoveSecretAccessKey}>
