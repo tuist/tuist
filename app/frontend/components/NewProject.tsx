@@ -124,6 +124,7 @@ const NewProject = () => {
                 label="Organization name"
                 value={organizationName}
                 onChange={handleOrganizationNameChange}
+                autoComplete="off"
               />
             )}
             {/* TODO: Only allow kebab-case names */}
@@ -132,6 +133,7 @@ const NewProject = () => {
               label="Project name"
               value={projectName}
               onChange={handleProjectNameChange}
+              autoComplete="off"
             />
             <Stack>
               <Button
