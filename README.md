@@ -68,12 +68,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <img src="assets/companies/Depop Logo.svg" style="width: 100px;" hspace="8"/>
   </a>
   <a href="https://bendingspoons.com/" target="_blank">
-    <picture>
-      <source 
-      srcset="assets/companies/BendingSpoons-black.png" 
-      media="(prefers-color-scheme: dark)" style="width: 60px;">
-      <img src="assets/companies/BendingSpoons-white.png" style="width: 100px;"/>
-    </picture>
+    <img src="assets/companies/BendingSpoons-black.png" style="width: 100px;" hspace="8"/>
   </a>
   <a href="https://globekeeper.com/" target="_blank">
     <img src="assets/companies/globekeeper.png" style="width: 130px;" hspace="8"/>
