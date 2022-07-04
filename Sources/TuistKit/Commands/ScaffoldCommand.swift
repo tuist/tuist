@@ -25,7 +25,7 @@ enum ScaffoldCommandError: FatalError, Equatable {
     }
 }
 
-struct ScaffoldCommand: ParsableCommand {
+struct ScaffoldCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "scaffold",
@@ -76,13 +76,13 @@ struct ScaffoldCommand: ParsableCommand {
         }
     }
 
-    func run() throws {
+    func run() async throws {
         // Currently, @Argument and subcommand clashes, so we need to handle that ourselves
         if template == ListCommand.configuration.commandName {
             let format: ListService.OutputFormat = json ? .json : .table
-            try ListService().run(path: path, outputFormat: format)
+            try await ListService().run(path: path, outputFormat: format)
         } else {
-            try ScaffoldService().run(
+            try await ScaffoldService().run(
                 path: path,
                 templateName: template,
                 requiredTemplateOptions: requiredTemplateOptions,
@@ -99,7 +99,7 @@ extension ScaffoldCommand {
     static var optionalTemplateOptions: [(name: String, option: Option<String?>)] = []
 
     /// We do not know template's option in advance -> we need to dynamically add them
-    static func preprocess(_ arguments: [String]? = nil) throws {
+    static func preprocess(_ arguments: [String]? = nil) async throws {
         guard let arguments = arguments,
               arguments.count >= 2
         else { throw ScaffoldCommandError.templateNotProvided }
@@ -117,7 +117,7 @@ extension ScaffoldCommand {
 
         guard let command = try parseAsRoot([arguments[1]] + filteredArguments) as? ScaffoldCommand else { return }
 
-        let (required, optional) = try ScaffoldService().loadTemplateOptions(
+        let (required, optional) = try await ScaffoldService().loadTemplateOptions(
             templateName: command.template,
             path: command.path
         )

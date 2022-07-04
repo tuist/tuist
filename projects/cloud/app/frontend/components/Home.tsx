@@ -275,12 +275,14 @@ const Home = observer(() => {
             label="Subject"
             value={supportSubject}
             onChange={handleSubjectChange}
+            autoComplete={'off'}
           />
           <TextField
             label="Message"
             value={supportMessage}
             onChange={handleMessageChange}
             multiline
+            autoComplete={'off'}
           />
         </FormLayout>
       </Modal.Section>

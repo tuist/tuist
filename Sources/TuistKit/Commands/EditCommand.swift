@@ -4,7 +4,7 @@ import TSCBasic
 import TuistGenerator
 import TuistSupport
 
-struct EditCommand: ParsableCommand {
+struct EditCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "edit",
@@ -31,8 +31,8 @@ struct EditCommand: ParsableCommand {
     )
     var onlyCurrentDirectory: Bool = false
 
-    func run() throws {
-        try EditService().run(
+    func run() async throws {
+        try await EditService().run(
             path: path,
             permanent: permanent,
             onlyCurrentDirectory: onlyCurrentDirectory

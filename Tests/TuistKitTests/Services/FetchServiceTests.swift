@@ -111,15 +111,16 @@ final class FetchServiceTests: TuistUnitTestCase {
         // Given
         let config = Config.test(
             plugins: [
-                .git(url: "url", gitReference: .tag("tag")),
+                .git(url: "url", gitReference: .tag("tag"), directory: nil),
             ]
         )
         configLoader.loadConfigStub = { _ in
             config
         }
         var invokedConfig: Config?
-        pluginService.fetchRemotePluginsStub = { config in
+        pluginService.loadPluginsStub = { config in
             invokedConfig = config
+            return .test()
         }
 
         // When
@@ -129,9 +130,7 @@ final class FetchServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(
-            config, invokedConfig
-        )
+        XCTAssertEqual(invokedConfig, config)
     }
 
     func test_run_when_fetching_dependencies() async throws {

@@ -2,6 +2,24 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## 3.8.0 - 2022-07-03
+
+### Changed
+
+- Retry failed remote cache request once on error [#4569](https://github.com/tuist/tuist/pull/4569) by [@danyf90](https://github.com/danyf90)
+
+### Added
+
+- Support for not generating Info.plist [#4566](https://github.com/tuist/tuist/pull/4566) by [@danyf90](https://github.com/danyf90)
+- Support for custom remote plugins location [#4586](https://github.com/tuist/tuist/pull/4586) by [@danyf90](https://github.com/danyf90)
+
+### Fixed
+
+- Fix dispatcher error printed when command execution is short (for example, `tuist version`) [#4565](https://github.com/tuist/tuist/pull/4565) by [@danyf90](https://github.com/danyf90)
+- Delete old tuistenv when updating [#4579](https://github.com/tuist/tuist/pull/4579) by [@ezraberch](https://github.com/ezraberch)
+- Fetch remote plugins when loading them [#4587](https://github.com/tuist/tuist/pull/4587) by [@danyf90](https://github.com/danyf90)
+- Fix resource bundle signing error when archiving with Xcode 14 beta [#4588](https://github.com/tuist/tuist/pull/4588) by [@kwridan](https://github.com/kwridan)
+
 ## 3.7.0 - 2022-06-19
 
 ### Changed

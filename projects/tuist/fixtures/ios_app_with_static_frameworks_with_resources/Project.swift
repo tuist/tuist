@@ -14,7 +14,12 @@ let project = Project(
                 .project(target: "A", path: "Modules/A"),
                 .project(target: "C", path: "Modules/C"),
                 .framework(path: "Prebuilt/prebuilt/PrebuiltStaticFramework.framework"),
-            ]
+            ],
+            settings: .settings(
+                base: [
+                    "BITCODE_ENABLED": "NO",
+                ]
+            )
         ),
         Target(
             name: "AppTests",

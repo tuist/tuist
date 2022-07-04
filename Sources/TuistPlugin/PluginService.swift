@@ -50,10 +50,7 @@ public protocol PluginServicing {
     /// Loads the `Plugins` and returns them as defined in given config.
     /// - Throws: An error if there are issues loading a plugin.
     /// - Returns: The loaded `Plugins` representation.
-    func loadPlugins(using config: Config) throws -> Plugins
-    /// Fetches all remote plugins defined in a given config.
-    /// - Returns: The loaded `Plugins` representation.
-    func fetchRemotePlugins(using config: Config) async throws
+    func loadPlugins(using config: Config) async throws -> Plugins
     /// - Returns: Array of `RemotePluginPaths` for each remote plugin.
     func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths]
 }
@@ -99,53 +96,48 @@ public final class PluginService: PluginServicing {
         self.fileClient = fileClient
     }
 
-    public func fetchRemotePlugins(using config: Config) async throws {
-        for pluginLocation in config.plugins {
-            switch pluginLocation {
-            case let .git(url, gitReference):
-                try await fetchRemotePlugin(
-                    url: url,
-                    gitReference: gitReference,
-                    config: config
-                )
-            case .local:
-                continue
-            }
-        }
-    }
-
     public func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths] {
         try config.plugins.compactMap { pluginLocation in
             switch pluginLocation {
             case .local:
                 return nil
-            case let .git(url: url, gitReference: .sha(sha)):
+            case let .git(url: url, gitReference: .sha(sha), directory):
                 let pluginCacheDirectory = try self.pluginCacheDirectory(
                     url: url,
                     gitId: sha,
                     config: config
                 )
+                var repositoryPath = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
+                if let directory = directory {
+                    repositoryPath = repositoryPath.appending(RelativePath(directory))
+                }
                 return RemotePluginPaths(
-                    repositoryPath: pluginCacheDirectory.appending(component: PluginServiceConstants.repository),
+                    repositoryPath: repositoryPath,
                     releasePath: nil
                 )
-            case let .git(url: url, gitReference: .tag(tag)):
+            case let .git(url: url, gitReference: .tag(tag), directory):
                 let pluginCacheDirectory = try self.pluginCacheDirectory(
                     url: url,
                     gitId: tag,
                     config: config
                 )
+                var repositoryPath = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
+                if let directory = directory {
+                    repositoryPath = repositoryPath.appending(RelativePath(directory))
+                }
                 let releasePath = pluginCacheDirectory.appending(component: PluginServiceConstants.release)
                 return RemotePluginPaths(
-                    repositoryPath: pluginCacheDirectory.appending(component: PluginServiceConstants.repository),
+                    repositoryPath: repositoryPath,
                     releasePath: FileHandler.shared.exists(releasePath) ? releasePath : nil
                 )
             }
         }
     }
 
-    public func loadPlugins(using config: Config) throws -> Plugins {
+    public func loadPlugins(using config: Config) async throws -> Plugins {
         guard !config.plugins.isEmpty else { return .none }
+
+        try await fetchRemotePlugins(using: config)
 
         let localPluginPaths: [AbsolutePath] = config.plugins
             .compactMap { pluginLocation in
@@ -194,6 +186,21 @@ public final class PluginService: PluginServicing {
             templatePaths: templatePaths,
             resourceSynthesizers: resourceSynthesizerPlugins
         )
+    }
+
+    func fetchRemotePlugins(using config: Config) async throws {
+        for pluginLocation in config.plugins {
+            switch pluginLocation {
+            case let .git(url, gitReference, _):
+                try await fetchRemotePlugin(
+                    url: url,
+                    gitReference: gitReference,
+                    config: config
+                )
+            case .local:
+                continue
+            }
+        }
     }
 
     private func fetchRemotePlugin(
