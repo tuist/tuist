@@ -3,6 +3,7 @@ import ProjectDescription
 import TSCBasic
 import TuistGraph
 
+// swiftlint:disable function_body_length
 extension TuistGraph.Project {
     /// Maps a `ProjectDescription.Project` instance into a `TuistGraph.Project` instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
@@ -17,7 +18,7 @@ extension TuistGraph.Project {
         manifest: ProjectDescription.Project,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
-        externalDependencies: [String: [TuistGraph.TargetDependency]],
+        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]],
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating,
         isExternal: Bool
     ) throws -> TuistGraph.Project {
@@ -27,8 +28,13 @@ extension TuistGraph.Project {
         let developmentRegion = manifest.options.developmentRegion
         let options = TuistGraph.Project.Options.from(manifest: manifest.options)
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
+
         let targets = try manifest.targets.map {
-            try TuistGraph.Target.from(manifest: $0, generatorPaths: generatorPaths, externalDependencies: externalDependencies)
+            try TuistGraph.Target.from(
+                manifest: $0,
+                generatorPaths: generatorPaths,
+                externalDependencies: externalDependencies
+            )
         }
         let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
         let additionalFiles = try manifest.additionalFiles

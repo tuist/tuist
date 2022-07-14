@@ -66,21 +66,21 @@ extension PackageInfo {
 
               ],
               "platformName" : "ios",
-              "version" : "13.0"
+              "version" : "\(PLATFORM_TEST_VERSION[.iOS]!)"
             },
             {
               "options" : [
 
               ],
               "platformName" : "macos",
-              "version" : "10.15"
+              "version" : "\(PLATFORM_TEST_VERSION[.macOS]!)"
             },
             {
               "options" : [
 
               ],
               "platformName" : "watchos",
-              "version" : "6.0"
+              "version" : "\(PLATFORM_TEST_VERSION[.watchOS]!)"
             }
           ],
           "products" : [
@@ -333,21 +333,21 @@ extension PackageInfo {
 
               ],
               "platformName" : "ios",
-              "version" : "13.0"
+              "version" : "\(PLATFORM_TEST_VERSION[.iOS]!)"
             },
             {
               "options" : [
 
               ],
               "platformName" : "macos",
-              "version" : "10.15"
+              "version" : "\(PLATFORM_TEST_VERSION[.macOS]!)"
             },
             {
               "options" : [
 
               ],
               "platformName" : "watchos",
-              "version" : "6.0"
+              "version" : "\(PLATFORM_TEST_VERSION[.watchOS]!)"
             }
           ],
           "products" : [
@@ -674,9 +674,9 @@ extension PackageInfo {
                 ),
             ],
             platforms: [
-                .init(platformName: "ios", version: "13.0", options: []),
+                .init(platformName: "ios", version: "10.0", options: []),
                 .init(platformName: "macos", version: "10.15", options: []),
-                .init(platformName: "watchos", version: "6.0", options: []),
+                .init(platformName: "watchos", version: "8.5", options: []),
             ],
             cLanguageStandard: "c99",
             cxxLanguageStandard: nil,
@@ -719,7 +719,11 @@ extension PackageInfo {
                     checksum: nil
                 ),
             ],
-            platforms: [],
+            platforms: [
+                .init(platformName: "ios", version: PLATFORM_TEST_VERSION[.iOS]!, options: []),
+                .init(platformName: "macos", version: PLATFORM_TEST_VERSION[.macOS]!, options: []),
+                .init(platformName: "watchos", version: PLATFORM_TEST_VERSION[.watchOS]!, options: []),
+            ],
             cLanguageStandard: nil,
             cxxLanguageStandard: nil,
             swiftLanguageVersions: nil
@@ -747,9 +751,9 @@ extension PackageInfo {
                 ),
             ],
             platforms: [
-                .init(platformName: "ios", version: "13.0", options: []),
-                .init(platformName: "macos", version: "10.15", options: []),
-                .init(platformName: "watchos", version: "6.0", options: []),
+                .init(platformName: "ios", version: PLATFORM_TEST_VERSION[.iOS]!, options: []),
+                .init(platformName: "macos", version: PLATFORM_TEST_VERSION[.macOS]!, options: []),
+                .init(platformName: "watchos", version: PLATFORM_TEST_VERSION[.watchOS]!, options: []),
             ],
             cLanguageStandard: nil,
             cxxLanguageStandard: nil,
@@ -778,28 +782,28 @@ extension PackageInfo {
 
               ],
               "platformName" : "macos",
-              "version" : "10.12"
+              "version" : "\(PLATFORM_TEST_VERSION[.macOS]!)"
             },
             {
               "options" : [
 
               ],
               "platformName" : "ios",
-              "version" : "10.0"
+              "version" : "\(PLATFORM_TEST_VERSION[.iOS]!)"
             },
             {
               "options" : [
 
               ],
               "platformName" : "tvos",
-              "version" : "10.0"
+              "version" : "\(PLATFORM_TEST_VERSION[.tvOS]!)"
             },
             {
               "options" : [
 
               ],
               "platformName" : "watchos",
-              "version" : "3.0"
+              "version" : "\(PLATFORM_TEST_VERSION[.watchOS]!)"
             }
           ],
           "products" : [
@@ -928,10 +932,10 @@ extension PackageInfo {
                 ),
             ],
             platforms: [
-                .init(platformName: "macos", version: "10.12", options: []),
-                .init(platformName: "ios", version: "10.0", options: []),
-                .init(platformName: "tvos", version: "10.0", options: []),
-                .init(platformName: "watchos", version: "3.0", options: []),
+                .init(platformName: "macos", version: PLATFORM_TEST_VERSION[.macOS]!, options: []),
+                .init(platformName: "ios", version: PLATFORM_TEST_VERSION[.iOS]!, options: []),
+                .init(platformName: "tvos", version: PLATFORM_TEST_VERSION[.tvOS]!, options: []),
+                .init(platformName: "watchos", version: PLATFORM_TEST_VERSION[.watchOS]!, options: []),
             ],
             cLanguageStandard: nil,
             cxxLanguageStandard: nil,

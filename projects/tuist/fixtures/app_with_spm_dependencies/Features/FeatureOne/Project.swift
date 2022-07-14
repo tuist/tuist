@@ -6,8 +6,16 @@ let project = Project(
     settings: .projectSettings,
     targets: [
         Target(
-            name: "FeatureOneFramework",
+            name: "FeatureOneFramework_iOS",
             platform: .iOS,
+            product: .framework,
+            bundleId: "io.tuist.featureOne",
+            sources: ["Sources/**"],
+            settings: .targetSettings
+        ),
+        Target(
+            name: "FeatureOneFramework_watchOS",
+            platform: .watchOS,
             product: .framework,
             bundleId: "io.tuist.featureOne",
             sources: ["Sources/**"],

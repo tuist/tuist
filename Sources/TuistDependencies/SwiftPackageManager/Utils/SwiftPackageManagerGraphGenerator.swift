@@ -145,7 +145,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 targetSettings: targetSettings,
                 projectOptions: projectOptions[packageInfo.name],
                 minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
-                targetToPlatform: preprocessInfo.targetToPlatform,
+                platforms: preprocessInfo.platforms,
                 targetToProducts: preprocessInfo.targetToProducts,
                 targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
                 targetToModuleMap: preprocessInfo.targetToModuleMap,
@@ -159,5 +159,23 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             externalDependencies: preprocessInfo.productToExternalDependencies,
             externalProjects: externalProjects
         )
+    }
+}
+
+extension ProjectDescription.Platform {
+    /// Maps a TuistGraph.Platform instance into a  ProjectDescription.Platform instance.
+    /// - Parameters:
+    ///   - manifest: Graph representation of platform model.
+    static func from(graph: TuistGraph.Platform) -> ProjectDescription.Platform {
+        switch graph {
+        case .macOS:
+            return .macOS
+        case .iOS:
+            return .iOS
+        case .tvOS:
+            return .tvOS
+        case .watchOS:
+            return .watchOS
+        }
     }
 }

@@ -134,7 +134,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     try synthesizedResourceInterfacesGenerator.render(
                         parser: resourceSynthesizer.parser,
                         templateString: templateString,
-                        name: name,
+                        name: target.productName.camelized.uppercasingFirst,
                         bundleName: project.options.disableBundleAccessors ? nil : "Bundle.module",
                         paths: paths
                     )

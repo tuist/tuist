@@ -14,7 +14,7 @@ let project = Project(
             sources: "Sources/App/**",
             dependencies: [
                 .target(name: "AppKit"),
-                .project(target: "FeatureOneFramework", path: .relativeToRoot("Features/FeatureOne")),
+                .project(target: "FeatureOneFramework_iOS", path: .relativeToRoot("Features/FeatureOne")),
                 .external(name: "Styles"),
             ],
             settings: .targetSettings
@@ -41,6 +41,31 @@ let project = Project(
                 .external(name: "TYStatusBarView"),
             ],
             settings: .targetSettings
+        ),
+        Target(
+            name: "WatchApp",
+            platform: .watchOS,
+            product: .watch2App,
+            bundleId: "io.tuist.app.watchapp",
+            infoPlist: .extendingDefault(
+                with: [
+                    "WKCompanionAppBundleIdentifier": "io.tuist.app",
+                ]
+            ),
+            sources: ["Sources/Watch/App/**"],
+            dependencies: [
+                .target(name: "WatchExtension"),
+            ]
+        ),
+        Target(
+            name: "WatchExtension",
+            platform: .watchOS,
+            product: .watch2Extension,
+            bundleId: "io.tuist.app.watchapp.extension",
+            sources: ["Sources/Watch/Extension/**"],
+            dependencies: [
+                .external(name: "Alamofire"),
+            ]
         ),
     ],
     schemes: Scheme.allSchemes(for: ["App", "AppKit"], executable: "App")

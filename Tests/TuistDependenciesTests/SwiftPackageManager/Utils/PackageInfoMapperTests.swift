@@ -111,9 +111,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             preprocessInfo.productToExternalDependencies,
             [
-                "Product1": [
-                    .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
-                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                .iOS: [
+                    "Product1": [
+                        .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
+                        .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
+                    ],
                 ],
             ]
         )
@@ -222,7 +224,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
-                "Target_1": [.externalTarget(package: "com.example.dep-1", target: "com_example_dep-1")],
+                "Target_1": [
+                    .externalTarget(package: "com.example.dep-1", target: "com_example_dep-1"),
+                ],
                 "com.example.dep-1": [],
             ]
         )
@@ -251,6 +255,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
+
         XCTAssertEqual(
             project,
             .testWithDefaultConfigs(
@@ -285,6 +290,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
+
         XCTAssertEqual(
             project,
             .testWithDefaultConfigs(
@@ -486,6 +492,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
+
         XCTAssertEqual(
             project,
             .testWithDefaultConfigs(
@@ -494,6 +501,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "com_example_target-1",
                         basePath: basePath,
+                        customProductName: "com_example_target_1",
                         customBundleID: "com.example.target-1",
                         customSources: .init(globs: [
                             basePath
@@ -1206,10 +1214,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenIOSAvailable_takesIOS() throws {
+    func testMap_whenMultipleAvailable_takesMultiple() throws {
+        // Given
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
+
+        // When
         let project = try subject.map(
             package: "Package",
             basePath: basePath,
@@ -1229,15 +1240,38 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ],
             platforms: [.iOS, .tvOS]
         )
-        XCTAssertEqual(
-            project,
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test("Target1", basePath: basePath, platform: .iOS),
-                ]
-            )
+
+        // Then
+        let expected: ProjectDescription.Project = .testWithDefaultConfigs(
+            name: "Package",
+            targets: [
+                .test(
+                    "Target1_tvos",
+                    basePath: basePath,
+                    platform: .tvOS,
+                    customProductName: "Target1",
+                    customBundleID: "Target1",
+                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    customSources: .init(globs: [basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString])
+                ),
+                .test(
+                    "Target1_ios",
+                    basePath: basePath,
+                    platform: .iOS,
+                    customProductName: "Target1",
+                    customBundleID: "Target1",
+                    customSources: .init(globs: [basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString])
+                ),
+            ]
         )
+
+        XCTAssertEqual(project?.name, expected.name)
+
+        // Need to sort targets of projects, because internall a set is used to generate targets for different platforms
+        // That could lead to mixed orders
+        let projectTargets = project!.targets.sorted(by: \.name)
+        let expectedTargets = expected.targets.sorted(by: \.name)
+        XCTAssertEqual(projectTargets, expectedTargets)
     }
 
     func testMap_whenIOSNotAvailable_takesOthers() throws {
@@ -1302,38 +1336,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test("Target1", basePath: basePath, platform: .tvOS, deploymentTarget: .tvOS(targetVersion: "9.0")),
                 ]
-            )
-        )
-    }
-
-    func testMap_whenNoneAvailable_throws() throws {
-        let basePath = try temporaryPath()
-        let sourcesPath = basePath.appending(RelativePath("Package/Sources/Target1"))
-        try fileHandler.createFolder(sourcesPath)
-        XCTAssertThrowsSpecific(
-            try subject.map(
-                package: "Package",
-                basePath: basePath,
-                packageInfos: [
-                    "Package": .init(
-                        products: [
-                            .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
-                        ],
-                        targets: [
-                            .test(name: "Target1"),
-                        ],
-                        platforms: [.init(platformName: "tvos", version: "13.0", options: [])],
-                        cLanguageStandard: nil,
-                        cxxLanguageStandard: nil,
-                        swiftLanguageVersions: nil
-                    ),
-                ],
-                platforms: [.iOS]
-            ),
-            PackageInfoMapperError.noSupportedPlatforms(
-                name: "Package",
-                configured: [.iOS],
-                package: [.tvOS]
             )
         )
     }
@@ -2600,6 +2602,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Quick": ["ANOTHER_SETTING": "YES"],
             ]
         )
+
         XCTAssertEqual(
             project,
             .testWithDefaultConfigs(
@@ -2608,15 +2611,25 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test("RxSwift", basePath: basePath, product: .framework),
                 ] + testTargets.map {
                     let customSettings: ProjectDescription.SettingsDictionary
+                    var customProductName: String?
                     switch $0 {
                     case "Nimble":
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "NO", "ANOTHER_SETTING": "YES"]
                     case "Quick":
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES", "ANOTHER_SETTING": "YES"]
+                    case "RxTest-Dynamic": // because RxTest does have an "-" we need to account for the custom mapping to product names
+                        customProductName = "RxTest_Dynamic"
+                        customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
                     default:
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
                     }
-                    return .test($0, basePath: basePath, customSettings: customSettings)
+
+                    return .test(
+                        $0,
+                        basePath: basePath,
+                        customProductName: customProductName,
+                        customSettings: customSettings
+                    )
                 }
             )
         )
@@ -2686,7 +2699,7 @@ extension PackageInfoMapping {
             targetSettings: targetSettings,
             projectOptions: projectOptions,
             minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
-            targetToPlatform: preprocessInfo.targetToPlatform,
+            platforms: preprocessInfo.platforms,
             targetToProducts: preprocessInfo.targetToProducts,
             targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
             targetToModuleMap: preprocessInfo.targetToModuleMap,
@@ -2768,6 +2781,7 @@ extension ProjectDescription.Target {
         basePath: AbsolutePath = "/",
         platform: ProjectDescription.Platform = .iOS,
         product: ProjectDescription.Product = .staticFramework,
+        customProductName: String? = nil,
         customBundleID: String? = nil,
         deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "9.0", devices: [.iphone, .ipad]),
         customSources: SourceFilesList? = nil,
@@ -2782,6 +2796,7 @@ extension ProjectDescription.Target {
             name: name,
             platform: platform,
             product: product,
+            productName: customProductName ?? name,
             bundleId: customBundleID ?? name,
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
@@ -2807,5 +2822,13 @@ extension Array where Element == ProjectDescription.ResourceFileElement {
                     excluding: excluding
                 )
             }
+    }
+}
+
+extension Sequence {
+    func sorted<T: Comparable>(by keyPath: KeyPath<Element, T>) -> [Element] {
+        sorted { a, b in
+            a[keyPath: keyPath] < b[keyPath: keyPath]
+        }
     }
 }
