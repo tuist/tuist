@@ -13,6 +13,9 @@ public struct RunActionOptions: Equatable, Codable {
     /// A simulated location used when running the provided run action.
     public let simulatedLocation: SimulatedLocation?
 
+    /// Configure your project to work with the Metal frame debugger.
+    public let enableGPUFrameCaptureMode: GPUFrameCaptureMode
+
     /// Creates an `RunActionOptions` instance
     ///
     /// - Parameters:
@@ -24,14 +27,19 @@ public struct RunActionOptions: Equatable, Codable {
     ///     configuration defined for the scheme
     ///
     ///     - simulatedLocation: The simulated GPS location to use when running the app.
+    ///
+    ///     - enableGPUFrameCaptureMode: The capture mode to use. e.g: .disabled
+
     public init(
         language: String? = nil,
         storeKitConfigurationPath: AbsolutePath? = nil,
-        simulatedLocation: SimulatedLocation? = nil
+        simulatedLocation: SimulatedLocation? = nil,
+        enableGPUFrameCaptureMode: GPUFrameCaptureMode = .autoEnabled
     ) {
         self.language = language
         self.storeKitConfigurationPath = storeKitConfigurationPath
         self.simulatedLocation = simulatedLocation
+        self.enableGPUFrameCaptureMode = enableGPUFrameCaptureMode
     }
 }
 
@@ -78,5 +86,18 @@ extension RunActionOptions.SimulatedLocation: Equatable, Codable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(identifier)
+    }
+}
+
+extension RunActionOptions {
+    public enum GPUFrameCaptureMode: String, Codable, Equatable {
+        case autoEnabled = "0"
+        case metal = "1"
+        case openGL = "2"
+        case disabled = "3"
+
+        public static var `default`: GPUFrameCaptureMode {
+            .autoEnabled
+        }
     }
 }

@@ -15,8 +15,11 @@ extension TuistGraph.RunActionOptions {
         var language: String?
         var storeKitConfigurationPath: AbsolutePath?
         var simulatedLocation: SimulatedLocation?
+        var enableGPUFrameCaptureMode: GPUFrameCaptureMode
 
         language = manifest.language?.identifier
+        enableGPUFrameCaptureMode = GPUFrameCaptureMode(rawValue: manifest.enableGPUFrameCaptureMode.rawValue) ??
+            GPUFrameCaptureMode.default
 
         if let path = manifest.storeKitConfigurationPath {
             storeKitConfigurationPath = try generatorPaths.resolveSchemeActionProjectPath(path)
@@ -36,7 +39,8 @@ extension TuistGraph.RunActionOptions {
         return TuistGraph.RunActionOptions(
             language: language,
             storeKitConfigurationPath: storeKitConfigurationPath,
-            simulatedLocation: simulatedLocation
+            simulatedLocation: simulatedLocation,
+            enableGPUFrameCaptureMode: enableGPUFrameCaptureMode
         )
     }
 }
