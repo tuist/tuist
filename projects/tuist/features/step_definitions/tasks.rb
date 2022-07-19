@@ -12,8 +12,8 @@ Then(/^tuist runs ([a-zA-Z\-_]+)$/) do |command|
   system(@tuist, command, "--path", @dir)
 end
 
-Then(/^tuist fails running ([a-zA-Z\-_]+) with the current directory$/) do |command|
-    _, _, status = Open3.capture3(@tuist, command, @dir)
+Then(/^tuist fails running ([a-zA-Z\-_]+)$/) do |command|
+    _, _, status = Open3.capture3(@tuist, command, "--path", @dir)
     assert(!status.success?, "Running #{command} must be failed")
 end
 

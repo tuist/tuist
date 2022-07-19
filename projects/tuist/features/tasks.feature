@@ -6,8 +6,8 @@ Feature: Run tasks
     Then tuist does fetch
     Then current directory is added to PATH
     Then environment variable PLUGIN_FILE_CONTENT is not defined
-    Then tuist fails running create-file with the current directory
+    Then tuist fails running create-file
     Then environment variable PLUGIN_FILE_CONTENT is defined as File created with a plugin
-    Then tuist runs create-file with the current directory
+    Then tuist runs create-file
     Then content of a file named plugin-file.txt should be equal to File created with a plugin
     Then tuist runs inspect-graph
