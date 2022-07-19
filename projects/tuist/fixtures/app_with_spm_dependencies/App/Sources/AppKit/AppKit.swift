@@ -7,6 +7,8 @@ import FirebaseCore
 import FirebaseCrashlytics
 import FirebaseDatabase
 import FirebaseFirestore
+import FirebaseFunctions
+import FirebaseRemoteConfig
 import IterableSDK
 import Stripe
 import TYStatusBarView
@@ -33,6 +35,12 @@ public enum AppKit {
 
         // Use FirebaseFirestore to make sure it links fine
         _ = Firestore.firestore()
+        
+        // Use Functions to make sure it links fine
+        _ = Functions.functions()
+        
+        // Use RemoteConfig to make sure it links fine
+        _ = RemoteConfig.remoteConfig()
 
         // Use Stripe to make sure it links fine
         _ = STPAPIClient.shared
