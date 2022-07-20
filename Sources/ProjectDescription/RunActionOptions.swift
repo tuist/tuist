@@ -28,7 +28,9 @@ public struct RunActionOptions: Equatable, Codable {
     ///     - simulatedLocation: The simulated GPS location to use when running the app.
     ///     Please note that the `.custom(gpxPath:)` case must refer to a valid GPX file in your project's resources.
     ///
-    ///     - enableGPUFrameCaptureMode: The capture mode to use. e.g: .disabled
+    ///     - enableGPUFrameCaptureMode: The Metal Frame Capture mode to use. e.g: .disabled
+    ///     If your target links to the Metal framework, Xcode enables GPU Frame Capture.
+    ///     You can disable it to test your app in best perfomance.
     init(
         language: SchemeLanguage? = nil,
         storeKitConfigurationPath: Path? = nil,
@@ -54,7 +56,9 @@ public struct RunActionOptions: Equatable, Codable {
     ///     - simulatedLocation: The simulated GPS location to use when running the app.
     ///     Please note that the `.custom(gpxPath:)` case must refer to a valid GPX file in your project's resources.
     ///
-    ///     - enableGPUFrameCaptureMode: The capture mode to use. e.g: .disabled
+    ///     - enableGPUFrameCaptureMode: The Metal Frame Capture mode to use. e.g: .disabled
+    ///     If your target links to the Metal framework, Xcode enables GPU Frame Capture.
+    ///     You can disable it to test your app in best perfomance.
 
     public static func options(
         language: SchemeLanguage? = nil,
