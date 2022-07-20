@@ -147,10 +147,10 @@ extension RunActionOptions {
 
 extension RunActionOptions {
     public enum GPUFrameCaptureMode: String, Codable, Equatable {
-        case autoEnabled = "0"
-        case metal = "1"
-        case openGL = "2"
-        case disabled = "3"
+        case autoEnabled
+        case metal
+        case openGL
+        case disabled
 
         public static var `default`: GPUFrameCaptureMode {
             .autoEnabled
