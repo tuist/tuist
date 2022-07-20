@@ -25,7 +25,7 @@ public final class RetryingCacheStorage: CacheStoring {
     }
 
     public func store(name: String, hash: String, paths: [AbsolutePath]) async throws {
-        try await retryOnceOnError(label: "store", name: name, hash: hash) { () -> Void in
+        try await retryOnceOnError(label: "store", name: name, hash: hash) { () in
             try await cacheStoring.store(name: name, hash: hash, paths: paths)
         }
     }
