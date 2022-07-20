@@ -18,8 +18,17 @@ extension TuistGraph.RunActionOptions {
         var enableGPUFrameCaptureMode: GPUFrameCaptureMode
 
         language = manifest.language?.identifier
-        enableGPUFrameCaptureMode = GPUFrameCaptureMode(rawValue: manifest.enableGPUFrameCaptureMode.rawValue) ??
-            GPUFrameCaptureMode.default
+
+        switch manifest.enableGPUFrameCaptureMode {
+        case .autoEnabled:
+            enableGPUFrameCaptureMode = .autoEnabled
+        case .metal:
+            enableGPUFrameCaptureMode = .metal
+        case .openGL:
+            enableGPUFrameCaptureMode = .openGL
+        case .disabled:
+            enableGPUFrameCaptureMode = .disabled
+        }
 
         if let path = manifest.storeKitConfigurationPath {
             storeKitConfigurationPath = try generatorPaths.resolveSchemeActionProjectPath(path)
