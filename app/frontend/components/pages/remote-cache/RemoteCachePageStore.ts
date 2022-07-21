@@ -118,6 +118,7 @@ class RemoteCachePageStore {
       this.accessKeyId = '';
       this.secretAccessKey = '';
       this.region = '';
+      this.isDefaultBucket = false;
     }
     const s3Bucket = this.s3Buckets.find(
       (s3Bucket) => s3Bucket.name === option,

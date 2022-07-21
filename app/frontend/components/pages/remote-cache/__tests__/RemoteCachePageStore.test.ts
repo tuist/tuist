@@ -120,6 +120,44 @@ describe('RemoteCachePageStore', () => {
     expect(remoteCachePageStore.selectedOption).toEqual('bucket');
   });
 
+  it('changes isDefaultBucket to false when going from a default bucket to creating a new one', async () => {
+    // Given
+    projectStore.project!.remoteCacheStorage = {
+      accessKeyId: 'accessKeyId',
+      id: 'id',
+      name: 'bucket',
+      secretAccessKey: 'secret',
+      region: 'region',
+      isDefault: true,
+    };
+    const remoteCachePageStore = new RemoteCachePageStore(
+      client,
+      projectStore,
+    );
+    client.query.mockResolvedValueOnce({
+      data: {
+        s3Buckets: [
+          {
+            accessKeyId: 'key-id-1',
+            accountId: 'account-id-1',
+            id: 'id',
+            name: 'S3 bucket one',
+            region: 'region',
+            isDefault: true,
+            __typename: 'S3Bucket',
+          },
+        ] as S3BucketInfoFragment[],
+      },
+    });
+    await remoteCachePageStore.load();
+
+    // When
+    remoteCachePageStore.handleSelectOption('new');
+
+    // Then
+    expect(remoteCachePageStore.isDefaultBucket).toEqual(false);
+  });
+
   it('sets isDefaultBucket to true', async () => {
     // Given
     projectStore.project!.remoteCacheStorage = {
