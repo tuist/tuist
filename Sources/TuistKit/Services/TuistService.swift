@@ -60,7 +60,7 @@ final class TuistService: NSObject {
                 Constants.EnvironmentVariables.forceConfigCacheDirectory: Environment.shared.tuistConfigVariables[
                     Constants.EnvironmentVariables.forceConfigCacheDirectory
                 ] ?? "",
-            ]
+            ].merging(System.shared.env) { tuistEnv, _ in tuistEnv }
         )
     }
 }
