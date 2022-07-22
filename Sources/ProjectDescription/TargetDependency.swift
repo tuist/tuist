@@ -47,12 +47,12 @@ public enum TargetDependency: Codable, Equatable {
     ///   - swiftModuleMap: Relative path to the library's swift module map file
     case library(path: Path, publicHeaders: Path, swiftModuleMap: Path?)
 
-    /// Dependency on a swift package manager product. Define packages in the `packages` variable on `Project`
+    /// Dependency on a swift package manager product using Xcode native integration. It's recommended to use `external` instead.
+    /// For more info, check the [external dependencies documentation](https://docs.tuist.io/guides/third-party-dependencies/).
     ///
     /// - Parameters:
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
     ///              e.g. RxSwift
-    @available(*, deprecated, message: "Use `Dependencies.swift` and `.external(name:)` instead")
     case package(product: String)
 
     /// Dependency on system library or framework
