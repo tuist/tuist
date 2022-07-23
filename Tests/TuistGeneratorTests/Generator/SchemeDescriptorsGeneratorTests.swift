@@ -865,7 +865,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             options: .init(
                 language: "pl",
                 storeKitConfigurationPath: "/somepath/Workspace/Projects/Project/nested/configuration/configuration.storekit",
-                simulatedLocation: .reference("New York, NY, USA")
+                simulatedLocation: .reference("New York, NY, USA"),
+                enableGPUFrameCaptureMode: .metal
             )
         )
 

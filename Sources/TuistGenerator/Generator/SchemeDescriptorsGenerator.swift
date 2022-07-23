@@ -496,6 +496,22 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             )
         }
 
+        let enableGPUFrameCaptureMode: XCScheme.LaunchAction.GPUFrameCaptureMode
+        if let captureMode = scheme.runAction?.options.enableGPUFrameCaptureMode {
+            switch captureMode {
+            case .autoEnabled:
+                enableGPUFrameCaptureMode = .autoEnabled
+            case .metal:
+                enableGPUFrameCaptureMode = .metal
+            case .openGL:
+                enableGPUFrameCaptureMode = .openGL
+            case .disabled:
+                enableGPUFrameCaptureMode = .disabled
+            }
+        } else {
+            enableGPUFrameCaptureMode = .autoEnabled
+        }
+
         let preActions = try scheme.runAction?.preActions.map {
             try schemeExecutionAction(
                 action: $0,
@@ -525,6 +541,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             askForAppToLaunch: launchActionConstants.askForAppToLaunch,
             pathRunnable: pathRunnable,
             locationScenarioReference: locationScenarioReference,
+            enableGPUFrameCaptureMode: enableGPUFrameCaptureMode,
             disableMainThreadChecker: disableMainThreadChecker,
             commandlineArguments: commandlineArguments,
             environmentVariables: environments,
