@@ -3,7 +3,7 @@ import ProjectDescription
 let dependencies = Dependencies(
     swiftPackageManager: .init(
         [
-            .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "8.5.0")),
+            .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "8.8.0")),
             .package(url: "https://github.com/CombineCommunity/CombineExt.git", .upToNextMajor(from: "1.3.0")),
             .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.5")),
             .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.4.2")),
