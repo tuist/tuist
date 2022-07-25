@@ -42,7 +42,7 @@ final class GraphService {
         layoutAlgorithm: GraphViz.LayoutAlgorithm,
         skipTestTargets: Bool,
         skipExternalDependencies: Bool,
-        noOpen: Bool,
+        open: Bool,
         targetsToFilter: [String],
         path: AbsolutePath,
         outputPath: AbsolutePath
@@ -68,7 +68,7 @@ final class GraphService {
                 targetsAndDependencies: filteredTargetsAndDependencies
             )
 
-            try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm, noOpen: noOpen)
+            try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm, open: open)
         case .json:
             let outputGraph = ProjectAutomation.Graph.from(
                 graph: graph,
@@ -85,13 +85,13 @@ final class GraphService {
         at filePath: AbsolutePath,
         withFormat format: GraphFormat,
         layoutAlgorithm: LayoutAlgorithm,
-        noOpen: Bool
+        open: Bool = true
     ) throws {
         switch format {
         case .dot:
             try exportDOTRepresentation(from: graph, at: filePath)
         case .png:
-            try exportPNGRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, noOpen: noOpen)
+            try exportPNGRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, open: open)
         case .json:
             throw GraphServiceError.jsonNotValidForVisualExport
         }
@@ -106,7 +106,7 @@ final class GraphService {
         from graphVizGraph: GraphViz.Graph,
         at filePath: AbsolutePath,
         layoutAlgorithm: LayoutAlgorithm,
-        noOpen: Bool
+        open: Bool = true
     ) throws {
         if !isGraphVizInstalled() {
             try installGraphViz()
@@ -114,7 +114,7 @@ final class GraphService {
         let data = try graphVizGraph.render(using: layoutAlgorithm, to: .png)
         FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
 
-        if !noOpen {
+        if open {
             try System.shared.async(["open", filePath.pathString])
         }
     }
