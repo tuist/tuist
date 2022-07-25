@@ -42,6 +42,7 @@ final class GraphService {
         layoutAlgorithm: GraphViz.LayoutAlgorithm,
         skipTestTargets: Bool,
         skipExternalDependencies: Bool,
+        noOpen: Bool,
         targetsToFilter: [String],
         path: AbsolutePath,
         outputPath: AbsolutePath
@@ -67,7 +68,7 @@ final class GraphService {
                 targetsAndDependencies: filteredTargetsAndDependencies
             )
 
-            try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
+            try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm, noOpen: noOpen)
         case .json:
             let outputGraph = ProjectAutomation.Graph.from(
                 graph: graph,
@@ -83,13 +84,14 @@ final class GraphService {
         graph: GraphViz.Graph,
         at filePath: AbsolutePath,
         withFormat format: GraphFormat,
-        layoutAlgorithm: LayoutAlgorithm
+        layoutAlgorithm: LayoutAlgorithm,
+        noOpen: Bool = false
     ) throws {
         switch format {
         case .dot:
             try exportDOTRepresentation(from: graph, at: filePath)
         case .png:
-            try exportPNGRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm)
+            try exportPNGRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, noOpen: noOpen)
         case .json:
             throw GraphServiceError.jsonNotValidForVisualExport
         }
@@ -103,14 +105,18 @@ final class GraphService {
     private func exportPNGRepresentation(
         from graphVizGraph: GraphViz.Graph,
         at filePath: AbsolutePath,
-        layoutAlgorithm: LayoutAlgorithm
+        layoutAlgorithm: LayoutAlgorithm,
+        noOpen: Bool = false
     ) throws {
         if !isGraphVizInstalled() {
             try installGraphViz()
         }
         let data = try graphVizGraph.render(using: layoutAlgorithm, to: .png)
         FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
-        try System.shared.async(["open", filePath.pathString])
+
+        if !noOpen {
+            try System.shared.async(["open", filePath.pathString])
+        }
     }
 
     private func isGraphVizInstalled() -> Bool {
