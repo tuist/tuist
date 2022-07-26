@@ -85,7 +85,7 @@ final class GraphService {
         at filePath: AbsolutePath,
         withFormat format: GraphFormat,
         layoutAlgorithm: LayoutAlgorithm,
-        noOpen: Bool = false
+        noOpen: Bool
     ) throws {
         switch format {
         case .dot:
