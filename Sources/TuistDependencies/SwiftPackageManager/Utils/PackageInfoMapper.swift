@@ -43,10 +43,12 @@ enum PackageInfoMapperError: FatalError, Equatable {
     /// Thrown when a binary target defined in a package doesn't have a corresponding artifact
     case missingBinaryArtifact(package: String, target: String)
 
+    case modulemapMissing(moduleMapPath: String, package: String, target: String)
+
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget:
+        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget, .modulemapMissing:
             return .abort
         case .minDeploymentTargetParsingFailed, .defaultPathNotFound, .unsupportedSetting, .missingBinaryArtifact:
             return .bug
@@ -77,6 +79,8 @@ enum PackageInfoMapperError: FatalError, Equatable {
             return "The \(tool) and \(setting) pair is not a supported setting."
         case let .missingBinaryArtifact(package, target):
             return "The artifact for binary target \(target) of package \(package) cannot be found."
+        case let .modulemapMissing(moduleMapPath, package, target):
+            return "Target \(target) of package \(package) is a system library. Module map is missing at \(moduleMapPath)."
         }
     }
 }
@@ -279,11 +283,28 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let targetToModuleMap: [String: ModuleMap]
         targetToModuleMap = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
-                guard target.type == .regular else { return }
-                result[target.name] = try moduleMapGenerator.generate(
-                    moduleName: target.name,
-                    publicHeadersPath: target.publicHeadersPath(packageFolder: packageToFolder[packageInfo.key]!)
-                )
+                switch target.type {
+                case .system:
+                    /// System library targets assume the module map is located at the source directory root
+                    /// https://github.com/apple/swift-package-manager/blob/main/Sources/PackageLoading/ModuleMapGenerator.swift
+                    let packagePath = try target.basePath(packageFolder: packageToFolder[packageInfo.key]!)
+                    let moduleMapPath = packagePath.appending(component: moduleMapFilename)
+
+                    guard FileHandler.shared.exists(moduleMapPath), !FileHandler.shared.isFolder(moduleMapPath) else {
+                        throw PackageInfoMapperError.modulemapMissing(moduleMapPath: moduleMapPath.pathString,
+                                                                      package: packageInfo.key,
+                                                                      target: target.name)
+                    }
+
+                    result[target.name] = ModuleMap.custom(moduleMapPath)
+                case .regular:
+                    result[target.name] = try moduleMapGenerator.generate(
+                        moduleName: target.name,
+                        publicHeadersPath: target.publicHeadersPath(packageFolder: packageToFolder[packageInfo.key]!)
+                    )
+                default:
+                    return
+                }
             }
         }
 
@@ -425,7 +446,7 @@ extension ProjectDescription.Target {
         targetToModuleMap: [String: ModuleMap],
         addPlatformSuffix: Bool
     ) throws -> Self? {
-        guard target.type == .regular else {
+        guard target.type == .regular || target.type == .system else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         }
@@ -736,7 +757,7 @@ extension ProjectDescription.Settings {
         let mainRelativePath = mainPath.relative(to: packageFolder)
 
         let moduleMap = targetToModuleMap[target.name]!
-        if moduleMap != .none {
+        if moduleMap != .none && target.type != .system {
             let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
             let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
             headerSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")

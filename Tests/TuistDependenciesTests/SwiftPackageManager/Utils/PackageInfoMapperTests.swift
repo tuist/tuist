@@ -880,6 +880,82 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenHasSystemLibrary() throws {
+        let basePath = try temporaryPath()
+        let targetPath = basePath.appending(RelativePath("Package/Sources/Target1"))
+        let moduleMapPath = targetPath.appending(component: "module.modulemap")
+        try fileHandler.createFolder(targetPath)
+        try fileHandler.write("", path: moduleMapPath, atomically: true)
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            type: .system
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        moduleMap: "$(SRCROOT)/Sources/Target1/module.modulemap"
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_errorWhenSystemLibraryHasMissingModuleMap() throws {
+        let basePath = try temporaryPath()
+        let targetPath = basePath.appending(RelativePath("Package/Sources/Target1"))
+        let moduleMapPath = targetPath.appending(component: "module.modulemap")
+        try fileHandler.createFolder(targetPath)
+
+        let error = PackageInfoMapperError.modulemapMissing(moduleMapPath: moduleMapPath.pathString,
+                                                            package: "Package",
+                                                            target: "Target1")
+
+        XCTAssertThrowsSpecific(try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            type: .system
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        ), error)
+    }
+
     func testMap_whenHasHeadersWithUmbrellaHeader() throws {
         let basePath = try temporaryPath()
         let headersPath = basePath.appending(RelativePath("Package/Sources/Target1/include"))
