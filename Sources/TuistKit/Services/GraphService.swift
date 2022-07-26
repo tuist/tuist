@@ -106,7 +106,7 @@ final class GraphService {
         from graphVizGraph: GraphViz.Graph,
         at filePath: AbsolutePath,
         layoutAlgorithm: LayoutAlgorithm,
-        noOpen: Bool = false
+        noOpen: Bool
     ) throws {
         if !isGraphVizInstalled() {
             try installGraphViz()
