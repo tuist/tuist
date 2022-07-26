@@ -78,7 +78,7 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
             layoutAlgorithm: layoutAlgorithm,
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
-            noOpen: noOpen,
+            open: !noOpen,
             targetsToFilter: targets,
             path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath,
             outputPath: outputPath.map { AbsolutePath($0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
