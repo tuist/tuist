@@ -36,6 +36,12 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var format: GraphFormat = .png
 
+    @Flag(
+        name: .shortAndLong,
+        help: "Don't open the file after generating it."
+    )
+    var noOpen: Bool = false
+
     @Option(
         name: [.customShort("a"), .customLong("algorithm")],
         help: "Available formats: dot, neato, twopi, circo, fdp, sfddp, patchwork"
@@ -72,6 +78,7 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
             layoutAlgorithm: layoutAlgorithm,
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
+            open: !noOpen,
             targetsToFilter: targets,
             path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath,
             outputPath: outputPath.map { AbsolutePath($0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
