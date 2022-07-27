@@ -591,4 +591,8 @@ extension PackageInfo.Target.TargetType {
             return false
         }
     }
+
+    public var supportsCustomSettings: Bool {
+        supportsCSettings || supportsCxxSettings || supportsSwiftSettings || supportsLinkerSettings
+    }
 }

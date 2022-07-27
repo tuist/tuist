@@ -808,38 +808,40 @@ extension ProjectDescription.Settings {
             }
             .sorted()
 
-        try settings.forEach { setting in
-            if let condition = setting.condition {
-                guard condition.platformNames.contains(platform.rawValue) else {
-                    return
+        if target.type.supportsCustomSettings {
+            try settings.forEach { setting in
+                if let condition = setting.condition {
+                    guard condition.platformNames.contains(platform.rawValue) else {
+                        return
+                    }
                 }
-            }
 
-            switch (setting.tool, setting.name) {
-            case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
-                headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])")
-            case (.c, .define), (.cxx, .define):
-                let (name, value) = setting.extractDefine
-                defines[name] = value
-            case (.c, .unsafeFlags):
-                cFlags.append(contentsOf: setting.value)
-            case (.cxx, .unsafeFlags):
-                cxxFlags.append(contentsOf: setting.value)
-            case (.swift, .define):
-                swiftDefines.append(setting.value[0])
-            case (.swift, .unsafeFlags):
-                swiftFlags.append(contentsOf: setting.value)
-            case (.linker, .unsafeFlags):
-                linkerFlags.append(contentsOf: setting.value)
+                switch (setting.tool, setting.name) {
+                case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
+                    headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])")
+                case (.c, .define), (.cxx, .define):
+                    let (name, value) = setting.extractDefine
+                    defines[name] = value
+                case (.c, .unsafeFlags):
+                    cFlags.append(contentsOf: setting.value)
+                case (.cxx, .unsafeFlags):
+                    cxxFlags.append(contentsOf: setting.value)
+                case (.swift, .define):
+                    swiftDefines.append(setting.value[0])
+                case (.swift, .unsafeFlags):
+                    swiftFlags.append(contentsOf: setting.value)
+                case (.linker, .unsafeFlags):
+                    linkerFlags.append(contentsOf: setting.value)
 
-            case (.linker, .linkedFramework), (.linker, .linkedLibrary):
-                // Handled as dependency
-                return
+                case (.linker, .linkedFramework), (.linker, .linkedLibrary):
+                    // Handled as dependency
+                    return
 
-            case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
-                 (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
-                 (.linker, .headerSearchPath), (.linker, .define):
-                throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
+                case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
+                     (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
+                     (.linker, .headerSearchPath), (.linker, .define):
+                    throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
+                }
             }
         }
 
@@ -876,19 +878,19 @@ extension ProjectDescription.Settings {
             settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + swiftDefines)
         }
 
-        if !cFlags.isEmpty, target.type.supportsCSettings {
+        if !cFlags.isEmpty {
             settingsDictionary["OTHER_CFLAGS"] = .array(["$(inherited)"] + cFlags)
         }
 
-        if !cxxFlags.isEmpty, target.type.supportsCxxSettings {
+        if !cxxFlags.isEmpty {
             settingsDictionary["OTHER_CPLUSPLUSFLAGS"] = .array(["$(inherited)"] + cxxFlags)
         }
 
-        if !swiftFlags.isEmpty, target.type.supportsSwiftSettings {
+        if !swiftFlags.isEmpty {
             settingsDictionary["OTHER_SWIFT_FLAGS"] = .array(["$(inherited)"] + swiftFlags)
         }
 
-        if !linkerFlags.isEmpty, target.type.supportsLinkerSettings {
+        if !linkerFlags.isEmpty {
             settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
         }
 
