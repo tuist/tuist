@@ -19,7 +19,7 @@ public enum SDKType: String, Codable {
 }
 
 /// A target dependency.
-public enum TargetDependency: Codable, Equatable {
+public enum TargetDependency: Codable, Hashable {
     /// Dependency on another target within the same project
     ///
     /// - Parameters:
