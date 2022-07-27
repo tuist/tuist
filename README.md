@@ -292,6 +292,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/danrevah"><img src="https://avatars.githubusercontent.com/u/7808742?v=4" width="100px;" alt=""/><br /><sub><b>Dan</b></sub></a></td>
+    <td align="center"><a href="https://github.com/nivanchikov"><img src="https://avatars.githubusercontent.com/u/1830010?v=4" width="100px;" alt=""/><br /><sub><b>Nikita Ivanchikov</b></sub></a></td>
   </tr>
 </table>
 
