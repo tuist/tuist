@@ -929,9 +929,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let moduleMapPath = targetPath.appending(component: "module.modulemap")
         try fileHandler.createFolder(targetPath)
 
-        let error = PackageInfoMapperError.modulemapMissing(moduleMapPath: moduleMapPath.pathString,
-                                                            package: "Package",
-                                                            target: "Target1")
+        let error = PackageInfoMapperError.modulemapMissing(
+            moduleMapPath: moduleMapPath.pathString,
+            package: "Package",
+            target: "Target1"
+        )
 
         XCTAssertThrowsSpecific(try subject.map(
             package: "Package",

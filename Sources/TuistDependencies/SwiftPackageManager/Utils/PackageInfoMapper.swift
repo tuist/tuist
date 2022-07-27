@@ -48,7 +48,8 @@ enum PackageInfoMapperError: FatalError, Equatable {
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget, .modulemapMissing:
+        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget,
+             .modulemapMissing:
             return .abort
         case .minDeploymentTargetParsingFailed, .defaultPathNotFound, .unsupportedSetting, .missingBinaryArtifact:
             return .bug
@@ -291,9 +292,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     let moduleMapPath = packagePath.appending(component: moduleMapFilename)
 
                     guard FileHandler.shared.exists(moduleMapPath), !FileHandler.shared.isFolder(moduleMapPath) else {
-                        throw PackageInfoMapperError.modulemapMissing(moduleMapPath: moduleMapPath.pathString,
-                                                                      package: packageInfo.key,
-                                                                      target: target.name)
+                        throw PackageInfoMapperError.modulemapMissing(
+                            moduleMapPath: moduleMapPath.pathString,
+                            package: packageInfo.key,
+                            target: target.name
+                        )
                     }
 
                     result[target.name] = ModuleMap.custom(moduleMapPath)
@@ -757,7 +760,7 @@ extension ProjectDescription.Settings {
         let mainRelativePath = mainPath.relative(to: packageFolder)
 
         let moduleMap = targetToModuleMap[target.name]!
-        if moduleMap != .none && target.type != .system {
+        if moduleMap != .none, target.type != .system {
             let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
             let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
             headerSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
