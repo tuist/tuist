@@ -289,7 +289,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     /// System library targets assume the module map is located at the source directory root
                     /// https://github.com/apple/swift-package-manager/blob/main/Sources/PackageLoading/ModuleMapGenerator.swift
                     let packagePath = try target.basePath(packageFolder: packageToFolder[packageInfo.key]!)
-                    let moduleMapPath = packagePath.appending(component: moduleMapFilename)
+                    let moduleMapPath = packagePath.appending(component: ModuleMap.filename)
 
                     guard FileHandler.shared.exists(moduleMapPath), !FileHandler.shared.isFolder(moduleMapPath) else {
                         throw PackageInfoMapperError.modulemapMissing(

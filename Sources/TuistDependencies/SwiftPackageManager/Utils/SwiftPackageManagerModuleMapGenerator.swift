@@ -1,9 +1,6 @@
 import TSCBasic
 import TuistSupport
 
-/// Name of the module map file recognized by the Clang and Swift compilers.
-public let moduleMapFilename = "module.modulemap"
-
 /// The type of modulemap file
 public enum ModuleMap: Equatable {
     /// No headers and hence no modulemap file
@@ -25,6 +22,9 @@ public enum ModuleMap: Equatable {
             return nil
         }
     }
+
+    /// Name of the module map file recognized by the Clang and Swift compilers.
+    public static let filename = "module.modulemap"
 }
 
 /// Protocol that allows to generate a modulemap for an SPM target.
@@ -77,7 +77,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
     static func customModuleMapPath(publicHeadersPath: AbsolutePath) throws -> AbsolutePath? {
         guard FileHandler.shared.exists(publicHeadersPath) else { return nil }
 
-        let moduleMapPath = RelativePath(moduleMapFilename)
+        let moduleMapPath = RelativePath(ModuleMap.filename)
         let publicHeadersFolderContent = try FileHandler.shared.contentsOfDirectory(publicHeadersPath)
 
         if publicHeadersFolderContent.contains(publicHeadersPath.appending(moduleMapPath)) {
