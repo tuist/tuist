@@ -916,6 +916,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
+                        customSources: SourceFilesList(),
                         moduleMap: "$(SRCROOT)/Sources/Target1/module.modulemap"
                     ),
                 ]
@@ -2870,7 +2871,18 @@ extension ProjectDescription.Target {
         customSettings: ProjectDescription.SettingsDictionary = [:],
         moduleMap: String? = nil
     ) -> Self {
-        .init(
+        var sources: SourceFilesList?
+
+        switch customSources {
+        case let .some(list) where !list.globs.isEmpty:
+            sources = list
+        case .none:
+            sources = .init(globs: [basePath.appending(RelativePath("Package/Sources/\(name)/**")).pathString])
+        default:
+            break
+        }
+
+        return ProjectDescription.Target(
             name: name,
             platform: platform,
             product: product,
@@ -2878,8 +2890,7 @@ extension ProjectDescription.Target {
             bundleId: customBundleID ?? name,
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
-            sources: customSources ??
-                .init(globs: [basePath.appending(RelativePath("Package/Sources/\(name)/**")).pathString]),
+            sources: sources,
             resources: resources.isEmpty ? nil : ResourceFileElements(resources: resources),
             headers: headers,
             dependencies: dependencies,

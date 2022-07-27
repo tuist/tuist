@@ -449,7 +449,7 @@ extension ProjectDescription.Target {
         targetToModuleMap: [String: ModuleMap],
         addPlatformSuffix: Bool
     ) throws -> Self? {
-        guard target.type == .regular || target.type == .system else {
+        guard target.type.isSupported else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         }
@@ -461,7 +461,7 @@ extension ProjectDescription.Target {
         }
 
         let path = try target.basePath(packageFolder: packageFolder)
-        let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
+
         let moduleMap = targetToModuleMap[target.name]!
 
         let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
@@ -470,24 +470,44 @@ extension ProjectDescription.Target {
             package: packageInfo.platforms,
             packageName: packageName
         )
-        let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
-        let resources = ResourceFileElements.from(
-            sources: target.sources,
-            resources: target.resources,
-            path: path,
-            excluding: target.exclude
-        )
-        let headers = try Headers.from(moduleMap: moduleMap, publicHeadersPath: publicHeadersPath)
 
-        let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
+        var publicHeadersPath: AbsolutePath?
+        var headers: ProjectDescription.Headers?
+        var sources: SourceFilesList?
+        var resources: ResourceFileElements?
 
-        let dependencies = try ProjectDescription.TargetDependency.from(
-            resolvedDependencies: resolvedDependencies,
-            platform: platform,
-            settings: target.settings,
-            packageToProject: packageToProject,
-            addPlatformSuffix: addPlatformSuffix
-        )
+        if target.type.supportsPublicHeaderPath {
+            publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
+            headers = try Headers.from(moduleMap: moduleMap, publicHeadersPath: publicHeadersPath!)
+        }
+
+        if target.type.supportsSources {
+            sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
+        }
+
+        if target.type.supportsResources {
+            resources = ResourceFileElements.from(
+                sources: target.sources,
+                resources: target.resources,
+                path: path,
+                excluding: target.exclude
+            )
+        }
+
+        var dependencies: [ProjectDescription.TargetDependency] = []
+
+        if target.type.supportsDependencies {
+            let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
+
+            dependencies = try ProjectDescription.TargetDependency.from(
+                resolvedDependencies: resolvedDependencies,
+                platform: platform,
+                settings: target.settings,
+                packageToProject: packageToProject,
+                addPlatformSuffix: addPlatformSuffix
+            )
+        }
+
         let settings = try Settings.from(
             target: target,
             packageFolder: packageFolder,
