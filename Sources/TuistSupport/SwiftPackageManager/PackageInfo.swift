@@ -548,51 +548,14 @@ extension PackageInfo.Target.TargetType {
         }
     }
 
-    /// Defines if target supports C settings
+    /// Defines if target supports C, CXX, Swift or linker settings
     /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
-    public var supportsCSettings: Bool {
-        switch self {
-        case .regular, .executable, .test:
-            return true
-        case .system, .binary, .plugin:
-            return false
-        }
-    }
-
-    /// Defines if target supports CXX settings
-    /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
-    public var supportsCxxSettings: Bool {
-        switch self {
-        case .regular, .executable, .test:
-            return true
-        case .system, .binary, .plugin:
-            return false
-        }
-    }
-
-    /// Defines if target supports Swift settings
-    /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
-    public var supportsSwiftSettings: Bool {
-        switch self {
-        case .regular, .executable, .test:
-            return true
-        case .system, .binary, .plugin:
-            return false
-        }
-    }
-
-    /// Defines if target supports linker settings
-    /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
-    public var supportsLinkerSettings: Bool {
-        switch self {
-        case .regular, .executable, .test:
-            return true
-        case .system, .binary, .plugin:
-            return false
-        }
-    }
-
     public var supportsCustomSettings: Bool {
-        supportsCSettings || supportsCxxSettings || supportsSwiftSettings || supportsLinkerSettings
+        switch self {
+        case .regular, .executable, .test:
+            return true
+        case .system, .binary, .plugin:
+            return false
+        }
     }
 }
