@@ -1,7 +1,7 @@
 import Foundation
 
 /// Dependency status used by `.sdk` target dependencies
-public enum SDKStatus: String, Codable {
+public enum SDKStatus: String, Codable, Hashable {
     /// Required dependency
     case required
 
@@ -10,7 +10,7 @@ public enum SDKStatus: String, Codable {
 }
 
 /// Dependency type used by `.sdk` target dependencies
-public enum SDKType: String, Codable {
+public enum SDKType: String, Codable, Hashable {
     /// Library SDK dependency
     case library
 
