@@ -876,19 +876,19 @@ extension ProjectDescription.Settings {
             settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + swiftDefines)
         }
 
-        if !cFlags.isEmpty {
+        if !cFlags.isEmpty, target.type.supportsCSettings {
             settingsDictionary["OTHER_CFLAGS"] = .array(["$(inherited)"] + cFlags)
         }
 
-        if !cxxFlags.isEmpty {
+        if !cxxFlags.isEmpty, target.type.supportsCxxSettings {
             settingsDictionary["OTHER_CPLUSPLUSFLAGS"] = .array(["$(inherited)"] + cxxFlags)
         }
 
-        if !swiftFlags.isEmpty {
+        if !swiftFlags.isEmpty, target.type.supportsSwiftSettings {
             settingsDictionary["OTHER_SWIFT_FLAGS"] = .array(["$(inherited)"] + swiftFlags)
         }
 
-        if !linkerFlags.isEmpty {
+        if !linkerFlags.isEmpty, target.type.supportsLinkerSettings {
             settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
         }
 
