@@ -7,6 +7,7 @@ import FirebaseCore
 import FirebaseCrashlytics
 import FirebaseDatabase
 import FirebaseFirestore
+import GRDB
 import IterableSDK
 import Stripe
 import TYStatusBarView
@@ -39,5 +40,8 @@ public enum AppKit {
 
         // Use IterableSDK to make sure it links fine
         _ = IterableSDK.IterableAPI.sdkVersion
+
+        // Use GRDB to make sure it links fine
+        try? DatabasePool(path: NSTemporaryDirectory().appending("db.sqlite")).erase()
     }
 }
