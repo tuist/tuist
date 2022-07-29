@@ -82,4 +82,29 @@ final class CleanServiceTests: TuistUnitTestCase {
             "Cache folder at path \(dependenciesPath) should have been deleted by the test."
         )
     }
+
+    func test_run_with_dependencies_category() throws {
+        // Given
+        let cachePaths = try createFolders([
+          "Tuist/Dependencies",
+          "Tuist/Dependencies/Lockfiles",
+          "Tuist/Dependencies/Carthage",
+          "Tuist/Dependencies/SwiftPackageManager"
+        ])
+        for path in cachePaths {
+            let correctlyCreated = FileManager.default.fileExists(atPath: path.pathString)
+            XCTAssertTrue(correctlyCreated, "Test setup is not properly done. Folder \(path.pathString) should exist")
+        }
+
+        // When
+        try subject.run(categories: [.dependencies], path: try temporaryPath().pathString)
+
+        // Then
+        let lockfilesExists = FileManager.default.fileExists(atPath: cachePaths[1].pathString)
+        XCTAssertTrue(lockfilesExists, "Lockflies folder at path \(cachePaths[1]) should not have been deleted by the test.")
+        let carthageExists = FileManager.default.fileExists(atPath: cachePaths[2].pathString)
+        XCTAssertFalse(carthageExists, "Carthage folder at path \(cachePaths[2]) should have been deleted by the test.")
+        let spmExists = FileManager.default.fileExists(atPath: cachePaths[2].pathString)
+        XCTAssertFalse(spmExists, "SwiftPackageManager folder at path \(cachePaths[2]) should have been deleted by the test.")
+    }
 }
