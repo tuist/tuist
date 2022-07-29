@@ -7,22 +7,25 @@ extension DependenciesGraph {
     public static var testJson: String {
         """
         {
-          "externalDependencies" : {
-            "RxSwift" : [
-              {
-                "xcframework" : {
-                  "path" : "/Tuist/Dependencies/Carthage/RxSwift.xcframework"
+          "externalDependencies": [
+            "ios",
+            {
+              "RxSwift": [
+                {
+                  "xcframework": {
+                    "path": "/Tuist/Dependencies/Carthage/RxSwift.xcframework"
+                  }
                 }
-              }
-            ]
-          },
+              ]
+            }
+          ],
           "externalProjects": []
         }
         """
     }
 
     public static func test(
-        externalDependencies: [String: [TargetDependency]] = [:],
+        externalDependencies: [Platform: [String: [TargetDependency]]] = [:],
         externalProjects: [AbsolutePath: Project] = [:]
     ) -> Self {
         .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
@@ -30,83 +33,212 @@ extension DependenciesGraph {
 
     public static func testXCFramework(
         name: String = "Test",
-        path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework"))
+        path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework")),
+        platforms: Set<Platform>
     ) -> DependenciesGraph {
-        .init(
-            externalDependencies: [
-                name: [.xcframework(path: path)],
-            ],
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [name: [.xcframework(path: path)]]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [:]
         )
     }
 
-    public static func test(packageFolder: AbsolutePath) -> Self {
-        .init(
-            externalDependencies: [
-                "Tuist": [.project(target: "Tuist", path: packageFolder)],
-            ],
+    public static func test(
+        packageFolder: AbsolutePath,
+        platforms: Set<Platform>
+    ) -> Self {
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
+                "Tuist": [
+                    .project(
+                        target: self.resolveTargetName(targetName: "Tuist", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    ),
+                ],
+            ]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [:]
         )
     }
 
-    public static func aDependency(packageFolder: AbsolutePath) -> Self {
-        .init(
-            externalDependencies: [
-                "ALibrary": [.project(target: "ALibrary", path: packageFolder)],
-            ],
+    public static func aDependency(
+        packageFolder: AbsolutePath,
+        platforms: Set<Platform>
+    ) -> Self {
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
+                "ALibrary": [
+                    .project(
+                        target: self.resolveTargetName(targetName: "ALibrary", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    ),
+                ],
+            ]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [:]
         )
     }
 
-    public static func anotherDependency(packageFolder: AbsolutePath) -> Self {
-        .init(
-            externalDependencies: [
-                "AnotherLibrary": [.project(target: "AnotherLibrary", path: packageFolder)],
-            ],
+    public static func anotherDependency(
+        packageFolder: AbsolutePath,
+        platforms: Set<Platform>
+    ) -> Self {
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
+                "AnotherLibrary": [
+                    .project(
+                        target: self
+                            .resolveTargetName(targetName: "AnotherLibrary", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    ),
+                ],
+            ]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [:]
         )
     }
 
-    public static func alamofire(packageFolder: AbsolutePath) -> Self {
-        .init(
-            externalDependencies: [
-                "Alamofire": [.project(target: "Alamofire", path: packageFolder)],
-            ],
+    public static func alamofire(
+        packageFolder: AbsolutePath,
+        platforms: Set<Platform>
+    ) -> Self {
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
+                "Alamofire": [
+                    .project(
+                        target: self.resolveTargetName(targetName: "Alamofire", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    ),
+                ],
+            ]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [:]
         )
     }
 
-    public static func googleAppMeasurement(packageFolder: AbsolutePath) -> Self {
-        .init(
-            externalDependencies: [
-                "GoogleAppMeasurement": [.project(target: "GoogleAppMeasurementTarget", path: packageFolder)],
-                "GoogleAppMeasurementWithoutAdIdSupport": [.project(
-                    target: "GoogleAppMeasurementWithoutAdIdSupportTarget",
-                    path: packageFolder
-                )],
-            ],
+    public static func googleAppMeasurement(
+        packageFolder: AbsolutePath,
+        platforms: Set<Platform>
+    ) -> Self {
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
+                "GoogleAppMeasurement": [
+                    .project(
+                        target: self.resolveTargetName(
+                            targetName: "GoogleAppMeasurementTarget",
+                            for: platform,
+                            addSuffix: platforms.count != 1
+                        ),
+                        path: packageFolder
+                    ),
+                ],
+                "GoogleAppMeasurementWithoutAdIdSupport": [
+                    .project(
+                        target: self.resolveTargetName(
+                            targetName: "GoogleAppMeasurementWithoutAdIdSupportTarget",
+                            for: platform,
+                            addSuffix: platforms.count != 1
+                        ),
+                        path: packageFolder
+                    ),
+                ],
+            ]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [:]
         )
     }
 
-    public static func googleUtilities(packageFolder: AbsolutePath) -> Self {
-        .init(
-            externalDependencies: [
-                "GULAppDelegateSwizzler": [.project(target: "GULAppDelegateSwizzler", path: packageFolder)],
-                "GULMethodSwizzler": [.project(target: "GULMethodSwizzler", path: packageFolder)],
-                "GULNSData": [.project(target: "GULNSData", path: packageFolder)],
-                "GULNetwork": [.project(target: "GULNetwork", path: packageFolder)],
-            ],
+    public static func googleUtilities(
+        packageFolder: AbsolutePath,
+        platforms: Set<Platform>
+    ) -> Self {
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
+                "GULAppDelegateSwizzler": [
+                    .project(
+                        target: self.resolveTargetName(
+                            targetName: "GULAppDelegateSwizzler",
+                            for: platform,
+                            addSuffix: platforms.count != 1
+                        ),
+                        path: packageFolder
+                    ),
+                ],
+                "GULMethodSwizzler": [
+                    .project(
+                        target: self.resolveTargetName(
+                            targetName: "GULMethodSwizzler",
+                            for: platform,
+                            addSuffix: platforms.count != 1
+                        ),
+                        path: packageFolder
+                    ),
+                ],
+                "GULNSData": [
+                    .project(
+                        target: self.resolveTargetName(targetName: "GULNSData", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    ),
+                ],
+                "GULNetwork": [
+                    .project(
+                        target: self.resolveTargetName(targetName: "GULNetwork", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    ),
+                ],
+            ]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [:]
         )
     }
 
-    public static func nanopb(packageFolder: AbsolutePath) -> Self {
-        .init(
-            externalDependencies: [
-                "nanopb": [.project(target: "nanopb", path: packageFolder)],
-            ],
+    public static func nanopb(
+        packageFolder: AbsolutePath,
+        platforms: Set<Platform>
+    ) -> Self {
+        let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
+            result[platform] = [
+                "nanopb": [
+                    .project(
+                        target: self.resolveTargetName(targetName: "nanopb", for: platform, addSuffix: platforms.count != 1),
+                        path: packageFolder
+                    ),
+                ],
+            ]
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
             externalProjects: [:]
         )
+    }
+}
+
+// MARK: - Helpers
+
+extension DependenciesGraph {
+    fileprivate static func resolveTargetName(targetName: String, for platform: Platform, addSuffix: Bool) -> String {
+        addSuffix ? "\(targetName)_\(platform.rawValue)" : targetName
     }
 }

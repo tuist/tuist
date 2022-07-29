@@ -22,4 +22,4 @@ Feature: Tuist dependencies.
         Then I copy the fixture app_with_spm_dependencies into the working directory
         Then tuist fetches dependencies
         Then tuist generates the project at /Features/FeatureOne
-        Then tuist builds the scheme FeatureOneFramework from the project at Features/FeatureOne  
+        Then tuist builds the scheme FeatureOneFramework_iOS from the project at Features/FeatureOne  

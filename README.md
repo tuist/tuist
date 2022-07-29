@@ -45,11 +45,16 @@ The financial sustainability of the project is possible thanks to the ongoing co
 
 ### Silver sponsor: [stream](https://getstream.io/chat/sdk/ios/?utm_source=github&utm_medium=github_repo_content_ad&utm_content=Developer&utm_campaign=Github_Nov2021_iOSChatSDK)
 
-[Stream](https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist) is a helps build scalable in-app chat or activity feeds in days. Product teams trust Stream to launch faster, iterate more often, and ship a better user experience.
+[Stream](https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist) helps build scalable in-app chat or activity feeds in days. Product teams trust Stream to launch faster, iterate more often, and ship a better user experience.
 
-<div>
+<div >
   <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
-    <img src="assets/companies/stream.svg" style="width: 100px" hspace="8"/>
+    <picture>
+      <source 
+      srcset="assets/companies/stream-white.png" 
+      media="(prefers-color-scheme: dark)">
+      <img src="assets/companies/stream.png"/>
+    </picture>
   </a>
 </div>
 
@@ -63,7 +68,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <img src="assets/companies/Depop Logo.svg" style="width: 100px;" hspace="8"/>
   </a>
   <a href="https://bendingspoons.com/" target="_blank">
-    <img src="assets/companies/Bending Spoons - Logo, black.svg" style="width: 60px;" hspace="8"/>
+    <img src="assets/companies/BendingSpoons-black.png" style="width: 100px;" hspace="8"/>
   </a>
   <a href="https://globekeeper.com/" target="_blank">
     <img src="assets/companies/globekeeper.png" style="width: 130px;" hspace="8"/>
@@ -284,6 +289,10 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://www.linkedin.com/in/andreascuderi/"><img src="https://avatars.githubusercontent.com/u/8319309?v=4" width="100px;" alt=""/><br /><sub><b>Andrea Scuderi</b></sub></a></td>
     <td align="center"><a href="http://dogoautilio.wordpress.com/"><img src="https://avatars.githubusercontent.com/u/1487375?v=4" width="100px;" alt=""/><br /><sub><b>Diogo Autilio</b></sub></a></td>
     <td align="center"><a href="https://github.com/shahzadmajeed"><img src="https://avatars.githubusercontent.com/u/1209459?v=4" width="100px;" alt=""/><br /><sub><b>Shahzad Majeed</b></sub></a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/danrevah"><img src="https://avatars.githubusercontent.com/u/7808742?v=4" width="100px;" alt=""/><br /><sub><b>Dan</b></sub></a></td>
+    <td align="center"><a href="https://github.com/nivanchikov"><img src="https://avatars.githubusercontent.com/u/1830010?v=4" width="100px;" alt=""/><br /><sub><b>Nikita Ivanchikov</b></sub></a></td>
   </tr>
 </table>
 

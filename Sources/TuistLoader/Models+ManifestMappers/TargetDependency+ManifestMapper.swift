@@ -8,14 +8,14 @@ import TuistSupport
 // MARK: - TargetDependency Mapper Error
 
 public enum TargetDependencyMapperError: FatalError {
-    case invalidExternalDependency(name: String)
+    case invalidExternalDependency(name: String, platform: String)
 
     public var type: ErrorType { .abort }
 
     public var description: String {
         switch self {
-        case let .invalidExternalDependency(name):
-            return "`\(name)` is not a valid configured external dependency"
+        case let .invalidExternalDependency(name, platform):
+            return "`\(name)` is not a valid configured external dependency for platform \(platform)"
         }
     }
 }
@@ -29,7 +29,8 @@ extension TuistGraph.TargetDependency {
     static func from(
         manifest: ProjectDescription.TargetDependency,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [String: [TuistGraph.TargetDependency]]
+        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]],
+        platform: TuistGraph.Platform
     ) throws -> [TuistGraph.TargetDependency] {
         switch manifest {
         case let .target(name):
@@ -60,8 +61,8 @@ extension TuistGraph.TargetDependency {
         case .xctest:
             return [.xctest]
         case let .external(name):
-            guard let dependencies = externalDependencies[name] else {
-                throw TargetDependencyMapperError.invalidExternalDependency(name: name)
+            guard let dependencies = externalDependencies[platform]?[name] else {
+                throw TargetDependencyMapperError.invalidExternalDependency(name: name, platform: platform.rawValue)
             }
             return dependencies
         }

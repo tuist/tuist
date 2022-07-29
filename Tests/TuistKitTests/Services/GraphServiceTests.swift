@@ -53,6 +53,7 @@ final class GraphServiceTests: TuistUnitTestCase {
             layoutAlgorithm: .dot,
             skipTestTargets: false,
             skipExternalDependencies: false,
+            open: false,
             targetsToFilter: [],
             path: temporaryPath,
             outputPath: temporaryPath
@@ -82,6 +83,7 @@ final class GraphServiceTests: TuistUnitTestCase {
             layoutAlgorithm: .dot,
             skipTestTargets: false,
             skipExternalDependencies: false,
+            open: false,
             targetsToFilter: [],
             path: temporaryPath,
             outputPath: temporaryPath

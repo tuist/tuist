@@ -31,10 +31,10 @@ class ListService {
         self.templateLoader = templateLoader
     }
 
-    func run(path: String?, outputFormat format: OutputFormat) throws {
+    func run(path: String?, outputFormat format: OutputFormat) async throws {
         let path = self.path(path)
 
-        let plugins = try loadPlugins(at: path)
+        let plugins = try await loadPlugins(at: path)
         let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
         let templates: [PrintableTemplate] = try templateDirectories.map { path in
             let template = try templateLoader.loadTemplate(at: path)
@@ -73,9 +73,9 @@ class ListService {
         }
     }
 
-    private func loadPlugins(at path: AbsolutePath) throws -> Plugins {
+    private func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
         let config = try configLoader.loadConfig(path: path)
-        return try pluginService.loadPlugins(using: config)
+        return try await pluginService.loadPlugins(using: config)
     }
 
     /// Locates all template directories, local, system, and plugin.

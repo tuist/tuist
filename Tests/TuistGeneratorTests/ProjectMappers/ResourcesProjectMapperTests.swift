@@ -75,6 +75,9 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.deploymentTarget, target.deploymentTarget)
         XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
         XCTAssertEqual(resourcesTarget.resources, resources)
+        XCTAssertEqual(resourcesTarget.settings?.base, [
+            "CODE_SIGNING_ALLOWED": "NO",
+        ])
     }
 
     func testMap_whenDisableBundleAccessorsIsTrue_doesNotGenerateAccessors() throws {
@@ -270,7 +273,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let expectedPath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
-            .appending(component: "TuistBundle+\(target.name).swift")
+            .appending(component: "TuistBundle+\(target.name.camelized.uppercasingFirst).swift")
         let expectedContents = ResourcesProjectMapper
             .fileContent(targetName: target.name, bundleName: "\(project.name)_test_tuist", target: target)
         XCTAssertEqual(file.path, expectedPath)

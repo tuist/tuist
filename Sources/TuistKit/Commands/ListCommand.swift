@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct ListCommand: ParsableCommand {
+struct ListCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list",
@@ -23,9 +23,9 @@ struct ListCommand: ParsableCommand {
     )
     var path: String?
 
-    func run() throws {
+    func run() async throws {
         let format: ListService.OutputFormat = json ? .json : .table
-        try ListService().run(
+        try await ListService().run(
             path: path,
             outputFormat: format
         )

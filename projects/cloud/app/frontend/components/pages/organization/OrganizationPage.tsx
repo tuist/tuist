@@ -149,6 +149,7 @@ const OrganizationPage = observer(() => {
               onChange={(newValue) => {
                 organizationPageStore.inviteeEmail = newValue;
               }}
+              autoComplete="email"
             />
             <Button
               primary

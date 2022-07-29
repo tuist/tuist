@@ -57,12 +57,9 @@ final class ScaffoldService {
     func loadTemplateOptions(
         templateName: String,
         path: String?
-    ) throws -> (
-        required: [String],
-        optional: [String]
-    ) {
+    ) async throws -> (required: [String], optional: [String]) {
         let path = self.path(path)
-        let plugins = try loadPlugins(at: path)
+        let plugins = try await loadPlugins(at: path)
         let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
         let templateDirectory = try templateDirectory(
             templateDirectories: templateDirectories,
@@ -86,9 +83,9 @@ final class ScaffoldService {
         templateName: String,
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?]
-    ) throws {
+    ) async throws {
         let path = self.path(path)
-        let plugins = try loadPlugins(at: path)
+        let plugins = try await loadPlugins(at: path)
         let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
 
         let templateDirectory = try templateDirectory(
@@ -123,9 +120,9 @@ final class ScaffoldService {
         }
     }
 
-    private func loadPlugins(at path: AbsolutePath) throws -> Plugins {
+    private func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
         let config = try configLoader.loadConfig(path: path)
-        return try pluginService.loadPlugins(using: config)
+        return try await pluginService.loadPlugins(using: config)
     }
 
     /// Parses all `attributes` from `template`

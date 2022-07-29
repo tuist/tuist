@@ -74,9 +74,9 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginCFingerprint = "\(pluginCGitURL)-\(pluginCGitTag)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginAGitURL, gitReference: .sha(pluginAGitSha)),
-                .git(url: pluginBGitURL, gitReference: .tag(pluginBGitTag)),
-                .git(url: pluginCGitURL, gitReference: .tag(pluginCGitTag)),
+                .git(url: pluginAGitURL, gitReference: .sha(pluginAGitSha), directory: nil),
+                .git(url: pluginBGitURL, gitReference: .tag(pluginBGitTag), directory: nil),
+                .git(url: pluginCGitURL, gitReference: .tag(pluginCGitTag), directory: "Sub/Subfolder"),
             ]
         )
         let pluginADirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
@@ -105,7 +105,8 @@ final class PluginServiceTests: TuistUnitTestCase {
                     releasePath: pluginBDirectory.appending(component: PluginServiceConstants.release)
                 ),
                 RemotePluginPaths(
-                    repositoryPath: pluginCDirectory.appending(component: PluginServiceConstants.repository),
+                    repositoryPath: pluginCDirectory.appending(component: PluginServiceConstants.repository)
+                        .appending(component: "Sub").appending(component: "Subfolder"),
                     releasePath: nil
                 ),
             ])
@@ -119,7 +120,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitSha)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginGitURL, gitReference: .sha(pluginGitSha)),
+                .git(url: pluginGitURL, gitReference: .sha(pluginGitSha), directory: nil),
             ]
         )
         var invokedCloneURL: String?
@@ -160,7 +161,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitTag)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag)),
+                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag), directory: nil),
             ]
         )
         var invokedCloneURL: String?
@@ -201,7 +202,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitTag)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag)),
+                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag), directory: nil),
             ]
         )
 
@@ -220,7 +221,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         _ = try await subject.fetchRemotePlugins(using: config)
     }
 
-    func test_loadPlugins_WHEN_localHelpers() throws {
+    func test_loadPlugins_WHEN_localHelpers() async throws {
         // Given
         let pluginPath = try temporaryPath().appending(component: "Plugin")
         let pluginName = "TestPlugin"
@@ -240,7 +241,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         )
 
         // When
-        let plugins = try subject.loadPlugins(using: config)
+        let plugins = try await subject.loadPlugins(using: config)
 
         // Then
         let expectedHelpersPath = pluginPath.appending(component: Constants.helpersDirectoryName)
@@ -249,7 +250,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
-    func test_loadPlugins_WHEN_gitHelpers() throws {
+    func test_loadPlugins_WHEN_gitHelpers() async throws {
         // Given
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"
@@ -268,11 +269,12 @@ final class PluginServiceTests: TuistUnitTestCase {
 
         try fileHandler.createFolder(cachedPluginPath.appending(component: Constants.helpersDirectoryName))
 
-        let config =
-            mockConfig(plugins: [TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference))])
+        let config = mockConfig(plugins: [
+            TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), directory: nil),
+        ])
 
         // When
-        let plugins = try subject.loadPlugins(using: config)
+        let plugins = try await subject.loadPlugins(using: config)
 
         // Then
         let expectedHelpersPath = cachedPluginPath.appending(component: Constants.helpersDirectoryName)
@@ -281,7 +283,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
-    func test_loadPlugins_when_localResourceSynthesizer() throws {
+    func test_loadPlugins_when_localResourceSynthesizer() async throws {
         // Given
         let pluginPath = try temporaryPath()
         let pluginName = "TestPlugin"
@@ -300,7 +302,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let config = mockConfig(plugins: [TuistGraph.PluginLocation.local(path: pluginPath.pathString)])
 
         // When
-        let plugins = try subject.loadPlugins(using: config)
+        let plugins = try await subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(
             resourceSynthesizers: [
                 PluginResourceSynthesizer(name: pluginName, path: resourceTemplatesPath),
@@ -309,7 +311,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
-    func test_loadPlugins_when_remoteResourceSynthesizer() throws {
+    func test_loadPlugins_when_remoteResourceSynthesizer() async throws {
         // Given
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"
@@ -330,10 +332,12 @@ final class PluginServiceTests: TuistUnitTestCase {
         }
 
         let config =
-            mockConfig(plugins: [TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference))])
+            mockConfig(plugins: [
+                TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), directory: nil),
+            ])
 
         // When
-        let plugins = try subject.loadPlugins(using: config)
+        let plugins = try await subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(
             resourceSynthesizers: [
                 PluginResourceSynthesizer(name: pluginName, path: resourceTemplatesPath),
@@ -342,7 +346,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
-    func test_loadPlugins_WHEN_localTemplate() throws {
+    func test_loadPlugins_WHEN_localTemplate() async throws {
         // Given
         let pluginPath = try temporaryPath()
         let pluginName = "TestPlugin"
@@ -367,12 +371,12 @@ final class PluginServiceTests: TuistUnitTestCase {
         let config = mockConfig(plugins: [TuistGraph.PluginLocation.local(path: pluginPath.pathString)])
 
         // Then
-        let plugins = try subject.loadPlugins(using: config)
+        let plugins = try await subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(templatePaths: [templatePath])
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
-    func test_loadPlugins_WHEN_gitTemplate() throws {
+    func test_loadPlugins_WHEN_gitTemplate() async throws {
         // Given
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitReference = "1.0.0"
@@ -399,27 +403,15 @@ final class PluginServiceTests: TuistUnitTestCase {
         }
 
         let config =
-            mockConfig(plugins: [TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference))])
+            mockConfig(plugins: [
+                TuistGraph.PluginLocation
+                    .git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), directory: nil),
+            ])
 
         // Then
-        let plugins = try subject.loadPlugins(using: config)
+        let plugins = try await subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(templatePaths: [templatePath])
         XCTAssertEqual(plugins, expectedPlugins)
-    }
-
-    func test_cacheConfiguration_WHEN_loadPlugin() throws {
-        // Given
-        let pluginGitUrl = "https://url/to/repo.git"
-        let pluginGitReference = "1.0.0"
-        let config =
-            mockConfig(plugins: [TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference))])
-
-        // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.loadPlugins(using: config),
-            PluginServiceError.missingRemotePlugins(["Plugin"])
-        )
-        XCTAssertEqual(cacheDirectoryProviderFactory.cacheDirectoriesConfig, config)
     }
 
     private func mockConfig(plugins: [TuistGraph.PluginLocation]) -> TuistGraph.Config {

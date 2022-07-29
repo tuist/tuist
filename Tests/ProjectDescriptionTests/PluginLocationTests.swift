@@ -16,4 +16,9 @@ final class PluginLocationTests: XCTestCase {
         let subject = PluginLocation.git(url: "https://git.com/repo.git", sha: "64d8d24f")
         XCTAssertCodable(subject)
     }
+
+    func test_codable_gitWithDirectory() throws {
+        let subject = PluginLocation.git(url: "https://git.com/repo.git", tag: "1.0.0", directory: "directory")
+        XCTAssertCodable(subject)
+    }
 }

@@ -12,6 +12,9 @@ public struct RunActionOptions: Equatable, Codable {
     /// A simulated GPS location to use when running the app.
     public let simulatedLocation: SimulatedLocation?
 
+    /// Configure your project to work with the Metal frame debugger.
+    public let enableGPUFrameCaptureMode: GPUFrameCaptureMode
+
     /// Creates an `RunActionOptions` instance
     ///
     /// - Parameters:
@@ -24,14 +27,20 @@ public struct RunActionOptions: Equatable, Codable {
     ///
     ///     - simulatedLocation: The simulated GPS location to use when running the app.
     ///     Please note that the `.custom(gpxPath:)` case must refer to a valid GPX file in your project's resources.
+    ///
+    ///     - enableGPUFrameCaptureMode: The Metal Frame Capture mode to use. e.g: .disabled
+    ///     If your target links to the Metal framework, Xcode enables GPU Frame Capture.
+    ///     You can disable it to test your app in best perfomance.
     init(
         language: SchemeLanguage? = nil,
         storeKitConfigurationPath: Path? = nil,
-        simulatedLocation: SimulatedLocation? = nil
+        simulatedLocation: SimulatedLocation? = nil,
+        enableGPUFrameCaptureMode: GPUFrameCaptureMode = GPUFrameCaptureMode.default
     ) {
         self.language = language
         self.storeKitConfigurationPath = storeKitConfigurationPath
         self.simulatedLocation = simulatedLocation
+        self.enableGPUFrameCaptureMode = enableGPUFrameCaptureMode
     }
 
     /// Creates an `RunActionOptions` instance
@@ -46,15 +55,22 @@ public struct RunActionOptions: Equatable, Codable {
     ///
     ///     - simulatedLocation: The simulated GPS location to use when running the app.
     ///     Please note that the `.custom(gpxPath:)` case must refer to a valid GPX file in your project's resources.
+    ///
+    ///     - enableGPUFrameCaptureMode: The Metal Frame Capture mode to use. e.g: .disabled
+    ///     If your target links to the Metal framework, Xcode enables GPU Frame Capture.
+    ///     You can disable it to test your app in best perfomance.
+
     public static func options(
         language: SchemeLanguage? = nil,
         storeKitConfigurationPath: Path? = nil,
-        simulatedLocation: SimulatedLocation? = nil
+        simulatedLocation: SimulatedLocation? = nil,
+        enableGPUFrameCaptureMode: GPUFrameCaptureMode = GPUFrameCaptureMode.default
     ) -> Self {
         self.init(
             language: language,
             storeKitConfigurationPath: storeKitConfigurationPath,
-            simulatedLocation: simulatedLocation
+            simulatedLocation: simulatedLocation,
+            enableGPUFrameCaptureMode: enableGPUFrameCaptureMode
         )
     }
 }
@@ -125,6 +141,19 @@ extension RunActionOptions {
 
         public static var rioDeJaneiro: SimulatedLocation {
             .init(identifier: "Rio De Janeiro, Brazil")
+        }
+    }
+}
+
+extension RunActionOptions {
+    public enum GPUFrameCaptureMode: String, Codable, Equatable {
+        case autoEnabled
+        case metal
+        case openGL
+        case disabled
+
+        public static var `default`: GPUFrameCaptureMode {
+            .autoEnabled
         }
     }
 }

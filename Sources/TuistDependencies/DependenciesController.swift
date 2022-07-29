@@ -191,20 +191,25 @@ public final class DependenciesController: DependenciesControlling {
 
 extension TuistCore.DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
-        let mergedExternalDependencies = try other.externalDependencies.reduce(into: externalDependencies) { result, entry in
-            if let alreadyPresent = result[entry.key] {
-                throw DependenciesControllerError.duplicatedDependency(entry.key, alreadyPresent, entry.value)
-            }
+        var mergedExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] =
+            externalDependencies
 
-            result[entry.key] = entry.value
+        try other.externalDependencies.forEach { platform, otherPlatformDependencies in
+            try otherPlatformDependencies.forEach { name, dependency in
+                if let alreadyPresent = mergedExternalDependencies[platform]?[name] {
+                    throw DependenciesControllerError.duplicatedDependency(name, alreadyPresent, dependency)
+                }
+                mergedExternalDependencies[platform, default: [:]][name] = dependency
+            }
         }
+
         let mergedExternalProjects = try other.externalProjects.reduce(into: externalProjects) { result, entry in
             if let alreadyPresent = result[entry.key] {
                 throw DependenciesControllerError.duplicatedProject(entry.key, alreadyPresent, entry.value)
             }
-
             result[entry.key] = entry.value
         }
+
         return .init(externalDependencies: mergedExternalDependencies, externalProjects: mergedExternalProjects)
     }
 }

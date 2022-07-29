@@ -55,8 +55,7 @@ final class FetchService {
         logger.info("Resolving and fetching plugins.", metadata: .section)
 
         let config = try configLoader.loadConfig(path: path)
-        try await pluginService.fetchRemotePlugins(using: config)
-        let plugins = try pluginService.loadPlugins(using: config)
+        let plugins = try await pluginService.loadPlugins(using: config)
 
         logger.info("Plugins resolved and fetched successfully.", metadata: .success)
 

@@ -92,7 +92,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         }
 
         // Load Plugins
-        let plugins = try loadPlugins(at: path)
+        let plugins = try await loadPlugins(at: path)
 
         // Load DependenciesGraph
         let dependenciesGraph = try dependenciesGraphController.load(at: path)
@@ -143,7 +143,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     private func convert(
         projects: [AbsolutePath: ProjectDescription.Project],
         plugins: Plugins,
-        externalDependencies: [String: [TuistGraph.TargetDependency]],
+        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]],
         context: ExecutionContext = .concurrent
     ) throws -> [TuistGraph.Project] {
         let tuples = projects.map { (path: $0.key, manifest: $0.value) }
@@ -159,9 +159,9 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     }
 
     @discardableResult
-    func loadPlugins(at path: AbsolutePath) throws -> Plugins {
+    func loadPlugins(at path: AbsolutePath) async throws -> Plugins {
         let config = try configLoader.loadConfig(path: path)
-        let plugins = try pluginsService.loadPlugins(using: config)
+        let plugins = try await pluginsService.loadPlugins(using: config)
         try manifestLoader.register(plugins: plugins)
         return plugins
     }

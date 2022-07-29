@@ -3,7 +3,7 @@ import Foundation
 import TuistAnalytics
 import TuistSupport
 
-public struct TuistCommand: ParsableCommand {
+public struct TuistCommand: AsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -45,7 +45,7 @@ public struct TuistCommand: ParsableCommand {
         var parsedError: Error?
         do {
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
-                try ScaffoldCommand.preprocess(processedArguments)
+                try await ScaffoldCommand.preprocess(processedArguments)
             }
             if processedArguments.first == InitCommand.configuration.commandName {
                 try InitCommand.preprocess(processedArguments)
