@@ -492,3 +492,70 @@ extension PackageInfo.Product.ProductType: Decodable {
         }
     }
 }
+
+extension PackageInfo.Target.TargetType {
+    /// Defines if the target would be processed when processing the package
+    public var isSupported: Bool {
+        switch self {
+        case .regular, .system:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Defines if target may have a public headers path
+    /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
+    public var supportsPublicHeaderPath: Bool {
+        switch self {
+        case .regular, .executable, .test:
+            return true
+        case .system, .binary, .plugin:
+            return false
+        }
+    }
+
+    /// Defines if target may have source files
+    /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
+    public var supportsSources: Bool {
+        switch self {
+        case .regular, .executable, .test, .plugin:
+            return true
+        case .system, .binary:
+            return false
+        }
+    }
+
+    /// Defines if target may have resource files
+    /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
+    public var supportsResources: Bool {
+        switch self {
+        case .regular, .executable, .test:
+            return true
+        case .system, .binary, .plugin:
+            return false
+        }
+    }
+
+    /// Defines if target may have other dependencies
+    /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
+    public var supportsDependencies: Bool {
+        switch self {
+        case .regular, .executable, .test, .plugin:
+            return true
+        case .system, .binary:
+            return false
+        }
+    }
+
+    /// Defines if target supports C, CXX, Swift or linker settings
+    /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
+    public var supportsCustomSettings: Bool {
+        switch self {
+        case .regular, .executable, .test:
+            return true
+        case .system, .binary, .plugin:
+            return false
+        }
+    }
+}

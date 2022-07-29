@@ -39,6 +39,7 @@ let project = Project(
                 .external(name: "IterableSDK"),
                 .external(name: "Stripe"),
                 .external(name: "TYStatusBarView"),
+                .external(name: "GRDB"),
             ],
             settings: .targetSettings
         ),

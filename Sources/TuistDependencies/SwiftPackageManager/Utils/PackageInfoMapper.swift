@@ -43,10 +43,13 @@ enum PackageInfoMapperError: FatalError, Equatable {
     /// Thrown when a binary target defined in a package doesn't have a corresponding artifact
     case missingBinaryArtifact(package: String, target: String)
 
+    case modulemapMissing(moduleMapPath: String, package: String, target: String)
+
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget:
+        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget,
+             .modulemapMissing:
             return .abort
         case .minDeploymentTargetParsingFailed, .defaultPathNotFound, .unsupportedSetting, .missingBinaryArtifact:
             return .bug
@@ -77,6 +80,8 @@ enum PackageInfoMapperError: FatalError, Equatable {
             return "The \(tool) and \(setting) pair is not a supported setting."
         case let .missingBinaryArtifact(package, target):
             return "The artifact for binary target \(target) of package \(package) cannot be found."
+        case let .modulemapMissing(moduleMapPath, package, target):
+            return "Target \(target) of package \(package) is a system library. Module map is missing at \(moduleMapPath)."
         }
     }
 }
@@ -279,11 +284,30 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let targetToModuleMap: [String: ModuleMap]
         targetToModuleMap = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
-                guard target.type == .regular else { return }
-                result[target.name] = try moduleMapGenerator.generate(
-                    moduleName: target.name,
-                    publicHeadersPath: target.publicHeadersPath(packageFolder: packageToFolder[packageInfo.key]!)
-                )
+                switch target.type {
+                case .system:
+                    /// System library targets assume the module map is located at the source directory root
+                    /// https://github.com/apple/swift-package-manager/blob/main/Sources/PackageLoading/ModuleMapGenerator.swift
+                    let packagePath = try target.basePath(packageFolder: packageToFolder[packageInfo.key]!)
+                    let moduleMapPath = packagePath.appending(component: ModuleMap.filename)
+
+                    guard FileHandler.shared.exists(moduleMapPath), !FileHandler.shared.isFolder(moduleMapPath) else {
+                        throw PackageInfoMapperError.modulemapMissing(
+                            moduleMapPath: moduleMapPath.pathString,
+                            package: packageInfo.key,
+                            target: target.name
+                        )
+                    }
+
+                    result[target.name] = ModuleMap.custom(moduleMapPath)
+                case .regular:
+                    result[target.name] = try moduleMapGenerator.generate(
+                        moduleName: target.name,
+                        publicHeadersPath: target.publicHeadersPath(packageFolder: packageToFolder[packageInfo.key]!)
+                    )
+                default:
+                    return
+                }
             }
         }
 
@@ -425,7 +449,7 @@ extension ProjectDescription.Target {
         targetToModuleMap: [String: ModuleMap],
         addPlatformSuffix: Bool
     ) throws -> Self? {
-        guard target.type == .regular else {
+        guard target.type.isSupported else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         }
@@ -437,7 +461,7 @@ extension ProjectDescription.Target {
         }
 
         let path = try target.basePath(packageFolder: packageFolder)
-        let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
+
         let moduleMap = targetToModuleMap[target.name]!
 
         let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
@@ -446,24 +470,44 @@ extension ProjectDescription.Target {
             package: packageInfo.platforms,
             packageName: packageName
         )
-        let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
-        let resources = ResourceFileElements.from(
-            sources: target.sources,
-            resources: target.resources,
-            path: path,
-            excluding: target.exclude
-        )
-        let headers = try Headers.from(moduleMap: moduleMap, publicHeadersPath: publicHeadersPath)
 
-        let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
+        var publicHeadersPath: AbsolutePath?
+        var headers: ProjectDescription.Headers?
+        var sources: SourceFilesList?
+        var resources: ResourceFileElements?
 
-        let dependencies = try ProjectDescription.TargetDependency.from(
-            resolvedDependencies: resolvedDependencies,
-            platform: platform,
-            settings: target.settings,
-            packageToProject: packageToProject,
-            addPlatformSuffix: addPlatformSuffix
-        )
+        if target.type.supportsPublicHeaderPath {
+            publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
+            headers = try Headers.from(moduleMap: moduleMap, publicHeadersPath: publicHeadersPath!)
+        }
+
+        if target.type.supportsSources {
+            sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
+        }
+
+        if target.type.supportsResources {
+            resources = ResourceFileElements.from(
+                sources: target.sources,
+                resources: target.resources,
+                path: path,
+                excluding: target.exclude
+            )
+        }
+
+        var dependencies: [ProjectDescription.TargetDependency] = []
+
+        if target.type.supportsDependencies {
+            let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
+
+            dependencies = try ProjectDescription.TargetDependency.from(
+                resolvedDependencies: resolvedDependencies,
+                platform: platform,
+                settings: target.settings,
+                packageToProject: packageToProject,
+                addPlatformSuffix: addPlatformSuffix
+            )
+        }
+
         let settings = try Settings.from(
             target: target,
             packageFolder: packageFolder,
@@ -736,7 +780,7 @@ extension ProjectDescription.Settings {
         let mainRelativePath = mainPath.relative(to: packageFolder)
 
         let moduleMap = targetToModuleMap[target.name]!
-        if moduleMap != .none {
+        if moduleMap != .none, target.type != .system {
             let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
             let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
             headerSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
@@ -764,38 +808,40 @@ extension ProjectDescription.Settings {
             }
             .sorted()
 
-        try settings.forEach { setting in
-            if let condition = setting.condition {
-                guard condition.platformNames.contains(platform.rawValue) else {
-                    return
+        if target.type.supportsCustomSettings {
+            try settings.forEach { setting in
+                if let condition = setting.condition {
+                    guard condition.platformNames.contains(platform.rawValue) else {
+                        return
+                    }
                 }
-            }
 
-            switch (setting.tool, setting.name) {
-            case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
-                headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])")
-            case (.c, .define), (.cxx, .define):
-                let (name, value) = setting.extractDefine
-                defines[name] = value
-            case (.c, .unsafeFlags):
-                cFlags.append(contentsOf: setting.value)
-            case (.cxx, .unsafeFlags):
-                cxxFlags.append(contentsOf: setting.value)
-            case (.swift, .define):
-                swiftDefines.append(setting.value[0])
-            case (.swift, .unsafeFlags):
-                swiftFlags.append(contentsOf: setting.value)
-            case (.linker, .unsafeFlags):
-                linkerFlags.append(contentsOf: setting.value)
+                switch (setting.tool, setting.name) {
+                case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
+                    headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])")
+                case (.c, .define), (.cxx, .define):
+                    let (name, value) = setting.extractDefine
+                    defines[name] = value
+                case (.c, .unsafeFlags):
+                    cFlags.append(contentsOf: setting.value)
+                case (.cxx, .unsafeFlags):
+                    cxxFlags.append(contentsOf: setting.value)
+                case (.swift, .define):
+                    swiftDefines.append(setting.value[0])
+                case (.swift, .unsafeFlags):
+                    swiftFlags.append(contentsOf: setting.value)
+                case (.linker, .unsafeFlags):
+                    linkerFlags.append(contentsOf: setting.value)
 
-            case (.linker, .linkedFramework), (.linker, .linkedLibrary):
-                // Handled as dependency
-                return
+                case (.linker, .linkedFramework), (.linker, .linkedLibrary):
+                    // Handled as dependency
+                    return
 
-            case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
-                 (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
-                 (.linker, .headerSearchPath), (.linker, .define):
-                throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
+                case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
+                     (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
+                     (.linker, .headerSearchPath), (.linker, .define):
+                    throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
+                }
             }
         }
 

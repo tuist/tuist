@@ -338,12 +338,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(
                             "Target1",
                             basePath: basePath,
-                            customSources: .init(
+                            customSources: .custom(.init(
                                 globs: [
                                     basePath.appending(RelativePath("Package/\(alternativeDefaultSource)/Target1/**"))
                                         .pathString,
                                 ]
-                            )
+                            ))
                         ),
                     ]
                 )
@@ -503,10 +503,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath: basePath,
                         customProductName: "com_example_target_1",
                         customBundleID: "com.example.target-1",
-                        customSources: .init(globs: [
+                        customSources: .custom(.init(globs: [
                             basePath
                                 .appending(RelativePath("Package/Sources/com.example.target-1/**")).pathString,
-                        ])
+                        ]))
                     ),
                 ]
             )
@@ -660,7 +660,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSources: [
+                        customSources: .custom([
                             .init(
                                 stringLiteral:
                                 basePath.appending(RelativePath("Package/Sources/Target1/Subfolder/**")).pathString
@@ -670,7 +670,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 basePath.appending(RelativePath("Package/Sources/Target1/Another/Subfolder/file.swift"))
                                     .pathString
                             ),
-                        ]
+                        ])
                     ),
                 ]
             )
@@ -718,7 +718,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSources: .init(globs: [
+                        customSources: .custom(.init(globs: [
                             .glob(
                                 Path(basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString),
                                 excluding: [
@@ -728,7 +728,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                     ),
                                 ]
                             ),
-                        ]),
+                        ])),
                         resources: [
                             .glob(
                                 pattern: Path(
@@ -878,6 +878,85 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ]
             )
         )
+    }
+
+    func testMap_whenHasSystemLibrary() throws {
+        let basePath = try temporaryPath()
+        let targetPath = basePath.appending(RelativePath("Package/Sources/Target1"))
+        let moduleMapPath = targetPath.appending(component: "module.modulemap")
+        try fileHandler.createFolder(targetPath)
+        try fileHandler.write("", path: moduleMapPath, atomically: true)
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            type: .system
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSources: .custom(nil),
+                        moduleMap: "$(SRCROOT)/Sources/Target1/module.modulemap"
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_errorWhenSystemLibraryHasMissingModuleMap() throws {
+        let basePath = try temporaryPath()
+        let targetPath = basePath.appending(RelativePath("Package/Sources/Target1"))
+        let moduleMapPath = targetPath.appending(component: "module.modulemap")
+        try fileHandler.createFolder(targetPath)
+
+        let error = PackageInfoMapperError.modulemapMissing(
+            moduleMapPath: moduleMapPath.pathString,
+            package: "Package",
+            target: "Target1"
+        )
+
+        XCTAssertThrowsSpecific(try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            type: .system
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        ), error)
     }
 
     func testMap_whenHasHeadersWithUmbrellaHeader() throws {
@@ -1140,10 +1219,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSources: .init(globs: [
+                        customSources: .custom(.init(globs: [
                             basePath
                                 .appending(RelativePath("Package/Custom/Sources/Folder/**")).pathString,
-                        ]),
+                        ])),
                         resources: [
                             .init(
                                 stringLiteral: basePath.appending(RelativePath("Package/Custom/Resource/Folder/**"))
@@ -1252,7 +1331,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     customProductName: "Target1",
                     customBundleID: "Target1",
                     deploymentTarget: .tvOS(targetVersion: "9.0"),
-                    customSources: .init(globs: [basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString])
+                    customSources: .custom(.init(globs: [
+                        basePath.appending(RelativePath("Package/Sources/Target1/**"))
+                            .pathString,
+                    ]))
                 ),
                 .test(
                     "Target1_ios",
@@ -1260,7 +1342,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platform: .iOS,
                     customProductName: "Target1",
                     customBundleID: "Target1",
-                    customSources: .init(globs: [basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString])
+                    customSources: .custom(.init(globs: [
+                        basePath.appending(RelativePath("Package/Sources/Target1/**"))
+                            .pathString,
+                    ]))
                 ),
             ]
         )
@@ -2776,6 +2861,11 @@ extension ProjectDescription.Project {
 }
 
 extension ProjectDescription.Target {
+    fileprivate enum SourceFilesListType {
+        case `default`
+        case custom(SourceFilesList?)
+    }
+
     fileprivate static func test(
         _ name: String,
         basePath: AbsolutePath = "/",
@@ -2784,7 +2874,7 @@ extension ProjectDescription.Target {
         customProductName: String? = nil,
         customBundleID: String? = nil,
         deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "9.0", devices: [.iphone, .ipad]),
-        customSources: SourceFilesList? = nil,
+        customSources: SourceFilesListType = .default,
         resources: [ProjectDescription.ResourceFileElement] = [],
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
@@ -2792,7 +2882,16 @@ extension ProjectDescription.Target {
         customSettings: ProjectDescription.SettingsDictionary = [:],
         moduleMap: String? = nil
     ) -> Self {
-        .init(
+        let sources: SourceFilesList?
+
+        switch customSources {
+        case let .custom(list):
+            sources = list
+        case .default:
+            sources = .init(globs: [basePath.appending(RelativePath("Package/Sources/\(name)/**")).pathString])
+        }
+
+        return ProjectDescription.Target(
             name: name,
             platform: platform,
             product: product,
@@ -2800,8 +2899,7 @@ extension ProjectDescription.Target {
             bundleId: customBundleID ?? name,
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
-            sources: customSources ??
-                .init(globs: [basePath.appending(RelativePath("Package/Sources/\(name)/**")).pathString]),
+            sources: sources,
             resources: resources.isEmpty ? nil : ResourceFileElements(resources: resources),
             headers: headers,
             dependencies: dependencies,
