@@ -61,11 +61,13 @@ final class CleanServiceTests: TuistUnitTestCase {
         }
         cacheDirectoriesProvider.cacheDirectoryStub = cachePath
         let projectPath = try temporaryPath()
-        let dependenciesPath = projectPath.appending(components:
+        let dependenciesPath = projectPath.appending(
+            components:
             Constants.tuistDirectoryName,
             Constants.DependenciesDirectory.name
         )
-        let lockfilesPath = projectPath.appending(components:
+        let lockfilesPath = projectPath.appending(
+            components:
             Constants.tuistDirectoryName,
             Constants.DependenciesDirectory.lockfilesDirectoryName
         )
