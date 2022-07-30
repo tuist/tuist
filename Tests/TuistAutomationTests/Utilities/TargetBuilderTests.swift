@@ -52,6 +52,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         buildGraphInspector = nil
         xcodeBuildController = nil
         xcodeProjectBuildDirectoryLocator = nil
+        simulatorController = nil
         subject = nil
         super.tearDown()
     }
@@ -67,9 +68,14 @@ final class TargetBuilderTests: TuistUnitTestCase {
             .sdk("iphoneos"),
         ]
         let destination = XcodeBuildDestination.device("this_is_a_udid")
+        let version = "15.2".version()
+        let device = "iPhone 13 Pro"
 
-        simulatorController.findAvailableDeviceStub = { _, _, _, _ in
-            .test(device: SimulatorDevice.test(udid: "this_is_a_udid"))
+        simulatorController.findAvailableDeviceStub = { _, _version, _, _deviceName in
+            XCTAssertEqual(_version, version)
+            XCTAssertEqual(_deviceName, device)
+
+            return .test(device: SimulatorDevice.test(udid: "this_is_a_udid"))
         }
         buildGraphInspector.buildArgumentsStub = { _, _, _, _ in
             buildArguments
@@ -92,8 +98,8 @@ final class TargetBuilderTests: TuistUnitTestCase {
             clean: clean,
             configuration: configuration,
             buildOutputPath: nil,
-            device: "iPhone 13 Pro",
-            osVersion: "15.2".version(),
+            device: device,
+            osVersion: version,
             graphTraverser: MockGraphTraverser()
         )
     }

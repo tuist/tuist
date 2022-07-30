@@ -97,10 +97,12 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _device, _osVersion, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
             XCTAssertEqual(_scheme, scheme)
             XCTAssertTrue(_clean)
+            XCTAssertNil(_device)
+            XCTAssertNil(_osVersion)
         }
 
         // Then
@@ -188,8 +190,10 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _device, _osVersion, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
+            XCTAssertNil(_device)
+            XCTAssertNil(_osVersion)
 
             if _scheme.name == "A" {
                 XCTAssertEqual(_scheme, schemeA)
@@ -290,8 +294,6 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertPrinterContains("Found the following buildable schemes: A, B", at: .debug, ==)
     }
-
-    // TODO: - Write some tests for this
 }
 
 // MARK: - Helpers

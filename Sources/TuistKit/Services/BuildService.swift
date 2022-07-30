@@ -38,18 +38,15 @@ final class BuildService {
     private let generatorFactory: GeneratorFactorying
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding
-    private let simulatorController: SimulatorControlling
 
     init(
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
-        targetBuilder: TargetBuilding = TargetBuilder(),
-        simulatorController: SimulatorControlling = SimulatorController()
+        targetBuilder: TargetBuilding = TargetBuilder()
     ) {
         self.generatorFactory = generatorFactory
         self.buildGraphInspector = buildGraphInspector
         self.targetBuilder = targetBuilder
-        self.simulatorController = simulatorController
     }
 
     // swiftlint:disable:next function_body_length
