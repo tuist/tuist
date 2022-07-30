@@ -54,3 +54,8 @@ Sometimes for CI or when creating automations you may like to customize the buil
 
 `tuist build --build-output-path .build`
 
+**Build for a specific device and OS version**
+
+```bash
+tuist build --device "iPhone X" --os 14.0
+```
