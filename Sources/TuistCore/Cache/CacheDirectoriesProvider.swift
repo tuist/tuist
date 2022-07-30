@@ -25,7 +25,7 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
     }
 
     public func cacheDirectory(for category: CacheCategory) -> AbsolutePath {
-        Self.forcedCacheDirectory ?? cacheDirectory.appending(component: category.directoryName)
+        (Self.forcedCacheDirectory ?? cacheDirectory).appending(component: category.directoryName)
     }
 }
 
