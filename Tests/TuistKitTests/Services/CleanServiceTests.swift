@@ -102,7 +102,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         )
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: carthageDependenciesPath.pathString),
-            "Cache folder at path \(carthageDependenciesPath) should not have been deleted by the test."
+            "Cache folder at path \(carthageDependenciesPath) should have been deleted by the test."
         )
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: spmDependenciesPath.pathString),
