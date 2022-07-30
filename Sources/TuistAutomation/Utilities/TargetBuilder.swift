@@ -1,5 +1,5 @@
 import TSCBasic
-import struct TSCUtility.Version
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -125,7 +125,7 @@ public final class TargetBuilder: TargetBuilding {
     private func copyBuildProducts(
         to outputPath: AbsolutePath,
         projectPath: AbsolutePath,
-        platform: Platform,
+        platform: TuistGraph.Platform,
         configuration: String
     ) throws {
         let xcodeSchemeBuildPath = try xcodeProjectBuildDirectoryLocator.locate(

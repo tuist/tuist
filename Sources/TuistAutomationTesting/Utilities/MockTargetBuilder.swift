@@ -1,5 +1,5 @@
 import TSCBasic
-import struct TSCUtility.Version
+import TSCUtility
 import TuistAutomation
 import TuistCore
 import TuistGraph

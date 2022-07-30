@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import struct TSCUtility.Version
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistGraphTesting
