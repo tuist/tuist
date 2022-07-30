@@ -65,6 +65,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         try await xcodeBuildController.build(
             projectTarget,
             scheme: scheme.name,
+            destination: nil,
             clean: false,
             arguments: arguments
         ).printFormattedOutput()

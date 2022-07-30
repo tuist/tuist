@@ -1,4 +1,5 @@
 import TSCBasic
+import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -16,10 +17,13 @@ public protocol TargetBuilding {
     func buildTarget(
         _ target: GraphTarget,
         workspacePath: AbsolutePath,
-        schemeName: String,
+        scheme: Scheme,
         clean: Bool,
         configuration: String?,
-        buildOutputPath: AbsolutePath?
+        buildOutputPath: AbsolutePath?,
+        device: String?,
+        osVersion: Version?,
+        graphTraverser: GraphTraversing
     ) async throws
 }
 
@@ -50,26 +54,32 @@ public final class TargetBuilder: TargetBuilding {
     private let buildGraphInspector: BuildGraphInspecting
     private let xcodeBuildController: XcodeBuildControlling
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
+    private let simulatorController: SimulatorControlling
 
     public init(
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
-        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator()
+        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator(),
+        simulatorController: SimulatorControlling = SimulatorController()
     ) {
         self.buildGraphInspector = buildGraphInspector
         self.xcodeBuildController = xcodeBuildController
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
+        self.simulatorController = simulatorController
     }
 
     public func buildTarget(
         _ target: GraphTarget,
         workspacePath: AbsolutePath,
-        schemeName: String,
+        scheme: Scheme,
         clean: Bool,
         configuration: String?,
-        buildOutputPath: AbsolutePath?
+        buildOutputPath: AbsolutePath?,
+        device: String?,
+        osVersion: Version?,
+        graphTraverser: GraphTraversing
     ) async throws {
-        logger.log(level: .notice, "Building scheme \(schemeName)", metadata: .section)
+        logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
 
         let buildArguments = buildGraphInspector.buildArguments(
             project: target.project,
@@ -78,10 +88,19 @@ public final class TargetBuilder: TargetBuilding {
             skipSigning: false
         )
 
+        let destination = try await findDestination(
+            target: target.target,
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            version: osVersion,
+            deviceName: device
+        )
+
         try await xcodeBuildController
             .build(
                 .workspace(workspacePath),
-                scheme: schemeName,
+                scheme: scheme.name,
+                destination: destination,
                 clean: clean,
                 arguments: buildArguments
             )
@@ -130,5 +149,42 @@ public final class TargetBuilder: TargetBuilding {
 
                 try FileHandler.shared.copy(from: product, to: productOutputPath)
             }
+    }
+
+    private func findDestination(
+        target: Target,
+        scheme: Scheme,
+        graphTraverser: GraphTraversing,
+        version: Version?,
+        deviceName: String?
+    ) async throws -> XcodeBuildDestination {
+        switch target.platform {
+        case .iOS, .tvOS, .watchOS:
+            let minVersion: Version?
+            if let deploymentTarget = target.deploymentTarget {
+                minVersion = deploymentTarget.version.version()
+            } else {
+                minVersion = scheme.targetDependencies()
+                    .flatMap {
+                        graphTraverser
+                            .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)
+                            .map(\.target)
+                            .map(\.deploymentTarget)
+                            .compactMap { $0?.version.version() }
+                    }
+                    .sorted()
+                    .first
+            }
+
+            let deviceAndRuntime = try await simulatorController.findAvailableDevice(
+                platform: target.platform,
+                version: version,
+                minVersion: minVersion,
+                deviceName: deviceName
+            )
+            return .device(deviceAndRuntime.device.udid)
+        case .macOS:
+            return .mac
+        }
     }
 }

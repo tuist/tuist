@@ -17,6 +17,7 @@ public protocol XcodeBuildControlling {
     func build(
         _ target: XcodeBuildTarget,
         scheme: String,
+        destination: XcodeBuildDestination?,
         clean: Bool,
         arguments: [XcodeBuildArgument]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>

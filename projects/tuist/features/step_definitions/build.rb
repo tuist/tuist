@@ -10,21 +10,7 @@ Then(/^tuist builds the scheme ([a-zA-Z\-]+) from the project$/) do |scheme|
 end
 
 Then(/^tuist builds the scheme ([a-zA-Z\-]+) from the project with device "(.+)"$/) do |scheme, device|
-    args = [
-      "-scheme", scheme,
-      "-sdk", "iphonesimulator",
-    ]
-    if @workspace_path.nil?
-      args.concat(["-project", @xcodeproj_path]) unless @xcodeproj_path.nil?
-    else
-      args.concat(["-workspace", @workspace_path]) unless @workspace_path.nil?
-    end
-
-    args.concat(["-destination", "'name=#{device}'"])
-
-    args << "build"
-
-    xcodebuild(*args)
+  system(@tuist, "build", scheme, "--device", %Q{"#{device}"}, "--path", @dir)
 end
 
 

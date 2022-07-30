@@ -106,10 +106,13 @@ final class RunService {
         try await targetBuilder.buildTarget(
             graphTarget,
             workspacePath: workspacePath,
-            schemeName: scheme.name,
+            scheme: scheme,
             clean: clean,
             configuration: configuration,
-            buildOutputPath: nil
+            buildOutputPath: nil,
+            device: device,
+            osVersion: version?.version(),
+            graphTraverser: graphTraverser
         )
 
         let minVersion: Version?
