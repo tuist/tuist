@@ -1,6 +1,24 @@
 # Changelog
 
-Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
+## 3.9.0 - 2022-07-30
+
+### Changed
+
+- Update XcodeProj to 8.8.0 [#4629](https://github.com/tuist/tuist/pull/4629) by [@danyf90](https://github.com/danyf90)
+- Make `ProjectDescription.TargetDependency` hashable [#4644](https://github.com/tuist/tuist/pull/4644) by [@danyf90](https://github.com/danyf90)
+- Remove deprecation from `TargetDependency.package` [#4615](https://github.com/tuist/tuist/pull/4615) by [@danyf90](https://github.com/danyf90)
+
+### Added
+
+- Add multiplatform support for external SPM dependencies [#4570](https://github.com/tuist/tuist/pull/4570) by [@alexanderwe](https://github.com/alexanderwe)
+- Add support to enable frame gpu capture [#4623](https://github.com/tuist/tuist/pull/4623) by [@PierreCapo](https://github.com/PierreCapo)
+- Add support for `--no-open` flag in `tuist graph` [#4637](https://github.com/tuist/tuist/pull/4637) by [@danrevah](https://github.com/danrevah)
+- Add support for `systemLibrary` SwiftPackageManager targets [#4642](https://github.com/tuist/tuist/pull/4642) by [@nivanchikov](https://github.com/nivanchikov)
+
+### Fixed
+
+- Pass system environment variables when executing custom command [#4611](https://github.com/tuist/tuist/pull/4611) by [@woohyunjin06](https://github.com/woohyunjin06)
+- Fix for `tuist clean dependencies` cleaning also the `Tuist/Dependencies/Lockfiles` folder [#4646](https://github.com/tuist/tuist/pull/4646) by [@danyf90](https://github.com/danyf90)
 
 ## 3.8.0 - 2022-07-03
 
