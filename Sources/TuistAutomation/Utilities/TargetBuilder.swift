@@ -91,12 +91,13 @@ public final class TargetBuilder: TargetBuilding {
             skipSigning: false
         )
 
-        let destination = try await findDestination(
-            target: target.target,
+        let destination = try await XcodeBuildDestination.find(
+            for: target.target,
             scheme: scheme,
-            graphTraverser: graphTraverser,
             version: osVersion,
-            deviceName: device
+            deviceName: device,
+            graphTraverser: graphTraverser,
+            simulatorController: simulatorController
         )
 
         try await xcodeBuildController
@@ -152,42 +153,5 @@ public final class TargetBuilder: TargetBuilding {
 
                 try FileHandler.shared.copy(from: product, to: productOutputPath)
             }
-    }
-
-    private func findDestination(
-        target: Target,
-        scheme: Scheme,
-        graphTraverser: GraphTraversing,
-        version: Version?,
-        deviceName: String?
-    ) async throws -> XcodeBuildDestination {
-        switch target.platform {
-        case .iOS, .tvOS, .watchOS:
-            let minVersion: Version?
-            if let deploymentTarget = target.deploymentTarget {
-                minVersion = deploymentTarget.version.version()
-            } else {
-                minVersion = scheme.targetDependencies()
-                    .flatMap {
-                        graphTraverser
-                            .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)
-                            .map(\.target)
-                            .map(\.deploymentTarget)
-                            .compactMap { $0?.version.version() }
-                    }
-                    .sorted()
-                    .first
-            }
-
-            let deviceAndRuntime = try await simulatorController.findAvailableDevice(
-                platform: target.platform,
-                version: version,
-                minVersion: minVersion,
-                deviceName: deviceName
-            )
-            return .device(deviceAndRuntime.device.udid)
-        case .macOS:
-            return .mac
-        }
     }
 }
