@@ -10,10 +10,13 @@ public protocol TargetBuilding {
     /// - Parameters:
     ///   - target: The value graph target where the scheme is defined.
     ///   - workspacePath: The path to the `.xcworkspace` where the target is defined.
-    ///   - schemeName: The name of the scheme where the target is defined.
+    ///   - scheme: The scheme where the target is defined.
     ///   - clean: Whether to clean the project before running.
     ///   - configuration: The configuration to use while building the scheme.
     ///   - buildOutputPath: An optional path to copy the build products to.
+    ///   - device: An optional device specifier to use when building the scheme.
+    ///   - osVersion: An optional OS number to use when building the scheme.
+    ///   - graphTraverser: The Graph traverser.
     func buildTarget(
         _ target: GraphTarget,
         workspacePath: AbsolutePath,
