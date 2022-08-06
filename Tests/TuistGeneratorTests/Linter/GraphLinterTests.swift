@@ -618,6 +618,64 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
+    func test_lint_watch_application() throws {
+        // Note: This was introduced in Xcode 14 / watchOS 9
+        // watchOS applications can now use the regular application (.app) product identifier
+
+        // Given
+        let path: AbsolutePath = "/project"
+        let staticFramework = Target.empty(
+            name: "StaticFramework",
+            platform: .watchOS,
+            product: .staticFramework
+        )
+        let dynamicFramework = Target.empty(
+            name: "DynamicFramework",
+            platform: .watchOS,
+            product: .framework
+        )
+        let watchApplication = Target.empty(
+            name: "WatchApp",
+            platform: .watchOS,
+            product: .app,
+            dependencies: [
+                .target(name: staticFramework.name),
+                .target(name: dynamicFramework.name),
+            ]
+        )
+        let project = Project.test(path: path, targets: [watchApplication, staticFramework, dynamicFramework])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: watchApplication.name, path: path): [
+                .target(name: staticFramework.name, path: path),
+                .target(name: dynamicFramework.name, path: path),
+            ],
+            .target(name: staticFramework.name, path: path): [],
+            .target(name: dynamicFramework.name, path: path): [],
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [
+                path: [
+                    watchApplication.name: watchApplication,
+                    staticFramework.name: staticFramework,
+                    dynamicFramework.name: dynamicFramework,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
+
     func test_lint_missingProjectConfigurationsFromDependencyProjects() throws {
         // Given
         let path: AbsolutePath = "/project"
