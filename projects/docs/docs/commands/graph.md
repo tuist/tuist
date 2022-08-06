@@ -11,8 +11,8 @@ saying goes, "one image is worth a thousand words":
 ![Sample graph exported with the graph command](assets/GraphExample.png)
 
 The command will output the dependency graph as an image, in the `png` format.
-You can also change the format to `dot` (see [DOT](<https://en.wikipedia.org/wiki/DOT_(graph_description_language)>))
-to get the raw contents of the graph.
+You can change the output format using the `--format` paramenter.
+
 :::caution
 You can also change the format to `json` to export the graph as a JSON file. The JSON schema is subject
 to change and may be breaking across major versions.
@@ -29,12 +29,12 @@ tuist graph
 If you prefer to have the dot or json representations of the graph and render it separately, you can run:
 
 ```bash
-tuist graph --format [dot|json]
+tuist graph --format [dot|json|png|svg]
 ```
 
 To show the graph of only specific targets and their dependencies, you can run:
 
-```
+```bash
 tuist graph FrameworkA FrameworkB
 ```
 
@@ -46,20 +46,17 @@ To better understand what which one means, you can use the following legend as a
 
 ![Legend: different types of dependencies and targets and their styles in the graph](assets/Legend.png)
 
-If you prefer the old style, without different colors and shapes, pass the `--simple` flag when creating the graph.
-
 #### Arguments
 
 | Argument                       | Short | Description                                                                                                      | Values                                                                                                                             | Default           | Required |
 | ------------------------------ | ----- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------- | -------- |
 | `--skip-test-targets`          | `-t`  | Excludes test targets from the generated graph.                                                                  |                                                                                                                                    |                   | No       |
 | `--skip-external-dependencies` | `-d`  | Excludes external dependencies from the generated graph.                                                         |                                                                                                                                    |                   | No       |
-| `--format`                     | `-f`  | The format of the generated graph.                                                                               | `dot`, `png`, `json`                                                                                                                       | `png`             | No       |
-| `--simple`                     | `-s`  | Simple graph: disable different shapes and colors.                                                               |                                                                                                                                    |                   | No       |
+| `--format`                     | `-f`  | The format of the generated graph.                                                                               | `dot`, `json`, `png`, `svg`                                                                                                        | `png`             | No       |
 | `--algorithm`                  | `-a`  | The algorithm used for drawing the graph. For large graphs, it's recommended to use `fdp`.                       | `dot`, `neato`, `twopi`, `circo`, `fdp`, `sfdp`, `patchwork`                                                                       | `dot`             | No       |
 | `--path`                       | `-p`  | The path to the directory that contains the definition of the project.                                           |                                                                                                                                    | Current directory | No       |
 | `--output-path`                | `-o`  | The path to where the image will be exported. When not specified, it exports the image in the current directory. |                                                                                                                                    |                   | No       |
-| `--targets`                    | `-t`  | The path to where the image will be exported. When not specified, it exports the image in the current directory. | A list of targets to filter. Those and their dependent targets will be showed in the graph. If empty, every target will be showed. |                   | No       |
+| `--no-open`                    | `-n`  | If set, the generated graph is not opened automatically.                                                         |                                                                                                                                    | `yes`             | No       |
 
 #### JSON output schema
 
@@ -83,10 +80,10 @@ When the `--format` argument is specified as `json`, the following JSON schema i
 
 ##### Target
 
-| Key       | Description                                                                                                             |
-| --------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `name`    | Name of the target.                                                                                                     |
-| `product` | The product type of the target. See (Product)[https://docs.tuist.io/manifests/project#product] for all possible values. |
+| Key       | Description                                                                                                                                         |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`    | Name of the target.                                                                                                                                 |
+| `product` | The product type of the target. See [Product](https://tuist.github.io/tuist/main/documentation/projectdescription/product) for all possible values. |
 
 ##### Scheme
 
@@ -97,13 +94,14 @@ When the `--format` argument is specified as `json`, the following JSON schema i
 
 ##### Package
 
-| Key    | Description                                                                                                      |
-| ------ | ---------------------------------------------------------------------------------------------------------------- |
-| `kind` | The type of the package. See (Package)[https://docs.tuist.io/manifests/project#package] for all possible values. |
-| `path` | Absolute path to the package.                                                                                    |
+| Key    | Description                                                                                                                                  |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind` | The type of the package. See [Package](https://tuist.github.io/tuist/main/documentation/projectdescription/package) for all possible values. |
+| `path` | Absolute path to the package.                                                                                                                |
 
 Sample JSON output:
-```
+
+```json
 {
     "name": "NAME_OF_MANIFEST",
     "path": "PATH_TO_MANIFEST_DIR",
