@@ -82,4 +82,39 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         )
         XCTAssertTrue(contentHashesCalled)
     }
+    
+    func test_contentHashes_when_excluded_targets_resources_hashes_are_not_computed() throws {
+        let project = Project.test()
+        
+        var contentHashesCalled = false
+        let excludedTarget = GraphTarget(
+            path: "/Project/Path",
+            target: Target.test(name: "Excluded", product: .framework),
+            project: project
+        )
+        let excludedTargetResource = GraphTarget(
+            path: "/Project/Path",
+            target: Target.test(name: "\(project.name)_Excluded", product: .bundle),
+            project: project
+        )
+        let includedTarget = GraphTarget(
+            path: "/Project/Path",
+            target: Target.test(name: "Included", product: .framework),
+            project: Project.test()
+        )
+        graphContentHasher.contentHashesStub = { _, filter, _ in
+            contentHashesCalled = true
+            XCTAssertTrue(filter(includedTarget))
+            XCTAssertFalse(filter(excludedTarget))
+            XCTAssertFalse(filter(excludedTargetResource))
+            return [:]
+        }
+        _ = try subject.contentHashes(
+            for: Graph.test(),
+            cacheProfile: TuistGraph.Cache.Profile(name: "Development", configuration: "Debug"),
+            cacheOutputType: .xcframework,
+            excludedTargets: ["Excluded"]
+        )
+        XCTAssertTrue(contentHashesCalled)
+    }
 }
