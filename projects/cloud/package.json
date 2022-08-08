@@ -43,7 +43,7 @@
     "@juggle/resize-observer": "^3.3.1",
     "@rails/ujs": "^6.1.6",
     "@rails/webpacker": "5.4.3",
-    "@shopify/polaris": "^9.19.0",
+    "@shopify/polaris": "^9.22.0",
     "@shopify/polaris-viz": "^1.11.1",
     "apollo-link": "^1.2.14",
     "apollo-link-http": "^1.5.17",
@@ -54,7 +54,7 @@
     "react": "^17.0.2",
     "react_ujs": "^2.6.2",
     "react-dom": "^17.0.2",
-    "react-hook-form": "^7.33.1",
+    "react-hook-form": "^7.34.0",
     "react-router-dom": "^6.3.0",
     "webpack": "^4.46.0",
     "webpack-cli": "^3.3.12"
