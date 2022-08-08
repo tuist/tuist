@@ -82,10 +82,10 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         )
         XCTAssertTrue(contentHashesCalled)
     }
-    
+
     func test_contentHashes_when_excluded_targets_resources_hashes_are_not_computed() throws {
         let project = Project.test()
-        
+
         var contentHashesCalled = false
         let excludedTarget = GraphTarget(
             path: "/Project/Path",

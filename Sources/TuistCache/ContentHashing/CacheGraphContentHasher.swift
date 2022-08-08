@@ -70,7 +70,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         excludedTargets: Set<String>
     ) -> Bool {
         let frameworkNameFromResourceTargetName = target.target.name.dropPrefix("\(target.project.name)_")
-        
+
         let product = target.target.product
         let name = target.target.name
 
