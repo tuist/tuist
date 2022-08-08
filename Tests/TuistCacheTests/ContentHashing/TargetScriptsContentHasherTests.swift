@@ -58,17 +58,11 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
     func test_hash_targetAction_withBuildVariables_callsMockHasherWithOnlyPathWithoutBuildVariable() throws {
         // Given
-        let inputPaths1Hash = "inputPaths1-hash"
         let inputFileListPaths1 = "inputFileListPaths1-hash"
-        let outputPaths1 = "outputPaths1-hash"
-        let outputFileListPaths1 = "outputFileListPaths1-hash"
-        mockContentHasher.stubHashForPath[AbsolutePath("/$(SRCROOT)/inputPaths1")] = inputPaths1Hash
-        mockContentHasher.stubHashForPath[AbsolutePath("/$(SRCROOT)/inputFileListPaths1")] = inputFileListPaths1
-        mockContentHasher.stubHashForPath[AbsolutePath("/$(DERIVED_FILE_DIR)/outputPaths1")] = outputPaths1
-        mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths1")] = outputFileListPaths1
+        mockContentHasher.stubHashForPath[AbsolutePath("/inputFileListPaths1")] = inputFileListPaths1
         let targetScript = makeTargetScript(
             inputPaths: [AbsolutePath("/$(SRCROOT)/inputPaths1")],
-            inputFileListPaths: [AbsolutePath("/$(SRCROOT)/inputFileListPaths1")],
+            inputFileListPaths: [AbsolutePath("/inputFileListPaths1")],
             outputPaths: [AbsolutePath("/$(DERIVED_FILE_DIR)/outputPaths1")],
             outputFileListPaths: [AbsolutePath("/outputFileListPaths1")]
         )
@@ -79,9 +73,9 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         // Then
         let expected = [
             "/$(SRCROOT)/inputPaths1",
-            "/$(SRCROOT)/inputFileListPaths1",
+            inputFileListPaths1,
             "/$(DERIVED_FILE_DIR)/outputPaths1",
-            outputFileListPaths1,
+            "/outputFileListPaths1",
             "1",
             "tool1",
             "pre",
@@ -91,12 +85,6 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
         XCTAssertPrinterOutputContains(
             "The path of the file 'inputPaths1' is hashed, not the content. Because it has a build variable."
-        )
-        XCTAssertPrinterOutputContains(
-            "The path of the file 'inputFileListPaths1' is hashed, not the content. Because it has a build variable."
-        )
-        XCTAssertPrinterOutputContains(
-            "The path of the file 'outputPaths1' is hashed, not the content. Because it has a build variable."
         )
         XCTAssertEqual(mockContentHasher.hashStringsSpy, expected)
     }

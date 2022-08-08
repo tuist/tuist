@@ -27,28 +27,23 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
         for script in targetScripts {
             var pathsToHash: [AbsolutePath] = []
             script.path.map { pathsToHash.append($0) }
-            let scriptPaths = script.inputPaths + script.inputFileListPaths + script.outputPaths + script.outputFileListPaths
-            scriptPaths.forEach { path in
+            (script.inputPaths + script.inputFileListPaths).forEach { path in
                 if path.pathString.contains("$") {
                     stringsToHash.append(path.pathString)
-                    logger
-                        .notice(
-                            "The path of the file \'\(path.url.lastPathComponent)\' is hashed, not the content. Because it has a build variable."
-                        )
+                    logger.notice(
+                        "The path of the file \'\(path.url.lastPathComponent)\' is hashed, not the content. Because it has a build variable."
+                    )
                 } else {
                     pathsToHash.append(path)
                 }
             }
-            let fileHashes = try pathsToHash.map { try contentHasher.hash(path: $0) }
-            stringsToHash.append(
-                contentsOf: fileHashes +
-                    [
-                        script.name,
-                        script.tool ?? "", // TODO: don't default to ""
-                        script.order.rawValue,
-                    ] +
-                    script.arguments
-            )
+            stringsToHash.append(contentsOf: try pathsToHash.map { try contentHasher.hash(path: $0) })
+            stringsToHash.append(contentsOf: (script.outputPaths + script.outputFileListPaths).map(\.pathString))
+            stringsToHash.append(contentsOf: [
+                script.name,
+                script.tool ?? "",
+                script.order.rawValue,
+            ] + script.arguments)
         }
         return try contentHasher.hash(stringsToHash)
     }
