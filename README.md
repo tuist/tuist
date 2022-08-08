@@ -2,13 +2,10 @@
   <img src="assets/header.gif"/><br>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
   <img src="https://img.shields.io/github/v/release/tuist/tuist?include_prereleases&style=flat-square" alt="Latest Version">
-  <a href="http://community.tuist.io"><img src="https://img.shields.io/badge/community-tuist-blue?style=flat-square" alt="Community"></a>
-  <img src="https://img.shields.io/github/forks/tuist/tuist?style=flat-square" alt="GitHub forks">
-  <img src="https://img.shields.io/github/stars/tuist/tuist?style=flat-square" alt="GitHub stars">
   <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square" alt="Commit Activity">
-    <img src="https://img.shields.io/github/contributors/tuist/tuist?style=flat-square" alt="Contributors">
   <img src="https://img.shields.io/github/commits-since/tuist/tuist/latest?style=flat-square" alt="Latest Commits">
   <a href="http://twitter.com/tuistio"><img src="https://img.shields.io/twitter/follow/tuistio?style=flat-square" alt="Twitter Followers"></a>
+  <a href="https://join.slack.com/t/tuistapp/shared_invite/zt-g38gajhj-D6LLakrPnVCy4sLm24KxaQ"><img src="https://img.shields.io/badge/slack-tuist-green.svg?logo=slack" alt="Slack Workspace">
   <img src="https://img.shields.io/opencollective/sponsors/tuistapp?style=flat-square" alt="Sponsors">
   <img src="https://img.shields.io/opencollective/backers/tuistapp?style=flat-square" alt="Backers">
   <img src="https://img.shields.io/github/license/tuist/tuist?style=flat-square" alt="License">
@@ -38,6 +35,10 @@ tuist build # Builds your project
 ```
 
 [Check out](https://docs.tuist.io) the project "Get Started" guide to learn more about Tuist and all its features.
+
+## Sample projects 🔬
+
+You can find some sample projects in the [fixtures folder](projects/tuist/fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
 
 ## Sponsors
 
@@ -132,7 +133,7 @@ Do you want to know more about what Tuist can offer you? Or perhaps want to cont
 
 ## Contribute 👩‍💻
 
-If you are interested in contributed to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://docs.tuist.io/contributors/get-started).
+If you are interested in contributing to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://docs.tuist.io/contributors/get-started).
 
 ## Core Team ✨
 
@@ -158,7 +159,7 @@ If you are interested in contributed to the project, our documentation has a sec
 
 ## Contributors ✨
 
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+Thanks goes to these wonderful people:
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -300,5 +301,3 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- prettier-ignore-end -->
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
-
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
