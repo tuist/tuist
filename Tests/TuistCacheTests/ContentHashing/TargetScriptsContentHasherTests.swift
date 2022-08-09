@@ -68,14 +68,14 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.hash(targetScripts: [targetScript])
+        _ = try subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
 
         // Then
         let expected = [
-            "/$(SRCROOT)/inputPaths1",
+            "$(SRCROOT)/inputPaths1",
             inputFileListPaths1,
-            "/$(DERIVED_FILE_DIR)/outputPaths1",
-            "/outputFileListPaths1",
+            "$(DERIVED_FILE_DIR)/outputPaths1",
+            "outputFileListPaths1",
             "1",
             "tool1",
             "pre",
@@ -98,14 +98,14 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         let targetScript = makeTargetScript()
 
         // When
-        _ = try subject.hash(targetScripts: [targetScript])
+        _ = try subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
 
         // Then
         let expected = [
             inputPaths1Hash,
             inputFileListPaths1,
-            "/outputPaths1",
-            "/outputFileListPaths1",
+            "outputPaths1",
+            "outputFileListPaths1",
             "1",
             "tool1",
             "pre",
@@ -124,14 +124,14 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         let targetScript = makeTargetScript()
 
         // When
-        _ = try subject.hash(targetScripts: [targetScript])
+        _ = try subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
 
         // Then
         let expected = [
             inputPaths1Hash,
             inputFileListPaths1,
-            "/outputPaths1",
-            "/outputFileListPaths1",
+            "outputPaths1",
+            "outputFileListPaths1",
             "1",
             "tool1",
             "pre",
@@ -158,14 +158,14 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.hash(targetScripts: [targetScript])
+        _ = try subject.hash(targetScripts: [targetScript], sourceRootPath: "/")
 
         // Then
         let expected = [
             inputPaths2Hash,
             inputFileListPaths2,
-            "/outputPaths2",
-            "/outputFileListPaths2",
+            "outputPaths2",
+            "outputFileListPaths2",
             "2",
             "tool2",
             "post",

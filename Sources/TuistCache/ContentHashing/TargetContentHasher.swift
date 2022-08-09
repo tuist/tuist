@@ -84,7 +84,10 @@ public final class TargetContentHasher: TargetContentHashing {
         let resourcesHash = try resourcesContentHasher.hash(resources: graphTarget.target.resources)
         let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: graphTarget.target.copyFiles)
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
-        let targetScriptsHash = try targetScriptsContentHasher.hash(targetScripts: graphTarget.target.scripts)
+        let targetScriptsHash = try targetScriptsContentHasher.hash(
+            targetScripts: graphTarget.target.scripts,
+            sourceRootPath: graphTarget.project.sourceRootPath
+        )
         let dependenciesHash = try dependenciesContentHasher.hash(
             graphTarget: graphTarget,
             hashedTargets: &hashedTargets,
