@@ -37,6 +37,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
     public func build(
         _ target: XcodeBuildTarget,
         scheme: String,
+        destination: XcodeBuildDestination?,
         clean: Bool = false,
         arguments: [XcodeBuildArgument]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
@@ -56,6 +57,16 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
+
+        // Destination
+        switch destination {
+        case let .device(udid):
+            command.append(contentsOf: ["-destination", "id=\(udid)"])
+        case .mac:
+            command.append(contentsOf: ["-destination", SimulatorController().macOSDestination()])
+        case nil:
+            break
+        }
 
         return run(command: command, isVerbose: environment.isVerbose)
     }

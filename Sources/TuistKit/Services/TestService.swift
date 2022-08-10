@@ -204,12 +204,13 @@ final class TestService {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
 
-        let destination = try await findDestination(
-            target: buildableTarget.target,
+        let destination = try await XcodeBuildDestination.find(
+            for: buildableTarget.target,
             scheme: scheme,
-            graphTraverser: graphTraverser,
             version: version,
-            deviceName: deviceName
+            deviceName: deviceName,
+            graphTraverser: graphTraverser,
+            simulatorController: simulatorController
         )
 
         try await xcodebuildController.test(
@@ -228,41 +229,5 @@ final class TestService {
             retryCount: retryCount
         )
         .printFormattedOutput()
-    }
-
-    private func findDestination(
-        target: Target,
-        scheme: Scheme,
-        graphTraverser: GraphTraversing,
-        version: Version?,
-        deviceName: String?
-    ) async throws -> XcodeBuildDestination {
-        switch target.platform {
-        case .iOS, .tvOS, .watchOS:
-            let minVersion: Version?
-            if let deploymentTarget = target.deploymentTarget {
-                minVersion = deploymentTarget.version.version()
-            } else {
-                minVersion = scheme.targetDependencies()
-                    .flatMap {
-                        graphTraverser
-                            .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)
-                            .map(\.target)
-                            .map(\.deploymentTarget)
-                            .compactMap { $0?.version.version() }
-                    }
-                    .sorted()
-                    .first
-            }
-            let deviceAndRuntime = try await simulatorController.findAvailableDevice(
-                platform: target.platform,
-                version: version,
-                minVersion: minVersion,
-                deviceName: deviceName
-            )
-            return .device(deviceAndRuntime.device.udid)
-        case .macOS:
-            return .mac
-        }
     }
 }

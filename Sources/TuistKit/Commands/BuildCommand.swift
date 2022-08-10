@@ -35,6 +35,18 @@ struct BuildCommand: AsyncParsableCommand {
     var path: String?
 
     @Option(
+        name: .shortAndLong,
+        help: "Build on a specific device."
+    )
+    var device: String?
+
+    @Option(
+        name: .shortAndLong,
+        help: "Build with a specific version of the OS."
+    )
+    var os: String?
+
+    @Option(
         name: [.long, .customShort("C")],
         help: "The configuration to be used when building the scheme."
     )
@@ -60,7 +72,9 @@ struct BuildCommand: AsyncParsableCommand {
             clean: clean,
             configuration: configuration,
             buildOutputPath: buildOutputPath.map { AbsolutePath($0, relativeTo: FileHandler.shared.currentPath) },
-            path: absolutePath
+            path: absolutePath,
+            device: device,
+            osVersion: os
         )
     }
 }

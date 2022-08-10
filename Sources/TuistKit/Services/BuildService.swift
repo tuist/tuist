@@ -49,13 +49,16 @@ final class BuildService {
         self.targetBuilder = targetBuilder
     }
 
+    // swiftlint:disable:next function_body_length
     func run(
         schemeName: String?,
         generate: Bool,
         clean: Bool,
         configuration: String?,
         buildOutputPath: AbsolutePath?,
-        path: AbsolutePath
+        path: AbsolutePath,
+        device: String?,
+        osVersion: String?
     ) async throws {
         let graph: Graph
         let generator = generatorFactory.default()
@@ -89,10 +92,13 @@ final class BuildService {
             try await targetBuilder.buildTarget(
                 graphTarget,
                 workspacePath: workspacePath,
-                schemeName: scheme.name,
+                scheme: scheme,
                 clean: clean,
                 configuration: configuration,
-                buildOutputPath: buildOutputPath
+                buildOutputPath: buildOutputPath,
+                device: device,
+                osVersion: osVersion?.version(),
+                graphTraverser: graphTraverser
             )
         } else {
             var cleaned = false
@@ -106,10 +112,13 @@ final class BuildService {
                 try await targetBuilder.buildTarget(
                     graphTarget,
                     workspacePath: workspacePath,
-                    schemeName: scheme.name,
+                    scheme: scheme,
                     clean: !cleaned && clean,
                     configuration: configuration,
-                    buildOutputPath: buildOutputPath
+                    buildOutputPath: buildOutputPath,
+                    device: device,
+                    osVersion: osVersion?.version(),
+                    graphTraverser: graphTraverser
                 )
                 cleaned = true
             }

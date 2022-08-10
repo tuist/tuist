@@ -31,6 +31,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
     private var buildGraphInspector: MockBuildGraphInspector!
     private var xcodeBuildController: MockXcodeBuildController!
     private var xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocator!
+    private var simulatorController: MockSimulatorController!
     private var subject: TargetBuilder!
 
     override func setUp() {
@@ -38,10 +39,12 @@ final class TargetBuilderTests: TuistUnitTestCase {
         buildGraphInspector = MockBuildGraphInspector()
         xcodeBuildController = MockXcodeBuildController()
         xcodeProjectBuildDirectoryLocator = MockXcodeProjectBuildDirectoryLocator()
+        simulatorController = MockSimulatorController()
         subject = TargetBuilder(
             buildGraphInspector: buildGraphInspector,
             xcodeBuildController: xcodeBuildController,
-            xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator
+            xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
+            simulatorController: simulatorController
         )
     }
 
@@ -49,6 +52,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         buildGraphInspector = nil
         xcodeBuildController = nil
         xcodeProjectBuildDirectoryLocator = nil
+        simulatorController = nil
         subject = nil
         super.tearDown()
     }
@@ -63,14 +67,24 @@ final class TargetBuilderTests: TuistUnitTestCase {
             .configuration(configuration),
             .sdk("iphoneos"),
         ]
+        let destination = XcodeBuildDestination.device("this_is_a_udid")
+        let version = "15.2".version()
+        let device = "iPhone 13 Pro"
 
+        simulatorController.findAvailableDeviceStub = { _, _version, _, _deviceName in
+            XCTAssertEqual(_version, version)
+            XCTAssertEqual(_deviceName, device)
+
+            return .test(device: SimulatorDevice.test(udid: "this_is_a_udid"))
+        }
         buildGraphInspector.buildArgumentsStub = { _, _, _, _ in
             buildArguments
         }
 
-        xcodeBuildController.buildStub = { _workspace, _scheme, _clean, _buildArguments in
+        xcodeBuildController.buildStub = { _workspace, _scheme, _destination, _clean, _buildArguments in
             XCTAssertEqual(_workspace.path, workspacePath)
             XCTAssertEqual(_scheme, scheme.name)
+            XCTAssertEqual(_destination, destination)
             XCTAssertEqual(_clean, clean)
             XCTAssertEqual(_buildArguments, buildArguments)
             return [.standardOutput(.init(raw: "success"))]
@@ -80,10 +94,13 @@ final class TargetBuilderTests: TuistUnitTestCase {
         try await subject.buildTarget(
             .test(),
             workspacePath: workspacePath,
-            schemeName: scheme.name,
+            scheme: scheme,
             clean: clean,
             configuration: configuration,
-            buildOutputPath: nil
+            buildOutputPath: nil,
+            device: device,
+            osVersion: version,
+            graphTraverser: MockGraphTraverser()
         )
     }
 
@@ -93,8 +110,9 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let buildOutputPath = path.appending(component: ".build")
         let scheme = Scheme.test(name: "A")
         let workspacePath = AbsolutePath("/path/to/project.xcworkspace")
+        let graphTraverser = MockGraphTraverser()
 
-        xcodeBuildController.buildStub = { _, _, _, _ in
+        xcodeBuildController.buildStub = { _, _, _, _, _ in
             [.standardOutput(.init(raw: "success"))]
         }
 
@@ -109,10 +127,13 @@ final class TargetBuilderTests: TuistUnitTestCase {
         try await subject.buildTarget(
             .test(),
             workspacePath: workspacePath,
-            schemeName: scheme.name,
+            scheme: scheme,
             clean: false,
             configuration: nil,
-            buildOutputPath: buildOutputPath
+            buildOutputPath: buildOutputPath,
+            device: nil,
+            osVersion: nil,
+            graphTraverser: graphTraverser
         )
 
         // Then
@@ -137,8 +158,9 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let scheme = Scheme.test(name: "A")
         let configuration = "TestRelease"
         let workspacePath = AbsolutePath("/path/to/project.xcworkspace")
+        let graphTraverser = MockGraphTraverser()
 
-        xcodeBuildController.buildStub = { _, _, _, _ in
+        xcodeBuildController.buildStub = { _, _, _, _, _ in
             [.standardOutput(.init(raw: "success"))]
         }
 
@@ -153,10 +175,13 @@ final class TargetBuilderTests: TuistUnitTestCase {
         try await subject.buildTarget(
             .test(),
             workspacePath: workspacePath,
-            schemeName: scheme.name,
+            scheme: scheme,
             clean: false,
             configuration: configuration,
-            buildOutputPath: buildOutputPath
+            buildOutputPath: buildOutputPath,
+            device: nil,
+            osVersion: nil,
+            graphTraverser: graphTraverser
         )
 
         // Then

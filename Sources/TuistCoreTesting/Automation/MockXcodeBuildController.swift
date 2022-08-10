@@ -5,15 +5,23 @@ import TuistSupport
 @testable import TuistSupportTesting
 
 final class MockXcodeBuildController: XcodeBuildControlling {
-    var buildStub: ((XcodeBuildTarget, String, Bool, [XcodeBuildArgument]) -> [SystemEvent<XcodeBuildOutput>])?
+    var buildStub: ((
+        XcodeBuildTarget,
+        String,
+        XcodeBuildDestination?,
+        Bool,
+        [XcodeBuildArgument]
+    ) -> [SystemEvent<XcodeBuildOutput>])?
+
     func build(
         _ target: XcodeBuildTarget,
         scheme: String,
+        destination: XcodeBuildDestination?,
         clean: Bool,
         arguments: [XcodeBuildArgument]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let buildStub = buildStub {
-            return buildStub(target, scheme, clean, arguments).asAsyncThrowingStream()
+            return buildStub(target, scheme, destination, clean, arguments).asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {
                 throw TestError(
