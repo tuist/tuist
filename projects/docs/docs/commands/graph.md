@@ -57,6 +57,7 @@ To better understand what which one means, you can use the following legend as a
 | `--path`                       | `-p`  | The path to the directory that contains the definition of the project.                                           |                                                                                                                                    | Current directory | No       |
 | `--output-path`                | `-o`  | The path to where the image will be exported. When not specified, it exports the image in the current directory. |                                                                                                                                    |                   | No       |
 | `--no-open`                    | `-n`  | If set, the generated graph is not opened automatically.                                                         |                                                                                                                                    | `yes`             | No       |
+| `--platform`                   | `-l`  | If set, show only the targets for the given platformthe generated graph is not opened automatically.             | `ios`, `macos`, `tvos`, `watchos`                                                                                                  | All.              | No       |
 
 #### JSON output schema
 
