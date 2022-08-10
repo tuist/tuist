@@ -43,6 +43,7 @@ final class GraphService {
         skipTestTargets: Bool,
         skipExternalDependencies: Bool,
         open: Bool,
+        platformToFilter: Platform?,
         targetsToFilter: [String],
         path: AbsolutePath,
         outputPath: AbsolutePath
@@ -58,6 +59,7 @@ final class GraphService {
         let filteredTargetsAndDependencies = graph.filter(
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
+            platformToFilter: platformToFilter,
             targetsToFilter: targetsToFilter
         )
 

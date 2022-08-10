@@ -22,12 +22,7 @@
 ///
 /// let config = Config(
 ///     compatibleXcodeVersions: ["10.3"],
-///     swiftVersion: "5.4.0",
-///     generationOptions: .options(
-///         xcodeProjectName: "SomePrefix-\(.projectName)-SomeSuffix",
-///         organizationName: "Tuist",
-///         developmentRegion: "de"
-///     )
+///     swiftVersion: "5.4.0"
 /// )
 /// ```
 public struct Config: Codable, Equatable {
