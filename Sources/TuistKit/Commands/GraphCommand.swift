@@ -32,7 +32,7 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         name: [.customShort("f"), .long],
-        help: "Available formats: dot, png, json"
+        help: "Available formats: dot, json, png, svg"
     )
     var format: GraphFormat = .png
 
