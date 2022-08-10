@@ -4,8 +4,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-public extension XcodeBuildDestination {
-
+extension XcodeBuildDestination {
     /// Finds the `XcodeBuildDestination` that matches the arguments provided
     /// - Parameters:
     ///   - target: The target where the scheme is defined.
@@ -15,7 +14,7 @@ public extension XcodeBuildDestination {
     ///   - graphTraverser: The Graph traverser.
     ///   - simulatorController: The simulator controller.
     /// - Returns: The `XcodeBuildDestination` that is compatible with the given arguments.
-    static func find(
+    public static func find(
         for target: Target,
         scheme: Scheme,
         version: Version?,
