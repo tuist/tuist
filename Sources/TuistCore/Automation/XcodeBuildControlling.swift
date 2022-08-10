@@ -12,11 +12,14 @@ public protocol XcodeBuildControlling {
     /// - Parameters:
     ///   - target: The project or workspace to be built.
     ///   - scheme: The scheme of the project that should be built.
+    ///   - destination: The optional destination to build on. Omitting this will allow `xcodebuild`
+    ///   to determine the destination.
     ///   - clean: True if xcodebuild should clean the project before building.
     ///   - arguments: Extra xcodebuild arguments.
     func build(
         _ target: XcodeBuildTarget,
         scheme: String,
+        destination: XcodeBuildDestination?,
         clean: Bool,
         arguments: [XcodeBuildArgument]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>

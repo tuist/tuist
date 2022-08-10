@@ -10,6 +10,7 @@ extension TuistGraph.Graph {
     public func filter(
         skipTestTargets: Bool,
         skipExternalDependencies: Bool,
+        platformToFilter: Platform?,
         targetsToFilter: [String]
     ) -> [GraphTarget: Set<GraphDependency>] {
         let graphTraverser = GraphTraverser(graph: self)
@@ -18,6 +19,10 @@ extension TuistGraph.Graph {
             .allTargets()
         let filteredTargets: Set<GraphTarget> = allTargets.filter { target in
             if skipTestTargets, graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name) {
+                return false
+            }
+
+            if let platformToFilter = platformToFilter, target.target.platform != platformToFilter {
                 return false
             }
 

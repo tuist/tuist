@@ -1,4 +1,5 @@
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -9,17 +10,23 @@ public protocol TargetBuilding {
     /// - Parameters:
     ///   - target: The value graph target where the scheme is defined.
     ///   - workspacePath: The path to the `.xcworkspace` where the target is defined.
-    ///   - schemeName: The name of the scheme where the target is defined.
+    ///   - scheme: The scheme where the target is defined.
     ///   - clean: Whether to clean the project before running.
     ///   - configuration: The configuration to use while building the scheme.
     ///   - buildOutputPath: An optional path to copy the build products to.
+    ///   - device: An optional device specifier to use when building the scheme.
+    ///   - osVersion: An optional OS number to use when building the scheme.
+    ///   - graphTraverser: The Graph traverser.
     func buildTarget(
         _ target: GraphTarget,
         workspacePath: AbsolutePath,
-        schemeName: String,
+        scheme: Scheme,
         clean: Bool,
         configuration: String?,
-        buildOutputPath: AbsolutePath?
+        buildOutputPath: AbsolutePath?,
+        device: String?,
+        osVersion: Version?,
+        graphTraverser: GraphTraversing
     ) async throws
 }
 
@@ -50,26 +57,32 @@ public final class TargetBuilder: TargetBuilding {
     private let buildGraphInspector: BuildGraphInspecting
     private let xcodeBuildController: XcodeBuildControlling
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
+    private let simulatorController: SimulatorControlling
 
     public init(
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
-        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator()
+        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator(),
+        simulatorController: SimulatorControlling = SimulatorController()
     ) {
         self.buildGraphInspector = buildGraphInspector
         self.xcodeBuildController = xcodeBuildController
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
+        self.simulatorController = simulatorController
     }
 
     public func buildTarget(
         _ target: GraphTarget,
         workspacePath: AbsolutePath,
-        schemeName: String,
+        scheme: Scheme,
         clean: Bool,
         configuration: String?,
-        buildOutputPath: AbsolutePath?
+        buildOutputPath: AbsolutePath?,
+        device: String?,
+        osVersion: Version?,
+        graphTraverser: GraphTraversing
     ) async throws {
-        logger.log(level: .notice, "Building scheme \(schemeName)", metadata: .section)
+        logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
 
         let buildArguments = buildGraphInspector.buildArguments(
             project: target.project,
@@ -78,10 +91,20 @@ public final class TargetBuilder: TargetBuilding {
             skipSigning: false
         )
 
+        let destination = try await XcodeBuildDestination.find(
+            for: target.target,
+            scheme: scheme,
+            version: osVersion,
+            deviceName: device,
+            graphTraverser: graphTraverser,
+            simulatorController: simulatorController
+        )
+
         try await xcodeBuildController
             .build(
                 .workspace(workspacePath),
-                scheme: schemeName,
+                scheme: scheme.name,
+                destination: destination,
                 clean: clean,
                 arguments: buildArguments
             )
@@ -102,7 +125,7 @@ public final class TargetBuilder: TargetBuilding {
     private func copyBuildProducts(
         to outputPath: AbsolutePath,
         projectPath: AbsolutePath,
-        platform: Platform,
+        platform: TuistGraph.Platform,
         configuration: String
     ) throws {
         let xcodeSchemeBuildPath = try xcodeProjectBuildDirectoryLocator.locate(

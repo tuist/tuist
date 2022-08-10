@@ -112,10 +112,10 @@ final class RunServiceTests: TuistUnitTestCase {
         let schemeName = "AScheme"
         let clean = true
         let configuration = "Test"
-        targetBuilder.buildTargetStub = { _, _workspacePath, _schemeName, _clean, _configuration, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _configuration, _, _, _, _ in
             // Then
             XCTAssertEqual(_workspacePath, workspacePath)
-            XCTAssertEqual(_schemeName, schemeName)
+            XCTAssertEqual(_scheme.name, schemeName)
             XCTAssertEqual(_clean, clean)
             XCTAssertEqual(_configuration, configuration)
             expectation.fulfill()
@@ -183,7 +183,7 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector.workspacePathStub = { _ in workspacePath }
         buildGraphInspector.runnableSchemesStub = { _ in [.test()] }
         buildGraphInspector.runnableTargetStub = { _, _ in .test() }
-        targetBuilder.buildTargetStub = { _, _, _, _, _, _ in expectation.fulfill() }
+        targetBuilder.buildTargetStub = { _, _, _, _, _, _, _, _, _ in expectation.fulfill() }
         targetRunner.assertCanRunTargetStub = { _ in throw TestError() }
 
         // Then
