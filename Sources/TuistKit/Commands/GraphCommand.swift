@@ -39,7 +39,7 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         name: [.customShort("f"), .long],
-        help: "Available formats: dot, png, json"
+        help: "Available formats: dot, json, png, svg"
     )
     var format: GraphFormat = .png
 
@@ -96,7 +96,7 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
 }
 
 enum GraphFormat: String, ExpressibleByArgument {
-    case dot, png, json
+    case dot, json, png, svg
 }
 
 extension GraphViz.LayoutAlgorithm: ExpressibleByArgument {}
