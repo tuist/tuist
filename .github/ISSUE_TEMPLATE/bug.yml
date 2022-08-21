@@ -31,7 +31,7 @@ body:
   - type: textarea
     id: error-log
     attributes:
-      label: What were you expecting?
+      label: Error log
       description: The full error message
       placeholder: |
         ```sh
