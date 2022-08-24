@@ -86,6 +86,10 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         let packageInfos: [
             (id: String, name: String, folder: AbsolutePath, targetToArtifactPaths: [String: AbsolutePath], info: PackageInfo)
         ]
+
+        // Platforms include iOS only
+        let shouldIgnoreMacCatalyst = platforms.subtracting([.iOS]).isEmpty
+
         packageInfos = try workspaceState.object.dependencies.map(context: .concurrent) { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
@@ -102,7 +106,19 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
 
-            let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: packageFolder)
+            var packageInfo: PackageInfo = try swiftPackageManagerController.loadPackageInfo(at: packageFolder)
+            if shouldIgnoreMacCatalyst {
+                let filteredPlatforms = packageInfo.platforms.filter { $0.platformName != "maccatalyst" }
+                packageInfo = PackageInfo(
+                    products: packageInfo.products,
+                    targets: packageInfo.targets,
+                    platforms: filteredPlatforms,
+                    cLanguageStandard: packageInfo.cLanguageStandard,
+                    cxxLanguageStandard: packageInfo.cxxLanguageStandard,
+                    swiftLanguageVersions: packageInfo.swiftLanguageVersions
+                )
+            }
+
             let targetToArtifactPaths = workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in
