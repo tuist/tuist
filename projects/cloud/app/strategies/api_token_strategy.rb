@@ -2,11 +2,13 @@
 
 class APITokenStrategy < Devise::Strategies::Base
   Token = Struct.new(:model_name, :id, :token) do
-    def self.decode(encoded)
-      decoded = Base64.urlsafe_decode64(encoded)
-      model_name, id, token = decoded.split(":")
+    class << self
+      def decode(encoded)
+        decoded = Base64.urlsafe_decode64(encoded)
+        model_name, id, token = decoded.split(":")
 
-      new(model_name, id, token)
+        new(model_name, id, token)
+      end
     end
 
     def valid?
