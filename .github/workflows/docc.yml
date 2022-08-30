@@ -35,6 +35,7 @@ jobs:
           key: swift-url-docc-build
           path: swift-docc/.build
       - name: Build swift-docc
+        if: ${{ !steps.cache-docc.outputs.cache-hit }}
         run: |
           cd swift-docc; swift build --product docc -c release; cd ..
       - name: Checkout swift-docc-render
@@ -96,7 +97,7 @@ jobs:
           done
       
       - name: Fix permissions
-        run: 'sudo chown -R $USER docs-out'
+        run: 'sudo chown --recursive $USER docs-out'
       - name: Publish documentation to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@4.1.7
         with:
