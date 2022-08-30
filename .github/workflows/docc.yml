@@ -16,18 +16,12 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-12
     steps:
       - name: Checkout Package
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - name: Download Swift 5.6.2
-        run: wget -q https://download.swift.org/swift-5.6.2-release/ubuntu2004/swift-5.6.2-RELEASE/swift-5.6.2-RELEASE-ubuntu20.04.tar.gz
-      - name: Extract Swift 5.6.2
-        run: tar xzf swift-5.6.2-RELEASE-ubuntu20.04.tar.gz
-      - name: Add Swift toolchain to PATH
-        run: echo "$GITHUB_WORKSPACE/swift-5.6.2-RELEASE-ubuntu20.04/usr/bin" >> $GITHUB_PATH
       - name: Checkout swift-docc
         uses: actions/checkout@v2
         with:
@@ -88,7 +82,6 @@ jobs:
                   -emit-symbol-graph-dir \
                   -Xswiftc \
                   .build/symbol-graphs \
-                  --static-swift-stdlib \
                   && swift-docc/.build/release/docc convert Sources/ProjectDescription/Documentation.docc \
                     --fallback-display-name ProjectDescription \
                     --fallback-bundle-identifier io.tuist.ProjectDescription \
