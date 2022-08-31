@@ -24,8 +24,10 @@ class TokenAuthenticatableTest < ActiveSupport::TestCase
       "123"
     end
 
-    def self.exists?(*)
-      false
+    class << self
+      def exists?(*)
+        false
+      end
     end
   end
 
