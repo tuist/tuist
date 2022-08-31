@@ -189,7 +189,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         graphTraverser: GraphTraversing
     ) throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
-        try project.targets.forEach { target in
+        try project.targets.sorted(by: { $0.name < $1.name }).forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(
                 target: target,
                 project: project,
