@@ -61,12 +61,7 @@ public final class BuildGraphInspector: BuildGraphInspecting {
         configuration: String?,
         skipSigning: Bool
     ) -> [XcodeBuildArgument] {
-        var arguments: [XcodeBuildArgument]
-        if target.platform == .macOS {
-            arguments = [.sdk(target.platform.xcodeDeviceSDK)]
-        } else {
-            arguments = [.sdk(target.platform.xcodeSimulatorSDK!)]
-        }
+        var arguments = [XcodeBuildArgument]()
 
         // Configuration
         if let configuration = configuration {

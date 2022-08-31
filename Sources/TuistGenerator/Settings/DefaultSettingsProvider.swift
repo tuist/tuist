@@ -75,21 +75,17 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         ],
     ]
 
-    private let system: Systeming
     private let xcodeController: XcodeControlling
 
     public convenience init() {
         self.init(
-            system: System.shared,
             xcodeController: XcodeController.shared
         )
     }
 
     public init(
-        system: Systeming,
         xcodeController: XcodeControlling
     ) {
-        self.system = system
         self.xcodeController = xcodeController
     }
 
@@ -137,17 +133,15 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             product: product,
             swift: true
         ).toSettings()
-        let targetSystemInferred = try systemInferredTargetSettings(for: project)
         let filter = try createFilter(
             defaultSettings: defaultSettings,
             essentialKeys: DefaultSettingsProvider.essentialTargetSettings,
             newXcodeKeys: DefaultSettingsProvider.xcodeVersionSpecificSettings
         )
-
         var settings: SettingsDictionary = [:]
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultAll)
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant)
-        settingsHelper.extend(buildSettings: &settings, with: targetSystemInferred)
+        settingsHelper.extend(buildSettings: &settings, with: projectOverridableTargetDefaultSettings(for: project))
         return settings.filter(filter)
     }
 
@@ -175,16 +169,16 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         }
     }
 
-    private func systemInferredTargetSettings(for project: Project) throws -> SettingsDictionary {
-        var systemInferredSettings = SettingsDictionary()
+    private func projectOverridableTargetDefaultSettings(for project: Project) -> SettingsDictionary {
+        var settings = SettingsDictionary()
         // If swift version is already specified at the project level settings, there is no need to
-        // override it with an inferred version. This allows users to set `SWIFT_VERSION`
+        // override it with a default version. This allows users to set `SWIFT_VERSION`
         // at the project level and it automatically applying to all targets without it getting
-        // overwritten with an inferred version.
+        // overwritten.
         if project.settings.base["SWIFT_VERSION"] == nil {
-            systemInferredSettings["SWIFT_VERSION"] = .string(try system.swiftVersion())
+            settings["SWIFT_VERSION"] = "5.0"
         }
-        return systemInferredSettings
+        return settings
     }
 }
 
