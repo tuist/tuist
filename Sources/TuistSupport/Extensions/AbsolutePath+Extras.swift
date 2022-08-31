@@ -73,6 +73,7 @@ extension AbsolutePath {
         "docc",
         "playground",
         "bundle",
+        "mlmodelc",
     ]
 
     /// An opaque directory is a directory that should be treated like a file, therefor ignoring its content.

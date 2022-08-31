@@ -22,61 +22,6 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_buildArguments_when_macOS() throws {
-        // Given
-        let target = Target.test(platform: .macOS)
-
-        // When
-        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: false)
-
-        // Then
-        XCTAssertEqual(got, [
-            .sdk(Platform.macOS.xcodeDeviceSDK),
-        ])
-    }
-
-    func test_buildArguments_when_iOS() throws {
-        // Given
-        let target = Target.test(platform: .iOS)
-        let iosSimulatorSDK = try XCTUnwrap(Platform.iOS.xcodeSimulatorSDK)
-
-        // When
-        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: false)
-
-        // Then
-        XCTAssertEqual(got, [
-            .sdk(iosSimulatorSDK),
-        ])
-    }
-
-    func test_buildArguments_when_watchOS() throws {
-        // Given
-        let target = Target.test(platform: .watchOS)
-        let watchosSimulatorSDK = try XCTUnwrap(Platform.watchOS.xcodeSimulatorSDK)
-
-        // When
-        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: false)
-
-        // Then
-        XCTAssertEqual(got, [
-            .sdk(watchosSimulatorSDK),
-        ])
-    }
-
-    func test_buildArguments_when_tvOS() throws {
-        // Given
-        let target = Target.test(platform: .tvOS)
-        let tvosSimulatorSDK = try XCTUnwrap(Platform.tvOS.xcodeSimulatorSDK)
-
-        // When
-        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: false)
-
-        // Then
-        XCTAssertEqual(got, [
-            .sdk(tvosSimulatorSDK),
-        ])
-    }
-
     func test_buildArguments_when_skipSigning() throws {
         // Given
         let target = Target.test(platform: .iOS)
@@ -87,7 +32,6 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .sdk(iosSimulatorSDK),
             .xcarg("CODE_SIGN_IDENTITY", ""),
             .xcarg("CODE_SIGNING_REQUIRED", "NO"),
             .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
