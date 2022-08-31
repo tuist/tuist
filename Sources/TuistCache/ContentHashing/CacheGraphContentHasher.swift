@@ -69,11 +69,14 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         graphTraverser: GraphTraversing,
         excludedTargets: Set<String>
     ) -> Bool {
+        let frameworkNameFromResourceTargetName = target.target.name.dropPrefix("\(target.project.name)_")
+
         let product = target.target.product
         let name = target.target.name
 
         return CacheGraphContentHasher.cachableProducts.contains(product) &&
             !excludedTargets.contains(name) &&
+            !excludedTargets.contains(frameworkNameFromResourceTargetName) &&
             !graphTraverser.dependsOnXCTest(path: target.path, name: name)
     }
 }

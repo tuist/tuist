@@ -45,6 +45,7 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         try await xcodeBuildController.build(
             projectTarget,
             scheme: scheme.name,
+            destination: nil,
             clean: false,
             arguments: arguments
         ).printFormattedOutput()

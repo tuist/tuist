@@ -31,6 +31,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             targetsAndDependencies: graph.filter(
                 skipTestTargets: false,
                 skipExternalDependencies: false,
+                platformToFilter: nil,
                 targetsToFilter: []
             )
         )
@@ -53,6 +54,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             targetsAndDependencies: graph.filter(
                 skipTestTargets: false,
                 skipExternalDependencies: true,
+                platformToFilter: nil,
                 targetsToFilter: []
             )
         )
@@ -76,6 +78,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             targetsAndDependencies: graph.filter(
                 skipTestTargets: true,
                 skipExternalDependencies: false,
+                platformToFilter: nil,
                 targetsToFilter: []
             )
         )
@@ -85,6 +88,29 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
         let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
 
+        XCTAssertEqual(gotNodeIds, expectedNodeIds)
+        XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
+    }
+
+    func test_map_filter_platform() throws {
+        // Given
+        let graph = try makeGivenGraph()
+
+        // When
+        let got = subject.map(
+            graph: graph,
+            targetsAndDependencies: graph.filter(
+                skipTestTargets: false,
+                skipExternalDependencies: false,
+                platformToFilter: .iOS,
+                targetsToFilter: []
+            )
+        )
+        let expected = makeExpectedGraphViz(onlyiOS: true)
+        let gotNodeIds = got.nodes.map(\.id).sorted()
+        let expectedNodeIds = expected.nodes.map(\.id).sorted()
+        let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
+        let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
         XCTAssertEqual(gotNodeIds, expectedNodeIds)
         XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
     }
@@ -104,6 +130,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             targetsAndDependencies: graph.filter(
                 skipTestTargets: false,
                 skipExternalDependencies: true,
+                platformToFilter: nil,
                 targetsToFilter: ["Tuist iOS"]
             )
         )
@@ -189,7 +216,11 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         )
 
         let iOSApp = GraphTarget.test(target: Target.test(name: "Tuist iOS"))
-        let watchApp = GraphTarget.test(target: Target.test(name: "Tuist watchOS"))
+        let watchApp = GraphTarget.test(target: Target.test(
+            name: "Tuist watchOS",
+            platform: .watchOS,
+            deploymentTarget: .watchOS("6")
+        ))
 
         let externalTarget = GraphTarget.test(path: externalProject.path, target: Target.test(name: "External dependency"))
         let externalDependency = GraphDependency.target(name: externalTarget.target.name, path: externalTarget.path)

@@ -43,6 +43,7 @@ final class GraphService {
         skipTestTargets: Bool,
         skipExternalDependencies: Bool,
         open: Bool,
+        platformToFilter: Platform?,
         targetsToFilter: [String],
         path: AbsolutePath,
         outputPath: AbsolutePath
@@ -58,22 +59,16 @@ final class GraphService {
         let filteredTargetsAndDependencies = graph.filter(
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
+            platformToFilter: platformToFilter,
             targetsToFilter: targetsToFilter
         )
 
         switch format {
-        case .dot, .png:
-            let graphVizGraph = graphVizMapper.map(
-                graph: graph,
-                targetsAndDependencies: filteredTargetsAndDependencies
-            )
-
+        case .dot, .png, .svg:
+            let graphVizGraph = graphVizMapper.map(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
             try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm, open: open)
         case .json:
-            let outputGraph = ProjectAutomation.Graph.from(
-                graph: graph,
-                targetsAndDependencies: filteredTargetsAndDependencies
-            )
+            let outputGraph = ProjectAutomation.Graph.from(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
             try outputGraph.export(to: filePath)
         }
 
@@ -91,7 +86,9 @@ final class GraphService {
         case .dot:
             try exportDOTRepresentation(from: graph, at: filePath)
         case .png:
-            try exportPNGRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, open: open)
+            try exportImageRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, format: .png, open: open)
+        case .svg:
+            try exportImageRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, format: .svg, open: open)
         case .json:
             throw GraphServiceError.jsonNotValidForVisualExport
         }
@@ -102,16 +99,17 @@ final class GraphService {
         try FileHandler.shared.write(dotFile, path: filePath, atomically: true)
     }
 
-    private func exportPNGRepresentation(
+    private func exportImageRepresentation(
         from graphVizGraph: GraphViz.Graph,
         at filePath: AbsolutePath,
         layoutAlgorithm: LayoutAlgorithm,
-        open: Bool = true
+        format: GraphViz.Format,
+        open: Bool
     ) throws {
         if !isGraphVizInstalled() {
             try installGraphViz()
         }
-        let data = try graphVizGraph.render(using: layoutAlgorithm, to: .png)
+        let data = try graphVizGraph.render(using: layoutAlgorithm, to: format)
         FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
 
         if open {

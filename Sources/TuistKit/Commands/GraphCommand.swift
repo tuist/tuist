@@ -4,6 +4,7 @@ import Foundation
 import GraphViz
 import TSCBasic
 import TuistGenerator
+import TuistGraph
 import TuistLoader
 import TuistSupport
 
@@ -31,8 +32,14 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     var skipExternalDependencies: Bool = false
 
     @Option(
+        name: [.customShort("l"), .long],
+        help: "A platform to filter. Only targets for this platform will be showed in the graph. Available platforms: ios, macos, tvos, watchos"
+    )
+    var platform: Platform?
+
+    @Option(
         name: [.customShort("f"), .long],
-        help: "Available formats: dot, png, json"
+        help: "Available formats: dot, json, png, svg"
     )
     var format: GraphFormat = .png
 
@@ -79,6 +86,7 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
             open: !noOpen,
+            platformToFilter: platform,
             targetsToFilter: targets,
             path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath,
             outputPath: outputPath.map { AbsolutePath($0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
@@ -88,7 +96,9 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
 }
 
 enum GraphFormat: String, ExpressibleByArgument {
-    case dot, png, json
+    case dot, json, png, svg
 }
 
 extension GraphViz.LayoutAlgorithm: ExpressibleByArgument {}
+
+extension TuistGraph.Platform: ExpressibleByArgument {}

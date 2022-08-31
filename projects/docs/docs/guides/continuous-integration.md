@@ -5,8 +5,7 @@ description: Learn how to use Tuist from your continuous integration pipelines.
 ---
 
 Tuist projects might need Tuist to be present in their continuous integration (CI) environments to generate, build, and test the projects.
-To do so, you can add a step to your CI pipeline that executes the [installation command](tutorial/get-started.md#install).
-However, we recommend using pipeline steps designed by us. It's more convenient, and you'll benefit from optimizations and integrations with the underlying CI provider that otherwise you'd have to build yourself.
+To do so, we recommend using pipeline steps designed by us. It's more convenient, and you'll benefit from optimizations and integrations with the underlying CI provider that otherwise you'd have to build yourself.
 
 ### GitHub Actions
 
@@ -49,3 +48,21 @@ workflows:
           inputs:
             - command: build
 ```
+
+### Others
+
+If your CI provider is not supported yet, you can still use Tuist by adding the required steps to install and run it.
+
+Here are a number of best practice you can follow:
+
+- Define your local version in the `.tuist-version` file (for exmaple, running `tuist local 3.0.0`)
+  - This makes sure the same version of Tuist is used across all machines, both locally and in CI
+- Install tuist unzipping the `tuist.zip` downloaded directly from the GitHub releases, using the version defined in the `.tuist-version` file (for example, [link for 3.0.0](https://github.com/tuist/tuist/releases/download/3.0.0/tuist.zip))
+  - Make sure to cache the unzipped folder across CI runs to avoid having to download it over and over again
+- Keep Tuist caches across CI runs to avoid having to recompute everything in every run
+  - Use both the `Project.swift` and the dependencies lockfiles in `Tuist/Dependencies/Lockfiles/` as part of the cache key, so that the cache is invalidated if important project configuration changes
+  - Make sure you cache the following folders:
+    - Tuist/Dependencies/Carthage
+    - Tuist/Dependencies/SwiftPackageManager
+    - Tuist/Dependencies/graph.json
+    - ~/.tuist/Cache

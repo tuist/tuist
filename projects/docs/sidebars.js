@@ -62,6 +62,7 @@ module.exports = {
         'examples/app-extensions',
         'examples/app-clips',
         'examples/command-line-tools',
+        'examples/fixtures',
       ],
     },
     {

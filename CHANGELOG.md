@@ -1,5 +1,23 @@
 # Changelog
 
+## 3.10.0 - 2022-08-20
+
+### Changed
+
+- Improve default swift version handling [#4679](https://github.com/tuist/tuist/pull/4679) by [@kwridan](https://github.com/kwridan)
+
+### Added
+
+- Add `platform` filtering option to `graph` command [#4656](https://github.com/tuist/tuist/pull/4656) by [@mikchmie](https://github.com/mikchmie)
+- Add `--device` and `--os` params to `tuist build` [#4647](https://github.com/tuist/tuist/pull/4647) by [@Killectro](https://github.com/Killectro)
+- Add support for `svg` graph format [#4659](https://github.com/tuist/tuist/pull/4659) by [@danyf90](https://github.com/danyf90)
+- Support for `mlmodelc` resources [#4685](https://github.com/tuist/tuist/pull/4685) by [@mikchmie](https://github.com/mikchmie)
+
+### Fixed
+
+- Fix for Resource targets not being excluded by caching when focusing on their source target [#4669](https://github.com/tuist/tuist/pull/4669) by [@LorDisturbia](https://github.com/LorDisturbia)
+- Fix for computing hash of target scripts with output files [#4670](https://github.com/tuist/tuist/pull/4670) by [@danyf90](https://github.com/danyf90)
+
 ## 3.9.0 - 2022-07-30
 
 ### Changed

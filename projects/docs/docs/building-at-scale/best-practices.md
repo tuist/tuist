@@ -30,12 +30,3 @@ let target = Target(name: "MyFramework", sources: ["MyFramework/Sources"])
 // Discouraged
 let target = Target(name: "MyFramework", sources: ["MyFramework/**/*.swift"])
 ```
-
-### Using on CI
-
-Adding `tuist` to your project will require you to have installed it in your CI system. You can avoid it by bundling specific version in your repo:
-
-- Define your local version: `tuist local 1.7.1`
-- Bundle it: `tuist bundle`
-- Commit the added files into git
-- Run `tuist` using `.tuist-bin/tuist generate` in your CI

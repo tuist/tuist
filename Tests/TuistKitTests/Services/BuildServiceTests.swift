@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistGraphTesting
@@ -96,10 +97,12 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _schemeName, _clean, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _device, _osVersion, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
-            XCTAssertEqual(_schemeName, scheme.name)
+            XCTAssertEqual(_scheme, scheme)
             XCTAssertTrue(_clean)
+            XCTAssertNil(_device)
+            XCTAssertNil(_osVersion)
         }
 
         // Then
@@ -141,9 +144,9 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _schemeName, _clean, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
-            XCTAssertEqual(_schemeName, scheme.name)
+            XCTAssertEqual(_scheme, scheme)
             XCTAssertTrue(_clean)
         }
 
@@ -187,18 +190,20 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _schemeName, _clean, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _device, _osVersion, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
+            XCTAssertNil(_device)
+            XCTAssertNil(_osVersion)
 
-            if _schemeName == "A" {
-                XCTAssertEqual(_schemeName, schemeA.name)
+            if _scheme.name == "A" {
+                XCTAssertEqual(_scheme, schemeA)
                 XCTAssertTrue(_clean)
-            } else if _schemeName == "B" {
+            } else if _scheme.name == "B" {
                 // When running the second scheme clean should be false
-                XCTAssertEqual(_schemeName, schemeB.name)
+                XCTAssertEqual(_scheme, schemeB)
                 XCTAssertFalse(_clean)
             } else {
-                XCTFail("unexpected scheme \(_schemeName)")
+                XCTFail("unexpected scheme \(_scheme.name)")
             }
         }
 
@@ -241,14 +246,14 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _schemeName, _clean, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
 
-            if _schemeName == "A" {
-                XCTAssertEqual(_schemeName, schemeA.name)
+            if _scheme.name == "A" {
+                XCTAssertEqual(_scheme, schemeA)
                 XCTAssertTrue(_clean)
             } else {
-                XCTFail("unexpected scheme \(_schemeName)")
+                XCTFail("unexpected scheme \(_scheme.name)")
             }
         }
 
@@ -300,7 +305,9 @@ extension BuildService {
         clean: Bool = true,
         configuration: String? = nil,
         buildOutputPath: AbsolutePath? = nil,
-        path: AbsolutePath
+        path: AbsolutePath,
+        device: String? = nil,
+        osVersion: String? = nil
     ) async throws {
         try await run(
             schemeName: schemeName,
@@ -308,7 +315,9 @@ extension BuildService {
             clean: clean,
             configuration: configuration,
             buildOutputPath: buildOutputPath,
-            path: path
+            path: path,
+            device: device,
+            osVersion: osVersion
         )
     }
 }
