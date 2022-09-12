@@ -654,15 +654,19 @@ extension ResourceFileElements {
         path: AbsolutePath,
         excluding: [String]
     ) -> Self? {
-        var resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
-        if sources == nil {
-            // SPM automatically includes resources only if custom sources are not specified
-            resourcesPaths += defaultResourcePaths(from: path)
-        }
-        guard !resourcesPaths.isEmpty else { return nil }
 
-        return .init(
-            resources: resourcesPaths.map { absolutePath in
+        func handleProcessRule() -> [ProjectDescription.ResourceFileElement] {
+            let processResources = resources.filter { $0.rule == .process }
+
+            var resourcesPaths = processResources.map { path.appending(RelativePath($0.path)) }
+
+            if sources == nil {
+                // SPM automatically includes resources only if custom sources are not specified
+                resourcesPaths += defaultResourcePaths(from: path)
+            }
+
+
+            return  resourcesPaths.map { absolutePath in
                 let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
                 return .glob(
                     pattern: Path(absolutePathGlob.pathString),
@@ -673,7 +677,24 @@ extension ResourceFileElements {
                     }
                 )
             }
-        )
+        }
+
+        func handleCopyRule() -> [ProjectDescription.ResourceFileElement] {
+            let copyResources = resources.filter { $0.rule == .copy }
+
+            let resourcesPaths = copyResources.map { path.appending(RelativePath($0.path)) }
+
+            return resourcesPaths.map { absolutePath in
+                return .folderReference(path: Path(absolutePath.pathString))
+            }
+        }
+
+        let resourceFileElements = handleProcessRule() +  handleCopyRule()
+        guard !resourceFileElements.isEmpty else { return nil }
+
+        var resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
+
+        return .init( resources: resourceFileElements)
     }
 
     // These files are automatically added as resource if they are inside targets directory.
