@@ -1,5 +1,4 @@
 import Alamofire
-import Charts
 import ComposableArchitecture
 import FBSDKCoreKit
 import FirebaseAnalytics
@@ -16,9 +15,6 @@ public enum AppKit {
     public static func start() {
         // Use Alamofire to make sure it links fine
         _ = AF.download("http://www.tuist.io")
-
-        // Use Charts to make sure it links fine
-        _ = BarChartView()
 
         // Use Facebook to make sure it links fine
         Settings.shared.isAdvertiserTrackingEnabled = true
