@@ -109,8 +109,10 @@ module Fourier
     desc "release", "Prepares the Tuist binary and dependencies for release"
     subcommand "release", Commands::Release
 
-    def self.exit_on_failure?
-      true
+    class << self
+      def exit_on_failure?
+        true
+      end
     end
   end
 end
