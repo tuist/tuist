@@ -422,14 +422,14 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .framework),
-            LintableTarget(platform: .iOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .staticFramework),
         ],
         LintableTarget(platform: .macOS, product: .uiTests): [
             LintableTarget(platform: .macOS, product: .app),
             LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .framework),
-            LintableTarget(platform: .iOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .staticFramework),
         ],
         LintableTarget(platform: .macOS, product: .appExtension): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
