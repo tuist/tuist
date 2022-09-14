@@ -170,7 +170,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
-                "Target_1": [.externalTarget(package: "Package2", target: "Target_2")],
+                "Target_1": [.externalTarget(package: "Package2", target: "Target_2", condition: nil)],
                 "Target_2": [],
             ]
         )
@@ -225,9 +225,120 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             preprocessInfo.targetToResolvedDependencies,
             [
                 "Target_1": [
-                    .externalTarget(package: "com.example.dep-1", target: "com_example_dep-1"),
+                    .externalTarget(package: "com.example.dep-1", target: "com_example_dep-1", condition: nil),
                 ],
                 "com.example.dep-1": [],
+            ]
+        )
+    }
+    
+    func testPreprocess_whenTargetDependenciesOnTargetHaveConditions() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Dependency_1")))
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Dependency_2")))
+        let preprocessInfo = try subject.preprocess(
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target_1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target_1",
+                            dependencies: [
+                                .byName(name: "Dependency_1", condition: .init(platformNames: ["ios"], config: nil)),
+                                .target(name: "Dependency_2", condition: .init(platformNames: ["tvos"], config: nil))
+                            ]
+                        ),
+                        .test(name: "Dependency_1"),
+                        .test(name: "Dependency_2")
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                )
+            ],
+            idToPackage: [:],
+            packageToFolder: [
+                "Package": basePath.appending(component: "Package")
+            ],
+            packageToTargetsToArtifactPaths: [:],
+            platforms: [.iOS, .tvOS]
+        )
+
+        XCTAssertEqual(
+            preprocessInfo.targetToResolvedDependencies,
+            [
+                "Target_1": [
+                    .target(name: "Dependency_1", condition: .init(platforms: [.iOS])),
+                    .target(name: "Dependency_2", condition: .init(platforms: [.tvOS])),
+                ],
+                "Dependency_1": [],
+                "Dependency_2": []
+            ]
+        )
+    }
+    
+    func testPreprocess_whenTargetDependenciesOnProductHaveConditions() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package_1/Sources/Target_1")))
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package_2/Sources/Target_2")))
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package_2/Sources/Target_3")))
+        let preprocessInfo = try subject.preprocess(
+            packageInfos: [
+                "Package_1": .init(
+                    products: [
+                        .init(name: "Product_1", type: .library(.automatic), targets: ["Target_1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target_1",
+                            dependencies: [
+                                .product(name: "Product_2", package: "Package_2", condition: .init(platformNames: ["ios"], config: nil)),
+                                .product(name: "Product_3", package: "Package_2", condition: .init(platformNames: ["tvos"], config: nil)),
+                            ]
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+                "Package_2": .init(
+                    products: [
+                        .init(name: "Product_2", type: .library(.automatic), targets: ["Target_2"]),
+                        .init(name: "Product_3", type: .library(.automatic), targets: ["Target_3"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_2"),
+                        .test(name: "Target_3"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            idToPackage: [:],
+            packageToFolder: [
+                "Package_1": basePath.appending(component: "Package_1"),
+                "Package_2": basePath.appending(component: "Package_2"),
+            ],
+            packageToTargetsToArtifactPaths: [:],
+            platforms: [.iOS]
+        )
+
+        XCTAssertEqual(
+            preprocessInfo.targetToResolvedDependencies,
+            [
+                "Target_2": [],
+                "Target_3": [],
+                "Target_1": [
+                    .externalTarget(package: "Package_2", target: "Target_2", condition: .init(platforms: [.iOS])),
+                    .externalTarget(package: "Package_2", target: "Target_3", condition: .init(platforms: [.tvOS])),
+                ],
             ]
         )
     }
@@ -2717,6 +2828,212 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     )
                 }
             )
+        )
+    }
+    
+    func testMap_whenTargetDependenciesOnTargetHaveConditions() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Target1")))
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Dependency1")))
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Dependency2")))
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            dependencies: [
+                                .target(name: "Dependency1", condition: .init(platformNames: ["ios"], config: nil)),
+                                .target(name: "Dependency2", condition: .init(platformNames: ["tvos"], config: nil))
+                            ]
+                        ),
+                        .test(name: "Dependency1"),
+                        .test(name: "Dependency2")
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            platforms: [.iOS, .tvOS]
+        )
+
+        let expected: ProjectDescription.Project = .testWithDefaultConfigs(
+            name: "Package",
+            targets: [
+                .test(
+                    "Target1_tvos",
+                    basePath: basePath,
+                    platform: .tvOS,
+                    customProductName: "Target1",
+                    customBundleID: "Target1",
+                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    customSources: .custom(.init(globs: [
+                        basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString,
+                    ])),
+                    dependencies: [
+                        .target(name: "Dependency2_tvos")
+                    ]
+                ),
+                .test(
+                    "Target1_ios",
+                    basePath: basePath,
+                    platform: .iOS,
+                    customProductName: "Target1",
+                    customBundleID: "Target1",
+                    customSources: .custom(.init(globs: [
+                        basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString,
+                    ])),
+                    dependencies: [
+                        .target(name: "Dependency1_ios")
+                    ]
+                ),
+                .test(
+                    "Dependency1_tvos",
+                    basePath: basePath,
+                    platform: .tvOS,
+                    customProductName: "Dependency1",
+                    customBundleID: "Dependency1",
+                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    customSources: .custom(.init(globs: [
+                        basePath.appending(RelativePath("Package/Sources/Dependency1/**")).pathString,
+                    ]))
+                ),
+                .test(
+                    "Dependency1_ios",
+                    basePath: basePath,
+                    platform: .iOS,
+                    customProductName: "Dependency1",
+                    customBundleID: "Dependency1",
+                    customSources: .custom(.init(globs: [
+                        basePath.appending(RelativePath("Package/Sources/Dependency1/**")).pathString,
+                    ]))
+                ),
+                .test(
+                    "Dependency2_tvos",
+                    basePath: basePath,
+                    platform: .tvOS,
+                    customProductName: "Dependency2",
+                    customBundleID: "Dependency2",
+                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    customSources: .custom(.init(globs: [
+                        basePath.appending(RelativePath("Package/Sources/Dependency2/**")).pathString,
+                    ]))
+                ),
+                .test(
+                    "Dependency2_ios",
+                    basePath: basePath,
+                    platform: .iOS,
+                    customProductName: "Dependency2",
+                    customBundleID: "Dependency2",
+                    customSources: .custom(.init(globs: [
+                        basePath.appending(RelativePath("Package/Sources/Dependency2/**")).pathString,
+                    ]))
+                ),
+            ]
+        )
+
+        XCTAssertEqual(project?.name, expected.name)
+
+        let projectTargets = project!.targets.sorted(by: \.name)
+        let expectedTargets = expected.targets.sorted(by: \.name)
+        XCTAssertEqual(projectTargets, expectedTargets)
+    }
+    
+    func testMap_whenTargetDependenciesOnProductHaveConditions() throws {
+        let basePath = try temporaryPath()
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Target1")))
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package2/Sources/Target2")))
+        try fileHandler.createFolder(basePath.appending(RelativePath("Package2/Sources/Target3")))
+
+        let package1 = PackageInfo(
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(
+                    name: "Target1",
+                    dependencies: [
+                        .product(
+                            name:  "Product2",
+                            package: "Package2",
+                            condition: .init(platformNames: ["ios"], config: nil)
+                        )
+                    ]
+                ),
+            ],
+            platforms: [],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
+        )
+        let package2 = PackageInfo(
+            products: [
+                .init(name: "Product2", type: .library(.automatic), targets: ["Target2", "Target3"]),
+            ],
+            targets: [
+                .test(name: "Target2"),
+                .test(name: "Target3"),
+            ],
+            platforms: [],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
+        )
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: ["Package": package1, "Package2": package2],
+            platforms: [.iOS, .tvOS]
+        )
+        
+        let expected: ProjectDescription.Project = .testWithDefaultConfigs(
+            name: "Package",
+            targets: [
+                .test(
+                    "Target1_ios",
+                    basePath: basePath,
+                    platform: .iOS,
+                    customProductName: "Target1",
+                    customBundleID: "Target1",
+                    customSources: .custom(.init(globs: [
+                        basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString,
+                    ])),
+                    dependencies: [
+                        .project(target: "Target2_ios", path: Path(basePath.appending(RelativePath("Package2")).pathString)),
+                        .project(target: "Target3_ios", path: Path(basePath.appending(RelativePath("Package2")).pathString)),
+                    ]
+                ),
+                .test(
+                    "Target1_tvos",
+                    basePath: basePath,
+                    platform: .tvOS,
+                    customProductName: "Target1",
+                    customBundleID: "Target1",
+                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    customSources: .custom(.init(globs: [
+                        basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString,
+                    ])),
+                    dependencies: []
+                ),
+            ]
+        )
+        
+        XCTAssertEqual(project?.name, expected.name)
+        
+        let projectTargets = project!.targets.sorted(by: \.name)
+        let expectedTargets = expected.targets.sorted(by: \.name)
+
+        XCTAssertEqual(
+            projectTargets,
+            expectedTargets
         )
     }
 }
