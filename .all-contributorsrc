@@ -921,6 +921,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "michaelmcguire",
+      "name": "Michael McGuire",
+      "avatar_url": "https://avatars.githubusercontent.com/u/429790?v=4",
+      "profile": "https://twitter.com/MonocularVision",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
