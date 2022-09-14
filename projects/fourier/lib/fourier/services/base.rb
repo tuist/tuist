@@ -3,8 +3,10 @@
 module Fourier
   module Services
     class Base
-      def self.call(*args, **kwargs, &block)
-        new(*args, **kwargs).call(&block)
+      class << self
+        def call(*args, **kwargs, &block)
+          new(*args, **kwargs).call(&block)
+        end
       end
 
       def call
