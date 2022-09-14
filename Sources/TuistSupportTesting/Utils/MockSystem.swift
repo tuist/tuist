@@ -12,6 +12,7 @@ public final class MockSystem: Systeming {
     private var calls: [String] = []
     public var whichStub: ((String) throws -> String?)?
     public var swiftVersionStub: (() throws -> String)?
+    public var swiftlangVersionStub: (() throws -> String)?
 
     public init() {}
 
@@ -155,6 +156,14 @@ public final class MockSystem: Systeming {
             return try swiftVersionStub()
         } else {
             throw TestError("Call to non-stubbed method swiftVersion")
+        }
+    }
+
+    public func swiftlangVersion() throws -> String {
+        if let swiftlangVersion = swiftlangVersionStub {
+            return try swiftlangVersion()
+        } else {
+            throw TestError("Call to non-stubbed method swiftlangVersion")
         }
     }
 

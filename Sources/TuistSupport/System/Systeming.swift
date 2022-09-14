@@ -83,6 +83,12 @@ public protocol Systeming {
     /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
     func swiftVersion() throws -> String
 
+    /// Returns the Swift version, including the build number.
+    ///
+    /// - Returns: Swift version including the build number.
+    /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
+    func swiftlangVersion() throws -> String
+
     /// Runs /usr/bin/which passing the given tool.
     ///
     /// - Parameter name: Tool whose path will be obtained using which.
