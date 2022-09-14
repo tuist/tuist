@@ -369,7 +369,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let onlyGenerateCoverageForSpecifiedTargets = codeCoverageTargets.count > 0 ? true : nil
 
         let disableMainThreadChecker = !testAction.diagnosticsOptions.contains(.mainThreadChecker)
-        let disablePerformanceAntipatternChecker = !testAction.diagnosticsOptions.contains(.performanceAntipatternChecker)
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
         let language = testAction.language
         let region = testAction.region
