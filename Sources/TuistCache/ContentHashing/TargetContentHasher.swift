@@ -74,6 +74,7 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - TargetContentHashing
 
+    // swiftlint:disable:next function_body_length
     public func contentHash(
         for graphTarget: GraphTarget,
         hashedTargets: inout [GraphHashedTarget: String],
