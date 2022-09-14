@@ -369,6 +369,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let onlyGenerateCoverageForSpecifiedTargets = codeCoverageTargets.count > 0 ? true : nil
 
         let disableMainThreadChecker = !testAction.diagnosticsOptions.contains(.mainThreadChecker)
+        let disablePerformanceAntipatternChecker = !testAction.diagnosticsOptions.contains(.performanceAntipatternChecker)
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
         let language = testAction.language
         let region = testAction.region
@@ -452,6 +453,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let buildConfiguration = scheme.runAction?.configurationName ?? defaultBuildConfiguration
         let disableMainThreadChecker = scheme.runAction?.diagnosticsOptions.contains(.mainThreadChecker) == false
+        let disablePerformanceAntipatternChecker = scheme.runAction?.diagnosticsOptions
+            .contains(.performanceAntipatternChecker) == false
 
         let launchActionConstants: Constants.LaunchAction
         let launcherIdentifier: String
@@ -543,6 +546,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             locationScenarioReference: locationScenarioReference,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode,
             disableMainThreadChecker: disableMainThreadChecker,
+            disablePerformanceAntipatternChecker: disablePerformanceAntipatternChecker,
             commandlineArguments: commandlineArguments,
             environmentVariables: environments,
             language: scheme.runAction?.options.language,
