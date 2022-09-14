@@ -25,8 +25,11 @@ let releaseScheme = Scheme(
     testAction: TestAction.targets(["AppTests"]),
     runAction: .runAction(
         executable: "App",
-        options: .options(simulatedLocation: .custom(gpxFile: "Resources/Grand Canyon.gpx"), enableGPUFrameCaptureMode: .disabled),
-      diagnosticsOptions: [.mainThreadChecker]
+        options: .options(
+            simulatedLocation: .custom(gpxFile: "Resources/Grand Canyon.gpx"),
+            enableGPUFrameCaptureMode: .disabled
+        ),
+        diagnosticsOptions: [.mainThreadChecker]
     )
 )
 
