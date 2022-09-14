@@ -10,22 +10,22 @@ module Fourier
       EnvironmentError = Class.new(StandardError)
       MissingEjson = Class.new(EnvironmentError)
 
-      def self.load_from_ejson(ejson_path, private_key: nil)
-        decrypt_environment(
-          ejson_path: ejson_path,
-          private_key: private_key
-        ).each do |key, value|
-          ENV[key] = value if key != "_public_key"
-        end
-      end
-
-      def self.encrypt_ejson(ejson_path, private_key: nil)
-        with_secrets(ejson_path: ejson_path, private_key: private_key) do |path|
-          %x(EJSON_KEYDIR=#{path} #{binary_path} encrypt #{ejson_path})
-        end
-      end
-
       class << self
+        def load_from_ejson(ejson_path, private_key: nil)
+          decrypt_environment(
+            ejson_path: ejson_path,
+            private_key: private_key
+          ).each do |key, value|
+            ENV[key] = value if key != "_public_key"
+          end
+        end
+
+        def encrypt_ejson(ejson_path, private_key: nil)
+          with_secrets(ejson_path: ejson_path, private_key: private_key) do |path|
+            %x(EJSON_KEYDIR=#{path} #{binary_path} encrypt #{ejson_path})
+          end
+        end
+
         private
           def binary_path
             File.expand_path("../vendor/ejson", __dir__)
