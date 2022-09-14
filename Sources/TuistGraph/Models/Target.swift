@@ -184,6 +184,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// with Catalyst compatibility.
     public var targetDependencyBuildFilesPlatformFilter: BuildFilePlatformFilter? {
         switch deploymentTarget {
+        case let .iOS(_, devices) where devices.contains(.all):
+            return nil
         case let .iOS(_, devices):
             if devices.contains(.mac) {
                 return .catalyst
