@@ -231,7 +231,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func testPreprocess_whenTargetDependenciesOnTargetHaveConditions() throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Target_1")))
@@ -248,21 +248,21 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             name: "Target_1",
                             dependencies: [
                                 .byName(name: "Dependency_1", condition: .init(platformNames: ["ios"], config: nil)),
-                                .target(name: "Dependency_2", condition: .init(platformNames: ["tvos"], config: nil))
+                                .target(name: "Dependency_2", condition: .init(platformNames: ["tvos"], config: nil)),
                             ]
                         ),
                         .test(name: "Dependency_1"),
-                        .test(name: "Dependency_2")
+                        .test(name: "Dependency_2"),
                     ],
                     platforms: [],
                     cLanguageStandard: nil,
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
-                )
+                ),
             ],
             idToPackage: [:],
             packageToFolder: [
-                "Package": basePath.appending(component: "Package")
+                "Package": basePath.appending(component: "Package"),
             ],
             packageToTargetsToArtifactPaths: [:],
             platforms: [.iOS, .tvOS]
@@ -276,11 +276,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .target(name: "Dependency_2", condition: .init(platforms: [.tvOS])),
                 ],
                 "Dependency_1": [],
-                "Dependency_2": []
+                "Dependency_2": [],
             ]
         )
     }
-    
+
     func testPreprocess_whenTargetDependenciesOnProductHaveConditions() throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(RelativePath("Package_1/Sources/Target_1")))
@@ -296,8 +296,16 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(
                             name: "Target_1",
                             dependencies: [
-                                .product(name: "Product_2", package: "Package_2", condition: .init(platformNames: ["ios"], config: nil)),
-                                .product(name: "Product_3", package: "Package_2", condition: .init(platformNames: ["tvos"], config: nil)),
+                                .product(
+                                    name: "Product_2",
+                                    package: "Package_2",
+                                    condition: .init(platformNames: ["ios"], config: nil)
+                                ),
+                                .product(
+                                    name: "Product_3",
+                                    package: "Package_2",
+                                    condition: .init(platformNames: ["tvos"], config: nil)
+                                ),
                             ]
                         ),
                     ],
@@ -2830,7 +2838,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     func testMap_whenTargetDependenciesOnTargetHaveConditions() throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Target1")))
@@ -2850,11 +2858,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             name: "Target1",
                             dependencies: [
                                 .target(name: "Dependency1", condition: .init(platformNames: ["ios"], config: nil)),
-                                .target(name: "Dependency2", condition: .init(platformNames: ["tvos"], config: nil))
+                                .target(name: "Dependency2", condition: .init(platformNames: ["tvos"], config: nil)),
                             ]
                         ),
                         .test(name: "Dependency1"),
-                        .test(name: "Dependency2")
+                        .test(name: "Dependency2"),
                     ],
                     platforms: [],
                     cLanguageStandard: nil,
@@ -2879,7 +2887,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString,
                     ])),
                     dependencies: [
-                        .target(name: "Dependency2_tvos")
+                        .target(name: "Dependency2_tvos"),
                     ]
                 ),
                 .test(
@@ -2892,7 +2900,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString,
                     ])),
                     dependencies: [
-                        .target(name: "Dependency1_ios")
+                        .target(name: "Dependency1_ios"),
                     ]
                 ),
                 .test(
@@ -2946,7 +2954,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let expectedTargets = expected.targets.sorted(by: \.name)
         XCTAssertEqual(projectTargets, expectedTargets)
     }
-    
+
     func testMap_whenTargetDependenciesOnProductHaveConditions() throws {
         let basePath = try temporaryPath()
         try fileHandler.createFolder(basePath.appending(RelativePath("Package/Sources/Target1")))
@@ -2962,10 +2970,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     name: "Target1",
                     dependencies: [
                         .product(
-                            name:  "Product2",
+                            name: "Product2",
                             package: "Package2",
                             condition: .init(platformNames: ["ios"], config: nil)
-                        )
+                        ),
                     ]
                 ),
             ],
@@ -2993,7 +3001,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageInfos: ["Package": package1, "Package2": package2],
             platforms: [.iOS, .tvOS]
         )
-        
+
         let expected: ProjectDescription.Project = .testWithDefaultConfigs(
             name: "Package",
             targets: [
@@ -3025,9 +3033,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        
+
         XCTAssertEqual(project?.name, expected.name)
-        
+
         let projectTargets = project!.targets.sorted(by: \.name)
         let expectedTargets = expected.targets.sorted(by: \.name)
 

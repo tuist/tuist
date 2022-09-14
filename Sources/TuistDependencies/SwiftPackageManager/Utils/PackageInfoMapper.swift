@@ -244,7 +244,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                             try ResolvedDependency.fromTarget(
                                 name: target,
                                 targetDependencyToFramework: targetDependencyToFramework,
-                                packageConditionDescription: nil
+                                condition: nil
                             )
                             .map {
                                 switch $0 {
@@ -1193,7 +1193,7 @@ extension PackageInfoMapper {
         case target(name: String, condition: Condition?)
         case xcframework(path: Path, condition: Condition?)
         case externalTarget(package: String, target: String, condition: Condition?)
-        
+
         fileprivate var condition: Condition? {
             switch self {
             case let .target(_, condition):
@@ -1218,7 +1218,7 @@ extension PackageInfoMapper {
                     return Self.fromTarget(
                         name: name,
                         targetDependencyToFramework: targetDependencyToFramework,
-                        packageConditionDescription: condition
+                        condition: condition
                     )
                 case let .product(name, package, condition):
                     return try Self.fromProduct(
@@ -1226,14 +1226,14 @@ extension PackageInfoMapper {
                         product: name,
                         packageInfos: packageInfos,
                         targetDependencyToFramework: targetDependencyToFramework,
-                        packageConditionDescription: condition
+                        condition: condition
                     )
                 case let .byName(name, condition):
                     if packageInfo.targets.contains(where: { $0.name == name }) {
                         return Self.fromTarget(
                             name: name,
                             targetDependencyToFramework: targetDependencyToFramework,
-                            packageConditionDescription: condition
+                            condition: condition
                         )
                     } else {
                         guard let packageNameAndInfo = packageInfos
@@ -1247,7 +1247,7 @@ extension PackageInfoMapper {
                             product: name,
                             packageInfos: packageInfos,
                             targetDependencyToFramework: targetDependencyToFramework,
-                            packageConditionDescription: condition
+                            condition: condition
                         )
                     }
                 }
@@ -1257,10 +1257,10 @@ extension PackageInfoMapper {
         fileprivate static func fromTarget(
             name: String,
             targetDependencyToFramework: [String: Path],
-            packageConditionDescription: PackageInfo.PackageConditionDescription?
+            condition packageConditionDescription: PackageInfo.PackageConditionDescription?
         ) -> [Self] {
             let condition = packageConditionDescription.flatMap(Condition.from)
-            
+
             if let framework = targetDependencyToFramework[name] {
                 return [.xcframework(path: framework, condition: condition)]
             } else {
@@ -1273,7 +1273,7 @@ extension PackageInfoMapper {
             product: String,
             packageInfos: [String: PackageInfo],
             targetDependencyToFramework: [String: Path],
-            packageConditionDescription: PackageInfo.PackageConditionDescription?
+            condition packageConditionDescription: PackageInfo.PackageConditionDescription?
         ) throws -> [Self] {
             guard let packageProduct = packageInfos[package]?.products.first(where: { $0.name == product }) else {
                 throw PackageInfoMapperError.unknownProductDependency(product, package)
@@ -1302,12 +1302,12 @@ extension PackageInfoMapper.ResolvedDependency {
         public init(platforms: [ProjectDescription.Platform]) {
             self.platforms = platforms
         }
-        
+
         fileprivate static func from(
             _ packageConditionDescription: PackageInfo.PackageConditionDescription
         ) -> Self? {
             let platforms = packageConditionDescription.platformNames.compactMap(ProjectDescription.Platform.init(rawValue:))
-            
+
             return platforms.isEmpty ? nil : Self(platforms: platforms)
         }
     }
