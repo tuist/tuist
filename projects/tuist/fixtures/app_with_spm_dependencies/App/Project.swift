@@ -29,7 +29,6 @@ let project = Project(
             dependencies: [
                 .sdk(name: "c++", type: .library, status: .required),
                 .external(name: "Alamofire"),
-                .external(name: "Charts"),
                 .external(name: "ComposableArchitecture"),
                 .external(name: "FacebookCore"),
                 .external(name: "FirebaseAnalytics"),
