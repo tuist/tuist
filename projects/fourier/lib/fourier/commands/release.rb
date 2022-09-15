@@ -13,17 +13,17 @@ module Fourier
 
         xcode_paths = Utilities::Xcode::Paths.new(
           default: xcode_version,
-          libraries: xcode_version_libraries
+          libraries: xcode_version_libraries,
         )
 
         Services::Bundle::Tuist.call(
           output_directory: output_directory,
-          xcode_paths: xcode_paths
+          xcode_paths: xcode_paths,
         )
 
         Services::Bundle::Tuistenv.call(
           output_directory: output_directory,
-          xcode_paths: xcode_paths
+          xcode_paths: xcode_paths,
         )
 
         Utilities::Output.success("tuist and tuistenv were bundled successfully to #{output_directory}")

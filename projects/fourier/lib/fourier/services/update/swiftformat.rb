@@ -54,7 +54,7 @@ module Fourier
               product: "swiftformat",
               binary_name: "swiftformat",
               output_directory: into,
-              swift_build_directory: swift_build_directory
+              swift_build_directory: swift_build_directory,
             )
           end
       end

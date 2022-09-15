@@ -17,7 +17,7 @@ class CommandEventFetchServiceTest < ActiveSupport::TestCase
       tuist_version: "3.1.0",
       swift_version: "5.5.0",
       macos_version: "12.1.0",
-      project: project
+      project: project,
     )
 
     # When
@@ -53,7 +53,7 @@ class CommandEventFetchServiceTest < ActiveSupport::TestCase
       tuist_version: "3.1.0",
       swift_version: "5.5.0",
       macos_version: "12.1.0",
-      project: project
+      project: project,
     )
 
     # When / Then

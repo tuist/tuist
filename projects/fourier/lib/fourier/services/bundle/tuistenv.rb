@@ -34,7 +34,7 @@ module Fourier
               build_tuistenv(
                 output_directory: build_directory,
                 swift_build_directory: swift_build_directory,
-                xcode_paths: xcode_paths
+                xcode_paths: xcode_paths,
               )
 
               Dir.chdir(build_directory) do
@@ -63,7 +63,7 @@ module Fourier
               binary_name: "tuistenv",
               output_directory: output_directory,
               swift_build_directory: swift_build_directory,
-              xcode_paths: xcode_paths
+              xcode_paths: xcode_paths,
             )
           end
       end

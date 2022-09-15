@@ -22,7 +22,7 @@ module Fourier
         # When
         Utilities::Zip.extract(
           zip: source_zip_file,
-          into: dst_dir
+          into: dst_dir,
         )
 
         # Then

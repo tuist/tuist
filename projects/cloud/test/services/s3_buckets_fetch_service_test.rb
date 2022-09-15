@@ -11,13 +11,13 @@ class S3BucketsFetchServiceTest < ActiveSupport::TestCase
       access_key_id: "1",
       name: "s3 bucket one",
       secret_access_key: "secret",
-      region: "region"
+      region: "region",
     )
     s3_bucket_two = account.s3_buckets.create!(
       access_key_id: "2",
       name: "s3 bucket two",
       secret_access_key: "secret",
-      region: "region"
+      region: "region",
     )
 
     # When

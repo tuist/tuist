@@ -16,7 +16,7 @@ module Fourier
           ]
           Utilities::SwiftLinter.lint(
             directories: directories,
-            fix: fix
+            fix: fix,
           )
         end
       end

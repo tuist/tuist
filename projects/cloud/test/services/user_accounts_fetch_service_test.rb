@@ -8,7 +8,7 @@ class UserAccountsFetchServiceTest < ActiveSupport::TestCase
     user = User.create!(
       email: "tuist@tuist.io",
       password: "my-password",
-      confirmed_at: Date.new
+      confirmed_at: Date.new,
     )
     organizations = [
       Organization.create!(),
@@ -25,7 +25,7 @@ class UserAccountsFetchServiceTest < ActiveSupport::TestCase
       [
         organizations[0],
         organizations[2],
-      ]
+      ],
     )
 
     # When
@@ -38,7 +38,7 @@ class UserAccountsFetchServiceTest < ActiveSupport::TestCase
         user.account,
         organization_accounts[0],
         organization_accounts[2],
-      ]
+      ],
     )
   end
 
@@ -47,7 +47,7 @@ class UserAccountsFetchServiceTest < ActiveSupport::TestCase
     user = User.create!(
       email: "tuist@tuist.io",
       password: "my-password",
-      confirmed_at: Date.new
+      confirmed_at: Date.new,
     )
     organizations = [
       Organization.create!(),

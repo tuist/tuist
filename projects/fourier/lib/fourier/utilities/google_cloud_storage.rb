@@ -20,7 +20,7 @@ module Fourier
               token_uri: ENV["GCS_TOKEN_URI"],
               auth_provider_x509_cert_url: ENV["GCS_AUTH_PROVIDER_X509_CERT_URL"],
               client_x509_cert_url: ENV["GCS_CLIENT_X509_CERT_URL"],
-            }
+            },
           )
         end
       end
