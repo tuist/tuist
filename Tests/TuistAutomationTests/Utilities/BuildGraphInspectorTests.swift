@@ -25,7 +25,6 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
     func test_buildArguments_when_skipSigning() throws {
         // Given
         let target = Target.test(platform: .iOS)
-        let iosSimulatorSDK = try XCTUnwrap(Platform.iOS.xcodeSimulatorSDK)
 
         // When
         let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: true)
