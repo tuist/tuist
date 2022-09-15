@@ -8,7 +8,7 @@ class UserOrganizationsFetchServiceTest < ActiveSupport::TestCase
     user = User.create!(
       email: "tuist@tuist.io",
       password: "my-password",
-      confirmed_at: Date.new
+      confirmed_at: Date.new,
     )
     organizations = [
       Organization.create!(),
@@ -27,7 +27,7 @@ class UserOrganizationsFetchServiceTest < ActiveSupport::TestCase
       [
         organizations[0],
         organizations[2],
-      ]
+      ],
     )
   end
 
@@ -36,7 +36,7 @@ class UserOrganizationsFetchServiceTest < ActiveSupport::TestCase
     user = User.create!(
       email: "tuist@tuist.io",
       password: "my-password",
-      confirmed_at: Date.new
+      confirmed_at: Date.new,
     )
     [
       Organization.create!(),

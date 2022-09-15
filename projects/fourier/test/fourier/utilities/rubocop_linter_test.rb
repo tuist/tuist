@@ -24,7 +24,7 @@ module Fourier
         RubocopLinter.lint(
           from: from,
           directories: directories,
-          fix: true
+          fix: true,
         )
       end
     end

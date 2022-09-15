@@ -14,12 +14,12 @@
   organization = Organization.create!
   account = Account.create!(
     name: Faker::Superhero.name,
-    owner: organization
+    owner: organization,
   )
   Project.create!(
     name: Faker::Superhero.name.tr(" ", "-").underscore.dasherize,
     token: Faker::Alphanumeric.alpha(number: 10),
-    account_id: account.id
+    account_id: account.id,
   )
 end
 
@@ -29,12 +29,12 @@ end
   user = User.create!(
     email: email,
     password: password,
-    confirmed_at: Date.new
+    confirmed_at: Date.new,
   )
   Project.create!(
     name: Faker::Superhero.name.tr(" ", "-").underscore.dasherize,
     token: Faker::Alphanumeric.alpha(number: 10),
-    account_id: user.account.id
+    account_id: user.account.id,
   )
   organization = Organization.find(Faker::Number.between(from: 1, to: 4))
   user.add_role(:admin, organization)

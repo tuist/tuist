@@ -10,7 +10,7 @@ class CloudStorage
   )
     @storage = Google::Cloud::Storage.new(
       project_id: key[:project_id],
-      credentials: key
+      credentials: key,
     )
   end
 end

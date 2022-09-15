@@ -19,7 +19,7 @@ class AccountCreateService < ApplicationService
   def call
     Account.create!(
       name: account_name,
-      owner: owner
+      owner: owner,
     )
   end
 

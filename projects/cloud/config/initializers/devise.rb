@@ -318,7 +318,7 @@ Devise.setup do |config|
     :github,
     Secrets.fetch(:devise, :omniauth, :github, :oauth_id),
     Secrets.fetch(:devise, :omniauth, :github, :oauth_secret),
-    scope: "read:user,user:email"
+    scope: "read:user,user:email",
   )
 
   # OmniAuth: GitLab
@@ -326,6 +326,6 @@ Devise.setup do |config|
     :gitlab,
     Secrets.fetch(:devise, :omniauth, :gitlab, :application_id),
     Secrets.fetch(:devise, :omniauth, :gitlab, :secret),
-    scope: "read_user api read_api"
+    scope: "read_user api read_api",
   )
 end

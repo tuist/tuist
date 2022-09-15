@@ -20,7 +20,7 @@ class ProjectCreateService < ApplicationService
         project = Project.create!(
           name: name,
           account_id: organization.account.id,
-          token: Devise.friendly_token.first(8)
+          token: Devise.friendly_token.first(8),
         )
       end
       s3_bucket_name = "#{project.account.name}-#{name}"
@@ -31,7 +31,7 @@ class ProjectCreateService < ApplicationService
         secret_access_key: Rails.application.credentials.aws[:secret_access_key],
         region: "eu-west-1",
         account_id: organization_name.nil? ? account_id : organization.account.id,
-        is_default: true
+        is_default: true,
       )
       project.update(remote_cache_storage: s3_bucket)
       project
