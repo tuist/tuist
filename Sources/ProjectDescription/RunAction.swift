@@ -36,7 +36,7 @@ public struct RunAction: Equatable, Codable {
         executable: TargetReference? = nil,
         arguments: Arguments? = nil,
         options: RunActionOptions = .options(),
-        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]
+        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker, .performanceAntipatternChecker]
     ) {
         self.configuration = configuration
         self.attachDebugger = attachDebugger

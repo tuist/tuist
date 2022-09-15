@@ -33,7 +33,7 @@ extension TuistGraph.TestAction {
             coverage = false
             codeCoverageTargets = []
             expandVariablesFromTarget = nil
-            diagnosticsOptions = Set()
+            diagnosticsOptions = []
             language = nil
             region = nil
         } else {

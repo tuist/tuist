@@ -235,7 +235,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             executable: nil,
             filePath: tuistPath,
             arguments: arguments,
-            diagnosticsOptions: Set()
+            diagnosticsOptions: []
         )
         let scheme = Scheme(name: projectName, shared: true, buildAction: buildAction, runAction: runAction)
         let projectSettings = Settings(
