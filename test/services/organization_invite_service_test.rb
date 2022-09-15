@@ -15,7 +15,7 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     got = OrganizationInviteService.new.invite(
       inviter: inviter,
       invitee_email: invitee_email,
-      organization_id: organization.id
+      organization_id: organization.id,
     )
     # Then
     assert_equal got.inviter, inviter
@@ -38,12 +38,12 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     OrganizationInviteService.new.invite(
       inviter: inviter,
       invitee_email: invitee_email,
-      organization_id: organization_one.id
+      organization_id: organization_one.id,
     )
     got = OrganizationInviteService.new.invite(
       inviter: inviter,
       invitee_email: invitee_email,
-      organization_id: organization_two.id
+      organization_id: organization_two.id,
     )
     # Then
     assert_equal got.inviter, inviter
@@ -62,7 +62,7 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
       OrganizationInviteService.new.invite(
         inviter: inviter,
         invitee_email: "test1@cloud.tuist.io",
-        organization_id: organization.id
+        organization_id: organization.id,
       )
     end
   end
@@ -76,7 +76,7 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
       OrganizationInviteService.new.invite(
         inviter: inviter,
         invitee_email: "test1@cloud.tuist.io",
-        organization_id: "1"
+        organization_id: "1",
       )
     end
   end
@@ -93,13 +93,13 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     OrganizationInviteService.new.invite(
       inviter: inviter,
       invitee_email: invitee_email,
-      organization_id: organization.id
+      organization_id: organization.id,
     )
     assert_raises(OrganizationInviteService::Error::DuplicateInvitation) do
       OrganizationInviteService.new.invite(
         inviter: inviter,
         invitee_email: invitee_email,
-        organization_id: organization.id
+        organization_id: organization.id,
       )
     end
   end
@@ -116,14 +116,14 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     invitation = inviter.invitations.create!(
       invitee_email: invitee_email,
       organization_id: organization.id,
-      token: "token"
+      token: "token",
     )
     InvitationMailer.any_instance.expects(:invitation_mail).once
 
     # When
     got = OrganizationInviteService.new.resend_invite(
       invitation_id: invitation.id,
-      resender: resender
+      resender: resender,
     )
 
     # Then
@@ -143,7 +143,7 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     assert_raises(OrganizationInviteService::Error::InvitationNotFound) do
       OrganizationInviteService.new.resend_invite(
         invitation_id: 0,
-        resender: resender
+        resender: resender,
       )
     end
   end
@@ -158,13 +158,13 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     invitation = remover.invitations.create!(
       invitee_email: invitee_email,
       organization_id: organization.id,
-      token: "token"
+      token: "token",
     )
 
     # When
     got = OrganizationInviteService.new.cancel_invite(
       invitation_id: invitation.id,
-      remover: remover
+      remover: remover,
     )
 
     # Then
@@ -184,7 +184,7 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     assert_raises(OrganizationInviteService::Error::InvitationNotFound) do
       OrganizationInviteService.new.cancel_invite(
         invitation_id: 0,
-        remover: remover
+        remover: remover,
       )
     end
   end

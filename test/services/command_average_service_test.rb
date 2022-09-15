@@ -26,7 +26,7 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
       swift_version: "5.5.0",
       macos_version: "12.1.0",
       project: @project,
-      created_at: created_at
+      created_at: created_at,
     )
   end
 
@@ -65,7 +65,7 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
     got = CommandAverageService.call(
       project_id: @project.id,
       command_name: "cache warm",
-      user: @user
+      user: @user,
     )
 
     # Then

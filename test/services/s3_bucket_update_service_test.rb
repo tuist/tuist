@@ -10,7 +10,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
       access_key_id: "1",
       name: "s3 bucket",
       secret_access_key: "secret",
-      region: "region"
+      region: "region",
     )
 
     # When
@@ -20,7 +20,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
       access_key_id: "new access key",
       secret_access_key: "new secret access key",
       region: "new region",
-      user: user
+      user: user,
     )
 
     # Then
@@ -41,7 +41,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
       name: "s3 bucket",
       secret_access_key: "secret",
       iv: "iv",
-      region: "region"
+      region: "region",
     )
 
     # When
@@ -51,7 +51,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
       access_key_id: "new access key",
       secret_access_key: s3_bucket.secret_access_key,
       region: "new region",
-      user: user
+      user: user,
     )
 
     # Then
@@ -75,7 +75,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
         access_key_id: "new access key",
         secret_access_key: "new secret access key",
         region: "new region",
-        user: user
+        user: user,
       )
     end
   end
@@ -89,7 +89,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
       access_key_id: "1",
       name: "s3 bucket",
       secret_access_key: "secret",
-      region: "region"
+      region: "region",
     )
 
     # When/Then
@@ -100,7 +100,7 @@ class S3BucketUpdateServiceTest < ActiveSupport::TestCase
         access_key_id: "new access key",
         secret_access_key: "new secret access key",
         region: "new region",
-        user: user
+        user: user,
       )
     end
   end

@@ -12,7 +12,7 @@ class ProjectChangeRemoteCacheStorageServiceTest < ActiveSupport::TestCase
     s3_bucket = account.s3_buckets.create!(
       name: "s3-bucket",
       access_key_id: "access key id",
-      region: "region"
+      region: "region",
     )
 
     # When
@@ -32,7 +32,7 @@ class ProjectChangeRemoteCacheStorageServiceTest < ActiveSupport::TestCase
     s3_bucket = account.s3_buckets.create!(
       name: "s3-bucket",
       access_key_id: "access key id",
-      region: "region"
+      region: "region",
     )
 
     # When / Then
@@ -48,7 +48,7 @@ class ProjectChangeRemoteCacheStorageServiceTest < ActiveSupport::TestCase
     s3_bucket = account.s3_buckets.create!(
       name: "s3-bucket",
       access_key_id: "access key id",
-      region: "region"
+      region: "region",
     )
 
     # When / Then

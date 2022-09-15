@@ -15,7 +15,7 @@ class RemoveUserServiceTest < ActiveSupport::TestCase
     got = RemoveUserService.call(
       user_id: user.id,
       organization_id: organization.id,
-      remover: remover
+      remover: remover,
     )
 
     # Then
@@ -36,7 +36,7 @@ class RemoveUserServiceTest < ActiveSupport::TestCase
       RemoveUserService.call(
         user_id: user.id,
         organization_id: organization.id,
-        remover: remover
+        remover: remover,
       )
     end
   end
@@ -50,7 +50,7 @@ class RemoveUserServiceTest < ActiveSupport::TestCase
       RemoveUserService.call(
         user_id: remover.id + 1,
         organization_id: 1,
-        remover: remover
+        remover: remover,
       )
     end
   end
