@@ -119,7 +119,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(templatesTarget.sources.map(\.path), templates)
         XCTAssertEqual(templatesTarget.filesGroup, projectsGroup)
-        XCTAssertEmpty(templatesTarget.dependencies)
+        XCTAssertEqual(Set(templatesTarget.dependencies), Set([
+            .target(name: "ProjectDescriptionHelpers"),
+        ]))
 
         // Generated Config target
         let configTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Config" }))

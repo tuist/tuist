@@ -66,7 +66,7 @@ public protocol Systeming {
     /// Runs a command in the shell and wraps the standard output and error in a publisher.
     /// - Parameters:
     ///   - arguments: Command.
-    ///   - pipeTo: Second Command.
+    ///   - secondArguments: Second Command.
     func publisher(_ arguments: [String], pipeTo secondArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error>
 
     /// Runs a command in the shell asynchronously.
@@ -82,6 +82,12 @@ public protocol Systeming {
     /// - Returns: Swift version.
     /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
     func swiftVersion() throws -> String
+
+    /// Returns the Swift version, including the build number.
+    ///
+    /// - Returns: Swift version including the build number.
+    /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
+    func swiftlangVersion() throws -> String
 
     /// Runs /usr/bin/which passing the given tool.
     ///

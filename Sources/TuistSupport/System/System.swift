@@ -70,9 +70,13 @@ public final class System: Systeming {
     /// Shared system instance.
     public static var shared: Systeming = System()
 
-    /// Regex expression used to get the Swift version from the output of the 'swift --version' command.
+    /// Regex expression used to get the Swift version (for example, 5.7) from the output of the 'swift --version' command.
     // swiftlint:disable:next force_try
     private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
+
+    /// Regex expression used to get the Swiftlang version (for example, 5.7.0.127.4) from the output of the 'swift --version' command.
+    // swiftlint:disable:next force_try
+    private static var swiftlangVersion = try! NSRegularExpression(pattern: "swiftlang-(.+)\\sclang", options: [])
 
     /// Convenience shortcut to the environment.
     public var env: [String: String] {
@@ -163,6 +167,9 @@ public final class System: Systeming {
     @Atomic
     var cachedSwiftVersion: String?
 
+    @Atomic
+    var cachedSwiftlangVersion: String?
+
     public func swiftVersion() throws -> String {
         if let cachedSwiftVersion = cachedSwiftVersion {
             return cachedSwiftVersion
@@ -174,6 +181,19 @@ public final class System: Systeming {
         }
         cachedSwiftVersion = NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
         return cachedSwiftVersion!
+    }
+
+    public func swiftlangVersion() throws -> String {
+        if let cachedSwiftlangVersion = cachedSwiftlangVersion {
+            return cachedSwiftlangVersion
+        }
+        let output = try capture(["/usr/bin/xcrun", "swift", "--version"])
+        let range = NSRange(location: 0, length: output.count)
+        guard let match = System.swiftlangVersion.firstMatch(in: output, options: [], range: range) else {
+            throw SystemError.parseSwiftVersion(output)
+        }
+        cachedSwiftlangVersion = NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
+        return cachedSwiftlangVersion!
     }
 
     public func which(_ name: String) throws -> String {

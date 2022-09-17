@@ -24,7 +24,7 @@ class CommandEventCreateServiceTest < ActiveSupport::TestCase
       macos_version: "12.1.0",
       cacheable_targets: nil,
       local_cache_target_hits: nil,
-      remote_cache_target_hits: nil
+      remote_cache_target_hits: nil,
     )
 
     # Then
@@ -56,7 +56,7 @@ class CommandEventCreateServiceTest < ActiveSupport::TestCase
       macos_version: "12.1.0",
       cacheable_targets: ["Target1", "Target2", "Target3", "Target4"],
       local_cache_target_hits: ["Target1"],
-      remote_cache_target_hits: ["Target2", "Target4"]
+      remote_cache_target_hits: ["Target2", "Target4"],
     )
 
     # Then

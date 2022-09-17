@@ -996,7 +996,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let launchAction = RunAction.test(
             configurationName: "Debug",
             filePath: "/usr/bin/foo",
-            diagnosticsOptions: Set(arrayLiteral: .mainThreadChecker)
+            diagnosticsOptions: [.mainThreadChecker]
         )
 
         let scheme = Scheme.test(name: "Library", buildAction: buildAction, runAction: launchAction)
@@ -1038,7 +1038,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
         let testAction = TestAction.test(
             targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))],
-            diagnosticsOptions: Set(arrayLiteral: .mainThreadChecker)
+            diagnosticsOptions: [.mainThreadChecker]
         )
 
         let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil)

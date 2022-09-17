@@ -22,7 +22,7 @@ module Fourier
           Defaults to the currently selected Xcode on the system.
         ),
         type: :string,
-        required: false
+        required: false,
       )
       option(
         :xcode_version_libraries,
@@ -33,7 +33,7 @@ module Fourier
           Defaults to the currently selected Xcode on the system.
         ),
         type: :string,
-        required: false
+        required: false,
       )
       def tuist
         output_directory = options[:output]
@@ -41,12 +41,12 @@ module Fourier
 
         xcode_paths = Utilities::Xcode::Paths.new(
           default: options[:xcode_version],
-          libraries: options[:xcode_version_libraries]
+          libraries: options[:xcode_version_libraries],
         )
 
         Services::Bundle::Tuist.call(
           output_directory: output_directory,
-          xcode_paths: xcode_paths
+          xcode_paths: xcode_paths,
         )
       end
 
@@ -67,7 +67,7 @@ module Fourier
           Defaults to the currently selected Xcode on the system.
         ),
         type: :string,
-        required: false
+        required: false,
       )
       option(
         :xcode_version_libraries,
@@ -78,7 +78,7 @@ module Fourier
           Defaults to the currently selected Xcode on the system.
         ),
         type: :string,
-        required: false
+        required: false,
       )
       def tuistenv
         output_directory = options[:output]
@@ -86,12 +86,12 @@ module Fourier
 
         xcode_paths = Utilities::Xcode::Paths.new(
           default: options[:xcode_version],
-          libraries: options[:xcode_version_libraries]
+          libraries: options[:xcode_version_libraries],
         )
 
         Services::Bundle::Tuistenv.call(
           output_directory: output_directory,
-          xcode_paths: xcode_paths
+          xcode_paths: xcode_paths,
         )
       end
 
@@ -119,7 +119,7 @@ module Fourier
           Defaults to the currently selected Xcode on the system.
         ),
         type: :string,
-        required: false
+        required: false,
       )
       option(
         :xcode_version_libraries,
@@ -130,7 +130,7 @@ module Fourier
           Defaults to the currently selected Xcode on the system.
         ),
         type: :string,
-        required: false
+        required: false,
       )
       def all
         output_directory = options[:output]
@@ -138,12 +138,12 @@ module Fourier
 
         xcode_paths = Utilities::Xcode::Paths.new(
           default: options[:xcode_version],
-          libraries: options[:xcode_version_libraries]
+          libraries: options[:xcode_version_libraries],
         )
 
         bundle_all(
           output_directory: output_directory,
-          xcode_paths: xcode_paths
+          xcode_paths: xcode_paths,
         )
       end
 
@@ -154,11 +154,11 @@ module Fourier
         )
           Services::Bundle::Tuist.call(
             output_directory: output_directory,
-            xcode_paths: xcode_paths
+            xcode_paths: xcode_paths,
           )
           Services::Bundle::Tuistenv.call(
             output_directory: output_directory,
-            xcode_paths: xcode_paths
+            xcode_paths: xcode_paths,
           )
         end
       }

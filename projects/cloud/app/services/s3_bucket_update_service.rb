@@ -53,13 +53,13 @@ class S3BucketUpdateService < ApplicationService
         access_key_id: access_key_id,
         secret_access_key: Base64.encode64(encrypted_secret_access_key),
         region: region,
-        iv: Base64.encode64(iv)
+        iv: Base64.encode64(iv),
       )
     else
       bucket.update(
         name: name,
         access_key_id: access_key_id,
-        region: region
+        region: region,
       )
     end
     bucket

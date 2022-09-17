@@ -91,7 +91,7 @@ module Types
       CommandAverageService.call(
         project_id: project_id,
         command_name: command_name,
-        user: context[:current_user]
+        user: context[:current_user],
       )
     end
 
@@ -104,7 +104,7 @@ module Types
       CacheHitRateAverageService.call(
         project_id: project_id,
         command_name: command_name,
-        user: context[:current_user]
+        user: context[:current_user],
       )
     end
   end

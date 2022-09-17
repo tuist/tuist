@@ -10,13 +10,13 @@ class CacheServiceTest < ActiveSupport::TestCase
       access_key_id: "access key id",
       secret_access_key: "encoded secret",
       iv: "random iv",
-      region: "region"
+      region: "region",
     )
     @project = Project.create!(
       name: "my-project",
       account_id: @user.account.id,
       token: Devise.friendly_token.first(8),
-      remote_cache_storage: @s3_bucket
+      remote_cache_storage: @s3_bucket,
     )
     ProjectFetchService.any_instance.stubs(:fetch_by_name).returns(@project)
     DecipherService.stubs(:call).returns("decoded secret")
@@ -32,7 +32,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       user: @user,
-      project: nil
+      project: nil,
     )
       .object_exists?
 
@@ -50,7 +50,7 @@ class CacheServiceTest < ActiveSupport::TestCase
         hash: "artifact-hash",
         name: "MyFramework",
         user: @user,
-        project: nil
+        project: nil,
       )
         .object_exists?
     end
@@ -66,7 +66,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       user: nil,
-      project: @project
+      project: @project,
     )
       .object_exists?
 
@@ -84,7 +84,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       user: @user,
-      project: nil
+      project: nil,
     )
       .object_exists?
 
@@ -103,7 +103,7 @@ class CacheServiceTest < ActiveSupport::TestCase
         hash: "artifact-hash",
         name: "MyFramework",
         user: nil,
-        project: @project
+        project: @project,
       )
         .object_exists?
     end
@@ -120,7 +120,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       user: @user,
-      project: nil
+      project: nil,
     )
       .upload
 
@@ -140,7 +140,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       user: @user,
-      project: nil
+      project: nil,
     )
       .verify_upload
 

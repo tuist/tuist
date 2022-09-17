@@ -19,7 +19,7 @@ class ProjectDeleteServicerviceTest < ActiveSupport::TestCase
       secret_access_key: "",
       iv: "",
       region: "",
-      is_default: true
+      is_default: true,
     )
 
     # When

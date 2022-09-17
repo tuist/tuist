@@ -60,7 +60,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         } catch {
             XCTFail("Error while creating files for stub project")
         }
-        system.swiftVersionStub = { "5.4.0" }
+        system.swiftlangVersionStub = { "5.4.0" }
         subject = CacheGraphContentHasher(contentHasher: CacheContentHasher())
     }
 

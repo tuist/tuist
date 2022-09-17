@@ -36,7 +36,7 @@ class CacheController < APIController
         hash: params[:hash],
         name: params[:name],
         user: current_user,
-        project: @project
+        project: @project,
       )
     end
 end

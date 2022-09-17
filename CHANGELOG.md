@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.11.0 - 2022-09-15
+
+### Added
+
+- Add support for performanceAntipatternChecker SchemeDiagnosticsOptions [#4740](https://github.com/tuist/tuist/pull/4740) by [@danyf90](https://github.com/danyf90)
+
+### Fixed
+
+- Fix `tuist build` failing to build workspaces with watchOS targets [#4466](https://github.com/tuist/tuist/pull/4466) by [@thedavidharris](https://github.com/thedavidharris)
+- Fix support for iOS targets supporting iPhone, iPad, and Catalyst [#4710](https://github.com/tuist/tuist/pull/4710) by [@dever25](https://github.com/dever25)
+- Fix support for macOS test targets depending on static frameworks [#4739](https://github.com/tuist/tuist/pull/4739) by [@dpliushchaiIOS](https://github.com/dpliushchaiIOS)
+- Fix `tuist edit` when project contains a Templates folder [#4744](https://github.com/tuist/tuist/pull/4744) by [@michaelmcguire](https://github.com/michaelmcguire)
+- Fix computation of target hash within Xcode beta releases [#4738](https://github.com/tuist/tuist/pull/4738) by [@danyf90](https://github.com/danyf90)
+
 ## 3.10.0 - 2022-08-20
 
 ### Changed
