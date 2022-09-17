@@ -917,6 +917,51 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
     }
 
+    func test_generateWatchBuildPhase_watchApplication() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .app)
+        let project = Project.test()
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, watchApp])
+
+        let targets: [AbsolutePath: [String: Target]] = [
+            project.path: [app.name: app, watchApp.name: watchApp],
+        ]
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: watchApp.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: watchApp.name, path: project.path)]),
+        ]
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: targets,
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateEmbedWatchBuildPhase(
+            path: project.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+            "WatchApp",
+        ])
+        XCTAssertEqual(
+            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+        )
+    }
+
     func test_generateTarget_actions() throws {
         // Given
         system.swiftVersionStub = { "5.2" }

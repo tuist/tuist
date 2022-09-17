@@ -16,7 +16,7 @@ let project = Project(
                 "App/Resources/**",
             ],
             dependencies: [
-                // ...
+                .target(name: "WatchApp"),
             ]
         ),
         // In Xcode 14, watch application can now leverage the `.app` product type
