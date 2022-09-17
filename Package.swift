@@ -61,6 +61,7 @@ let package = Package(
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", from: "2.8.0"),
         .package(url: "https://github.com/FabrizioBrancati/Queuer.git", from: "2.1.1"),
         .package(url: "https://github.com/CombineCommunity/CombineExt.git", from: "1.3.0"),
+        .package(url: "https://github.com/thebarndog/swift-dotenv", from: "2.0.0")
     ],
     targets: [
         .target(
@@ -220,6 +221,7 @@ let package = Package(
                 "ZIPFoundation",
                 "Checksum",
                 "ProjectDescription",
+                .product(name: "SwiftDotenv", package: "swift-dotenv")
             ]
         ),
         .target(

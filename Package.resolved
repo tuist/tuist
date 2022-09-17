@@ -191,6 +191,15 @@
         }
       },
       {
+        "package": "swift-dotenv",
+        "repositoryURL": "https://github.com/thebarndog/swift-dotenv",
+        "state": {
+          "branch": null,
+          "revision": "349dd63c461a37a0354e7aba2ed8c172bac91239",
+          "version": "2.0.0"
+        }
+      },
+      {
         "package": "swift-log",
         "repositoryURL": "https://github.com/apple/swift-log.git",
         "state": {
