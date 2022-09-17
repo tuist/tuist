@@ -182,9 +182,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// i.e. a product that can be bundled with a host iOS application
     public func isEmbeddableWatchApplication() -> Bool {
         switch (platform, product) {
-        case (.watchOS, .watch2App):
-            return true
-        case (.watchOS, .app):
+        case (.watchOS, .watch2App), (.watchOS, .app):
             return true
         default:
             return false
