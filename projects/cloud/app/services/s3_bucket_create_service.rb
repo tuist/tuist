@@ -45,7 +45,7 @@ class S3BucketCreateService < ApplicationService
       secret_access_key: Base64.encode64(encrypted_secret_access_key),
       iv: Base64.encode64(iv),
       region: region,
-      is_default: is_default
+      is_default: is_default,
     )
   end
 end

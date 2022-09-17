@@ -27,7 +27,7 @@ module Fourier
         # When/then
         SwiftLinter.lint(
           directories: directories,
-          fix: true
+          fix: true,
         )
       end
     end

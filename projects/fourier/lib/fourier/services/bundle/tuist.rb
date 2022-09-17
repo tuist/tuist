@@ -31,23 +31,23 @@ module Fourier
                 name: "ProjectDescription",
                 output_directory: build_directory,
                 swift_build_directory: swift_build_directory,
-                xcode_paths: xcode_paths
+                xcode_paths: xcode_paths,
               )
 
               Utilities::Output.section("Building Tuist...")
               build_tuist(
                 output_directory: build_directory,
                 swift_build_directory: swift_build_directory,
-                xcode_paths: xcode_paths
+                xcode_paths: xcode_paths,
               )
 
               FileUtils.cp_r(
                 File.expand_path("projects/tuist/vendor", Constants::ROOT_DIRECTORY),
-                File.expand_path("vendor", build_directory)
+                File.expand_path("vendor", build_directory),
               )
               FileUtils.cp_r(
                 File.expand_path("Templates", Constants::ROOT_DIRECTORY),
-                File.expand_path("Templates", build_directory)
+                File.expand_path("Templates", build_directory),
               )
               Utilities::System.system("swift", "stdlib-tool", "--copy", "--scan-executable",
                 File.expand_path("tuist", build_directory), "--platform", "macosx", "--destination", build_directory)
@@ -66,7 +66,7 @@ module Fourier
                   "ProjectDescription.framework",
                   "ProjectDescription.framework.dSYM",
                   "Templates",
-                  "vendor",
+                  "vendor"
                 )
               end
             end
@@ -85,7 +85,7 @@ module Fourier
               binary_name: "tuist",
               output_directory: output_directory,
               swift_build_directory: swift_build_directory,
-              xcode_paths: xcode_paths
+              xcode_paths: xcode_paths,
             )
           end
 
@@ -101,7 +101,7 @@ module Fourier
               product: name,
               output_directory: output_directory,
               swift_build_directory: swift_build_directory,
-              xcode_paths: xcode_paths
+              xcode_paths: xcode_paths,
             )
           end
       end

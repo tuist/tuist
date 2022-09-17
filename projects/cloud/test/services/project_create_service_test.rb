@@ -34,9 +34,9 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
 
     OrganizationCreateService.expects(:call).with(
       creator: user,
-      name: organization_name
+      name: organization_name,
     ).returns(
-      organization
+      organization,
     )
 
     # When

@@ -243,13 +243,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         result[product.name] = try product.targets.flatMap { target in
                             try ResolvedDependency.fromTarget(
                                 name: target,
-                                targetDependencyToFramework: targetDependencyToFramework
+                                targetDependencyToFramework: targetDependencyToFramework,
+                                condition: nil
                             )
                             .map {
                                 switch $0 {
-                                case let .xcframework(path):
+                                case let .xcframework(path, _):
                                     return .xcframework(path: path)
-                                case let .target(name):
+                                case let .target(name, _):
                                     // When multiple platforms are supported, add the platform name as a suffix to the target
                                     let targetName = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
                                     return .project(target: targetName, path: Path(packageToFolder[packageInfo.key]!.pathString))
@@ -723,13 +724,16 @@ extension ProjectDescription.TargetDependency {
         packageToProject: [String: AbsolutePath],
         addPlatformSuffix: Bool
     ) throws -> [Self] {
-        let targetDependencies = resolvedDependencies.map { dependency -> Self in
+        let targetDependencies = resolvedDependencies.compactMap { dependency -> Self? in
+            if let condition = dependency.condition, !condition.platforms.contains(platform) {
+                return nil
+            }
             switch dependency {
-            case let .target(name):
+            case let .target(name, _):
                 return .target(name: addPlatformSuffix ? "\(name)_\(platform.rawValue)" : name)
-            case let .xcframework(path):
+            case let .xcframework(path, _):
                 return .xcframework(path: path)
-            case let .externalTarget(project, target):
+            case let .externalTarget(project, target, _):
                 return .project(
                     target: addPlatformSuffix ? "\(target)_\(platform.rawValue)" : target,
                     path: Path(packageToProject[project]!.pathString)
@@ -941,14 +945,14 @@ extension ProjectDescription.Settings {
                 let resolvedDependencies = targetToResolvedDependencies[packageTarget.target.name] ?? []
                 return resolvedDependencies.flatMap { resolvedDependency -> [PackageTarget] in
                     switch resolvedDependency {
-                    case let .target(name):
+                    case let .target(name, _):
                         guard let packageInfo = packageInfos[packageTarget.package],
                               let target = packageInfo.targets.first(where: { $0.name == name })
                         else {
                             return []
                         }
                         return [PackageTarget(package: packageTarget.package, target: target)]
-                    case let .externalTarget(package, target):
+                    case let .externalTarget(package, target, _):
                         guard let packageInfo = packageInfos[package] else { return [] }
                         return packageInfo.targets
                             .filter { $0.name == target }
@@ -1207,9 +1211,20 @@ extension PackageInfo.Target {
 
 extension PackageInfoMapper {
     public enum ResolvedDependency: Equatable {
-        case target(name: String)
-        case xcframework(path: Path)
-        case externalTarget(package: String, target: String)
+        case target(name: String, condition: Condition?)
+        case xcframework(path: Path, condition: Condition?)
+        case externalTarget(package: String, target: String, condition: Condition?)
+
+        fileprivate var condition: Condition? {
+            switch self {
+            case let .target(_, condition):
+                return condition
+            case let .xcframework(_, condition):
+                return condition
+            case let .externalTarget(_, _, condition):
+                return condition
+            }
+        }
 
         fileprivate static func from(
             dependencies: [PackageInfo.Target.Dependency],
@@ -1220,18 +1235,27 @@ extension PackageInfoMapper {
         ) throws -> [ResolvedDependency] {
             try dependencies.flatMap { dependency -> [Self] in
                 switch dependency {
-                case let .target(name, _):
-                    return Self.fromTarget(name: name, targetDependencyToFramework: targetDependencyToFramework)
-                case let .product(name, package, _):
+                case let .target(name, condition):
+                    return Self.fromTarget(
+                        name: name,
+                        targetDependencyToFramework: targetDependencyToFramework,
+                        condition: condition
+                    )
+                case let .product(name, package, condition):
                     return try Self.fromProduct(
                         package: idToPackage[package.lowercased()] ?? package,
                         product: name,
                         packageInfos: packageInfos,
-                        targetDependencyToFramework: targetDependencyToFramework
+                        targetDependencyToFramework: targetDependencyToFramework,
+                        condition: condition
                     )
-                case let .byName(name, _):
+                case let .byName(name, condition):
                     if packageInfo.targets.contains(where: { $0.name == name }) {
-                        return Self.fromTarget(name: name, targetDependencyToFramework: targetDependencyToFramework)
+                        return Self.fromTarget(
+                            name: name,
+                            targetDependencyToFramework: targetDependencyToFramework,
+                            condition: condition
+                        )
                     } else {
                         guard let packageNameAndInfo = packageInfos
                             .first(where: { $0.value.products.contains { $0.name == name } })
@@ -1243,18 +1267,25 @@ extension PackageInfoMapper {
                             package: packageNameAndInfo.key,
                             product: name,
                             packageInfos: packageInfos,
-                            targetDependencyToFramework: targetDependencyToFramework
+                            targetDependencyToFramework: targetDependencyToFramework,
+                            condition: condition
                         )
                     }
                 }
             }
         }
 
-        fileprivate static func fromTarget(name: String, targetDependencyToFramework: [String: Path]) -> [Self] {
+        fileprivate static func fromTarget(
+            name: String,
+            targetDependencyToFramework: [String: Path],
+            condition packageConditionDescription: PackageInfo.PackageConditionDescription?
+        ) -> [Self] {
+            let condition = packageConditionDescription.flatMap(Condition.from)
+
             if let framework = targetDependencyToFramework[name] {
-                return [.xcframework(path: framework)]
+                return [.xcframework(path: framework, condition: condition)]
             } else {
-                return [.target(name: PackageInfoMapper.sanitize(targetName: name))]
+                return [.target(name: PackageInfoMapper.sanitize(targetName: name), condition: condition)]
             }
         }
 
@@ -1262,19 +1293,43 @@ extension PackageInfoMapper {
             package: String,
             product: String,
             packageInfos: [String: PackageInfo],
-            targetDependencyToFramework: [String: Path]
+            targetDependencyToFramework: [String: Path],
+            condition packageConditionDescription: PackageInfo.PackageConditionDescription?
         ) throws -> [Self] {
             guard let packageProduct = packageInfos[package]?.products.first(where: { $0.name == product }) else {
                 throw PackageInfoMapperError.unknownProductDependency(product, package)
             }
+            let condition = packageConditionDescription.flatMap(Condition.from)
 
             return packageProduct.targets.map { name in
                 if let framework = targetDependencyToFramework[name] {
-                    return .xcframework(path: framework)
+                    return .xcframework(path: framework, condition: condition)
                 } else {
-                    return .externalTarget(package: package, target: PackageInfoMapper.sanitize(targetName: name))
+                    return .externalTarget(
+                        package: package,
+                        target: PackageInfoMapper.sanitize(targetName: name),
+                        condition: condition
+                    )
                 }
             }
+        }
+    }
+}
+
+extension PackageInfoMapper.ResolvedDependency {
+    public struct Condition: Equatable {
+        public let platforms: [ProjectDescription.Platform]
+
+        public init(platforms: [ProjectDescription.Platform]) {
+            self.platforms = platforms
+        }
+
+        fileprivate static func from(
+            _ packageConditionDescription: PackageInfo.PackageConditionDescription
+        ) -> Self? {
+            let platforms = packageConditionDescription.platformNames.compactMap(ProjectDescription.Platform.init(rawValue:))
+
+            return platforms.isEmpty ? nil : Self(platforms: platforms)
         }
     }
 }

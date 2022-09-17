@@ -13,7 +13,7 @@ env:
   RAILS_ENV: test
   RAILS_MASTER_KEY: 09a0926fc36e14a27bcc96e7f9323d05
   RUBY_VERSION: 3.0.3
-  NODE_VERSION: 16.13.0
+  NODE_VERSION: 16.17.0
 
 concurrency:
   group: cloud-${{ github.head_ref }}

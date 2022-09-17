@@ -53,7 +53,7 @@ module Fourier
               product: "xcbeautify",
               binary_name: "xcbeautify",
               output_directory: into,
-              swift_build_directory: swift_build_directory
+              swift_build_directory: swift_build_directory,
             )
           end
       end

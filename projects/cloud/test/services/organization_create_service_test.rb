@@ -11,7 +11,7 @@ class OrganizationCreateServiceTest < ActiveSupport::TestCase
     # When
     got = OrganizationCreateService.call(
       creator: user,
-      name: organization_name
+      name: organization_name,
     )
 
     # Then
@@ -27,11 +27,11 @@ class OrganizationCreateServiceTest < ActiveSupport::TestCase
     # When
     OrganizationCreateService.call(
       creator: user,
-      name: organization_name
+      name: organization_name,
     )
     got = OrganizationCreateService.call(
       creator: user,
-      name: organization_name
+      name: organization_name,
     )
 
     # Then

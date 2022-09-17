@@ -68,7 +68,7 @@ Define your remote cache at the following url: #{remote_cache_storage_url}.
     url = signer.presigned_url(
       :get_object,
       bucket: project.remote_cache_storage.name,
-      key: object_key
+      key: object_key,
     )
     url
   end
@@ -78,13 +78,13 @@ Define your remote cache at the following url: #{remote_cache_storage_url}.
     s3_client = s3_client(s3_bucket: project.remote_cache_storage)
     s3_client.put_object(
       bucket: project.remote_cache_storage.name,
-      key: object_key
+      key: object_key,
     )
     signer = Aws::S3::Presigner.new(client: s3_client)
     url = signer.presigned_url(
       :put_object,
       bucket: project.remote_cache_storage.name,
-      key: object_key
+      key: object_key,
     )
     url
   end
@@ -94,7 +94,7 @@ Define your remote cache at the following url: #{remote_cache_storage_url}.
     s3_client = s3_client(s3_bucket: project.remote_cache_storage)
     object = s3_client.get_object(
       bucket: project.remote_cache_storage.name,
-      key: object_key
+      key: object_key,
     )
     object.content_length
   end
@@ -104,7 +104,7 @@ Define your remote cache at the following url: #{remote_cache_storage_url}.
       @project = ProjectFetchService.new.fetch_by_name(
         name: project_name,
         account_name: account_name,
-        user: user
+        user: user,
       )
     end
   end
@@ -113,7 +113,7 @@ Define your remote cache at the following url: #{remote_cache_storage_url}.
     def s3_client(s3_bucket:)
       secret_access_key = DecipherService.call(
         key: Base64.decode64(s3_bucket.secret_access_key),
-        iv: Base64.decode64(s3_bucket.iv)
+        iv: Base64.decode64(s3_bucket.iv),
       )
       Aws::S3::Client.new(
         region: s3_bucket.region,

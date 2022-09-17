@@ -12,6 +12,7 @@ module Fourier
             arguments << "--fix"
           else
             arguments << "lint"
+            arguments << "--strict"
           end
           arguments << "--quiet"
           arguments.concat(["--config", Constants::SWIFTLINT_CONFIG_PATH])

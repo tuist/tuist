@@ -15,7 +15,7 @@ concurrency:
 
 env:
   RUBY_VERSION: "3.0.3"
-  NODE_VERSION: "16.13.0"
+  NODE_VERSION: "16.17.0"
 
 jobs:
   build:

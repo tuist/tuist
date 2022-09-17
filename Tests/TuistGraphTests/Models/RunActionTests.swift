@@ -29,6 +29,7 @@ final class RunActionTests: TuistUnitTestCase {
             options: .init(),
             diagnosticsOptions: [
                 .mainThreadChecker,
+                .performanceAntipatternChecker,
             ]
         )
 

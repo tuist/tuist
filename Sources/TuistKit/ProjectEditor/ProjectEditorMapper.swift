@@ -151,16 +151,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             defaultSettings: .recommended
         )
 
-        let templatesTarget: Target? = {
-            guard !templates.isEmpty else { return nil }
-            return editorHelperTarget(
-                name: Constants.templatesDirectoryName,
-                filesGroup: manifestsFilesGroup,
-                targetSettings: baseTargetSettings,
-                sourcePaths: templates
-            )
-        }()
-
         let configTarget: Target? = {
             guard let configPath = configPath else { return nil }
             return editorHelperTarget(
@@ -190,6 +180,17 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 targetSettings: targetWithLinkedPluginsSettings,
                 sourcePaths: helpers,
                 dependencies: editablePluginTargetDependencies
+            )
+        }()
+
+        let templatesTarget: Target? = {
+            guard !templates.isEmpty else { return nil }
+            return editorHelperTarget(
+                name: Constants.templatesDirectoryName,
+                filesGroup: manifestsFilesGroup,
+                targetSettings: baseTargetSettings,
+                sourcePaths: templates,
+                dependencies: helpersTarget.flatMap { [TargetDependency.target(name: $0.name)] } ?? []
             )
         }()
 
@@ -234,7 +235,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             executable: nil,
             filePath: tuistPath,
             arguments: arguments,
-            diagnosticsOptions: Set()
+            diagnosticsOptions: []
         )
         let scheme = Scheme(name: projectName, shared: true, buildAction: buildAction, runAction: runAction)
         let projectSettings = Settings(
