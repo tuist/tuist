@@ -656,44 +656,52 @@ extension ResourceFileElements {
         excluding: [String]
     ) -> Self? {
 
-        func handleProcessRule() -> [ProjectDescription.ResourceFileElement] {
-            let processResources = resources.filter { $0.rule == .process }
+        /// Handles the conversion of a `.copy` resource rule of SPM
+        ///
+        /// - Parameters:
+        ///   - resourceAbsolutePath: The absolute path of that resource
+        /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.copy` resource rule of SPM
+        func handleCopyResource(resourceAbsolutePath: AbsolutePath) -> ProjectDescription.ResourceFileElement {
+            return .folderReference(path: Path(resourceAbsolutePath.pathString))
+        }
 
-            var resourcesPaths = processResources.map { path.appending(RelativePath($0.path)) }
+        /// Handles the conversion of a `.process` resource rule of SPM
+        ///
+        /// - Parameters:
+        ///   - resourceAbsolutePath: The absolute path of that resource
+        /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.process` resource rule of SPM
+        func handleProcessResource(resourceAbsolutePath: AbsolutePath) -> ProjectDescription.ResourceFileElement {
 
-            if sources == nil {
-                // SPM automatically includes resources only if custom sources are not specified
-                resourcesPaths += defaultResourcePaths(from: path)
-            }
+            let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath.appending(component: "**")
+            return .glob(
+                pattern: Path(absolutePathGlob.pathString),
+                excluding: excluding.map {
+                    let excludePath = path.appending(RelativePath($0))
+                    let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
+                    return Path(excludeGlob.pathString)
+                }
+            )
+        }
 
+        var resourceFileElements: [ProjectDescription.ResourceFileElement] = resources.map {
+            let resourceAbsolutePath = path.appending(RelativePath($0.path))
 
-            return  resourcesPaths.map { absolutePath in
-                let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
-                return .glob(
-                    pattern: Path(absolutePathGlob.pathString),
-                    excluding: excluding.map {
-                        let excludePath = path.appending(RelativePath($0))
-                        let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
-                        return Path(excludeGlob.pathString)
-                    }
-                )
+            switch $0.rule {
+            case .copy:
+                return handleCopyResource(resourceAbsolutePath: resourceAbsolutePath)
+            case .process:
+                return handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
             }
         }
 
-        func handleCopyRule() -> [ProjectDescription.ResourceFileElement] {
-            let copyResources = resources.filter { $0.rule == .copy }
-
-            let resourcesPaths = copyResources.map { path.appending(RelativePath($0.path)) }
-
-            return resourcesPaths.map { absolutePath in
-                return .folderReference(path: Path(absolutePath.pathString))
-            }
+        // Add default resources path if necessary
+        // They are handled like a `.process` rule
+        if sources == nil {
+            resourceFileElements += defaultResourcePaths(from: path).map { handleProcessResource(resourceAbsolutePath: $0) }
         }
 
-        let resourceFileElements = handleProcessRule() +  handleCopyRule()
+        // Sanity check
         guard !resourceFileElements.isEmpty else { return nil }
-
-        var resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
 
         return .init( resources: resourceFileElements)
     }
