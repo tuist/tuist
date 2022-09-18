@@ -851,8 +851,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ])),
                         resources: [
                             .folderReference(
-                                path: Path(basePath.appending(RelativePath("Package/Sources/Target1/Resource/Folder"))
-                                    .pathString
+                                path: Path(
+                                    basePath.appending(RelativePath("Package/Sources/Target1/Resource/Folder"))
+                                        .pathString
                                 ),
                                 tags: []
                             ),
@@ -1339,11 +1340,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ])),
                         resources: [
                             .folderReference(
-                                path: Path(basePath.appending(RelativePath("Package/Custom/Resource/Folder"))
-                                    .pathString
+                                path: Path(
+                                    basePath.appending(RelativePath("Package/Custom/Resource/Folder"))
+                                        .pathString
                                 ),
                                 tags: []
-                            )
+                            ),
                         ],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Headers"],

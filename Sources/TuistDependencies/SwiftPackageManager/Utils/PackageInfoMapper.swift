@@ -655,14 +655,13 @@ extension ResourceFileElements {
         path: AbsolutePath,
         excluding: [String]
     ) -> Self? {
-
         /// Handles the conversion of a `.copy` resource rule of SPM
         ///
         /// - Parameters:
         ///   - resourceAbsolutePath: The absolute path of that resource
         /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.copy` resource rule of SPM
         func handleCopyResource(resourceAbsolutePath: AbsolutePath) -> ProjectDescription.ResourceFileElement {
-            return .folderReference(path: Path(resourceAbsolutePath.pathString))
+            .folderReference(path: Path(resourceAbsolutePath.pathString))
         }
 
         /// Handles the conversion of a `.process` resource rule of SPM
@@ -671,8 +670,8 @@ extension ResourceFileElements {
         ///   - resourceAbsolutePath: The absolute path of that resource
         /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.process` resource rule of SPM
         func handleProcessResource(resourceAbsolutePath: AbsolutePath) -> ProjectDescription.ResourceFileElement {
-
-            let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath.appending(component: "**")
+            let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
+                .appending(component: "**")
             return .glob(
                 pattern: Path(absolutePathGlob.pathString),
                 excluding: excluding.map {
