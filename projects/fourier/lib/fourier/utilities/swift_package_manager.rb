@@ -41,24 +41,24 @@ module Fourier
             # this directory contains objects that are not stable across Swift releases.
             # If left in here they manifest as warnings when compiling.
             FileUtils.rm_rf(
-              File.join(swift_build_directory, "Release/#{product}.swiftmodule/Project")
+              File.join(swift_build_directory, "Release/#{product}.swiftmodule/Project"),
             )
             FileUtils.cp_r(
               File.join(swift_build_directory, "Release/PackageFrameworks/#{product}.framework"),
-              File.join(output_directory, "#{product}.framework")
+              File.join(output_directory, "#{product}.framework"),
             )
 
             FileUtils.mkdir_p(
-              File.join(output_directory, "#{product}.framework/Modules")
+              File.join(output_directory, "#{product}.framework/Modules"),
             )
             FileUtils.cp_r(
               File.join(swift_build_directory, "Release/#{product}.swiftmodule"),
-              File.join(output_directory, "#{product}.framework/Modules/#{product}.swiftmodule")
+              File.join(output_directory, "#{product}.framework/Modules/#{product}.swiftmodule"),
             )
 
             FileUtils.cp_r(
               File.join(swift_build_directory, "Release/#{product}.framework.dSYM"),
-              File.join(output_directory, "#{product}.framework.dSYM")
+              File.join(output_directory, "#{product}.framework.dSYM"),
             )
           end
         end

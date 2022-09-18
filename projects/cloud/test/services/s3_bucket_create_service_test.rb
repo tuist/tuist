@@ -17,7 +17,7 @@ class S3BucketCreateServiceTest < ActiveSupport::TestCase
       access_key_id: access_key_id,
       secret_access_key: secret_access_key,
       account_id: account.id,
-      region: region
+      region: region,
     )
 
     # Then
@@ -36,7 +36,7 @@ class S3BucketCreateServiceTest < ActiveSupport::TestCase
       access_key_id: "key id 1",
       secret_access_key: "secret access key",
       region: "region",
-      account_id: account.id
+      account_id: account.id,
     )
 
     # When/Then
@@ -46,7 +46,7 @@ class S3BucketCreateServiceTest < ActiveSupport::TestCase
         access_key_id: "key id 2",
         secret_access_key: "secret access key",
         region: "region",
-        account_id: account.id
+        account_id: account.id,
       )
     end
   end

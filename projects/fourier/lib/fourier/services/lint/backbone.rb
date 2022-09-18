@@ -17,7 +17,7 @@ module Fourier
           Utilities::RubocopLinter.lint(
             from: Constants::BACKBONE_DIRECTORY,
             fix: fix,
-            directories: directories
+            directories: directories,
           )
         end
       end

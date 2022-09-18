@@ -42,7 +42,7 @@ module Fourier
                 product: "swiftformat",
                 binary_name: "swiftformat",
                 output_directory: temporary_output_directory,
-                swift_build_directory: swift_build_directory
+                swift_build_directory: swift_build_directory,
               )
             FileUtils
               .expects(:copy_entry)

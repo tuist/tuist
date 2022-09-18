@@ -32,7 +32,7 @@ class CommandEventsController < ApplicationController
         :macos_version,
         :machine_hardware_name,
         :is_ci,
-        params: {} # Allow any key inside the params JSON
+        params: {}, # Allow any key inside the params JSON
       )
     end
 

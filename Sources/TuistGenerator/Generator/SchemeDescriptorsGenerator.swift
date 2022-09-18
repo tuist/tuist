@@ -452,6 +452,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let buildConfiguration = scheme.runAction?.configurationName ?? defaultBuildConfiguration
         let disableMainThreadChecker = scheme.runAction?.diagnosticsOptions.contains(.mainThreadChecker) == false
+        let disablePerformanceAntipatternChecker = scheme.runAction?.diagnosticsOptions
+            .contains(.performanceAntipatternChecker) == false
 
         let launchActionConstants: Constants.LaunchAction
         let launcherIdentifier: String
@@ -543,6 +545,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             locationScenarioReference: locationScenarioReference,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode,
             disableMainThreadChecker: disableMainThreadChecker,
+            disablePerformanceAntipatternChecker: disablePerformanceAntipatternChecker,
             commandlineArguments: commandlineArguments,
             environmentVariables: environments,
             language: scheme.runAction?.options.language,

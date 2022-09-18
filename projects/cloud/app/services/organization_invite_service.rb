@@ -59,7 +59,7 @@ class OrganizationInviteService < ApplicationService
         inviter: invitation.inviter,
         invitee_email: invitation.invitee_email,
         organization: organization,
-        token: invitation.token
+        token: invitation.token,
       )
       .deliver_now
     invitation
@@ -82,7 +82,7 @@ class OrganizationInviteService < ApplicationService
       invitation = inviter.invitations.create!(
         invitee_email: invitee_email,
         organization_id: organization.id,
-        token: token
+        token: token,
       )
     rescue ActiveRecord::RecordNotUnique
       raise Error::DuplicateInvitation.new(invitee_email, organization.id)
@@ -92,7 +92,7 @@ class OrganizationInviteService < ApplicationService
         inviter: inviter,
         invitee_email: invitee_email,
         organization: organization,
-        token: token
+        token: token,
       )
       .deliver_now
     invitation

@@ -58,28 +58,28 @@ module Fourier
       type: :string,
       required: false,
       aliases: :p,
-      default: "Fixture"
+      default: "Fixture",
     )
     option(
       :projects,
       desc: "The number of projects to generate",
       type: :numeric,
       required: true,
-      aliases: :P
+      aliases: :P,
     )
     option(
       :targets,
       desc: "The number of targets to generate",
       type: :numeric,
       required: true,
-      aliases: :t
+      aliases: :t,
     )
     option(
       :sources,
       desc: "The number of sources to generate",
       type: :numeric,
       required: true,
-      aliases: :s
+      aliases: :s,
     )
     def fixture
       path = File.expand_path(options[:path], Dir.pwd)
@@ -87,7 +87,7 @@ module Fourier
         path: path,
         projects: options[:projects],
         targets: options[:targets],
-        sources: options[:sources]
+        sources: options[:sources],
       )
     end
 

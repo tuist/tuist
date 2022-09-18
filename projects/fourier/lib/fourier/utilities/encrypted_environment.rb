@@ -14,7 +14,7 @@ module Fourier
         def load_from_ejson(ejson_path, private_key: nil)
           decrypt_environment(
             ejson_path: ejson_path,
-            private_key: private_key
+            private_key: private_key,
           ).each do |key, value|
             ENV[key] = value if key != "_public_key"
           end

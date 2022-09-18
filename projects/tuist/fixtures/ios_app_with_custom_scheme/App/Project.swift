@@ -12,7 +12,8 @@ let debugScheme = Scheme(
     testAction: TestAction.targets(["AppTests"]),
     runAction: .runAction(
         executable: "App",
-        options: .options(simulatedLocation: .johannesburg, enableGPUFrameCaptureMode: .metal)
+        options: .options(simulatedLocation: .johannesburg, enableGPUFrameCaptureMode: .metal),
+        diagnosticsOptions: [.mainThreadChecker]
     )
 )
 
@@ -24,7 +25,11 @@ let releaseScheme = Scheme(
     testAction: TestAction.targets(["AppTests"]),
     runAction: .runAction(
         executable: "App",
-        options: .options(simulatedLocation: .custom(gpxFile: "Resources/Grand Canyon.gpx"), enableGPUFrameCaptureMode: .disabled)
+        options: .options(
+            simulatedLocation: .custom(gpxFile: "Resources/Grand Canyon.gpx"),
+            enableGPUFrameCaptureMode: .disabled
+        ),
+        diagnosticsOptions: [.mainThreadChecker]
     )
 )
 
