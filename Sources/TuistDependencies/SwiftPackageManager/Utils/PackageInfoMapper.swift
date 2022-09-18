@@ -700,10 +700,10 @@ extension ResourceFileElements {
             resourceFileElements += defaultResourcePaths(from: path).map { handleProcessResource(resourceAbsolutePath: $0) }
         }
 
-        // Sanity check
+        // Check for empty resource files
         guard !resourceFileElements.isEmpty else { return nil }
 
-        return .init( resources: resourceFileElements)
+        return .init(resources: resourceFileElements)
     }
 
     // These files are automatically added as resource if they are inside targets directory.
