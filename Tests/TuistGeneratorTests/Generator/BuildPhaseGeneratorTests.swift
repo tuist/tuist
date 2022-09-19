@@ -875,8 +875,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateWatchBuildPhase() throws {
         // Given
-        let app = Target.test(name: "App", product: .app)
-        let watchApp = Target.test(name: "WatchApp", product: .watch2App)
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
         let project = Project.test()
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
@@ -919,7 +919,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateWatchBuildPhase_watchApplication() throws {
         // Given
-        let app = Target.test(name: "App", product: .app)
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .app)
         let project = Project.test()
         let pbxproj = PBXProj()
