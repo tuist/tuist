@@ -591,6 +591,42 @@ class StaticProductsGraphLinterTests: XCTestCase {
         // Then
         XCTAssertTrue(results.isEmpty)
     }
+    
+    func test_lint_whenNoStaticProductLinkedTwice_hostedTestTargets_3() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let appClip = Target.test(name: "AppClip", product: .appClip)
+        let appClipTestsTarget = Target.test(name: "AppClipTests", product: .unitTests)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(targets: [appClip, appClipTestsTarget, staticFramework])
+
+        let appClipDependency = GraphDependency.target(name: appClip.name, path: path)
+        let appClipTestsDependency = GraphDependency.target(name: appClipTestsTarget.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            appClipDependency: Set([staticFrameworkDependency]),
+            appClipTestsDependency: Set([staticFrameworkDependency, appClipDependency]),
+            staticFrameworkDependency: Set([]),
+        ]
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [
+                appClip.name: appClip,
+                appClipTestsTarget.name: appClipTestsTarget,
+                staticFramework.name: staticFramework,
+            ]],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(results.isEmpty)
+    }
 
     func test_lint_whenStaticProductLinkedTwice_hostedTestTargets_1() throws {
         // Given
