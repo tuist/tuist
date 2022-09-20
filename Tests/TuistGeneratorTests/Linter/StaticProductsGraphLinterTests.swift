@@ -591,7 +591,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         // Then
         XCTAssertTrue(results.isEmpty)
     }
-    
+
     func test_lint_whenNoStaticProductLinkedTwice_hostedTestTargets_3() throws {
         // Given
         let path: AbsolutePath = "/project"
