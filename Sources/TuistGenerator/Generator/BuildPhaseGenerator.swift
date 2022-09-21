@@ -502,7 +502,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj: PBXProj
     ) throws {
         let targetDependencies = graphTraverser.directLocalTargetDependencies(path: path, name: target.name).sorted()
-        let watchApps = targetDependencies.filter { $0.target.product == .watch2App }
+        let watchApps = targetDependencies.filter { $0.target.isEmbeddableWatchApplication() }
         guard !watchApps.isEmpty else { return }
         var pbxBuildFiles = [PBXBuildFile]()
 
