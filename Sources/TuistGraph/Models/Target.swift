@@ -178,6 +178,17 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         return false
     }
 
+    /// Determines if the target is an embeddable watch application
+    /// i.e. a product that can be bundled with a host iOS application
+    public func isEmbeddableWatchApplication() -> Bool {
+        switch (platform, product) {
+        case (.watchOS, .watch2App), (.watchOS, .app):
+            return true
+        default:
+            return false
+        }
+    }
+
     /// For iOS targets that support macOS (Catalyst), this value is used
     /// in the generated build files of the target dependency products to
     /// indicate the build system that the dependency should be compiled
