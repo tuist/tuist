@@ -127,6 +127,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             product: product,
             swift: true
         ).toSettings()
+        let additionalTargetDefaults = additionalTargetSettings(for: target)
         let targetDefaultVariant = try BuildSettingsProvider.targetDefault(
             variant: variant,
             platform: platform,
@@ -140,6 +141,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         )
         var settings: SettingsDictionary = [:]
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultAll)
+        settingsHelper.extend(buildSettings: &settings, with: additionalTargetDefaults)
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant)
         settingsHelper.extend(buildSettings: &settings, with: projectOverridableTargetDefaultSettings(for: project))
         return settings.filter(filter)
@@ -179,6 +181,20 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             settings["SWIFT_VERSION"] = "5.0"
         }
         return settings
+    }
+
+    private func additionalTargetSettings(for target: Target) -> SettingsDictionary {
+        switch (target.platform, target.product) {
+        case (.watchOS, .app):
+            return [
+                "LD_RUNPATH_SEARCH_PATHS": [
+                    "$(inherited)",
+                    "@executable_path/Frameworks",
+                ],
+            ]
+        default:
+            return [:]
+        }
     }
 }
 
