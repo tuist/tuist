@@ -267,7 +267,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 }
         }
 
-        let minDeploymentTargets = Platform.oldestVersions.reduce(
+        let version = try Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)
+        let minDeploymentTargets = Platform.oldestVersions(isLegacy: version < TSCUtility.Version(5, 7, 0)).reduce(
             into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()
         ) { acc, next in
             switch next.key {
