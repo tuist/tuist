@@ -26,7 +26,7 @@ public enum Platform: String, CaseIterable, Codable {
                 .watchOS: "2.0",
             ]
         }
-        
+
         /// https://github.com/apple/swift-package-manager/blob/86b245fd68157a0592b1d9ef15284e3b22c3fb44/Sources/PackageModel/Platform.swift#L34-L44
         return [
             .iOS: "11.0",
