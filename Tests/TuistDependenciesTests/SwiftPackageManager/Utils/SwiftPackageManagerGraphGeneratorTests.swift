@@ -61,7 +61,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             """,
             exitstatus: 0
         )
-      system.swiftVersionStub = { "5.7.0" }
+        system.swiftVersionStub = { "5.7.0" }
 
         subject = SwiftPackageManagerGraphGenerator(swiftPackageManagerController: swiftPackageManagerController)
     }
