@@ -1,4 +1,3 @@
-import DOT
 import Foundation
 import GraphViz
 import ProjectAutomation
@@ -109,12 +108,21 @@ final class GraphService {
         if !isGraphVizInstalled() {
             try installGraphViz()
         }
-        let data = try graphVizGraph.render(using: layoutAlgorithm, to: format)
-        FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
 
-        if open {
-            try System.shared.async(["open", filePath.pathString])
+        let semaphore = DispatchSemaphore(value: 0)
+        graphVizGraph.render(using: layoutAlgorithm, to: format) { result in
+            switch result {
+            case let .success(data):
+                FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
+                if open {
+                    try? System.shared.async(["open", filePath.pathString])
+                }
+            case let .failure(error):
+                logger.warning("Graph render failed: \(error.localizedDescription)")
+            }
+            semaphore.signal()
         }
+        semaphore.wait()
     }
 
     private func isGraphVizInstalled() -> Bool {

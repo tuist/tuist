@@ -48,11 +48,11 @@
       },
       {
         "package": "GraphViz",
-        "repositoryURL": "https://github.com/tuist/GraphViz.git",
+        "repositoryURL": "https://github.com/SwiftDocOrg/GraphViz.git",
         "state": {
-          "branch": "tuist",
-          "revision": "6a5f65e2208d66dc2547eb9d2c09213c98b6928d",
-          "version": null
+          "branch": null,
+          "revision": "74b6cbd8c5ecea9f64d84c4e1c88d65604dd033f",
+          "version": "0.4.1"
         }
       },
       {

@@ -56,7 +56,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.1.4"),
         .package(url: "https://github.com/fortmarek/ZIPFoundation.git", revision: "9dbe729b90202c19d0fe1010f1430fa75a576cd3"),
         .package(url: "https://github.com/Flight-School/AnyCodable", from: "0.6.6"),
-        .package(url: "https://github.com/tuist/GraphViz.git", branch: "tuist"),
+        .package(url: "https://github.com/SwiftDocOrg/GraphViz.git", from: "0.4.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.6.2")),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", from: "2.10.1"),
         .package(url: "https://github.com/FabrizioBrancati/Queuer.git", from: "2.1.1"),
