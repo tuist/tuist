@@ -220,7 +220,7 @@ public class GraphTraverser: GraphTraversing {
 
         // Exclude any products embed in unit test host apps
         if target.target.product == .unitTests {
-            if let hostApp = hostApplication(path: path, name: name) {
+            if let hostApp = unitTestHost(path: path, name: name) {
                 references.subtract(embeddableFrameworks(path: hostApp.path, name: hostApp.target.name))
             } else {
                 references = Set()
@@ -306,7 +306,7 @@ public class GraphTraverser: GraphTraversing {
             // however, for search paths it's fine to keep them included
             let hostApplicationStaticTargets: Set<GraphDependency>
             if target.target.product == .unitTests, shouldExcludeHostAppDependencies,
-               let hostApp = hostApplication(path: path, name: name)
+               let hostApp = unitTestHost(path: path, name: name)
             {
                 hostApplicationStaticTargets =
                     transitiveStaticDependencies(from: .target(name: hostApp.target.name, path: hostApp.project.path))
@@ -396,7 +396,7 @@ public class GraphTraverser: GraphTraversing {
         guard let target = target(path: path, name: name),
               canEmbedProducts(target: target.target),
               target.target.product == .unitTests,
-              hostApplication(path: path, name: name) == nil
+              unitTestHost(path: path, name: name) == nil
         else {
             return Set()
         }
@@ -404,7 +404,7 @@ public class GraphTraverser: GraphTraversing {
         var references: Set<AbsolutePath> = Set([])
 
         let from = GraphDependency.target(name: name, path: path)
-        let precompiledFramewoksPaths = filterDependencies(
+        let precompiledFrameworksPaths = filterDependencies(
             from: from,
             test: isDependencyPrecompiledDynamicAndLinkable,
             skip: canDependencyEmbedProducts
@@ -423,7 +423,7 @@ public class GraphTraverser: GraphTraversing {
         }
         .map(\.parentDirectory)
 
-        references.formUnion(precompiledFramewoksPaths)
+        references.formUnion(precompiledFrameworksPaths)
         return references
     }
 
@@ -648,9 +648,9 @@ public class GraphTraverser: GraphTraversing {
         return target.target.canLinkStaticProducts()
     }
 
-    func hostApplication(path: AbsolutePath, name: String) -> GraphTarget? {
+    func unitTestHost(path: AbsolutePath, name: String) -> GraphTarget? {
         directLocalTargetDependencies(path: path, name: name)
-            .first(where: { $0.target.product == .app })
+            .first(where: { $0.target.product.canHostTests() })
     }
 
     func canEmbedProducts(target: Target) -> Bool {
