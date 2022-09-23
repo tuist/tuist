@@ -385,6 +385,43 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenLegacySwift_usesLegacyIOSVersion() throws {
+        system.swiftVersionStub = { "5.6.0" }
+
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(RelativePath("Package/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        XCTAssertEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test("Target1", basePath: basePath, deploymentTarget: .iOS(targetVersion: "9.0", devices: [.iphone, .ipad])),
+                ]
+            )
+        )
+    }
+
     func testMap_whenMacCatalyst() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Sources/Target1"))
@@ -1448,7 +1485,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platform: .tvOS,
                     customProductName: "Target1",
                     customBundleID: "Target1",
-                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    deploymentTarget: .tvOS(targetVersion: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(RelativePath("Package/Sources/Target1/**"))
                             .pathString,
@@ -1537,7 +1574,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, platform: .tvOS, deploymentTarget: .tvOS(targetVersion: "9.0")),
+                    .test("Target1", basePath: basePath, platform: .tvOS, deploymentTarget: .tvOS(targetVersion: "11.0")),
                 ]
             )
         )
@@ -2881,7 +2918,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platform: .tvOS,
                     customProductName: "Target1",
                     customBundleID: "Target1",
-                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    deploymentTarget: .tvOS(targetVersion: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString,
                     ])),
@@ -2908,7 +2945,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platform: .tvOS,
                     customProductName: "Dependency1",
                     customBundleID: "Dependency1",
-                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    deploymentTarget: .tvOS(targetVersion: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(RelativePath("Package/Sources/Dependency1/**")).pathString,
                     ]))
@@ -2929,7 +2966,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platform: .tvOS,
                     customProductName: "Dependency2",
                     customBundleID: "Dependency2",
-                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    deploymentTarget: .tvOS(targetVersion: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(RelativePath("Package/Sources/Dependency2/**")).pathString,
                     ]))
@@ -3024,7 +3061,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platform: .tvOS,
                     customProductName: "Target1",
                     customBundleID: "Target1",
-                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    deploymentTarget: .tvOS(targetVersion: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString,
                     ])),
@@ -3197,7 +3234,7 @@ extension ProjectDescription.Target {
         product: ProjectDescription.Product = .staticFramework,
         customProductName: String? = nil,
         customBundleID: String? = nil,
-        deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "9.0", devices: [.iphone, .ipad]),
+        deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "11.0", devices: [.iphone, .ipad]),
         customSources: SourceFilesListType = .default,
         resources: [ProjectDescription.ResourceFileElement] = [],
         headers: ProjectDescription.Headers? = nil,
