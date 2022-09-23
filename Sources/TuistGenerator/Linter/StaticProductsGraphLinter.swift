@@ -104,22 +104,22 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         linkedBy: Set<GraphDependency>,
         graphTraverser: GraphTraversing
     ) -> [StaticDependencyWarning] {
-        // Common dependencies between test bundles and their host apps are automatically omitted
+        // Common dependencies between test bundles and their hosts are automatically omitted
         // during generation - as such those shouldn't be flagged
         //
         // reference: https://github.com/tuist/tuist/pull/664
-        let apps: Set<GraphDependency> = linkedBy.filter { dependency -> Bool in
+        let hosts: Set<GraphDependency> = linkedBy.filter { dependency -> Bool in
             guard case let GraphDependency.target(targetName, targetPath) = dependency else { return false }
             guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
-            return target.target.product == .app
+            return target.target.product.canHostTests()
         }
         let hostedTestBundles = linkedBy.filter { dependency -> Bool in
             guard case let GraphDependency.target(targetName, targetPath) = dependency else { return false }
             guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
 
             let isTestsBundle = target.target.product.testsBundle
-            let hasHostApp = dependencies(for: dependency, graphTraverser: graphTraverser).contains(where: { apps.contains($0) })
-            return isTestsBundle && hasHostApp
+            let hasHost = dependencies(for: dependency, graphTraverser: graphTraverser).contains(where: { hosts.contains($0) })
+            return isTestsBundle && hasHost
         }
 
         let links = linkedBy.subtracting(hostedTestBundles)
