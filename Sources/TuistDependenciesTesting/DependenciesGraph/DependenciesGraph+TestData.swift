@@ -81,13 +81,7 @@ extension TuistCore.DependenciesGraph {
                         ),
                     ],
                     resources: [
-                        .glob(
-                            pattern: "\(packageFolder.pathString)/customPath/resources/**",
-                            excluding: [
-                                "\(packageFolder.pathString)/customPath/excluded/sources/**",
-                            ],
-                            tags: []
-                        ),
+                        .folderReference(path: "\(packageFolder.pathString)/customPath/resources", tags: []),
                     ],
                     dependencies: [
                         .target(name: self.resolveTargetName(targetName: "TuistKit", for: platform, addSuffix: addPlatfomSuffix)),
