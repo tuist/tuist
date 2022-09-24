@@ -655,26 +655,54 @@ extension ResourceFileElements {
         path: AbsolutePath,
         excluding: [String]
     ) -> Self? {
-        var resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
-        if sources == nil {
-            // SPM automatically includes resources only if custom sources are not specified
-            resourcesPaths += defaultResourcePaths(from: path)
+        /// Handles the conversion of a `.copy` resource rule of SPM
+        ///
+        /// - Parameters:
+        ///   - resourceAbsolutePath: The absolute path of that resource
+        /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.copy` resource rule of SPM
+        func handleCopyResource(resourceAbsolutePath: AbsolutePath) -> ProjectDescription.ResourceFileElement {
+            .folderReference(path: Path(resourceAbsolutePath.pathString))
         }
-        guard !resourcesPaths.isEmpty else { return nil }
 
-        return .init(
-            resources: resourcesPaths.map { absolutePath in
-                let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
-                return .glob(
-                    pattern: Path(absolutePathGlob.pathString),
-                    excluding: excluding.map {
-                        let excludePath = path.appending(RelativePath($0))
-                        let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
-                        return Path(excludeGlob.pathString)
-                    }
-                )
+        /// Handles the conversion of a `.process` resource rule of SPM
+        ///
+        /// - Parameters:
+        ///   - resourceAbsolutePath: The absolute path of that resource
+        /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.process` resource rule of SPM
+        func handleProcessResource(resourceAbsolutePath: AbsolutePath) -> ProjectDescription.ResourceFileElement {
+            let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
+                .appending(component: "**")
+            return .glob(
+                pattern: Path(absolutePathGlob.pathString),
+                excluding: excluding.map {
+                    let excludePath = path.appending(RelativePath($0))
+                    let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
+                    return Path(excludeGlob.pathString)
+                }
+            )
+        }
+
+        var resourceFileElements: [ProjectDescription.ResourceFileElement] = resources.map {
+            let resourceAbsolutePath = path.appending(RelativePath($0.path))
+
+            switch $0.rule {
+            case .copy:
+                return handleCopyResource(resourceAbsolutePath: resourceAbsolutePath)
+            case .process:
+                return handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
             }
-        )
+        }
+
+        // Add default resources path if necessary
+        // They are handled like a `.process` rule
+        if sources == nil {
+            resourceFileElements += defaultResourcePaths(from: path).map { handleProcessResource(resourceAbsolutePath: $0) }
+        }
+
+        // Check for empty resource files
+        guard !resourceFileElements.isEmpty else { return nil }
+
+        return .init(resources: resourceFileElements)
     }
 
     // These files are automatically added as resource if they are inside targets directory.
