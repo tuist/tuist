@@ -676,6 +676,55 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
+    func test_lint_watch_application_withWidgetExtension() throws {
+        // Note: This was introduced in Xcode 14 / watchOS 9
+        // watchOS applications can now use WidgetKit extensions
+
+        // Given
+        let path: AbsolutePath = "/project"
+        let widgetExtension = Target.empty(
+            name: "WidgetExtension",
+            platform: .watchOS,
+            product: .appExtension // WidgetKit extension targets are `.appExtension` targets with custom info plist key
+        )
+        let watchApplication = Target.empty(
+            name: "WatchApp",
+            platform: .watchOS,
+            product: .app,
+            dependencies: [
+                .target(name: widgetExtension.name),
+            ]
+        )
+        let project = Project.test(path: path, targets: [watchApplication, widgetExtension])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: watchApplication.name, path: path): [
+                .target(name: widgetExtension.name, path: path),
+            ],
+            .target(name: widgetExtension.name, path: path): [],
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [
+                path: [
+                    watchApplication.name: watchApplication,
+                    widgetExtension.name: widgetExtension,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
+
     func test_lint_iOSApp_withCompanionWatchApplication() throws {
         // Given
         let path: AbsolutePath = "/project"
