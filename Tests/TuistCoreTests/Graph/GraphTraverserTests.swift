@@ -2653,15 +2653,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(
-                name: app.name,
-                path: project.path
-            ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
-            .target(name: staticFramework.name, path: project.path): Set(),
-            .target(name: tests.name, path: project.path): Set(
-                arrayLiteral: .target(name: staticFramework.name, path: project.path),
-                .target(name: app.name, path: project.path)
-            ),
+            .target(name: app.name, path: project.path): [
+                .target(name: staticFramework.name, path: project.path),
+            ],
+            .target(name: staticFramework.name, path: project.path): [],
+            .target(name: tests.name, path: project.path): [
+                .target(name: staticFramework.name, path: project.path),
+                .target(name: app.name, path: project.path),
+            ],
         ]
         let graph = Graph.test(
             projects: [project.path: project],
@@ -2678,6 +2677,48 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: tests.name).sorted()
 
         // Then
+        // common static products are not linked in the test target
+        // as the are already present in the test host
+        XCTAssertTrue(got.isEmpty)
+    }
+
+    func test_linkableDependencies_whenAppClipHostedTestTarget_withCommonStaticProducts() throws {
+        // Given
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            product: .staticFramework
+        )
+
+        let appClip = Target.test(name: "AppClip", product: .appClip)
+        let tests = Target.test(name: "AppClipTests", product: .unitTests)
+        let project = Project.test(path: "/path/a")
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: appClip.name, path: project.path): [
+                .target(name: staticFramework.name, path: project.path),
+            ],
+            .target(name: staticFramework.name, path: project.path): [],
+            .target(name: tests.name, path: project.path): [
+                .target(name: staticFramework.name, path: project.path),
+                .target(name: appClip.name, path: project.path),
+            ],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [
+                appClip.name: appClip,
+                staticFramework.name: staticFramework,
+                tests.name: tests,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: tests.name).sorted()
+
+        // Then
+        // common static products are not linked in the test target
+        // as the are already present in the test host
         XCTAssertTrue(got.isEmpty)
     }
 

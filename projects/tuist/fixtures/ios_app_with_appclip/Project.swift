@@ -25,6 +25,15 @@ let project = Project(
             dependencies: []
         ),
         Target(
+            name: "StaticFramework",
+            platform: .iOS,
+            product: .staticFramework,
+            bundleId: "io.tuist.StaticFramework",
+            infoPlist: .default,
+            sources: ["StaticFramework/Sources/**"],
+            dependencies: []
+        ),
+        Target(
             name: "AppClip1",
             platform: .iOS,
             product: .appClip,
@@ -34,6 +43,7 @@ let project = Project(
             entitlements: "AppClip1/Entitlements/AppClip.entitlements",
             dependencies: [
                 .target(name: "Framework"),
+                .target(name: "StaticFramework"),
             ]
         ),
         Target(
@@ -45,6 +55,7 @@ let project = Project(
             sources: ["AppClip1Tests/Tests/**"],
             dependencies: [
                 .target(name: "AppClip1"),
+                .target(name: "StaticFramework"),
             ]
         ),
         Target(
