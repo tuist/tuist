@@ -829,6 +829,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
+
         XCTAssertEqual(
             project,
             .testWithDefaultConfigs(
@@ -849,17 +850,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ),
                         ])),
                         resources: [
-                            .glob(
-                                pattern: Path(
-                                    basePath.appending(RelativePath("Package/Sources/Target1/Resource/Folder/**"))
+                            .folderReference(
+                                path: Path(
+                                    basePath.appending(RelativePath("Package/Sources/Target1/Resource/Folder"))
                                         .pathString
                                 ),
-                                excluding: [
-                                    Path(
-                                        basePath.appending(RelativePath("Package/Sources/Target1/AnotherOne/Resource/**"))
-                                            .pathString
-                                    ),
-                                ],
                                 tags: []
                             ),
                             .glob(
@@ -1330,6 +1325,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
+
         XCTAssertEqual(
             project,
             .testWithDefaultConfigs(
@@ -1343,9 +1339,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .appending(RelativePath("Package/Custom/Sources/Folder/**")).pathString,
                         ])),
                         resources: [
-                            .init(
-                                stringLiteral: basePath.appending(RelativePath("Package/Custom/Resource/Folder/**"))
-                                    .pathString
+                            .folderReference(
+                                path: Path(
+                                    basePath.appending(RelativePath("Package/Custom/Resource/Folder"))
+                                        .pathString
+                                ),
+                                tags: []
                             ),
                         ],
                         customSettings: [

@@ -30,7 +30,7 @@ let project = Project(
             sources: "WatchApp/Sources/**",
             resources: "WatchApp/Resources/**",
             dependencies: [
-                // ...
+                .target(name: "WatchWidgetExtension"),
             ],
             settings: .settings(
                 base: [
@@ -45,6 +45,22 @@ let project = Project(
                     "INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp": false,
                 ]
             )
+        ),
+        Target(
+            name: "WatchWidgetExtension",
+            platform: .watchOS,
+            product: .appExtension,
+            bundleId: "io.tuist.App.watchkitapp.widgetExtension",
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "$(PRODUCT_NAME)",
+                "NSExtension": [
+                    "NSExtensionPointIdentifier": "com.apple.widgetkit-extension",
+                ],
+            ]),
+            sources: "WatchWidgetExtension/Sources/**",
+            resources: "WatchWidgetExtension/Resources/**",
+            dependencies: [
+            ]
         ),
     ]
 )
