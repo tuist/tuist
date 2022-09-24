@@ -16,47 +16,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        system.stubs["/usr/bin/xcrun --sdk iphoneos --show-sdk-platform-path"] = (
-            stderror: nil,
-            stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform\n",
-            exitstatus: 0
-        )
-        system.stubs[
-            "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
-        ] = (
-            stderror: nil,
-            stdout: """
-            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7):
-            Load command 8
-                  cmd LC_VERSION_MIN_IPHONEOS
-              cmdsize 16
-              version 9.0
-                  sdk 15.0
-            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7s):
-            Load command 8
-                  cmd LC_VERSION_MIN_IPHONEOS
-              cmdsize 16
-              version 9.0
-                  sdk 15.0
-            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
-            Load command 8
-                  cmd LC_VERSION_MIN_IPHONEOS
-              cmdsize 16
-              version 9.0
-                  sdk 15.0
-            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
-            Load command 9
-                  cmd LC_BUILD_VERSION
-              cmdsize 32
-             platform IOS
-                minos 14.0
-                  sdk 15.0
-               ntools 1
-                 tool LD
-              version 711.0
-            """,
-            exitstatus: 0
-        )
         system.swiftVersionStub = { "5.7.0" }
         subject = PackageInfoMapper()
     }
@@ -1515,38 +1474,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenIOSNotAvailable_takesOthers() throws {
-        system.stubs = [:]
-        system.stubs["/usr/bin/xcrun --sdk appletvos --show-sdk-platform-path"] = (
-            stderror: nil,
-            stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform\n",
-            exitstatus: 0
-        )
-        system
-            .stubs[
-                "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
-            ] =
-            (
-                stderror: nil,
-                stdout: """
-                /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
-                Load command 8
-                      cmd LC_VERSION_MIN_TVOS
-                  cmdsize 16
-                  version 9.0
-                      sdk 15.0
-                /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
-                Load command 9
-                      cmd LC_BUILD_VERSION
-                   cmdsize 32
-                  platform TVOS
-                     minos 14.0
-                       sdk 15.0
-                    ntools 1
-                      tool LD
-                   version 711.0
-                """,
-                exitstatus: 0
-            )
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
