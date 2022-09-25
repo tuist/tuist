@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.12.0 - 2022-09-25
+
+### Added
+
+- Add support for Xcode 14 compatible watch application targets [#4658](https://github.com/tuist/tuist/pull/4658) by [@kwridan](https://github.com/kwridan)
+- Add support for watchOS app extension dependencies [#4773](https://github.com/tuist/tuist/pull/4773) by [@kwridan](https://github.com/kwridan)
+
+### Fixed
+
+- Allow AppClip tests and their associated AppClip to include the same static framework [#4766](https://github.com/tuist/tuist/pull/4766) by [@regularberry](https://github.com/regularberry)
+- Fix SwiftPackageManager copy rule parsing [#4733](https://github.com/tuist/tuist/pull/4733) by [@alexanderwe](https://github.com/alexanderwe)
+- Fix warnings in dependencies project generated with Xcode 14 [#4770](https://github.com/tuist/tuist/pull/4770) by [@danyf90](https://github.com/danyf90)
+
 ## 3.11.0 - 2022-09-15
 
 ### Added
