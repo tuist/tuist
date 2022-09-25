@@ -674,7 +674,7 @@ extension PackageInfo {
                 ),
             ],
             platforms: [
-                .init(platformName: "ios", version: "10.0", options: []),
+                .init(platformName: "ios", version: "11.0", options: []),
                 .init(platformName: "macos", version: "10.15", options: []),
                 .init(platformName: "watchos", version: "8.5", options: []),
             ],

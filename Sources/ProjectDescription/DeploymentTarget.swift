@@ -19,4 +19,12 @@ public enum DeploymentTarget: Codable, Hashable {
         case watchOS
         case tvOS
     }
+
+    /// The target platform version
+    public var targetVersion: String {
+        switch self {
+        case let .iOS(targetVersion, _), let .macOS(targetVersion), let .watchOS(targetVersion), let .tvOS(targetVersion):
+            return targetVersion
+        }
+    }
 }

@@ -267,7 +267,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 }
         }
 
-        let minDeploymentTargets = Platform.oldestVersions.reduce(
+        let version = try Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)
+        let minDeploymentTargets = Platform.oldestVersions(isLegacy: version < TSCUtility.Version(5, 7, 0)).reduce(
             into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()
         ) { acc, next in
             switch next.key {
@@ -553,23 +554,33 @@ extension ProjectDescription.DeploymentTarget {
         packageName _: String
     ) throws -> Self {
         if let packagePlatform = package.first(where: { $0.tuistPlatformName == platform.rawValue }) {
+            // Deployment targets below the minimum one raises warnings
+            let targetVersion = try Self.max(packagePlatform.version, minDeploymentTargets[platform]?.targetVersion)
+
             switch platform {
             case .iOS:
                 let hasMacCatalyst = package.contains(where: { $0.platformName == "maccatalyst" })
                 return .iOS(
-                    targetVersion: packagePlatform.version,
+                    targetVersion: targetVersion,
                     devices: hasMacCatalyst ? [.iphone, .ipad, .mac] : [.iphone, .ipad]
                 )
             case .macOS:
-                return .macOS(targetVersion: packagePlatform.version)
+                return .macOS(targetVersion: targetVersion)
             case .watchOS:
-                return .watchOS(targetVersion: packagePlatform.version)
+                return .watchOS(targetVersion: targetVersion)
             case .tvOS:
-                return .tvOS(targetVersion: packagePlatform.version)
+                return .tvOS(targetVersion: targetVersion)
             }
         } else {
             return minDeploymentTargets[platform]!
         }
+    }
+
+    fileprivate static func max(_ lVersionString: String, _ rVersionString: String?) throws -> String {
+        guard let rVersionString = rVersionString else { return lVersionString }
+        let lVersion = try Version(versionString: lVersionString, usesLenientParsing: true)
+        let rVersion = try Version(versionString: rVersionString, usesLenientParsing: true)
+        return lVersion > rVersion ? lVersionString : rVersionString
     }
 }
 
