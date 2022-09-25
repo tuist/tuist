@@ -16,49 +16,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        system.stubs["/usr/bin/xcrun --sdk iphoneos --show-sdk-platform-path"] = (
-            stderror: nil,
-            stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform\n",
-            exitstatus: 0
-        )
-        system
-            .stubs[
-                "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
-            ] =
-            (
-                stderror: nil,
-                stdout: """
-                /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7):
-                Load command 8
-                      cmd LC_VERSION_MIN_IPHONEOS
-                  cmdsize 16
-                  version 9.0
-                      sdk 15.0
-                /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7s):
-                Load command 8
-                      cmd LC_VERSION_MIN_IPHONEOS
-                  cmdsize 16
-                  version 9.0
-                      sdk 15.0
-                /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
-                Load command 8
-                      cmd LC_VERSION_MIN_IPHONEOS
-                  cmdsize 16
-                  version 9.0
-                      sdk 15.0
-                /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
-                Load command 9
-                      cmd LC_BUILD_VERSION
-                  cmdsize 32
-                 platform IOS
-                    minos 14.0
-                      sdk 15.0
-                   ntools 1
-                     tool LD
-                  version 711.0
-                """,
-                exitstatus: 0
-            )
+        system.swiftVersionStub = { "5.7.0" }
         subject = PackageInfoMapper()
     }
 
@@ -381,6 +339,43 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 name: "Package",
                 targets: [
                     .test("Target1", basePath: basePath),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenLegacySwift_usesLegacyIOSVersion() throws {
+        system.swiftVersionStub = { "5.6.0" }
+
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(RelativePath("Package/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        XCTAssertEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test("Target1", basePath: basePath, deploymentTarget: .iOS(targetVersion: "9.0", devices: [.iphone, .ipad])),
                 ]
             )
         )
@@ -1448,7 +1443,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platform: .tvOS,
                     customProductName: "Target1",
                     customBundleID: "Target1",
-                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    deploymentTarget: .tvOS(targetVersion: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(RelativePath("Package/Sources/Target1/**"))
                             .pathString,
@@ -1478,38 +1473,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenIOSNotAvailable_takesOthers() throws {
-        system.stubs = [:]
-        system.stubs["/usr/bin/xcrun --sdk appletvos --show-sdk-platform-path"] = (
-            stderror: nil,
-            stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform\n",
-            exitstatus: 0
-        )
-        system
-            .stubs[
-                "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
-            ] =
-            (
-                stderror: nil,
-                stdout: """
-                /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
-                Load command 8
-                      cmd LC_VERSION_MIN_TVOS
-                  cmdsize 16
-                  version 9.0
-                      sdk 15.0
-                /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
-                Load command 9
-                      cmd LC_BUILD_VERSION
-                   cmdsize 32
-                  platform TVOS
-                     minos 14.0
-                       sdk 15.0
-                    ntools 1
-                      tool LD
-                   version 711.0
-                """,
-                exitstatus: 0
-            )
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
@@ -1537,7 +1500,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, platform: .tvOS, deploymentTarget: .tvOS(targetVersion: "9.0")),
+                    .test("Target1", basePath: basePath, platform: .tvOS, deploymentTarget: .tvOS(targetVersion: "11.0")),
                 ]
             )
         )
@@ -2881,7 +2844,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platform: .tvOS,
                     customProductName: "Target1",
                     customBundleID: "Target1",
-                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    deploymentTarget: .tvOS(targetVersion: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString,
                     ])),
@@ -2908,7 +2871,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platform: .tvOS,
                     customProductName: "Dependency1",
                     customBundleID: "Dependency1",
-                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    deploymentTarget: .tvOS(targetVersion: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(RelativePath("Package/Sources/Dependency1/**")).pathString,
                     ]))
@@ -2929,7 +2892,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platform: .tvOS,
                     customProductName: "Dependency2",
                     customBundleID: "Dependency2",
-                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    deploymentTarget: .tvOS(targetVersion: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(RelativePath("Package/Sources/Dependency2/**")).pathString,
                     ]))
@@ -3024,7 +2987,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     platform: .tvOS,
                     customProductName: "Target1",
                     customBundleID: "Target1",
-                    deploymentTarget: .tvOS(targetVersion: "9.0"),
+                    deploymentTarget: .tvOS(targetVersion: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(RelativePath("Package/Sources/Target1/**")).pathString,
                     ])),
@@ -3197,7 +3160,7 @@ extension ProjectDescription.Target {
         product: ProjectDescription.Product = .staticFramework,
         customProductName: String? = nil,
         customBundleID: String? = nil,
-        deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "9.0", devices: [.iphone, .ipad]),
+        deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "11.0", devices: [.iphone, .ipad]),
         customSources: SourceFilesListType = .default,
         resources: [ProjectDescription.ResourceFileElement] = [],
         headers: ProjectDescription.Headers? = nil,
