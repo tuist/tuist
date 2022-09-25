@@ -49,6 +49,8 @@ jobs:
         run: |
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
+      - name: Install graphviz
+        run: brew install graphviz
       - name: Build
         run: |
           ./fourier build tuist all
@@ -72,6 +74,8 @@ jobs:
         run: |
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
+      - name: Install graphviz
+        run: brew install graphviz
       - name: Generate
         run: |
           ./fourier generate tuist --targets tuist
@@ -95,6 +99,8 @@ jobs:
         run: |
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
+      - name: Install graphviz
+        run: brew install graphviz
       - name: Test
         run: |
           ./fourier test tuist unit

@@ -57,6 +57,8 @@ jobs:
         run: |
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
+      - name: Install graphviz
+        run: brew install graphviz
       - name: Run tests
         run: |
           ./fourier test tuist unit
@@ -73,6 +75,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
+      - name: Install graphviz
+        run: brew install graphviz
       - name: Select Xcode for Tuist and Tuistenv
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Build Tuist for release
