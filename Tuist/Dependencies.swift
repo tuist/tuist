@@ -21,7 +21,7 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.6.0")),
             .package(url: "https://github.com/SwiftDocOrg/GraphViz.git", .exact("0.2.0")),
             .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "1.1.4")),
-            .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.6.2")),
+            .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.5.1")),
         ]
     ),
     platforms: [.macOS]
