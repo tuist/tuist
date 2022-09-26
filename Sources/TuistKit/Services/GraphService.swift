@@ -1,6 +1,8 @@
+import DOT
 import Foundation
 import GraphViz
 import ProjectAutomation
+import Tools
 import TSCBasic
 import TuistCore
 import TuistGenerator
@@ -99,7 +101,7 @@ final class GraphService {
     }
 
     private func exportImageRepresentation(
-        from graphVizGraph: GraphViz.Graph,
+        from graph: GraphViz.Graph,
         at filePath: AbsolutePath,
         layoutAlgorithm: LayoutAlgorithm,
         format: GraphViz.Format,
@@ -109,20 +111,11 @@ final class GraphService {
             try installGraphViz()
         }
 
-        let semaphore = DispatchSemaphore(value: 0)
-        graphVizGraph.render(using: layoutAlgorithm, to: format) { result in
-            switch result {
-            case let .success(data):
-                FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
-                if open {
-                    try? System.shared.async(["open", filePath.pathString])
-                }
-            case let .failure(error):
-                logger.warning("Graph render failed: \(error.localizedDescription)")
-            }
-            semaphore.signal()
+        let data = try Renderer(layout: layoutAlgorithm).render(graph: graph, to: format)
+        FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
+        if open {
+            try System.shared.async(["open", filePath.pathString])
         }
-        semaphore.wait()
     }
 
     private func isGraphVizInstalled() -> Bool {
