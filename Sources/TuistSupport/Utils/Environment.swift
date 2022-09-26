@@ -1,6 +1,5 @@
 import Darwin.C
 import Foundation
-import SwiftDotenv
 import TSCBasic
 
 /// Protocol that defines the interface of a local environment controller.
@@ -78,8 +77,13 @@ public class Environment: Environmenting {
 
     /// Sets up the local environment.
     public func bootstrap() throws {
-        // load `.env` variables into the current process
-        try Dotenv.configure()
+        // load `.env` variables into `ProcessInfo.processInfo`
+        do {
+            try Dotenv.configure()
+        } catch {
+            // log the error and silently fail
+            print(error)
+        }
         try [directory, versionsDirectory].forEach {
             if !fileHandler.exists($0) {
                 try fileHandler.createFolder($0)
