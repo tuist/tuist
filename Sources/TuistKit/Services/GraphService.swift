@@ -2,6 +2,7 @@ import DOT
 import Foundation
 import GraphViz
 import ProjectAutomation
+import Tools
 import TSCBasic
 import TuistCore
 import TuistGenerator
@@ -100,7 +101,7 @@ final class GraphService {
     }
 
     private func exportImageRepresentation(
-        from graphVizGraph: GraphViz.Graph,
+        from graph: GraphViz.Graph,
         at filePath: AbsolutePath,
         layoutAlgorithm: LayoutAlgorithm,
         format: GraphViz.Format,
@@ -109,9 +110,9 @@ final class GraphService {
         if !isGraphVizInstalled() {
             try installGraphViz()
         }
-        let data = try graphVizGraph.render(using: layoutAlgorithm, to: format)
-        FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
 
+        let data = try Renderer(layout: layoutAlgorithm).render(graph: graph, to: format)
+        FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
         if open {
             try System.shared.async(["open", filePath.pathString])
         }

@@ -40,7 +40,7 @@ With it you'll also get familiar with the most used elements from the Foundation
 To contribute to Tuist, minimum requirements are:
 
 - `macOS 12.0+`
-- `Xcode 13.2+`
+- `Xcode 13.3+`
 
 ### Set up the project locally
 
