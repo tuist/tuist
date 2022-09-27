@@ -16,12 +16,12 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/Flight-School/AnyCodable", from: "0.6.6"),
             .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
             .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.15.1")),
-            .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .upToNextMajor(from: "2.10.1")),
+            .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .exact("2.8.0")),
             .package(url: "https://github.com/FabrizioBrancati/Queuer.git", .upToNextMajor(from: "2.1.1")),
             .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.6.0")),
             .package(url: "https://github.com/SwiftDocOrg/GraphViz.git", .exact("0.2.0")),
             .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "1.1.4")),
-            .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.5.1")),
+            .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.5.0")),
         ]
     ),
     platforms: [.macOS]
