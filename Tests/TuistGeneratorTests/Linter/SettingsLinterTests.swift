@@ -101,7 +101,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
 
     func test_lint_project_when_platform_and_deployment_target_are_compatible() {
         // Given
-        let target = Target.test(platform: .macOS, deploymentTarget: .macOS("10.14.5"))
+        let target = Target.test(platform: .macOS, deploymentTargets: [.macOS("10.14.5")])
 
         // When
         let got = subject.lint(target: target)
@@ -112,7 +112,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
 
     func test_lint_project_when_platform_and_deployment_target_are_not_compatible() {
         // Given
-        let target = Target.test(platform: .iOS, deploymentTarget: .macOS("10.14.5"))
+        let target = Target.test(platform: .iOS, deploymentTargets: [.macOS("10.14.5")])
 
         // When
         let got = subject.lint(target: target)

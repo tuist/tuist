@@ -237,7 +237,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let validVersions = ["10.0", "9.0.1"]
         for version in validVersions {
             // Given
-            let target = Target.test(platform: .macOS, deploymentTarget: .macOS(version))
+            let target = Target.test(platform: .macOS, deploymentTargets: [.macOS(version)])
 
             // When
             let got = subject.lint(target: target)
@@ -254,7 +254,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let validVersions = ["tuist", "tuist9.0.1", "1.0tuist", "10_0", "1_1_3"]
         for version in validVersions {
             // Given
-            let target = Target.test(platform: .macOS, deploymentTarget: .macOS(version))
+            let target = Target.test(platform: .macOS, deploymentTargets: [.macOS(version)])
 
             // When
             let got = subject.lint(target: target)
@@ -273,7 +273,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         ]
         for combinations in invalidCombinations {
             // Given
-            let target = Target.test(platform: combinations.0, deploymentTarget: combinations.1)
+            let target = Target.test(platform: combinations.0, deploymentTargets: [combinations.1])
 
             // When
             let got = subject.lint(target: target)

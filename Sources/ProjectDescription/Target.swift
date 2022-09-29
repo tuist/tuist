@@ -17,8 +17,8 @@ public struct Target: Codable, Equatable {
     /// The product bundle identifier.
     public let bundleId: String
 
-    /// The minimum deployment target your product will support.
-    public let deploymentTarget: DeploymentTarget?
+    /// The minimum deployment targets your product will support.
+    public let deploymentTargets: [DeploymentTarget]
 
     /// The Info.plist representation.
     public let infoPlist: InfoPlist?
@@ -67,7 +67,7 @@ public struct Target: Codable, Equatable {
         product: Product,
         productName: String? = nil,
         bundleId: String,
-        deploymentTarget: DeploymentTarget? = nil,
+        deploymentTargets: [DeploymentTarget] = [],
         infoPlist: InfoPlist? = .default,
         sources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil,
@@ -99,7 +99,7 @@ public struct Target: Codable, Equatable {
         self.coreDataModels = coreDataModels
         self.environment = environment
         self.launchArguments = launchArguments
-        self.deploymentTarget = deploymentTarget
+        self.deploymentTargets = deploymentTargets
         self.additionalFiles = additionalFiles
     }
 }

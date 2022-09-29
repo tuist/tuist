@@ -30,7 +30,7 @@ extension TuistGraph.TargetDependency {
         manifest: ProjectDescription.TargetDependency,
         generatorPaths: GeneratorPaths,
         externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]],
-        platform: TuistGraph.Platform
+        platforms: [TuistGraph.Platform]
     ) throws -> [TuistGraph.TargetDependency] {
         switch manifest {
         case let .target(name):
@@ -61,9 +61,16 @@ extension TuistGraph.TargetDependency {
         case .xctest:
             return [.xctest]
         case let .external(name):
-            guard let dependencies = externalDependencies[platform]?[name] else {
-                throw TargetDependencyMapperError.invalidExternalDependency(name: name, platform: platform.rawValue)
+            var dependencies = [TuistGraph.TargetDependency]()
+            
+            for platform in platforms {
+                guard let platformDependencies = externalDependencies[platform]?[name] else {
+                    throw TargetDependencyMapperError.invalidExternalDependency(name: name, platform: platform.rawValue)
+                }
+                
+                dependencies.append(contentsOf: platformDependencies)
             }
+            
             return dependencies
         }
     }

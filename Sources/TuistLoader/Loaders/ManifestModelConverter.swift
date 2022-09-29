@@ -91,7 +91,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
                         manifest: targetDependencyManifest,
                         generatorPaths: GeneratorPaths(manifestDirectory: path),
                         externalDependencies: [:], // externalDependencies manifest can't contain other external dependencies,
-                        platform: TuistGraph.Platform.from(manifest: platform)
+                        platforms: [TuistGraph.Platform.from(manifest: platform)]
                     )
                 }
             }

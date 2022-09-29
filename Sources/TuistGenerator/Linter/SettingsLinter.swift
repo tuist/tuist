@@ -25,7 +25,7 @@ final class SettingsLinter: SettingsLinting {
             issues.append(contentsOf: lintConfigFilesExist(settings: settings))
         }
 
-        if let deploymentTarget = target.deploymentTarget {
+        for deploymentTarget in target.deploymentTargets {
             issues.append(contentsOf: lint(platform: target.platform, isCompatibleWith: deploymentTarget))
         }
         return issues
@@ -67,11 +67,10 @@ final class SettingsLinter: SettingsLinting {
         )
 
         switch deploymentTarget {
-        case .iOS: if platform != .iOS { return [issue] }
-        case .macOS: if platform != .macOS { return [issue] }
         case .watchOS: if platform != .watchOS { return [issue] }
-        case .tvOS: if platform != .tvOS { return [issue] }
+        default: break
         }
+        
         return []
     }
 }

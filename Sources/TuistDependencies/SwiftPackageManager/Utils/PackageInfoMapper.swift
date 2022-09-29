@@ -535,7 +535,7 @@ extension ProjectDescription.Target {
                 .replacingOccurrences(of: "-", with: "_"),
             bundleId: target.name
                 .replacingOccurrences(of: "_", with: "-"),
-            deploymentTarget: deploymentTarget,
+            deploymentTargets: [deploymentTarget],
             infoPlist: .default,
             sources: sources,
             resources: resources,

@@ -19,4 +19,23 @@ extension TuistGraph.Platform {
             return .watchOS
         }
     }
+    
+    static func from(manifest: ProjectDescription.Target) throws -> [TuistGraph.Platform] {
+        var platforms = [TuistGraph.Platform]()
+        
+        for deploymentTarget in manifest.deploymentTargets {
+            switch deploymentTarget {
+            case .macOS:
+                platforms.append(.macOS)
+            case .iOS:
+                platforms.append(.iOS)
+            case .tvOS:
+                platforms.append(.tvOS)
+            case .watchOS:
+                platforms.append(.watchOS)
+            }
+        }
+        
+        return platforms
+    }
 }

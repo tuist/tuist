@@ -72,7 +72,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.product, .bundle)
         XCTAssertEqual(resourcesTarget.platform, target.platform)
         XCTAssertEqual(resourcesTarget.bundleId, "\(target.bundleId).resources")
-        XCTAssertEqual(resourcesTarget.deploymentTarget, target.deploymentTarget)
+        XCTAssertEqual(resourcesTarget.deploymentTargets, target.deploymentTargets)
         XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
         XCTAssertEqual(resourcesTarget.resources, resources)
         XCTAssertEqual(resourcesTarget.settings?.base, [
@@ -143,7 +143,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.product, .bundle)
         XCTAssertEqual(resourcesTarget.platform, target.platform)
         XCTAssertEqual(resourcesTarget.bundleId, "\(target.bundleId).resources")
-        XCTAssertEqual(resourcesTarget.deploymentTarget, target.deploymentTarget)
+        XCTAssertEqual(resourcesTarget.deploymentTargets, target.deploymentTargets)
         XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
         XCTAssertEqual(resourcesTarget.coreDataModels, coreDataModels)
     }

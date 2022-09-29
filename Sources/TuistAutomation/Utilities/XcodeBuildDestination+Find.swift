@@ -25,7 +25,7 @@ extension XcodeBuildDestination {
         switch target.platform {
         case .iOS, .tvOS, .watchOS:
             let minVersion: Version?
-            if let deploymentTarget = target.deploymentTarget {
+            if let deploymentTarget = target.deploymentTargets.first {
                 minVersion = deploymentTarget.version.version()
             } else {
                 minVersion = scheme.targetDependencies()
@@ -33,8 +33,8 @@ extension XcodeBuildDestination {
                         graphTraverser
                             .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)
                             .map(\.target)
-                            .map(\.deploymentTarget)
-                            .compactMap { $0?.version.version() }
+                            .map(\.deploymentTargets)
+                            .compactMap { $0.first!.version.version() }
                     }
                     .sorted()
                     .first
@@ -48,6 +48,7 @@ extension XcodeBuildDestination {
             )
             return .device(deviceAndRuntime.device.udid)
         case .macOS:
+            print("1111")
             return .mac
         }
     }

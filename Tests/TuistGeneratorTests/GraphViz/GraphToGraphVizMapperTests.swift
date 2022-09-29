@@ -219,7 +219,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let watchApp = GraphTarget.test(target: Target.test(
             name: "Tuist watchOS",
             platform: .watchOS,
-            deploymentTarget: .watchOS("6")
+            deploymentTargets: [.watchOS("6")]
         ))
 
         let externalTarget = GraphTarget.test(path: externalProject.path, target: Target.test(name: "External dependency"))

@@ -42,7 +42,7 @@ public class ResourcesProjectMapper: ProjectMapping {
                 product: .bundle,
                 productName: nil,
                 bundleId: "\(target.bundleId).resources",
-                deploymentTarget: target.deploymentTarget,
+                deploymentTargets: target.deploymentTargets,
                 infoPlist: .extendingDefault(with: [:]),
                 settings: Settings(
                     base: [

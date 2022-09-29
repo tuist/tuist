@@ -113,7 +113,7 @@ public final class TargetContentHasher: TargetContentHashing {
             let headersHash = try headersContentHasher.hash(headers: headers)
             stringsToHash.append(headersHash)
         }
-        if let deploymentTarget = graphTarget.target.deploymentTarget {
+        for deploymentTarget in graphTarget.target.deploymentTargets {
             let deploymentTargetHash = try deploymentTargetContentHasher.hash(deploymentTarget: deploymentTarget)
             stringsToHash.append(deploymentTargetHash)
         }
