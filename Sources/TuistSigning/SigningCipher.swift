@@ -215,7 +215,9 @@ public final class SigningCipher: SigningCiphering {
         else { throw SigningCipherError.signingDirectoryNotFound(path) }
         let masterKeyFile = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.masterKey)
         guard FileHandler.shared.exists(masterKeyFile) else { throw SigningCipherError.masterKeyNotFound(masterKeyFile) }
-        let plainMasterKey = try FileHandler.shared.readFile(masterKeyFile)
+        let plainMasterKey = try FileHandler.shared.readTextFile(masterKeyFile)
+            .trimmingCharacters(in: .newlines)
+            .data(using: .utf8)!
         return plainMasterKey.sha256()
     }
 
