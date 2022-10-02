@@ -420,6 +420,24 @@
           "description": null,
           "fields": [
             {
+              "name": "cacheHitRate",
+              "description": null,
+              "args": [
+
+              ],
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Float",
+                  "ofType": null
+                }
+              },
+              "isDeprecated": false,
+              "deprecationReason": null
+            },
+            {
               "name": "cacheableTargets",
               "description": null,
               "args": [
@@ -3890,6 +3908,24 @@
               "deprecationReason": null
             },
             {
+              "name": "isOneOf",
+              "description": null,
+              "args": [
+
+              ],
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "Boolean",
+                  "ofType": null
+                }
+              },
+              "isDeprecated": false,
+              "deprecationReason": null
+            },
+            {
               "name": "kind",
               "description": null,
               "args": [
@@ -3958,7 +3994,7 @@
               "deprecationReason": null
             },
             {
-              "name": "specifiedByUrl",
+              "name": "specifiedByURL",
               "description": null,
               "args": [
 
@@ -4116,6 +4152,16 @@
               "isDeprecated": false,
               "deprecationReason": null
             }
+          ]
+        },
+        {
+          "name": "oneOf",
+          "description": "Requires that exactly one field must be supplied and that field must not be `null`.",
+          "locations": [
+            "INPUT_OBJECT"
+          ],
+          "args": [
+
           ]
         }
       ]

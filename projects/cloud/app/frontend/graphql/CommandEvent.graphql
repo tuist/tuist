@@ -3,4 +3,5 @@ fragment CommandEvent on CommandEvent {
   commandArguments
   duration
   createdAt
+  cacheHitRate
 }

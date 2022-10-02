@@ -38,6 +38,7 @@ const Login = ({
     useState(false);
   const [isAlertBannerHidden, setIsAlertBannerHidden] =
     useState(false);
+
   return (
     <TuistCloudAppProvider>
       <Page title="Sign in to Tuist Cloud">
