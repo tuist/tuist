@@ -80,7 +80,7 @@
     "slug": "^5.3.0",
     "tailwindcss": "^2.2.19",
     "theme-ui": "^0.12.1",
-    "underscore": "^1.13.4",
+    "underscore": "^1.13.6",
     "url-join": "^4.0.1"
   },
   "keywords": [
