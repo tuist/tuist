@@ -37,6 +37,7 @@ final class VersionResolverTests: XCTestCase {
         let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let versionPath = tmp_dir.path.appending(component: Constants.versionFileName)
         let binPath = tmp_dir.path.appending(component: Constants.binFolderName)
+        let tuistPath = binPath.appending(component: Constants.binName)
 
         // /tmp/dir/.tuist-version
         try "3.2.1".write(
@@ -49,6 +50,11 @@ final class VersionResolverTests: XCTestCase {
             at: URL(fileURLWithPath: binPath.pathString),
             withIntermediateDirectories: true,
             attributes: nil
+        )
+        // /tmp/dir/.tuist-bin/tuist
+        FileManager.default.createFile(
+            atPath: tuistPath.pathString,
+            contents: nil
         )
 
         let got = try subject.resolve(path: tmp_dir.path)
@@ -88,6 +94,27 @@ final class VersionResolverTests: XCTestCase {
     func test_resolve_when_bin() throws {
         let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let binPath = tmp_dir.path.appending(component: Constants.binFolderName)
+        let tuistPath = binPath.appending(component: Constants.binName)
+
+        // /tmp/dir/.tuist-bin
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: binPath.pathString),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        // /tmp/dir/.tuist-bin/tuist
+        FileManager.default.createFile(
+            atPath: tuistPath.pathString,
+            contents: nil
+        )
+
+        let got = try subject.resolve(path: tmp_dir.path)
+        XCTAssertEqual(got, .bin(binPath))
+    }
+
+    func test_resolve_when_empty_bin() throws {
+        let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let binPath = tmp_dir.path.appending(component: Constants.binFolderName)
 
         // /tmp/dir/.tuist-bin
         try FileManager.default.createDirectory(
@@ -97,7 +124,7 @@ final class VersionResolverTests: XCTestCase {
         )
 
         let got = try subject.resolve(path: tmp_dir.path)
-        XCTAssertEqual(got, .bin(binPath))
+        XCTAssertEqual(got, .undefined)
     }
 
     func test_resolve_when_version_in_parent_directory() throws {
@@ -124,6 +151,7 @@ final class VersionResolverTests: XCTestCase {
     func test_resolve_when_bin_in_parent_directory() throws {
         let tmp_dir = try TemporaryDirectory(removeTreeOnDeinit: true)
         let binPath = tmp_dir.path.appending(component: Constants.binFolderName)
+        let tuistPath = binPath.appending(component: Constants.binName)
         let childPath = tmp_dir.path.appending(component: "child")
 
         // /tmp/dir/.tuist-bin
@@ -131,6 +159,11 @@ final class VersionResolverTests: XCTestCase {
             at: URL(fileURLWithPath: binPath.pathString),
             withIntermediateDirectories: true,
             attributes: nil
+        )
+        // /tmp/dir/.tuist-bin/tuist
+        FileManager.default.createFile(
+            atPath: tuistPath.pathString,
+            contents: nil
         )
         try FileManager.default.createDirectory(
             at: URL(fileURLWithPath: childPath.pathString),
