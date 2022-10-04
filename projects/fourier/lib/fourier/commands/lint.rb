@@ -15,12 +15,6 @@ module Fourier
         Services::Lint::Tuistbench.call(fix: options[:fix])
       end
 
-      desc "backbone", "Lint the Ruby code of the Backbone project"
-      option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
-      def backbone
-        Services::Lint::Backbone.call(fix: options[:fix])
-      end
-
       desc "cloud", "Lint the Ruby code of the Cloud project"
       option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
       def cloud
@@ -53,7 +47,6 @@ module Fourier
         Services::Lint::Fixturegen.call(fix: options[:fix])
         Services::Lint::Fourier.call(fix: options[:fix])
         Services::Lint::Cloud.call(fix: options[:fix])
-        Services::Lint::Backbone.call(fix: options[:fix])
       end
 
       no_commands {

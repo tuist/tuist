@@ -264,7 +264,12 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
   })
   createRedirect({
     fromPath: '/usage/stats',
-    toPath: 'https://docs.tuist.io/guides/stats',
+    toPath: 'https://docs.tuist.io/cloud/stats',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/guides/stats',
+    toPath: 'https://docs.tuist.io/cloud/stats',
     isPermanent: true,
   })
   createRedirect({
