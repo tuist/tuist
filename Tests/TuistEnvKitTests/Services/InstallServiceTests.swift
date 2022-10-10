@@ -49,6 +49,18 @@ final class InstallServiceTests: TuistUnitTestCase {
         XCTAssertEqual(installArgs.first, "3.2.1")
     }
 
+    func test_run_when_without_trailing_zero() throws {
+        versionsController.versionsStub = []
+
+        var installArgs: [String] = []
+        installer.installStub = { version in installArgs.append(version) }
+
+        try subject.run(version: "3.2")
+
+        XCTAssertEqual(installArgs.count, 1)
+        XCTAssertEqual(installArgs.first, "3.2.0")
+    }
+
     func test_run_when_force() throws {
         versionsController.versionsStub = []
 

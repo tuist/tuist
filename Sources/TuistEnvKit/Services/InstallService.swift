@@ -1,4 +1,5 @@
 import Foundation
+import TSCUtility
 import TuistSupport
 
 final class InstallService {
@@ -17,11 +18,12 @@ final class InstallService {
     }
 
     func run(version: String) throws {
+        let parsedVersion = try Version(versionString: version, usesLenientParsing: true)
         let versions = versionsController.versions().map(\.description)
-        if versions.contains(version) {
-            logger.warning("Version \(version) already installed, skipping")
+        if versions.contains(parsedVersion.description) {
+            logger.warning("Version \(parsedVersion) already installed, skipping")
             return
         }
-        try installer.install(version: version)
+        try installer.install(version: parsedVersion.description)
     }
 }
