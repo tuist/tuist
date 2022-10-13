@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
 bundle install
-npm install
+npm install --legacy-peer-deps

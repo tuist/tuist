@@ -14,8 +14,7 @@ Rails.application.routes.draw do
   end
   post "/graphql", to: "graphql#execute"
 
-  # React App
-  root to: "application#app"
+  root to: "root#app"
 
   get "/invitations/:token/", to: "application#app", as: :invitation
 
