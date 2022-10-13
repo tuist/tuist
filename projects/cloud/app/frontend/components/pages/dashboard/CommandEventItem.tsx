@@ -1,6 +1,6 @@
 import React from 'react';
 import relativeDate from '@/utilities/relativeDate';
-import { CommandEventDetail } from '@/models/CommandEventDetail';
+import { CommandEvent } from '@/models/CommandEvent';
 import {
   Stack,
   TextStyle,
@@ -10,10 +10,10 @@ import {
 } from '@shopify/polaris';
 import { ClockMinor, CalendarMinor } from '@shopify/polaris-icons';
 
-export const CommandEventDetailItem = ({
+export const CommandEventItem = ({
   item,
 }: {
-  item: CommandEventDetail;
+  item: CommandEvent;
 }) => {
   const color: TextProps['color'] | undefined = (() => {
     if (item.cacheHitRate == null) {

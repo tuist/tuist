@@ -6,7 +6,7 @@ import TuistCloudAppProvider from '../../TuistCloudAppProvider';
 import { BrowserRouter } from 'react-router-dom';
 import {
   BuildTimesChart,
-  CommandEventDetailItemShowcase,
+  CommandEventItemShowcase,
   Footer,
   HighlightText,
   TopBar,
@@ -43,7 +43,7 @@ export const LandingPage = () => {
                   title="Analytics"
                   subtitle="Are you wondering how long your tuist commands take? How efficient caching of your project is? We will give you insight, so you can focus on optimizing what matters"
                 />
-                <CommandEventDetailItemShowcase />
+                <CommandEventItemShowcase />
               </div>
             </Section>
           </div>

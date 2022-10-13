@@ -10,12 +10,12 @@ import {
 import { HomeStoreContext } from '@/stores/HomeStore';
 import DashboardPageStore from './DashboardPageStore';
 import { useApolloClient } from '@apollo/client';
-import { CommandEventDetail } from '@/models/CommandEventDetail';
+import { CommandEvent } from '@/models/CommandEvent';
 import { observer } from 'mobx-react-lite';
 import { useNavigate } from 'react-router-dom';
 import AverageCommandDurationCard from './AverageCommandDurationCard';
 import CacheHitRateAveragesCard from './CacheHitRateAveragesCard';
-import { CommandEventDetailItem } from './CommandEventDetailItem';
+import { CommandEventItem } from './CommandEventItem';
 
 const DashboardPage = observer(() => {
   const { projectStore } = useContext(HomeStoreContext);
@@ -36,7 +36,7 @@ const DashboardPage = observer(() => {
     );
   }, [projectStore.project]);
 
-  const renderItem = (item: CommandEventDetail) => {
+  const renderItem = (item: CommandEvent) => {
     return (
       <ResourceItem
         id={item.id}
@@ -44,7 +44,7 @@ const DashboardPage = observer(() => {
           navigate(`command_event/${item.id}`);
         }}
       >
-        <CommandEventDetailItem item={item} />
+        <CommandEventItem item={item} />
       </ResourceItem>
     );
   };

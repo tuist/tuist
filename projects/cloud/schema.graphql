@@ -63,7 +63,7 @@ type CommandAverage {
 }
 
 type CommandEvent {
-  cacheHitRate: Float!
+  cacheHitRate: Float
   cacheableTargets: [String!]
   clientId: String!
   commandArguments: String!

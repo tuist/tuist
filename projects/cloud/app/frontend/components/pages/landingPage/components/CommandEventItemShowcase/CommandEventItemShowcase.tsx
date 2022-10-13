@@ -1,8 +1,8 @@
-import { CommandEventDetailItem } from '@/components/pages/dashboard/CommandEventDetailItem';
-import { CommandEventDetail } from '@/models/CommandEventDetail';
+import { CommandEventItem } from '@/components/pages/dashboard/CommandEventItem';
+import { CommandEvent } from '@/models/CommandEvent';
 import { Card, Stack, Text } from '@shopify/polaris';
 import React from 'react';
-import styles from './CommandEventDetailItemShowcase.module.scss';
+import styles from './CommandEventItemShowcase.module.scss';
 
 interface MockDetailItemProps {
   commandArguments: string;
@@ -11,57 +11,35 @@ interface MockDetailItemProps {
   cacheHitRate?: number;
 }
 
-const mockDetailItem: (
-  props: MockDetailItemProps,
-) => CommandEventDetail = ({
-  commandArguments,
-  duration,
-  createdAt,
-  cacheHitRate,
-}) => {
-  return {
-    clientId: 'client-id',
-    commandArguments: commandArguments,
-    createdAt,
-    duration: duration,
-    macosVersion: '13.3.0',
-    tuistVersion: '3.3.0',
-    swiftVersion: '5.4.0',
-    id: 'command-event-id',
-    name: '',
-    subcommand: null,
-    cacheableTargets: [],
-    localCacheTargetHits: [],
-    remoteCacheTargetHits: [],
-    cacheHitRate: cacheHitRate ?? null,
-  };
-};
-
-export const CommandEventDetailItemShowcase = () => {
-  const items: CommandEventDetail[] = [
-    mockDetailItem({
+export const CommandEventItemShowcase = () => {
+  const items: CommandEvent[] = [
+    {
+      id: '1',
       commandArguments: 'generate MyApp',
       createdAt: new Date(),
       duration: 1240,
       cacheHitRate: 0.95,
-    }),
-    mockDetailItem({
+    },
+    {
+      id: '2',
       commandArguments: 'generate MyApp2',
       createdAt: new Date(),
       duration: 1240,
-    }),
-    mockDetailItem({
+    },
+    {
+      id: '3',
       commandArguments: 'generate MyApp3',
       createdAt: new Date(),
       duration: 1240,
       cacheHitRate: 0.74,
-    }),
-    mockDetailItem({
+    },
+    {
+      id: '4',
       commandArguments: 'generate MyApp4',
       createdAt: new Date(),
       duration: 1240,
       cacheHitRate: 0.84,
-    }),
+    },
   ];
 
   return (
@@ -81,7 +59,7 @@ export const CommandEventDetailItemShowcase = () => {
           <Stack vertical>
             {items.map((item) => {
               return (
-                <CommandEventDetailItem
+                <CommandEventItem
                   key={item.commandArguments}
                   item={item}
                 />

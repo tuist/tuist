@@ -5,7 +5,7 @@ export interface CommandEvent {
   commandArguments: string;
   duration: number;
   createdAt: Date;
-  cacheHitRate: number;
+  cacheHitRate?: number | null;
 }
 
 export const mapCommandEvent = ({
