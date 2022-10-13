@@ -14,6 +14,7 @@ export interface CommandEventDetail {
   cacheableTargets: string[] | null;
   localCacheTargetHits: string[] | null;
   remoteCacheTargetHits: string[] | null;
+  cacheHitRate: number | null;
 }
 
 export const mapCommandEventDetail = ({
@@ -30,6 +31,7 @@ export const mapCommandEventDetail = ({
   cacheableTargets,
   localCacheTargetHits,
   remoteCacheTargetHits,
+  cacheHitRate,
 }: CommandEventDetailFragment) => {
   return {
     id,
@@ -45,5 +47,6 @@ export const mapCommandEventDetail = ({
     cacheableTargets,
     localCacheTargetHits,
     remoteCacheTargetHits,
+    cacheHitRate,
   } as CommandEventDetail;
 };

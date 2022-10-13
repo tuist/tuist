@@ -5,6 +5,7 @@ export interface CommandEvent {
   commandArguments: string;
   duration: number;
   createdAt: Date;
+  cacheHitRate?: number | null;
 }
 
 export const mapCommandEvent = ({
@@ -12,11 +13,13 @@ export const mapCommandEvent = ({
   commandArguments,
   duration,
   createdAt,
+  cacheHitRate,
 }: CommandEventFragment) => {
   return {
     id,
     commandArguments,
     duration,
     createdAt: new Date(createdAt),
+    cacheHitRate,
   } as CommandEvent;
 };
