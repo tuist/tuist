@@ -35,6 +35,7 @@ describe('CommandEventDetailPageStore', () => {
       cacheableTargets: ['Target1', 'Target2', 'Target3', 'Target4'],
       localCacheTargetHits: ['Target2', 'Target4'],
       remoteCacheTargetHits: ['Target3'],
+      cacheHitRate: 0.75,
     };
     const commandEventDetailFragment = {
       clientId: commandEventDetail.clientId,
@@ -50,6 +51,7 @@ describe('CommandEventDetailPageStore', () => {
       cacheableTargets: commandEventDetail.cacheableTargets,
       localCacheTargetHits: commandEventDetail.localCacheTargetHits,
       remoteCacheTargetHits: commandEventDetail.remoteCacheTargetHits,
+      cacheHitRate: commandEventDetail.cacheHitRate,
       __typename: 'CommandEvent',
     } as CommandEventDetailFragment;
     client.query.mockResolvedValueOnce({

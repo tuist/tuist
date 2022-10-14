@@ -15,6 +15,7 @@ module Types
     field :local_cache_target_hits, [String], null: true
     field :remote_cache_target_hits, [String], null: true
     field :created_at, GraphQL::Types::ISO8601DateTime, null: false
+    field :cache_hit_rate, Float, null: true
 
     def cacheable_targets
       object.cacheable_targets.nil? ? nil : object.cacheable_targets.split(";")

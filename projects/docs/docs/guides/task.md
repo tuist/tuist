@@ -11,11 +11,6 @@ We try to fix that by introducing a concept of "Tasks" where you can define cust
 
 Not only that, we will provide you with an easy integration with tuist, so you can for example inspect your project's graph.
 
-:::warning Alpha
-Tasks and the `ProjectAutomation` package are in alpha.
-Be aware some APIs might change as we iterate the functionality with the feedback we get from users.
-:::
-
 ### Defining a task
 
 You can prepend any executable with `tuist-` and add it to your `PATH`. If you for example add `tuist-my-command` to your `PATH`, you will be able to run `tuist my-command` and `tuist-my-command` will automatically be executed.

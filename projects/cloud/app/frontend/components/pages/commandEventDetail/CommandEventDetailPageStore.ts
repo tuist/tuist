@@ -22,26 +22,12 @@ class CommandEventDetailPageStore {
     if (this.commandEventDetail == null) {
       return '';
     }
-    const {
-      cacheableTargets,
-      localCacheTargetHits,
-      remoteCacheTargetHits,
-    } = this.commandEventDetail;
-    if (
-      cacheableTargets === null ||
-      localCacheTargetHits === null ||
-      remoteCacheTargetHits === null
-    ) {
+    const { cacheHitRate } = this.commandEventDetail;
+    if (cacheHitRate == null) {
       return '';
     }
 
-    const cacheTargetHitRate = Math.ceil(
-      ((localCacheTargetHits.length + remoteCacheTargetHits.length) /
-        cacheableTargets.length) *
-        100,
-    );
-
-    return `${cacheTargetHitRate} %`;
+    return `${cacheHitRate * 100} %`;
   }
 
   get cacheTargetMisses(): string[] {

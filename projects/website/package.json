@@ -52,7 +52,7 @@
     "is-absolute-url": "^4.0.1",
     "moment": "^2.29.4",
     "polished": "^4.2.2",
-    "postcss": "^8.4.16",
+    "postcss": "^8.4.17",
     "prettier": "^2.7.1",
     "prismjs": "^1.29.0",
     "prop-types": "^15.8.1",
@@ -80,7 +80,7 @@
     "slug": "^5.3.0",
     "tailwindcss": "^2.2.19",
     "theme-ui": "^0.12.1",
-    "underscore": "^1.13.4",
+    "underscore": "^1.13.6",
     "url-join": "^4.0.1"
   },
   "keywords": [
