@@ -128,7 +128,7 @@ jobs:
           gem install bundler
           bundle config path vendor/bundle
           bundle install --jobs=4 --retry=3
-          npm install --legacy-peer-deps
+          npm install
       - name: Assets precompile
         working-directory: projects/cloud
         run: |
@@ -166,7 +166,7 @@ jobs:
       - name: Install dependencies
         working-directory: projects/cloud
         run: |
-          npm install --legacy-peer-deps
+          npm install
       - name: ESLint
         working-directory: projects/cloud
         run: |
@@ -204,7 +204,7 @@ jobs:
       - name: Install dependencies
         working-directory: projects/cloud
         run: |
-          npm install --legacy-peer-deps
+          npm install
       - name: Typecheck
         working-directory: projects/cloud
         run: |
@@ -242,7 +242,7 @@ jobs:
       - name: Install dependencies
         working-directory: projects/cloud
         run: |
-          npm install --legacy-peer-deps
+          npm install
       - name: Prettier
         working-directory: projects/cloud
         run: |
@@ -280,7 +280,7 @@ jobs:
       - name: Install dependencies
         working-directory: projects/cloud
         run: |
-          npm install --legacy-peer-deps
+          npm install
       - name: Jest
         working-directory: projects/cloud
         run: |
