@@ -70,6 +70,7 @@ export type CommandAverage = {
 
 export type CommandEvent = {
   __typename?: 'CommandEvent';
+  cacheHitRate?: Maybe<Scalars['Float']>;
   cacheableTargets?: Maybe<Array<Scalars['String']>>;
   clientId: Scalars['String'];
   commandArguments: Scalars['String'];
@@ -457,16 +458,16 @@ export type CommandAveragesQueryVariables = Exact<{
 
 export type CommandAveragesQuery = { __typename?: 'Query', commandAverages: Array<{ __typename?: 'CommandAverage', date: string, durationAverage: number }> };
 
-export type CommandEventFragment = { __typename?: 'CommandEvent', id: string, commandArguments: string, duration: number, createdAt: string };
+export type CommandEventFragment = { __typename?: 'CommandEvent', id: string, commandArguments: string, duration: number, createdAt: string, cacheHitRate?: number | null };
 
-export type CommandEventDetailFragment = { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string, cacheableTargets?: Array<string> | null, localCacheTargetHits?: Array<string> | null, remoteCacheTargetHits?: Array<string> | null };
+export type CommandEventDetailFragment = { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string, cacheableTargets?: Array<string> | null, localCacheTargetHits?: Array<string> | null, remoteCacheTargetHits?: Array<string> | null, cacheHitRate?: number | null };
 
 export type CommandEventQueryVariables = Exact<{
   commandEventId: Scalars['ID'];
 }>;
 
 
-export type CommandEventQuery = { __typename?: 'Query', commandEvent: { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string, cacheableTargets?: Array<string> | null, localCacheTargetHits?: Array<string> | null, remoteCacheTargetHits?: Array<string> | null } };
+export type CommandEventQuery = { __typename?: 'Query', commandEvent: { __typename?: 'CommandEvent', id: string, name: string, subcommand?: string | null, commandArguments: string, duration: number, clientId: string, tuistVersion: string, swiftVersion: string, macosVersion: string, createdAt: string, cacheableTargets?: Array<string> | null, localCacheTargetHits?: Array<string> | null, remoteCacheTargetHits?: Array<string> | null, cacheHitRate?: number | null } };
 
 export type CommandEventsQueryVariables = Exact<{
   projectId: Scalars['ID'];
@@ -477,7 +478,7 @@ export type CommandEventsQueryVariables = Exact<{
 }>;
 
 
-export type CommandEventsQuery = { __typename?: 'Query', commandEvents: { __typename?: 'CommandEventConnection', edges?: Array<{ __typename?: 'CommandEventEdge', node?: { __typename?: 'CommandEvent', id: string, commandArguments: string, duration: number, createdAt: string } | null } | null> | null, pageInfo: { __typename?: 'PageInfo', startCursor?: string | null, endCursor?: string | null, hasNextPage: boolean, hasPreviousPage: boolean } } };
+export type CommandEventsQuery = { __typename?: 'Query', commandEvents: { __typename?: 'CommandEventConnection', edges?: Array<{ __typename?: 'CommandEventEdge', node?: { __typename?: 'CommandEvent', id: string, commandArguments: string, duration: number, createdAt: string, cacheHitRate?: number | null } | null } | null> | null, pageInfo: { __typename?: 'PageInfo', startCursor?: string | null, endCursor?: string | null, hasNextPage: boolean, hasPreviousPage: boolean } } };
 
 export type CreateProjectMutationVariables = Exact<{
   input: CreateProjectInput;
@@ -605,6 +606,7 @@ export const CommandEventFragmentDoc = gql`
   commandArguments
   duration
   createdAt
+  cacheHitRate
 }
     `;
 export const CommandEventDetailFragmentDoc = gql`
@@ -622,6 +624,7 @@ export const CommandEventDetailFragmentDoc = gql`
   cacheableTargets
   localCacheTargetHits
   remoteCacheTargetHits
+  cacheHitRate
 }
     `;
 export const PendingInvitationFragmentDoc = gql`

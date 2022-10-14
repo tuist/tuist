@@ -12,4 +12,5 @@ fragment CommandEventDetail on CommandEvent {
   cacheableTargets
   localCacheTargetHits
   remoteCacheTargetHits
+  cacheHitRate
 }

@@ -147,17 +147,18 @@ describe('DashboardPageStore', () => {
   it('loads next page', async () => {
     // Given
     const dashboardPageStore = new DashboardPageStore(client);
-    const commandEventDetail: CommandEvent = {
+    const commandEvent: CommandEvent = {
       commandArguments: 'generate MyApp',
       createdAt: new Date(),
       duration: 1240,
       id: 'command-event-id',
+      cacheHitRate: undefined,
     };
-    const commandEventDetailFragment = {
-      commandArguments: commandEventDetail.commandArguments,
-      createdAt: commandEventDetail.createdAt.toISOString(),
-      duration: commandEventDetail.duration,
-      id: commandEventDetail.id,
+    const commandEventFragment = {
+      commandArguments: commandEvent.commandArguments,
+      createdAt: commandEvent.createdAt.toISOString(),
+      duration: commandEvent.duration,
+      id: commandEvent.id,
       __typename: 'CommandEvent',
     } as CommandEventFragment;
     client.query.mockResolvedValueOnce({
@@ -165,7 +166,7 @@ describe('DashboardPageStore', () => {
         commandEvents: {
           edges: [
             {
-              node: commandEventDetailFragment,
+              node: commandEventFragment,
             },
           ],
           pageInfo: {
@@ -183,7 +184,7 @@ describe('DashboardPageStore', () => {
 
     // Then
     expect(dashboardPageStore.commandEvents).toStrictEqual([
-      commandEventDetail,
+      commandEvent,
     ]);
   });
 

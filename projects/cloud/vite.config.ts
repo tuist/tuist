@@ -11,7 +11,7 @@ if (!environment || environment === '') {
 }
 
 const isDistEnv = environment === 'production';
-const bugsnagFrontendKey = process.env.BUGSNAG_FRONTEND_API_KEY;
+const bugsnagFrontendKey = process.env.BUGSNAG_FRONTEND_API_KEY ?? '';
 
 const bugsnagOptions = {
   apiKey: bugsnagFrontendKey,

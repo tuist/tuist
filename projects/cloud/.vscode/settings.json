@@ -25,5 +25,6 @@
   "files.exclude": {
     "**/node_modules": true
   },
-  "jest.jestCommandLine": "yarn test"
+  "jest.jestCommandLine": "yarn test",
+  "typescript.tsdk": "node_modules/typescript/lib"
 }
