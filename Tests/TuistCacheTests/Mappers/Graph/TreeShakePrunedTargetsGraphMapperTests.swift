@@ -257,7 +257,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
                 firstTarget.name: firstTarget,
                 secondTarget.name: secondTarget,
                 thirdTarget.name: thirdTarget,
-                prunedTarget.name: prunedTarget
+                prunedTarget.name: prunedTarget,
             ]],
             dependencies: [:]
         )
