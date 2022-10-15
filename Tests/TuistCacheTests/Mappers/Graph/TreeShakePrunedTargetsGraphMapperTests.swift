@@ -267,9 +267,6 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         // When
         let (gotGraph, _) = try subject.map(graph: graph)
 
-        print(graph.projects.first!.value.targets.map(\.name))
-        print(gotGraph.projects.first!.value.targets.map(\.name))
-
         // Then
         XCTAssertEqual(gotGraph.projects.first?.value, expectedProject)
     }
