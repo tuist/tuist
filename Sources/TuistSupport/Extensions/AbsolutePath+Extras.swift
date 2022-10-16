@@ -66,16 +66,6 @@ extension AbsolutePath {
         return UTTypeConformsTo(uti.takeRetainedValue(), kUTTypePackage)
     }
 
-    private static let opaqueDirectoriesExtensions: Set<String> = [
-        "xcassets",
-        "scnassets",
-        "xcdatamodeld",
-        "docc",
-        "playground",
-        "bundle",
-        "mlmodelc",
-    ]
-
     /// An opaque directory is a directory that should be treated like a file, therefor ignoring its content.
     /// I.e.: .xcassets, .xcdatamodeld, etc...
     /// This property returns true when a file is contained in such directory.
@@ -92,7 +82,16 @@ extension AbsolutePath {
     /// I.e.: .xcassets, .xcdatamodeld, etc...
     /// This property returns true when a file is such a directory.
     public var isOpaqueDirectory: Bool {
-        Self.opaqueDirectoriesExtensions.contains(self.extension ?? "")
+        [
+            "xcassets",
+            "scnassets",
+            "xcdatamodeld",
+            "docc",
+            "playground",
+            "bundle",
+            "mlmodelc",
+        ]
+        .contains(self.extension ?? "")
     }
 
     /// Returns the path with the last component removed. For example, given the path
