@@ -8,7 +8,7 @@ public enum Environment {
 
         var value: String {
             switch self {
-            case .string(let value):
+            case let .string(value):
                 return value
             }
         }
@@ -18,10 +18,12 @@ public enum Environment {
         value(for: member, environment: ProcessInfo.processInfo.environment)
     }
 
-    static func value(for key: String, environment: [String: String] = ProcessInfo.processInfo.environment) -> Environment.Value? {
+    static func value(for key: String, environment: [String: String] = ProcessInfo.processInfo.environment) -> Environment
+        .Value?
+    {
         let formattedName = key.camelCaseToSnakeCase().uppercased()
         guard let value = environment["TUIST_\(formattedName)"] else { return nil }
-      return .string(value)
+        return .string(value)
     }
 }
 
@@ -40,15 +42,15 @@ extension Optional where Wrapped == Environment.Value {
     ///   - default: default Boolean value to be returned
     /// - Returns: Bool
     public func getBoolean(default defaultBoolean: Bool) -> Bool {
-      guard let value = self?.value else { return defaultBoolean }
+        guard let value = self?.value else { return defaultBoolean }
 
-      if ["1", "true", "TRUE", "yes", "YES"].contains(value) {
-          return true
-      } else if ["0", "false", "FALSE", "no", "NO"].contains(value) {
-          return false
-      } else {
-          return defaultBoolean
-      }
+        if ["1", "true", "TRUE", "yes", "YES"].contains(value) {
+            return true
+        } else if ["0", "false", "FALSE", "no", "NO"].contains(value) {
+            return false
+        } else {
+            return defaultBoolean
+        }
     }
 }
 

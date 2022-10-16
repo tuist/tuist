@@ -35,8 +35,8 @@ final class EnvironmentTests: XCTestCase {
     func test_stringValue() {
         let stringValue = UUID().uuidString
         let environment: [String: String] = [
-          "TUIST_0": stringValue,
-          "TUIST_1": "1",
+            "TUIST_0": stringValue,
+            "TUIST_1": "1",
         ]
         environment.values.enumerated().forEach { index, expected in
             let value = Environment.value(for: String(index), environment: environment)
