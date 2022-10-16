@@ -1,4 +1,5 @@
 import Foundation
+import TSCBasic
 
 /// Contains the description of a dependency that can be installed using Swift Package Manager.
 ///
@@ -57,14 +58,17 @@ public struct SwiftPackageManagerDependencies: Equatable {
 
 extension SwiftPackageManagerDependencies {
     /// Returns `Package.swift` representation.
-    public func manifestValue(isLegacy: Bool) -> String {
+    public func manifestValue(isLegacy: Bool, packageManifestFolder: AbsolutePath) -> String {
         """
         import PackageDescription
 
         let package = Package(
             name: "PackageName",
             dependencies: [
-                \(packages.map { $0.manifestValue(isLegacy: isLegacy) + "," }.joined(separator: "\n        "))
+                \(packages.map {
+                    let manifest = $0.manifestValue(isLegacy: isLegacy, packageManifestFolder: packageManifestFolder)
+                    return manifest + ","
+                }.joined(separator: "\n        "))
             ]
         )
         """
@@ -75,10 +79,10 @@ extension SwiftPackageManagerDependencies {
 
 extension Package {
     /// Returns `Package.swift` representation.
-    fileprivate func manifestValue(isLegacy: Bool) -> String {
+    fileprivate func manifestValue(isLegacy: Bool, packageManifestFolder: AbsolutePath) -> String {
         switch self {
         case let .local(path):
-            return #".package(path: "\#(path)")"#
+            return #".package(path: "\#(path.relative(to: packageManifestFolder))")"#
         case let .remote(url, requirement):
             let requirementManifestValue = isLegacy ? requirement.legacyManifestValue : requirement.manifestValue
             return #".package(url: "\#(url)", \#(requirementManifestValue))"#
