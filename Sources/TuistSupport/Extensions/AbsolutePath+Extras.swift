@@ -92,6 +92,28 @@ extension AbsolutePath {
         return false
     }
 
+    /// An opaque directory is a directory that should be treated like a file, therefor ignoring its content.
+    /// I.e.: .xcassets, .xcdatamodeld, etc...
+    /// This property returns true when a file is such a directory.
+    public var isOpaqueDirectory: Bool {
+        if let `extension` = self.extension,
+           Self.opaqueDirectoriesExtensions.contains(`extension`)
+        {
+            return true
+        }
+        return false
+    }
+
+    /// This property returns true when the path points to a directory.
+    public var isDirectory: Bool {
+        (try? self.url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+    }
+
+    /// This property returns true when the path points to a file.
+    public var isFile: Bool {
+        return !isDirectory
+    }
+
     /// Returns the path with the last component removed. For example, given the path
     /// /test/path/to/file it returns /test/path/to
     ///
