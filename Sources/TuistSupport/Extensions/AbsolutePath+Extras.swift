@@ -82,11 +82,7 @@ extension AbsolutePath {
     public var isInOpaqueDirectory: Bool {
         var currentDirectory = parentDirectory
         while currentDirectory != .root {
-            if let `extension` = currentDirectory.extension,
-               Self.opaqueDirectoriesExtensions.contains(`extension`)
-            {
-                return true
-            }
+            if currentDirectory.isOpaqueDirectory { return true }
             currentDirectory = currentDirectory.parentDirectory
         }
         return false
@@ -95,7 +91,7 @@ extension AbsolutePath {
     /// An opaque directory is a directory that should be treated like a file, therefor ignoring its content.
     /// I.e.: .xcassets, .xcdatamodeld, etc...
     /// This property returns true when a file is such a directory.
-    var isOpaqueDirectory: Bool {
+    public var isOpaqueDirectory: Bool {
         Self.opaqueDirectoriesExtensions.contains(self.extension ?? "")
     }
 
