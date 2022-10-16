@@ -20,7 +20,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
 
         let projects = graph.projects.reduce(into: [AbsolutePath: Project]()) { acc, next in
             let targets = self.treeShake(
-                targets: Array(graph.targets[next.key, default: [:]].values),
+                targets: next.value.targets,
                 path: next.key,
                 graph: graph,
                 sourceTargets: sourceTargets
