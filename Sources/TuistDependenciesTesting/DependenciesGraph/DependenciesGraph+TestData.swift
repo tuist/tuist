@@ -50,10 +50,11 @@ extension TuistCore.DependenciesGraph {
     public static func test(
         spmFolder: Path,
         packageFolder: Path,
-        platforms: Set<Platform>
+        platforms: Set<Platform>,
+        fileHandler: FileHandler
     ) -> Self {
 
-        try! FileHandler.shared.createFolder(AbsolutePath("\(packageFolder.pathString)/customPath/resources"))
+        try! fileHandler.createFolder(AbsolutePath("\(packageFolder.pathString)/customPath/resources"))
 
         let addPlatfomSuffix = platforms.count != 1
         let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in

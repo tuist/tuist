@@ -9,7 +9,15 @@ let package = Package(
     platforms: [.iOS(.v13)],
     products: [.library(name: "Styles", targets: ["Styles"])],
     targets: [
-        .target(name: "Styles", resources: [.process("Resources/Fonts")]),
+        .target(
+            name: "Styles",
+            resources: [
+                .process("Resources/Fonts"),
+                .copy("Resources/jsonFile.json"),
+                .copy("Resources/Playground.playground"),
+
+            ]
+        ),
         .testTarget(name: "StylesTests", dependencies: ["Styles"]),
     ]
 )

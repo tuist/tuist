@@ -18,7 +18,7 @@ let dependencies = Dependencies(
         packages,
         baseSettings: .targetSettings,
         projectOptions: [
-            "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
+            "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: true),
         ]
     ),
     platforms: [.iOS, .watchOS]
