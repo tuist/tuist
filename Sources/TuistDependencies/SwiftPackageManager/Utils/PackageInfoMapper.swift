@@ -699,10 +699,11 @@ extension ResourceFileElements {
             switch $0.rule {
             case .copy:
                 // Single files or opaque directories are handled like a .process rule
-                if resourceAbsolutePath.isFile || resourceAbsolutePath.isOpaqueDirectory {
+                if !FileHandler.shared.isFolder(resourceAbsolutePath) || resourceAbsolutePath.isOpaqueDirectory {
                     return handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
+                } else {
+                    return handleCopyResource(resourceAbsolutePath: resourceAbsolutePath)
                 }
-                return handleCopyResource(resourceAbsolutePath: resourceAbsolutePath)
             case .process:
                 return handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
             }
