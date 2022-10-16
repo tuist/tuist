@@ -96,7 +96,7 @@ extension AbsolutePath {
     /// I.e.: .xcassets, .xcdatamodeld, etc...
     /// This property returns true when a file is such a directory.
     var isOpaqueDirectory: Bool {
-        return Self.opaqueDirectoriesExtensions.contains(self.extension ?? "")
+        Self.opaqueDirectoriesExtensions.contains(self.extension ?? "")
     }
 
     /// Returns the path with the last component removed. For example, given the path

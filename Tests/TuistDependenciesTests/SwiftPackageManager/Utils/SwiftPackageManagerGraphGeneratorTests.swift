@@ -222,7 +222,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 spmFolder: spmFolder,
                 packageFolder: Path(testPath.pathString),
                 platforms: [.iOS],
-                fileHandler: self.fileHandler
+                fileHandler: fileHandler
             )
             .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
             .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
@@ -284,7 +284,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 spmFolder: spmFolder,
                 packageFolder: Path(testPath.pathString),
                 platforms: [.iOS],
-                fileHandler: self.fileHandler
+                fileHandler: fileHandler
             )
             .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
             .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
@@ -346,7 +346,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 spmFolder: spmFolder,
                 packageFolder: Path(testPath.pathString),
                 platforms: [.iOS],
-                fileHandler: self.fileHandler
+                fileHandler: fileHandler
             )
             .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
             .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
@@ -407,7 +407,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 spmFolder: spmFolder,
                 packageFolder: Path(testPath.pathString),
                 platforms: [.iOS],
-                fileHandler: self.fileHandler
+                fileHandler: fileHandler
             )
             .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
             .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))

@@ -3,8 +3,8 @@ import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistDependencies
-import TuistSupportTesting
 import TuistSupport
+import TuistSupportTesting
 
 extension TuistCore.DependenciesGraph {
     /// A snapshot of `graph.json` file.
@@ -53,7 +53,6 @@ extension TuistCore.DependenciesGraph {
         platforms: Set<Platform>,
         fileHandler: FileHandler
     ) -> Self {
-
         try! fileHandler.createFolder(AbsolutePath("\(packageFolder.pathString)/customPath/resources"))
 
         let addPlatfomSuffix = platforms.count != 1
