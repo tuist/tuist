@@ -67,9 +67,6 @@ Rails.application.configure do
 
   config.active_job.queue_adapter = :inline
 
-  # Stripe
-  config.stripe.debug_js = true
-
   # Bullet
   config.after_initialize do
     Bullet.enable        = true
