@@ -422,11 +422,6 @@ GEM
       actionpack (>= 5.2)
       activesupport (>= 5.2)
       sprockets (>= 3.0.0)
-    stripe (7.1.0)
-    stripe-rails (2.3.5)
-      rails (>= 5.1)
-      responders
-      stripe (>= 3.15.0)
     thor (1.2.1)
     tilt (2.0.11)
     timeout (0.3.0)
@@ -513,7 +508,6 @@ DEPENDENCIES
   sidekiq (~> 6.2)
   slack-ruby-client (~> 0.17.0)
   spring
-  stripe-rails (~> 2.3)
   tzinfo-data
   vite_rails (~> 3.0.3)
   web-console (>= 4.1.0)
