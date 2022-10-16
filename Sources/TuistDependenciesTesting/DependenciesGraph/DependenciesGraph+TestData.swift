@@ -4,6 +4,7 @@ import TSCBasic
 import TuistCore
 import TuistDependencies
 import TuistSupportTesting
+import TuistSupport
 
 extension TuistCore.DependenciesGraph {
     /// A snapshot of `graph.json` file.
@@ -51,8 +52,10 @@ extension TuistCore.DependenciesGraph {
         packageFolder: Path,
         platforms: Set<Platform>
     ) -> Self {
-        let addPlatfomSuffix = platforms.count != 1
 
+        try! FileHandler.shared.createFolder(AbsolutePath("\(packageFolder.pathString)/customPath/resources"))
+
+        let addPlatfomSuffix = platforms.count != 1
         let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
             result[platform] = [
                 "Tuist": [
