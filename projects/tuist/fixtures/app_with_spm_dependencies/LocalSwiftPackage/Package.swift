@@ -13,9 +13,9 @@ let package = Package(
             name: "Styles",
             resources: [
                 .process("Resources/Fonts"),
-                .copy("Resources/jsonFile.json"),
-                .copy("Resources/Playground.playground"),
-
+                .copy("Resources/jsonFile.json"), // copy rule, single file 
+                .copy("Resources/Playground.playground"), // copy rule, opaque file
+                .copy("Resources/www") // copy rule, directory
             ]
         ),
         .testTarget(name: "StylesTests", dependencies: ["Styles"]),
