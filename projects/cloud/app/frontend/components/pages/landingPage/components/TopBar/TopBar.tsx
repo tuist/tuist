@@ -8,12 +8,6 @@ export const TopBar = () => {
   return (
     <div className={styles.TopBar}>
       <TuistIcon />
-      <Image
-        source="../../assets/logo.svg"
-        alt="Tuist logo"
-        width="40px"
-        style={{ marginRight: '20px' }}
-      />
       <Text variant="headingLg" as="h2">
         Tuist Cloud
       </Text>

@@ -241,4 +241,33 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(gotGraph, expectedGraph)
     }
+
+    func test_map_preserves_target_order_in_projects() throws {
+        // Given
+        let firstTarget = Target.test(name: "Brazil")
+        let secondTarget = Target.test(name: "Ghana")
+        let thirdTarget = Target.test(name: "Japan")
+        let prunedTarget = Target.test(name: "Pruned", prune: true)
+        let project = Project.test(targets: [firstTarget, secondTarget, thirdTarget, prunedTarget])
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                firstTarget.name: firstTarget,
+                secondTarget.name: secondTarget,
+                thirdTarget.name: thirdTarget,
+                prunedTarget.name: prunedTarget,
+            ]],
+            dependencies: [:]
+        )
+
+        let expectedProject = Project.test(targets: [firstTarget, secondTarget, thirdTarget])
+
+        // When
+        let (gotGraph, _) = try subject.map(graph: graph)
+
+        // Then
+        XCTAssertEqual(gotGraph.projects.first?.value, expectedProject)
+    }
 }
