@@ -60,6 +60,7 @@ final class ProjectEditor: ProjectEditing {
     /// Utility to locate the custom templates directory
     let templatesDirectoryLocator: TemplatesDirectoryLocating
     
+    /// Utility to locate the resource synthesizers directory
     let resourceSynthesizersDirectoryLocator: ResourceSynthesizerPathLocating
 
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
