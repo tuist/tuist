@@ -18,6 +18,7 @@ protocol ProjectEditorMapping: AnyObject {
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
+        resourceSynthesizers: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
     ) throws -> Graph
 }
@@ -37,6 +38,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
+        resourceSynthesizers: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
     ) throws -> Graph {
         let swiftVersion = try System.shared.swiftVersion()
@@ -59,6 +61,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             tuistPath: tuistPath,
             helpers: helpers,
             templates: templates,
+            resourceSynthesizers: resourceSynthesizers,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
             editablePluginTargets: editablePluginManifests.map(\.name),
@@ -131,6 +134,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         tuistPath: AbsolutePath,
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
+        resourceSynthesizers: [AbsolutePath],
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
         editablePluginTargets: [String],
@@ -193,6 +197,17 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 dependencies: helpersTarget.flatMap { [TargetDependency.target(name: $0.name)] } ?? []
             )
         }()
+        
+        let resourceSynthesizersTarget: Target? = {
+            guard !resourceSynthesizers.isEmpty else { return nil }
+            return editorHelperTarget(
+                name: Constants.resourceSynthesizersDirectoryName,
+                filesGroup: manifestsFilesGroup,
+                targetSettings: baseTargetSettings,
+                sourcePaths: resourceSynthesizers,
+                dependencies: helpersTarget.flatMap { [TargetDependency.target(name: $0.name)] } ?? []
+            )
+        }()
 
         let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
@@ -221,6 +236,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let targets = [
             helpersTarget,
             templatesTarget,
+            resourceSynthesizersTarget,
             configTarget,
             dependenciesTarget,
         ]

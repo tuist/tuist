@@ -11,16 +11,18 @@ import XCTest
 
 final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
     private var resourceSynthesizerPathLocator: MockResourceSynthesizerPathLocator!
+    var subject: ResourceSynthesizerPathLocator!
 
     override func setUp() {
         super.setUp()
 
         resourceSynthesizerPathLocator = MockResourceSynthesizerPathLocator()
+        subject = ResourceSynthesizerPathLocator(rootDirectoryLocator: RootDirectoryLocator())
     }
 
     override func tearDown() {
         resourceSynthesizerPathLocator = nil
-
+        subject = nil
         super.tearDown()
     }
 
@@ -122,5 +124,62 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             invokedResourceSynthesizerPlugins,
             [.test(name: "Plugin")]
         )
+    }
+   
+    func test_locate_when_a_resourceSynthesizer_and_git_directory_exists() throws {
+        // Given
+        let resourceSynthesizerDirectory = try temporaryPath()
+        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/ResourceSynthesizers", "this/.git"])
+
+        // When
+        let got = subject.locate(at: resourceSynthesizerDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+
+        // Then
+        XCTAssertEqual(got, resourceSynthesizerDirectory.appending(RelativePath("this/is/Tuist/ResourceSynthesizers")))
+    }
+
+    func test_locate_when_a_resourceSynthesizer_directory_exists() throws {
+        // Given
+        let resourceSynthesizerDirectory = try temporaryPath()
+        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/ResourceSynthesizers"])
+
+        // When
+        let got = subject.locate(at: resourceSynthesizerDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+
+        // Then
+        XCTAssertEqual(got, resourceSynthesizerDirectory.appending(RelativePath("this/is/Tuist/ResourceSynthesizers")))
+    }
+
+    func test_locate_when_a_git_directory_exists() throws {
+        // Given
+        let resourceSynthesizerDirectory = try temporaryPath()
+        try createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/ResourceSynthesizers"])
+
+        // When
+        let got = subject.locate(at: resourceSynthesizerDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+
+        // Then
+        XCTAssertEqual(got, resourceSynthesizerDirectory.appending(RelativePath("this/Tuist/ResourceSynthesizers")))
+    }
+
+    func test_locate_when_multiple_tuist_directories_exists() throws {
+        // Given
+        let resourceSynthesizerDirectory = try temporaryPath()
+        try createFolders(["this/is/a/very/nested/Tuist/ResourceSynthesizers", "this/is/Tuist/ResourceSynthesizers"])
+        let paths = [
+            "this/is/a/very/directory",
+            "this/is/a/very/nested/directory",
+        ]
+
+        // When
+        let got = paths.map {
+            subject.locate(at: resourceSynthesizerDirectory.appending(RelativePath($0)))
+        }
+
+        // Then
+        XCTAssertEqual(got, [
+            "this/is/Tuist/ResourceSynthesizers",
+            "this/is/a/very/nested/Tuist/ResourceSynthesizers",
+        ].map { resourceSynthesizerDirectory.appending(RelativePath($0)) })
     }
 }
