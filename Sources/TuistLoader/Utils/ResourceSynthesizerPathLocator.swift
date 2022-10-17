@@ -6,7 +6,7 @@ import TuistSupport
 
 public protocol ResourceSynthesizerPathLocating {
     func locate(at: AbsolutePath) -> AbsolutePath?
-    
+
     func templatePath(
         for pluginName: String,
         resourceName: String,
@@ -82,9 +82,9 @@ public final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocati
             )
         return FileHandler.shared.exists(templatePath) ? templatePath : nil
     }
-    
+
     // MARK: - Helpers
-    
+
     public func locate(at: AbsolutePath) -> AbsolutePath? {
         guard let rootDirectory = rootDirectoryLocator.locate(from: at) else { return nil }
         let helpersDirectory = rootDirectory

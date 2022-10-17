@@ -197,7 +197,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 dependencies: helpersTarget.flatMap { [TargetDependency.target(name: $0.name)] } ?? []
             )
         }()
-        
+
         let resourceSynthesizersTarget: Target? = {
             guard !resourceSynthesizers.isEmpty else { return nil }
             return editorHelperTarget(

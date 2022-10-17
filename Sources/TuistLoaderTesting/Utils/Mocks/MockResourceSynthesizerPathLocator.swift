@@ -22,7 +22,7 @@ public final class MockResourceSynthesizerPathLocator: ResourceSynthesizerPathLo
     ) -> AbsolutePath? {
         templatePathResourceStub?(resourceName, path)
     }
-    
+
     public var locateStub: ((AbsolutePath) -> AbsolutePath?)?
     public func locate(at: TSCBasic.AbsolutePath) -> TSCBasic.AbsolutePath? {
         locateStub?(at)

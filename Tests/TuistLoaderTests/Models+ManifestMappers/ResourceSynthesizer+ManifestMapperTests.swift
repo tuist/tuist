@@ -125,7 +125,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             [.test(name: "Plugin")]
         )
     }
-   
+
     func test_locate_when_a_resourceSynthesizer_and_git_directory_exists() throws {
         // Given
         let resourceSynthesizerDirectory = try temporaryPath()
