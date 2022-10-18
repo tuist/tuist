@@ -38,7 +38,7 @@ final class EnvironmentTests: XCTestCase {
             "TUIST_0": stringValue,
             "TUIST_1": "1",
         ]
-        environment.enumerated().forEach { index, pair in
+        environment.enumerated().forEach { index, _ in
             let value = Environment.value(for: String(index), environment: environment)
             XCTAssertEqual(value.getString(default: ""), environment["TUIST_\(index)"])
         }
