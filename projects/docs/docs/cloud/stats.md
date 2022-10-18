@@ -1,6 +1,6 @@
 ---
 title: Helping Tuist
-slug: '/guides/stats'
+slug: '/cloud/stats'
 description: Learn about Tuist Stats
 ---
 
@@ -13,8 +13,7 @@ For example, if a command is only used by 1% of the users, it might not get prio
 The implementation is open source, mainly in the [TuistAnalytics](https://github.com/tuist/tuist/tree/main/Sources/TuistAnalytics) target.
 If you are thinking about adding another event, please remember that we would like to keep tracking minimal and unobtrusive.
 
-The data is collected on a server implemented in the [Tuist repository](https://github.com/tuist/stats) and published on the
-[Tuist Stats website](https://backbone.tuist.io/).
+The data is collected on a server implemented for the [Tuist Cloud](https://cloud.tuist.io/) and we track these stats only for users who use Tuist Cloud.
 
 Users can opt out from Tuist stats setting the following environment variable:
 
