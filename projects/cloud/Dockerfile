@@ -108,6 +108,9 @@ COPY --from=node_modules /app/node_modules /app/node_modules
 
 #######################################################################
 
+RUN --mount=type=secret,id=RAILS_MASTER_KEY \
+  RAILS_MASTER_KEY="$(cat /run/secrets/RAILS_MASTER_KEY)"
+
 # Deploy your application
 COPY . .
 
