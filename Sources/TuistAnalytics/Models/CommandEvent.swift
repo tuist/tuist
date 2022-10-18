@@ -3,7 +3,6 @@ import Foundation
 import TuistCore
 
 /// A `CommandEvent` is the analytics event to track the execution of a Tuist command
-/// Stats are public and reported at https://backbone.tuist.io/
 public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let name: String
     public let subcommand: String?

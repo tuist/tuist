@@ -4,7 +4,9 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-protocol ResourceSynthesizerPathLocating {
+public protocol ResourceSynthesizerPathLocating {
+    func locate(at: AbsolutePath) -> AbsolutePath?
+
     func templatePath(
         for pluginName: String,
         resourceName: String,
@@ -39,16 +41,16 @@ enum ResourceSynthesizerPathLocatorError: FatalError, Equatable {
     }
 }
 
-final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
+public final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
 
-    init(
+    public init(
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
-    func templatePath(
+    public func templatePath(
         for pluginName: String,
         resourceName: String,
         resourceSynthesizerPlugins: [PluginResourceSynthesizer]
@@ -67,7 +69,7 @@ final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
         return resourceTemplatePath
     }
 
-    func templatePath(
+    public func templatePath(
         for resourceName: String,
         path: AbsolutePath
     ) -> AbsolutePath? {
@@ -79,5 +81,16 @@ final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
                 "\(resourceName).stencil"
             )
         return FileHandler.shared.exists(templatePath) ? templatePath : nil
+    }
+
+    // MARK: - Helpers
+
+    public func locate(at: AbsolutePath) -> AbsolutePath? {
+        guard let rootDirectory = rootDirectoryLocator.locate(from: at) else { return nil }
+        let helpersDirectory = rootDirectory
+            .appending(component: Constants.tuistDirectoryName)
+            .appending(component: Constants.resourceSynthesizersDirectoryName)
+        if !FileHandler.shared.exists(helpersDirectory) { return nil }
+        return helpersDirectory
     }
 }

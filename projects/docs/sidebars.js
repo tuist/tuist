@@ -20,7 +20,6 @@ module.exports = {
         'guides/version-management',
         'guides/shell-autocompletion',
         'guides/continuous-integration',
-        'guides/stats',
       ],
     },
     {
@@ -77,7 +76,12 @@ module.exports = {
     {
       type: 'category',
       label: 'Cloud',
-      items: ['cloud/get-started', 'cloud/specification', 'cloud/self-hosting'],
+      items: [
+        'cloud/get-started',
+        'cloud/specification',
+        'cloud/self-hosting',
+        'cloud/stats',
+      ],
     },
     {
       type: 'category',
