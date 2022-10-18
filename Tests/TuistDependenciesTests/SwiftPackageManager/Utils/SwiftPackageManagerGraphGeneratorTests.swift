@@ -221,7 +221,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             dependenciesGraph: DependenciesGraph.test(
                 spmFolder: spmFolder,
                 packageFolder: Path(testPath.pathString),
-                platforms: [.iOS]
+                platforms: [.iOS],
+                fileHandler: fileHandler
             )
             .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
             .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
@@ -282,7 +283,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             dependenciesGraph: DependenciesGraph.test(
                 spmFolder: spmFolder,
                 packageFolder: Path(testPath.pathString),
-                platforms: [.iOS]
+                platforms: [.iOS],
+                fileHandler: fileHandler
             )
             .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
             .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
@@ -343,7 +345,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             dependenciesGraph: DependenciesGraph.test(
                 spmFolder: spmFolder,
                 packageFolder: Path(testPath.pathString),
-                platforms: [.iOS]
+                platforms: [.iOS],
+                fileHandler: fileHandler
             )
             .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
             .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
@@ -403,7 +406,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             dependenciesGraph: DependenciesGraph.test(
                 spmFolder: spmFolder,
                 packageFolder: Path(testPath.pathString),
-                platforms: [.iOS]
+                platforms: [.iOS],
+                fileHandler: fileHandler
             )
             .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, platforms: [.iOS]))
             .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, platforms: [.iOS]))
