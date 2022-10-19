@@ -204,7 +204,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                     ]),
                 ],
                 configurations: [:],
-                defaultSettings: .none
+                defaultSettings: .recommended
             ),
             dependencies: [
                 .project(target: "B", path: projectBPath),
