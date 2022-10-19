@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.12.1 - 2022-10-19
+
+### Changed
+
+- Remove backbone [#4817](https://github.com/tuist/tuist/pull/4817) by [@fortmarek](https://github.com/fortmarek)
+
+### Fixed
+
+- Fix support for master.key with final newline [#4782](https://github.com/tuist/tuist/pull/4782) by [@mfcollins3](https://github.com/mfcollins3)
+- Make `tuistenv` ignore empty `.tuist-bin` folder [#4793](https://github.com/tuist/tuist/pull/4793) by [@ezraberch](https://github.com/ezraberch)
+- Fix `tuist install` when missing trailing zero [#4797](https://github.com/tuist/tuist/pull/4797) by [@danyf90](https://github.com/danyf90)
+- Preserve target order defined in `Project.swift` when generating project [#4810](https://github.com/tuist/tuist/pull/4810) by [@moritzsternemann](https://github.com/moritzsternemann)
+- Fix for resource synthesizers not added to the `tuist edit` project [#4822](https://github.com/tuist/tuist/pull/4822) by [@devyhan](https://github.com/devyhan)
+- Fix parsing of "1" and "0" as String from environment [#4816](https://github.com/tuist/tuist/pull/4816) by [@danyf90](https://github.com/danyf90)
+- Use relative path in generated Package.swift [#4815](https://github.com/tuist/tuist/pull/4815) by [@danyf90](https://github.com/danyf90)
+- Fix regression on SwiftPackageManager packages defining file resources with copy rule [#4812](https://github.com/tuist/tuist/pull/4812) by [@alexanderwe](https://github.com/alexanderwe)
+
 ## 3.12.0 - 2022-09-25
 
 ### Added
