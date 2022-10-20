@@ -11,7 +11,7 @@ import {
   useNavigate,
 } from 'react-router-dom';
 import NoPageFound from './NoPageFound';
-import NewProject from './NewProject';
+import { NewProjectPage } from './pages/new-project/NewProjectPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import CommandEventDetailPage from './pages/commandEventDetail/CommandEventDetailPage';
 import Home from './Home';
@@ -60,7 +60,7 @@ const AppRoutes = () => {
             element={<CommandEventDetailPage />}
           />
         </Route>
-        <Route path="/new" element={<NewProject />} />
+        <Route path="/new" element={<NewProjectPage />} />
         <Route element={<NoPageFound />} />
       </Routes>
     );
