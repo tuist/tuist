@@ -141,4 +141,105 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(gotSideEffects, [])
     }
+
+    func test_maps_modulemap_build_flag_to_target_with_empty_settings() throws {
+        // Given
+        let workspace = Workspace.test()
+        let projectAPath = try temporaryPath().appending(component: "A")
+        let projectBPath = try temporaryPath().appending(component: "B")
+
+        let targetA = Target.test(
+            name: "A",
+            settings: nil,
+            dependencies: [
+                .project(target: "B", path: projectBPath),
+            ]
+        )
+        let projectA = Project.test(
+            path: projectAPath,
+            name: "A",
+            targets: [
+                targetA,
+            ]
+        )
+
+        let targetB = Target.test(
+            name: "B",
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string(projectBPath.appending(components: "B", "B.module").pathString),
+            ])
+        )
+        let projectB = Project.test(
+            path: projectBPath,
+            name: "B",
+            targets: [
+                targetB,
+            ]
+        )
+
+        // When
+        let (gotWorkspaceWithProjects, gotSideEffects) = try subject.map(
+            workspace: WorkspaceWithProjects(
+                workspace: workspace,
+                projects: [
+                    projectA,
+                    projectB,
+                ]
+            )
+        )
+
+        // Then
+        let mappedTargetA = Target.test(
+            name: "A",
+            settings: Settings(
+                base: [
+                    "OTHER_CFLAGS": .array([
+                        "$(inherited)",
+                        "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+                    ]),
+                    "OTHER_SWIFT_FLAGS": .array([
+                        "$(inherited)",
+                        "-Xcc",
+                        "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+                    ]),
+                ],
+                configurations: [:],
+                defaultSettings: .recommended
+            ),
+            dependencies: [
+                .project(target: "B", path: projectBPath),
+            ]
+        )
+        let mappedProjectA = Project.test(
+            path: projectAPath,
+            name: "A",
+            targets: [
+                mappedTargetA,
+            ]
+        )
+
+        let mappedTargetB = Target.test(
+            name: "B",
+            settings: .test(base: [:])
+        )
+        let mappedProjectB = Project.test(
+            path: projectBPath,
+            name: "B",
+            targets: [
+                mappedTargetB,
+            ]
+        )
+
+        XCTAssertEqual(
+            gotWorkspaceWithProjects,
+            WorkspaceWithProjects(
+                workspace: workspace,
+                projects: [
+                    mappedProjectA,
+                    mappedProjectB,
+                ]
+            )
+        )
+        XCTAssertEqual(gotSideEffects, [])
+    }
 }
