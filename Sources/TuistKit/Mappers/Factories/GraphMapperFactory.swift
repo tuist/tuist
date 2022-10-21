@@ -47,6 +47,7 @@ final class GraphMapperFactory: GraphMapperFactorying {
         mappers.append(
             TestsCacheGraphMapper(hashesCacheDirectory: testsCacheDirectory, config: config)
         )
+        mappers.append(FocusTargetsGraphMappers(includedTargets: []))
         mappers.append(TreeShakePrunedTargetsGraphMapper())
         return mappers
     }
