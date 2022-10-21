@@ -49,6 +49,12 @@ export const NewProjectPage = observer(() => {
               <TextField
                 type="text"
                 label="Organization name"
+                error={
+                  newProjectPageStore.isOrganizationNameValid
+                    ? false
+                    : 'The name is invalid'
+                }
+                helpText="The allowed characters are a-z and the dash symbol '-' (for example organization-name)"
                 value={newProjectPageStore.organizationName}
                 onChange={(value) =>
                   newProjectPageStore.organizationNameChanged(value)
@@ -56,10 +62,15 @@ export const NewProjectPage = observer(() => {
                 autoComplete="off"
               />
             )}
-            {/* TODO: Only allow kebab-case names */}
             <TextField
               type="text"
               label="Project name"
+              error={
+                newProjectPageStore.isNewProjectNameValid
+                  ? false
+                  : 'The name is invalid'
+              }
+              helpText="The allowed characters are a-z and the dash symbol '-' (for example project-name)"
               value={newProjectPageStore.newProjectName}
               onChange={(value) => {
                 newProjectPageStore.projectNameChanged(value);
