@@ -43,12 +43,12 @@ final class GraphMapperFactory: GraphMapperFactorying {
 
     func automation(config: Config, testsCacheDirectory: AbsolutePath) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
-        mappers.append(contentsOf: self.default())
         mappers.append(
             TestsCacheGraphMapper(hashesCacheDirectory: testsCacheDirectory, config: config)
         )
         mappers.append(FocusTargetsGraphMappers(includedTargets: []))
         mappers.append(TreeShakePrunedTargetsGraphMapper())
+        mappers.append(contentsOf: self.default())
         return mappers
     }
 
