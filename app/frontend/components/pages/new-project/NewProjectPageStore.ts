@@ -31,11 +31,21 @@ export class NewProjectPageStore {
   get isCreateProjectButtonDisabled() {
     return (
       this.newProjectName.length === 0 ||
+      !this.isNewProjectNameValid ||
       (this.selectedProjectOwner == null &&
         !this.isCreatingOrganization) ||
       (this.isCreatingOrganization &&
-        this.organizationName.length === 0)
+        (this.organizationName.length === 0 ||
+          !this.isOrganizationNameValid))
     );
+  }
+
+  get isNewProjectNameValid() {
+    return this.isNameValid(this.newProjectName);
+  }
+
+  get isOrganizationNameValid() {
+    return this.isNameValid(this.organizationName);
   }
 
   get options(): SelectOption[] {
@@ -83,9 +93,6 @@ export class NewProjectPageStore {
   }
 
   projectNameChanged(newProjectName: string) {
-    console.log(this);
-    console.log(newProjectName);
-    console.log(this.newProjectName);
     this.newProjectName = newProjectName;
   }
 
@@ -112,5 +119,10 @@ export class NewProjectPageStore {
     if (data) {
       onCompleted(data?.createProject.slug);
     }
+  }
+
+  private isNameValid(name: string) {
+    const regex = new RegExp('[^a-z\\-]');
+    return !regex.test(name);
   }
 }
