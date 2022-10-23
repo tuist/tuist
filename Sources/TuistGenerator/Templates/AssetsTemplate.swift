@@ -25,6 +25,9 @@ extension SynthesizedResourceInterfaceTemplates {
     #elseif os(tvOS) || os(watchOS)
       import UIKit
     #endif
+    #if canImport(SwiftUI)
+      import SwiftUI
+    #endif
 
     // swiftlint:disable superfluous_disable_command file_length implicit_return
 
@@ -159,6 +162,13 @@ extension SynthesizedResourceInterfaceTemplates {
         return color
       }()
 
+      #if canImport(SwiftUI)
+      @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, *)
+      {{accessModifier}} private(set) lazy var swiftUIColor: SwiftUI.Color = {
+        SwiftUI.Color(asset: self)
+      }()
+      #endif
+
       fileprivate init(name: String) {
         self.name = name
       }
@@ -177,6 +187,16 @@ extension SynthesizedResourceInterfaceTemplates {
         #endif
       }
     }
+
+    #if canImport(SwiftUI)
+    {{accessModifier}} extension SwiftUI.Color {
+      @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, *)
+      init(asset: {{colorType}}) {
+        let bundle = {{bundleToken}}.bundle
+        self.init(asset.name, bundle: bundle)
+      }
+    }
+    #endif
 
     {% endif %}
     {% if resourceCount.data > 0 %}
@@ -233,6 +253,13 @@ extension SynthesizedResourceInterfaceTemplates {
         }
         return result
       }
+
+      #if canImport(SwiftUI)
+      @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, *)
+      {{accessModifier}} var swiftUIImage: SwiftUI.Image {
+        SwiftUI.Image(asset: self)
+      }
+      #endif
     }
 
     {{accessModifier}} extension {{imageType}}.Image {
@@ -249,6 +276,26 @@ extension SynthesizedResourceInterfaceTemplates {
         #endif
       }
     }
+
+    #if canImport(SwiftUI)
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, *)
+    {{accessModifier}} extension SwiftUI.Image {
+      init(asset: {{imageType}}) {
+        let bundle = {{bundleToken}}.bundle
+        self.init(asset.name, bundle: bundle)
+      }
+
+      init(asset: {{imageType}}, label: Text) {
+        let bundle = {{bundleToken}}.bundle
+        self.init(asset.name, bundle: bundle, label: label)
+      }
+
+      init(decorative asset: {{imageType}}) {
+        let bundle = {{bundleToken}}.bundle
+        self.init(decorative: asset.name, bundle: bundle)
+      }
+    }
+    #endif
 
     {% endif %}
     {% else %}
