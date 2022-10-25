@@ -6,10 +6,6 @@ module Users
       find_or_create_and_redirect_user
     end
 
-    def gitlab
-      find_or_create_and_redirect_user
-    end
-
     def failure
       redirect_to(root_path)
     end
