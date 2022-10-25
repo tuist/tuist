@@ -25,6 +25,7 @@ LABEL fly_launch_runtime="rails"
 
 ARG NODE_VERSION=16.17.0
 ARG BUNDLER_VERSION=2.2.33
+ARG YARN_VERSION=1.22.17
 
 ARG RAILS_ENV=production
 ENV RAILS_ENV=${RAILS_ENV}
@@ -44,7 +45,7 @@ RUN mkdir -p tmp/pids
 RUN curl https://get.volta.sh | bash
 ENV VOLTA_HOME /root/.volta
 ENV PATH $VOLTA_HOME/bin:/usr/local/bin:$PATH
-RUN volta install node@${NODE_VERSION} yarn
+RUN volta install node@${NODE_VERSION} yarn@${YARN_VERSION}
 
 #######################################################################
 
@@ -108,9 +109,6 @@ COPY --from=node_modules /app/node_modules /app/node_modules
 
 #######################################################################
 
-RUN --mount=type=secret,id=RAILS_MASTER_KEY \
-  RAILS_MASTER_KEY="$(cat /run/secrets/RAILS_MASTER_KEY)"
-
 # Deploy your application
 COPY . .
 
@@ -127,8 +125,8 @@ ENV SECRET_KEY_BASE 1
 # ENV AWS_SECRET_ACCESS_KEY=1
 
 # Run build task defined in lib/tasks/fly.rake
-ARG BUILD_COMMAND="bin/rails fly:build"
-RUN ${BUILD_COMMAND}
+# ARG BUILD_COMMAND="bin/rails fly:build"
+# RUN ${BUILD_COMMAND}
 
 # Default server start instructions.  Generally Overridden by fly.toml.
 ENV PORT 8080

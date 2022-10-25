@@ -1,14 +1,9 @@
-# fly.toml file generated for tuist-cloud on 2022-10-16T21:49:43+02:00
-
 app = "tuist-cloud"
 kill_signal = "SIGINT"
 kill_timeout = 5
-[processes]
-  web = "bundle exec puma -C config/puma.rb"
-  worker = "bundle exec sidekiq -C config/sidekiq.yml"
 
 [build]
-  [build.args]
+  [[build.args]]
     BUILD_COMMAND = "bin/rails fly:build"
     SERVER_COMMAND = "bin/rails fly:server"
 
@@ -21,6 +16,10 @@ kill_timeout = 5
 [experimental]
   allowed_public_ports = []
   auto_rollback = true
+
+[processes]
+  app = "bin/rails fly:server"
+  worker = "bundle exec sidekiq -C config/sidekiq.yml"
 
 [[services]]
   http_checks = []

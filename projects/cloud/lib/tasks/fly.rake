@@ -4,7 +4,9 @@ namespace :fly do
   #  - changes to the filesystem made here DO get deployed
   #  - NO access to secrets, volumes, databases
   #  - Failures here prevent deployment
-  task :build => 'assets:precompile'
+  # task :build do
+  #   sh 'bundle exec vite build'
+  # end
 
   # RELEASE step:
   #  - changes to the filesystem made here are DISCARDED
@@ -18,7 +20,8 @@ namespace :fly do
   #  - failures here result in VM being stated, shutdown, and rolled back
   #    to last successful deploy (if any).
   task :server => :swapfile do
-    sh 'bin/rails server'
+    sh 'bin/rails assets:precompile'
+    sh 'bundle exec puma -C config/puma.rb'
   end
 
   # optional SWAPFILE task:
