@@ -189,25 +189,27 @@ class TargetLinter: TargetLinting {
 
     private func lintDeploymentTarget(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        
+
         for deploymentTarget in target.deploymentTargets {
             let versionFormatIssue = LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)
-            
+
             let osVersionRegex = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
             if !deploymentTarget.version.matches(pattern: osVersionRegex) { issues.append(versionFormatIssue) }
-            
+
             let platform = target.platform
             let inconsistentPlatformIssue = LintingIssue(
                 reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`",
                 severity: .error
             )
-            
+
             switch deploymentTarget {
-            case .watchOS: if platform != .watchOS { issues.append(inconsistentPlatformIssue) }
+            case .watchOS: if platform != .watchOS {
+                    issues.append(inconsistentPlatformIssue)
+                }
             default: break
             }
         }
-        
+
         return issues
     }
 

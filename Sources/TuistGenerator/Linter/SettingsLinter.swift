@@ -67,10 +67,10 @@ final class SettingsLinter: SettingsLinting {
         )
 
         switch deploymentTarget {
+        case .iOS, .macOS, .tvOS: if platform == .watchOS { return [issue] }
         case .watchOS: if platform != .watchOS { return [issue] }
-        default: break
         }
-        
+
         return []
     }
 }

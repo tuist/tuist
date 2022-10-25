@@ -337,22 +337,22 @@ final class ConfigGenerator: ConfigGenerating {
             "IBSC_MODULE": .string(watchExtension.target.productName),
         ]
     }
-    
+
     private func supportedPlatformsDerivedSettings(target: Target) -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
         var supportedPlatforms = [String?]()
-        
+
         for deploymentTarget in target.deploymentTargets {
             guard let platform = Platform(rawValue: deploymentTarget.platform.lowercased()) else { continue }
-        
+
             supportedPlatforms.append(platform.xcodeDeviceSDK)
-            supportedPlatforms.append(platform.xcodeSimulatorSDK )
+            supportedPlatforms.append(platform.xcodeSimulatorSDK)
         }
-        
-        let supportedPlatformsString = supportedPlatforms.compactMap( {$0}).joined(separator: " ")
-        
+
+        let supportedPlatformsString = supportedPlatforms.compactMap { $0 }.joined(separator: " ")
+
         settings["SUPPORTED_PLATFORMS"] = .string(supportedPlatformsString)
-        
+
         return settings
     }
 }

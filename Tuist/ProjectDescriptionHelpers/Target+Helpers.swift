@@ -23,7 +23,7 @@ extension Target {
             platform: .macOS,
             product: product,
             bundleId: "io.tuist.\(name)",
-            deploymentTarget: Constants.deploymentTarget,
+            deploymentTargets: [Constants.deploymentTarget],
             infoPlist: .default,
             sources: ["\(rootFolder)/\(name)/**/*.swift"],
             dependencies: dependencies,

@@ -72,7 +72,7 @@ extension TuistCore.DependenciesGraph {
                     product: .staticFramework,
                     productName: "Tuist",
                     bundleId: "Tuist",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: [self.resolveDeploymentTarget(for: platform)],
                     infoPlist: .default,
                     sources: [
                         .glob(
@@ -116,7 +116,7 @@ extension TuistCore.DependenciesGraph {
                     product: .staticFramework,
                     productName: "TuistKit",
                     bundleId: "TuistKit",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: [self.resolveDeploymentTarget(for: platform)],
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/Sources/TuistKit/**",
@@ -199,7 +199,7 @@ extension TuistCore.DependenciesGraph {
                     product: .staticFramework,
                     productName: "ALibrary",
                     bundleId: "ALibrary",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: [self.resolveDeploymentTarget(for: platform)],
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/Sources/ALibrary/**",
@@ -218,7 +218,7 @@ extension TuistCore.DependenciesGraph {
                     product: .staticFramework,
                     productName: "ALibraryUtils",
                     bundleId: "ALibraryUtils",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: [self.resolveDeploymentTarget(for: platform)],
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
@@ -281,7 +281,7 @@ extension TuistCore.DependenciesGraph {
                 product: .staticFramework,
                 productName: "AnotherLibrary",
                 bundleId: "AnotherLibrary",
-                deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                deploymentTargets: [self.resolveDeploymentTarget(for: platform)],
                 infoPlist: .default,
                 sources: [
                     "\(packageFolder.pathString)/Sources/AnotherLibrary/**",
@@ -339,7 +339,7 @@ extension TuistCore.DependenciesGraph {
                 product: .staticFramework,
                 productName: "Alamofire",
                 bundleId: "Alamofire",
-                deploymentTarget: resolveDeploymentTarget(for: platform),
+                deploymentTargets: [resolveDeploymentTarget(for: platform)],
                 infoPlist: .default,
                 sources: [
                     "\(packageFolder.pathString)/Source/**",
@@ -416,7 +416,7 @@ extension TuistCore.DependenciesGraph {
                     product: .staticFramework,
                     productName: "GoogleAppMeasurementTarget",
                     bundleId: "GoogleAppMeasurementTarget",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: [self.resolveDeploymentTarget(for: platform)],
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**",
@@ -468,7 +468,7 @@ extension TuistCore.DependenciesGraph {
                     product: .staticFramework,
                     productName: "GoogleAppMeasurementWithoutAdIdSupportTarget",
                     bundleId: "GoogleAppMeasurementWithoutAdIdSupportTarget",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: [self.resolveDeploymentTarget(for: platform)],
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**",
@@ -601,7 +601,7 @@ extension TuistCore.DependenciesGraph {
                     product: customProductTypes["GULAppDelegateSwizzler"] ?? .staticFramework,
                     productName: "GULAppDelegateSwizzler",
                     bundleId: "GULAppDelegateSwizzler",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: [self.resolveDeploymentTarget(for: platform)],
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**",
@@ -614,7 +614,7 @@ extension TuistCore.DependenciesGraph {
                     product: customProductTypes["GULMethodSwizzler"] ?? .staticFramework,
                     productName: "GULMethodSwizzler",
                     bundleId: "GULMethodSwizzler",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: [self.resolveDeploymentTarget(for: platform)],
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**",
@@ -628,7 +628,7 @@ extension TuistCore.DependenciesGraph {
                     product: customProductTypes["GULNSData"] ?? .staticFramework,
                     productName: "GULNSData",
                     bundleId: "GULNSData",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: [self.resolveDeploymentTarget(for: platform)],
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/Sources/GULNSData/**",
@@ -641,7 +641,7 @@ extension TuistCore.DependenciesGraph {
                     product: customProductTypes["GULNetwork"] ?? .staticFramework,
                     productName: "GULNetwork",
                     bundleId: "GULNetwork",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: [self.resolveDeploymentTarget(for: platform)],
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/Sources/GULNetwork/**",
@@ -701,7 +701,7 @@ extension TuistCore.DependenciesGraph {
                 product: .staticFramework,
                 productName: "nanopb",
                 bundleId: "nanopb",
-                deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                deploymentTargets: [self.resolveDeploymentTarget(for: platform)],
                 infoPlist: .default,
                 sources: [
                     "\(packageFolder.pathString)/Sources/nanopb/**",

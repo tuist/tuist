@@ -109,7 +109,7 @@ public class GraphLinter: GraphLinting {
     }
 
     private func lintDependency(from: GraphTarget, to: GraphTarget) -> [LintingIssue] {
-        // Update linter to support multi platform target
+        // TODO: Update linter to support multi platform target
         return []
         let fromTarget = LintableTarget(
             platform: from.target.platform,
