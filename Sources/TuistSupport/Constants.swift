@@ -21,6 +21,7 @@ public enum Constants {
     public static let encryptedExtension = "encrypted"
     public static let templatesDirectoryName: String = "Templates"
     public static let resourceSynthesizersDirectoryName: String = "ResourceSynthesizers"
+    public static let stencilsDirectoryName: String = "Stencils"
     public static let vendorDirectoryName: String = "vendor"
     public static let twitterHandle: String = "tuistio"
     public static let joinSlackURL: String = "https://slack.tuist.io/"
