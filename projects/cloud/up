@@ -2,3 +2,8 @@
 
 bundle install
 npm install
+
+if [ ! -f config/master.key ]; then
+  echo "Input data for development credentials – use config/credentials.example.yml as an example"
+  EDITOR="code --wait" bin/rails credentials:edit
+fi
