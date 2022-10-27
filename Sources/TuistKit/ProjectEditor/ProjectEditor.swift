@@ -63,9 +63,6 @@ final class ProjectEditor: ProjectEditing {
     /// Utility to locate the resource synthesizers directory
     let resourceSynthesizersDirectoryLocator: ResourceSynthesizerPathLocating
 
-    /// Utility to locate the stencil directory
-    let stencilDirectoryLocator: StencilPathLocating
-
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
 
@@ -81,7 +78,6 @@ final class ProjectEditor: ProjectEditing {
         writer: XcodeProjWriting = XcodeProjWriter(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         resourceSynthesizersDirectoryLocator: ResourceSynthesizerPathLocating = ResourceSynthesizerPathLocator(),
-        stencilDirectoryLocator: StencilPathLocating = StencilPathLocator(),
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring =
             ProjectDescriptionHelpersBuilderFactory()
@@ -94,7 +90,6 @@ final class ProjectEditor: ProjectEditing {
         self.writer = writer
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.resourceSynthesizersDirectoryLocator = resourceSynthesizersDirectoryLocator
-        self.stencilDirectoryLocator = stencilDirectoryLocator
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
     }
@@ -149,10 +144,6 @@ final class ProjectEditor: ProjectEditing {
             FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
-        let stencils = stencilDirectoryLocator.locate(at: editingPath).map {
-            FileHandler.shared.glob($0, glob: "**/*.stencil")
-        } ?? []
-
         let editablePluginManifests = locateEditablePluginManifests(
             at: editingPath,
             excluding: pathsToExclude,
@@ -168,7 +159,7 @@ final class ProjectEditor: ProjectEditing {
 
         /// We error if the user tries to edit a project in a directory where there are no editable files.
         if projectManifests.isEmpty, editablePluginManifests.isEmpty, helpers.isEmpty, templates.isEmpty,
-           resourceSynthesizers.isEmpty, stencils.isEmpty
+           resourceSynthesizers.isEmpty
         {
             throw ProjectEditorError.noEditableFiles(editingPath)
         }
@@ -190,7 +181,6 @@ final class ProjectEditor: ProjectEditing {
             helpers: helpers,
             templates: templates,
             resourceSynthesizers: resourceSynthesizers,
-            stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath.parentDirectory
         )
 

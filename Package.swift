@@ -58,7 +58,7 @@ let package = Package(
         .package(url: "https://github.com/Flight-School/AnyCodable", from: "0.6.6"),
         .package(url: "https://github.com/SwiftDocOrg/GraphViz.git", exact: "0.2.0"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.5.0"),
-        .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", exact: "2.8.0"),
+        .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", exact: "2.9.0"),
         .package(url: "https://github.com/FabrizioBrancati/Queuer.git", from: "2.1.1"),
         .package(url: "https://github.com/CombineCommunity/CombineExt.git", from: "1.8.0"),
     ],

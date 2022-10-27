@@ -23,7 +23,6 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         resourceSynthesizers: [AbsolutePath],
-        stencils: [AbsolutePath],
         projectDescriptionPath: AbsolutePath
     )] = []
 
@@ -40,7 +39,6 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         resourceSynthesizers: [AbsolutePath],
-        stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
     ) throws -> Graph {
         mapArgs.append((
@@ -56,7 +54,6 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
             helpers: helpers,
             templates: templates,
             resourceSynthesizers: resourceSynthesizers,
-            stencils: stencils,
             projectDescriptionPath: projectDescriptionSearchPath
         ))
 
