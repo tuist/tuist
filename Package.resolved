@@ -149,8 +149,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftGen/StencilSwiftKit.git",
       "state" : {
-        "revision" : "54cbedcdbb4334e03930adcff7343ffaf317bf0f",
-        "version" : "2.8.0"
+        "revision" : "a329217a79ce9b20557f870b926f7ae9769af05e",
+        "version" : "2.9.0"
       }
     },
     {

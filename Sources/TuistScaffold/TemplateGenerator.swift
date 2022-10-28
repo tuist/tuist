@@ -1,4 +1,5 @@
 import Foundation
+import PathKit
 import StencilSwiftKit
 import TSCBasic
 import TuistCore
@@ -115,10 +116,11 @@ public final class TemplateGenerator: TemplateGenerating {
                     context: attributes
                 )
             case let .file(path):
+                let injectedLoaderEnvironment = stencilSwiftEnvironment(templatePaths: [Path(path.dirname)])
                 let fileContents = try FileHandler.shared.readTextFile(path)
                 // Render only files with .stencil extension
                 if path.extension == "stencil" {
-                    renderedContents = try environment.renderTemplate(
+                    renderedContents = try injectedLoaderEnvironment.renderTemplate(
                         string: fileContents,
                         context: attributes
                     )
