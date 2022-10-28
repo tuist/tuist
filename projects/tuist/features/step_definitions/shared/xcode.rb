@@ -103,3 +103,17 @@ have the build phase (.+) in the last position$}) do |project_name, target_name,
   flunk("The target #{target_name} doesn't have build phases") if build_phase.nil?
   assert_equal phase_name, build_phase.name
 end
+
+Then(%r{^in project (.+) in the target (.+) the build phase in the first position should \
+have (.+) as an output path$}) do |project_name, target_name, output_path_name|
+  workspace = Xcodeproj::Workspace.new_from_xcworkspace(@workspace_path)
+  project_file_reference = workspace.file_references.detect { |f| File.basename(f.path, ".xcodeproj") == project_name }
+  flunk("Project #{project_name} not found in the workspace") if project_file_reference.nil?
+  project = Xcodeproj::Project.open(File.join(@dir, project_file_reference.path))
+  targets = project.targets
+  target = targets.detect { |t| t.name == target_name }
+  flunk("Target #{target_name} not found in the project") if target.nil?
+  build_phase = target.build_phases.first
+  flunk("The target #{target_name} doesn't have build phases") if build_phase.nil?
+  assert build_phase.output_paths.include? output_path_name
+end
