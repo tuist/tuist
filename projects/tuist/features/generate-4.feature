@@ -23,8 +23,8 @@ Scenario: The project is an iOS application with target actions with build varia
     Then I copy the fixture ios_app_with_build_variables into the working directory
     Then tuist generates the project
     Then in project App the target App should have the build phase Tuist in the first position
-    Then in the build phase the field for output paths should have a path with $(DEVELOPER_FILE_DIR)/output.txt
-    Then I should be able to warm the cache and get no errors
+    Then in project App in the target App the build phase in the first position should have $(DERIVED_FILE_DIR)/output.txt as an output path
+    Then tuist warms the cache
     Then I should be able to build for iOS the scheme App
 
 Scenario: The project is an iOS application with remote Swift package (ios_app_with_remote_swift_package)
