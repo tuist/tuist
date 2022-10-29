@@ -19,6 +19,7 @@ protocol ProjectEditorMapping: AnyObject {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         resourceSynthesizers: [AbsolutePath],
+        stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
     ) throws -> Graph
 }
@@ -39,6 +40,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         resourceSynthesizers: [AbsolutePath],
+        stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
     ) throws -> Graph {
         let swiftVersion = try System.shared.swiftVersion()
@@ -62,6 +64,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             helpers: helpers,
             templates: templates,
             resourceSynthesizers: resourceSynthesizers,
+            stencils: stencils,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
             editablePluginTargets: editablePluginManifests.map(\.name),
@@ -135,6 +138,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         resourceSynthesizers: [AbsolutePath],
+        stencils: [AbsolutePath],
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
         editablePluginTargets: [String],
@@ -209,6 +213,17 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             )
         }()
 
+        let stencilsTarget: Target? = {
+            guard !stencils.isEmpty else { return nil }
+            return editorHelperTarget(
+                name: Constants.stencilsDirectoryName,
+                filesGroup: manifestsFilesGroup,
+                targetSettings: baseTargetSettings,
+                sourcePaths: stencils,
+                dependencies: helpersTarget.flatMap { [TargetDependency.target(name: $0.name)] } ?? []
+            )
+        }()
+
         let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
 
@@ -237,6 +252,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             helpersTarget,
             templatesTarget,
             resourceSynthesizersTarget,
+            stencilsTarget,
             configTarget,
             dependenciesTarget,
         ]
