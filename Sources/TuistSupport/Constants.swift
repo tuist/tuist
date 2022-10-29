@@ -7,7 +7,7 @@ public enum Constants {
     public static let gitRepositoryURL = "https://github.com/tuist/tuist.git"
     public static let githubAPIURL = "https://api.github.com"
     public static let githubSlug = "tuist/tuist"
-    public static let communityURL = "https://community.tuist.io"
+    public static let communityURL = "https://github.com/tuist/tuist/discussions/categories/general"
     public static let version = "3.12.1"
     public static let bundleName: String = "tuist.zip"
     public static let envBundleName: String = "tuistenv.zip"
