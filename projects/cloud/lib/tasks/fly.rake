@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # commands used to deploy a Rails application
 namespace :fly do
   # BUILD step:
@@ -12,16 +14,16 @@ namespace :fly do
   #  - changes to the filesystem made here are DISCARDED
   #  - full access to secrets, databases
   #  - failures here prevent deployment
-  task :release => 'db:migrate'
+  task release: "db:migrate"
 
   # SERVER step:
   #  - changes to the filesystem made here are deployed
   #  - full access to secrets, databases
   #  - failures here result in VM being stated, shutdown, and rolled back
   #    to last successful deploy (if any).
-  task :server => :swapfile do
-    sh 'bin/rails assets:precompile'
-    sh 'bundle exec puma -C config/puma.rb'
+  task server: :swapfile do
+    sh "bin/rails assets:precompile"
+    sh "bundle exec puma -C config/puma.rb"
   end
 
   # optional SWAPFILE task:
@@ -31,10 +33,10 @@ namespace :fly do
   #  - disable by removing dependency on the :server task, thus:
   #        task :server do
   task :swapfile do
-    sh 'fallocate -l 512M /swapfile'
-    sh 'chmod 0600 /swapfile'
-    sh 'mkswap /swapfile'
-    sh 'echo 10 > /proc/sys/vm/swappiness'
-    sh 'swapon /swapfile'
+    sh "fallocate -l 512M /swapfile"
+    sh "chmod 0600 /swapfile"
+    sh "mkswap /swapfile"
+    sh "echo 10 > /proc/sys/vm/swappiness"
+    sh "swapon /swapfile"
   end
 end

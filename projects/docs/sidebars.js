@@ -78,7 +78,7 @@ module.exports = {
       label: 'Cloud',
       items: [
         'cloud/get-started',
-        'cloud/specification',
+        'cloud/contributing',
         'cloud/self-hosting',
         'cloud/stats',
       ],
