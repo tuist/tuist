@@ -5,29 +5,24 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-/// `TuistAnalyticsTagger` is responsible to send analytics events that gets stored and reported at https://backbone.tuist.io/
+/// `TuistAnalyticsTagger` is responsible to send analytics events that gets stored and reported to the cloud backend (if defined)
 public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
     public static let dispatcherId = "TuistAnalytics"
 
-    private let backends: [TuistAnalyticsBackend]
+    private let backend: TuistAnalyticsBackend?
 
     public init(
         cloud: Cloud?,
-        cloudClient: CloudClienting = CloudClient(),
-        requestDispatcher: HTTPRequestDispatching = HTTPRequestDispatcher()
+        cloudClient: CloudClienting = CloudClient()
     ) {
-        let backbone = TuistAnalyticsBackboneBackend(requestDispatcher: requestDispatcher)
         if let cloud = cloud {
-            backends = [
-                backbone,
-                TuistAnalyticsCloudBackend(
-                    config: cloud,
-                    resourceFactory: CloudAnalyticsResourceFactory(cloudConfig: cloud),
-                    client: cloudClient
-                ),
-            ]
+            backend = TuistAnalyticsCloudBackend(
+                config: cloud,
+                resourceFactory: CloudAnalyticsResourceFactory(cloudConfig: cloud),
+                client: cloudClient
+            )
         } else {
-            backends = [backbone]
+            backend = nil
         }
     }
 
@@ -39,7 +34,7 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
         guard let commandEvent = event as? CommandEvent else { return }
 
         Task.detached {
-            _ = try await backends.concurrentMap { try? await $0.send(commandEvent: commandEvent) }
+            _ = try? await backend?.send(commandEvent: commandEvent)
             try completion()
         }
     }

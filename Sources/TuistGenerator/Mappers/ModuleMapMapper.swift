@@ -101,7 +101,12 @@ public final class ModuleMapMapper: WorkspaceMapping {
                     mappedSettingsDictionary[Self.otherCFlagsSetting] = updatedOtherCFlags
                 }
 
-                mappedTarget.settings = (mappedTarget.settings ?? .default).with(base: mappedSettingsDictionary)
+                let targetSettings = mappedTarget.settings ?? Settings(
+                    base: [:],
+                    configurations: [:],
+                    defaultSettings: mappedProject.settings.defaultSettings
+                )
+                mappedTarget.settings = targetSettings.with(base: mappedSettingsDictionary)
                 mappedProject.targets[targetIndex] = mappedTarget
             }
             mappedWorkspace.projects[projectIndex] = mappedProject

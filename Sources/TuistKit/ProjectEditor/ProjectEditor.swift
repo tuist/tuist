@@ -60,6 +60,12 @@ final class ProjectEditor: ProjectEditing {
     /// Utility to locate the custom templates directory
     let templatesDirectoryLocator: TemplatesDirectoryLocating
 
+    /// Utility to locate the resource synthesizers directory
+    let resourceSynthesizersDirectoryLocator: ResourceSynthesizerPathLocating
+
+    /// Utility to locate the stencil directory
+    let stencilDirectoryLocator: StencilPathLocating
+
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
 
@@ -74,7 +80,9 @@ final class ProjectEditor: ProjectEditing {
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
         writer: XcodeProjWriting = XcodeProjWriter(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
+        resourceSynthesizersDirectoryLocator: ResourceSynthesizerPathLocating = ResourceSynthesizerPathLocator(),
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
+        stencilDirectoryLocator: StencilPathLocating = StencilPathLocator(),
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring =
             ProjectDescriptionHelpersBuilderFactory()
     ) {
@@ -85,7 +93,9 @@ final class ProjectEditor: ProjectEditing {
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.writer = writer
         self.templatesDirectoryLocator = templatesDirectoryLocator
+        self.resourceSynthesizersDirectoryLocator = resourceSynthesizersDirectoryLocator
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.stencilDirectoryLocator = stencilDirectoryLocator
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
     }
 
@@ -135,6 +145,14 @@ final class ProjectEditor: ProjectEditing {
             FileHandler.shared.glob($0, glob: "**/*.swift") + FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
+        let resourceSynthesizers = resourceSynthesizersDirectoryLocator.locate(at: editingPath).map {
+            FileHandler.shared.glob($0, glob: "**/*.stencil")
+        } ?? []
+
+        let stencils = stencilDirectoryLocator.locate(at: editingPath).map {
+            FileHandler.shared.glob($0, glob: "**/*.stencil")
+        } ?? []
+
         let editablePluginManifests = locateEditablePluginManifests(
             at: editingPath,
             excluding: pathsToExclude,
@@ -149,7 +167,9 @@ final class ProjectEditor: ProjectEditing {
         )
 
         /// We error if the user tries to edit a project in a directory where there are no editable files.
-        if projectManifests.isEmpty, editablePluginManifests.isEmpty, helpers.isEmpty, templates.isEmpty {
+        if projectManifests.isEmpty, editablePluginManifests.isEmpty, helpers.isEmpty, templates.isEmpty,
+           resourceSynthesizers.isEmpty, stencils.isEmpty
+        {
             throw ProjectEditorError.noEditableFiles(editingPath)
         }
 
@@ -169,6 +189,8 @@ final class ProjectEditor: ProjectEditing {
             pluginProjectDescriptionHelpersModule: builtPluginHelperModules,
             helpers: helpers,
             templates: templates,
+            resourceSynthesizers: resourceSynthesizers,
+            stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath.parentDirectory
         )
 

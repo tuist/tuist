@@ -37,7 +37,7 @@ Then(/^([a-zA-Z0-9]+) links the framework ([a-zA-Z0-9]+) from the cache/) do |ta
   end
 end
 
-Then(/^([a-zA-Z0-9]+) copies the bundle ([a-zA-Z0-9]+) from the cache/) do |target_name, bundle_name|
+Then(/^([a-zA-Z0-9]+) copies the bundle ([a-zA-Z0-9_]+) from the cache/) do |target_name, bundle_name|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
   flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
@@ -56,7 +56,7 @@ Then(/^([a-zA-Z0-9]+) copies the bundle ([a-zA-Z0-9]+) from the cache/) do |targ
   end
 end
 
-Then(/^([a-zA-Z0-9]+) copies the bundle ([a-zA-Z0-9]+) from the build directory/) do |target_name, bundle_name|
+Then(/^([a-zA-Z0-9]+) copies the bundle ([a-zA-Z0-9_]+) from the build directory/) do |target_name, bundle_name|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
   flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?

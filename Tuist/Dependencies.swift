@@ -16,7 +16,7 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/Flight-School/AnyCodable", from: "0.6.6"),
             .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
             .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.15.1")),
-            .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .exact("2.8.0")),
+            .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .exact("2.9.0")),
             .package(url: "https://github.com/FabrizioBrancati/Queuer.git", .upToNextMajor(from: "2.1.1")),
             .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.6.0")),
             .package(url: "https://github.com/SwiftDocOrg/GraphViz.git", .exact("0.2.0")),

@@ -31,6 +31,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.rootViewController = viewController
         window?.makeKeyAndVisible()
 
+        let singleFile = StylesResources.bundle.url(forResource: "jsonFile", withExtension: "json")
+        guard let singleFile = singleFile else {
+            fatalError("singleFile is missing")
+        }
+
         AppKit.start()
 
         return true

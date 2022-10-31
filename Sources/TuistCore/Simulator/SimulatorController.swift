@@ -139,6 +139,7 @@ public final class SimulatorController: SimulatorControlling {
         let availableDevices = devicesAndRuntimes
             .sorted(by: { $0.runtime.version >= $1.runtime.version })
             .filter { simulatorDeviceAndRuntime in
+                guard simulatorDeviceAndRuntime.device.isAvailable else { return false }
                 let nameComponents = simulatorDeviceAndRuntime.runtime.name.components(separatedBy: " ")
                 guard nameComponents.first == platform.caseValue else { return false }
                 let deviceVersion = nameComponents.last?.version()

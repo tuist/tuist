@@ -3,6 +3,7 @@ import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistDependencies
+import TuistSupport
 import TuistSupportTesting
 
 extension TuistCore.DependenciesGraph {
@@ -49,10 +50,12 @@ extension TuistCore.DependenciesGraph {
     public static func test(
         spmFolder: Path,
         packageFolder: Path,
-        platforms: Set<Platform>
-    ) -> Self {
-        let addPlatfomSuffix = platforms.count != 1
+        platforms: Set<Platform>,
+        fileHandler: FileHandler
+    ) throws -> Self {
+        try fileHandler.createFolder(AbsolutePath("\(packageFolder.pathString)/customPath/resources"))
 
+        let addPlatfomSuffix = platforms.count != 1
         let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
             result[platform] = [
                 "Tuist": [

@@ -7,9 +7,8 @@ public enum Constants {
     public static let gitRepositoryURL = "https://github.com/tuist/tuist.git"
     public static let githubAPIURL = "https://api.github.com"
     public static let githubSlug = "tuist/tuist"
-    public static let communityURL = "https://community.tuist.io"
-    public static let backboneURL = URL(string: "https://backbone.tuist.io")!
-    public static let version = "3.12.0"
+    public static let communityURL = "https://github.com/tuist/tuist/discussions/categories/general"
+    public static let version = "3.12.1"
     public static let bundleName: String = "tuist.zip"
     public static let envBundleName: String = "tuistenv.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
@@ -22,6 +21,7 @@ public enum Constants {
     public static let encryptedExtension = "encrypted"
     public static let templatesDirectoryName: String = "Templates"
     public static let resourceSynthesizersDirectoryName: String = "ResourceSynthesizers"
+    public static let stencilsDirectoryName: String = "Stencils"
     public static let vendorDirectoryName: String = "vendor"
     public static let twitterHandle: String = "tuistio"
     public static let joinSlackURL: String = "https://slack.tuist.io/"

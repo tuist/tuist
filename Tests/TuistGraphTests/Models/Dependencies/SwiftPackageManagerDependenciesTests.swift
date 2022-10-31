@@ -17,7 +17,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         )
 
         // When
-        let got = subject.manifestValue(isLegacy: false)
+        let got = subject.manifestValue(isLegacy: false, packageManifestFolder: "/")
 
         // Then
         let expected = """
@@ -52,7 +52,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         )
 
         // When
-        let got = subject.manifestValue(isLegacy: false)
+        let got = subject.manifestValue(isLegacy: false, packageManifestFolder: "/path")
 
         // Then
         let expected = """
@@ -67,7 +67,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .package(url: "http://xyz.com", branch: "develop"),
                 .package(url: "https://www.google.com/", revision: "a083aa1435eb35d8a1cb369115a7636cb4b65135"),
                 .package(url: "url/url/url", "1.2.3" ..< "5.2.1"),
-                .package(path: "/path/path/path"),
+                .package(path: "path/path"),
             ]
         )
         """
@@ -87,7 +87,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         )
 
         // When
-        let got = subject.manifestValue(isLegacy: true)
+        let got = subject.manifestValue(isLegacy: true, packageManifestFolder: "/path")
 
         // Then
         let expected = """
@@ -122,7 +122,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         )
 
         // When
-        let got = subject.manifestValue(isLegacy: true)
+        let got = subject.manifestValue(isLegacy: true, packageManifestFolder: "/path")
 
         // Then
         let expected = """
@@ -137,7 +137,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .package(url: "http://xyz.com", .branch("develop")),
                 .package(url: "https://www.google.com/", .revision("a083aa1435eb35d8a1cb369115a7636cb4b65135")),
                 .package(url: "url/url/url", "1.2.3" ..< "5.2.1"),
-                .package(path: "/path/path/path"),
+                .package(path: "path/path"),
             ]
         )
         """

@@ -796,6 +796,16 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let sourcesPath = basePath.appending(RelativePath("Package/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
+        // Create resources files and directories
+        let resource1 = sourcesPath.appending(RelativePath("Resource/Folder"))
+        let resource2 = sourcesPath.appending(RelativePath("Another/Resource/Folder"))
+        let resource3 = sourcesPath.appending(RelativePath("AnotherOne/Resource/Folder"))
+
+        try fileHandler.createFolder(resource1)
+        try fileHandler.createFolder(resource2)
+        try fileHandler.createFolder(resource3)
+
+        // Project declaration
         let project = try subject.map(
             package: "Package",
             basePath: basePath,
@@ -1289,6 +1299,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
 
     func testMap_whenCustomPath() throws {
         let basePath = try temporaryPath()
+
+        // Create resources files and directories
         let headersPath = basePath.appending(RelativePath("Package/Custom/Headers"))
         let headerPath = headersPath.appending(component: "module.h")
         let moduleMapPath = headersPath.appending(component: "module.modulemap")
@@ -1296,6 +1308,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         try fileHandler.write("", path: headerPath, atomically: true)
         try fileHandler.write("", path: moduleMapPath, atomically: true)
 
+        let resourceFolderPathCustomTarget = basePath.appending(RelativePath("Package/Custom/Resource/Folder"))
+        try fileHandler.createFolder(resourceFolderPathCustomTarget)
+
+        // Project declaration
         let project = try subject.map(
             package: "Package",
             basePath: basePath,

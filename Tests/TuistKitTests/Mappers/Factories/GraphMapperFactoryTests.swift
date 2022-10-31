@@ -135,6 +135,21 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         XCTAssertEqual(mapper?.config, config)
     }
 
+    func test_automation_contains_the_filter_target_dependenies_tree_graph_mapper() throws {
+        // Given
+        let config = Config.test()
+        let testsCacheDirectory = try temporaryPath()
+
+        // When
+        let got = subject.automation(
+            config: config,
+            testsCacheDirectory: testsCacheDirectory
+        )
+
+        // Then
+        XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self, after: TestsCacheGraphMapper.self)
+    }
+
     func test_automation_contains_the_tests_cache_tree_shaking_mapper() throws {
         // Given
         let config = Config.test()
@@ -147,6 +162,6 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: TestsCacheGraphMapper.self)
+        XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self)
     }
 }

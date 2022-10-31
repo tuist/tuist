@@ -33,6 +33,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let dependenciesPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Dependencies.swift")
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
         let templates = [sourceRootPath].map { $0.appending(component: "template") }
+        let resourceSynthesizers = [sourceRootPath].map { $0.appending(component: "resourceSynthesizer") }
+        let stencils = [sourceRootPath].map { $0.appending(component: "Stencil") }
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
@@ -55,6 +57,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
+            resourceSynthesizers: resourceSynthesizers,
+            stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
@@ -67,7 +71,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(graph.name, "TestManifests")
 
-        XCTAssertEqual(targets.count, 7)
+        XCTAssertEqual(targets.count, 9)
 
         // Generated Manifests target
         let manifestsTarget = try XCTUnwrap(project.targets.first(where: { $0.name == sourceRootPath.basename + projectName }))
@@ -120,6 +124,40 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(templatesTarget.sources.map(\.path), templates)
         XCTAssertEqual(templatesTarget.filesGroup, projectsGroup)
         XCTAssertEqual(Set(templatesTarget.dependencies), Set([
+            .target(name: "ProjectDescriptionHelpers"),
+        ]))
+
+        // Generated ResourceSynthesizers target
+        let resourceSynthesizersTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ResourceSynthesizers" }))
+        XCTAssertTrue(targets.contains(resourceSynthesizersTarget))
+
+        XCTAssertEqual(resourceSynthesizersTarget.name, "ResourceSynthesizers")
+        XCTAssertEqual(resourceSynthesizersTarget.platform, .macOS)
+        XCTAssertEqual(resourceSynthesizersTarget.product, .staticFramework)
+        XCTAssertEqual(
+            resourceSynthesizersTarget.settings,
+            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        )
+        XCTAssertEqual(resourceSynthesizersTarget.sources.map(\.path), resourceSynthesizers)
+        XCTAssertEqual(resourceSynthesizersTarget.filesGroup, projectsGroup)
+        XCTAssertEqual(Set(resourceSynthesizersTarget.dependencies), Set([
+            .target(name: "ProjectDescriptionHelpers"),
+        ]))
+
+        // Generated Stencils target
+        let stencilsTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Stencils" }))
+        XCTAssertTrue(targets.contains(stencilsTarget))
+
+        XCTAssertEqual(stencilsTarget.name, "Stencils")
+        XCTAssertEqual(stencilsTarget.platform, .macOS)
+        XCTAssertEqual(stencilsTarget.product, .staticFramework)
+        XCTAssertEqual(
+            stencilsTarget.settings,
+            expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
+        )
+        XCTAssertEqual(stencilsTarget.sources.map(\.path), stencils)
+        XCTAssertEqual(stencilsTarget.filesGroup, projectsGroup)
+        XCTAssertEqual(Set(stencilsTarget.dependencies), Set([
             .target(name: "ProjectDescriptionHelpers"),
         ]))
 
@@ -187,6 +225,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
+        let resourceSynthesizers: [AbsolutePath] = []
+        let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
@@ -205,6 +245,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
+            resourceSynthesizers: resourceSynthesizers,
+            stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
@@ -267,6 +309,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         ]
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
+        let resourceSynthesizers: [AbsolutePath] = []
+        let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
@@ -284,6 +328,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
+            resourceSynthesizers: resourceSynthesizers,
+            stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
@@ -371,6 +417,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         }
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
+        let resourceSynthesizers: [AbsolutePath] = []
+        let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Plugins"
@@ -389,6 +437,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
+            resourceSynthesizers: resourceSynthesizers,
+            stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
@@ -448,6 +498,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         }
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
+        let resourceSynthesizers: [AbsolutePath] = []
+        let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Plugins"
@@ -466,6 +518,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
+            resourceSynthesizers: resourceSynthesizers,
+            stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
@@ -548,6 +602,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         ]
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
+        let resourceSynthesizers: [AbsolutePath] = []
+        let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         try createFiles([
@@ -577,6 +633,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
+            resourceSynthesizers: resourceSynthesizers,
+            stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
@@ -596,6 +654,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths: [AbsolutePath] = [sourceRootPath].map { $0.appending(components: "Tuist", "ProjectDescriptionHelpers") }
         let templates: [AbsolutePath] = []
+        let resourceSynthesizers: [AbsolutePath] = []
+        let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(components: "Frameworks", "ProjectDescription.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let manifestsProjectName = "Manifests"
@@ -618,6 +678,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [remotePlugin],
             helpers: helperPaths,
             templates: templates,
+            resourceSynthesizers: resourceSynthesizers,
+            stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
