@@ -298,11 +298,9 @@ Thanks goes to these wonderful people:
       <td align="center"><a href="https://github.com/xoxo-anastasi-xoxo"><img src="https://avatars.githubusercontent.com/u/28875920?v=4" width="100px;" alt=""/><br /><sub><b>Anastasia Kazantseva</b></sub></a></td>
       <td align="center"><a href="https://twitter.com/MonocularVision"><img src="https://avatars.githubusercontent.com/u/429790?v=4" width="100px;" alt=""/><br /><sub><b>Michael McGuire</b></sub></a></td>
       <td align="center"><a href="http://www.michaelfcollins3.me"><img src="https://avatars.githubusercontent.com/u/104274?v=4" width="100px;" alt=""/><br /><sub><b>Michael Collins</b></sub></a></td>
+      <td align="center"><a href="https://github.com/devyhan"><img src="https://avatars.githubusercontent.com/u/45344633?v=4" width="100px;" alt=""/><br /><sub><b>YoHan Cho</b></sub></a></td>
     </tr>
   </tbody>
-  <tfoot>
-    
-  </tfoot>
 </table>
 
 <!-- markdownlint-restore -->
