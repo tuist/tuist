@@ -90,8 +90,8 @@ GEM
       retriable (>= 2.0, < 4.a)
       rexml
       webrick
-    google-apis-iamcredentials_v1 (0.15.0)
-      google-apis-core (>= 0.9.0, < 2.a)
+    google-apis-iamcredentials_v1 (0.16.0)
+      google-apis-core (>= 0.9.1, < 2.a)
     google-apis-storage_v1 (0.19.0)
       google-apis-core (>= 0.9.0, < 2.a)
     google-cloud-core (1.6.0)
