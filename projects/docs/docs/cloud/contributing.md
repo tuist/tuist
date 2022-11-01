@@ -20,9 +20,9 @@ And then navigate to the cloud project:
 cd tuist/projects/cloud
 ```
 
-Once you're in the cloud directory, you can run `./up`. This script will install the necessary dependencies, set up a new `master.key` if you don't have one already, and create a new `credentials.yml` file that you will be able to start editing right away.
+Once you're in the cloud directory, we recommend switching to the Node and Ruby versions defined in `.nvmrc` and `.ruby-version` files, respectively. We recommend using [nvm](https://github.com/nvm-sh/nvm) and [chruby](https://github.com/postmodern/chruby) to easily switch between given versions. Afterwards, you can run `./up`. This script will install the necessary dependencies, set up a new `master.key` if you don't have one already, and create a new `credentials.yml` file that you will be able to start editing right away.
 
-The file `credentials.yml.enc` showcases what credentials you might need. That being said, you might _not_ need all of them, depending on what you want to do.
+The file `credentials.yml.enc` showcases what credentials you might need. That being said, you might _not_ need all of them, depending on what you want to do. If you want to post a PR, do _not_ commit this file.
 
 To get you started with some pre-generated accounts, you can run:
 ```bash
