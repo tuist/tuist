@@ -10,8 +10,11 @@
 #   movies = Movie.create([{ name: 'Star Wars' }, { name: 'Lord of the Rings' }])
 #   Character.create(name: 'Luke', movie: movies.first)
 
+organization_ids = []
+
 4.times do |index|
   organization = Organization.create!
+  organization_ids.push(organization.id)
   account = Account.create!(
     name: Faker::Superhero.name,
     owner: organization,
@@ -36,7 +39,7 @@ end
     token: Faker::Alphanumeric.alpha(number: 10),
     account_id: user.account.id,
   )
-  organization = Organization.find(Faker::Number.between(from: 1, to: 4))
+  organization = Organization.find(organization_ids[Faker::Number.between(from: 0, to: 3)])
   user.add_role(:admin, organization)
   puts "email: #{email}"
   puts "password: #{password}"

@@ -320,12 +320,4 @@ Devise.setup do |config|
     Secrets.fetch(:devise, :omniauth, :github, :oauth_secret),
     scope: "read:user,user:email",
   )
-
-  # OmniAuth: GitLab
-  config.omniauth(
-    :gitlab,
-    Secrets.fetch(:devise, :omniauth, :gitlab, :application_id),
-    Secrets.fetch(:devise, :omniauth, :gitlab, :secret),
-    scope: "read_user api read_api",
-  )
 end
