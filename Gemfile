@@ -17,7 +17,6 @@ gem "sidekiq", "~> 6.2"
 gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 gem "bugsnag", "~> 6.21"
 gem "vite_rails", "~> 3.0.3"
-gem "google-cloud-storage", "~> 1.34"
 gem "faker", "~> 2.19"
 
 # GraphQL
@@ -31,7 +30,6 @@ gem "rolify", "~> 6.0"
 gem "pundit", "~> 2.1"
 gem "omniauth", "~> 2.0"
 gem "omniauth-github", "~> 2.0"
-gem "omniauth-gitlab", "~> 3.0"
 gem "omniauth-rails_csrf_protection", "~> 1.0"
 
 group :development, :test do

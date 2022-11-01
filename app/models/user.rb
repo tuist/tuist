@@ -23,7 +23,7 @@ class User < ApplicationRecord
     :recoverable, :rememberable, :validatable,
     :timeoutable, :trackable, :confirmable,
     :omniauthable,
-    omniauth_providers: [:github, :gitlab]
+    omniauth_providers: [:github]
 
   # Associations
   has_one :account, as: :owner, inverse_of: :owner, dependent: :destroy, required: true, autosave: true
