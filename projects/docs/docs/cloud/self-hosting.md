@@ -33,6 +33,9 @@ fly launch
 
 # Deploy the app
 fly deploy
+
+# Set a RAILS_MASTER_KEY secret (contents of your master.key file)
+fly secrects set RAILS_MASTER_KEY=$(cat config/master.key)
 ```
 
 And that's it! That being said, you might need to upgrade the memory on the provided CPU by:
