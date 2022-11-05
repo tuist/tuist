@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.13.0 - 2022-11-05
+
+### Added
+
+- Add SwiftUI support to default assets resource synthesizer [#4838](https://github.com/tuist/tuist/pull/4838) by [@kyungpyoda](https://github.com/kyungpyoda)
+
+### Fixed
+
+- Fix extra Target configurations are generated when Project has custom configurations [#4811](https://github.com/tuist/tuist/pull/4811) by [@francuim-d](https://github.com/francuim-d)
+- When tuist chooses a simulator device while building, make sure it's available [#4848](https://github.com/tuist/tuist/pull/4848) by [@ezraberch](https://github.com/ezraberch)
+- Fix loading of stencils using `{% extends %}` [#4844](https://github.com/tuist/tuist/pull/4844) by [@devyhan](https://github.com/devyhan)
+- Update Community Url in Constants.swift file [#4836](https://github.com/tuist/tuist/pull/4836) by [@shahzadmajeed](https://github.com/shahzadmajeed)
+
 ## 3.12.1 - 2022-10-19
 
 ### Changed
