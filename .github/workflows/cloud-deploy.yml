@@ -14,6 +14,7 @@ jobs:
     name: Deploy app
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      DOCKER_BUILDKIT: 1
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
