@@ -12,7 +12,6 @@ concurrency:
 jobs:
   deploy:
     name: Fly Deploy
-    on: [push]
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     jobs:
