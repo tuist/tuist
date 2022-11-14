@@ -79,7 +79,7 @@ GEM
     faraday (2.6.0)
       faraday-net_http (>= 2.0, < 3.1)
       ruby2_keywords (>= 0.0.4)
-    faraday-net_http (3.0.1)
+    faraday-net_http (3.0.2)
     ffi (1.15.5)
     google-apis-core (0.9.1)
       addressable (~> 2.5, >= 2.5.1)
@@ -138,7 +138,7 @@ GEM
       builder
       minitest (>= 5.0)
       ruby-progressbar
-    mocha (1.16.0)
+    mocha (1.16.1)
     multi_json (1.15.0)
     multi_test (0.1.2)
     nanaimo (0.3.0)
@@ -184,7 +184,7 @@ GEM
       uber (< 0.2.0)
     retriable (3.1.2)
     rexml (3.2.5)
-    rubocop (1.38.0)
+    rubocop (1.39.0)
       json (~> 2.3)
       parallel (~> 1.10)
       parser (>= 3.1.2.1)
@@ -251,7 +251,7 @@ GEM
       colored2 (~> 3.1)
       nanaimo (~> 0.3.0)
       rexml (~> 3.2.4)
-    zeitwerk (2.6.5)
+    zeitwerk (2.6.6)
 
 PLATFORMS
   ruby
