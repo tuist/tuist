@@ -34,9 +34,9 @@ Accessing the resources this way is not mandatory, yet we recommend it strongly.
 :::
 
 :::caution No on the fly resource accessor generation support as yet
-Before adopting this approach in your codebase, please note that Tuist's resource accessor generation does **not** work on the fly. In other words, if you add or change a resource, you will have to rebuild the project with Tuist to re-generate your resource accessors so that they reflect the changes you made.
+Before adopting this approach in your codebase, please note that Tuist's resource accessor generation does **not** work on the fly. In other words, if you add or change a resource, you will need to run `tuist generate` to re-generate your resource accessors so that they reflect the changes you made.
 
-Please see [this](https://github.com/tuist/tuist/issues/2809) issue for more details.
+Please see [this issue](https://github.com/tuist/tuist/issues/2809) for more details.
 :::
 
 #### Objective-C
