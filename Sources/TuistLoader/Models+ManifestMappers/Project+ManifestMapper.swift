@@ -25,6 +25,7 @@ extension TuistGraph.Project {
         let name = manifest.name
         let xcodeProjectName = manifest.options.xcodeProjectName ?? name
         let organizationName = manifest.organizationName
+        let defaultKnownRegions = manifest.options.defaultKnownRegions
         let developmentRegion = manifest.options.developmentRegion
         let options = TuistGraph.Project.Options.from(manifest: manifest.options)
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
@@ -56,6 +57,7 @@ extension TuistGraph.Project {
             xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(xcodeProjectName).xcodeproj"),
             name: name,
             organizationName: organizationName,
+            defaultKnownRegions: defaultKnownRegions,
             developmentRegion: developmentRegion,
             options: options,
             settings: settings ?? .default,

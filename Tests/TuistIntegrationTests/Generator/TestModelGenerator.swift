@@ -152,6 +152,7 @@ final class TestModelGenerator {
             xcodeProjPath: path.appending(component: "App.xcodeproj"),
             name: name,
             organizationName: nil,
+            defaultKnownRegions: nil,
             developmentRegion: nil,
             options: .test(),
             settings: settings,

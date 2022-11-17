@@ -22,6 +22,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                     codeCoverageEnabled: true,
                     testingOptions: [.parallelizable]
                 ),
+                defaultKnownRegions: ["en-US", "Base"],
                 developmentRegion: "us",
                 disableBundleAccessors: true,
                 disableShowEnvironmentVarsInScriptPhases: true,
@@ -60,6 +61,7 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                 xcodeProjPath: "/XcodeName.xcodeproj",
                 name: "Name",
                 organizationName: "Organization",
+                defaultKnownRegions: ["en-US", "Base"],
                 developmentRegion: "us",
                 options: .init(
                     automaticSchemesOptions: .enabled(

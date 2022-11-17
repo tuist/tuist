@@ -234,6 +234,21 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generate_setsCustomDefaultKnownRegions() throws {
+        // Given
+        let path = try temporaryPath()
+        let graph = Graph.test(path: path)
+        let graphTraverser = GraphTraverser(graph: graph)
+        let project = Project.test(path: path, defaultKnownRegions: ["Base", "en-GB"], targets: [])
+
+        // When
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
+        XCTAssertEqual(pbxProject.knownRegions, ["Base", "en-GB"])
+    }
+
     func test_generate_setsOrganizationName() throws {
         // Given
         let path = try temporaryPath()
