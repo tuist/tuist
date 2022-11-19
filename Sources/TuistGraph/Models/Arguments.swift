@@ -28,23 +28,3 @@ extension Arguments: Equatable {
             == rhs.launchArguments.sorted { $0.name == $1.name }
     }
 }
-
-extension Arguments {
-    /// Creates a new `Arguments` that merges the contents of the current and given `Arguments`.
-    ///
-    /// If there are duplicate keys, the value of the current one will be preserved.
-    ///
-    /// - Parameter arguments: The `Arguments` to merge.
-    /// - Returns: A new `Arguments` with the merged contents.
-    public func merging(with arguments: Arguments) -> Arguments {
-        Arguments(
-            environment: environment.merging(
-                arguments.environment,
-                uniquingKeysWith: { a, _ in a }
-            ),
-            launchArguments: launchArguments + arguments.launchArguments.filter { argument in
-                !self.launchArguments.contains(where: { argument.name == $0.name })
-            }
-        )
-    }
-}
