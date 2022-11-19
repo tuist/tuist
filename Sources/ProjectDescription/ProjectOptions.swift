@@ -6,6 +6,9 @@ extension Project {
         /// Configures automatic target schemes generation.
         public let automaticSchemesOptions: AutomaticSchemesOptions
 
+        /// Configures the default known regions
+        public let defaultKnownRegions: [String]?
+
         /// Configures the development region.
         public let developmentRegion: String?
 
@@ -26,6 +29,7 @@ extension Project {
 
         public static func options(
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
+            defaultKnownRegions: [String]? = nil,
             developmentRegion: String? = nil,
             disableBundleAccessors: Bool = false,
             disableShowEnvironmentVarsInScriptPhases: Bool = false,
@@ -35,6 +39,7 @@ extension Project {
         ) -> Self {
             self.init(
                 automaticSchemesOptions: automaticSchemesOptions,
+                defaultKnownRegions: defaultKnownRegions,
                 developmentRegion: developmentRegion,
                 disableBundleAccessors: disableBundleAccessors,
                 disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,

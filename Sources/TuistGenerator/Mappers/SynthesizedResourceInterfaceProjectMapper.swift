@@ -112,35 +112,12 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
 
-        let paths = try paths(for: resourceSynthesizer, target: target, developmentRegion: project.developmentRegion)
-            .filter(isResourceEmpty)
-
-        let templateName: String
-        switch resourceSynthesizer.template {
-        case let .defaultTemplate(name):
-            templateName = name
-        case let .file(path):
-            templateName = path.basenameWithoutExt
-        }
-
-        let renderedInterfaces: [(String, String)]
-        if paths.isEmpty {
-            renderedInterfaces = []
-        } else {
-            let name = target.name.camelized.uppercasingFirst
-            renderedInterfaces = [
-                (
-                    "Tuist\(templateName)+\(name)",
-                    try synthesizedResourceInterfacesGenerator.render(
-                        parser: resourceSynthesizer.parser,
-                        templateString: templateString,
-                        name: target.productName.camelized.uppercasingFirst,
-                        bundleName: project.options.disableBundleAccessors ? nil : "Bundle.module",
-                        paths: paths
-                    )
-                ),
-            ]
-        }
+        let renderedInterfaces = try renderedInterfaces(
+            for: resourceSynthesizer,
+            templateString: templateString,
+            target: target,
+            project: project
+        )
 
         let renderedResources = Set(
             renderedInterfaces.map { name, contents in
@@ -172,6 +149,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
     private func paths(
         for resourceSynthesizer: ResourceSynthesizer,
         target: Target,
+        defaultKnownRegions: [String]?,
         developmentRegion: String?
     ) -> [AbsolutePath] {
         let resourcesPaths = target.resources
@@ -184,7 +162,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         switch resourceSynthesizer.parser {
         case .strings:
             // This file kind is localizable, let's order files based on it
-            var regionPriorityQueue = ["Base", "en"]
+            var regionPriorityQueue = defaultKnownRegions ?? ["Base", "en"]
             if let developmentRegion = developmentRegion {
                 regionPriorityQueue.insert(developmentRegion, at: 0)
             }
@@ -236,5 +214,48 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         case .files:
             return SynthesizedResourceInterfaceTemplates.filesTemplate
         }
+    }
+
+    private func renderedInterfaces(
+        for resourceSynthesizer: ResourceSynthesizer,
+        templateString: String,
+        target: Target,
+        project: Project
+    ) throws -> [(String, String)] {
+        let paths = try paths(
+            for: resourceSynthesizer,
+            target: target,
+            defaultKnownRegions: project.defaultKnownRegions,
+            developmentRegion: project.developmentRegion
+        )
+        .filter(isResourceEmpty)
+
+        let templateName: String
+        switch resourceSynthesizer.template {
+        case let .defaultTemplate(name):
+            templateName = name
+        case let .file(path):
+            templateName = path.basenameWithoutExt
+        }
+
+        let renderedInterfaces: [(String, String)]
+        if paths.isEmpty {
+            renderedInterfaces = []
+        } else {
+            let name = target.name.camelized.uppercasingFirst
+            renderedInterfaces = [
+                (
+                    "Tuist\(templateName)+\(name)",
+                    try synthesizedResourceInterfacesGenerator.render(
+                        parser: resourceSynthesizer.parser,
+                        templateString: templateString,
+                        name: target.productName.camelized.uppercasingFirst,
+                        bundleName: project.options.disableBundleAccessors ? nil : "Bundle.module",
+                        paths: paths
+                    )
+                ),
+            ]
+        }
+        return renderedInterfaces
     }
 }

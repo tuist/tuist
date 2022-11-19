@@ -2,3 +2,9 @@
 
 bundle install
 npm install
+
+if [ ! -f config/master.key ]; then
+  echo "Input data for development credentials – use config/credentials.example.yml as an example. For development, you can keep the mock data from the example yml. Do not commit the config/credentials.yml.enc file if you plan to post a PR."
+  rm config/credentials.yml.enc
+  EDITOR="code --wait" bin/rails credentials:edit
+fi
