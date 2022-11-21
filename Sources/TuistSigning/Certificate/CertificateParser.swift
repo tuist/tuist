@@ -56,24 +56,24 @@ final class CertificateParser: CertificateParsing {
         let isRevoked = subject.contains("REVOKED")
 
         let nameRegex = try NSRegularExpression(
-            pattern: SubjectAttribute.commonName.rawValue + " *= *([^/,]+)",
+            pattern: SubjectAttribute.commonName.rawValue + " *= *(?:\"(.*)\"|([^/,]+))",
             options: []
         )
-        guard let nameResult = nameRegex.firstMatch(in: subject, options: [], range: NSRange(location: 0, length: subject.count))
+        guard let nameResult = nameRegex.firstMatch(in: subject, range: NSRange(location: 0, length: subject.count)),
+              nameResult.range(at: 1).length > 0 || nameResult.range(at: 2).length > 0
         else { throw CertificateParserError.nameParsingFailed(publicKey, subject) }
-        let name = NSString(string: subject).substring(with: nameResult.range(at: 1)).spm_chomp()
+        let nameResultRange = nameResult.range(at: nameResult.range(at: 1).length > 0 ? 1 : 2)
+        let name = NSString(string: subject).substring(with: nameResultRange).spm_chomp()
 
         let developmentTeamRegex = try NSRegularExpression(
-            pattern: SubjectAttribute.organizationalUnit.rawValue + " *= *([^/,]+)",
+            pattern: SubjectAttribute.organizationalUnit.rawValue + " *= *(?:\"(.*)\"|([^/,]+))",
             options: []
         )
-        guard let developmentTeamResult = developmentTeamRegex.firstMatch(
-            in: subject,
-            options: [],
-            range: NSRange(location: 0, length: subject.count)
-        )
+        guard let developmentTeamResult = developmentTeamRegex.firstMatch(in: subject, range: NSRange(location: 0, length: subject.count)),
+              nameResult.range(at: 1).length > 0 || nameResult.range(at: 2).length > 0
         else { throw CertificateParserError.developmentTeamParsingFailed(publicKey, subject) }
-        let developmentTeam = NSString(string: subject).substring(with: developmentTeamResult.range(at: 1)).spm_chomp()
+        let developmentTeamResultRange = developmentTeamResult.range(at: developmentTeamResult.range(at: 1).length > 0 ? 1 : 2)
+        let developmentTeam = NSString(string: subject).substring(with: developmentTeamResultRange).spm_chomp()
 
         return Certificate(
             publicKey: publicKey,
