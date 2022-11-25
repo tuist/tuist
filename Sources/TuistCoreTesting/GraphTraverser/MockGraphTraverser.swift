@@ -144,6 +144,16 @@ final class MockGraphTraverser: GraphTraversing {
         invokedAllInternalTargetsCount += 1
         return stubbedAllInternalTargetsResult
     }
+    
+    var invokedAllExternalTestsTargets = false
+    var invokedAllExternalTestsTargetsCount = 0
+    var stubbedAllExternalTestsTargetsResult: Set<GraphTarget>! = []
+    
+    func allExternalTestsTargets() -> Set<GraphTarget> {
+        invokedAllExternalTestsTargets = true
+        invokedAllExternalTestsTargetsCount += 1
+        return stubbedAllExternalTestsTargetsResult
+    }
 
     var invokedPrecompiledFrameworksPaths = false
     var invokedPrecompiledFrameworksPathsCount = 0

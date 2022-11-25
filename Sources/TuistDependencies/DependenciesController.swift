@@ -150,7 +150,7 @@ public final class DependenciesController: DependenciesControlling {
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
-        let platforms = dependencies.platforms
+        let platforms = dependencies.platforms.union([.iOS])
 
         guard !platforms.isEmpty else {
             throw DependenciesControllerError.noPlatforms

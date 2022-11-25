@@ -40,8 +40,17 @@ let project = Project(
                 .external(name: "StripeCardScan"),
                 .external(name: "TYStatusBarView"),
                 .external(name: "GRDB"),
+                .external(name: "Styles"),
             ],
             settings: .targetSettings
+        ),
+        Target(
+            name: "AppKitTests",
+            platform: .iOS,
+            product: .unitTests,
+            bundleId: "io.tuist.app.kit.tests",
+            sources: ["Tests/AppKitTests/**"],
+            dependencies: [.target(name: "AppKit")]
         ),
         Target(
             name: "WatchApp",
@@ -69,5 +78,22 @@ let project = Project(
             ]
         ),
     ],
-    schemes: Scheme.allSchemes(for: ["App", "AppKit"], executable: "App")
+    schemes: Scheme.allSchemes(for: ["App", "AppKit", "Stripe"], executable: "App") /* +
+     [
+          .scheme(
+              name: "Dependencies-AllTests",
+              buildAction: .buildAction(targets: [
+                  TargetReference(stringLiteral: "AppKit"),
+                  TargetReference(projectPath: "Tuist/Dependencies/SwiftPackageManager/.build/checkouts/Alamofire", target: "Alamofire"),
+                  TargetReference(projectPath: "LocalSwiftPackage", target: "Stripe")
+              ]),
+              testAction: .targets(
+                  [
+                      "AppKitTests",
+                      TestableTarget(target: TargetReference(projectPath: "LocalSwiftPackage", target: "StripeTests"))
+                  ],
+                  configuration: .debug
+              )
+          )
+     ] */
 )

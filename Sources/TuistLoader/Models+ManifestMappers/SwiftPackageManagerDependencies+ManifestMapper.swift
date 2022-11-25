@@ -18,13 +18,15 @@ extension TuistGraph.SwiftPackageManagerDependencies {
         let projectOptions: [String: TuistGraph.Project.Options] = manifest
             .projectOptions
             .mapValues { .from(manifest: $0) }
-
+        let testableTargetsFromPackages: [String] = manifest.testableTargetsFromPackages
+        
         return .init(
             packages,
             productTypes: productTypes,
             baseSettings: baseSettings,
             targetSettings: targetSettings,
-            projectOptions: projectOptions
+            projectOptions: projectOptions,
+            testableTargetsFromPackages: testableTargetsFromPackages
         )
     }
 }

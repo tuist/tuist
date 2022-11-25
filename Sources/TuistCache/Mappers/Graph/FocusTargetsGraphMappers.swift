@@ -16,11 +16,18 @@ public final class FocusTargetsGraphMappers: GraphMapping {
         let graphTraverser = GraphTraverser(graph: graph)
         var graph = graph
         let includedTargets = includedTargets
-            .isEmpty ? Set(graphTraverser.allInternalTargets().map(\.target.name)) : includedTargets
+            .isEmpty ? Set(
+                graphTraverser.allInternalTargets()
+                    .union(graphTraverser.allExternalTestsTargets())
+                    .map(\.target.name)
+            ) : includedTargets
         let userSpecifiedSourceTargets = graphTraverser.allTargets().filter { includedTargets.contains($0.target.name) }
         let filteredTargets = Set(try topologicalSort(
             Array(userSpecifiedSourceTargets),
-            successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)) }
+            successors: { graphTarget in
+                print(graphTarget.target.name)
+                return Array(graphTraverser.directTargetDependencies(path: graphTarget.path, name: graphTarget.target.name))
+            }
         ))
 
         graphTraverser.allTargets().forEach { graphTarget in

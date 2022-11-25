@@ -17,9 +17,12 @@ let dependencies = Dependencies(
     swiftPackageManager: .init(
         packages,
         baseSettings: .targetSettings,
+        targetSettings: ["TestsSupport": ["ENABLE_TESTING_SEARCH_PATHS": "YES"]],
         projectOptions: [
             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
-        ]
+        ],
+        testableTargetsFromPackages: ["LocalSwiftPackage"]
+        //testableTargetsFromPackages: []
     ),
     platforms: [.iOS, .watchOS]
 )

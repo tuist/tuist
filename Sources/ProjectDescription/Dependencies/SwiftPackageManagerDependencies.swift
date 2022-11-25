@@ -29,25 +29,31 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public let projectOptions: [String: ProjectDescription.Project.Options]
 
+    /// Allows including test targets into generated project for a swift package. This is useful for testing local swift packages in same repository
+    public let testableTargetsFromPackages: [String]
+    
     /// Creates `SwiftPackageManagerDependencies` instance.
     /// - Parameter packages: List of packages that will be installed using Swift Package Manager.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter generationOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    /// - Parameter testableTargetsFromPackages: Opt-in to include unit tests targets from external dependencies. This is useful for testing local swift packages in same repository
 
     public init(
         _ packages: [Package],
         productTypes: [String: Product] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary] = [:],
-        projectOptions: [String: ProjectDescription.Project.Options] = [:]
+        projectOptions: [String: ProjectDescription.Project.Options] = [:],
+        testableTargetsFromPackages: [String] = []
     ) {
         self.packages = packages
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
+        self.testableTargetsFromPackages = testableTargetsFromPackages
     }
 }
 

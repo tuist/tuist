@@ -33,6 +33,9 @@ public struct SwiftPackageManagerDependencies: Equatable {
     /// The custom project options for each project generated from a swift package
     public let projectOptions: [String: TuistGraph.Project.Options]
 
+    /// Allows including test targets into generated project for a swift package. This is useful for testing local swift packages in same repository
+    public let testableTargetsFromPackages: [String]
+    
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
     ///    - packages: List of packages that will be installed using Swift Package Manager.
@@ -40,19 +43,22 @@ public struct SwiftPackageManagerDependencies: Equatable {
     ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
     ///    - generationOptions: The custom project options for each project generated from a swift package
+    ///    - testableTargetsFromPackages: Opt-in to include unit tests targets from external dependencies. This is useful for testing local swift packages in same repository
 
     public init(
         _ packages: [Package],
         productTypes: [String: Product],
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
-        projectOptions: [String: TuistGraph.Project.Options] = [:]
+        projectOptions: [String: TuistGraph.Project.Options] = [:],
+        testableTargetsFromPackages: [String]
     ) {
         self.packages = packages
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
+        self.testableTargetsFromPackages = testableTargetsFromPackages
     }
 }
 
