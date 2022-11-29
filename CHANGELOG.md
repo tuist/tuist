@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.14.0 - 2022-11-18
+
+### Added
+
+- Add default known regions in project options [#4867](https://github.com/tuist/tuist/pull/4867) by [@spqw](https://github.com/spqw)
+
+### Fixed
+
+- Fix concurrency warning in bundle extension [#4878](https://github.com/tuist/tuist/pull/4878) by [@mpodeszwa](https://github.com/mpodeszwa)
+
 ## 3.13.0 - 2022-11-05
 
 ### Added
