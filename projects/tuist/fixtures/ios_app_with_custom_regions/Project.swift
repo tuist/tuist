@@ -12,7 +12,7 @@ let project = Project(
             platform: .iOS,
             product: .app,
             bundleId: "io.tuist.app",
-            infoPlist: "App/Info.plist",
+            infoPlist: .default,
             sources: ["App/Sources/**"]
         ),
     ]
