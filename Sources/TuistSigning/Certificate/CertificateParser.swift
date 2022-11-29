@@ -69,8 +69,10 @@ final class CertificateParser: CertificateParsing {
             pattern: SubjectAttribute.organizationalUnit.rawValue + " *= *(?:\"(.*)\"|([^/,]+))",
             options: []
         )
-        guard let developmentTeamResult = developmentTeamRegex.firstMatch(in: subject, range: NSRange(location: 0, length: subject.count)),
-              nameResult.range(at: 1).length > 0 || nameResult.range(at: 2).length > 0
+        guard let developmentTeamResult = developmentTeamRegex.firstMatch(
+            in: subject,
+            range: NSRange(location: 0, length: subject.count)
+        ), nameResult.range(at: 1).length > 0 || nameResult.range(at: 2).length > 0
         else { throw CertificateParserError.developmentTeamParsingFailed(publicKey, subject) }
         let developmentTeamResultRange = developmentTeamResult.range(at: developmentTeamResult.range(at: 1).length > 0 ? 1 : 2)
         let developmentTeam = NSString(string: subject).substring(with: developmentTeamResultRange).spm_chomp()
