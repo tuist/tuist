@@ -56,7 +56,7 @@ final class CertificateParser: CertificateParsing {
         let isRevoked = subject.contains("REVOKED")
 
         let nameRegex = try NSRegularExpression(
-            pattern: SubjectAttribute.commonName.rawValue + " *= *(?:\"(.*)\"|([^/,]+))",
+            pattern: SubjectAttribute.commonName.rawValue + " *= *(?:\"([^/,]+)\"|([^/,]+))",
             options: []
         )
         guard let nameResult = nameRegex.firstMatch(in: subject, range: NSRange(location: 0, length: subject.count)),
@@ -66,7 +66,7 @@ final class CertificateParser: CertificateParsing {
         let name = NSString(string: subject).substring(with: nameResultRange).spm_chomp()
 
         let developmentTeamRegex = try NSRegularExpression(
-            pattern: SubjectAttribute.organizationalUnit.rawValue + " *= *(?:\"(.*)\"|([^/,]+))",
+            pattern: SubjectAttribute.organizationalUnit.rawValue + " *= *(?:\"([^/,]+)\"|([^/,]+))",
             options: []
         )
         guard let developmentTeamResult = developmentTeamRegex.firstMatch(
