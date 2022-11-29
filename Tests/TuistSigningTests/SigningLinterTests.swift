@@ -105,7 +105,7 @@ final class SigningLinterTests: TuistUnitTestCase {
         let provisioningProfile = ProvisioningProfile.test(
             teamId: "team",
             appId: appIdPrefix + ".io.tuist",
-            applicationIdPrefix:  [appIdPrefix]
+            applicationIdPrefix: [appIdPrefix]
         )
         let target = Target.test(bundleId: "io.tuist")
 
@@ -123,7 +123,7 @@ final class SigningLinterTests: TuistUnitTestCase {
         let provisioningProfile = ProvisioningProfile.test(
             teamId: "team",
             appId: appIdPrefix + ".io.not-tuist",
-            applicationIdPrefix:  [appIdPrefix]
+            applicationIdPrefix: [appIdPrefix]
         )
         let target = Target.test(bundleId: "io.tuist")
 
