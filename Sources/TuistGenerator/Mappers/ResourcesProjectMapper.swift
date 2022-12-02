@@ -72,19 +72,26 @@ public class ResourcesProjectMapper: ProjectMapping {
         }
 
         if target.supportsSources && target.containsObjcFiles {
-            // TODO: Also generate Objc implementation file
-            let (filePath, data) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
+            let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 
-            let hash = try data.map(contentHasher.hash)
-            let sourceFile = SourceFile(path: filePath, contentHash: hash)
-            let sideEffect = SideEffectDescriptor.file(.init(path: filePath, contents: data, state: .present))
+            let headerHash = try headerData.map(contentHasher.hash)
+            let headerFile = SourceFile(path: headerFilePath, contentHash: headerHash)
+            let headerSideEffect = SideEffectDescriptor.file(.init(path: headerFilePath, contents: headerData, state: .present))
+
             // This is not the right way of making the header being imported globally for this project
             var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
-            settings["GCC_PREFIX_HEADER"] = .string(sourceFile.path.url.relativePath)
+            settings["GCC_PREFIX_HEADER"] = .string(headerFile.path.url.relativePath)
             modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
-            // This is probably not needed at all for the header, just leaving it here for now so we can see it in the project tree. Needs to be removed later
-            modifiedTarget.sources.append(sourceFile)
-            sideEffects.append(sideEffect)
+            sideEffects.append(headerSideEffect)
+
+            let (implementationFilePath, implementationData) = synthesizedObjcImplementationFile(bundleName: bundleName, target: target, project: project)
+
+            let implementationHash = try implementationData.map(contentHasher.hash)
+            let implementationFile = SourceFile(path: implementationFilePath, contentHash: implementationHash)
+            let implementationSideEffect = SideEffectDescriptor.file(.init(path: implementationFilePath, contents: implementationData, state: .present))
+
+            modifiedTarget.sources.append(implementationFile)
+            sideEffects.append(implementationSideEffect)
         }
 
         return ([modifiedTarget] + additionalTargets, sideEffects)
@@ -133,6 +140,31 @@ public class ResourcesProjectMapper: ProjectMapping {
         #if __cplusplus
         }
         #endif
+        """
+    }
+
+    func synthesizedObjcImplementationFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
+        let filePath = project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: Constants.DerivedDirectory.sources)
+            .appending(component: "TuistBundle+\(target.name.camelized.uppercasingFirst).m")
+
+        let content: String = ResourcesProjectMapper.objcImplementationFileContent(
+            targetName: target.name,
+            bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
+            target: target
+        )
+        return (filePath, content.data(using: .utf8))
+    }
+
+    static func objcImplementationFileContent(targetName: String, bundleName: String, target: Target) -> String {
+        return """
+        #import <Foundation/Foundation.h>
+        #import <\(targetName)/\(targetName)-Swift.h>
+
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
+            return \(targetName)Resources.bundle;
+        }
         """
     }
 
