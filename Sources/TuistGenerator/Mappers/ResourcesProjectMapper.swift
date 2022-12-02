@@ -125,24 +125,6 @@ public class ResourcesProjectMapper: ProjectMapping {
         return (filePath, content.data(using: .utf8))
     }
 
-    static func objcHeaderFileContent(targetName: String, bundleName: String, target: Target) -> String {
-        return """
-        #import <Foundation/Foundation.h>
-
-        #if __cplusplus
-        extern "C" {
-        #endif
-
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void);
-
-        #define SWIFTPM_MODULE_BUNDLE \(targetName)_SWIFTPM_MODULE_BUNDLE()
-
-        #if __cplusplus
-        }
-        #endif
-        """
-    }
-
     func synthesizedObjcImplementationFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
         let filePath = project.path
             .appending(component: Constants.DerivedDirectory.name)
@@ -155,17 +137,6 @@ public class ResourcesProjectMapper: ProjectMapping {
             target: target
         )
         return (filePath, content.data(using: .utf8))
-    }
-
-    static func objcImplementationFileContent(targetName: String, bundleName: String, target: Target) -> String {
-        return """
-        #import <Foundation/Foundation.h>
-        #import <\(targetName)/\(targetName)-Swift.h>
-
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
-            return \(targetName)Resources.bundle;
-        }
-        """
     }
 
     // swiftlint:disable:next function_body_length
@@ -245,5 +216,34 @@ public class ResourcesProjectMapper: ProjectMapping {
 
             """
         }
+    }
+
+    static func objcHeaderFileContent(targetName: String, bundleName: String, target: Target) -> String {
+        return """
+        #import <Foundation/Foundation.h>
+
+        #if __cplusplus
+        extern "C" {
+        #endif
+
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void);
+
+        #define SWIFTPM_MODULE_BUNDLE \(targetName)_SWIFTPM_MODULE_BUNDLE()
+
+        #if __cplusplus
+        }
+        #endif
+        """
+    }
+
+    static func objcImplementationFileContent(targetName: String, bundleName: String, target: Target) -> String {
+        return """
+        #import <Foundation/Foundation.h>
+        #import <\(targetName)/\(targetName)-Swift.h>
+
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
+            return \(targetName)Resources.bundle;
+        }
+        """
     }
 }
