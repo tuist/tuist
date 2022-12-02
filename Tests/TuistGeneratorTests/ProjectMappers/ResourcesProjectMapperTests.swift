@@ -279,4 +279,53 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(file.path, expectedPath)
         XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
     }
+
+    func test_map_when_a_target_has_objc_source_files() throws {
+        // Given
+        let sources: [SourceFile] = ["/ViewController.m"]
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .staticLibrary, sources: sources, resources: resources)
+        project = Project.test(targets: [target])
+
+        // Got
+        let (_, gotSideEffects) = try subject.map(project: project)
+
+        // Then: Side effects
+        XCTAssertEqual(gotSideEffects.count, 3)
+
+        for i in 0..<gotSideEffects.count {
+            let sideEffect = try XCTUnwrap(gotSideEffects[i])
+            guard case let SideEffectDescriptor.file(file) = sideEffect else {
+                XCTFail("Expected file descriptor")
+                return
+            }
+
+            var expectedPath = project.path
+                .appending(component: Constants.DerivedDirectory.name)
+                .appending(component: Constants.DerivedDirectory.sources)
+
+            switch i {
+            case 0:
+                expectedPath = expectedPath.appending(component: "TuistBundle+\(target.name).swift")
+                let expectedContents = ResourcesProjectMapper
+                    .fileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target)
+                XCTAssertEqual(file.path, expectedPath)
+                XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
+            case 1:
+                expectedPath = expectedPath.appending(component: "TuistBundle+\(target.name).h")
+                let expectedContents = ResourcesProjectMapper
+                    .objcHeaderFileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target)
+                XCTAssertEqual(file.path, expectedPath)
+                XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
+            case 2:
+                expectedPath = expectedPath.appending(component: "TuistBundle+\(target.name).m")
+                let expectedContents = ResourcesProjectMapper
+                    .objcImplementationFileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target)
+                XCTAssertEqual(file.path, expectedPath)
+                XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
+            default:
+                XCTFail()
+            }
+        }
+    }
 }
