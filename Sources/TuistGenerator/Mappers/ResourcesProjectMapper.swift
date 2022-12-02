@@ -71,6 +71,22 @@ public class ResourcesProjectMapper: ProjectMapping {
             sideEffects.append(sideEffect)
         }
 
+        if target.supportsSources && target.containsObjcFiles {
+            // TODO: Also generate Objc implementation file
+            let (filePath, data) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
+
+            let hash = try data.map(contentHasher.hash)
+            let sourceFile = SourceFile(path: filePath, contentHash: hash)
+            let sideEffect = SideEffectDescriptor.file(.init(path: filePath, contents: data, state: .present))
+            // This is not the right way of making the header being imported globally for this project
+            var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
+            settings["OTHER_CFLAGS"] = .array(["$(inherited)", "-include", sourceFile.path.url.relativePath])
+            modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
+            // This is probably not needed at all for the header, just leaving it here for now so we can see it in the project tree. Needs to be removed later
+            modifiedTarget.sources.append(sourceFile)
+            sideEffects.append(sideEffect)
+        }
+
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
@@ -86,6 +102,38 @@ public class ResourcesProjectMapper: ProjectMapping {
             target: target
         )
         return (filePath, content.data(using: .utf8))
+    }
+
+    func synthesizedObjcHeaderFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
+        let filePath = project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: Constants.DerivedDirectory.sources)
+            .appending(component: "TuistBundle+\(target.name.camelized.uppercasingFirst).h")
+
+        let content: String = ResourcesProjectMapper.objcHeaderFileContent(
+            targetName: target.name,
+            bundleName: bundleName.replacingOccurrences(of: "-", with: "_"),
+            target: target
+        )
+        return (filePath, content.data(using: .utf8))
+    }
+
+    static func objcHeaderFileContent(targetName: String, bundleName: String, target: Target) -> String {
+        return """
+        #import <Foundation/Foundation.h>
+
+        #if __cplusplus
+        extern "C" {
+        #endif
+
+        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void);
+
+        #define SWIFTPM_MODULE_BUNDLE \(targetName)_SWIFTPM_MODULE_BUNDLE()
+
+        #if __cplusplus
+        }
+        #endif
+        """
     }
 
     // swiftlint:disable:next function_body_length
