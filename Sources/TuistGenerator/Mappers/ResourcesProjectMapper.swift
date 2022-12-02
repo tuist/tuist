@@ -78,7 +78,7 @@ public class ResourcesProjectMapper: ProjectMapping {
             let headerFile = SourceFile(path: headerFilePath, contentHash: headerHash)
             let headerSideEffect = SideEffectDescriptor.file(.init(path: headerFilePath, contents: headerData, state: .present))
 
-            // This is not the right way of making the header being imported globally for this project
+            // FIXME: Is there any better way than GCC_PREFIX_HEADER? And what if the target would have set this already, then we're breakings something here.
             var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
             settings["GCC_PREFIX_HEADER"] = .string(headerFile.path.url.relativePath)
             modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
