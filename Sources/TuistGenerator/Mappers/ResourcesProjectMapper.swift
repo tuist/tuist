@@ -98,10 +98,7 @@ public class ResourcesProjectMapper: ProjectMapping {
     }
 
     func synthesizedFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
-        let filePath = project.path
-            .appending(component: Constants.DerivedDirectory.name)
-            .appending(component: Constants.DerivedDirectory.sources)
-            .appending(component: "TuistBundle+\(target.name.camelized.uppercasingFirst).swift")
+        let filePath = synthesizedFilePath(target: target, project: project, fileExtension: "swift")
 
         let content: String = ResourcesProjectMapper.fileContent(
             targetName: target.name,
@@ -112,10 +109,7 @@ public class ResourcesProjectMapper: ProjectMapping {
     }
 
     func synthesizedObjcHeaderFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
-        let filePath = project.path
-            .appending(component: Constants.DerivedDirectory.name)
-            .appending(component: Constants.DerivedDirectory.sources)
-            .appending(component: "TuistBundle+\(target.name.camelized.uppercasingFirst).h")
+        let filePath = synthesizedFilePath(target: target, project: project, fileExtension: "h")
 
         let content: String = ResourcesProjectMapper.objcHeaderFileContent(
             targetName: target.name,
@@ -126,10 +120,7 @@ public class ResourcesProjectMapper: ProjectMapping {
     }
 
     func synthesizedObjcImplementationFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
-        let filePath = project.path
-            .appending(component: Constants.DerivedDirectory.name)
-            .appending(component: Constants.DerivedDirectory.sources)
-            .appending(component: "TuistBundle+\(target.name.camelized.uppercasingFirst).m")
+        let filePath = synthesizedFilePath(target: target, project: project, fileExtension: "m")
 
         let content: String = ResourcesProjectMapper.objcImplementationFileContent(
             targetName: target.name,
@@ -137,6 +128,13 @@ public class ResourcesProjectMapper: ProjectMapping {
             target: target
         )
         return (filePath, content.data(using: .utf8))
+    }
+
+    func synthesizedFilePath(target: Target, project: Project, fileExtension: String) -> AbsolutePath {
+        project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: Constants.DerivedDirectory.sources)
+            .appending(component: "TuistBundle+\(target.name.camelized.uppercasingFirst).\(fileExtension)")
     }
 
     // swiftlint:disable:next function_body_length
