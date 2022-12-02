@@ -62,7 +62,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         }
 
         if target.supportsSources {
-            let (filePath, data) = synthesizedFile(bundleName: bundleName, target: target, project: project)
+            let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 
             let hash = try data.map(contentHasher.hash)
             let sourceFile = SourceFile(path: filePath, contentHash: hash)
@@ -97,7 +97,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
-    func synthesizedFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
+    func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
         let filePath = synthesizedFilePath(target: target, project: project, fileExtension: "swift")
 
         let content: String = ResourcesProjectMapper.fileContent(
