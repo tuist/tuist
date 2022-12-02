@@ -125,6 +125,17 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         ].contains(product)
     }
 
+    /// Returns true if there's any .m or .mm files in the target
+    public var containsObjcFiles: Bool {
+        let objcExtensions = Set(["m", "mm"])
+        return sources.contains { sourceFile in
+            guard let ext = sourceFile.path.extension else {
+                return false
+            }
+            return objcExtensions.contains(ext)
+        }
+    }
+
     /// Returns true if the target supports having a headers build phase..
     public var shouldIncludeHeadersBuildPhase: Bool {
         switch product {
