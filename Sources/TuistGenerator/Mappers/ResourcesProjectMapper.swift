@@ -80,7 +80,7 @@ public class ResourcesProjectMapper: ProjectMapping {
             let sideEffect = SideEffectDescriptor.file(.init(path: filePath, contents: data, state: .present))
             // This is not the right way of making the header being imported globally for this project
             var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
-            settings["OTHER_CFLAGS"] = .array(["$(inherited)", "-include", sourceFile.path.url.relativePath])
+            settings["GCC_PREFIX_HEADER"] = .string(sourceFile.path.url.relativePath)
             modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
             // This is probably not needed at all for the header, just leaving it here for now so we can see it in the project tree. Needs to be removed later
             modifiedTarget.sources.append(sourceFile)
