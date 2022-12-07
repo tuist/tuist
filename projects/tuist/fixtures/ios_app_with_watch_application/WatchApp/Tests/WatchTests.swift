@@ -1,9 +1,10 @@
 import XCTest
+@testable import WatchApp
 
 class WatchTests: XCTestCase {
 
 	func dummyTest() async throws {
-        XCTAssertEqual(true, true)
+        XCTAssertEqual(WatchConfig.title, "Hello, watchOS")
 	}
 
 }
