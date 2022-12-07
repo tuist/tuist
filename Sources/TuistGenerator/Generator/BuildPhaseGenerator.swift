@@ -106,14 +106,16 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj: pbxproj
         )
 
-        try generateEmbedWatchBuildPhase(
-            path: path,
-            target: target,
-            graphTraverser: graphTraverser,
-            pbxTarget: pbxTarget,
-            fileElements: fileElements,
-            pbxproj: pbxproj
-        )
+        if target.canEmbedWatchApplications() {
+            try generateEmbedWatchBuildPhase(
+                path: path,
+                target: target,
+                graphTraverser: graphTraverser,
+                pbxTarget: pbxTarget,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        }
 
         generateRawScriptBuildPhases(
             target.rawScriptBuildPhases,
