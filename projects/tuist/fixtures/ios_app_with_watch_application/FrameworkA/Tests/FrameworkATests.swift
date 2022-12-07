@@ -2,9 +2,7 @@ import XCTest
 @testable import FrameworkA
 
 class FrameworkATest: XCTestCase {
-
-	func testProperty() async throws {
+    func testProperty() async throws {
         XCTAssertEqual(FrameworkA.text, "Hello, FrameworkA!")
-	}
-
+    }
 }
