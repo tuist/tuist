@@ -62,28 +62,15 @@ let project = Project(
             dependencies: [
             ]
         ),
-        Target(
-            name: "FrameworkA_watchos",
-            platform: .watchOS,
-            product: .framework,
-            productName: "FrameworkA",
-            bundleId: "io.tuist.frameworka",
-            deploymentTarget: .watchOS(targetVersion: "9.0"),
-            sources: [
-                "FrameworkA/Sources/**/*.swift"
-            ]
-        ),
-        Target(
-            name: "FrameworkATests_watchos",
+         Target(
+            name: "WatchAppTests",
             platform: .watchOS,
             product: .unitTests,
-            bundleId: "io.tuist.frameworka.tests",
-            sources: [
-                "FrameworkA/Tests/**/*.swift"
-            ],
+            bundleId: "io.tuist.App.watchkitapptests",
+            infoPlist: .default,
+            sources: "WatchApp/Tests/**",
             dependencies: [
-                .target(name: "FrameworkA_watchos"),
-                .target(name: "WatchApp")
+                .target(name: "WatchApp"),
             ]
         )
     ]
