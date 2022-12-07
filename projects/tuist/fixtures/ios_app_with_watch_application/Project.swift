@@ -62,7 +62,7 @@ let project = Project(
             dependencies: [
             ]
         ),
-         Target(
+        Target(
             name: "WatchAppTests",
             platform: .watchOS,
             product: .unitTests,
@@ -72,6 +72,6 @@ let project = Project(
             dependencies: [
                 .target(name: "WatchApp"),
             ]
-        )
+        ),
     ]
 )
