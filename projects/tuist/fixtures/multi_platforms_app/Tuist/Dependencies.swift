@@ -11,7 +11,7 @@ let dependencies = Dependencies(
         productTypes: [:],
         targetSettings: [:]
     ),
-    platforms: [.macOS, .iOS, .tvOS]
+    platforms: [.macOS, .iOS, .tvOS, .watchOS]
 )
 
 extension Package {

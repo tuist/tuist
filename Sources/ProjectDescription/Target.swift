@@ -67,7 +67,7 @@ public struct Target: Codable, Equatable {
         product: Product,
         productName: String? = nil,
         bundleId: String,
-        deploymentTargets: [DeploymentTarget] = [],
+        deploymentTargets: [DeploymentTarget],
         infoPlist: InfoPlist? = .default,
         sources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil,
@@ -103,7 +103,7 @@ public struct Target: Codable, Equatable {
         self.additionalFiles = additionalFiles
     }
 
-    init(
+    public init(
         name: String,
         platform: Platform,
         product: Product,

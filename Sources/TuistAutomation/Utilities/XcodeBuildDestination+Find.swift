@@ -48,7 +48,6 @@ extension XcodeBuildDestination {
             )
             return .device(deviceAndRuntime.device.udid)
         case .macOS:
-            print("1111")
             return .mac
         }
     }

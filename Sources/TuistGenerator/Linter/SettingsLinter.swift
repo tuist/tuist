@@ -25,9 +25,7 @@ final class SettingsLinter: SettingsLinting {
             issues.append(contentsOf: lintConfigFilesExist(settings: settings))
         }
 
-        for deploymentTarget in target.deploymentTargets {
-            issues.append(contentsOf: lint(platform: target.platform, isCompatibleWith: deploymentTarget))
-        }
+        
         return issues
     }
 
@@ -59,18 +57,4 @@ final class SettingsLinter: SettingsLinting {
         return []
     }
 
-    // TODO_MAJOR_CHANGE: Merge deploymentTarget and platform arguments together.
-    private func lint(platform: Platform, isCompatibleWith deploymentTarget: DeploymentTarget) -> [LintingIssue] {
-        let issue = LintingIssue(
-            reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`",
-            severity: .error
-        )
-
-        switch deploymentTarget {
-        case .iOS, .macOS, .tvOS: if platform == .watchOS { return [issue] }
-        case .watchOS: if platform != .watchOS { return [issue] }
-        }
-
-        return []
-    }
 }

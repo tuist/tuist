@@ -1,5 +1,6 @@
-import MultiTargetsFramework
+import MultiDeploymentTargetsFramework
 import SwiftUI
+import ZIPFoundation
 
 @main
 struct MyAppe: App {

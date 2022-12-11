@@ -95,7 +95,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
                     )
                 }
             }
-            externalDependencies[try TuistGraph.Platform.from(manifest: platform)] = targetToDependencies
+            externalDependencies[TuistGraph.Platform.from(manifest: platform)] = targetToDependencies
         }
 
         let externalProjects = try [AbsolutePath: TuistGraph.Project](

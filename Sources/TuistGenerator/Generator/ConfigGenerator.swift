@@ -214,7 +214,7 @@ final class ConfigGenerator: ConfigGenerating {
             .merge(testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) {
                 $1
             }
-        settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
+        settings.merge(deploymentTargetDerivedSettings(target: target)) { (current, _) in current }
         settings.merge(supportedPlatformsDerivedSettings(target: target)) { $1 }
         settings
             .merge(watchTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) { $1 }
@@ -286,14 +286,15 @@ final class ConfigGenerator: ConfigGenerating {
 
     private func deploymentTargetDerivedSettings(target: Target) -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
-        var deviceFamilyValues: [Int] = []
-
+        
         for deploymentTarget in target.deploymentTargets {
             switch deploymentTarget {
             case let .iOS(version, devices):
+                var deviceFamilyValues: [Int] = []
                 if devices.contains(.iphone) { deviceFamilyValues.append(1) }
                 if devices.contains(.ipad) { deviceFamilyValues.append(2) }
                 
+                settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
                 settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
                 
                 if devices.contains(.ipad), devices.contains(.mac) {
@@ -303,19 +304,16 @@ final class ConfigGenerator: ConfigGenerating {
                     // Unless explicitly specified, when the platform the Product is a framework, these default to YES.
                     settings["SUPPORTS_MACCATALYST"] = "NO"
                 }
+                
             case let .macOS(version):
                 settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
             case let .watchOS(version):
-                deviceFamilyValues.append(4)
                 settings["WATCHOS_DEPLOYMENT_TARGET"] = .string(version)
             case let .tvOS(version):
-                deviceFamilyValues.append(3)
                 settings["TVOS_DEPLOYMENT_TARGET"] = .string(version)
             }
         }
         
-        settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
-
         return settings
     }
 

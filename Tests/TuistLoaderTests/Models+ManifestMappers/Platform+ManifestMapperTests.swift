@@ -15,7 +15,7 @@ final class PlatformManifestMapperTests: TuistUnitTestCase {
         let manifest: ProjectDescription.Platform = .iOS
 
         // When
-        let model = try TuistGraph.Platform.from(manifest: manifest)
+        let model = TuistGraph.Platform.from(manifest: manifest)
 
         // Then
         XCTAssertEqual(model, .iOS)
@@ -26,7 +26,7 @@ final class PlatformManifestMapperTests: TuistUnitTestCase {
         let manifest: ProjectDescription.Platform = .tvOS
 
         // When
-        let model = try TuistGraph.Platform.from(manifest: manifest)
+        let model = TuistGraph.Platform.from(manifest: manifest)
 
         // Then
         XCTAssertEqual(model, .tvOS)
@@ -37,7 +37,7 @@ final class PlatformManifestMapperTests: TuistUnitTestCase {
         let manifest: ProjectDescription.Platform = .macOS
 
         // When
-        let model = try TuistGraph.Platform.from(manifest: manifest)
+        let model = TuistGraph.Platform.from(manifest: manifest)
 
         // Then
         XCTAssertEqual(model, .macOS)
@@ -48,7 +48,7 @@ final class PlatformManifestMapperTests: TuistUnitTestCase {
         let manifest: ProjectDescription.Platform = .watchOS
 
         // When
-        let model = try TuistGraph.Platform.from(manifest: manifest)
+        let model = TuistGraph.Platform.from(manifest: manifest)
 
         // Then
         XCTAssertEqual(model, .watchOS)
