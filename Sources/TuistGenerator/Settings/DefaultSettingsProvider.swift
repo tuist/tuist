@@ -149,8 +149,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant)
         settingsHelper.extend(buildSettings: &settings, with: projectOverridableTargetDefaultSettings(for: project))
         
-
-        return settings
+        return settings.filter(filter)
     }
 
     // MARK: - Private
