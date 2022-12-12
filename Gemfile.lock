@@ -119,7 +119,7 @@ GEM
     httpclient (2.8.3)
     i18n (1.12.0)
       concurrent-ruby (~> 1.0)
-    json (2.6.2)
+    json (2.6.3)
     jwt (2.5.0)
     loofah (2.19.0)
       crass (~> 1.0.2)
@@ -143,7 +143,7 @@ GEM
     multi_test (0.1.2)
     nanaimo (0.3.0)
     naturally (2.2.1)
-    nokogiri (1.13.9)
+    nokogiri (1.13.10)
       mini_portile2 (~> 2.8.0)
       racc (~> 1.4)
     octokit (4.25.1)
@@ -158,7 +158,7 @@ GEM
       middleware
       thor
       thread_safe
-    public_suffix (5.0.0)
+    public_suffix (5.0.1)
     racc (1.6.1)
     rack (2.2.4)
     rack-test (2.0.2)
@@ -184,7 +184,7 @@ GEM
       uber (< 0.2.0)
     retriable (3.1.2)
     rexml (3.2.5)
-    rubocop (1.39.0)
+    rubocop (1.40.0)
       json (~> 2.3)
       parallel (~> 1.10)
       parser (>= 3.1.2.1)
