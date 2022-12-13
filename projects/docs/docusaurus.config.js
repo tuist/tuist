@@ -65,7 +65,7 @@ module.exports = {
             },
             {
               label: 'Slack',
-              href: 'https://join.slack.com/t/tuistapp/shared_invite/zt-g38gajhj-D6LLakrPnVCy4sLm24KxaQ',
+              href: 'https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg',
             },
             {
               label: 'Twitter',

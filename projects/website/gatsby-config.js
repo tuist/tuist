@@ -11,7 +11,7 @@ module.exports = {
     releasesUrl: 'https://github.com/tuist/tuist/releases',
     documentationUrl: 'https://docs.tuist.io/',
     slackUrl:
-      'https://join.slack.com/t/tuistapp/shared_invite/zt-g38gajhj-D6LLakrPnVCy4sLm24KxaQ',
+      'https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFggQ',
     twitterUrl: 'http://twitter.com/tuistio',
     editUrl: 'https://github.com/tuist/tuist/edit/master/website',
     contributeUrl: 'https://docs.tuist.io/contribution-1-getting-started',
