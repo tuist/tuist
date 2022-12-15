@@ -427,7 +427,7 @@ type Query {
   """
   Returns S3 buckets for an account of a given name
   """
-  s3Buckets(accountName: String!): [S3Bucket!]!
+  s3Buckets(accountName: String!, projectName: String!): [S3Bucket!]!
 }
 
 union RemoteCacheStorage = S3Bucket

@@ -61,9 +61,10 @@ module Types
     field :s3_buckets, [S3BucketType], null: false,
       description: "Returns S3 buckets for an account of a given name" do
       argument :account_name, String, required: true
+      argument :project_name, String, required: true
     end
-    def s3_buckets(account_name:)
-      S3BucketsFetchService.call(account_name: account_name, user: context[:current_user])
+    def s3_buckets(account_name:, project_name:)
+      S3BucketsFetchService.call(account_name: account_name, project_name: project_name, user: context[:current_user])
     end
 
     field :command_events, CommandEventType.connection_type, null: false,
