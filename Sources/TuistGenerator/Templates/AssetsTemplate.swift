@@ -129,7 +129,7 @@ extension SynthesizedResourceInterfaceTemplates {
     @available(iOS 11.3, *)
     {{accessModifier}} extension ARReferenceImage {
       static func referenceImages(in asset: {{arResourceGroupType}}) -> Set<ARReferenceImage> {
-        let bundle = .bundle
+        let bundle = {{bundleToken}}.bundle
         return referenceImages(inGroupNamed: asset.name, bundle: bundle) ?? Set()
       }
     }
