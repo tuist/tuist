@@ -346,6 +346,7 @@ export type QueryProjectArgs = {
 
 export type QueryS3BucketsArgs = {
   accountName: Scalars['String'];
+  projectName: Scalars['String'];
 };
 
 export type RemoteCacheStorage = S3Bucket;
@@ -567,6 +568,7 @@ export type S3BucketInfoFragment = { __typename?: 'S3Bucket', id: string, name: 
 
 export type S3BucketsQueryVariables = Exact<{
   accountName: Scalars['String'];
+  projectName: Scalars['String'];
 }>;
 
 
@@ -1406,8 +1408,8 @@ export type ResendInviteMutationHookResult = ReturnType<typeof useResendInviteMu
 export type ResendInviteMutationResult = Apollo.MutationResult<ResendInviteMutation>;
 export type ResendInviteMutationOptions = Apollo.BaseMutationOptions<ResendInviteMutation, ResendInviteMutationVariables>;
 export const S3BucketsDocument = gql`
-    query S3Buckets($accountName: String!) {
-  s3Buckets(accountName: $accountName) {
+    query S3Buckets($accountName: String!, $projectName: String!) {
+  s3Buckets(accountName: $accountName, projectName: $projectName) {
     ...S3BucketInfo
   }
 }
@@ -1426,6 +1428,7 @@ export const S3BucketsDocument = gql`
  * const { data, loading, error } = useS3BucketsQuery({
  *   variables: {
  *      accountName: // value for 'accountName'
+ *      projectName: // value for 'projectName'
  *   },
  * });
  */

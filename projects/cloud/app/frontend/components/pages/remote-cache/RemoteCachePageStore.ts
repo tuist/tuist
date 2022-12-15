@@ -156,6 +156,7 @@ class RemoteCachePageStore {
       query: S3BucketsDocument,
       variables: {
         accountName: this.projectStore.project.account.name,
+        projectName: this.projectStore.project.name,
       },
     });
     runInAction(() => {
