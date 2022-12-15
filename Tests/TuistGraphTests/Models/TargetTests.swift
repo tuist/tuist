@@ -298,7 +298,7 @@ final class TargetTests: TuistUnitTestCase {
 
     func test_targetDependencyBuildFilesPlatformFilter_when_iOS_targets_mac() {
         // Given
-        let target = Target.test(deploymentTarget: .iOS("14.0", [.mac]))
+        let target = Target.test(deploymentTargets: [.iOS("14.0", [.mac])])
 
         // When
         let got = target.targetDependencyBuildFilesPlatformFilter
@@ -309,7 +309,7 @@ final class TargetTests: TuistUnitTestCase {
 
     func test_targetDependencyBuildFilesPlatformFilter_when_iOS_and_doesnt_target_mac() {
         // Given
-        let target = Target.test(deploymentTarget: .iOS("14.0", [.iphone]))
+        let target = Target.test(deploymentTargets: [.iOS("14.0", [.iphone])])
 
         // When
         let got = target.targetDependencyBuildFilesPlatformFilter

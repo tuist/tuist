@@ -141,7 +141,7 @@ final class RunServiceTests: TuistUnitTestCase {
         let expectation = self.expectation(description: "runs target")
         let schemeName = "AScheme"
         let configuration = "Test"
-        let minVersion = Target.test().deploymentTarget?.version.version()
+        let minVersion = Target.test().deploymentTargets.first!.version.version()
         let version = Version("15.0.0")
         let deviceName = "iPhone 11"
         let arguments = ["-arg1", "--arg2", "SomeArgument"]
