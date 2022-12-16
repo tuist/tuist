@@ -87,6 +87,14 @@ public enum TargetDependency: Codable, Hashable {
         .sdk(name: name, type: type, status: .required)
     }
 
+    /// Dependency on another target within the same project. This is just syntactic sugar for `.target(name: target.name)`.
+    ///
+    /// - Parameters:
+    ///   - target: Instance of the target to depend on
+    public static func target(_ target: Target) -> TargetDependency {
+        .target(name: target.name)
+    }
+
     public var typeName: String {
         switch self {
         case .target:
