@@ -136,7 +136,7 @@ public protocol PackageInfoMapping {
         platforms: Set<ProjectDescription.Platform>,
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        testTargets: [String],
+        testTargetsToPackage: [String],
         targetToModuleMap: [String: ModuleMap],
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
@@ -148,7 +148,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let platformToMinDeploymentTarget: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
         let productToExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]]
         let platforms: Set<ProjectDescription.Platform>
-        let testTargets: [String: [String]]
+        let testTargetsToPackage: [String: [String]]
         let targetToProducts: [String: Set<PackageInfo.Product>]
         let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
         let targetToModuleMap: [String: ModuleMap]
@@ -332,7 +332,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             platformToMinDeploymentTarget: minDeploymentTargets,
             productToExternalDependencies: externalDependencies,
             platforms: Set(platforms.map { ProjectDescription.Platform.from(graph: $0) }),
-            testTargets: testTargetsToPackage,
+            testTargetsToPackage: testTargetsToPackage,
             targetToProducts: targetToProducts,
             targetToResolvedDependencies: resolvedDependencies,
             targetToModuleMap: targetToModuleMap
@@ -353,7 +353,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         platforms: Set<ProjectDescription.Platform>,
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        testTargets: [String],
+        testTargetsToPackage: [String],
         targetToModuleMap: [String: ModuleMap],
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
@@ -397,11 +397,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
             .flatMap { target -> [ProjectDescription.Target] in
                 
                 switch target.type {
-                    case .test where testTargets.contains(target.name):
+                    case .test where testTargetsToPackage.contains(target.name):
                         return try platforms.compactMap { platform in
                             try ProjectDescription.Target.from(
                                 target: target,
                                 products: [.init(name: target.name, type: .test, targets: [target.name])],
+                                includeTests: true,
                                 packageName: name,
                                 packageInfo: packageInfo,
                                 packageInfos: packageInfos,
@@ -480,6 +481,7 @@ extension ProjectDescription.Target {
     fileprivate static func from(
         target: PackageInfo.Target,
         products: Set<PackageInfo.Product>,
+        includeTests: Bool = false,
         packageName: String,
         packageInfo: PackageInfo,
         packageInfos: [String: PackageInfo],
@@ -494,7 +496,7 @@ extension ProjectDescription.Target {
         targetToModuleMap: [String: ModuleMap],
         addPlatformSuffix: Bool
     ) throws -> Self? {
-        guard target.type.isSupported else {
+        guard target.type.isSupported(includeTests) else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         }
@@ -656,6 +658,8 @@ extension ProjectDescription.Product {
                     }
                 }
             case .test:
+                // TODO: It feels wrong to map all kind of tests to `.unitTests` as the product can be `.uiTests` as well
+                // Fixing this might be a breaking change so should be done in a separate PR
                 return .unitTests
             case .executable, .plugin:
                 return result

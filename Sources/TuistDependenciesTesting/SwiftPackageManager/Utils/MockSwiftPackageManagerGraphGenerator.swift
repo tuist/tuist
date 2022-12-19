@@ -19,7 +19,7 @@ public final class MockSwiftPackageManagerGraphGenerator: SwiftPackageManagerGra
             [String: TuistGraph.SettingsDictionary],
             TSCUtility.Version?,
             [String: TuistGraph.Project.Options],
-            [String]
+            Set<String>
         ) throws -> TuistCore.DependenciesGraph
     )?
 
