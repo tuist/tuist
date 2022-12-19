@@ -10,7 +10,7 @@ Resolves https://github.com/tuist/tuist/issues/YYY
 
 ### Contributor checklist ✅
 
-- [ ] The code has been linted using run `./fourier lint tuist`
+- [ ] The code has been linted using run `./fourier lint tuist --fix`
 - [ ] The change is tested via unit testing or acceptance testing, or both
 - [ ] The title of the PR is formulated in a way that is usable as a changelog entry
 - [ ] In case the PR introduces changes that affect users, the documentation has been updated
