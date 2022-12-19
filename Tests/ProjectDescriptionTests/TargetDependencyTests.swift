@@ -52,4 +52,10 @@ final class TargetDependencyTests: XCTestCase {
         // Then
         XCTAssertCodable(subject)
     }
+
+    func test_instanceTarget() {
+        let target = Target(name: "Target", platform: .iOS, product: .framework, bundleId: "bundleId")
+        let subject = TargetDependency.target(target)
+        XCTAssertEqual(subject, TargetDependency.target(name: "Target"))
+    }
 }
