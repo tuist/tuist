@@ -29,7 +29,7 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public let projectOptions: [String: ProjectDescription.Project.Options]
 
-    /// Allows including test targets into generated project for a swift package. This is useful for testing local swift packages in same repository
+    /// Allows including test targets into generated projects for the given swift packages. This is useful for testing local swift packages in the same repository
     public let testableTargetsFromPackages: [String]
     
     /// Creates `SwiftPackageManagerDependencies` instance.
