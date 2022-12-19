@@ -53,7 +53,7 @@ public protocol SwiftPackageManagerGraphGenerating {
         targetSettings: [String: TuistGraph.SettingsDictionary],
         swiftToolsVersion: TSCUtility.Version?,
         projectOptions: [String: TuistGraph.Project.Options],
-        testableTargetsFromPackages: [String]
+        testsFromPackages: Set<String>
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -78,7 +78,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         targetSettings: [String: TuistGraph.SettingsDictionary],
         swiftToolsVersion: TSCUtility.Version?,
         projectOptions: [String: TuistGraph.Project.Options],
-        testableTargetsFromPackages: [String]
+        testsFromPackages: Set<String>
     ) throws -> TuistCore.DependenciesGraph {
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")
@@ -134,7 +134,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             packageToFolder: packageToFolder,
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
             platforms: platforms,
-            testableTargetsFromPackages: testableTargetsFromPackages
+            testsFromPackages: testsFromPackages
         )
 
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
@@ -159,30 +159,10 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             result[Path(packageInfo.folder.pathString)] = manifest
         }
         
-        let externalDependencies = merge(testTargetsDependencies: preprocessInfo.testTargetsExternalDependencies, with: preprocessInfo.productsToTargetDependencies)
         return DependenciesGraph(
-            externalDependencies: externalDependencies,
+            externalDependencies: preprocessInfo.productToExternalDependencies,
             externalProjects: externalProjects
         )
-    }
-    
-    fileprivate func merge(testTargetsDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]], with productsToTargetDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]]) -> [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] {
-        
-        let platforms: Set<ProjectDescription.Platform> = Set(testTargetsDependencies.keys).union(productsToTargetDependencies.keys)
-        var mergedDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = [:]
-        for platform in platforms {
-            let testTargetsToDependencies: [String: [ProjectDescription.TargetDependency]] = testTargetsDependencies[platform] ?? [:]
-            let productTargetsToDependencies: [String: [ProjectDescription.TargetDependency]] = productsToTargetDependencies[platform] ?? [:]
-            let targets: Set<String> = Set(productTargetsToDependencies.keys).union(testTargetsToDependencies.keys)
-            var mergedTargetsToDependencies: [String: [ProjectDescription.TargetDependency]] = [:]
-            for target in targets {
-                let mergedDeps = Set<ProjectDescription.TargetDependency>(productTargetsToDependencies[target] ?? []).union(testTargetsToDependencies[target] ?? [])
-                mergedTargetsToDependencies[target] = Array(mergedDeps)
-            }
-            mergedDependencies[platform] = mergedTargetsToDependencies
-        }
-        
-        return mergedDependencies
     }
 }
 

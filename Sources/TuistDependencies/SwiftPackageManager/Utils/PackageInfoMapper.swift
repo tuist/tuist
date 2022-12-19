@@ -109,7 +109,7 @@ public protocol PackageInfoMapping {
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         platforms: Set<TuistGraph.Platform>,
-        testableTargetsFromPackages: [String]
+        testsFromPackages: Set<String>
     ) throws -> PackageInfoMapper.PreprocessInfo
 
     /// Maps a `PackageInfo` to a `ProjectDescription.Project`.
@@ -152,8 +152,7 @@ public protocol PackageInfoMapping {
 public final class PackageInfoMapper: PackageInfoMapping {
     public struct PreprocessInfo {
         let platformToMinDeploymentTarget: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
-        let productsToTargetDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]]
-        let testTargetsExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]]
+        let productToExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]]
         let platforms: Set<ProjectDescription.Platform>
         let testTargets: [String: [String]]
         let targetToProducts: [String: Set<PackageInfo.Product>]
@@ -185,7 +184,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageToFolder: [String: AbsolutePath],
         packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         platforms: Set<TuistGraph.Platform>,
-        testableTargetsFromPackages: [String]
+        testsFromPackages: Set<String>
     ) throws -> PreprocessInfo {
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
@@ -232,7 +231,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let resolvedDependencies: [String: [ResolvedDependency]] = try packageInfos
             .reduce(into: [:]) { result, packageInfo in
                 try packageInfo.value.targets
-                    .filter { targetToProducts[$0.name] != nil || (testableTargetsFromPackages.contains(packageInfo.key) && $0.type == .test) }
+                    .filter { targetToProducts[$0.name] != nil || (testsFromPackages.contains(packageInfo.key) && $0.type == .test) }
                     .forEach { target in
                         guard result[target.name] == nil else { return }
                         result[target.name] = try ResolvedDependency.from(
@@ -246,9 +245,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
 
         // Products to targets map i.e., [platform: [product_name : [targets_included_in_product]]]
-        var productsToTargetDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = .init()
+        var externalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = .init()
         for platform in platforms {
-            productsToTargetDependencies[ProjectDescription.Platform.from(graph: platform)] = try packageInfos
+            externalDependencies[ProjectDescription.Platform.from(graph: platform)] = try packageInfos
                 .reduce(into: [:]) { result, packageInfo in
                     try packageInfo.value.products.forEach { product in
                         result[product.name] = try product.targets.flatMap { target in
@@ -265,33 +264,13 @@ public final class PackageInfoMapper: PackageInfoMapping {
         }
 
         let testTargetsToPackage: [String: [String]] = packageInfos
-            .filter { testableTargetsFromPackages.contains($0.key) }
+            .filter { testsFromPackages.contains($0.key) }
             .reduce(into: [:]) { result, packageInfo in
                 result[packageInfo.key] = packageInfo.value
                     .targets
                     .filter { $0.type == .test }
                     .map(\.name)
             }
-        
-//        var testTargetsExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = .init()
-//        for platform in platforms {
-//            testTargetsExternalDependencies[ProjectDescription.Platform.from(graph: platform)] = try packageInfos
-//                .filter { testableTargetsFromPackages.contains($0.key) }
-//                .reduce(into: [:]) { result, packageInfo in
-//                    try packageInfo.value
-//                        .targets.filter { $0.type == .test }
-//                        .forEach { target in
-//                        let dependencies = try getTargetDependencies(for: target.name,
-//                                                                     product: nil,
-//                                                                     targetDependencyToFramework: targetDependencyToFramework,
-//                                                                     packageName: packageInfo.key,
-//                                                                     packageToFolder: packageToFolder,
-//                                                                     platform: platform,
-//                                                                     platformCount: platforms.count)
-//                        result[packageInfo.key] = dependencies
-//                    }
-//                }
-//        }
         
         let version = try Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)
         let minDeploymentTargets = Platform.oldestVersions(isLegacy: version < TSCUtility.Version(5, 7, 0)).reduce(
@@ -328,7 +307,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     }
 
                     result[target.name] = ModuleMap.custom(moduleMapPath)
-                case .test where testableTargetsFromPackages.contains(packageInfo.key): fallthrough
+                case .test where testsFromPackages.contains(packageInfo.key): fallthrough
                 case .regular:
                     result[target.name] = try moduleMapGenerator.generate(
                         moduleName: target.name,
@@ -342,8 +321,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         return .init(
             platformToMinDeploymentTarget: minDeploymentTargets,
-            productsToTargetDependencies: productsToTargetDependencies,
-            testTargetsExternalDependencies: [:],
+            productToExternalDependencies: externalDependencies,
             platforms: Set(platforms.map { ProjectDescription.Platform.from(graph: $0) }),
             testTargets: testTargetsToPackage,
             targetToProducts: targetToProducts,

@@ -23,7 +23,7 @@ let dependencies = Dependencies(
         projectOptions: [
             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
         ],
-        testableTargetsFromPackages: ["LocalSwiftPackage"]
+        testsFromPackages: Set(["LocalSwiftPackage"])
     ),
     platforms: [.iOS, .watchOS]
 )

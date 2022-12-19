@@ -31,7 +31,7 @@ public final class MockSwiftPackageManagerGraphGenerator: SwiftPackageManagerGra
         targetSettings: [String: TuistGraph.SettingsDictionary],
         swiftToolsVersion: TSCUtility.Version?,
         projectOptions: [String: TuistGraph.Project.Options],
-        testableTargetsFromPackages: [String]
+        testsFromPackages: Set<String>
     ) throws -> TuistCore.DependenciesGraph {
         invokedGenerate = true
         return try generateStub?(
@@ -42,7 +42,7 @@ public final class MockSwiftPackageManagerGraphGenerator: SwiftPackageManagerGra
             targetSettings,
             swiftToolsVersion,
             projectOptions,
-            testableTargetsFromPackages
+            testsFromPackages
         ) ?? .test()
     }
 }
