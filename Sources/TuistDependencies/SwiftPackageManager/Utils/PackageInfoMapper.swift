@@ -77,7 +77,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
         case let .unknownProductDependency(name, package):
             return "The product \(name) of package \(package) cannot be found."
         case let .unknownInternalTarget(package, target):
-                return "The \(target) target cannot be found in \(package) package."
+            return "The \(target) target cannot be found in \(package) package."
         case let .unknownProductTarget(package, product, target):
             return "The target \(target) of product \(product) cannot be found in package \(package)."
         case let .unsupportedSetting(tool, setting):
