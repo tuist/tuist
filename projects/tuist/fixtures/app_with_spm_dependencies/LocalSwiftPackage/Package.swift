@@ -8,7 +8,7 @@ let package = Package(
     defaultLocalization: "en",
     platforms: [.iOS(.v13)],
     products: [.library(name: "Styles", targets: ["Styles"]), .library(name: "TestsSupport", targets: ["TestsSupport"])],
-    // dependencies: [.alamofireLibrary],
+    dependencies: [.snapshotTesting],
     targets: [
         .target(
             name: "Styles",
@@ -21,7 +21,7 @@ let package = Package(
         ),
         .target(
             name: "TestsSupport",
-            dependencies: [ /* .productItem(name: "Alamofire", package: "Alamofire") */ ]
+            dependencies: [ .product(name: "SnapshotTesting", package: "swift-snapshot-testing") ]
         ),
         .testTarget(
             name: "StylesTests",
@@ -33,6 +33,8 @@ let package = Package(
 )
 
 extension Package.Dependency {
-    // static let alamofireLibrary: Package.Dependency = .package(url: "https://github.com/Alamofire/Alamofire",
-    // .upToNextMajor(from: "5.6.0"))
+     static let snapshotTesting: Package.Dependency = .package(
+        url: "https://github.com/pointfreeco/swift-snapshot-testing",
+        .upToNextMajor(from: "1.10.0")
+     )
 }

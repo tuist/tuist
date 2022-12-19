@@ -23,13 +23,14 @@ public enum AppKit {
         Analytics.logEvent("Event", parameters: [:])
 
         // Use FirebaseDatabase to make sure it links fine
-        Database.database(app: FirebaseApp.app()!).reference().setValue("value")
-
-        // Use FirebaseCrashlytics to make sure it links fine
-        _ = Crashlytics.crashlytics()
-
-        // Use FirebaseFirestore to make sure it links fine
-        _ = Firestore.firestore()
+        if let firebaseApp = FirebaseApp.app() {
+            Database.database(app: firebaseApp).reference().setValue("value")
+            // Use FirebaseCrashlytics to make sure it links fine
+            _ = Crashlytics.crashlytics()
+            
+            // Use FirebaseFirestore to make sure it links fine
+            _ = Firestore.firestore()
+        }
 
         // Use Stripe to make sure it links fine
         _ = STPAPIClient.shared

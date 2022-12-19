@@ -3,6 +3,7 @@
 //
 import Foundation
 import XCTest
+import SnapshotTesting
 
 public extension XCTestCase {
     /// Inverse of XCTFail()
@@ -10,7 +11,11 @@ public extension XCTestCase {
         XCTAssert(true)
     }
     
-    func getSomething() -> String {
-        "Something"
+    func testJson(_ json: String, record: Bool) {
+        assertSnapshot(matching: json, as: .json, record: record)
+    }
+    
+    func testView(_ view: UIView,  record: Bool) {
+        assertSnapshot(matching: view, as: .image, record: record)
     }
 }

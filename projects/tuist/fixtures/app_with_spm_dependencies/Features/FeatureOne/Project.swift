@@ -20,7 +20,7 @@ let project = Project(
             bundleId: "io.tuist.featureOne",
             sources: ["Sources/**"],
             dependencies: [
-                //.external(name: "Alamofire"),
+                .external(name: "Alamofire"),
             ],
             settings: .targetSettings
         ),
