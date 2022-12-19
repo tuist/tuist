@@ -36,7 +36,6 @@ enum PackageInfoMapperError: FatalError, Equatable {
     
     /// Thrown when a target defined in a product is not present in the package
     case unknownProductTarget(package: String, product: String, target: String)
-    
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
     case unsupportedSetting(
         PackageInfo.Target.TargetBuildSettingDescription.Tool,
