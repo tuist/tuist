@@ -30,9 +30,6 @@ enum PackageInfoMapperError: FatalError, Equatable {
 
     /// Thrown when `PackageInfo.Target.Dependency.product` dependency cannot be resolved.
     case unknownProductDependency(String, String)
-
-    /// Thrown when an internal target is not present in the package (e.g., a unit tests target)
-    case unknownInternalTarget(package: String, target: String)
     
     /// Thrown when a target defined in a product is not present in the package
     case unknownProductTarget(package: String, product: String, target: String)
@@ -51,7 +48,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget,
-             .modulemapMissing, .unknownInternalTarget:
+             .modulemapMissing:
             return .abort
         case .minDeploymentTargetParsingFailed, .defaultPathNotFound, .unsupportedSetting, .missingBinaryArtifact:
             return .bug
@@ -76,8 +73,6 @@ enum PackageInfoMapperError: FatalError, Equatable {
             return "The \(platform) platform is not supported."
         case let .unknownProductDependency(name, package):
             return "The product \(name) of package \(package) cannot be found."
-        case let .unknownInternalTarget(package, target):
-            return "The \(target) target cannot be found in \(package) package."
         case let .unknownProductTarget(package, product, target):
             return "The target \(target) of product \(product) cannot be found in package \(package)."
         case let .unsupportedSetting(tool, setting):
@@ -245,18 +240,33 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         // Products to targets map i.e., [platform: [product_name : [targets_included_in_product]]]
         var externalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = .init()
+        
         for platform in platforms {
             externalDependencies[ProjectDescription.Platform.from(graph: platform)] = try packageInfos
                 .reduce(into: [:]) { result, packageInfo in
                     try packageInfo.value.products.forEach { product in
                         result[product.name] = try product.targets.flatMap { target in
-                            try getTargetDependencies(for: target,
-                                                      product: product.name,
-                                                      targetDependencyToFramework: targetDependencyToFramework,
-                                                      packageName: packageInfo.key,
-                                                      packageToFolder: packageToFolder,
-                                                      platform: platform,
-                                                      platformCount: platforms.count)
+                            try ResolvedDependency.fromTarget(
+                                name: target,
+                                targetDependencyToFramework: targetDependencyToFramework,
+                                condition: nil
+                            )
+                            .map {
+                                switch $0 {
+                                    case let .xcframework(path, _):
+                                        return .xcframework(path: path)
+                                    case let .target(name, _):
+                                        // When multiple platforms are supported, add the platform name as a suffix to the target
+                                        let targetName = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
+                                        return .project(target: targetName, path: Path(packageToFolder[packageInfo.key]!.pathString))
+                                    case .externalTarget:
+                                        throw PackageInfoMapperError.unknownProductTarget(
+                                            package: packageInfo.key,
+                                            product: product.name,
+                                            target: target
+                                        )
+                                }
+                            }
                         }
                     }
                 }
@@ -462,39 +472,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
     fileprivate class func sanitize(targetName: String) -> String {
         targetName.replacingOccurrences(of: ".", with: "_")
-    }
-    
-    fileprivate func getTargetDependencies(for target: String,
-                                           product: String?,
-                                           targetDependencyToFramework: [String: Path],
-                                           packageName: String,
-                                           packageToFolder: [String: AbsolutePath],
-                                           platform: TuistGraph.Platform,
-                                           platformCount: Int) throws -> [ProjectDescription.TargetDependency] {
-        try ResolvedDependency.fromTarget(
-            name: target,
-            targetDependencyToFramework: targetDependencyToFramework,
-            condition: nil
-        )
-        .map {
-            switch $0 {
-                case let .xcframework(path, _):
-                    return .xcframework(path: path)
-                case let .target(name, _):
-                    // When multiple platforms are supported, add the platform name as a suffix to the target
-                    let targetName = platformCount == 1 ? name : "\(name)_\(platform.rawValue)"
-                    return .project(target: targetName, path: Path(packageToFolder[packageName]!.pathString))
-                case .externalTarget:
-                    guard let product = product else {
-                        throw PackageInfoMapperError.unknownInternalTarget(package: packageName, target: target)
-                    }
-                    throw PackageInfoMapperError.unknownProductTarget(
-                        package: packageName,
-                        product: product,
-                        target: target
-                    )
-            }
-        }
     }
 }
 
