@@ -36,7 +36,6 @@ enum PackageInfoMapperError: FatalError, Equatable {
     
     /// Thrown when a target defined in a product is not present in the package
     case unknownProductTarget(package: String, product: String, target: String)
-    
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
     case unsupportedSetting(
         PackageInfo.Target.TargetBuildSettingDescription.Tool,
@@ -52,7 +51,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget,
-                    .modulemapMissing, .unknownInternalTarget:
+             .modulemapMissing, .unknownInternalTarget:
             return .abort
         case .minDeploymentTargetParsingFailed, .defaultPathNotFound, .unsupportedSetting, .missingBinaryArtifact:
             return .bug
@@ -78,7 +77,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
         case let .unknownProductDependency(name, package):
             return "The product \(name) of package \(package) cannot be found."
         case let .unknownInternalTarget(package, target):
-                return "The \(target) target cannot be found in \(package) package."
+            return "The \(target) target cannot be found in \(package) package."
         case let .unknownProductTarget(package, product, target):
             return "The target \(target) of product \(product) cannot be found in package \(package)."
         case let .unsupportedSetting(tool, setting):
