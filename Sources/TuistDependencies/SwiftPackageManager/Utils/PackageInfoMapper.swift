@@ -51,7 +51,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget,
-                    .modulemapMissing, .unknownInternalTarget:
+             .modulemapMissing, .unknownInternalTarget:
             return .abort
         case .minDeploymentTargetParsingFailed, .defaultPathNotFound, .unsupportedSetting, .missingBinaryArtifact:
             return .bug
