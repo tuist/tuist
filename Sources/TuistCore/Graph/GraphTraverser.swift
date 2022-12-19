@@ -47,19 +47,6 @@ public class GraphTraverser: GraphTraversing {
             }
         ).reversed()
     }
-
-    public func allExternalTestsTargets() -> Set<GraphTarget> {
-        Set(projects.flatMap { projectPath, project -> [GraphTarget] in
-            guard project.isExternal else { return [] }
-            let targets = graph.targets[projectPath, default: [:]]
-            return targets
-                .values
-                .filter { $0.product == .unitTests || $0.product == .uiTests }
-                .map { target in
-                GraphTarget(path: projectPath, target: target, project: project)
-            }
-        })
-    }
     
     public func allInternalTargets() -> Set<GraphTarget> {
         allTargets(excludingExternalTargets: true)
