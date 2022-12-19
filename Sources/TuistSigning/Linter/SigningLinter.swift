@@ -35,10 +35,11 @@ final class SigningLinter: SigningLinting {
     }
 
     func lint(provisioningProfile: ProvisioningProfile, target: Target) -> [LintingIssue] {
-        let appId = provisioningProfile.teamId + "." + target.bundleId
+        let appIdPrefix = provisioningProfile.applicationIdPrefix.first ?? provisioningProfile.teamId
+        let appId = appIdPrefix + "." + target.bundleId
         let invalidProvisioningProfileIssue = LintingIssue(
             reason: """
-            App id \(provisioningProfile.appId) does not correspond to \(provisioningProfile.teamId).\(target
+            App id \(provisioningProfile.appId) does not correspond to \(appIdPrefix).\(target
                 .bundleId). Make sure the provisioning profile has been added to the right target.
             """,
             severity: .error
@@ -54,7 +55,7 @@ final class SigningLinter: SigningLinting {
                 issues.append(invalidProvisioningProfileIssue)
             }
         } else {
-            if provisioningProfile.appId != provisioningProfile.teamId + "." + target.bundleId {
+            if provisioningProfile.appId != appId {
                 issues.append(invalidProvisioningProfileIssue)
             }
         }

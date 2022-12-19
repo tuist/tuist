@@ -50,6 +50,7 @@ final class TargetTests: TuistUnitTestCase {
                 "mlmodel",
                 "docc",
                 "playground",
+                "rcproject",
             ]
         )
     }

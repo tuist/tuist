@@ -47,10 +47,10 @@ ActiveRecord::Schema[7.0].define(version: 2022_06_26_091301) do
     t.string "inviter_type", null: false
     t.bigint "inviter_id", null: false
     t.string "invitee_email", null: false
+    t.bigint "organization_id", null: false
     t.string "token", limit: 100, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "organization_id"
     t.index ["invitee_email", "organization_id"], name: "index_invitations_on_invitee_email_and_organization_id", unique: true
     t.index ["inviter_type", "inviter_id"], name: "index_invitations_on_inviter"
     t.index ["organization_id"], name: "index_invitations_on_organization_id"

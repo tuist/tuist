@@ -7,6 +7,6 @@ class CommandEvent < ApplicationRecord
   belongs_to :project, optional: false
 
   def cache_hit_rate
-    CommandCacheHitRateService.call(command_event: this)
+    CommandCacheHitRateService.call(command_event: self)
   end
 end
