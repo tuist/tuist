@@ -1,5 +1,11 @@
 # Changelog
 
+## Next
+
+### Added 
+
+- Added support multiple deployment targets by [@Dmitry Pliushchai](https://github.com/Dmitry-Pliushchai)
+
 ## 3.14.0 - 2022-11-18
 
 ### Added
