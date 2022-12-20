@@ -25,7 +25,6 @@ final class SettingsLinter: SettingsLinting {
             issues.append(contentsOf: lintConfigFilesExist(settings: settings))
         }
 
-        
         return issues
     }
 

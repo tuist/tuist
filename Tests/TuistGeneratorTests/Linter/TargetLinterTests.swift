@@ -288,6 +288,64 @@ final class TargetLinterTests: TuistUnitTestCase {
             )
         }
     }
+    
+    func test_lint_when_target_platform_and_multiple_deployment_targets_property_match() throws {
+        let validCombinations: [(Platform, [DeploymentTarget])] = [
+            (.iOS, [.iOS("16.0", .all), .macOS("10.0.0"), .tvOS("16.0"), .watchOS("9.1")]),
+            (.watchOS, [.iOS("16.0", .all), .macOS("10.0.0"), .tvOS("16.0"), .watchOS("9.1")]),
+            (.macOS, [.iOS("16.0", .all), .macOS("10.0.0"), .tvOS("16.0"), .watchOS("9.1")]),
+            (.tvOS, [.iOS("16.0", .all), .macOS("10.0.0"), .tvOS("16.0"), .watchOS("9.1")]),
+        ]
+        for combinations in validCombinations {
+            // Given
+            let target = Target.test(
+                platform: combinations.0,
+                deploymentTargets: combinations.1,
+                sources: [
+                    SourceFile(path: "/path/to/some/source.swift"),
+                ]
+            )
+
+            // When
+            let result = subject.lint(target: target)
+
+            // Then
+            XCTAssertTrue(result.isEmpty)
+        }
+    }
+    
+    func test_lint_when_target_platform_and_multiple_deployment_targets_property_mismatch() throws {
+        let invalidCombinations: [(Platform, [DeploymentTarget])] = [
+            (.iOS, [.macOS("10.0.0"), .tvOS("16.0"), .watchOS("9.1")]),
+            (.watchOS, [.iOS("16.0", .all), .macOS("10.0.0"), .tvOS("16.0")]),
+            (.macOS, [.iOS("16.0", .all), .tvOS("16.0"), .watchOS("9.1")]),
+            (.tvOS, [.iOS("16.0", .all), .macOS("10.0.0"), .watchOS("9.1")]),
+        ]
+        for combinations in invalidCombinations {
+            // Given
+            let target = Target.test(
+                platform: combinations.0,
+                deploymentTargets: combinations.1,
+                sources: [
+                    SourceFile(path: "/path/to/some/source.swift"),
+                ]
+            )
+
+            // When
+            let result = subject.lint(target: target)
+
+            // Then
+            for deploymentTarget in combinations.1 {
+                XCTContainsLintingIssue(
+                    result,
+                    LintingIssue(
+                        reason: "Found an inconsistency between a platform `\(combinations.0.caseValue)` and deployment target `\(deploymentTarget.platform)`",
+                        severity: .error
+                    )
+                )
+            }
+        }
+    }
 
     func test_lint_invalidProductPlatformCombinations() throws {
         // Given

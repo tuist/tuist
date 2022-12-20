@@ -25,19 +25,21 @@ extension XcodeBuildDestination {
         switch target.platform {
         case .iOS, .tvOS, .watchOS:
             let minVersion: Version?
-            if let deploymentTarget = target.deploymentTargets.first {
+            if let deploymentTarget = target.deploymentTargets.first(where: { $0.platform.lowercased() == target.platform.rawValue } ) {
                 minVersion = deploymentTarget.version.version()
             } else {
                 minVersion = scheme.targetDependencies()
-                    .flatMap {
+                    .compactMap {
                         graphTraverser
                             .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)
                             .map(\.target)
-                            .map(\.deploymentTargets)
-                            .compactMap { $0.first!.version.version() }
+                            .flatMap(\.deploymentTargets)
+                            .first(where: { $0.platform.lowercased() == target.platform.rawValue } )
+                            .flatMap { $0.version.version() }
                     }
                     .sorted()
                     .first
+                
             }
 
             let deviceAndRuntime = try await simulatorController.findAvailableDevice(

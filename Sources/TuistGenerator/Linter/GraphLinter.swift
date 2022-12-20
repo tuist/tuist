@@ -90,8 +90,11 @@ public class GraphLinter: GraphLinting {
     private func lintDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, toDependencies -> [LintingIssue] in
-            guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency else { return [] }
-            guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
+            guard
+                !toDependencies.isEmpty,
+                case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency,
+                let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName)
+            else { return [] }
             
             let toTargets = toDependencies.compactMap { toDependency -> GraphTarget? in
                 guard case let GraphDependency.target(toTargetName, toTargetPath) = toDependency else { return nil }
@@ -112,7 +115,6 @@ public class GraphLinter: GraphLinting {
     }
 
     private func lintDependency(from: GraphTarget, to: [GraphTarget]) -> [LintingIssue] {
-        // TODO: Update linter to support multi platform target
         let fromTarget = LintableTarget(
             platform: from.target.platform,
             product: from.target.product
