@@ -8,6 +8,7 @@ import {
   Select,
   Button,
   Stack,
+  InlineError,
 } from '@shopify/polaris';
 
 import { useNavigate } from 'react-router-dom';
@@ -77,6 +78,9 @@ export const NewProjectPage = observer(() => {
               }}
               autoComplete="off"
             />
+            {newProjectPageStore.formErrors.map((error) => (
+              <InlineError message={error} fieldID="" key={error} />
+            ))}
             <Stack>
               <Button
                 primary
