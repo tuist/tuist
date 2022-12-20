@@ -122,6 +122,13 @@ func unviversalApp() -> Target {
             .tvOS(targetVersion: "16.0"),
             .watchOS(targetVersion: "9.0"),
         ],
+        infoPlist: .extendingDefault(
+            with:
+            [
+                "WKWatchOnly": true,
+                "WKApplication": true,
+            ]
+        ),
         sources: .paths([.relativeToManifest("Sources/**")]),
         dependencies: [.target(name: "MultiDeploymentTargetsFramework"), .zipFoundation],
         settings: .settings(base: ["CODE_SIGN_IDENTITY": "", "CODE_SIGNING_REQUIRED": "NO"])
