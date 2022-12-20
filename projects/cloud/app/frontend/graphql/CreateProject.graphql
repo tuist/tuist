@@ -1,5 +1,11 @@
 mutation CreateProject($input: CreateProjectInput!) {
   createProject(input: $input) {
-    slug
+    project {
+      slug
+    }
+    errors {
+      message
+      path
+    }
   }
 }
