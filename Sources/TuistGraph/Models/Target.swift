@@ -8,7 +8,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     //       in order to compile the documentation archive (including Tutorials, Articles, etc.)
     public static let validSourceExtensions: [String] = [
         "m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel", "docc",
-        "playground",
+        "playground", "rcproject",
     ]
     public static let validFolderExtensions: [String] = [
         "framework", "bundle", "app", "xcassets", "appiconset", "scnassets",
@@ -183,6 +183,17 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public func isEmbeddableWatchApplication() -> Bool {
         switch (platform, product) {
         case (.watchOS, .watch2App), (.watchOS, .app):
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Determines if the target is able to embed a watch application
+    /// i.e. a product that can be bundled with a watchOS application
+    public func canEmbedWatchApplications() -> Bool {
+        switch (platform, product) {
+        case (.iOS, .app):
             return true
         default:
             return false

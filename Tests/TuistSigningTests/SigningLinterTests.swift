@@ -98,6 +98,51 @@ final class SigningLinterTests: TuistUnitTestCase {
         )
     }
 
+    func test_lint_when_provisioning_profile_has_custom_id_prefix_and_app_id_match() {
+        let appIdPrefix = "appIdPrefix"
+
+        // Given
+        let provisioningProfile = ProvisioningProfile.test(
+            teamId: "team",
+            appId: appIdPrefix + ".io.tuist",
+            applicationIdPrefix: [appIdPrefix]
+        )
+        let target = Target.test(bundleId: "io.tuist")
+
+        // When
+        let got = subject.lint(provisioningProfile: provisioningProfile, target: target)
+
+        // Then
+        XCTAssertEmpty(got)
+    }
+
+    func test_lint_when_provisioning_profile_has_custom_id_prefix_and_app_id_mismatch() {
+        let appIdPrefix = "appIdPrefix"
+
+        // Given
+        let provisioningProfile = ProvisioningProfile.test(
+            teamId: "team",
+            appId: appIdPrefix + ".io.not-tuist",
+            applicationIdPrefix: [appIdPrefix]
+        )
+        let target = Target.test(bundleId: "io.tuist")
+
+        // When
+        let got = subject.lint(provisioningProfile: provisioningProfile, target: target)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [LintingIssue(
+                reason: """
+                App id \(provisioningProfile.appId) does not correspond to \(appIdPrefix).\(target
+                    .bundleId). Make sure the provisioning profile has been added to the right target.
+                """,
+                severity: .error
+            )]
+        )
+    }
+
     func test_lint_when_provisioning_profile_has_wildcard() {
         // Given
         let provisioningProfile = ProvisioningProfile.test(

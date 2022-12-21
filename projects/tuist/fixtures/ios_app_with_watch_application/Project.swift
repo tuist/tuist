@@ -62,5 +62,16 @@ let project = Project(
             dependencies: [
             ]
         ),
+        Target(
+            name: "WatchAppTests",
+            platform: .watchOS,
+            product: .unitTests,
+            bundleId: "io.tuist.App.watchkitapptests",
+            infoPlist: .default,
+            sources: "WatchApp/Tests/**",
+            dependencies: [
+                .target(name: "WatchApp"),
+            ]
+        ),
     ]
 )

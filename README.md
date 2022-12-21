@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square" alt="Commit Activity">
   <img src="https://img.shields.io/github/commits-since/tuist/tuist/latest?style=flat-square" alt="Latest Commits">
   <a href="http://twitter.com/tuistio"><img src="https://img.shields.io/twitter/follow/tuistio?style=flat-square" alt="Twitter Followers"></a>
-  <a href="https://join.slack.com/t/tuistapp/shared_invite/zt-g38gajhj-D6LLakrPnVCy4sLm24KxaQ"><img src="https://img.shields.io/badge/slack-tuist-green.svg?logo=slack" alt="Slack Workspace"></a>
+  <a href="https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg"><img src="https://img.shields.io/badge/slack-tuist-green.svg?logo=slack" alt="Slack Workspace"></a>
   <img src="https://img.shields.io/opencollective/sponsors/tuistapp?style=flat-square" alt="Sponsors">
   <img src="https://img.shields.io/opencollective/backers/tuistapp?style=flat-square" alt="Backers">
   <img src="https://img.shields.io/github/license/tuist/tuist?style=flat-square" alt="License">
@@ -299,6 +299,7 @@ Thanks goes to these wonderful people:
       <td align="center"><a href="https://twitter.com/MonocularVision"><img src="https://avatars.githubusercontent.com/u/429790?v=4" width="100px;" alt=""/><br /><sub><b>Michael McGuire</b></sub></a></td>
       <td align="center"><a href="http://www.michaelfcollins3.me"><img src="https://avatars.githubusercontent.com/u/104274?v=4" width="100px;" alt=""/><br /><sub><b>Michael Collins</b></sub></a></td>
       <td align="center"><a href="https://github.com/devyhan"><img src="https://avatars.githubusercontent.com/u/45344633?v=4" width="100px;" alt=""/><br /><sub><b>YoHan Cho</b></sub></a></td>
+      <td align="center"><a href="https://github.com/euriasb"><img src="https://avatars.githubusercontent.com/u/3721257?v=4" width="100px;" alt=""/><br /><sub><b>euriasb</b></sub></a></td>
     </tr>
   </tbody>
 </table>
