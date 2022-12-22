@@ -22,7 +22,7 @@ extension TuistGraph.TargetScript {
         let basedOnDependencyAnalysis = manifest.basedOnDependencyAnalysis
         let runForInstallBuildsOnly = manifest.runForInstallBuildsOnly
         let shellPath = manifest.shellPath
-        
+
         let dependencyFile: AbsolutePath?
 
         if let manifestDependencyFile = manifest.dependencyFile {

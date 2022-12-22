@@ -1124,7 +1124,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                     showEnvVarsInLog: false,
                     basedOnDependencyAnalysis: false,
                     runForInstallBuildsOnly: true,
-                    dependencyFile: "/$(TEMP_DIR)/dependency.d"// testing dependency file
+                    dependencyFile: "/$(TEMP_DIR)/dependency.d" // testing dependency file
                 ),
                 TargetScript(
                     name: "pre",
