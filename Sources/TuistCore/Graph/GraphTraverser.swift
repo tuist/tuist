@@ -166,6 +166,16 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
+    public func extensionKitExtensionDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistGraph.GraphTarget> {
+        let validProducts: [Product] = [
+            .extensionKitExtension,
+        ]
+        return Set(
+            directLocalTargetDependencies(path: path, name: name)
+                .filter { validProducts.contains($0.target.product) }
+        )
+    }
+
     public func appClipDependencies(path: AbsolutePath, name: String) -> GraphTarget? {
         directLocalTargetDependencies(path: path, name: name)
             .first { $0.target.product == .appClip }

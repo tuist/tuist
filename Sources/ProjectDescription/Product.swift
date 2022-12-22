@@ -38,4 +38,6 @@ public enum Product: String, Codable, Equatable {
     //    case watchExtension
     //    case tvIntentsExtension
     //    case messagesApplication
+    /// An ExtensionKit extension.
+    case extensionKitExtension = "extension_kit_extension"
 }

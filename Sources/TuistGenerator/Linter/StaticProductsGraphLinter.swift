@@ -192,6 +192,10 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             // Message Extensions can safely link the same static products as apps
             // as they are an independent product
             return false
+        case (.app, .extensionKitExtension):
+            // ExtensionKit extensions can safely link the same static products as apps
+            // as they are an independent product
+            return false
         default:
             return true
         }

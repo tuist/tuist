@@ -21,6 +21,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
     case messagesExtension = "messages_extension"
     case stickerPackExtension = "sticker_pack_extension"
     case appClip
+    case extensionKitExtension = "extension_kit_extension"
 
     public var caseValue: String {
         switch self {
@@ -64,6 +65,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             return "commandLineTool"
         case .appClip:
             return "appClip"
+        case .extensionKitExtension:
+            return "extensionKitExtension"
         }
     }
 
@@ -109,6 +112,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             return "command line tool"
         case .appClip:
             return "appClip"
+        case .extensionKitExtension:
+            return "extensionKit extension"
         }
     }
 
@@ -124,7 +129,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             .messagesExtension,
             .stickerPackExtension,
             .tvTopShelfExtension,
-            .watch2Extension:
+            .watch2Extension,
+            .extensionKitExtension:
             return true
         case
             .bundle,
