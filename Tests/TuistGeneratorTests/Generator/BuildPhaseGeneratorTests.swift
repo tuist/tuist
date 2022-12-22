@@ -1103,6 +1103,72 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(postBuildPhase.shellPath, "/bin/zsh")
     }
 
+    func test_generateTarget_action_dependency_file() throws {
+        // Given
+        system.swiftVersionStub = { "5.2" }
+        let fileElements = ProjectFileElements([:])
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let path = AbsolutePath("/test")
+        let pbxproj = PBXProj()
+        let pbxProject = createPbxProject(pbxproj: pbxproj)
+        let target = Target.test(
+            sources: [],
+            resources: [],
+            scripts: [
+                TargetScript(
+                    name: "post",
+                    order: .post,
+                    script: .embedded("echo test"),
+                    outputPaths: ["/$(TEMP_DIR)/dependency.d"],
+                    showEnvVarsInLog: false,
+                    basedOnDependencyAnalysis: false,
+                    runForInstallBuildsOnly: true,
+                    dependencyFile: "/$(TEMP_DIR)/dependency.d"// testing dependency file
+                ),
+                TargetScript(
+                    name: "pre",
+                    order: .pre
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            targets: [target]
+        )
+        let groups = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        let pbxTarget = try TargetGenerator().generateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            projectSettings: Settings.test(),
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let preBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)
+        XCTAssertNil(preBuildPhase.dependencyFile)
+
+        let postBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
+        XCTAssertEqual(postBuildPhase.dependencyFile, "/$(TEMP_DIR)/dependency.d")
+    }
+
     func test_generateEmbedAppClipsBuildPhase() throws {
         // Given
         let app = Target.test(name: "App", product: .app)

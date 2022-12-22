@@ -41,6 +41,9 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
             stringsToHash.append(
                 contentsOf: (script.outputPaths + script.outputFileListPaths).map { $0.relative(to: sourceRootPath).pathString }
             )
+            if let dependencyFile = script.dependencyFile {
+                stringsToHash.append(dependencyFile.relative(to: sourceRootPath).pathString)
+            }
             stringsToHash.append(contentsOf: [
                 script.name,
                 script.tool ?? "",

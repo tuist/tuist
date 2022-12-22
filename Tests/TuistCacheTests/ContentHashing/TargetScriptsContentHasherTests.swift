@@ -41,7 +41,8 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         inputPaths: [AbsolutePath] = [AbsolutePath("/inputPaths1")],
         inputFileListPaths: [AbsolutePath] = [AbsolutePath("/inputFileListPaths1")],
         outputPaths: [AbsolutePath] = [AbsolutePath("/outputPaths1")],
-        outputFileListPaths: [AbsolutePath] = [AbsolutePath("/outputFileListPaths1")]
+        outputFileListPaths: [AbsolutePath] = [AbsolutePath("/outputFileListPaths1")],
+        dependencyFile: AbsolutePath = AbsolutePath("/dependencyFile1")
     ) -> TargetScript {
         TargetScript(
             name: name,
@@ -50,7 +51,8 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
-            outputFileListPaths: outputFileListPaths
+            outputFileListPaths: outputFileListPaths,
+            dependencyFile: dependencyFile
         )
     }
 
@@ -64,7 +66,8 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             inputPaths: [AbsolutePath("/$(SRCROOT)/inputPaths1")],
             inputFileListPaths: [AbsolutePath("/inputFileListPaths1")],
             outputPaths: [AbsolutePath("/$(DERIVED_FILE_DIR)/outputPaths1")],
-            outputFileListPaths: [AbsolutePath("/outputFileListPaths1")]
+            outputFileListPaths: [AbsolutePath("/outputFileListPaths1")],
+            dependencyFile: AbsolutePath("/$(DERIVED_FILE_DIR)/file.d")
         )
 
         // When
@@ -76,6 +79,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             inputFileListPaths1,
             "$(DERIVED_FILE_DIR)/outputPaths1",
             "outputFileListPaths1",
+            "$(DERIVED_FILE_DIR)/file.d",
             "1",
             "tool1",
             "pre",
@@ -106,6 +110,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             inputFileListPaths1,
             "outputPaths1",
             "outputFileListPaths1",
+            "dependencyFile1",
             "1",
             "tool1",
             "pre",
@@ -132,6 +137,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             inputFileListPaths1,
             "outputPaths1",
             "outputFileListPaths1",
+            "dependencyFile1",
             "1",
             "tool1",
             "pre",
@@ -154,7 +160,8 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             inputPaths: [AbsolutePath("/inputPaths2")],
             inputFileListPaths: [AbsolutePath("/inputFileListPaths2")],
             outputPaths: [AbsolutePath("/outputPaths2")],
-            outputFileListPaths: [AbsolutePath("/outputFileListPaths2")]
+            outputFileListPaths: [AbsolutePath("/outputFileListPaths2")],
+            dependencyFile: AbsolutePath("/dependencyFilePath4")
         )
 
         // When
@@ -166,6 +173,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
             inputFileListPaths2,
             "outputPaths2",
             "outputFileListPaths2",
+            "dependencyFilePath4",
             "2",
             "tool2",
             "post",
