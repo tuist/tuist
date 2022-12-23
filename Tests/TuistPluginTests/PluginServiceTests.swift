@@ -270,7 +270,12 @@ final class PluginServiceTests: TuistUnitTestCase {
         try fileHandler.createFolder(cachedPluginPath.appending(component: Constants.helpersDirectoryName))
 
         let config = mockConfig(plugins: [
-            TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), directory: nil, releaseUrl: nil),
+            TuistGraph.PluginLocation.git(
+                url: pluginGitUrl,
+                gitReference: .tag(pluginGitReference),
+                directory: nil,
+                releaseUrl: nil
+            ),
         ])
 
         // When
@@ -333,7 +338,12 @@ final class PluginServiceTests: TuistUnitTestCase {
 
         let config =
             mockConfig(plugins: [
-                TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), directory: nil, releaseUrl: nil),
+                TuistGraph.PluginLocation.git(
+                    url: pluginGitUrl,
+                    gitReference: .tag(pluginGitReference),
+                    directory: nil,
+                    releaseUrl: nil
+                ),
             ])
 
         // When

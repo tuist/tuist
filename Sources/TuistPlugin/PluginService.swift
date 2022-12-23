@@ -261,7 +261,12 @@ public final class PluginService: PluginServicing {
         try gitHandler.checkout(id: gitId, in: pluginRepositoryDirectory)
     }
 
-    private func fetchGitPluginRelease(pluginCacheDirectory: AbsolutePath, url: String, gitTag: String, releaseUrl: String?) async throws {
+    private func fetchGitPluginRelease(
+        pluginCacheDirectory: AbsolutePath,
+        url: String,
+        gitTag: String,
+        releaseUrl: String?
+    ) async throws {
         let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
         // If `Package.swift` exists for the plugin, a Github release should for the given `gitTag` should also exist
         guard FileHandler.shared
@@ -317,12 +322,12 @@ public final class PluginService: PluginServicing {
                 }
         }
     }
-    
+
     func getPluginDownloadUrl(gitUrl: String, gitTag: String, pluginName: String, releaseUrl: String?) -> URL? {
         if let url = releaseUrl.flatMap(URL.init(string:)) {
             return url
         }
-        
+
         guard let url = URL(string: gitUrl) else { return nil }
         if gitUrl.lowercased().contains("gitlab") {
             return url.appendingPathComponent("-/releases/\(gitTag)/downloads/\(pluginName).tuist-plugin.zip")
