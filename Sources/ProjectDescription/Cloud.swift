@@ -31,7 +31,7 @@ public struct Cloud: Codable, Equatable {
     ///   - url: Base URL to the Cloud server.
     ///   - options: Cloud options.
     /// - Returns: A Cloud instance.
-    public static func cloud(projectId: String, url: String, options: [Option] = []) -> Cloud {
+    public static func cloud(projectId: String, url: String, options: [Option] = [.analytics]) -> Cloud {
         Cloud(url: url, projectId: projectId, options: options)
     }
 }
