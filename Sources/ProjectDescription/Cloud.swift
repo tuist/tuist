@@ -8,7 +8,7 @@ public struct Cloud: Codable, Equatable {
         @available(*, deprecated, message: "Analytics are sent to the cloud backend by default. Use `disableAnalytics` to disable this feature.")
         case analytics
         
-        /// Disables sending analytics to cloud dashboard.
+        /// Disables sending analytics to the cloud backend.
         case disableAnalytics
         
         /// Marks whether cloud connection is optional.
