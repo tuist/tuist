@@ -4,8 +4,12 @@ import Foundation
 public struct Cloud: Codable, Equatable {
     /// Options for cloud configuration.
     public enum Option: String, Codable, Equatable {
-        /// Allows sending analytics to cloud dashboard.
+        /// Enables sending analytics to cloud dashboard.
+        @available(*, deprecated, message: "Enabling analytics will soon be default. Use `disableAnalytics` to disable this feature.")
         case analytics
+        
+        /// Disables sending analytics to cloud dashboard.
+        case disableAnalytics
         
         /// Marks whether cloud connection is optional.
         /// If not present, tuist commands will fail regardless of whether an authentication token is available locally from `tuist cloud auth` or not.
@@ -27,7 +31,7 @@ public struct Cloud: Codable, Equatable {
     ///   - url: Base URL to the Cloud server.
     ///   - options: Cloud options.
     /// - Returns: A Cloud instance.
-    public static func cloud(projectId: String, url: String, options: [Option] = [.analytics]) -> Cloud {
+    public static func cloud(projectId: String, url: String, options: [Option] = []) -> Cloud {
         Cloud(url: url, projectId: projectId, options: options)
     }
 }

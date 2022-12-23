@@ -29,7 +29,9 @@ class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {
     }
 
     func send(commandEvent: CommandEvent) async throws {
-        guard config.options.contains(.analytics) else { return }
+        guard config.options.contains(.analytics),
+              !config.options.contains(.disableAnalytics)
+        else { return }
 
         let resource = try resourceFactory.create(commandEvent: commandEvent)
         _ = try await client.request(resource)
