@@ -7,7 +7,10 @@ let package = Package(
     name: "LocalSwiftPackage",
     defaultLocalization: "en",
     platforms: [.iOS(.v13)],
-    products: [.library(name: "Styles", targets: ["Styles"]), .library(name: "TestsSupport", targets: ["TestsSupport"])],
+    products: [
+        .library(name: "Styles", targets: ["Styles"]),
+        .library(name: "TestsSupport", targets: ["TestsSupport"])
+    ],
     dependencies: [.snapshotTesting],
     targets: [
         .target(

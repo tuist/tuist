@@ -64,3 +64,4 @@ DerivedData/
 
 ### Tuist managed dependencies ###
 Tuist/Dependencies
+*.cache

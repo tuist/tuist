@@ -3,7 +3,7 @@ import TestsSupport
 import XCTest
 @testable import Styles
 
-final class StylesUnitTests: XCTestCase {
+final class StylesTests: XCTestCase {
     func testSupportImport() {
         XCTPass()
     }
