@@ -41,7 +41,7 @@ public protocol GraphTraversing {
 
     /// Returns all the targets of the project, topological sorted.
     func allTargetsTopologicalSorted() throws -> [GraphTarget]
-    
+
     /// Returns all the internal targets, that is, excluding `Dependencies`.
     func allInternalTargets() -> Set<GraphTarget>
 

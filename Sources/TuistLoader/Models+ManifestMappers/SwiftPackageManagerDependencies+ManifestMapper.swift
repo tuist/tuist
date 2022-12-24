@@ -19,7 +19,7 @@ extension TuistGraph.SwiftPackageManagerDependencies {
             .projectOptions
             .mapValues { .from(manifest: $0) }
         let testsFromPackages = manifest.testsFromPackages
-        
+
         return .init(
             packages,
             productTypes: productTypes,

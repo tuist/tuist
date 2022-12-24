@@ -30,9 +30,9 @@ public final class FocusTargetsGraphMappers: GraphMapping {
                 }
         )
         let includedTargets = includedTargets.isEmpty ?
-        externalTestsTargets.union(graphTraverser.allInternalTargets().map(\.target.name)) :
-        includedTargets
-        
+            externalTestsTargets.union(graphTraverser.allInternalTargets().map(\.target.name)) :
+            includedTargets
+
         let userSpecifiedSourceTargets = graphTraverser.allTargets().filter { includedTargets.contains($0.target.name) }
         let filteredTargets = Set(try topologicalSort(
             Array(userSpecifiedSourceTargets),

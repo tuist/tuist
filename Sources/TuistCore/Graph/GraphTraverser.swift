@@ -47,7 +47,7 @@ public class GraphTraverser: GraphTraversing {
             }
         ).reversed()
     }
-    
+
     public func allInternalTargets() -> Set<GraphTarget> {
         allTargets(excludingExternalTargets: true)
     }

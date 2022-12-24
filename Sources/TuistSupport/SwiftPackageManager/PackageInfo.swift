@@ -497,8 +497,8 @@ extension PackageInfo.Target.TargetType {
     /// Defines if the target would be processed when processing the package
     public func isSupported(_ includeTests: Bool = false) -> Bool {
         switch self {
-            case .regular, .system,
-                    .test where includeTests == true:
+        case .regular, .system,
+             .test where includeTests == true:
             return true
         default:
             return false

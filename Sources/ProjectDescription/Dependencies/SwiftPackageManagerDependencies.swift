@@ -31,7 +31,7 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
 
     /// Allows including test targets into generated projects for the given swift packages. This is useful for testing local swift packages in the same repository
     public let testsFromPackages: Set<String>
-    
+
     /// Creates `SwiftPackageManagerDependencies` instance.
     /// - Parameter packages: List of packages that will be installed using Swift Package Manager.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.

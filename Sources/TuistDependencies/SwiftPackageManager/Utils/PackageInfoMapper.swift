@@ -30,7 +30,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
 
     /// Thrown when `PackageInfo.Target.Dependency.product` dependency cannot be resolved.
     case unknownProductDependency(String, String)
-    
+
     /// Thrown when a target defined in a product is not present in the package
     case unknownProductTarget(package: String, product: String, target: String)
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
@@ -225,7 +225,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let resolvedDependencies: [String: [ResolvedDependency]] = try packageInfos
             .reduce(into: [:]) { result, packageInfo in
                 try packageInfo.value.targets
-                    .filter { targetToProducts[$0.name] != nil || (testsFromPackages.contains(packageInfo.key) && $0.type == .test) }
+                    .filter {
+                        targetToProducts[$0.name] != nil || (testsFromPackages.contains(packageInfo.key) && $0.type == .test)
+                    }
                     .forEach { target in
                         guard result[target.name] == nil else { return }
                         result[target.name] = try ResolvedDependency.from(
@@ -240,7 +242,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         // Products to targets map i.e., [platform: [product_name : [targets_included_in_product]]]
         var externalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = .init()
-        
+
         for platform in platforms {
             externalDependencies[ProjectDescription.Platform.from(graph: platform)] = try packageInfos
                 .reduce(into: [:]) { result, packageInfo in
@@ -253,18 +255,21 @@ public final class PackageInfoMapper: PackageInfoMapping {
                             )
                             .map {
                                 switch $0 {
-                                    case let .xcframework(path, _):
-                                        return .xcframework(path: path)
-                                    case let .target(name, _):
-                                        // When multiple platforms are supported, add the platform name as a suffix to the target
-                                        let targetName = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
-                                        return .project(target: targetName, path: Path(packageToFolder[packageInfo.key]!.pathString))
-                                    case .externalTarget:
-                                        throw PackageInfoMapperError.unknownProductTarget(
-                                            package: packageInfo.key,
-                                            product: product.name,
-                                            target: target
-                                        )
+                                case let .xcframework(path, _):
+                                    return .xcframework(path: path)
+                                case let .target(name, _):
+                                    // When multiple platforms are supported, add the platform name as a suffix to the target
+                                    let targetName = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
+                                    return .project(
+                                        target: targetName,
+                                        path: Path(packageToFolder[packageInfo.key]!.pathString)
+                                    )
+                                case .externalTarget:
+                                    throw PackageInfoMapperError.unknownProductTarget(
+                                        package: packageInfo.key,
+                                        product: product.name,
+                                        target: target
+                                    )
                                 }
                             }
                         }
@@ -280,7 +285,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     .filter { $0.type == .test }
                     .map(\.name)
             }
-        
+
         let version = try Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)
         let minDeploymentTargets = Platform.oldestVersions(isLegacy: version < TSCUtility.Version(5, 7, 0)).reduce(
             into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()
@@ -395,54 +400,53 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         let targets: [ProjectDescription.Target] = try packageInfo.targets
             .flatMap { target -> [ProjectDescription.Target] in
-                
+
                 switch target.type {
-                    case .test where testTargetsToPackage.contains(target.name):
-                        return try platforms.compactMap { platform in
-                            try ProjectDescription.Target.from(
-                                target: target,
-                                products: [.init(name: target.name, type: .test, targets: [target.name])],
-                                includeTests: true,
-                                packageName: name,
-                                packageInfo: packageInfo,
-                                packageInfos: packageInfos,
-                                packageFolder: path,
-                                packageToProject: packageToProject,
-                                productTypes: productTypes,
-                                baseSettings: baseSettings,
-                                targetSettings: targetSettings,
-                                platform: platform,
-                                minDeploymentTargets: minDeploymentTargets,
-                                targetToResolvedDependencies: targetToResolvedDependencies,
-                                targetToModuleMap: targetToModuleMap,
-                                addPlatformSuffix: platforms.count != 1
-                            )
-                        }
-                        
-                    default:
-                        guard let products = targetToProducts[target.name] else { return [] }
-                        
-                        return try platforms.compactMap { platform in
-                            try ProjectDescription.Target.from(
-                                target: target,
-                                products: products,
-                                packageName: name,
-                                packageInfo: packageInfo,
-                                packageInfos: packageInfos,
-                                packageFolder: path,
-                                packageToProject: packageToProject,
-                                productTypes: productTypes,
-                                baseSettings: baseSettings,
-                                targetSettings: targetSettings,
-                                platform: platform,
-                                minDeploymentTargets: minDeploymentTargets,
-                                targetToResolvedDependencies: targetToResolvedDependencies,
-                                targetToModuleMap: targetToModuleMap,
-                                addPlatformSuffix: platforms.count != 1
-                            )
-                        }
+                case .test where testTargetsToPackage.contains(target.name):
+                    return try platforms.compactMap { platform in
+                        try ProjectDescription.Target.from(
+                            target: target,
+                            products: [.init(name: target.name, type: .test, targets: [target.name])],
+                            includeTests: true,
+                            packageName: name,
+                            packageInfo: packageInfo,
+                            packageInfos: packageInfos,
+                            packageFolder: path,
+                            packageToProject: packageToProject,
+                            productTypes: productTypes,
+                            baseSettings: baseSettings,
+                            targetSettings: targetSettings,
+                            platform: platform,
+                            minDeploymentTargets: minDeploymentTargets,
+                            targetToResolvedDependencies: targetToResolvedDependencies,
+                            targetToModuleMap: targetToModuleMap,
+                            addPlatformSuffix: platforms.count != 1
+                        )
+                    }
+
+                default:
+                    guard let products = targetToProducts[target.name] else { return [] }
+
+                    return try platforms.compactMap { platform in
+                        try ProjectDescription.Target.from(
+                            target: target,
+                            products: products,
+                            packageName: name,
+                            packageInfo: packageInfo,
+                            packageInfos: packageInfos,
+                            packageFolder: path,
+                            packageToProject: packageToProject,
+                            productTypes: productTypes,
+                            baseSettings: baseSettings,
+                            targetSettings: targetSettings,
+                            platform: platform,
+                            minDeploymentTargets: minDeploymentTargets,
+                            targetToResolvedDependencies: targetToResolvedDependencies,
+                            targetToModuleMap: targetToModuleMap,
+                            addPlatformSuffix: platforms.count != 1
+                        )
+                    }
                 }
-                
             }
 
         guard !targets.isEmpty else {
@@ -1265,7 +1269,8 @@ extension PackageInfo.Target {
         if let path = path {
             return packageFolder.appending(RelativePath(path))
         } else {
-            let directories = type == .test ? PackageInfoMapper.predefinedTestsDirectories : PackageInfoMapper.predefinedSourceDirectories
+            let directories = type == .test ? PackageInfoMapper.predefinedTestsDirectories : PackageInfoMapper
+                .predefinedSourceDirectories
             let firstMatchingPath = directories
                 .map { packageFolder.appending(components: [$0, name]) }
                 .first(where: { FileHandler.shared.exists($0) })

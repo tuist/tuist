@@ -27,7 +27,7 @@ public enum AppKit {
             Database.database(app: firebaseApp).reference().setValue("value")
             // Use FirebaseCrashlytics to make sure it links fine
             _ = Crashlytics.crashlytics()
-            
+
             // Use FirebaseFirestore to make sure it links fine
             _ = Firestore.firestore()
         }

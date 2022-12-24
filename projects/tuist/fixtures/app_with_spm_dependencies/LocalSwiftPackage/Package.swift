@@ -21,7 +21,7 @@ let package = Package(
         ),
         .target(
             name: "TestsSupport",
-            dependencies: [ .product(name: "SnapshotTesting", package: "swift-snapshot-testing") ]
+            dependencies: [.product(name: "SnapshotTesting", package: "swift-snapshot-testing")]
         ),
         .testTarget(
             name: "StylesTests",
@@ -33,8 +33,8 @@ let package = Package(
 )
 
 extension Package.Dependency {
-     static let snapshotTesting: Package.Dependency = .package(
+    static let snapshotTesting: Package.Dependency = .package(
         url: "https://github.com/pointfreeco/swift-snapshot-testing",
         .upToNextMajor(from: "1.10.0")
-     )
+    )
 }

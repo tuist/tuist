@@ -158,7 +158,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             )
             result[Path(packageInfo.folder.pathString)] = manifest
         }
-        
+
         return DependenciesGraph(
             externalDependencies: preprocessInfo.productToExternalDependencies,
             externalProjects: externalProjects

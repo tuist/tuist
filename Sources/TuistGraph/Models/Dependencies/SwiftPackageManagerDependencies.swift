@@ -35,7 +35,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
 
     /// Allows including test targets into generated projects for the given swift packages. This is useful for testing local swift packages in the same repository
     public let testsFromPackages: Set<String>
-    
+
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
     ///    - packages: List of packages that will be installed using Swift Package Manager.
