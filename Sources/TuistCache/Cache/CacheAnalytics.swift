@@ -9,6 +9,7 @@ public enum CacheAnalytics {
         localCacheTargetsHits.insert(name)
         localCacheTargetsHitsLock.unlock()
     }
+
     private static let remoteCacheTargetsHitsLock = NSLock()
     public private(set) static var remoteCacheTargetsHits: Set<String> = []
     public static func addRemoteCacheTargetHit(_ name: String) {
@@ -16,5 +17,6 @@ public enum CacheAnalytics {
         remoteCacheTargetsHits.insert(name)
         remoteCacheTargetsHitsLock.unlock()
     }
+
     public static var cacheableTargets: [String] = []
 }
