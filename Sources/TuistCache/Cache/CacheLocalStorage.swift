@@ -41,7 +41,7 @@ public final class CacheLocalStorage: CacheStoring {
         let hashFolder = cacheDirectory.appending(component: hash)
         let exists = lookupCompiledArtifact(directory: hashFolder) != nil
         if exists {
-            CacheAnalytics.localCacheTargetsHits.insert(name)
+            CacheAnalytics.addLocalCacheTargetHit(name)
         }
         return exists
     }
