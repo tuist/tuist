@@ -128,7 +128,8 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
     ///   - name: The name of the helper.
     ///   - path: The path for the helper.
     ///   - projectDescriptionSearchPaths: The search paths for `ProjectDescription`.
-    ///   - customProjectDescriptionHelperModules: Any extra helper modules that should be included when building the given helper.
+    ///   - customProjectDescriptionHelperModules: Any extra helper modules that should be included when building the given
+    /// helper.
     ///
     /// - Note:
     ///   `customProjectDescriptionHelperModules` should be already built modules without a dependency on this module being built.

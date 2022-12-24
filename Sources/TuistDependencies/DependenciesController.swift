@@ -49,7 +49,8 @@ enum DependenciesControllerError: FatalError, Equatable {
 // MARK: - Dependencies Controlling
 
 /// `DependenciesControlling` controls:
-///     1. Fetching/updating dependencies defined in `./Tuist/Dependencies.swift` by running appropriate dependencies managers (for example, `Carthage` or `SPM`).
+///     1. Fetching/updating dependencies defined in `./Tuist/Dependencies.swift` by running appropriate dependencies managers
+/// (for example, `Carthage` or `SPM`).
 ///     2. Compiling fetched/updated dependencies into `.framework.`/`.xcframework.`.
 ///     3. Saving compiled frameworks under `./Tuist/Dependencies/*`.
 ///     4. Generating dependencies graph under `./Tuist/Dependencies/graph.json`.

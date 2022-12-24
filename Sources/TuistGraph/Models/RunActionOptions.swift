@@ -7,7 +7,8 @@ public struct RunActionOptions: Equatable, Codable {
     public let language: String?
 
     /// The path of the
-    /// [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700)
+    /// [StoreKit configuration
+    /// file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700)
     public let storeKitConfigurationPath: AbsolutePath?
 
     /// A simulated location used when running the provided run action.
@@ -22,7 +23,8 @@ public struct RunActionOptions: Equatable, Codable {
     ///     - language: language (e.g. "pl").
     ///
     ///     - storeKitConfigurationPath: The absolute path of the
-    ///     [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
+    ///     [StoreKit configuration
+    /// file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
     ///     The default value is `nil`, which results in no
     ///     configuration defined for the scheme
     ///

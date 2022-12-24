@@ -66,7 +66,8 @@ public protocol GraphTraversing {
     func targets(at path: AbsolutePath) -> Set<GraphTarget>
 
     /// Given a project directory and target name, it returns **all**l its direct target dependencies present in the same project.
-    /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies` instead
+    /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies`
+    /// instead
     /// - Parameters:
     ///   - path: Path to the directory that contains the target's project.
     ///   - name: Target name.
@@ -103,7 +104,8 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func appClipDependencies(path: AbsolutePath, name: String) -> GraphTarget?
 
-    /// Given a project directory and a target name, it returns the list of dependencies that need to be embedded into the target product.
+    /// Given a project directory and a target name, it returns the list of dependencies that need to be embedded into the target
+    /// product.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
@@ -115,13 +117,15 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func linkableDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference>
 
-    /// Given a project directory and a target name, it returns the list of dependencies that need to be added to the searchable path from the target.
+    /// Given a project directory and a target name, it returns the list of dependencies that need to be added to the searchable
+    /// path from the target.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
     func searchablePathDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference>
 
-    /// Given a project directory and a target name, it returns a list of dependencies that need to be included in a copy files build phase
+    /// Given a project directory and a target name, it returns a list of dependencies that need to be included in a copy files
+    /// build phase
     ///
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
@@ -140,7 +144,8 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func librariesSearchPaths(path: AbsolutePath, name: String) -> Set<AbsolutePath>
 
-    /// Given a project directory and a target name, it returns the list of foldres with Swift modules that should be expoed to the target.
+    /// Given a project directory and a target name, it returns the list of foldres with Swift modules that should be expoed to
+    /// the target.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.

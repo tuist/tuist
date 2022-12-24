@@ -288,7 +288,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             )
         }
     }
-    
+
     func test_lint_when_target_platform_and_multiple_deployment_targets_property_match() throws {
         let validCombinations: [(Platform, [DeploymentTarget])] = [
             (.iOS, [.iOS("16.0", .all), .macOS("10.0.0"), .tvOS("16.0"), .watchOS("9.1")]),
@@ -313,7 +313,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             XCTAssertTrue(result.isEmpty)
         }
     }
-    
+
     func test_lint_when_target_platform_and_multiple_deployment_targets_property_mismatch() throws {
         let invalidCombinations: [(Platform, [DeploymentTarget])] = [
             (.iOS, [.macOS("10.0.0"), .tvOS("16.0"), .watchOS("9.1")]),

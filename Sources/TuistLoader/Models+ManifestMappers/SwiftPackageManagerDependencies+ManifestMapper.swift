@@ -6,7 +6,8 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.SwiftPackageManagerDependencies {
-    /// Creates `TuistGraph.SwiftPackageManagerDependencies` instance from `ProjectDescription.SwiftPackageManagerDependencies` instance.
+    /// Creates `TuistGraph.SwiftPackageManagerDependencies` instance from `ProjectDescription.SwiftPackageManagerDependencies`
+    /// instance.
     static func from(
         manifest: ProjectDescription.SwiftPackageManagerDependencies,
         generatorPaths: GeneratorPaths

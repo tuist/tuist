@@ -375,7 +375,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, deploymentTargets: [.iOS(targetVersion: "9.0", devices: [.iphone, .ipad])]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        deploymentTargets: [.iOS(targetVersion: "9.0", devices: [.iphone, .ipad])]
+                    ),
                 ]
             )
         )
@@ -2799,7 +2803,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "NO", "ANOTHER_SETTING": "YES"]
                     case "Quick":
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES", "ANOTHER_SETTING": "YES"]
-                    case "RxTest-Dynamic": // because RxTest does have an "-" we need to account for the custom mapping to product names
+                    case "RxTest-Dynamic": // because RxTest does have an "-" we need to account for the custom mapping to product
+                        // names
                         customProductName = "RxTest_Dynamic"
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
                     default:

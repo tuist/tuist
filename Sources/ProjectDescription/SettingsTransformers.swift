@@ -39,7 +39,8 @@ public enum SwiftOptimizationLevel: String {
 extension SettingsDictionary {
     // MARK: - Code signing
 
-    /// Sets `"CODE_SIGN_STYLE"` to `"Manual"`,` "CODE_SIGN_IDENTITY"` to `identity`, and `"PROVISIONING_PROFILE_SPECIFIER"` to `provisioningProfileSpecifier`
+    /// Sets `"CODE_SIGN_STYLE"` to `"Manual"`,` "CODE_SIGN_IDENTITY"` to `identity`, and `"PROVISIONING_PROFILE_SPECIFIER"` to
+    /// `provisioningProfileSpecifier`
     public func manualCodeSigning(identity: String? = nil, provisioningProfileSpecifier: String? = nil) -> SettingsDictionary {
         var manualCodeSigning: SettingsDictionary = ["CODE_SIGN_STYLE": "Manual"]
         manualCodeSigning["PROVISIONING_PROFILE_SPECIFIER"] = provisioningProfileSpecifier.map { SettingValue($0) }
@@ -88,7 +89,8 @@ extension SettingsDictionary {
         merging(["VERSIONING_SYSTEM": "apple-generic"])
     }
 
-    /// Sets "VERSION_INFO_STRING" to `version`. If `prefix` and `suffix` are not `nil`, they're used as `"VERSION_INFO_PREFIX"` and `"VERSION_INFO_SUFFIX"` respectively.
+    /// Sets "VERSION_INFO_STRING" to `version`. If `prefix` and `suffix` are not `nil`, they're used as `"VERSION_INFO_PREFIX"`
+    /// and `"VERSION_INFO_SUFFIX"` respectively.
     public func versionInfo(_ version: String, prefix: String? = nil, suffix: String? = nil) -> SettingsDictionary {
         var versionSettings: SettingsDictionary = ["VERSION_INFO_STRING": SettingValue(version)]
         versionSettings["VERSION_INFO_PREFIX"] = prefix.map { SettingValue($0) }

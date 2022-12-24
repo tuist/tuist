@@ -15,7 +15,8 @@ extension TuistGraph.CarthageDependencies {
 }
 
 extension TuistGraph.CarthageDependencies.Dependency {
-    /// Creates `TuistGraph.CarthageDependencies.Dependency` instance from `ProjectDescription.CarthageDependencies.Dependency` instance.
+    /// Creates `TuistGraph.CarthageDependencies.Dependency` instance from `ProjectDescription.CarthageDependencies.Dependency`
+    /// instance.
     static func from(manifest: ProjectDescription.CarthageDependencies.Dependency) -> Self {
         switch manifest {
         case let .github(path, requirement):
@@ -29,7 +30,8 @@ extension TuistGraph.CarthageDependencies.Dependency {
 }
 
 extension TuistGraph.CarthageDependencies.Requirement {
-    /// Creates `TuistGraph.CarthageDependencies.Requirement` instance from `ProjectDescription.CarthageDependencies.Requirement` instance.
+    /// Creates `TuistGraph.CarthageDependencies.Requirement` instance from `ProjectDescription.CarthageDependencies.Requirement`
+    /// instance.
     static func from(manifest: ProjectDescription.CarthageDependencies.Requirement) -> Self {
         switch manifest {
         case let .exact(version):

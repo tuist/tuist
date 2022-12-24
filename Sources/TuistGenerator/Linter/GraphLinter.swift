@@ -90,18 +90,17 @@ public class GraphLinter: GraphLinting {
     private func lintDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, toDependencies -> [LintingIssue] in
-            guard
-                !toDependencies.isEmpty,
-                case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency,
-                let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName)
+            guard !toDependencies.isEmpty,
+                  case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency,
+                  let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName)
             else { return [] }
-            
+
             let toTargets = toDependencies.compactMap { toDependency -> GraphTarget? in
                 guard case let GraphDependency.target(toTargetName, toTargetPath) = toDependency else { return nil }
                 guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return nil }
                 return toTarget
             }
-            
+
             return lintDependency(from: fromTarget, to: toTargets)
         }
 
@@ -125,22 +124,22 @@ public class GraphLinter: GraphLinting {
                 "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' which is an invalid or not supported yet combination."
             return [LintingIssue(reason: reason, severity: .error)]
         }
-        
+
         var lintingIssues = [LintingIssue]()
-        
+
         for toTarget in to {
             let lintableTarget = LintableTarget(
                 platform: toTarget.target.platform,
                 product: toTarget.target.product
             )
-            
+
             guard supportedTargets.contains(lintableTarget) else {
                 let reason =
-                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' and depends on target \(toTarget.target.name) of type \(toTarget.target.product) and platform '\(toTarget.target.platform)' which is an invalid or not supported yet combination."
+                    "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' and depends on target \(toTarget.target.name) of type \(toTarget.target.product) and platform '\(toTarget.target.platform)' which is an invalid or not supported yet combination."
                 lintingIssues.append(LintingIssue(reason: reason, severity: .error))
                 continue
             }
-            
+
             return []
         }
 
@@ -258,9 +257,13 @@ public class GraphLinter: GraphLinting {
         guard watchApp.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
             return [
                 LintingIssue(reason: """
-                Watch app '\(watchApp.target.name)' bundleId: \(watchApp.target
-                    .bundleId) isn't prefixed with its parent's app '\(parentApp.target.bundleId)' bundleId '\(parentApp.target
-                    .bundleId)'
+                Watch app '\(watchApp.target.name)' bundleId: \(
+                    watchApp.target
+                        .bundleId
+                ) isn't prefixed with its parent's app '\(parentApp.target.bundleId)' bundleId '\(
+                    parentApp.target
+                        .bundleId
+                )'
                 """, severity: .error),
             ]
         }
@@ -271,9 +274,13 @@ public class GraphLinter: GraphLinting {
         guard watchExtension.target.bundleId.hasPrefix(parentWatchApp.target.bundleId) else {
             return [
                 LintingIssue(reason: """
-                Watch extension '\(watchExtension.target.name)' bundleId: \(watchExtension.target
-                    .bundleId) isn't prefixed with its parent's watch app '\(parentWatchApp.target
-                    .bundleId)' bundleId '\(parentWatchApp.target.bundleId)'
+                Watch extension '\(watchExtension.target.name)' bundleId: \(
+                    watchExtension.target
+                        .bundleId
+                ) isn't prefixed with its parent's watch app '\(
+                    parentWatchApp.target
+                        .bundleId
+                )' bundleId '\(parentWatchApp.target.bundleId)'
                 """, severity: .error),
             ]
         }
@@ -286,9 +293,13 @@ public class GraphLinter: GraphLinting {
         if !appClip.target.bundleId.hasPrefix(parentApp.target.bundleId) {
             foundIssues.append(
                 LintingIssue(reason: """
-                AppClip '\(appClip.target.name)' bundleId: \(appClip.target
-                    .bundleId) isn't prefixed with its parent's app '\(parentApp.target.name)' bundleId '\(parentApp.target
-                    .bundleId)'
+                AppClip '\(appClip.target.name)' bundleId: \(
+                    appClip.target
+                        .bundleId
+                ) isn't prefixed with its parent's app '\(parentApp.target.name)' bundleId '\(
+                    parentApp.target
+                        .bundleId
+                )'
                 """, severity: .error)
             )
         }
