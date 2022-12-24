@@ -23,10 +23,12 @@ class GraphqlController < ApplicationController
     }
     result = TuistCloudSchema.execute(query, variables: variables, context: context, operation_name: operation_name)
     render(json: result)
-  rescue StandardError => e
-    raise e unless Rails.env.development?
+  rescue StandardError => error
+    unless Rails.env.development?
+      raise GraphQL::ExecutionError.new(error.message, extensions: { code: :internal_server_error })
+    end
 
-    handle_error_in_development(e)
+    handle_error_in_development(error)
   end
 
   private

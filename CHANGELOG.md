@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.15.0 - 2022-12-19
+
+### Added
+
+- Add support for environment variables and launch arguments in test actions [#4879](https://github.com/tuist/tuist/pull/4879) by [@euriasb](https://github.com/euriasb)
+- Add support for `.rcproject` source files [#4925](https://github.com/tuist/tuist/pull/4925) by [@BenjaminPrieur](https://github.com/BenjaminPrieur)
+- Add `TargetDependency.target()` helper accepting a target instance [#4930](https://github.com/tuist/tuist/pull/4930) by [@danyf90](https://github.com/danyf90)
+
+### Fixed
+
+- Fix support for custom `applicationIdPrefix` from provisioning profiles [#4888](https://github.com/tuist/tuist/pull/4888) by [@david-all-win-software](https://github.com/david-all-win-software)
+- Fix signing when certificate name contains quotes [#4890](https://github.com/tuist/tuist/pull/4890) by [@david-all-win-software](https://github.com/david-all-win-software)
+- Fix linting rules for allowing a watchOS as a dependency of a test target [#4908](https://github.com/tuist/tuist/pull/4908) by [@alexanderwe](https://github.com/alexanderwe)
+- Fix generation of resource accessor for AR reference images [#4926](https://github.com/tuist/tuist/pull/4926) by [@Tulleb](https://github.com/Tulleb)
+
 ## 3.14.0 - 2022-11-18
 
 ### Added
