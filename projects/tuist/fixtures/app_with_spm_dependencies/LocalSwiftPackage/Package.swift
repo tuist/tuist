@@ -15,6 +15,10 @@ let package = Package(
     targets: [
         .target(
             name: "Styles",
+            exclude: [
+                //                "Resources/Storyboard.storyboard",
+//                "Resources/ViewController.xib"
+            ],
             resources: [
                 .process("Resources/Fonts"),
                 .copy("Resources/jsonFile.json"), // copy rule, single file
