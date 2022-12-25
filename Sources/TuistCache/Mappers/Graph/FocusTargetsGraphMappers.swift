@@ -16,21 +16,20 @@ public final class FocusTargetsGraphMappers: GraphMapping {
         let graphTraverser = GraphTraverser(graph: graph)
         var graph = graph
         /// Tests targets from external projects that opted in for unit testing
-        /// TODO: Can we include opt-in projects array to in parameters to this function avoid traversing all external projects and their targets?
-        let externalTestsTargets: Set<String> = Set(
+        let localSwiftPackageTargets: Set<String> = Set(
             graph
                 .projects
                 .values
-                .flatMap { project in
-                    project
+                .flatMap { project -> [String] in
+                    guard project.isExternal else { return [] }
+                    return project
                         .targets
-                        .filter { target in
-                            target.product == .unitTests || target.product == .uiTests
-                        }.map(\.name)
+                        .filter { $0.product == .unitTests || $0.product == .uiTests }
+                        .map(\.name)
                 }
         )
         let includedTargets = includedTargets.isEmpty ?
-            externalTestsTargets.union(graphTraverser.allInternalTargets().map(\.target.name)) :
+            localSwiftPackageTargets.union(graphTraverser.allInternalTargets().map(\.target.name)) :
             includedTargets
 
         let userSpecifiedSourceTargets = graphTraverser.allTargets().filter { includedTargets.contains($0.target.name) }

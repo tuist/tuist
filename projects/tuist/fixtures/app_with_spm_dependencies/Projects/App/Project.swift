@@ -14,7 +14,7 @@ let project = Project(
             sources: "Sources/App/**",
             dependencies: [
                 .target(name: "AppKit"),
-                .project(target: "FeatureOneFramework_iOS", path: .relativeToRoot("Features/FeatureOne")),
+                .project(target: "FeatureOneFramework_iOS", path: .relativeToRoot("Projects/FeatureOne")),
                 .external(name: "Styles"),
             ],
             settings: .targetSettings

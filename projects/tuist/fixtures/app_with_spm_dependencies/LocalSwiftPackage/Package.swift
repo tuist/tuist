@@ -9,7 +9,7 @@ let package = Package(
     platforms: [.iOS(.v13)],
     products: [
         .library(name: "Styles", targets: ["Styles"]),
-        .library(name: "TestsSupport", targets: ["TestsSupport"])
+        .library(name: "TestsSupport", targets: ["TestsSupport"]),
     ],
     dependencies: [.snapshotTesting],
     targets: [

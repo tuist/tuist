@@ -65,7 +65,7 @@ public protocol GraphTraversing {
     /// - Parameter path: Path to the directory that contains the definition of the project.
     func targets(at path: AbsolutePath) -> Set<GraphTarget>
 
-    /// Given a project directory and target name, it returns **all**l its direct target dependencies present in the same project.
+    /// Given a project directory and target name, it returns **all** its direct target dependencies present in the same project.
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies` instead
     /// - Parameters:
     ///   - path: Path to the directory that contains the target's project.

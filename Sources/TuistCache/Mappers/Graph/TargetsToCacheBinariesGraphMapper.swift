@@ -98,7 +98,18 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         let allInternalTargets = Set(
             graphTraverser.allInternalTargets().map(\.target.name)
         )
-        let sources = sources.isEmpty ? Set(allInternalTargets) : sources
+        let localSwiftPackageTargets: Set<String> = Set(
+            graph
+                .projects
+                .values
+                .flatMap { project -> [String] in
+                    guard project.isExternal,
+                          project.targets.first(where: { $0.product == .unitTests || $0.product == .uiTests }) != nil
+                    else { return [] }
+                    return project.targets.map(\.name)
+                }
+        )
+        let sources = sources.isEmpty ? Set(allInternalTargets.union(localSwiftPackageTargets)) : sources
         let missingTargets = sources.subtracting(availableTargets)
         guard missingTargets.isEmpty else {
             throw FocusTargetsGraphMapperError.missingTargets(

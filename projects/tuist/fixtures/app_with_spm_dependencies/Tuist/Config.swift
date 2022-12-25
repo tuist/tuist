@@ -6,6 +6,6 @@ let config = Config(
         url: "https://cloud.tuist.io",
         options: [.optional, .analytics]
     ),
-    cache: .cache(path: .relativeToManifest("../.cache")),
+    cache: .cache(path: .relativeToRoot(".cache")),
     swiftVersion: .init("5.4.0")
 )
