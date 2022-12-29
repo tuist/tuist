@@ -5,6 +5,7 @@ import {
   Pagination,
   ResourceItem,
   ResourceList,
+  Text,
   TextStyle,
 } from '@shopify/polaris';
 import { HomeStoreContext } from '@/stores/HomeStore';
@@ -95,10 +96,10 @@ const DashboardPage = observer(() => {
           dashboardPageStore.isLoading ? (
             <RunsList />
           ) : (
-            <TextStyle>
+            <Text variant="bodyMd" as="p">
               You currently have no runs. Login to tuist cloud in your
               CLI and run a command.
-            </TextStyle>
+            </Text>
           )}
         </Card.Section>
       </Card>
