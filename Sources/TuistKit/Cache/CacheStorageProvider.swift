@@ -90,7 +90,7 @@ final class CacheStorageProvider: CacheStorageProviding {
     }
 }
 
-private extension CacheDownloaderType {
+extension CacheDownloaderType {
     public var client: FileClienting {
         switch self {
         case .aria2c:

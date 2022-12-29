@@ -51,7 +51,15 @@ final class GenerateServiceTests: TuistUnitTestCase {
 
         do {
             try await subject
-                .run(path: nil, sources: ["Target"], noOpen: true, xcframeworks: false, profile: nil, ignoreCache: false, aria2: false)
+                .run(
+                    path: nil,
+                    sources: ["Target"],
+                    noOpen: true,
+                    xcframeworks: false,
+                    profile: nil,
+                    ignoreCache: false,
+                    aria2: false
+                )
             XCTFail("Must throw")
         } catch {
             XCTAssertEqual(error as NSError?, expectedError)

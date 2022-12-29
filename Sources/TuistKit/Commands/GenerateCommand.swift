@@ -51,7 +51,7 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
         help: "Ignore cached targets, and use their sources instead."
     )
     var ignoreCache: Bool = false
-    
+
     @Flag(
         name: [.customShort("a"), .long],
         help: "When passed it uses aria2 to download cached artifacts."
