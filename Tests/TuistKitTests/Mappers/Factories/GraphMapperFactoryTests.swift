@@ -62,6 +62,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         let cacheSources = Set(["MyTarget"])
         let cacheProfile = Cache.Profile.test()
         let cacheOutputType = CacheOutputType.framework
+        let cacheDownloaderType = CacheDownloaderType.urlsession
 
         // When
         let got = subject.focus(
@@ -69,7 +70,8 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             cache: true,
             cacheSources: cacheSources,
             cacheProfile: cacheProfile,
-            cacheOutputType: cacheOutputType
+            cacheOutputType: cacheOutputType,
+            cacheDownloaderType: cacheDownloaderType
         )
 
         // Then
@@ -83,6 +85,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         let cacheSources = Set(["MyTarget"])
         let cacheProfile = Cache.Profile.test()
         let cacheOutputType = CacheOutputType.framework
+        let cacheDownloaderType = CacheDownloaderType.urlsession
 
         // When
         let got = subject.focus(
@@ -90,7 +93,8 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             cache: true,
             cacheSources: cacheSources,
             cacheProfile: cacheProfile,
-            cacheOutputType: cacheOutputType
+            cacheOutputType: cacheOutputType,
+            cacheDownloaderType: cacheDownloaderType
         )
 
         // Then
@@ -104,6 +108,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         let cacheSources = Set(["MyTarget"])
         let cacheProfile = Cache.Profile.test()
         let cacheOutputType = CacheOutputType.framework
+        let cacheDownloaderType = CacheDownloaderType.urlsession
 
         // When
         let got = subject.focus(
@@ -111,7 +116,8 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             cache: true,
             cacheSources: cacheSources,
             cacheProfile: cacheProfile,
-            cacheOutputType: cacheOutputType
+            cacheOutputType: cacheOutputType,
+            cacheDownloaderType: cacheDownloaderType
         )
 
         // Then

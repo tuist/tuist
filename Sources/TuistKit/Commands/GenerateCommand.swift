@@ -51,6 +51,12 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
         help: "Ignore cached targets, and use their sources instead."
     )
     var ignoreCache: Bool = false
+    
+    @Flag(
+        name: [.customShort("a"), .long],
+        help: "When passed it uses aria2 to download cached artifacts."
+    )
+    var aria2: Bool = false
 
     func run() async throws {
         try await GenerateService().run(
@@ -59,13 +65,15 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
             noOpen: noOpen,
             xcframeworks: xcframeworks,
             profile: profile,
-            ignoreCache: ignoreCache
+            ignoreCache: ignoreCache,
+            aria2: aria2
         )
         GenerateCommand.analyticsDelegate?.addParameters(
             [
                 "no_open": AnyCodable(noOpen),
                 "xcframeworks": AnyCodable(xcframeworks),
                 "no_cache": AnyCodable(ignoreCache),
+                "aria2": AnyCodable(aria2),
                 "n_targets": AnyCodable(sources.count),
                 "cacheable_targets": AnyCodable(CacheAnalytics.cacheableTargets),
                 "local_cache_target_hits": AnyCodable(CacheAnalytics.localCacheTargetsHits),

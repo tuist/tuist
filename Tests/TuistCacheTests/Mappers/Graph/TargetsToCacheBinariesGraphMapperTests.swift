@@ -20,7 +20,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         config = .test()
-        cacheStorageProvider = MockCacheStorageProvider(config: config)
+        cacheStorageProvider = MockCacheStorageProvider(config: config, cacheDownloaderType: .urlsession)
         cacheFactory = MockCacheFactory()
         cacheGraphContentHasher = MockCacheGraphContentHasher()
         cacheGraphMutator = MockCacheGraphMutator()

@@ -1,10 +1,11 @@
 import TuistCache
+import TuistCore
 import TuistGraph
 
 public final class MockCacheStorageProvider: CacheStorageProviding {
     var storagesStub: [CacheStoring]
 
-    public init(config _: Config) {
+    public init(config _: Config, cacheDownloaderType: CacheDownloaderType) {
         storagesStub = []
     }
 

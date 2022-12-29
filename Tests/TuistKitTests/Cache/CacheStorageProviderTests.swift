@@ -1,6 +1,7 @@
 import TuistCache
 import TuistCloud
 import TuistCloudTesting
+import TuistCore
 import TuistCoreTesting
 import TuistGraphTesting
 import TuistSupportTesting
@@ -9,6 +10,7 @@ import XCTest
 
 final class CacheStorageProviderTests: TuistUnitTestCase {
     private var subject: CacheStorageProvider!
+    private var cacheDownloaderType: CacheDownloaderType = .urlsession
     private var cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory!
     private var cloudAuthenticationController: MockCloudAuthenticationController!
 
@@ -18,6 +20,7 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         cloudAuthenticationController = MockCloudAuthenticationController()
         subject = CacheStorageProvider(
             config: .test(),
+            cacheDownloaderType: cacheDownloaderType,
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
             cloudAuthenticationController: cloudAuthenticationController
         )
@@ -35,6 +38,7 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         // Given
         subject = CacheStorageProvider(
             config: .test(cloud: .test(options: [])),
+            cacheDownloaderType: cacheDownloaderType,
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
             cloudAuthenticationController: cloudAuthenticationController
         )
@@ -54,6 +58,7 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         // Given
         subject = CacheStorageProvider(
             config: .test(cloud: .test(options: [])),
+            cacheDownloaderType: cacheDownloaderType,
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
             cloudAuthenticationController: cloudAuthenticationController
         )
@@ -72,6 +77,7 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         // Given
         subject = CacheStorageProvider(
             config: .test(cloud: .test(options: [.optional])),
+            cacheDownloaderType: cacheDownloaderType,
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
             cloudAuthenticationController: cloudAuthenticationController
         )
@@ -94,6 +100,7 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         // Given
         subject = CacheStorageProvider(
             config: .test(cloud: nil),
+            cacheDownloaderType: cacheDownloaderType,
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
             cloudAuthenticationController: cloudAuthenticationController
         )

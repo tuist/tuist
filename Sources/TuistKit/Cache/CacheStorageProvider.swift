@@ -26,6 +26,7 @@ enum CacheStorageProviderError: FatalError, Equatable {
 
 final class CacheStorageProvider: CacheStorageProviding {
     private let config: Config
+    private let cacheDownloaderType: CacheDownloaderType
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let cloudAuthenticationController: CloudAuthenticationControlling
 
@@ -34,10 +35,12 @@ final class CacheStorageProvider: CacheStorageProviding {
     static var storages: [CacheStoring]?
 
     convenience init(
-        config: Config
+        config: Config,
+        cacheDownloaderType: CacheDownloaderType = .urlsession
     ) {
         self.init(
             config: config,
+            cacheDownloaderType: cacheDownloaderType,
             cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
             cloudAuthenticationController: CloudAuthenticationController()
         )
@@ -45,10 +48,12 @@ final class CacheStorageProvider: CacheStorageProviding {
 
     init(
         config: Config,
+        cacheDownloaderType: CacheDownloaderType,
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
         cloudAuthenticationController: CloudAuthenticationControlling
     ) {
         self.config = config
+        self.cacheDownloaderType = cacheDownloaderType
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.cloudAuthenticationController = cloudAuthenticationController
     }
@@ -64,6 +69,7 @@ final class CacheStorageProvider: CacheStorageProviding {
                 let remoteStorage = CacheRemoteStorage(
                     cloudConfig: cloudConfig,
                     cloudClient: CloudClient(),
+                    fileClient: cacheDownloaderType.client,
                     cacheDirectoriesProvider: cacheDirectoriesProvider
                 )
                 let storage = RetryingCacheStorage(cacheStoring: remoteStorage)
@@ -81,5 +87,16 @@ final class CacheStorageProvider: CacheStorageProviding {
         }
         Self.storages = storages
         return storages
+    }
+}
+
+private extension CacheDownloaderType {
+    public var client: FileClienting {
+        switch self {
+        case .aria2c:
+            return Aria2Client()
+        case .urlsession:
+            return FileClient()
+        }
     }
 }

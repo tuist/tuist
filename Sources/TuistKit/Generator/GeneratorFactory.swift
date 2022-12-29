@@ -16,13 +16,15 @@ protocol GeneratorFactorying {
     /// - Parameter xcframeworks: Whether targets should be cached as xcframeworks.
     /// - Parameter cacheProfile: The caching profile.
     /// - Parameter ignoreCache: True to not include binaries from the cache.
+    /// - Parameter aria2: True to download cached artifacts using aria2.
     /// - Returns: The generator for focused projects.
     func focus(
         config: Config,
         sources: Set<String>,
         xcframeworks: Bool,
         cacheProfile: TuistGraph.Cache.Profile,
-        ignoreCache: Bool
+        ignoreCache: Bool,
+        aria2: Bool
     ) -> Generating
 
     /// Returns the generator to generate a project to run tests on.
@@ -70,7 +72,8 @@ class GeneratorFactory: GeneratorFactorying {
         sources: Set<String>,
         xcframeworks: Bool,
         cacheProfile: TuistGraph.Cache.Profile,
-        ignoreCache: Bool
+        ignoreCache: Bool,
+        aria2: Bool
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -83,7 +86,8 @@ class GeneratorFactory: GeneratorFactorying {
             cache: !ignoreCache,
             cacheSources: sources,
             cacheProfile: cacheProfile,
-            cacheOutputType: xcframeworks ? .xcframework : .framework
+            cacheOutputType: xcframeworks ? .xcframework : .framework,
+            cacheDownloaderType: aria2 ? .aria2c : .urlsession
         )
         let workspaceMappers = workspaceMapperFactory.default()
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
@@ -144,7 +148,8 @@ class GeneratorFactory: GeneratorFactorying {
                 cache: true,
                 cacheSources: focusedTargets,
                 cacheProfile: cacheProfile,
-                cacheOutputType: xcframeworks ? .xcframework : .framework
+                cacheOutputType: xcframeworks ? .xcframework : .framework,
+                cacheDownloaderType: .urlsession
             ) + graphMapperFactory.cache(includedTargets: includedTargets)
         } else {
             graphMappers = graphMapperFactory.cache(includedTargets: includedTargets)
