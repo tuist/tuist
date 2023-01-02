@@ -57,7 +57,7 @@
     "react_ujs": "^2.6.2",
     "react-dom": "^17.0.2",
     "react-hook-form": "^7.40.0",
-    "react-router-dom": "^6.4.4",
+    "react-router-dom": "^6.6.1",
     "webpack": "^4.46.0",
     "webpack-cli": "^3.3.12"
   }
