@@ -36,7 +36,7 @@ final class TuistAnalyticsCloudBackendTests: TuistUnitTestCase {
 
     func test_send_when_analytics_is_not_enabled() async throws {
         // Given
-        config = Cloud.test(options: [])
+        config = Cloud.test(options: [.disableAnalytics])
         subject = TuistAnalyticsCloudBackend(
             config: config,
             resourceFactory: resourceFactory,
@@ -53,7 +53,7 @@ final class TuistAnalyticsCloudBackendTests: TuistUnitTestCase {
 
     func test_send_when_analytics_is_enabled() async throws {
         // Given
-        config = Cloud.test(options: [.analytics])
+        config = Cloud.test()
         subject = TuistAnalyticsCloudBackend(
             config: config,
             resourceFactory: resourceFactory,
