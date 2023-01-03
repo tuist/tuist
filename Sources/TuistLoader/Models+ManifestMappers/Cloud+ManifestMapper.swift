@@ -43,6 +43,8 @@ extension TuistGraph.Cloud.Option {
         switch manifest {
         case .analytics:
             return .analytics
+        case .disableAnalytics:
+            return .disableAnalytics
         case .optional:
             return .optional
         }
