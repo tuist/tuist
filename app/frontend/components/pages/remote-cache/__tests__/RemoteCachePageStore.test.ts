@@ -479,4 +479,60 @@ describe('RemoteCachePageStore', () => {
       expectedS3Bucket.name,
     );
   });
+
+  it('clears remote cache', async () => {
+    // Given
+    projectStore.project!.remoteCacheStorage = {
+      accessKeyId: 'key-id-1',
+      id: 'id-1',
+      name: 'S3 bucket',
+      secretAccessKey: 'secret',
+      region: 'region',
+      isDefault: false,
+    };
+    const remoteCachePageStore = new RemoteCachePageStore(
+      client,
+      projectStore,
+    );
+    client.mutate.mockReturnValueOnce({
+      data: {},
+    });
+
+    // When
+    await remoteCachePageStore.clearCache();
+
+    // Then
+    expect(client.mutate).toHaveBeenCalled();
+  });
+
+  it('sets a remote cache storage clear error', async () => {
+    // Given
+    projectStore.project!.remoteCacheStorage = {
+      accessKeyId: 'key-id-1',
+      id: 'id-1',
+      name: 'S3 bucket',
+      secretAccessKey: 'secret',
+      region: 'region',
+      isDefault: false,
+    };
+    const remoteCachePageStore = new RemoteCachePageStore(
+      client,
+      projectStore,
+    );
+    client.mutate.mockReturnValueOnce({
+      data: {
+        clearRemoteCacheStorage: {
+          errors: [{ message: 'Some error' }],
+        },
+      },
+    });
+
+    // When
+    await remoteCachePageStore.clearCache();
+
+    // Then
+    expect(remoteCachePageStore.remoteCacheStorageCleanError).toBe(
+      'Some error',
+    );
+  });
 });
