@@ -32,7 +32,7 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
             if let dependencyFile = script.dependencyFile {
                 dynamicPaths += [dependencyFile]
             }
-            
+
             dynamicPaths.forEach { path in
                 if path.pathString.contains("$") {
                     stringsToHash.append(path.relative(to: sourceRootPath).pathString)
