@@ -47,7 +47,8 @@ class ProjectCreateService < ApplicationService
   end
 
   def create_s3_bucket(project, organization)
-    s3_bucket_name = "#{project.account.name}-#{name}"
+    # A prefix is added as the bucket name must be unique across the whole AWS and not just across the tuist one.
+    s3_bucket_name = "95bb0f482d8e70cc5-#{project.account.name}-#{name}"
     s3_client.create_bucket(bucket: s3_bucket_name)
     s3_bucket = S3BucketCreateService.call(
       name: s3_bucket_name,

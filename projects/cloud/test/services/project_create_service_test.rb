@@ -20,7 +20,7 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
     # Then
     assert_equal project_name, got.name
     assert_equal account, got.account
-    assert_equal "#{account.name}-#{project_name}", got.remote_cache_storage.name
+    assert_equal "95bb0f482d8e70cc5-#{account.name}-#{project_name}", got.remote_cache_storage.name
     assert_equal true, got.remote_cache_storage.is_default
   end
 
