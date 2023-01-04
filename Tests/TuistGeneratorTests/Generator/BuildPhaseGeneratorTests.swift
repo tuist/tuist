@@ -1120,11 +1120,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                     name: "post",
                     order: .post,
                     script: .embedded("echo test"),
-                    outputPaths: ["/$(TEMP_DIR)/dependency.d"],
                     showEnvVarsInLog: false,
                     basedOnDependencyAnalysis: false,
                     runForInstallBuildsOnly: true,
-                    dependencyFile: "/$(TEMP_DIR)/dependency.d" // testing dependency file
+                    dependencyFile: "/$(TEMP_DIR)/dependency.d"
                 ),
                 TargetScript(
                     name: "pre",
