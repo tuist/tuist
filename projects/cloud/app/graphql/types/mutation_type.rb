@@ -7,6 +7,11 @@ module Types
       null: false,
       description: "Creates a new project",
       mutation: Mutations::CreateProject
+    field :clear_remote_cache_storage,
+      ClearRemoteCacheStorageType,
+      null: false,
+      description: "Clears the remote cache storage",
+      mutation: Mutations::ClearRemoteCacheStorage
     field :delete_project,
       ProjectType,
       null: false,
