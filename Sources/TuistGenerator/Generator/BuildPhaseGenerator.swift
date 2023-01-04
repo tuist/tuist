@@ -153,7 +153,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 shellScript: script.shellScript(sourceRootPath: sourceRootPath),
                 runOnlyForDeploymentPostprocessing: script.runForInstallBuildsOnly,
                 showEnvVarsInLog: script.showEnvVarsInLog,
-                dependencyFile: script.dependencyFile?.relative(to: sourceRootPath).pathString
+                dependencyFile: script.dependencyFile?.pathString
             )
             if let basedOnDependencyAnalysis = script.basedOnDependencyAnalysis {
                 // Force the script to run in all incremental builds, if we
