@@ -69,7 +69,7 @@ extension Array {
     ///
     /// - Parameters:
     ///   - context: The execution context to perform the `perform` operation with
-    ///   - transform: The perform closure to call on each element in the array
+    ///   - perform: The perform closure to call on each element in the array
     public func forEach(context: ExecutionContext, _ perform: (Element) throws -> Void) rethrows {
         switch context.executionType {
         case .serial:

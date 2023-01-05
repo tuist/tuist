@@ -31,6 +31,7 @@ public protocol XcodeBuildControlling {
     ///   - clean: True if xcodebuild should clean the project before building.
     ///   - destination: Destination to run the tests on
     ///   - derivedDataPath: Custom location for derived data. Use `xcodebuild`'s default if `nil`
+    ///   - resultBundlePath: Path where test result bundle will be saved.
     ///   - arguments: Extra xcodebuild arguments.
     ///   - retryCount: Number of times to retry the test on failure
     func test(

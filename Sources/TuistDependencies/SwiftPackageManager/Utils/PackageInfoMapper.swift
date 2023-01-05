@@ -116,10 +116,13 @@ public protocol PackageInfoMapping {
     ///   - baseSettings: Base settings
     ///   - targetSettings: Settings to apply to denoted targets
     ///   - configuration: Configure automatic schemes and resource accessors generation for Swift Package
-    ///   - minDeploymentTargets: Minimum support deployment target per platform
+    ///   - projectOptions: Additional options related to the `Project`
     ///   - targetToPlatform: Mapping from a target name to its platform
+    ///   - minDeploymentTargets: Minimum support deployment target per platform
+    ///   - platforms: Set of supported platforms
     ///   - targetToProducts: Mapping from a target name to its products
     ///   - targetToResolvedDependencies: Mapping from a target name to its dependencies
+    ///   - targetToModuleMap: Mapping from a target name to its module map
     ///   - packageToProject: Mapping from a package name to its path
     ///   - swiftToolsVersion: The version of Swift tools that will be used to map dependencies
     /// - Returns: Mapped project

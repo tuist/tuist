@@ -69,13 +69,19 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///   - xcodeProjPath: Path to the Xcode project that will be generated.
     ///   - name: Project name.
     ///   - organizationName: Organization name.
+    ///   - defaultKnownRegions: Default known regions.
     ///   - developmentRegion: Development region.
     ///   - options: Additional project options.
     ///   - settings: The settings to apply at the project level
     ///   - filesGroup: The root group to place project files within
     ///   - targets: The project targets
-    ///   - additionalFiles: The additional files to include in the project
     ///                      *(Those won't be included in any build phases)*
+    ///   - packages: Project swift packages.
+    ///   - schemes: Project schemes.
+    ///   - ideTemplateMacros: IDE template macros that represent content of IDETemplateMacros.plist.
+    ///   - additionalFiles: The additional files to include in the project
+    ///   - resourceSynthesizers: `ResourceSynthesizers` that will be applied on individual target's resources
+    ///   - lastUpgradeCheck: The version in which a check happened related to recommended settings after updating Xcode.
     ///   - isExternal: Indicates whether the project is imported through `Dependencies.swift`.
     public init(
         path: AbsolutePath,

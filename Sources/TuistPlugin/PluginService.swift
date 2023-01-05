@@ -73,10 +73,11 @@ public final class PluginService: PluginServicing {
     /// Creates a `PluginService`.
     /// - Parameters:
     ///   - manifestLoader: A manifest loader for loading plugin manifests.
-    ///   - templateDirectoryLocator: Locator for finding templates for plugins.
+    ///   - templatesDirectoryLocator: Locator for finding templates for plugins.
     ///   - fileHandler: A file handler for creating plugin directories/related files.
     ///   - gitHandler: A git handler for cloning and interacting with remote plugins.
-    ///   - fileArchiver: FileArchiver for unzipping plugin releases.
+    ///   - cacheDirectoryProviderFactory: A cache directory provider
+    ///   - fileArchivingFactory: FileArchiver for unzipping plugin releases.
     ///   - fileClient: FileClient for downloading plugin releases.
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
