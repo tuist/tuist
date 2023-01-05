@@ -15,7 +15,7 @@ public enum Platform: String, CaseIterable, Codable {
         }
     }
 
-    /// A dictionary that contains the oldes supported version of each platform
+    /// A dictionary that contains the oldest supported version of each platform
     public static func oldestVersions(isLegacy: Bool) -> [Platform: String] {
         guard !isLegacy else {
             /// https://github.com/apple/swift-package-manager/blob/5d3db35d1f388f4b0bb7e82f4cfa050103bb3e07/Sources/PackageModel/Platform.swift#L32-L42

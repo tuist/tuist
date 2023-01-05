@@ -301,6 +301,9 @@ Thanks goes to these wonderful people:
       <td align="center"><a href="https://github.com/devyhan"><img src="https://avatars.githubusercontent.com/u/45344633?v=4" width="100px;" alt=""/><br /><sub><b>YoHan Cho</b></sub></a></td>
       <td align="center"><a href="https://github.com/euriasb"><img src="https://avatars.githubusercontent.com/u/3721257?v=4" width="100px;" alt=""/><br /><sub><b>euriasb</b></sub></a></td>
     </tr>
+    <tr>
+      <td align="center"><a href="https://github.com/MontakOleg"><img src="https://avatars.githubusercontent.com/u/1800899?v=4" width="100px;" alt=""/><br /><sub><b>MontakOleg</b></sub></a></td>
+    </tr>
   </tbody>
 </table>
 
