@@ -99,8 +99,7 @@ public struct TargetScript: Equatable, Codable {
     /// - Parameters:
     ///   - name: Name of the build phase when the project gets generated
     ///   - order: Target script order
-    ///   - path: Path to the script to execute
-    ///   - arguments: Arguments that to be passed
+    ///   - script: The script to execute in the script
     ///   - inputPaths: List of input file paths
     ///   - inputFileListPaths: List of input filelist paths
     ///   - outputPaths: List of output file paths

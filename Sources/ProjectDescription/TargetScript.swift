@@ -59,7 +59,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     /// - Parameters:
     ///   - name: Name of the build phase when the project gets generated.
     ///   - script: The script to be executed.
-    ///   - arguments: Arguments that to be passed.
+    ///   - order: Target script order
     ///   - inputPaths: List of input file paths.
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
@@ -459,8 +459,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     /// Returns a target script that gets executed after the sources and resources build phase.
     ///
     /// - Parameters:
-    ///   - path: Path to the script to execute.
-    ///   - arguments: Arguments that to be passed.
+    ///   - script: The script to be executed.
     ///   - name: Name of the build phase when the project gets generated.
     ///   - inputPaths: List of input file paths.
     ///   - inputFileListPaths: List of input filelist paths.

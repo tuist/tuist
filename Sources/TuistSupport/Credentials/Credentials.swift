@@ -10,7 +10,7 @@ public struct Credentials: Codable, Equatable {
     /// Initializes the credentials with its attributes.
     /// - Parameters:
     ///   - token: Authentication token.
-    ///   - username: Account identifier.
+    ///   - account: Account identifier.
     public init(token: String, account: String) {
         self.token = token
         self.account = account

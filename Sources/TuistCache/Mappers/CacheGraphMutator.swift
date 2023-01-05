@@ -11,7 +11,7 @@ protocol CacheGraphMutating {
     /// - Parameters:
     ///   - graph: Dependency graph.
     ///   - precompiledArtifacts: Dictionary that maps targets with the paths to their cached `.framework`s, `.xcframework`s or `.bundle`s.
-    ///   - source: Contains a list of targets that won't be replaced with their precompiled version from the cache.
+    ///   - sources: Contains a list of targets that won't be replaced with their precompiled version from the cache.
     func map(graph: Graph, precompiledArtifacts: [GraphTarget: AbsolutePath], sources: Set<String>) throws -> Graph
 }
 
