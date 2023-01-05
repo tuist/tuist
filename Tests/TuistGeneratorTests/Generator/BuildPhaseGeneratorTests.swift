@@ -1109,7 +1109,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let fileElements = ProjectFileElements([:])
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
-        let path = AbsolutePath("/test")
+        let path = AbsolutePath("/")
         let pbxproj = PBXProj()
         let pbxProject = createPbxProject(pbxproj: pbxproj)
         let target = Target.test(
@@ -1165,7 +1165,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertNil(preBuildPhase.dependencyFile)
 
         let postBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
-        XCTAssertEqual(postBuildPhase.dependencyFile, "/$(TEMP_DIR)/dependency.d")
+        XCTAssertEqual(postBuildPhase.dependencyFile, "$(TEMP_DIR)/dependency.d")
     }
 
     func test_generateEmbedAppClipsBuildPhase() throws {
