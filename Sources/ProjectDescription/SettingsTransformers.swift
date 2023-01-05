@@ -136,7 +136,7 @@ extension SettingsDictionary {
     // MARK: - Swift Compiler - General
 
     /// Sets `"SWIFT_OBJC_BRIDGING_HEADER"` to `path`
-    public func swiftObjcBridingHeaderPath(_ path: String) -> SettingsDictionary {
+    public func swiftObjcBridgingHeaderPath(_ path: String) -> SettingsDictionary {
         var settings = self
         settings["SWIFT_OBJC_BRIDGING_HEADER"] = SettingValue(path)
         return settings
@@ -168,5 +168,12 @@ extension SettingsDictionary {
     /// Sets `"DEBUG_INFORMATION_FORMAT"`to `"dwarf"` or `"dwarf-with-dsym"`
     public func debugInformationFormat(_ format: DebugInformationFormat) -> SettingsDictionary {
         merging(["DEBUG_INFORMATION_FORMAT": SettingValue(format)])
+    }
+}
+
+extension SettingsDictionary {
+    @available(*, deprecated, renamed: "swiftObjcBridgingHeaderPath")
+    public func swiftObjcBridingHeaderPath(_ path: String) -> SettingsDictionary {
+        swiftObjcBridgingHeaderPath(path)
     }
 }
