@@ -22,7 +22,7 @@ let project = Project(
                     inputPaths: ["Sources/**/*.swift"]
                 ),
                 .pre(
-                    path:"script-with-dependency.sh",
+                    path: "script-with-dependency.sh",
                     name: "PhaseWithDependency",
                     dependencyFile: "$TEMP_DIR/dependencies.d"
                 ),
