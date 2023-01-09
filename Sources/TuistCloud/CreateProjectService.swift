@@ -29,22 +29,32 @@ struct NetworkInterceptorProvider: InterceptorProvider {
         return [
             MaxRetryInterceptor(),
             CacheReadInterceptor(store: store),
-            UserManagementInterceptor(serverURL: serverURL),
+            AuthenticationTokenManagementInterceptor(serverURL: serverURL),
             NetworkFetchInterceptor(client: client),
             ResponseCodeInterceptor(),
+            JSONResponseParsingInterceptor(),
             AutomaticPersistedQueryInterceptor(),
-            CacheWriteInterceptor(store: store)
+            CacheReadInterceptor(store: self.store),
         ]
     }
 }
 
-public class UserManagementInterceptor: ApolloInterceptor {
+private final class AuthenticationTokenManagementInterceptor: ApolloInterceptor {
+    enum AuthenticationError: Error {
+      case tokenNotFound
+    }
+    
     private let serverURL: URL
     init(serverURL: URL) {
         self.serverURL = serverURL
     }
     
-    public func interceptAsync<Operation>(chain: RequestChain, request: HTTPRequest<Operation>, response: HTTPResponse<Operation>?, completion: @escaping (Result<GraphQLResult<Operation.Data>, Error>) -> Void) where Operation : GraphQLOperation {
+    public func interceptAsync<Operation>(
+        chain: RequestChain,
+        request: HTTPRequest<Operation>,
+        response: HTTPResponse<Operation>?,
+        completion: @escaping (Result<GraphQLResult<Operation.Data>, Error>) -> Void
+    ) where Operation : GraphQLOperation {
         let environment = ProcessInfo.processInfo.environment
         let tokenFromEnvironment = environment[Constants.EnvironmentVariables.cloudToken]
         let token: String?
@@ -55,10 +65,20 @@ public class UserManagementInterceptor: ApolloInterceptor {
         }
         if let token = token {
             request.addHeader(name: "Authorization", value: "Bearer \(token)")
+            chain.proceedAsync(request: request, response: response, completion: completion)
         } else {
-            fatalError()
+            do {
+                try CloudSessionController().authenticate(serverURL: serverURL)
+                chain.retry(request: request, completion: completion)
+            } catch let error {
+                chain.handleErrorAsync(
+                    error,
+                    request: request,
+                    response: response,
+                    completion: completion
+                )
+            }
         }
-        chain.proceedAsync(request: request, response: response, completion: completion)
     }
 }
 
@@ -89,7 +109,8 @@ public final class CreateProjectService: CreateProjectServicing {
             // doesn't create one on its own
             return ApolloClient(networkTransport: requestChainTransport, store: store)
         }()
-        await withCheckedContinuation { continuation in
+        
+        let response = await withCheckedContinuation { continuation in
             client.perform(
                 mutation: CreateProjectMutation(
                     input: CreateProjectInput(
@@ -98,8 +119,9 @@ public final class CreateProjectService: CreateProjectServicing {
                     )
                 )
             ) { response in
-                continuation.resume()
+                continuation.resume(returning: response)
             }
         }
+        _ = try response.get()
     }
 }

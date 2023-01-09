@@ -54,12 +54,18 @@ final class CloudInitService: CloudInitServicing {
         else {
             throw CloudInitServiceError.invalidCloudURL(serverURLString)
         }
-//        try cloudSessionController.authenticate(serverURL: serverURL)
         
         try await createProjectService.createProject(
             name: name,
             organizationName: owner,
             serverURL: serverURL
+        )
+        
+        logger.info(
+            """
+            Put the following line into your Tuist/Config.swift (see the docs for more: https://docs.tuist.io/manifests/config/):
+            cloud: .cloud(projectId: "\(owner)/\(name)", url: "\(serverURLString)")
+            """
         )
     }
 }
