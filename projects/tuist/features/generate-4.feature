@@ -13,6 +13,7 @@ Scenario: The project is an iOS application with target actions
     Then tuist generates the project
     Then in project App the target App should have the build phase Tuist in the first position
     Then in project App the target App should have the build phase Rocks in the last position
+    Then in project App the target App should have the build phase PhaseWithDependency with a dependency file named $TEMP_DIR/dependencies.d
     Then in project AppWithSpace the target AppWithSpace should have the build phase Run script in the first position
     Then I should be able to build for iOS the scheme App
     Then I should be able to build for iOS the scheme AppWithSpace

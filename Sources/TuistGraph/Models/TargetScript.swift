@@ -94,6 +94,9 @@ public struct TargetScript: Equatable, Codable {
     /// The path to the shell which shall execute this script.
     public let shellPath: String
 
+    /// The path to the dependency file
+    public let dependencyFile: AbsolutePath?
+
     /// Initializes a new target script with its attributes using a script at the given path to be executed.
     ///
     /// - Parameters:
@@ -108,6 +111,7 @@ public struct TargetScript: Equatable, Codable {
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+    ///   - dependencyFile The path to the dependency file. Default is `nil`.
     public init(
         name: String,
         order: Order,
@@ -119,7 +123,8 @@ public struct TargetScript: Equatable, Codable {
         showEnvVarsInLog: Bool = true,
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
-        shellPath: String = "/bin/sh"
+        shellPath: String = "/bin/sh",
+        dependencyFile: AbsolutePath? = nil
     ) {
         self.name = name
         self.order = order
@@ -132,6 +137,7 @@ public struct TargetScript: Equatable, Codable {
         self.basedOnDependencyAnalysis = basedOnDependencyAnalysis
         self.runForInstallBuildsOnly = runForInstallBuildsOnly
         self.shellPath = shellPath
+        self.dependencyFile = dependencyFile
     }
 }
 
