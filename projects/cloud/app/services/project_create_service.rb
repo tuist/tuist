@@ -15,19 +15,23 @@ class ProjectCreateService < ApplicationService
       end
     end
   end
-  attr_reader :creator, :name, :organization_name, :account_id
+  attr_reader :creator, :name, :organization_name, :account_id, :account_name
 
-  def initialize(creator:, name:, organization_name: nil, account_id: nil)
+  def initialize(creator:, name:, organization_name: nil, account_id: nil, account_name: nil)
     super()
     @creator = creator
     @name = name
     @organization_name = organization_name
     @account_id = account_id
+    @account_name = account_name
   end
 
   def call
     ActiveRecord::Base.transaction do
       if organization_name.nil?
+        if account_id.nil?
+          @account_id = Account.find_by(name: account_name).id
+        end
         if Project.exists?(name: name, account_id: account_id)
           account = Account.find(account_id)
           raise Error::ProjectAlreadyExists.new(name, account.name)
@@ -49,7 +53,6 @@ class ProjectCreateService < ApplicationService
   def create_s3_bucket(project, organization)
     # A prefix is added as the bucket name must be unique across the whole AWS and not just across the tuist one.
     s3_bucket_name = "95bb0f482d8e70cc5-#{project.account.name}-#{name}"
-    s3_client.create_bucket(bucket: s3_bucket_name)
     s3_bucket = S3BucketCreateService.call(
       name: s3_bucket_name,
       access_key_id: Rails.application.credentials.aws[:access_key_id],
@@ -59,6 +62,7 @@ class ProjectCreateService < ApplicationService
       is_default: true,
     )
     project.update(remote_cache_storage: s3_bucket)
+    s3_client.create_bucket(bucket: s3_bucket_name)
     project
   end
 

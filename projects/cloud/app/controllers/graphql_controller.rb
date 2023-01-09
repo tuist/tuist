@@ -1,18 +1,22 @@
 # frozen_string_literal: true
 
-class GraphqlController < ApplicationController
+class GraphqlController < APIController
   # If accessing from outside this domain, nullify the session
   # This allows for outside API access while preventing CSRF attacks,
   # but you'll have to authenticate your user separately
   # protect_from_forgery with: :null_session
-  skip_before_action :authenticate_user!
+  skip_before_action :authenticate_user_from_token!
 
   def execute
     if current_user.nil?
-      url = "#{Rails.application.config.defaults[:urls][:app]}#{user_session_path}"
-      error_message = "Authentication is required to interact with the GraphQL API. Authenticate through #{url}"
-      error_extensions = { code: "AUTHENTICATION_ERROR" }
-      raise GraphQL::ExecutionError.new(error_message, extensions: error_extensions)
+      begin
+        authenticate_user_from_token!
+      rescue
+        url = "#{Rails.application.config.defaults[:urls][:app]}#{user_session_path}"
+        error_message = "Authentication is required to interact with the GraphQL API. Authenticate through #{url}"
+        error_extensions = { code: "AUTHENTICATION_ERROR" }
+        raise GraphQL::ExecutionError.new(error_message, extensions: error_extensions)
+      end
     end
 
     variables = prepare_variables(params[:variables])
