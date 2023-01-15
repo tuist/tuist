@@ -92,6 +92,7 @@ jobs:
             'build',
             'cache-frameworks',
             'cache-xcframeworks',
+            'cloud',
             'dependencies',
             'docc',
             'edit',
