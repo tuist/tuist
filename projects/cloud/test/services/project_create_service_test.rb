@@ -6,6 +6,7 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
   setup do
     client = Aws::S3::Client.new(stub_responses: true)
     Aws::S3::Client.stubs(:new).returns(client)
+    SecureRandom.stubs(:uuid).returns("this-is-a-unique-identifier")
   end
 
   test "creates a project with a given account_id" do
@@ -20,7 +21,7 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
     # Then
     assert_equal project_name, got.name
     assert_equal account, got.account
-    assert_equal "95bb0f482d8e70cc5-#{account.name}-#{project_name}", got.remote_cache_storage.name
+    assert_equal "this-is-a-uniq-#{account.name}-#{project_name}", got.remote_cache_storage.name
     assert_equal true, got.remote_cache_storage.is_default
   end
 

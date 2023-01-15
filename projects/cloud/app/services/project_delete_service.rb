@@ -36,8 +36,7 @@ class ProjectDeleteService < ApplicationService
 
     ActiveRecord::Base.transaction do
       default_s3_bucket = S3Bucket.find_by(
-        is_default: true,
-        name: "95bb0f482d8e70cc5-#{project.account.name}-#{project.name}"
+        default_project_id: project.id
       )
       if default_s3_bucket != nil
         s3_client.delete_bucket(bucket: default_s3_bucket.name)

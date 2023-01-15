@@ -52,14 +52,14 @@ class ProjectCreateService < ApplicationService
 
   def create_s3_bucket(project, organization)
     # A prefix is added as the bucket name must be unique across the whole AWS and not just across the tuist one.
-    s3_bucket_name = "95bb0f482d8e70cc5-#{project.account.name}-#{name}"
+    s3_bucket_name = "#{SecureRandom.uuid[0...-13]}-#{project.account.name}-#{name}"
     s3_bucket = S3BucketCreateService.call(
       name: s3_bucket_name,
       access_key_id: Rails.application.credentials.aws[:access_key_id],
       secret_access_key: Rails.application.credentials.aws[:secret_access_key],
       region: "eu-west-1",
       account_id: organization.nil? ? account_id : organization.account.id,
-      is_default: true,
+      default_project: project,
     )
     project.update(remote_cache_storage: s3_bucket)
     s3_client.create_bucket(bucket: s3_bucket_name)
