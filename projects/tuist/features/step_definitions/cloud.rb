@@ -37,13 +37,17 @@ And(/^I run a local tuist cloud server$/) do
   end
 end
 
-Then(/^tuist inits new cloud project with owner ([a-zA-Z]+) called ([a-zA-Z]+)$/) do |owner, name|
+Then(/^tuist inits new cloud project$/) do
+  uuid = SecureRandom.uuid[0...10]
   out, err, status = Open3.capture3(
     { "TUIST_CONFIG_CLOUD_TOKEN" => "bk37yP8zHZLusqRDsVeG5RfhQiaJSA" },
-    @tuist, "cloud", "init", "--owner", owner, "--name", name, "--url", "http://127.0.0.1:3000/"
+    @tuist, "cloud", "init", "--owner", "aletha", "--name", uuid, "--url", "http://127.0.0.1:3000/"
   )
   flunk(err) unless status.success?
-  puts out
+  assert(
+    out.include?("cloud: .cloud(projectId: \"aletha/#{uuid}\", url: \"http://127.0.0.1:3000/\")"),
+    "The cloud project was not created properly"
+  )
 end
 
 After do |_scenario|
