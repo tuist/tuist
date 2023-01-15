@@ -82,6 +82,24 @@ private final class AuthenticationTokenManagementInterceptor: ApolloInterceptor 
     }
 }
 
+enum CreateProjectServiceError: FatalError {
+    case graphqlError(String)
+    
+    var type: ErrorType {
+        switch self {
+        case .graphqlError:
+            return .abort
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case let .graphqlError(description):
+            return description
+        }
+    }
+}
+
 public final class CreateProjectService: CreateProjectServicing {
     public init() {}
     
@@ -122,6 +140,10 @@ public final class CreateProjectService: CreateProjectServicing {
                 continuation.resume(returning: response)
             }
         }
-        _ = try response.get()
+        if let errors = try response.get().data?.createProject.errors, !errors.isEmpty {
+            throw CreateProjectServiceError.graphqlError(
+                errors.map(\.message).joined(separator: "\n")
+            )
+        }
     }
 }
