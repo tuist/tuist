@@ -1,11 +1,8 @@
-// @generated
-// This file was automatically generated and should not be edited.
-
 import ApolloAPI
 
-public extension Objects {
-  static let Mutation = Object(
-    typename: "Mutation",
-    implementedInterfaces: []
-  )
+extension Objects {
+    public static let Mutation = Object(
+        typename: "Mutation",
+        implementedInterfaces: []
+    )
 }
