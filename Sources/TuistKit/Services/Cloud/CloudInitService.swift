@@ -53,7 +53,7 @@ final class CloudInitService: CloudInitServicing {
             throw CloudInitServiceError.invalidCloudURL(serverURLString)
         }
 
-        try await createProjectService.createProject(
+        let slug = try await createProjectService.createProject(
             name: name,
             organizationName: owner,
             serverURL: serverURL
@@ -62,7 +62,7 @@ final class CloudInitService: CloudInitServicing {
         logger.info(
             """
             Put the following line into your Tuist/Config.swift (see the docs for more: https://docs.tuist.io/manifests/config/):
-            cloud: .cloud(projectId: "\(owner)/\(name)", url: "\(serverURLString)")
+            cloud: .cloud(projectId: "\(slug)", url: "\(serverURLString)")
             """
         )
     }

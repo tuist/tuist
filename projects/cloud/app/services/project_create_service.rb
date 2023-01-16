@@ -15,22 +15,21 @@ class ProjectCreateService < ApplicationService
       end
     end
   end
-  attr_reader :creator, :name, :organization_name, :account_id, :account_name
+  attr_reader :creator, :name, :organization_name, :account_id
 
-  def initialize(creator:, name:, organization_name: nil, account_id: nil, account_name: nil)
+  def initialize(creator:, name:, organization_name: nil, account_id: nil)
     super()
     @creator = creator
     @name = name
     @organization_name = organization_name
     @account_id = account_id
-    @account_name = account_name
   end
 
   def call
     ActiveRecord::Base.transaction do
       if organization_name.nil?
         if account_id.nil?
-          @account_id = Account.find_by(name: account_name).id
+          @account_id = creator.account.id
         end
         if Project.exists?(name: name, account_id: account_id)
           account = Account.find(account_id)

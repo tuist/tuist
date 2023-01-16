@@ -8,16 +8,19 @@ public protocol CreateProjectServicing {
         name: String,
         organizationName: String?,
         serverURL: URL
-    ) async throws
+    ) async throws -> String
 }
 
 enum CreateProjectServiceError: FatalError {
     case graphqlError(String)
+    case projectCouldNotBeCreated
 
     var type: ErrorType {
         switch self {
         case .graphqlError:
             return .abort
+        case .projectCouldNotBeCreated:
+            return .bug
         }
     }
 
@@ -25,6 +28,8 @@ enum CreateProjectServiceError: FatalError {
         switch self {
         case let .graphqlError(description):
             return description
+        case .projectCouldNotBeCreated:
+            return "The project could not be created."
         }
     }
 }
@@ -36,7 +41,7 @@ public final class CreateProjectService: CreateProjectServicing {
         name: String,
         organizationName: String?,
         serverURL: URL
-    ) async throws {
+    ) async throws -> String {
         let client = ApolloClient(cloudURL: serverURL)
 
         let response = await withCheckedContinuation { continuation in
@@ -44,7 +49,8 @@ public final class CreateProjectService: CreateProjectServicing {
                 mutation: CreateProjectMutation(
                     input: CreateProjectInput(
                         name: name,
-                        accountName: organizationName.map { GraphQLNullable(stringLiteral: $0) } ?? GraphQLNullable(nilLiteral: ())
+                        accountName: organizationName
+                            .map { GraphQLNullable(stringLiteral: $0) } ?? GraphQLNullable(nilLiteral: ())
                     )
                 )
             ) { response in
@@ -52,10 +58,15 @@ public final class CreateProjectService: CreateProjectServicing {
             }
         }
 
-        if let errors = try response.get().data?.createProject.errors, !errors.isEmpty {
+        guard let data = try response.get().data else { throw CreateProjectServiceError.projectCouldNotBeCreated }
+
+        let errors = data.createProject.errors
+        if !errors.isEmpty {
             throw CreateProjectServiceError.graphqlError(
                 errors.map(\.message).joined(separator: "\n")
             )
         }
+
+        return data.createProject.project?.slug ?? ""
     }
 }

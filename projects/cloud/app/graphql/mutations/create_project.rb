@@ -5,7 +5,6 @@ module Mutations
     argument :name, String, required: true
     argument :account_id, ID, required: false
     argument :organization_name, String, required: false
-    argument :account_name, String, required: false
 
     type Types::CreateProjectType
 
