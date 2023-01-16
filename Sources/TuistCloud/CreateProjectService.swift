@@ -6,7 +6,7 @@ import TuistSupport
 public protocol CreateProjectServicing {
     func createProject(
         name: String,
-        organizationName: String,
+        organizationName: String?,
         serverURL: URL
     ) async throws
 }
@@ -34,7 +34,7 @@ public final class CreateProjectService: CreateProjectServicing {
 
     public func createProject(
         name: String,
-        organizationName: String,
+        organizationName: String?,
         serverURL: URL
     ) async throws {
         let client = ApolloClient(cloudURL: serverURL)
@@ -44,7 +44,7 @@ public final class CreateProjectService: CreateProjectServicing {
                 mutation: CreateProjectMutation(
                     input: CreateProjectInput(
                         name: name,
-                        accountName: GraphQLNullable(stringLiteral: organizationName)
+                        accountName: organizationName.map { GraphQLNullable(stringLiteral: $0) } ?? GraphQLNullable(nilLiteral: ())
                     )
                 )
             ) { response in

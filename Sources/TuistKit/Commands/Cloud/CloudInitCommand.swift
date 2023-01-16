@@ -19,7 +19,7 @@ struct CloudInitCommand: AsyncParsableCommand {
     @Option(
         help: "Name of the project. The allowed characters are a-z and the dash symbol '-' (for example project-name)."
     )
-    var name: String
+    var name: String?
 
     @Option(
         help: "URL to the cloud server. Default is tuist cloud hosted by tuist itself – https://cloud.tuist.io/"

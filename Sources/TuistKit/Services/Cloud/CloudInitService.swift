@@ -5,7 +5,7 @@ import TuistSupport
 protocol CloudInitServicing {
     func createProject(
         name: String,
-        owner: String,
+        owner: String?,
         url: String?
     ) async throws
 }
@@ -44,7 +44,7 @@ final class CloudInitService: CloudInitServicing {
 
     func createProject(
         name: String,
-        owner: String,
+        owner: String?,
         url: String?
     ) async throws {
         let serverURLString = url ?? Constants.tuistCloudURL

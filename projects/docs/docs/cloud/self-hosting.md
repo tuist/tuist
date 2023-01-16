@@ -42,3 +42,10 @@ And that's it! That being said, you might need to upgrade the memory on the prov
 ```bash
 fly scale vm shared-cpu-1x --memory 512
 ```
+
+## S3
+
+You can also own only the remote cache storage – you can head to your project on Tuist Cloud and select the `Create new bucket` option:
+![Remote cache new bucket option](./assets/remote-cache-new-bucket.png)
+
+You then need to fill in the fields, including the [access key](https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html). The access key needs write and read permissions for the bucket you plan to use with Tuist Cloud.
