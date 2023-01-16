@@ -146,7 +146,6 @@ jobs:
         run: |
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
-            - uses: actions/cache@v2
       - uses: actions/setup-node@v2
         with:
           node-version: ${{ env.NODE_VERSION }}
