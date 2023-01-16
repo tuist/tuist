@@ -44,7 +44,7 @@ class S3BucketCreateServiceTest < ActiveSupport::TestCase
       secret_access_key: secret_access_key,
       account_id: account.id,
       region: region,
-      default_project: project
+      default_project: project,
     )
 
     # Then

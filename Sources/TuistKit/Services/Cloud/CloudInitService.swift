@@ -30,11 +30,10 @@ enum CloudInitServiceError: FatalError, Equatable {
     }
 }
 
-
 final class CloudInitService: CloudInitServicing {
     private let cloudSessionController: CloudSessionControlling
     private let createProjectService: CreateProjectServicing
-    
+
     init(
         cloudSessionController: CloudSessionControlling = CloudSessionController(),
         createProjectService: CreateProjectServicing = CreateProjectService()
@@ -42,25 +41,24 @@ final class CloudInitService: CloudInitServicing {
         self.cloudSessionController = cloudSessionController
         self.createProjectService = createProjectService
     }
-    
+
     func createProject(
         name: String,
         owner: String,
         url: String?
     ) async throws {
         let serverURLString = url ?? Constants.tuistCloudURL
-        guard
-            let serverURL = URL(string: serverURLString)
+        guard let serverURL = URL(string: serverURLString)
         else {
             throw CloudInitServiceError.invalidCloudURL(serverURLString)
         }
-        
+
         try await createProjectService.createProject(
             name: name,
             organizationName: owner,
             serverURL: serverURL
         )
-        
+
         logger.info(
             """
             Put the following line into your Tuist/Config.swift (see the docs for more: https://docs.tuist.io/manifests/config/):

@@ -46,7 +46,7 @@ class S3BucketCreateService < ApplicationService
       iv: Base64.encode64(iv),
       region: region,
       is_default: default_project.nil? == false,
-      default_project_id: !default_project.nil? ? default_project.id : nil
+      default_project_id: !default_project.nil? ? default_project.id : nil,
     )
   end
 end

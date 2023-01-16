@@ -1,6 +1,6 @@
-import XCTest
-import TuistSupport
 import TuistCloudTesting
+import TuistSupport
+import XCTest
 
 @testable import TuistKit
 @testable import TuistSupportTesting
@@ -37,7 +37,7 @@ final class CloudInitServiceTests: TuistUnitTestCase {
             createdProjectOrganization = $1
             createdProjectURL = $2
         }
-        
+
         // When
         try await subject.createProject(
             name: "tuist",
@@ -50,14 +50,14 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         XCTAssertEqual(createdProjectOrganization, "tuist-org")
         XCTAssertEqual(createdProjectURL, URL(string: Constants.tuistCloudURL))
     }
-    
+
     func test_cloud_init_with_URL() async throws {
         // Given
         var createdProjectURL: URL?
         createProjectService.createProjectStub = {
             createdProjectURL = $2
         }
-        
+
         // When
         try await subject.createProject(
             name: "tuist",

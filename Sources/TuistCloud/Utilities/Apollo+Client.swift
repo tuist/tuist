@@ -17,27 +17,26 @@ extension ApolloClient {
             interceptorProvider: provider,
             endpointURL: url
         )
-        
+
         self.init(networkTransport: requestChainTransport, store: store)
     }
 }
 
 private struct NetworkInterceptorProvider: InterceptorProvider {
-    
     // These properties will remain the same throughout the life of the `InterceptorProvider`, even though they
     // will be handed to different interceptors.
     private let store: ApolloStore
     private let client: URLSessionClient
     private let serverURL: URL
-    
+
     init(store: ApolloStore, client: URLSessionClient, serverURL: URL) {
         self.store = store
         self.client = client
         self.serverURL = serverURL
     }
-    
-    func interceptors<Operation: GraphQLOperation>(for operation: Operation) -> [ApolloInterceptor] {
-        return [
+
+    func interceptors<Operation: GraphQLOperation>(for _: Operation) -> [ApolloInterceptor] {
+        [
             MaxRetryInterceptor(),
             CacheReadInterceptor(store: store),
             AuthenticationTokenManagementInterceptor(serverURL: serverURL),
@@ -45,27 +44,27 @@ private struct NetworkInterceptorProvider: InterceptorProvider {
             ResponseCodeInterceptor(),
             JSONResponseParsingInterceptor(),
             AutomaticPersistedQueryInterceptor(),
-            CacheReadInterceptor(store: self.store),
+            CacheReadInterceptor(store: store),
         ]
     }
 }
 
 private final class AuthenticationTokenManagementInterceptor: ApolloInterceptor {
     enum AuthenticationError: Error {
-      case tokenNotFound
+        case tokenNotFound
     }
-    
+
     private let serverURL: URL
     init(serverURL: URL) {
         self.serverURL = serverURL
     }
-    
+
     public func interceptAsync<Operation>(
         chain: RequestChain,
         request: HTTPRequest<Operation>,
         response: HTTPResponse<Operation>?,
         completion: @escaping (Result<GraphQLResult<Operation.Data>, Error>) -> Void
-    ) where Operation : GraphQLOperation {
+    ) where Operation: GraphQLOperation {
         let environment = ProcessInfo.processInfo.environment
         let tokenFromEnvironment = environment[Constants.EnvironmentVariables.cloudToken]
         let token: String?
@@ -81,7 +80,7 @@ private final class AuthenticationTokenManagementInterceptor: ApolloInterceptor 
             do {
                 try CloudSessionController().authenticate(serverURL: serverURL)
                 chain.retry(request: request, completion: completion)
-            } catch let error {
+            } catch {
                 chain.handleErrorAsync(
                     error,
                     request: request,

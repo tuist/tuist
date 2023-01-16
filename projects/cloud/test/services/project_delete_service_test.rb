@@ -20,7 +20,7 @@ class ProjectDeleteServicerviceTest < ActiveSupport::TestCase
       iv: "",
       region: "",
       is_default: true,
-      default_project_id: project.id
+      default_project_id: project.id,
     )
     project.update(remote_cache_storage: s3_bucket)
 
