@@ -171,7 +171,6 @@ jobs:
           bundle config path vendor/bundle
           bundle install --jobs=4 --retry=3
           npm install
-            - name: Install cloud dependencies
       - name: Seed database
         working-directory: projects/cloud
         run: |
