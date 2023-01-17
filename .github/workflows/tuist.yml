@@ -171,6 +171,23 @@ jobs:
           bundle config path vendor/bundle
           bundle install --jobs=4 --retry=3
           npm install
+      - name: Start PostgreSQL for cloud
+        run: |
+          brew services start postgresql
+          echo "Check PostgreSQL service is running"
+          i=10
+          COMMAND='pg_isready'
+          while [ $i -gt 0 ]; do
+              echo "Check PostgreSQL service status"
+              eval $COMMAND && break
+              ((i--))
+              if [ $i == 0 ]; then
+                  echo "PostgreSQL service not ready, all attempts exhausted"
+                  exit 1
+              fi
+              echo "PostgreSQL service not ready, wait 10 more sec, attempts left: $i"
+              sleep 10
+          done
       - name: Seed database
         working-directory: projects/cloud
         run: |
