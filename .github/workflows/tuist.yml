@@ -27,6 +27,9 @@ concurrency:
 env:
   RUBY_VERSION: '3.0.3'
   TUIST_STATS_OPT_OUT: true
+  RAILS_ENV: development
+  RAILS_MASTER_KEY: ${{ secrets.CLOUD_RAILS_MASTER_KEY }}
+  NODE_VERSION: 16.17.0
 
 jobs:
   unit_tests:
@@ -168,6 +171,12 @@ jobs:
           bundle config path vendor/bundle
           bundle install --jobs=4 --retry=3
           npm install
+            - name: Install cloud dependencies
+      - name: Seed database
+        working-directory: projects/cloud
+        run: |
+          bin/rails db:create
+          bin/rails db:seed
       - name: Run tests
         run: ./fourier test tuist acceptance projects/tuist/features/${{ matrix.feature }}.feature
   
