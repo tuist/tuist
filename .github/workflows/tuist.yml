@@ -192,6 +192,7 @@ jobs:
         working-directory: projects/cloud
         run: |
           bin/rails db:create
+          bin/rails db:migrate
           bin/rails db:seed
       - name: Run tests
         run: ./fourier test tuist acceptance projects/tuist/features/${{ matrix.feature }}.feature
