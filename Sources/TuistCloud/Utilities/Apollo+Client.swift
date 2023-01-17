@@ -4,10 +4,7 @@ import TuistSupport
 
 extension ApolloClient {
     convenience init(cloudURL: URL) {
-        // The cache is necessary to set up the store, which we're going
-        // to hand to the provider
-        let cache = InMemoryNormalizedCache()
-        let store = ApolloStore(cache: cache)
+        let store = ApolloStore(cache: InMemoryNormalizedCache())
 
         let client = URLSessionClient()
         let provider = NetworkInterceptorProvider(store: store, client: client, serverURL: cloudURL)

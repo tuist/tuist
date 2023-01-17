@@ -6,7 +6,7 @@ protocol CloudInitServicing {
     func createProject(
         name: String,
         owner: String?,
-        url: String?
+        url: String
     ) async throws
 }
 
@@ -45,12 +45,11 @@ final class CloudInitService: CloudInitServicing {
     func createProject(
         name: String,
         owner: String?,
-        url: String?
+        url: String
     ) async throws {
-        let serverURLString = url ?? Constants.tuistCloudURL
-        guard let serverURL = URL(string: serverURLString)
+        guard let serverURL = URL(string: url)
         else {
-            throw CloudInitServiceError.invalidCloudURL(serverURLString)
+            throw CloudInitServiceError.invalidCloudURL(url)
         }
 
         let slug = try await createProjectService.createProject(
@@ -62,7 +61,7 @@ final class CloudInitService: CloudInitServicing {
         logger.info(
             """
             Put the following line into your Tuist/Config.swift (see the docs for more: https://docs.tuist.io/manifests/config/):
-            cloud: .cloud(projectId: "\(slug)", url: "\(serverURLString)")
+            cloud: .cloud(projectId: "\(slug)", url: "\(url)")
             """
         )
     }

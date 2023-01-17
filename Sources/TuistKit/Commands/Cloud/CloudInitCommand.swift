@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TSCBasic
+import TuistSupport
 
 struct CloudInitCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
@@ -24,7 +25,7 @@ struct CloudInitCommand: AsyncParsableCommand {
     @Option(
         help: "URL to the cloud server. Default is tuist cloud hosted by tuist itself – https://cloud.tuist.io/"
     )
-    var url: String?
+    var url: String = Constants.tuistCloudURL
 
     func run() async throws {
         try await CloudInitService().createProject(
