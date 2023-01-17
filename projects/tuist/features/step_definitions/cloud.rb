@@ -29,9 +29,10 @@ def responsive?
 end
 
 And(/^I run a local tuist cloud server$/) do
-  cloud_root = File.expand_path("../../../cloud/", __dir__)
+  @cloud_root = File.expand_path("../../../cloud/", __dir__)
+  @rails = "BUNDLE_GEMFILE=\"#{File.join(@cloud_root, "Gemfile")}\" #{@cloud_root}/bin/rails"
   if responsive? == false
-    cmd = "BUNDLE_GEMFILE=\"#{File.join(cloud_root, "Gemfile")}\" #{File.join(cloud_root)}/bin/rails server --port 3000"
+    cmd = "#{@rails} server --port 3000"
     @pid = spawn(cmd)
     wait_until_responsive
   end
@@ -39,8 +40,10 @@ end
 
 Then(/^tuist inits new cloud project$/) do
   uuid = SecureRandom.uuid[0...10]
+  token, token_err, token_status = Open3.capture3("#{@rails} testing:get_token -f #{@cloud_root}/Rakefile")
+  flunk(token_err) unless token_status.success?
   out, err, status = Open3.capture3(
-    { "TUIST_CONFIG_CLOUD_TOKEN" => "bk37yP8zHZLusqRDsVeG5RfhQiaJSA" },
+    { "TUIST_CONFIG_CLOUD_TOKEN" => token.strip },
     @tuist, "cloud", "init", "--name", uuid, "--url", "http://127.0.0.1:3000/"
   )
   flunk(err) unless status.success?
