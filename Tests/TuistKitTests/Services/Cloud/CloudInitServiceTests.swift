@@ -36,6 +36,8 @@ final class CloudInitServiceTests: TuistUnitTestCase {
             createdProjectName = $0
             createdProjectOrganization = $1
             createdProjectURL = $2
+
+            return "slug"
         }
 
         // When
@@ -49,6 +51,10 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         XCTAssertEqual(createdProjectName, "tuist")
         XCTAssertEqual(createdProjectOrganization, "tuist-org")
         XCTAssertEqual(createdProjectURL, URL(string: Constants.tuistCloudURL))
+        XCTAssertPrinterOutputContains("""
+        Put the following line into your Tuist/Config.swift (see the docs for more: https://docs.tuist.io/manifests/config/):
+        cloud: .cloud(projectId: "slug", url: "https://cloud.tuist.io/")
+        """)
     }
 
     func test_cloud_init_with_URL() async throws {
@@ -56,6 +62,8 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         var createdProjectURL: URL?
         createProjectService.createProjectStub = {
             createdProjectURL = $2
+
+            return "slug"
         }
 
         // When
