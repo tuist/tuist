@@ -174,13 +174,9 @@ class InitService {
         optionalTemplateOptions: [String: String?],
         template: Template
     ) throws -> [String: String] {
-        try template.attributes.reduce(into: [:]) { attributesDictionary, attribute in
-            if attribute.name == "name" {
-                attributesDictionary[attribute.name] = name
-                return
-            }
-            if attribute.name == "platform" {
-                attributesDictionary[attribute.name] = platform.caseValue
+        let defaultAttributes = ["name": name, "platform": platform.caseValue]
+        return try template.attributes.reduce(into: defaultAttributes) { attributesDictionary, attribute in
+            if attribute.name == "name" || attribute.name == "platform" {
                 return
             }
             switch attribute {

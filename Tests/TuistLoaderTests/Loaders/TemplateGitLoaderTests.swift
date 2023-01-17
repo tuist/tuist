@@ -29,6 +29,7 @@ final class TemplateGitLoaderTests: TuistUnitTestCase {
     override func tearDown() {
         gitHandler = nil
         subject = nil
+        templateLoader = nil
         super.tearDown()
     }
 

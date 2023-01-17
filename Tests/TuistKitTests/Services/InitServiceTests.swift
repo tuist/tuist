@@ -105,6 +105,8 @@ final class InitServiceTests: TuistUnitTestCase {
             )
         }
         let expectedAttributes = [
+            "name": "Name",
+            "platform": "macOS",
             "required": "requiredValue",
             "optional": "optionalValue",
         ]
@@ -115,6 +117,8 @@ final class InitServiceTests: TuistUnitTestCase {
 
         // When
         try subject.testRun(
+            name: "Name",
+            platform: "macos",
             templateName: "https://url/to/repo.git",
             requiredTemplateOptions: [
                 "required": "requiredValue",

@@ -10,7 +10,7 @@ public protocol TemplateGitLoading {
     func loadTemplate(from templateURL: String, closure: (TuistGraph.Template) throws -> Void) throws
 }
 
-public class TemplateGitLoader: TemplateGitLoading {
+public final class TemplateGitLoader: TemplateGitLoading {
     private let templateLoader: TemplateLoading
     private let fileHandler: FileHandling
     private let gitHandler: GitHandling
