@@ -23,8 +23,8 @@ extension Workspace {
             case enabled(
                 codeCoverageMode: CodeCoverageMode = .disabled,
                 testingOptions: TestingOptions = [],
-                language: String? = nil,
-                region: String? = nil
+                testLanguage: String? = nil,
+                testRegion: String? = nil
             )
 
             public var codeCoverageMode: CodeCoverageMode {
@@ -45,7 +45,7 @@ extension Workspace {
                 }
             }
 
-            public var language: String? {
+            public var testLanguage: String? {
                 switch self {
                 case let .enabled(_, _, language, _):
                     return language
@@ -54,7 +54,7 @@ extension Workspace {
                 }
             }
 
-            public var region: String? {
+            public var testRegion: String? {
                 switch self {
                 case let .enabled(_, _, _, region):
                     return region

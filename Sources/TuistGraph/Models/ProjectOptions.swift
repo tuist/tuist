@@ -121,7 +121,7 @@ extension Project.Options {
             return []
         }
     }
-    
+
     public var testLanguage: String? {
         switch automaticSchemesOptions {
         case let .enabled(_, _, _, language, _):
@@ -130,7 +130,7 @@ extension Project.Options {
             return nil
         }
     }
-    
+
     public var testRegion: String? {
         switch automaticSchemesOptions {
         case let .enabled(_, _, _, _, region):
