@@ -75,7 +75,7 @@ class TargetLinter: TargetLinting {
 
         if target.productName.unicodeScalars.allSatisfy(allowed.contains) == false {
             let reason =
-                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
+                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), period (.), and underscore (_) characters."
 
             return [LintingIssue(reason: reason, severity: .warning)]
         }

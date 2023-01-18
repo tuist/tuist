@@ -27,7 +27,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             let target = Target.test(productName: productName)
             let got = self.subject.lint(target: target)
             let reason =
-                "Invalid product name '\(productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
+                "Invalid product name '\(productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), period (.), and underscore (_) characters."
             self.XCTContainsLintingIssue(got, LintingIssue(reason: reason, severity: .warning))
         }
 
