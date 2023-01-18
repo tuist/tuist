@@ -40,7 +40,13 @@ end
 
 Then(/^tuist inits new cloud project$/) do
   uuid = SecureRandom.uuid[0...10]
-  token, token_err, token_status = Open3.capture3("#{@rails} testing:get_token -f #{@cloud_root}/Rakefile")
+  account_name, account_name_err, account_name_status = Open3.capture3(
+    "#{@rails} testing:get_account_name -f #{@cloud_root}/Rakefile"
+  )
+  flunk(account_name_err) unless account_name_status.success?
+  token, token_err, token_status = Open3.capture3(
+    "#{@rails} testing:get_token #{account_name.strip} -f #{@cloud_root}/Rakefile"
+  )
   flunk(token_err) unless token_status.success?
   out, err, status = Open3.capture3(
     { "TUIST_CONFIG_CLOUD_TOKEN" => token.strip },
@@ -48,7 +54,7 @@ Then(/^tuist inits new cloud project$/) do
   )
   flunk(err) unless status.success?
   assert(
-    out.include?("cloud: .cloud(projectId: \"aletha/#{uuid}\", url: \"http://127.0.0.1:3000/\")"),
+    out.include?("cloud: .cloud(projectId: \"#{account_name.strip}/#{uuid}\", url: \"http://127.0.0.1:3000/\")"),
     "The cloud project was not created properly"
   )
 end
