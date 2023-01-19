@@ -46,7 +46,7 @@ logger.critical("") // Use `critical` for unrecoverable, system errors.
 logger.error("") // Use `error` for user errors, particularly problems with their machine, manifest or configuration.
 logger.warning("") // Use `warning` to highlight potential issues.
 logger.notice("") // Use `notice` to log to console, this is the normal level of logging.
-logger.info("") // Use `info` to provide small meta messages, this will be printed but won't be promenant.
+logger.info("") // Use `info` to provide small meta messages, this will be printed but won't be prominent.
 logger.debug("") // Use `debug` to print in verbose mode.
 logger.pretty("") // Use `pretty` to print a string with formatted interpolations, useful for highlighting certain elements in the string.
 ```
