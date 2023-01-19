@@ -4,7 +4,7 @@ slug: '/building-at-scale/best-practices'
 description: Xcode being weakly opinionated in regards to the project structure might result in complex and hard to manage project. To prevent that, this document describes best practices that users of Tuist can follow to have projects that are optimal and easy to reason about.
 ---
 
-Although Tuist defaults to some conventions on the projects that are initialized with Tuist, its API doesn't enforce them purposely to ease the adoption of the tool. Very often, Xcode projects end up being complex because Xcode is weakly opinionated about the project structure. As long as the build system is able to process build settings and phases and output valid, it's all good.
+Although Tuist defaults to some conventions on the projects that are initialized with Tuist, its API doesn't enforce them purposedly to ease the adoption of the tool. Very often, Xcode projects end up being complex because Xcode is weakly opinionated about the project structure. As long as the build system is able to process build settings and phases and output valid, it's all good.
 
 **Complex and non-conventional projects** are undesirable because they are hard to reason about and might lead to compilation errors. The result of that is that only a few people in the team can make well-informed decisions to scale up the project. In other words, your team ends up with a high [bus factor](https://en.wikipedia.org/wiki/Bus_factor).
 
