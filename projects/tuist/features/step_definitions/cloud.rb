@@ -7,13 +7,13 @@ require "xcodeproj"
 # Taken from: https://github.com/lucassus/mongo_browser/commit/cc6ed556e3cb2b2510c027ae0791828b6501b5c9
 def wait_until_responsive
   wait_time = 0.01
-  timeout = 10
+  timeout = 100
   start_time = Time.now
 
   until responsive?
     raise "Could not start cloud server" if Time.now - start_time >= timeout
 
-    sleep wait_time
+    sleep(wait_time)
     wait_time *= 2
   end
 end
