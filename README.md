@@ -40,6 +40,10 @@ tuist build # Builds your project
 
 You can find some sample projects in the [fixtures folder](projects/tuist/fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
 
+## Want to contribute?
+
+You can use our [contribution docs](https://docs.tuist.io/contributors/get-started) to get started. If you don't have a specific issue in mind, we are more than happy to help you, just ask for help in a given issue or on our [Slack](https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg). You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). We also offer [issue bounties](https://github.com/tuist/tuist/discussions/4982) for some highly-valued issues.
+
 ## Sponsors
 
 The financial sustainability of the project is possible thanks to the ongoing contributions from our [GitHub Sponsors](https://github.com/sponsors/tuist) and [Open Collective Backers](https://opencollective.com/tuistapp). From them, we'd like to give a special mention to the following sponsors:
