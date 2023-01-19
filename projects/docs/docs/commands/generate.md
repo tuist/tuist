@@ -12,7 +12,7 @@ and Xcode projects and workspaces as a implementation detail to edit your projec
 
 ### Command
 
-To generate the project in the current directory, youn can simply run:
+To generate the project in the current directory, you can simply run:
 
 ```bash
 tuist generate
