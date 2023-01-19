@@ -135,7 +135,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "watchos" })
         try FileHandler.shared.delete(xcframeworkPath)
     }
-   
+
     func test_build_when_framework_has_documentation() async throws {
         // Given
         let temporaryPath = try temporaryPath()
