@@ -91,7 +91,7 @@ You can read more about tasks [here](guides/task.md).
 
 #### Project description helpers
 
-You can import a project description helper plugin with the name defined in the [`Plugin.swift`](plugins/creating-plugins.md) manifest, which can then be used in a project manfiest:
+You can import a project description helper plugin with the name defined in the [`Plugin.swift`](plugins/creating-plugins.md) manifest, which can then be used in a project manifest:
 
 ```swift
 import ProjectDescription
