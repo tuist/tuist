@@ -11,8 +11,10 @@ module Fourier
       class << self
         def build_product(product)
           Utilities::System.system(
-            "swift", "build",
-            "--product", product
+            "swift",
+            "build",
+            "--product",
+            product,
           )
         end
 
@@ -27,14 +29,19 @@ module Fourier
 
           Dir.chdir(path) do
             Utilities::System.system(
-              "xcrun", "xcodebuild",
-              "-scheme", product,
-              "-configuration", "Release",
-              "-destination", "platform=macosx",
+              "xcrun",
+              "xcodebuild",
+              "-scheme",
+              product,
+              "-configuration",
+              "Release",
+              "-destination",
+              "platform=macosx",
               "BUILD_LIBRARY_FOR_DISTRIBUTION=YES",
               "ARCHS=arm64 x86_64",
               "BUILD_DIR=#{swift_build_directory}",
-              "clean", "build"
+              "clean",
+              "build",
             )
 
             # NOTE: We remove the PRODUCT.swiftmodule/Project directory because
@@ -75,12 +82,17 @@ module Fourier
           ENV["DEVELOPER_DIR"] = xcode_paths.default
 
           command = [
-            "swift", "build",
-            "--configuration", "release",
+            "swift",
+"build",
+            "--configuration",
+"release",
             "--disable-sandbox",
-            "--package-path", path,
-            "--product", product,
-            "--build-path", swift_build_directory,
+            "--package-path",
+path,
+            "--product",
+product,
+            "--build-path",
+swift_build_directory,
           ]
 
           arm_64 = [*command, "--triple", ARM64_TARGET]
@@ -93,9 +105,12 @@ module Fourier
             Dir.mkdir(output_directory)
           end
           Utilities::System.system(
-            "lipo", "-create", "-output", File.expand_path(binary_name, output_directory),
+            "lipo",
+            "-create",
+            "-output",
+            File.expand_path(binary_name, output_directory),
             File.join(swift_build_directory, "#{ARM64_TARGET}/release/#{binary_name}"),
-            File.join(swift_build_directory, "#{X86_64_TARGET}/release/#{binary_name}")
+            File.join(swift_build_directory, "#{X86_64_TARGET}/release/#{binary_name}"),
           )
         end
       end

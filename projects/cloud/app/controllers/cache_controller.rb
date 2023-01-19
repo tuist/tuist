@@ -15,7 +15,8 @@ class CacheController < APIController
     if cache_artifact_upload_service.object_exists?
       render(json: { status: "success", data: {} })
     else
-      render(json: { errors: [{ message: "S3 object was not found", code: :not_found }], status: :not_found },
+      render(
+        json: { errors: [{ message: "S3 object was not found", code: :not_found }], status: :not_found },
         status: :not_found)
     end
   end

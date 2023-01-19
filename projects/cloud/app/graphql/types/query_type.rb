@@ -9,31 +9,41 @@ module Types
     # Add root-level fields here.
     # They will be entry points for queries on your schema.
 
-    field :me, UserType, null: false,
+    field :me,
+      UserType,
+      null: false,
       description: "Returns the authenticated user"
     def me
       context[:current_user]
     end
 
-    field :projects, [ProjectType], null: false,
+    field :projects,
+      [ProjectType],
+      null: false,
       description: "Returns all available projects for the authenticated user"
     def projects
       UserProjectsFetchService.call(user: context[:current_user])
     end
 
-    field :organizations, [OrganizationType], null: false,
+    field :organizations,
+      [OrganizationType],
+      null: false,
       description: "Returns all available organizations for the authenticated user"
     def organizations
       context[:current_user].organizations
     end
 
-    field :accounts, [AccountType], null: false,
+    field :accounts,
+      [AccountType],
+      null: false,
       description: "Returns all tied accounts for the authenticated user"
     def accounts
       context[:current_user].accounts
     end
 
-    field :project, ProjectType, null: true,
+    field :project,
+      ProjectType,
+      null: true,
       description: "Returns project for a given name and account name" do
       argument :name, String, required: true
       argument :account_name, String, required: true
@@ -42,7 +52,9 @@ module Types
       ProjectFetchService.new.fetch_by_name(name: name, account_name: account_name, user: context[:current_user])
     end
 
-    field :organization, OrganizationType, null: true,
+    field :organization,
+      OrganizationType,
+      null: true,
       description: "Returns organization for a given name" do
       argument :name, String, required: true
     end
@@ -50,7 +62,9 @@ module Types
       OrganizationFetchService.call(name: name)
     end
 
-    field :invitation, InvitationType, null: false,
+    field :invitation,
+      InvitationType,
+      null: false,
       description: "Returns invitation for a given token" do
       argument :token, String, required: true
     end
@@ -58,7 +72,9 @@ module Types
       InvitationFetchService.call(token: token)
     end
 
-    field :s3_buckets, [S3BucketType], null: false,
+    field :s3_buckets,
+      [S3BucketType],
+      null: false,
       description: "Returns S3 buckets for an account of a given name" do
       argument :account_name, String, required: true
       argument :project_name, String, required: true
@@ -67,7 +83,9 @@ module Types
       S3BucketsFetchService.call(account_name: account_name, project_name: project_name, user: context[:current_user])
     end
 
-    field :command_events, CommandEventType.connection_type, null: false,
+    field :command_events,
+      CommandEventType.connection_type,
+      null: false,
       description: "Returns all command events for a given project" do
       argument :project_id, ID, required: true
     end
@@ -75,7 +93,9 @@ module Types
       CommandEventsFetchService.call(project_id: project_id, user: context[:current_user])
     end
 
-    field :command_event, CommandEventType, null: false,
+    field :command_event,
+      CommandEventType,
+      null: false,
       description: "Returns a command event with a given id" do
       argument :command_event_id, ID, required: true
     end
@@ -83,7 +103,9 @@ module Types
       CommandEventFetchService.call(command_event_id: command_event_id, user: context[:current_user])
     end
 
-    field :command_averages, [CommandAverageType], null: false,
+    field :command_averages,
+      [CommandAverageType],
+      null: false,
       description: "Returns a list of averages, sorted by the date" do
       argument :command_name, String, required: true
       argument :project_id, ID, required: true
@@ -96,7 +118,9 @@ module Types
       )
     end
 
-    field :cache_hit_rate_averages, [CacheHitRateAverageType], null: false,
+    field :cache_hit_rate_averages,
+      [CacheHitRateAverageType],
+      null: false,
       description: "Returns a list of cache hit rate averages, sorted by the date" do
       argument :command_name, String, required: true
       argument :project_id, ID, required: true
