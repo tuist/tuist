@@ -34,7 +34,7 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-    /// - Parameter generationOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    /// - Parameter projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
 
     public init(
         _ packages: [Package],
