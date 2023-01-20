@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		16A8BDF9297990AC00C2E542 /* Documentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A8BDF7297990AC00C2E542 /* Documentation.swift */; };
+		16A8BDFA297990AC00C2E542 /* Documentation.h in Headers */ = {isa = PBXBuildFile; fileRef = 16A8BDF8297990AC00C2E542 /* Documentation.h */; };
+		16A8BDFC297990DF00C2E542 /* Documentation.docc in Sources */ = {isa = PBXBuildFile; fileRef = 16A8BDFB297990DF00C2E542 /* Documentation.docc */; };
 		B9023E07239BCDA200666BE6 /* iOS.h in Headers */ = {isa = PBXBuildFile; fileRef = B9023E05239BCDA200666BE6 /* iOS.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		B9023E0E239BCDBE00666BE6 /* iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9023E0D239BCDBE00666BE6 /* iOS.swift */; };
 		B9023E18239BCDE900666BE6 /* watchOS.h in Headers */ = {isa = PBXBuildFile; fileRef = B9023E16239BCDE900666BE6 /* watchOS.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -18,6 +21,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		16A8BDF42979902F00C2E542 /* Documentation.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Documentation.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		16A8BDF52979902F00C2E542 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Info.plist; path = /Users/msimons/development/tuist/Tests/Fixtures/Frameworks/Documentation/Info.plist; sourceTree = "<absolute>"; };
+		16A8BDF7297990AC00C2E542 /* Documentation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Documentation.swift; sourceTree = "<group>"; };
+		16A8BDF8297990AC00C2E542 /* Documentation.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Documentation.h; sourceTree = "<group>"; };
+		16A8BDFB297990DF00C2E542 /* Documentation.docc */ = {isa = PBXFileReference; lastKnownFileType = folder.documentationcatalog; path = Documentation.docc; sourceTree = "<group>"; };
 		B9023E02239BCDA200666BE6 /* iOS.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = iOS.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B9023E05239BCDA200666BE6 /* iOS.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = iOS.h; sourceTree = "<group>"; };
 		B9023E06239BCDA200666BE6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -37,6 +45,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		16A8BDEE2979902F00C2E542 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B9023DFF239BCDA200666BE6 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -68,9 +83,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		16A8BDF62979904000C2E542 /* Documentation */ = {
+			isa = PBXGroup;
+			children = (
+				16A8BDF8297990AC00C2E542 /* Documentation.h */,
+				16A8BDF52979902F00C2E542 /* Info.plist */,
+				16A8BDF7297990AC00C2E542 /* Documentation.swift */,
+				16A8BDFB297990DF00C2E542 /* Documentation.docc */,
+			);
+			path = Documentation;
+			sourceTree = "<group>";
+		};
 		B9023DF8239BCDA200666BE6 = {
 			isa = PBXGroup;
 			children = (
+				16A8BDF62979904000C2E542 /* Documentation */,
 				B9023E04239BCDA200666BE6 /* iOS */,
 				B9023E15239BCDE900666BE6 /* watchOS */,
 				B9023E24239BCE1000666BE6 /* tvOS */,
@@ -86,6 +113,7 @@
 				B9023E14239BCDE900666BE6 /* watchOS.framework */,
 				B9023E23239BCE1000666BE6 /* tvOS.framework */,
 				B9023E32239BCE2D00666BE6 /* macOS.framework */,
+				16A8BDF42979902F00C2E542 /* Documentation.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -133,6 +161,14 @@
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
+		16A8BDEA2979902F00C2E542 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				16A8BDFA297990AC00C2E542 /* Documentation.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B9023DFD239BCDA200666BE6 /* Headers */ = {
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
@@ -168,6 +204,25 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
+		16A8BDE92979902F00C2E542 /* Documentation */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 16A8BDF12979902F00C2E542 /* Build configuration list for PBXNativeTarget "Documentation" */;
+			buildPhases = (
+				16A8BDEA2979902F00C2E542 /* Headers */,
+				16A8BDEC2979902F00C2E542 /* Sources */,
+				16A8BDEE2979902F00C2E542 /* Frameworks */,
+				16A8BDEF2979902F00C2E542 /* Resources */,
+				16A8BDF02979902F00C2E542 /* [Tuist] Create file to locate the built products directory */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Documentation;
+			productName = iOS;
+			productReference = 16A8BDF42979902F00C2E542 /* Documentation.framework */;
+			productType = "com.apple.product-type.framework";
+		};
 		B9023E01239BCDA200666BE6 /* iOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B9023E0A239BCDA200666BE6 /* Build configuration list for PBXNativeTarget "iOS" */;
@@ -253,6 +308,9 @@
 				LastUpgradeCheck = 1120;
 				ORGANIZATIONNAME = Tuist;
 				TargetAttributes = {
+					16A8BDE92979902F00C2E542 = {
+						LastSwiftMigration = 1420;
+					};
 					B9023E01239BCDA200666BE6 = {
 						CreatedOnToolsVersion = 11.2.1;
 						LastSwiftMigration = 1120;
@@ -288,11 +346,19 @@
 				B9023E13239BCDE900666BE6 /* watchOS */,
 				B9023E22239BCE1000666BE6 /* tvOS */,
 				B9023E31239BCE2D00666BE6 /* macOS */,
+				16A8BDE92979902F00C2E542 /* Documentation */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		16A8BDEF2979902F00C2E542 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B9023E00239BCDA200666BE6 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -324,6 +390,24 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		16A8BDF02979902F00C2E542 /* [Tuist] Create file to locate the built products directory */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "[Tuist] Create file to locate the built products directory";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ -n \"$I_OS_LOCATE_HASH\" ]; then\n    touch $BUILT_PRODUCTS_DIR/.$I_OS_LOCATE_HASH.tuist\nfi\n";
+		};
 		B93A85442542E4EE003EA8C2 /* [Tuist] Create file to locate the built products directory */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -399,6 +483,15 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		16A8BDEC2979902F00C2E542 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				16A8BDF9297990AC00C2E542 /* Documentation.swift in Sources */,
+				16A8BDFC297990DF00C2E542 /* Documentation.docc in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B9023DFE239BCDA200666BE6 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -434,6 +527,59 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		16A8BDF22979902F00C2E542 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INFOPLIST_FILE = Documentation/Info.plist;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.tuist.Documentation;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUN_DOCUMENTATION_COMPILER = YES;
+				SKIP_INSTALL = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		16A8BDF32979902F00C2E542 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INFOPLIST_FILE = Documentation/Info.plist;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.tuist.Documentation;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUN_DOCUMENTATION_COMPILER = YES;
+				SKIP_INSTALL = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		B9023E08239BCDA200666BE6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -769,6 +915,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		16A8BDF12979902F00C2E542 /* Build configuration list for PBXNativeTarget "Documentation" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				16A8BDF22979902F00C2E542 /* Debug */,
+				16A8BDF32979902F00C2E542 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		B9023DFC239BCDA200666BE6 /* Build configuration list for PBXProject "Frameworks" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
