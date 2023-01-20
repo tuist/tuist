@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistGraph
 import TuistScaffold
 import TuistSupport
 import XCTest
@@ -14,16 +15,19 @@ final class InitServiceTests: TuistUnitTestCase {
     var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     var templateGenerator: MockTemplateGenerator!
     var templateLoader: MockTemplateLoader!
+    var templateGitLoader: MockTemplateGitLoader!
 
     override func setUp() {
         super.setUp()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         templateGenerator = MockTemplateGenerator()
         templateLoader = MockTemplateLoader()
+        templateGitLoader = MockTemplateGitLoader()
         subject = InitService(
             templateLoader: templateLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
-            templateGenerator: templateGenerator
+            templateGenerator: templateGenerator,
+            templateGitLoader: templateGitLoader
         )
     }
 
@@ -32,6 +36,7 @@ final class InitServiceTests: TuistUnitTestCase {
         templatesDirectoryLocator = nil
         templateGenerator = nil
         templateLoader = nil
+        templateGitLoader = nil
         super.tearDown()
     }
 
@@ -82,6 +87,43 @@ final class InitServiceTests: TuistUnitTestCase {
 
         // When
         try subject.testRun(name: "Name")
+
+        // Then
+        XCTAssertEqual(expectedAttributes, generatorAttributes)
+    }
+
+    func test_load_git_template_attributes() async throws {
+        // Given
+        templateGitLoader.loadTemplateStub = { _ in
+            Template(
+                description: "test",
+                attributes: [
+                    .required("required"),
+                    .optional("optional", default: "optionalValue"),
+                ],
+                items: []
+            )
+        }
+        let expectedAttributes = [
+            "name": "Name",
+            "platform": "macOS",
+            "required": "requiredValue",
+            "optional": "optionalValue",
+        ]
+        var generatorAttributes: [String: String] = [:]
+        templateGenerator.generateStub = { _, _, attributes in
+            generatorAttributes = attributes
+        }
+
+        // When
+        try subject.testRun(
+            name: "Name",
+            platform: "macos",
+            templateName: "https://url/to/repo.git",
+            requiredTemplateOptions: [
+                "required": "requiredValue",
+            ]
+        )
 
         // Then
         XCTAssertEqual(expectedAttributes, generatorAttributes)
