@@ -16,14 +16,19 @@ module Fourier
 
           puts "Generating a Tuist project with 50 projects"
           Utilities::System.fixturegen(
-            "--path", File.join(tmp_dir, "50_projects"),
-            "--projects", "50"
+            "--path",
+            File.join(tmp_dir, "50_projects"),
+            "--projects",
+            "50",
           )
           puts "Generating a Tuist project with 2 projects and 2000 sources"
           Utilities::System.fixturegen(
-            "--path", File.join(tmp_dir, "2000_sources"),
-            "--projects", "2",
-            "--sources", "2000"
+            "--path",
+            File.join(tmp_dir, "2000_sources"),
+            "--projects",
+            "2",
+            "--sources",
+            "2000",
           )
 
           puts "Storing the list of fixtures to benchmark"
@@ -43,7 +48,12 @@ module Fourier
           Dir.chdir(Constants::TUIST_DIRECTORY) do
             Utilities::System.system("swift", "build", "--product", "tuist", "--configuration", "release")
             Utilities::System.system("swift", "build", "--product", "tuistenv", "--configuration", "release")
-            Utilities::System.system("swift", "build", "--product", "ProjectDescription", "--configuration",
+            Utilities::System.system(
+              "swift",
+              "build",
+              "--product",
+              "ProjectDescription",
+              "--configuration",
               "release")
           end
 
@@ -52,10 +62,14 @@ module Fourier
 
           Utilities::System.system(
             File.join(Constants::TUISTBENCH_DIRECTORY, ".build/release/tuistbench"),
-            "-b", File.join(Constants::TUIST_DIRECTORY, ".build/release/tuist"),
-            "-r", File.join(Constants::TUIST_DIRECTORY, ".build/release/tuistenv"),
-            "-l", fixture_list_path,
-            "--format", "markdown"
+            "-b",
+            File.join(Constants::TUIST_DIRECTORY, ".build/release/tuist"),
+            "-r",
+            File.join(Constants::TUIST_DIRECTORY, ".build/release/tuistenv"),
+            "-l",
+            fixture_list_path,
+            "--format",
+            "markdown",
           )
         end
       end

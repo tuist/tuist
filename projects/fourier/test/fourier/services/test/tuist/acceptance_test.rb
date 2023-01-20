@@ -24,7 +24,12 @@ module Fourier
             @subject = Acceptance.new(feature: nil)
             ::Cucumber::Cli::Main
               .expects(:execute)
-              .with(["--format", "pretty", "--strict-undefined", "--require", Constants::FEATURES_DIRECTORY,
+              .with([
+                "--format",
+"pretty",
+"--strict-undefined",
+"--require",
+Constants::FEATURES_DIRECTORY,
 Constants::FEATURES_DIRECTORY,])
 
             # Then
@@ -37,7 +42,12 @@ Constants::FEATURES_DIRECTORY,])
             @subject = Acceptance.new(feature: nil)
             ::Cucumber::Cli::Main
               .expects(:execute)
-              .with(["--format", "pretty", "--strict-undefined", "--require", Constants::FEATURES_DIRECTORY,
+              .with([
+                "--format",
+"pretty",
+"--strict-undefined",
+"--require",
+Constants::FEATURES_DIRECTORY,
 Constants::FEATURES_DIRECTORY,])
               .returns(cucumber_error)
 

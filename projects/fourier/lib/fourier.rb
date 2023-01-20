@@ -4,7 +4,7 @@ require "cli/ui"
 require "thor"
 require "zeitwerk"
 
-::CLI::UI::StdoutRouter.enable
+CLI::UI::StdoutRouter.enable
 
 loader = Zeitwerk::Loader.new
 loader.push_dir(__dir__)
