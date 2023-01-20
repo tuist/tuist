@@ -35,11 +35,11 @@ final class TargetLinterTests: TuistUnitTestCase {
             let got = self.subject.lint(target: target)
             XCTAssertNil(got.first(where: { $0.description.contains("Invalid product name") }))
         }
-        
+
         XCTAssertValidProductNameApp(Target.test(product: .app, productName: "MyApp.iOS"))
         XCTAssertValidProductNameApp(Target.test(productName: "MyFramework_iOS"))
         XCTAssertValidProductNameApp(Target.test(productName: "MyFramework"))
-        
+
         XCTAssertInvalidProductNameApp(Target.test(product: .framework, productName: "MyFramework.iOS"))
         XCTAssertInvalidProductNameApp(Target.test(productName: "MyFramework-iOS"))
         XCTAssertInvalidProductNameApp(Target.test(productName: "ⅫFramework"))
