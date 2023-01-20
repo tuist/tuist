@@ -8,7 +8,9 @@ class InvitationFetchServiceTest < ActiveSupport::TestCase
     inviter = User.create!(email: "test1@cloud.tuist.io", password: Devise.friendly_token.first(16))
     token = Devise.friendly_token.first(8)
     organization = Organization.create!
-    invitation = inviter.invitations.create!(invitee_email: "test@cloud.tuist.io", token: token,
+    invitation = inviter.invitations.create!(
+      invitee_email: "test@cloud.tuist.io",
+      token: token,
       organization: organization)
 
     # When

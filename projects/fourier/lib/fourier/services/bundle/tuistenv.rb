@@ -42,9 +42,12 @@ module Fourier
                 Utilities::Output.section("Generating #{output_zip_path}...")
 
                 Utilities::System.system(
-                  "zip", "-q", "-r", "--symlinks",
+                  "zip",
+                  "-q",
+                  "-r",
+                  "--symlinks",
                   output_zip_path,
-                  "tuistenv"
+                  "tuistenv",
                 )
               end
             end
