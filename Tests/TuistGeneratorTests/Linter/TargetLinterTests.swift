@@ -23,27 +23,29 @@ final class TargetLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_when_target_has_invalid_product_name() {
-        let XCTAssertInvalidProductName: (String) -> Void = { productName in
-            let target = Target.test(productName: productName)
+        let XCTAssertInvalidProductNameApp: (Target) -> Void = { target in
             let got = self.subject.lint(target: target)
-            let reason =
-                "Invalid product name '\(productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), period (.), and underscore (_) characters."
+            let reason = target.product == .app ?
+                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), period (.), and underscore (_) characters." :
+                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), and underscore (_) characters."
             self.XCTContainsLintingIssue(got, LintingIssue(reason: reason, severity: .warning))
         }
 
-        let XCTAssertValidProductName: (String) -> Void = { bundleId in
-            let target = Target.test(bundleId: bundleId)
+        let XCTAssertValidProductNameApp: (Target) -> Void = { target in
             let got = self.subject.lint(target: target)
             XCTAssertNil(got.first(where: { $0.description.contains("Invalid product name") }))
         }
-
-        XCTAssertValidProductName("MyFramework")
-        XCTAssertValidProductName("MyFramework_iOS")
-        XCTAssertValidProductName("MyFramework.iOS")
-
-        XCTAssertInvalidProductName("MyFramework-iOS")
-        XCTAssertInvalidProductName("ⅫFramework")
-        XCTAssertInvalidProductName("ؼFramework")
+        
+        XCTAssertValidProductNameApp(Target.test(product: .app, productName: "MyApp.iOS"))
+        XCTAssertValidProductNameApp(Target.test(productName: "MyFramework_iOS"))
+        XCTAssertValidProductNameApp(Target.test(productName: "MyFramework"))
+        
+        XCTAssertInvalidProductNameApp(Target.test(product: .framework, productName: "MyFramework.iOS"))
+        XCTAssertInvalidProductNameApp(Target.test(productName: "MyFramework-iOS"))
+        XCTAssertInvalidProductNameApp(Target.test(productName: "ⅫFramework"))
+        XCTAssertInvalidProductNameApp(Target.test(productName: "ؼFramework"))
+        
+        
     }
 
     func test_lint_when_target_has_invalid_bundle_identifier() {
