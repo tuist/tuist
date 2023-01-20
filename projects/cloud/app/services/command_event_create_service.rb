@@ -1,9 +1,20 @@
 # frozen_string_literal: true
 
 class CommandEventCreateService < ApplicationService
-  attr_reader :account_name, :project_name, :user, :project, :name,
-    :subcommand, :command_arguments, :duration, :client_id,
-    :tuist_version, :swift_version, :macos_version, :cacheable_targets, :local_cache_target_hits,
+  attr_reader :account_name,
+    :project_name,
+    :user,
+    :project,
+    :name,
+    :subcommand,
+    :command_arguments,
+    :duration,
+    :client_id,
+    :tuist_version,
+    :swift_version,
+    :macos_version,
+    :cacheable_targets,
+    :local_cache_target_hits,
     :remote_cache_target_hits
 
   def initialize(

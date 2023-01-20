@@ -19,9 +19,14 @@ class User < ApplicationRecord
   autogenerates_token :token
 
   # Devise
-  devise :database_authenticatable, :registerable,
-    :recoverable, :rememberable, :validatable,
-    :timeoutable, :trackable, :confirmable,
+  devise :database_authenticatable,
+    :registerable,
+    :recoverable,
+    :rememberable,
+    :validatable,
+    :timeoutable,
+    :trackable,
+    :confirmable,
     :omniauthable,
     omniauth_providers: [:github]
 
