@@ -174,7 +174,7 @@ Notice how you label extensions, methods, classes and structs as `public` if you
 
 #### Use the plugin
 
-We can follow the [using plugins](plugins/using-plugins.md) to learn more about how to use plugins. For this exmaple we may want to include the plugin and use it like so:
+We can follow the [using plugins](plugins/using-plugins.md) to learn more about how to use plugins. For this example we may want to include the plugin and use it like so:
 
 ```swift
 // Project.swift

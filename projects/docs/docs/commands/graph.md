@@ -11,7 +11,7 @@ saying goes, "one image is worth a thousand words":
 ![Sample graph exported with the graph command](assets/GraphExample.png)
 
 The command will output the dependency graph as an image, in the `png` format.
-You can change the output format using the `--format` paramenter.
+You can change the output format using the `--format` parameter.
 
 :::caution
 You can also change the format to `json` to export the graph as a JSON file. The JSON schema is subject

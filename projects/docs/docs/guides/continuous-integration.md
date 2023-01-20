@@ -55,7 +55,7 @@ If your CI provider is not supported yet, you can still use Tuist by adding the 
 
 Here are a number of best practice you can follow:
 
-- Define your local version in the `.tuist-version` file (for exmaple, running `tuist local 3.0.0`)
+- Define your local version in the `.tuist-version` file (for example, running `tuist local 3.0.0`)
   - This makes sure the same version of Tuist is used across all machines, both locally and in CI
 - Install tuist unzipping the `tuist.zip` downloaded directly from the GitHub releases, using the version defined in the `.tuist-version` file (for example, [link for 3.0.0](https://github.com/tuist/tuist/releases/download/3.0.0/tuist.zip))
   - Make sure to cache the unzipped folder across CI runs to avoid having to download it over and over again

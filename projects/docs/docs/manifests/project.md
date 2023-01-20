@@ -1,6 +1,6 @@
 ---
 title: Project.swift
-description: 'This page documents the models that users can use to define their project: how to initialize them, attributes and their meaning, protocol comformances.'
+description: 'This page documents the models that users can use to define their project: how to initialize them, attributes and their meaning, protocol conformances.'
 slug: '/manifests/project'
 ---
 

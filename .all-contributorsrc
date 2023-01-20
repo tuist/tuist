@@ -966,6 +966,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "waltflanagan",
+      "name": "Mike Simons",
+      "avatar_url": "https://avatars.githubusercontent.com/u/398293?v=4",
+      "profile": "https://github.com/waltflanagan",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

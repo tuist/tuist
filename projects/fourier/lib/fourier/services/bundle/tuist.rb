@@ -49,15 +49,26 @@ module Fourier
                 File.expand_path("Templates", Constants::ROOT_DIRECTORY),
                 File.expand_path("Templates", build_directory),
               )
-              Utilities::System.system("swift", "stdlib-tool", "--copy", "--scan-executable",
-                File.expand_path("tuist", build_directory), "--platform", "macosx", "--destination", build_directory)
+              Utilities::System.system(
+                "swift",
+                "stdlib-tool",
+                "--copy",
+                "--scan-executable",
+                File.expand_path("tuist", build_directory),
+                "--platform",
+                "macosx",
+                "--destination",
+                build_directory)
 
               Dir.chdir(build_directory) do
                 output_zip_path = File.expand_path("tuist.zip", output_directory)
                 Utilities::Output.section("Generating #{output_zip_path}...")
                 FileUtils.rm(output_zip_path, force: true)
                 Utilities::System.system(
-                  "zip", "-q", "-r", "--symlinks",
+                  "zip",
+                  "-q",
+                  "-r",
+                  "--symlinks",
                   output_zip_path,
                   "tuist",
                   "libswift_Concurrency.dylib",
@@ -66,7 +77,7 @@ module Fourier
                   "ProjectDescription.framework",
                   "ProjectDescription.framework.dSYM",
                   "Templates",
-                  "vendor"
+                  "vendor",
                 )
               end
             end
