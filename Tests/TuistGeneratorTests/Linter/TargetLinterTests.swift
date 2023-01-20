@@ -44,8 +44,6 @@ final class TargetLinterTests: TuistUnitTestCase {
         XCTAssertInvalidProductNameApp(Target.test(productName: "MyFramework-iOS"))
         XCTAssertInvalidProductNameApp(Target.test(productName: "ⅫFramework"))
         XCTAssertInvalidProductNameApp(Target.test(productName: "ؼFramework"))
-        
-        
     }
 
     func test_lint_when_target_has_invalid_bundle_identifier() {
