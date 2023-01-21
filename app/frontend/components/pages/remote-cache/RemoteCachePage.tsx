@@ -15,7 +15,6 @@ import {
   FooterHelp,
   Link,
   Text,
-  InlineError,
   Banner,
 } from '@shopify/polaris';
 import RemoteCachePageStore from './RemoteCachePageStore';
