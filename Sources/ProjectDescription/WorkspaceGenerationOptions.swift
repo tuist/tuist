@@ -22,7 +22,9 @@ extension Workspace {
                 codeCoverageMode: CodeCoverageMode = .disabled,
                 testingOptions: TestingOptions = [],
                 testLanguage: SchemeLanguage? = nil,
-                testRegion: String? = nil
+                testRegion: String? = nil,
+                runLanguage: SchemeLanguage? = nil,
+                runRegion: String? = nil
             )
         }
 
