@@ -61,7 +61,6 @@ class ProjectCreateService < ApplicationService
       default_project: project,
     )
     project.update(remote_cache_storage: s3_bucket)
-    puts s3_bucket_name
     s3_client.create_bucket(bucket: s3_bucket_name)
     project
   end
