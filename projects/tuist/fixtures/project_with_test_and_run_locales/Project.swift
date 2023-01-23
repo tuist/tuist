@@ -17,5 +17,11 @@ let project = Project(
             product: .app,
             bundleId: "io.tuist.app"
         ),
+        .init(
+            name: "AppTests",
+            platform: .iOS,
+            product: .unitTests,
+            bundleId: "io.tuist.appTests"
+        ),
     ]
 )
