@@ -24,14 +24,12 @@ extension Workspace {
                 codeCoverageMode: CodeCoverageMode = .disabled,
                 testingOptions: TestingOptions = [],
                 testLanguage: String? = nil,
-                testRegion: String? = nil,
-                runLanguage: String? = nil,
-                runRegion: String? = nil
+                testRegion: String? = nil
             )
 
             public var codeCoverageMode: CodeCoverageMode {
                 switch self {
-                case let .enabled(codeCoverageMode, _, _, _, _, _):
+                case let .enabled(codeCoverageMode, _, _, _):
                     return codeCoverageMode
                 case .disabled:
                     return .disabled
@@ -40,7 +38,7 @@ extension Workspace {
 
             public var testingOptions: TestingOptions {
                 switch self {
-                case let .enabled(_, testingOptions, _, _, _, _):
+                case let .enabled(_, testingOptions, _, _):
                     return testingOptions
                 case .disabled:
                     return []
@@ -49,7 +47,7 @@ extension Workspace {
 
             public var testLanguage: String? {
                 switch self {
-                case let .enabled(_, _, language, _, _, _):
+                case let .enabled(_, _, language, _):
                     return language
                 case .disabled:
                     return nil
@@ -58,25 +56,7 @@ extension Workspace {
 
             public var testRegion: String? {
                 switch self {
-                case let .enabled(_, _, _, region, _, _):
-                    return region
-                case .disabled:
-                    return nil
-                }
-            }
-
-            public var runLanguage: String? {
-                switch self {
-                case let .enabled(_, _, _, _, language, _):
-                    return language
-                case .disabled:
-                    return nil
-                }
-            }
-
-            public var runRegion: String? {
-                switch self {
-                case let .enabled(_, _, _, _, _, region):
+                case let .enabled(_, _, _, region):
                     return region
                 case .disabled:
                     return nil
