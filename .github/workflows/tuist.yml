@@ -166,12 +166,14 @@ jobs:
             ${{ runner.os }}-
       - name: Install cloud dependencies
         working-directory: projects/cloud
+        if: ${{ matrix.feature == 'cloud' }}
         run: |
           gem install bundler
           bundle config path vendor/bundle
           bundle install --jobs=4 --retry=3
           npm install
       - name: Start PostgreSQL for cloud
+        if: ${{ matrix.feature == 'cloud' }}
         run: |
           brew services start postgresql
           echo "Check PostgreSQL service is running"
@@ -190,6 +192,7 @@ jobs:
           done
       - name: Seed database
         working-directory: projects/cloud
+        if: ${{ matrix.feature == 'cloud' }}
         run: |
           bin/rails db:create
           bin/rails db:migrate
