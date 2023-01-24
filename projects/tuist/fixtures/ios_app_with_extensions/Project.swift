@@ -14,6 +14,7 @@ let project = Project(
                 .target(name: "StickersPackExtension"),
                 .target(name: "NotificationServiceExtension"),
                 .target(name: "WidgetExtension"),
+                .target(name: "AppIntentExtension"),
             ]
         ),
         // We need a separate app to test out Message Extensions
@@ -105,6 +106,14 @@ let project = Project(
             bundleId: "io.tuist.App.StaticFramework",
             infoPlist: .default,
             sources: "StaticFramework/Sources/**"
+        ),
+        Target(
+            name: "AppIntentExtension",
+            platform: .iOS,
+            product: .extensionKitExtension,
+            bundleId: "io.tuist.App.AppIntentExtension",
+            infoPlist: .default,
+            sources: "AppIntentExtension/Sources/**"
         ),
     ]
 )
