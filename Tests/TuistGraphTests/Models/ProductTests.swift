@@ -101,6 +101,7 @@ final class ProductTests: XCTestCase {
             .stickerPackExtension,
             .tvTopShelfExtension,
             .watch2Extension,
+            .extensionKitExtension,
         ]
         Product.allCases.forEach { product in
             if runnables.contains(product) {
