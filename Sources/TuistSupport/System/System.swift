@@ -108,8 +108,11 @@ public final class System: Systeming {
             arguments: arguments,
             environment: environment,
             outputRedirection: .collect,
-            verbose: verbose,
-            startNewProcessGroup: false
+            startNewProcessGroup: false,
+            loggingHandler: verbose ? { message in
+                stdoutStream <<< message <<< "\n"
+                stdoutStream.flush()
+            } : nil
         )
 
         logger.debug("\(escaped(arguments: arguments))")
@@ -155,7 +158,6 @@ public final class System: Systeming {
             arguments: arguments,
             environment: env,
             outputRedirection: .none,
-            verbose: false,
             startNewProcessGroup: true
         )
 
@@ -274,8 +276,11 @@ public final class System: Systeming {
                 FileHandle.standardError.write(Data(bytes))
                 redirection.outputClosures?.stderrClosure(bytes)
             }),
-            verbose: verbose,
-            startNewProcessGroup: false
+            startNewProcessGroup: false,
+            loggingHandler: verbose ? { message in
+                stdoutStream <<< message <<< "\n"
+                stdoutStream.flush()
+            } : nil
         )
 
         logger.debug("\(escaped(arguments: arguments))")
@@ -310,8 +315,11 @@ public final class System: Systeming {
                         subscriber.send(.standardError(Data(bytes)))
                     }
                 }),
-                verbose: verbose,
-                startNewProcessGroup: false
+                startNewProcessGroup: false,
+                loggingHandler: verbose ? { message in
+                    stdoutStream <<< message <<< "\n"
+                    stdoutStream.flush()
+                } : nil
             )
             DispatchQueue.global().async {
                 do {

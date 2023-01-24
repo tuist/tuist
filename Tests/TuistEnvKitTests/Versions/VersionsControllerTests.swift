@@ -9,7 +9,7 @@ import XCTest
 final class InstalledVersionTests: XCTestCase {
     func test_description() {
         XCTAssertEqual(InstalledVersion.reference("ref").description, "ref")
-        XCTAssertEqual(InstalledVersion.semver(Version(string: "3.2.1")!).description, "3.2.1")
+        XCTAssertEqual(InstalledVersion.semver(Version("3.2.1")).description, "3.2.1")
     }
 }
 
