@@ -27,7 +27,7 @@ organization_ids = []
 end
 
 10.times do |index|
-  email = Faker::Internet.email
+  email = Faker::Internet.email.tr("_", "-")
   password = Faker::Internet.password(min_length: 6, max_length: 8)
   user = User.create!(
     email: email,
