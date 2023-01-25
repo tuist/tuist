@@ -114,8 +114,8 @@ let project = Project(
             bundleId: "io.tuist.App.AppIntentExtension",
             infoPlist: .extendingDefault(with: [
                 "EXAppExtensionAttributes": [
-                    "EXExtensionPointIdentifier": "com.apple.appintents-extension"
-                ]
+                    "EXExtensionPointIdentifier": "com.apple.appintents-extension",
+                ],
             ]),
             sources: "AppIntentExtension/Sources/**"
         ),
