@@ -189,6 +189,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
 
     /// Returns the default Info.plist content for a watchOS App
     ///
+    /// - Parameter name: Bundle display name
     /// - Parameter hostAppBundleId: The host application's bundle identifier
     private func watchosApp(name: String, hostAppBundleId: String?) -> [String: Any] {
         var infoPlist: [String: Any] = [
@@ -207,6 +208,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
 
     /// Returns the default Info.plist content for a watchOS App Extension
     ///
+    /// - Parameter name: Bundle display name
     /// - Parameter hostAppBundleId: The host application's bundle identifier
     private func watchosAppExtension(name: String, hostAppBundleId: String?) -> [String: Any] {
         let extensionAttributes: [String: Any] = hostAppBundleId.map { ["WKAppBundleIdentifier": $0] } ?? [:]

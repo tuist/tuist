@@ -27,7 +27,13 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
         for script in targetScripts {
             var pathsToHash: [AbsolutePath] = []
             script.path.map { pathsToHash.append($0) }
-            (script.inputPaths + script.inputFileListPaths).forEach { path in
+
+            var dynamicPaths = script.inputPaths + script.inputFileListPaths
+            if let dependencyFile = script.dependencyFile {
+                dynamicPaths += [dependencyFile]
+            }
+
+            dynamicPaths.forEach { path in
                 if path.pathString.contains("$") {
                     stringsToHash.append(path.relative(to: sourceRootPath).pathString)
                     logger.notice(
@@ -41,6 +47,7 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
             stringsToHash.append(
                 contentsOf: (script.outputPaths + script.outputFileListPaths).map { $0.relative(to: sourceRootPath).pathString }
             )
+
             stringsToHash.append(contentsOf: [
                 script.name,
                 script.tool ?? "",

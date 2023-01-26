@@ -19,7 +19,7 @@ public struct SourceFileGlob: Equatable {
     ///   - glob: Glob pattern to unfold all the source files.
     ///   - excluding: Glob pattern used for filtering out files.
     ///   - compilerFlags: Compiler flags.
-    ///   - codegen: Source file code generation attribute
+    ///   - codeGen: Source file code generation attribute
     public init(
         glob: String,
         excluding: [String] = [],

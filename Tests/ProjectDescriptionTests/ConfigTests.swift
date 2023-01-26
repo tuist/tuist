@@ -5,7 +5,7 @@ import XCTest
 final class ConfigTests: XCTestCase {
     func test_config_toJSON() throws {
         let config = Config(
-            cloud: Cloud(url: "https://cloud.tuist.io", projectId: "123", options: [.analytics]),
+            cloud: Cloud(url: "https://cloud.tuist.io", projectId: "123", options: []),
             generationOptions: .options(
                 resolveDependenciesWithSystemScm: false,
                 disablePackageVersionLocking: true

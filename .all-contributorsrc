@@ -359,7 +359,8 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/5960675?v=4",
       "profile": "http://twitter.com/tovkal",
       "contributions": [
-        "doc"
+        "doc",
+        "code"
       ]
     },
     {
@@ -954,6 +955,24 @@
       "name": "euriasb",
       "avatar_url": "https://avatars.githubusercontent.com/u/3721257?v=4",
       "profile": "https://github.com/euriasb",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "MontakOleg",
+      "name": "MontakOleg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1800899?v=4",
+      "profile": "https://github.com/MontakOleg",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "waltflanagan",
+      "name": "Mike Simons",
+      "avatar_url": "https://avatars.githubusercontent.com/u/398293?v=4",
+      "profile": "https://github.com/waltflanagan",
       "contributions": [
         "code"
       ]

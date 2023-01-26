@@ -162,7 +162,7 @@ public class GraphLinter: GraphLinting {
 
     /// It verifies setup for packages
     ///
-    /// - Parameter graph: Project graph.
+    /// - Parameter graphTraverser: Project graph.
     /// - Returns: Linting issues.
     private func lintPackageDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
         guard graphTraverser.hasPackages else { return [] }

@@ -240,7 +240,7 @@ In pre-Tuist era, there were many factor that influenced that decision:
 
 - Whether the target includes resources or not.
 - Whether the target depends on static targets that might lead to duplicated symbols issues upstream.
-- The number of dynamic targets that need to be linked at startup time and therfore might increase the time to launch the app.
+- The number of dynamic targets that need to be linked at startup time and therefore might increase the time to launch the app.
 
 Thanks to Tuist,
 the decision process has been notably simplified.

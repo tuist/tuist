@@ -8,7 +8,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     //       in order to compile the documentation archive (including Tutorials, Articles, etc.)
     public static let validSourceExtensions: [String] = [
         "m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel", "docc",
-        "playground",
+        "playground", "rcproject",
     ]
     public static let validFolderExtensions: [String] = [
         "framework", "bundle", "app", "xcassets", "appiconset", "scnassets",
@@ -266,7 +266,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     }
 
     /// Returns a new copy of the target with the given additional settings
-    /// - Parameter settingsDictionary: settings to be added.
+    /// - Parameter additionalSettings: settings to be added.
     public func with(additionalSettings: SettingsDictionary) -> Target {
         var copy = self
         if let oldSettings = copy.settings {

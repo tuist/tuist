@@ -99,7 +99,7 @@ final class SettingsTests: XCTestCase {
             .bitcodeEnabled(true)
             .debugInformationFormat(.dwarf)
             .swiftActiveCompilationConditions("FIRST", "SECOND", "THIRD")
-            .swiftObjcBridingHeaderPath("/my/briding/header/path.h")
+            .swiftObjcBridgingHeaderPath("/my/bridging/header/path.h")
             .otherCFlags(["$(inherited)", "-my-c-flag"])
             .otherLinkerFlags(["$(inherited)", "-my-linker-flag"])
 
@@ -119,7 +119,7 @@ final class SettingsTests: XCTestCase {
             "ENABLE_BITCODE": "YES",
             "DEBUG_INFORMATION_FORMAT": "dwarf",
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "FIRST SECOND THIRD",
-            "SWIFT_OBJC_BRIDGING_HEADER": "/my/briding/header/path.h",
+            "SWIFT_OBJC_BRIDGING_HEADER": "/my/bridging/header/path.h",
             "OTHER_CFLAGS": ["$(inherited)", "-my-c-flag"],
             "OTHER_LDFLAGS": ["$(inherited)", "-my-linker-flag"],
         ])
@@ -198,14 +198,14 @@ final class SettingsTests: XCTestCase {
         ])
     }
 
-    func test_settingsDictionary_swiftObjcBridingHeaderPath() {
+    func test_settingsDictionary_swiftObjcBridgingHeaderPath() {
         /// Given/When
         let settings = SettingsDictionary()
-            .swiftObjcBridingHeaderPath("/my/briding/header/path.h")
+            .swiftObjcBridgingHeaderPath("/my/bridging/header/path.h")
 
         /// Then
         XCTAssertEqual(settings, [
-            "SWIFT_OBJC_BRIDGING_HEADER": "/my/briding/header/path.h",
+            "SWIFT_OBJC_BRIDGING_HEADER": "/my/bridging/header/path.h",
         ])
     }
 

@@ -56,6 +56,20 @@ Then(/^the target (.+) should have the build phase (.+)$/) do |target_name, phas
   assert_equal phase_name, build_phase.name
 end
 
+Then(/^in project (.+) the target (.+) should have the build phase (.+) with a dependency file named (.+)$/)  do |project_name, target_name, phase_name, dependency_file_name|
+  workspace = Xcodeproj::Workspace.new_from_xcworkspace(@workspace_path)
+  project_file_reference = workspace.file_references.detect { |f| File.basename(f.path, ".xcodeproj") == project_name }
+  project = Xcodeproj::Project.open(File.join(@dir, project_file_reference.path))
+  targets = project.targets
+  target = targets.detect { |t| t.name == target_name }
+  flunk("Target #{target_name} not found in the project") if target.nil?
+  build_phase = target.build_phases.detect { |b| b.display_name == phase_name }
+  flunk("The target #{target_name} doesn't have build phases") if build_phase.nil?
+  dependency_file = build_phase.dependency_file
+  flunk("The build phase  #{phase_name} doesn't have a dependency file") if dependency_file.nil?
+  assert_equal dependency_file_name, dependency_file 
+end
+
 Then(/^the target (.+) should have the build phase (.+) in the first position$/) do |target_name, phase_name|
   project = Xcodeproj::Project.open(@xcodeproj_path)
   targets = project.targets

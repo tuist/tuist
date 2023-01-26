@@ -64,6 +64,7 @@ public struct Xcode {
     ///
     /// - Parameters:
     ///     - path: Path to the Xcode app bundle.
+    ///     - infoPlist: Info plist content.
     public init(
         path: AbsolutePath,
         infoPlist: InfoPlist

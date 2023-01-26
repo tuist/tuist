@@ -18,6 +18,7 @@ export class NewProjectPageStore {
   selectedProjectOwner: Account['id'] | null | undefined;
   isCreatingOrganization: boolean = false;
   organizationName: string = '';
+  formErrors: string[] = [];
 
   private myAccounts: Account[] = [];
 
@@ -68,17 +69,23 @@ export class NewProjectPageStore {
     const { data } = await this.client.query<MyAccountsQuery>({
       query: MyAccountsDocument,
     });
-    this.myAccounts = (data?.accounts ?? []).map(({ id, name }) => ({
-      id,
-      name,
-    }));
+    runInAction(() => {
+      this.myAccounts = (data?.accounts ?? []).map(
+        ({ id, name }) => ({
+          id,
+          name,
+        }),
+      );
+    });
 
     // Set default project owner as the first entry from the `myAccounts` array
     if (
       this.selectedProjectOwner === undefined &&
       !this.isCreatingOrganization
     ) {
-      this.selectedProjectOwner = this.myAccounts[0]?.id;
+      runInAction(() => {
+        this.selectedProjectOwner = this.myAccounts[0]?.id;
+      });
     }
   }
 
@@ -101,23 +108,36 @@ export class NewProjectPageStore {
   }
 
   async createNewProject(onCompleted: (projectSlug: string) => void) {
-    const { data } = await this.client.mutate<CreateProjectMutation>({
-      mutation: CreateProjectDocument,
-      variables: {
-        input: {
-          accountId: this.isCreatingOrganization
-            ? null
-            : this.selectedProjectOwner!,
-          name: this.newProjectName,
-          organizationName: this.isCreatingOrganization
-            ? this.organizationName
-            : null,
-        },
-      },
-    });
-
-    if (data) {
-      onCompleted(data?.createProject.slug);
+    this.formErrors = [];
+    try {
+      const { data } =
+        await this.client.mutate<CreateProjectMutation>({
+          mutation: CreateProjectDocument,
+          variables: {
+            input: {
+              accountId: this.isCreatingOrganization
+                ? null
+                : this.selectedProjectOwner!,
+              name: this.newProjectName,
+              organizationName: this.isCreatingOrganization
+                ? this.organizationName
+                : null,
+            },
+          },
+        });
+      if (data && data.createProject.errors.length !== 0) {
+        runInAction(() => {
+          this.formErrors = data.createProject.errors.map(
+            (error) => error.message,
+          );
+        });
+      } else if (data?.createProject.project) {
+        onCompleted(data?.createProject.project.slug);
+      }
+    } catch {
+      runInAction(() => {
+        this.formErrors = ['This project could not be created'];
+      });
     }
   }
 

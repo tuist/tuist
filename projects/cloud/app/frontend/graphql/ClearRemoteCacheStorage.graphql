@@ -1,0 +1,11 @@
+mutation ClearRemoteCacheStorage($input: ClearRemoteCacheStorageInput!) {
+  clearRemoteCacheStorage(input: $input) {
+    bucket {
+      id
+    }
+    errors {
+      message
+      path
+    }
+  }
+}

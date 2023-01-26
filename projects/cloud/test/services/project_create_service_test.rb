@@ -6,6 +6,7 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
   setup do
     client = Aws::S3::Client.new(stub_responses: true)
     Aws::S3::Client.stubs(:new).returns(client)
+    SecureRandom.stubs(:uuid).returns("this-is-a-unique-identifier")
   end
 
   test "creates a project with a given account_id" do
@@ -20,8 +21,24 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
     # Then
     assert_equal project_name, got.name
     assert_equal account, got.account
-    assert_equal "#{account.name}-#{project_name}", got.remote_cache_storage.name
+    assert_equal "this-is-a-uniq-#{account.name}-#{project_name}", got.remote_cache_storage.name
     assert_equal true, got.remote_cache_storage.is_default
+  end
+
+  test "returns an error if a project with same slug already exists" do
+    # Given
+    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    account = user.account
+    project_name = "tuist"
+    Project.create!(name: project_name, account_id: account.id, token: Devise.friendly_token.first(8))
+
+    # When
+    got = assert_raises(ProjectCreateService::Error::ProjectAlreadyExists) do
+      ProjectCreateService.call(creator: user, name: project_name, account_id: account.id)
+    end
+
+    # Then
+    assert_equal "Project test/tuist already exists", got.message
   end
 
   test "creates a project and a new organization" do

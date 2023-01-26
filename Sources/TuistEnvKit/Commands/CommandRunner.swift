@@ -102,7 +102,7 @@ class CommandRunner: CommandRunning {
     }
 
     func runVersion(_ version: String) throws {
-        guard Version(string: version) != nil else {
+        guard Version(version) != nil else {
             logger.error("\(version) is not a valid version")
             exiter(1)
             return

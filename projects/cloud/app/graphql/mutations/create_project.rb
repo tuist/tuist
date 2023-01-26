@@ -6,10 +6,26 @@ module Mutations
     argument :account_id, ID, required: false
     argument :organization_name, String, required: false
 
-    type Types::ProjectType
+    type Types::CreateProjectType
 
     def resolve(attributes)
-      ProjectCreateService.call(creator: context[:current_user], **attributes)
+      begin
+        project = ProjectCreateService.call(creator: context[:current_user], **attributes)
+        {
+          project: project,
+          errors: [],
+        }
+      rescue CloudError => error
+        {
+          project: nil,
+          errors: [
+            {
+              message: error.message,
+              path: [**attributes],
+            },
+          ],
+        }
+      end
     end
   end
 end

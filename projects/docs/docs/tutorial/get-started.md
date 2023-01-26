@@ -108,14 +108,6 @@ tuist generate
 We'll get a `MyApp.xcodeproj`and `MyApp.xcworkspace` files. As we'll see in the dependencies section, the workspace is necessary to add other projects `MyApp` project is depending on.  
 If you open `MyApp.xcworkspace` and try to run the `MyApp` scheme, it should build the app and run it on the simulator 📱 successfully 🎉.
 
-By default all projects that `MyApp` depends on will also be generated, this ensures the generated workspace is complete. Sometimes we may want to only re-generate individual projects in our workspace without re-generating all their dependencies too. Tuist supports this workflow via including the `--project-only` flag:
-
-```bash
-tuist generate --project-only
-```
-
-This will generate an Xcode project for the local project only.
-
 ### Add a badge to your project's README
 
 [![Tuist badge](https://img.shields.io/badge/Powered%20by-Tuist-blue)](https://tuist.io)

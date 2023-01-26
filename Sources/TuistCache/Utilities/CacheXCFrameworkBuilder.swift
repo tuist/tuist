@@ -62,7 +62,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
             let productNames = deviceArchivePath
                 .appending(RelativePath("Products/Library/Frameworks/"))
-                .glob("*")
+                .glob("*.framework")
                 .map(\.basenameWithoutExt)
 
             // Build the xcframework

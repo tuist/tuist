@@ -61,6 +61,7 @@ let package = Package(
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", exact: "2.9.0"),
         .package(url: "https://github.com/FabrizioBrancati/Queuer.git", from: "2.1.1"),
         .package(url: "https://github.com/CombineCommunity/CombineExt.git", from: "1.8.0"),
+        .package(url: "https://github.com/apollographql/apollo-ios.git", from: "1.0.0"),
     ],
     targets: [
         .target(
@@ -319,6 +320,12 @@ let package = Package(
             ]
         ),
         .target(
+            name: "TuistCloudSchema",
+            dependencies: [
+                .product(name: "Apollo", package: "apollo-ios"),
+            ]
+        ),
+        .target(
             name: "TuistCloud",
             dependencies: [
                 "XcodeProj",
@@ -326,6 +333,8 @@ let package = Package(
                 "TuistCore",
                 "TuistGraph",
                 "TuistSupport",
+                "TuistCloudSchema",
+                .product(name: "Apollo", package: "apollo-ios"),
             ]
         ),
         .testTarget(

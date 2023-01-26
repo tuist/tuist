@@ -35,10 +35,17 @@ fly launch
 fly deploy
 
 # Set a RAILS_MASTER_KEY secret (contents of your master.key file)
-fly secrects set RAILS_MASTER_KEY=$(cat config/master.key)
+fly secrets set RAILS_MASTER_KEY=$(cat config/master.key)
 ```
 
 And that's it! That being said, you might need to upgrade the memory on the provided CPU by:
 ```bash
 fly scale vm shared-cpu-1x --memory 512
 ```
+
+## S3
+
+You can also own only the remote cache storage – you can head to your project on Tuist Cloud and select the `Create new bucket` option:
+![Remote cache new bucket option](./assets/remote-cache-new-bucket.png)
+
+You then need to fill in the fields, including the [access key](https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html). The access key needs write and read permissions for the bucket you plan to use with Tuist Cloud.
