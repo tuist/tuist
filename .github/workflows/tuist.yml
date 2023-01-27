@@ -192,7 +192,7 @@ jobs:
           done
       - name: Seed database
         working-directory: projects/cloud
-        if: ${{ (matrix.feature != 'cloud') || (github.event.pull_request.head.repo.full_name == github.repository) }}
+        if: ${{ (matrix.feature == 'cloud') && (github.event.pull_request.head.repo.full_name == github.repository) }}
         run: |
           bin/rails db:create
           bin/rails db:migrate
