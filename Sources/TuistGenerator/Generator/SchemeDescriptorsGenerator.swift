@@ -549,6 +549,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             commandlineArguments: commandlineArguments,
             environmentVariables: environments,
             language: scheme.runAction?.options.language,
+            region: scheme.runAction?.options.region,
             launchAutomaticallySubstyle: launchActionConstants.launchAutomaticallySubstyle,
             storeKitConfigurationFileReference: storeKitConfigurationFileReference
         )

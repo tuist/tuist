@@ -5,6 +5,9 @@ public struct RunActionOptions: Equatable, Codable {
     /// Language to use when running the app.
     public let language: SchemeLanguage?
 
+    /// Region to use when running the app.
+    public let region: String?
+
     /// The path of the
     /// [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
     public let storeKitConfigurationPath: Path?
@@ -33,11 +36,13 @@ public struct RunActionOptions: Equatable, Codable {
     ///     You can disable it to test your app in best perfomance.
     init(
         language: SchemeLanguage? = nil,
+        region: String? = nil,
         storeKitConfigurationPath: Path? = nil,
         simulatedLocation: SimulatedLocation? = nil,
         enableGPUFrameCaptureMode: GPUFrameCaptureMode = GPUFrameCaptureMode.default
     ) {
         self.language = language
+        self.region = region
         self.storeKitConfigurationPath = storeKitConfigurationPath
         self.simulatedLocation = simulatedLocation
         self.enableGPUFrameCaptureMode = enableGPUFrameCaptureMode

@@ -47,6 +47,7 @@ extension TuistGraph.RunActionOptions {
 
         return TuistGraph.RunActionOptions(
             language: language,
+            region: manifest.region,
             storeKitConfigurationPath: storeKitConfigurationPath,
             simulatedLocation: simulatedLocation,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode
