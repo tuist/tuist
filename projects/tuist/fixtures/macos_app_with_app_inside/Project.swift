@@ -11,7 +11,7 @@ let project = Project(
             infoPlist: "MainApp/Info.plist",
             sources: ["MainApp/Sources/**"],
             dependencies: [
-                .target(name: "InnerApp")
+                .target(name: "InnerApp"),
             ]
         ),
         Target(
@@ -21,6 +21,6 @@ let project = Project(
             bundleId: "io.tuist.InnerApp",
             infoPlist: "InnerApp/Info.plist",
             sources: ["InnerApp/Sources/**"]
-        )
+        ),
     ]
 )
