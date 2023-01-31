@@ -12,6 +12,7 @@ let project = Project(
             sources: ["MainApp/Sources/**"],
             dependencies: [
                 .target(name: "InnerApp"),
+                .target(name: "InnerCLI"),
             ]
         ),
         Target(
@@ -21,6 +22,13 @@ let project = Project(
             bundleId: "io.tuist.InnerApp",
             infoPlist: "InnerApp/Info.plist",
             sources: ["InnerApp/Sources/**"]
+        ),
+        Target(
+            name: "InnerCLI",
+            platform: .macOS,
+            product: .commandLineTool,
+            bundleId: "io.tuist.InnerCLI",
+            sources: ["InnerCLI/Sources/**"]
         ),
     ]
 )
