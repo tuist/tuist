@@ -17,6 +17,8 @@ public struct PluginLocation: Codable, Equatable {
 
     /// A `URL` to a `git` repository pointing at a `tag`.
     /// You can also specify a custom directory in case the plugin is not located at the root of the repository.
+    /// You can also specify a custom release URL from where the plugin binary should be downloaded. If not specified,
+    /// it defaults to the GitHub release URL. Note that the URL should be publicly reachable.
     ///
     /// Example:
     /// ```
@@ -33,8 +35,8 @@ public struct PluginLocation: Codable, Equatable {
     /// ```
     /// .git(url: "https://git/plugin.git", sha: "d06b4b3d")
     /// ```
-    public static func git(url: String, sha: String, directory: String? = nil, releaseUrl: String? = nil) -> Self {
-        PluginLocation(type: .gitWithSha(url: url, sha: sha, directory: directory, releaseUrl: releaseUrl))
+    public static func git(url: String, sha: String, directory: String? = nil) -> Self {
+        PluginLocation(type: .gitWithSha(url: url, sha: sha, directory: directory))
     }
 }
 
@@ -44,6 +46,6 @@ extension PluginLocation {
     public enum LocationType: Codable, Equatable {
         case local(path: Path)
         case gitWithTag(url: String, tag: String, directory: String?, releaseUrl: String?)
-        case gitWithSha(url: String, sha: String, directory: String?, releaseUrl: String?)
+        case gitWithSha(url: String, sha: String, directory: String?)
     }
 }
