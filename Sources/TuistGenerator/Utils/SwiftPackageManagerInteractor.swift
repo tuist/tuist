@@ -13,7 +13,7 @@ import TuistSupport
 public protocol SwiftPackageManagerInteracting {
     /// Installs Swift Package dependencies for a given graph and workspace
     ///
-    /// - The instllation process involves performing a Swift package dependency
+    /// - The installation process involves performing a Swift package dependency
     /// resolution to generated the `Package.resolved` file (via `xcodebuild`).
     /// - This file is then symlinked to the root path of the workspace.
     ///
@@ -21,7 +21,7 @@ public protocol SwiftPackageManagerInteracting {
     ///         and workspaces to disk.
     ///
     /// - Parameters:
-    ///   - graph: The graph traverser.
+    ///   - graphTraverser: The graph traverser.
     ///   - workspaceName: The name GraphTraversing the generated workspace (e.g. `MyWorkspace.xcworkspace`)
     func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config) async throws
 }

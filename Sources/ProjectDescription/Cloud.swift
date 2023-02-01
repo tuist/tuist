@@ -4,13 +4,23 @@ import Foundation
 public struct Cloud: Codable, Equatable {
     /// Options for cloud configuration.
     public enum Option: String, Codable, Equatable {
+        /// Enables sending analytics to cloud dashboard.
+        @available(
+            *,
+            deprecated,
+            message: "Analytics are sent to the cloud backend by default. Use `disableAnalytics` to disable this feature."
+        )
         case analytics
+
+        /// Disables sending analytics to cloud dashboard.
+        case disableAnalytics
+
         /// Marks whether cloud connection is optional.
         /// If not present, tuist commands will fail regardless of whether an authentication token is available locally from `tuist cloud auth` or not.
         case optional
     }
 
-    /// The base URL that points to the Cloud server
+    /// The base URL that points to the Cloud server.
     public let url: String
 
     /// The project unique identifier.

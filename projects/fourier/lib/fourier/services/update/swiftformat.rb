@@ -24,7 +24,8 @@ module Fourier
               sources_zip_path = download(temporary_dir: temporary_dir)
               sources_path = extract(sources_zip_path)
               build(sources_path, into: temporary_output_directory, swift_build_directory: swift_build_directory)
-              FileUtils.copy_entry(File.join(sources_path, "LICENSE.md"),
+              FileUtils.copy_entry(
+                File.join(sources_path, "LICENSE.md"),
                 File.join(temporary_output_directory, "LICENSE.md"))
               FileUtils.copy_entry(temporary_output_directory, OUTPUT_DIRECTORY, false, false, true)
               puts(::CLI::UI.fmt("{{success:swiftformat built and vendored successfully.}}"))

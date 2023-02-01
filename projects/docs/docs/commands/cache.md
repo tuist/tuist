@@ -4,13 +4,13 @@ slug: '/commands/cache'
 description: "Learn how to use Tuist's cache command to generate binary artifacts for your targets."
 ---
 
-Target caching is one of Tuist's distictive features.
+Target caching is one of Tuist's distinctive features.
 Caching creates binary artifacts of your targets, which can later be used in your project if your generation is focused on other targets.
 For more details on the caching workflow, please refer to the [caching]](building-at-scale/caching.md) documentation.
 
 ### Warm
 
-To generate the cache for all the target of your project, youn can simply run:
+To generate the cache for all the target of your project, you can simply run:
 
 ```bash
 tuist cache warm

@@ -5,7 +5,7 @@ import TuistSupport
 
 /// Protocol that defines the interface of a linter for target scripts.
 protocol TargetScriptLinting {
-    /// Lints a target aciton.
+    /// Lints a target action.
     ///
     /// - Parameter action: Action to be linted.
     /// - Returns: Found linting issues.
@@ -31,7 +31,7 @@ class TargetScriptLinter: TargetScriptLinting {
         ]
     }
 
-    /// Lints a target aciton.
+    /// Lints a target action.
     ///
     /// - Parameter action: Action to be linted.
     /// - Returns: Found linting issues.

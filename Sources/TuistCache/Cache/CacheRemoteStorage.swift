@@ -70,7 +70,7 @@ public final class CacheRemoteStorage: CacheStoring {
             let (_, response) = try await cloudClient.request(resource)
             let exists = successRange.contains(response.statusCode)
             if exists {
-                CacheAnalytics.remoteCacheTargetsHits.insert(name)
+                CacheAnalytics.addRemoteCacheTargetHit(name)
             }
             return exists
         } catch {

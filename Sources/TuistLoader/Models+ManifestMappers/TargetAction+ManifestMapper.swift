@@ -23,6 +23,14 @@ extension TuistGraph.TargetScript {
         let runForInstallBuildsOnly = manifest.runForInstallBuildsOnly
         let shellPath = manifest.shellPath
 
+        let dependencyFile: AbsolutePath?
+
+        if let manifestDependencyFile = manifest.dependencyFile {
+            dependencyFile = try absolutePaths(for: [manifestDependencyFile], generatorPaths: generatorPaths).first
+        } else {
+            dependencyFile = nil
+        }
+
         let script: TuistGraph.TargetScript.Script
         switch manifest.script {
         case let .embedded(text):
@@ -46,7 +54,8 @@ extension TuistGraph.TargetScript {
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
-            shellPath: shellPath
+            shellPath: shellPath,
+            dependencyFile: dependencyFile
         )
     }
 

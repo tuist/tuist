@@ -99,7 +99,7 @@ extension InitCommand {
     /// We do not know template's option in advance -> we need to dynamically add them
     static func preprocess(_ arguments: [String]? = nil) throws {
         guard let arguments = arguments,
-              arguments.contains("--template"),
+              arguments.contains("--template") ||
               arguments.contains("-t")
         else { return }
 
@@ -167,7 +167,7 @@ extension InitCommand {
             case "platform":
                 self = .platform
             case "name":
-                self = .template
+                self = .name
             case "template":
                 self = .template
             case "path":
