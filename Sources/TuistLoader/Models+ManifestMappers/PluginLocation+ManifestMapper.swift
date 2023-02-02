@@ -11,10 +11,10 @@ extension TuistGraph.PluginLocation {
         switch manifest.type {
         case let .local(path):
             return .local(path: try generatorPaths.resolve(path: path).pathString)
-        case let .gitWithTag(url, tag, directory):
-            return .git(url: url, gitReference: .tag(tag), directory: directory)
+        case let .gitWithTag(url, tag, directory, releaseUrl):
+            return .git(url: url, gitReference: .tag(tag), directory: directory, releaseUrl: releaseUrl)
         case let .gitWithSha(url, sha, directory):
-            return .git(url: url, gitReference: .sha(sha), directory: directory)
+            return .git(url: url, gitReference: .sha(sha), directory: directory, releaseUrl: nil)
         }
     }
 }
