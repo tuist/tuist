@@ -195,6 +195,9 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         case (.app, .extensionKitExtension):
             // ExtensionKit extensions can safely link the same static products as apps
             // as they are an independent product
+        case (.app, .app):
+            // macOS application target can embed other helper applications, those helper applications
+            // can safely link the same static products as they are independent products
             return false
         default:
             return true

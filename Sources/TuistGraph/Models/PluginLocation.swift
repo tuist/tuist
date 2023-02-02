@@ -22,7 +22,7 @@ public enum PluginLocation: Hashable, Equatable {
     /// .git(url: "https://git/helpers.git", gitReference: .tag("1.0.0"))
     /// .git(url: "https://git/helpers.git", gitReference: .sha("1.0.0"))
     /// ```
-    case git(url: String, gitReference: GitReference, directory: String?)
+    case git(url: String, gitReference: GitReference, directory: String?, releaseUrl: String?)
 }
 
 // MARK: - description
@@ -32,10 +32,10 @@ extension PluginLocation: CustomStringConvertible {
         switch self {
         case let .local(path):
             return "local path: \(path)"
-        case let .git(url, .tag(tag), directory):
-            return "git url: \(url), tag: \(tag), directory: \(directory ?? "nil")"
-        case let .git(url, .sha(sha), directory):
-            return "git url: \(url), sha: \(sha), directory: \(directory ?? "nil")"
+        case let .git(url, .tag(tag), directory, releaseUrl):
+            return "git url: \(url), tag: \(tag), directory: \(directory ?? "nil"), releaseUrl: \(releaseUrl ?? "nil")"
+        case let .git(url, .sha(sha), directory, releaseUrl):
+            return "git url: \(url), sha: \(sha), directory: \(directory ?? "nil"), releaseUrl: \(releaseUrl ?? "nil")"
         }
     }
 }
