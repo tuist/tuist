@@ -31,7 +31,7 @@ let project = Project(
             platform: .macOS,
             product: .commandLineTool,
             bundleId: "io.tuist.InnerCLI",
-            sources: ["InnerCLI/Sources/**"]
+            sources: ["InnerCLI/**"]
         ),
     ]
 )
