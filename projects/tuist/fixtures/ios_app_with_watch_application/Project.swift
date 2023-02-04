@@ -17,7 +17,7 @@ let project = Project(
             ],
             dependencies: [
                 .target(name: "WatchApp"),
-                .target(name: "Framework_a_ios")
+                .target(name: "Framework_a_ios"),
             ]
         ),
         Target(
@@ -46,7 +46,7 @@ let project = Project(
             resources: "WatchApp/Resources/**",
             dependencies: [
                 .target(name: "WatchWidgetExtension"),
-                .target(name: "Framework_a_watchos")
+                .target(name: "Framework_a_watchos"),
             ],
             settings: .settings(
                 base: [
@@ -76,7 +76,7 @@ let project = Project(
             sources: "WatchWidgetExtension/Sources/**",
             resources: "WatchWidgetExtension/Resources/**",
             dependencies: [
-                .target(name: "Framework_a_watchos")
+                .target(name: "Framework_a_watchos"),
             ]
         ),
         Target(
