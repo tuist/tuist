@@ -17,7 +17,22 @@ let project = Project(
             ],
             dependencies: [
                 .target(name: "WatchApp"),
+                .target(name: "Framework_a_ios"),
             ]
+        ),
+        Target(
+            name: "Framework_a_ios",
+            platform: .iOS,
+            product: .framework,
+            productName: "FrameworkA",
+            bundleId: "io.tuist.framework.a"
+        ),
+        Target(
+            name: "Framework_a_watchos",
+            platform: .watchOS,
+            product: .framework,
+            productName: "FrameworkA",
+            bundleId: "io.tuist.framework.a"
         ),
         // In Xcode 14, watch application can now leverage the `.app` product type
         // rather than the previous `.watch2App` type
@@ -31,6 +46,7 @@ let project = Project(
             resources: "WatchApp/Resources/**",
             dependencies: [
                 .target(name: "WatchWidgetExtension"),
+                .target(name: "Framework_a_watchos"),
             ],
             settings: .settings(
                 base: [
@@ -60,6 +76,7 @@ let project = Project(
             sources: "WatchWidgetExtension/Sources/**",
             resources: "WatchWidgetExtension/Resources/**",
             dependencies: [
+                .target(name: "Framework_a_watchos"),
             ]
         ),
         Target(
