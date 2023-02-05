@@ -124,9 +124,7 @@ module Xcode
         .sort { |l, r| l.runtime.version <=> r.runtime.version }
         .last
 
-      if device.nil?
-        flunk("Couldn't find an available destination simulator for platform #{platform}")
-      end
+      flunk("Couldn't find an available destination simulator for platform #{platform}") if device.nil?
 
       "platform=#{platform} Simulator,id=#{device.udid}"
     end
