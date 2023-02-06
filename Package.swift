@@ -11,7 +11,7 @@ let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
 
 let package = Package(
     name: "tuist",
-    platforms: [.macOS(.v11)],
+    platforms: [.macOS(.v12)],
     products: [
         .executable(name: "tuist", targets: ["tuist"]),
         .executable(name: "tuistenv", targets: ["tuistenv"]),
@@ -312,6 +312,7 @@ let package = Package(
             name: "TuistCacheTesting",
             dependencies: [
                 "TuistCache",
+                "TuistCloud",
                 swiftToolsSupportDependency,
                 "TuistCore",
                 "TuistSupportTesting",
