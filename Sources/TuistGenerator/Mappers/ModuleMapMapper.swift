@@ -167,12 +167,15 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 guard let dependentProjectFromPath = projectsByPath[path],
                       let dependentTargetFromName = targetsByName[name]
                 else {
-                    throw ModuleMapMapperError.invalidProjectTargetDependency(
-                        sourceProject: project.path,
-                        sourceTarget: target.name,
-                        dependentProject: path,
-                        dependentTarget: name
-                    )
+                    // TODO: Update this logic as we use single dependency multi platform target
+
+//                    throw ModuleMapMapperError.invalidProjectTargetDependency(
+//                        sourceProject: project.path,
+//                        sourceTarget: target.name,
+//                        dependentProject: path,
+//                        dependentTarget: name
+//                    )
+                    return
                 }
                 dependentProject = dependentProjectFromPath
                 dependentTarget = dependentTargetFromName

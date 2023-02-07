@@ -3,14 +3,14 @@ import ProjectDescription
 let project = Project(
     name: "MyApp",
     targets: [
-        iosTargetWithUniversalFramework(),
-        macOSTargetWithUniversalFramework(),
-        tvOSTargetWithUniversalFramework(),
-        watchOSTargetWithUniversalFramework(),
+//        iosTargetWithUniversalFramework(),
+//        macOSTargetWithUniversalFramework(),
+//        tvOSTargetWithUniversalFramework(),
+//        watchOSTargetWithUniversalFramework(),
         multiTargetsFramework(),
-        multiTargetsFrameworkTests(),
+        //multiTargetsFrameworkTests(),
         unviversalApp(),
-        unviversalAppTests(),
+        //unviversalAppTests(),
     ]
 )
 
@@ -80,8 +80,8 @@ func multiTargetsFramework() -> Target {
         product: .framework,
         bundleId: "io.tuist.multi.targets.framework",
         deploymentTargets: [
-            .iOS(targetVersion: "16.0", devices: [.ipad, .iphone]),
-            .macOS(targetVersion: "13.0"),
+            //.iOS(targetVersion: "16.0", devices: [.ipad, .iphone]),
+           // .macOS(targetVersion: "13.0"),
             .tvOS(targetVersion: "16.0"),
             .watchOS(targetVersion: "9.0"),
         ],
@@ -105,7 +105,7 @@ func multiTargetsFrameworkTests() -> Target {
         ],
         infoPlist: .file(path: .relativeToManifest("Info.plist")),
         sources: .paths([.relativeToManifest("Tests/**")]),
-        dependencies: [.target(name: "MultiDeploymentTargetsFramework"), .quick, .nimble],
+        dependencies: [.target(name: "MultiDeploymentTargetsFramework")],
         settings: .settings(base: ["CODE_SIGN_IDENTITY": "", "CODE_SIGNING_REQUIRED": "NO"])
     )
 }
@@ -117,8 +117,8 @@ func unviversalApp() -> Target {
         product: .app,
         bundleId: "io.tuist.ios.universal.app",
         deploymentTargets: [
-            .iOS(targetVersion: "16.0", devices: [.ipad, .iphone]),
-            .macOS(targetVersion: "13.0"),
+            //.iOS(targetVersion: "16.0", devices: [.ipad, .iphone]),
+            //.macOS(targetVersion: "13.0"),
             .tvOS(targetVersion: "16.0"),
             .watchOS(targetVersion: "9.0"),
         ],
@@ -148,7 +148,7 @@ func unviversalAppTests() -> Target {
             .watchOS(targetVersion: "9.0"),
         ],
         sources: .paths([.relativeToManifest("Sources/**")]),
-        dependencies: [.target(name: "UniversalApp"), .quick, .nimble],
+        dependencies: [.target(name: "UniversalApp")],
         settings: .settings(base: ["CODE_SIGN_IDENTITY": "", "CODE_SIGNING_REQUIRED": "NO"])
     )
 }

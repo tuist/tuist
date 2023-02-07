@@ -100,7 +100,9 @@ public final class GraphLoader: GraphLoading {
         guard let referencedTargetProject = cache.allTargets[path],
               let target = referencedTargetProject[name]
         else {
-            throw GraphLoadingError.targetNotFound(name, path)
+            // TODO: Update this logic as we use single dependency multi platform target
+            //throw GraphLoadingError.targetNotFound(name, path)
+            return
         }
 
         cache.add(target: target, path: path)

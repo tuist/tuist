@@ -4,9 +4,7 @@ let dependencies = Dependencies(
     carthage: [],
     swiftPackageManager: .init(
         [
-            .zipFoundation,
-            .quick,
-            .nimble,
+            .zipFoundation
         ],
         productTypes: [:],
         targetSettings: [:]

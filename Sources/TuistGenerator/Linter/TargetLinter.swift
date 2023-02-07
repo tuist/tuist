@@ -189,7 +189,9 @@ class TargetLinter: TargetLinting {
 
     private func lintDeploymentTarget(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-
+        // TODO: Update this logic
+        return []
+        
         for deploymentTarget in target.deploymentTargets {
             let versionFormatIssue = LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)
 

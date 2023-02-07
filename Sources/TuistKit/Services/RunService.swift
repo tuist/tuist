@@ -116,7 +116,6 @@ final class RunService {
         )
 
         let minVersion: Version?
-        // TODO: Update
         if let deploymentTarget = graphTarget.target.deploymentTargets.first {
             minVersion = deploymentTarget.version.version()
         } else {

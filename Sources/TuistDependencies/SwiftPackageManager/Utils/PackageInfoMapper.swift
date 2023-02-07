@@ -380,7 +380,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             .flatMap { target -> [ProjectDescription.Target] in
                 guard let products = targetToProducts[target.name] else { return [] }
 
-                return try platforms.compactMap { platform in
+                return [
                     try ProjectDescription.Target.from(
                         target: target,
                         products: products,
@@ -392,13 +392,13 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         productTypes: productTypes,
                         baseSettings: baseSettings,
                         targetSettings: targetSettings,
-                        platform: platform,
+                        platforms: Array(platforms),
                         minDeploymentTargets: minDeploymentTargets,
                         targetToResolvedDependencies: targetToResolvedDependencies,
                         targetToModuleMap: targetToModuleMap,
                         addPlatformSuffix: platforms.count != 1
                     )
-                }
+                ].compactMap { $0 }
             }
 
         guard !targets.isEmpty else {
@@ -445,7 +445,7 @@ extension ProjectDescription.Target {
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
-        platform: ProjectDescription.Platform,
+        platforms: [ProjectDescription.Platform],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap],
@@ -466,8 +466,8 @@ extension ProjectDescription.Target {
 
         let moduleMap = targetToModuleMap[target.name]!
 
-        let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
-            platform: platform,
+        let deploymentTargets = try ProjectDescription.DeploymentTarget.from(
+            platforms: platforms,
             minDeploymentTargets: minDeploymentTargets,
             package: packageInfo.platforms,
             packageName: packageName
@@ -501,15 +501,17 @@ extension ProjectDescription.Target {
         if target.type.supportsDependencies {
             let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
 
+            // TODO: Update multi platform dependencies
             dependencies = try ProjectDescription.TargetDependency.from(
                 resolvedDependencies: resolvedDependencies,
-                platform: platform,
+                platform: platforms.first!,
                 settings: target.settings,
                 packageToProject: packageToProject,
                 addPlatformSuffix: addPlatformSuffix
             )
         }
 
+        // TODO: Update multi platform settings
         let settings = try Settings.from(
             target: target,
             packageFolder: packageFolder,
@@ -518,24 +520,25 @@ extension ProjectDescription.Target {
             packageToProject: packageToProject,
             targetToResolvedDependencies: targetToResolvedDependencies,
             settings: target.settings,
-            platform: platform,
+            platform: platforms.first!,
             targetToModuleMap: targetToModuleMap,
             baseSettings: baseSettings,
             targetSettings: targetSettings
         )
 
+        // TODO: Update multi platform Target
         return ProjectDescription.Target(
-            name: addPlatformSuffix ? "\(PackageInfoMapper.sanitize(targetName: target.name))_\(platform.rawValue)" :
+            name: addPlatformSuffix ? "\(PackageInfoMapper.sanitize(targetName: target.name))_\(platforms.first!.rawValue)" :
                 PackageInfoMapper
                 .sanitize(targetName: target.name),
-            platform: platform,
+            platform: platforms.first!,
             product: product,
             productName: PackageInfoMapper
                 .sanitize(targetName: target.name)
                 .replacingOccurrences(of: "-", with: "_"),
             bundleId: target.name
                 .replacingOccurrences(of: "_", with: "-"),
-            deploymentTargets: [deploymentTarget],
+            deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,
             resources: resources,
@@ -548,32 +551,40 @@ extension ProjectDescription.Target {
 
 extension ProjectDescription.DeploymentTarget {
     fileprivate static func from(
-        platform: ProjectDescription.Platform,
+        platforms: [ProjectDescription.Platform],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         package: [PackageInfo.Platform],
         packageName _: String
-    ) throws -> Self {
-        if let packagePlatform = package.first(where: { $0.tuistPlatformName == platform.rawValue }) {
-            // Deployment targets below the minimum one raises warnings
-            let targetVersion = try Self.max(packagePlatform.version, minDeploymentTargets[platform]?.targetVersion)
+    ) throws -> [Self] {
+        var deploymentTargets = [Self]()
+        
+        for platform in platforms {
+            if let packagePlatform = package.first(where: { $0.tuistPlatformName == platform.rawValue }) {
+                // Deployment targets below the minimum one raises warnings
+                let targetVersion = try Self.max(packagePlatform.version, minDeploymentTargets[platform]?.targetVersion)
 
-            switch platform {
-            case .iOS:
-                let hasMacCatalyst = package.contains(where: { $0.platformName == "maccatalyst" })
-                return .iOS(
-                    targetVersion: targetVersion,
-                    devices: hasMacCatalyst ? [.iphone, .ipad, .mac] : [.iphone, .ipad]
-                )
-            case .macOS:
-                return .macOS(targetVersion: targetVersion)
-            case .watchOS:
-                return .watchOS(targetVersion: targetVersion)
-            case .tvOS:
-                return .tvOS(targetVersion: targetVersion)
+                switch platform {
+                case .iOS:
+                    let hasMacCatalyst = package.contains(where: { $0.platformName == "maccatalyst" })
+                    deploymentTargets.append(
+                        .iOS(
+                            targetVersion: targetVersion,
+                            devices: hasMacCatalyst ? [.iphone, .ipad, .mac] : [.iphone, .ipad]
+                        )
+                    )
+                case .macOS:
+                    deploymentTargets.append(.macOS(targetVersion: targetVersion))
+                case .watchOS:
+                    deploymentTargets.append(.watchOS(targetVersion: targetVersion))
+                case .tvOS:
+                    deploymentTargets.append(.tvOS(targetVersion: targetVersion))
+                }
+            } else {
+                deploymentTargets.append(minDeploymentTargets[platform]!)
             }
-        } else {
-            return minDeploymentTargets[platform]!
         }
+        
+        return deploymentTargets
     }
 
     fileprivate static func max(_ lVersionString: String, _ rVersionString: String?) throws -> String {
