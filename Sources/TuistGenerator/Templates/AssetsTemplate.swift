@@ -163,10 +163,20 @@ extension SynthesizedResourceInterfaceTemplates {
       }()
 
       #if canImport(SwiftUI)
+      private var _swiftUIColor: Any? = nil
       @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, *)
-      {{accessModifier}} private(set) lazy var swiftUIColor: SwiftUI.Color = {
-        SwiftUI.Color(asset: self)
-      }()
+      {{accessModifier}} private(set) var swiftUIColor: SwiftUI.Color {
+        get {
+          if self._swiftUIColor == nil {
+            self._swiftUIColor = SwiftUI.Color(asset: self)
+          }
+
+          return self._swiftUIColor as! SwiftUI.Color
+        }
+        set {
+          self._swiftUIColor = newValue
+        }
+      }
       #endif
 
       fileprivate init(name: String) {
@@ -189,8 +199,8 @@ extension SynthesizedResourceInterfaceTemplates {
     }
 
     #if canImport(SwiftUI)
+    @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, *)
     {{accessModifier}} extension SwiftUI.Color {
-      @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, *)
       init(asset: {{colorType}}) {
         let bundle = {{bundleToken}}.bundle
         self.init(asset.name, bundle: bundle)
