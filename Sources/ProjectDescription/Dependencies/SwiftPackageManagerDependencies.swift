@@ -39,6 +39,7 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     /// - Parameter testsFromPackages: Allows including test targets into generated projects for the given swift packages. This is useful for testing local swift packages in the same repository.
+
     public init(
         _ packages: [Package],
         productTypes: [String: Product] = [:],
