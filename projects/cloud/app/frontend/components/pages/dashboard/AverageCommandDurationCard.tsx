@@ -47,7 +47,7 @@ const AverageCommandDurationCard = observer(
               data={[
                 {
                   data: dashboardPageStore.commandAveragesData,
-                  name: `${dashboardPageStore.commandName} average duration`,
+                  name: 'Average duration',
                 },
               ]}
               showLegend

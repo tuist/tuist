@@ -33,7 +33,7 @@ we provide a set of commands under `tuist plugin`. These plugin commands are aim
 | `--path`  | `-p`  | Path to the directory that contains the definition of the plugin | Current directory | No |
 | `--build-tests` | n/a | Build both source and test targets | No | No |
 | `--show-bin-path` | n/a | Print the binary output path | No | No |
-| `--targets` | n/a | Build the specificed targets |  | No |
+| `--targets` | n/a | Build the specified targets |  | No |
 | `--products` | n/a | Build the specified products | | No |
 
 ### Test

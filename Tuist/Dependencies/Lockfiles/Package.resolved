@@ -20,6 +20,15 @@
         }
       },
       {
+        "package": "Apollo",
+        "repositoryURL": "https://github.com/apollographql/apollo-ios.git",
+        "state": {
+          "branch": null,
+          "revision": "4b13a927b581c40d06f2c65f593f672a52c0c812",
+          "version": "1.0.3"
+        }
+      },
+      {
         "package": "Checksum",
         "repositoryURL": "https://github.com/rnine/Checksum.git",
         "state": {
@@ -62,6 +71,15 @@
           "branch": null,
           "revision": "70bebcf4597b9ce33e19816d6bbd4ba9b7bdf038",
           "version": "0.2.0"
+        }
+      },
+      {
+        "package": "InflectorKit",
+        "repositoryURL": "https://github.com/mattt/InflectorKit",
+        "state": {
+          "branch": null,
+          "revision": "d8cbcc04972690aaa5fc760a2b9ddb3e9f0decd7",
+          "version": "1.0.0"
         }
       },
       {
@@ -137,6 +155,15 @@
         }
       },
       {
+        "package": "SQLite.swift",
+        "repositoryURL": "https://github.com/stephencelis/SQLite.swift.git",
+        "state": {
+          "branch": null,
+          "revision": "4d543d811ee644fa4cc4bfa0be996b4dd6ba0f54",
+          "version": "0.13.3"
+        }
+      },
+      {
         "package": "Stencil",
         "repositoryURL": "https://github.com/stencilproject/Stencil.git",
         "state": {
@@ -161,6 +188,15 @@
           "branch": null,
           "revision": "9f39744e025c7d377987f30b03770805dcb0bcd1",
           "version": "1.1.4"
+        }
+      },
+      {
+        "package": "swift-collections",
+        "repositoryURL": "https://github.com/apple/swift-collections",
+        "state": {
+          "branch": null,
+          "revision": "937e904258d22af6e447a0b72c0bc67583ef64a2",
+          "version": "1.0.4"
         }
       },
       {

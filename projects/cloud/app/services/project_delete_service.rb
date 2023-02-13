@@ -35,7 +35,9 @@ class ProjectDeleteService < ApplicationService
     raise Error::Unauthorized.new unless ProjectPolicy.new(deleter, project).update?
 
     ActiveRecord::Base.transaction do
-      default_s3_bucket = S3Bucket.find_by(is_default: true, name: "#{project.account.name}-#{project.name}")
+      default_s3_bucket = S3Bucket.find_by(
+        default_project_id: project.id,
+      )
       if default_s3_bucket != nil
         s3_client.delete_bucket(bucket: default_s3_bucket.name)
         default_s3_bucket.destroy

@@ -20,7 +20,7 @@ public struct SourceFileGlob: Codable, Equatable {
     ///   - glob: Glob pattern to the source files.
     ///   - excluding: Glob patterns for source files that will be excluded.
     ///   - compilerFlags: The compiler flags to be set to the source files in the sources build phase.
-    ///   - codegen: The source file attribute to be set in the build phase.
+    ///   - codeGen: The source file attribute to be set in the build phase.
     public static func glob(
         _ glob: Path,
         excluding: [Path] = [],

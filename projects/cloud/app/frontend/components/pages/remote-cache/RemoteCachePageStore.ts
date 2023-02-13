@@ -7,6 +7,8 @@ import {
   S3BucketsQuery,
   UpdateS3BucketMutation,
   UpdateS3BucketDocument,
+  ClearRemoteCacheStorageMutation,
+  ClearRemoteCacheStorageDocument,
 } from '@/graphql/types';
 import { ApolloClient } from '@apollo/client';
 import { SelectOption } from '@shopify/polaris';
@@ -24,6 +26,8 @@ class RemoteCachePageStore {
   s3Buckets: S3Bucket[] = [];
   isApplyChangesButtonLoading = false;
   isCopyProjectButtonLoading = false;
+  isRemoteCacheStorageCleanLoading = false;
+  remoteCacheStorageCleanError: string | null = null;
 
   client: ApolloClient<object>;
   projectStore: ProjectStore;
@@ -88,6 +92,41 @@ class RemoteCachePageStore {
 
   removeAccessKey() {
     this.secretAccessKey = '';
+  }
+
+  async clearCache() {
+    this.remoteCacheStorageCleanError = null;
+    if (!this.projectStore.project?.remoteCacheStorage) {
+      return;
+    }
+    this.isRemoteCacheStorageCleanLoading = true;
+    try {
+      const { data } =
+        await this.client.mutate<ClearRemoteCacheStorageMutation>({
+          mutation: ClearRemoteCacheStorageDocument,
+          variables: {
+            input: {
+              id: this.projectStore.project.remoteCacheStorage.id,
+            },
+          },
+        });
+      if (data?.clearRemoteCacheStorage.errors) {
+        runInAction(() => {
+          this.remoteCacheStorageCleanError =
+            data.clearRemoteCacheStorage.errors
+              .map((error) => error.message)
+              .join(', ');
+        });
+      }
+    } catch {
+      runInAction(() => {
+        this.remoteCacheStorageCleanError =
+          'Clearing the cache has failed';
+      });
+    }
+    runInAction(() => {
+      this.isRemoteCacheStorageCleanLoading = false;
+    });
   }
 
   async changeRemoteCacheStorage() {

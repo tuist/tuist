@@ -33,16 +33,18 @@ extension TuistGraph.Cloud {
         } else {
             throw CloudManifestMapperError.invalidCloudURL(manifest.url)
         }
-        let options = manifest.options.map(TuistGraph.Cloud.Option.from)
+        let options = manifest.options.compactMap(TuistGraph.Cloud.Option.from)
         return TuistGraph.Cloud(url: cloudURL, projectId: manifest.projectId, options: options)
     }
 }
 
 extension TuistGraph.Cloud.Option {
-    static func from(manifest: ProjectDescription.Cloud.Option) -> TuistGraph.Cloud.Option {
+    static func from(manifest: ProjectDescription.Cloud.Option) -> TuistGraph.Cloud.Option? {
         switch manifest {
         case .analytics:
-            return .analytics
+            return nil
+        case .disableAnalytics:
+            return .disableAnalytics
         case .optional:
             return .optional
         }

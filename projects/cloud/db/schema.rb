@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2022_06_26_091301) do
+ActiveRecord::Schema[7.0].define(version: 2023_01_15_112317) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -96,7 +96,9 @@ ActiveRecord::Schema[7.0].define(version: 2022_06_26_091301) do
     t.bigint "account_id", null: false
     t.string "region", null: false
     t.boolean "is_default", default: false
+    t.bigint "default_project_id"
     t.index ["account_id"], name: "index_s3_buckets_on_account_id"
+    t.index ["default_project_id"], name: "index_s3_buckets_on_default_project_id"
     t.index ["name", "account_id"], name: "index_s3_buckets_on_name_and_account_id", unique: true
   end
 

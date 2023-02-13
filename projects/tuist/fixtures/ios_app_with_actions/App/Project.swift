@@ -21,6 +21,11 @@ let project = Project(
                     name: "Tuist",
                     inputPaths: ["Sources/**/*.swift"]
                 ),
+                .pre(
+                    path: "script-with-dependency.sh",
+                    name: "PhaseWithDependency",
+                    dependencyFile: "$TEMP_DIR/dependencies.d"
+                ),
                 .post(
                     script: "echo 'Hello World from install build'",
                     name: "Embedded script install build",

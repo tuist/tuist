@@ -1,0 +1,21 @@
+{
+  "schemaName": "TuistCloudSchema",
+  "input": {
+    "operationSearchPaths": ["Sources/TuistCloud/graphql/*.graphql"],
+    "schemaSearchPaths": ["projects/cloud/schema.json"]
+  },
+  "output": {
+    "testMocks": {
+      "none": {}
+    },
+    "schemaTypes": {
+      "path": "./Sources/TuistCloudSchema",
+      "moduleType": {
+        "other": {}
+      }
+    },
+    "operations": {
+      "relative": {}
+    }
+  }
+}

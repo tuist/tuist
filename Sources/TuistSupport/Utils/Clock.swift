@@ -11,7 +11,7 @@ public protocol Clock {
 /// A clock timer can be used to measure
 /// time intervals between events
 ///
-/// A timer can be obtaine from a `Clock`
+/// A timer can be obtained from a `Clock`
 /// by calling `startTimer()`. Calling
 /// `stop()` on the timer will return
 /// the time interval since the start.

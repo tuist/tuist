@@ -76,6 +76,7 @@ class CacheHitRateAverageServiceTest < ActiveSupport::TestCase
       else
         0
       end
-    }, got.map(&:cache_hit_rate_average)
+    },
+      got.map(&:cache_hit_rate_average)
   end
 end

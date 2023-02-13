@@ -4,7 +4,7 @@ import Foundation
 public struct Cloud: Equatable, Hashable {
     /// Cloud option.
     public enum Option: String, Codable, Equatable {
-        case analytics
+        case disableAnalytics
         case optional
     }
 

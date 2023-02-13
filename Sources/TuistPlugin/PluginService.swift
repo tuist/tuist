@@ -61,7 +61,7 @@ enum PluginServiceConstants {
 }
 
 /// A default implementation of `PluginServicing` which loads `Plugins` using the `Config` manifest.
-public final class PluginService: PluginServicing {
+public final class PluginService: PluginServicing { // swiftlint:disable:this type_body_length
     private let manifestLoader: ManifestLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let fileHandler: FileHandling
@@ -73,10 +73,11 @@ public final class PluginService: PluginServicing {
     /// Creates a `PluginService`.
     /// - Parameters:
     ///   - manifestLoader: A manifest loader for loading plugin manifests.
-    ///   - templateDirectoryLocator: Locator for finding templates for plugins.
+    ///   - templatesDirectoryLocator: Locator for finding templates for plugins.
     ///   - fileHandler: A file handler for creating plugin directories/related files.
     ///   - gitHandler: A git handler for cloning and interacting with remote plugins.
-    ///   - fileArchiver: FileArchiver for unzipping plugin releases.
+    ///   - cacheDirectoryProviderFactory: A cache directory provider
+    ///   - fileArchivingFactory: FileArchiver for unzipping plugin releases.
     ///   - fileClient: FileClient for downloading plugin releases.
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
@@ -101,7 +102,7 @@ public final class PluginService: PluginServicing {
             switch pluginLocation {
             case .local:
                 return nil
-            case let .git(url: url, gitReference: .sha(sha), directory):
+            case let .git(url: url, gitReference: .sha(sha), directory, _):
                 let pluginCacheDirectory = try self.pluginCacheDirectory(
                     url: url,
                     gitId: sha,
@@ -115,7 +116,7 @@ public final class PluginService: PluginServicing {
                     repositoryPath: repositoryPath,
                     releasePath: nil
                 )
-            case let .git(url: url, gitReference: .tag(tag), directory):
+            case let .git(url: url, gitReference: .tag(tag), directory, _):
                 let pluginCacheDirectory = try self.pluginCacheDirectory(
                     url: url,
                     gitId: tag,
@@ -191,9 +192,10 @@ public final class PluginService: PluginServicing {
     func fetchRemotePlugins(using config: Config) async throws {
         for pluginLocation in config.plugins {
             switch pluginLocation {
-            case let .git(url, gitReference, _):
+            case let .git(url, gitReference, _, releaseUrl):
                 try await fetchRemotePlugin(
                     url: url,
+                    releaseUrl: releaseUrl,
                     gitReference: gitReference,
                     config: config
                 )
@@ -205,6 +207,7 @@ public final class PluginService: PluginServicing {
 
     private func fetchRemotePlugin(
         url: String,
+        releaseUrl: String?,
         gitReference: PluginLocation.GitReference,
         config: Config
     ) async throws {
@@ -225,7 +228,8 @@ public final class PluginService: PluginServicing {
             try await fetchGitPluginRelease(
                 pluginCacheDirectory: pluginCacheDirectory,
                 url: url,
-                gitTag: tag
+                gitTag: tag,
+                releaseUrl: releaseUrl
             )
         }
     }
@@ -258,7 +262,12 @@ public final class PluginService: PluginServicing {
         try gitHandler.checkout(id: gitId, in: pluginRepositoryDirectory)
     }
 
-    private func fetchGitPluginRelease(pluginCacheDirectory: AbsolutePath, url: String, gitTag: String) async throws {
+    private func fetchGitPluginRelease(
+        pluginCacheDirectory: AbsolutePath,
+        url: String,
+        gitTag: String,
+        releaseUrl: String?
+    ) async throws {
         let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
         // If `Package.swift` exists for the plugin, a Github release should for the given `gitTag` should also exist
         guard FileHandler.shared
@@ -272,8 +281,7 @@ public final class PluginService: PluginServicing {
         }
 
         let plugin = try manifestLoader.loadPlugin(at: pluginRepositoryDirectory)
-        guard let releaseURL = URL(string: url)?
-            .appendingPathComponent("releases/download/\(gitTag)/\(plugin.name).tuist-plugin.zip")
+        guard let releaseURL = getPluginDownloadUrl(gitUrl: url, gitTag: gitTag, pluginName: plugin.name, releaseUrl: releaseUrl)
         else { throw PluginServiceError.invalidURL(url) }
 
         logger.debug("Cloning plugin release from \(url) @ \(gitTag)")
@@ -313,6 +321,19 @@ public final class PluginService: PluginServicing {
                 .forEach {
                     try System.shared.chmod(.executable, path: $0, options: [.onlyFiles])
                 }
+        }
+    }
+
+    func getPluginDownloadUrl(gitUrl: String, gitTag: String, pluginName: String, releaseUrl: String?) -> URL? {
+        if let url = releaseUrl.flatMap(URL.init(string:)) {
+            return url
+        }
+
+        guard let url = URL(string: gitUrl) else { return nil }
+        if gitUrl.lowercased().contains("gitlab") {
+            return url.appendingPathComponent("-/releases/\(gitTag)/downloads/\(pluginName).tuist-plugin.zip")
+        } else {
+            return url.appendingPathComponent("releases/download/\(gitTag)/\(pluginName).tuist-plugin.zip")
         }
     }
 

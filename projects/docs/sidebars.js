@@ -78,6 +78,11 @@ module.exports = {
       label: 'Cloud',
       items: [
         'cloud/get-started',
+        {
+          type: 'category',
+          label: 'Commands',
+          items: ['cloud/commands/init'],
+        },
         'cloud/contributing',
         'cloud/self-hosting',
         'cloud/stats',

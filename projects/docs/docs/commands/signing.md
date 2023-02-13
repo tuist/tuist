@@ -6,7 +6,7 @@ description: 'Tuist offers a deterministic, pain-free solution to signing. Read 
 
 Signing is one of the most complicated things that developers have to deal with
 when working with Xcode. While Xcode does offer an option of automatic signing,
-most teams choose not to use it since it creates an unmanagable mess in their team accounts.
+most teams choose not to use it since it creates an unmanageable mess in their team accounts.
 But manually working with signing artifacts is tedious, error-prone and tools
 automating this process are often non-deterministic and you still have to manually change
 settings of your Xcode projects.
@@ -38,7 +38,7 @@ that means, yes, also build settings!
 `tuist generate` automatically encrypts all signing artifacts.
 If you want to decrypt your signing files,
 feel free to run `tuist signing decrypt`.
-To reencrypt them run `tuist signing encrypt` (note that encryption is done automatically in `tuist generate`)
+To re-encrypt them run `tuist signing encrypt` (note that encryption is done automatically in `tuist generate`)
 
 ### Vendor
 
