@@ -11,10 +11,11 @@ let package = Package(
         .library(name: "Styles", targets: ["Styles"]),
         .library(name: "TestsSupport", targets: ["TestsSupport"]),
     ],
-    dependencies: [.snapshotTesting],
+    dependencies: [.snapshotTesting, .splitView],
     targets: [
         .target(
             name: "Styles",
+            dependencies: [.product(name: "SplitView", package: "SplitView")],
             exclude: [
                 //                "Resources/Storyboard.storyboard",
 //                "Resources/ViewController.xib"
@@ -43,5 +44,10 @@ extension Package.Dependency {
     static let snapshotTesting: Package.Dependency = .package(
         url: "https://github.com/pointfreeco/swift-snapshot-testing",
         .upToNextMajor(from: "1.10.0")
+    )
+
+    static let splitView: Package.Dependency = .package(
+        url: "https://github.com/stevengharris/SplitView",
+        branch: "main"
     )
 }

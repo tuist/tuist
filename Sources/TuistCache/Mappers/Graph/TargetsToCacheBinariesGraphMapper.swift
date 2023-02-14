@@ -110,6 +110,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
                 }
         )
         let sources = sources.isEmpty ? Set(allInternalTargets.union(localSwiftPackageTargets)) : sources
+            .union(localSwiftPackageTargets)
         let missingTargets = sources.subtracting(availableTargets)
         guard missingTargets.isEmpty else {
             throw FocusTargetsGraphMapperError.missingTargets(

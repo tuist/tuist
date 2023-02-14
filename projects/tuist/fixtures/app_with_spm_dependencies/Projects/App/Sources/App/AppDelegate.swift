@@ -1,4 +1,5 @@
 import AppKit
+import FeatureOneFramework_iOS
 import Styles
 import UIKit
 
@@ -31,11 +32,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.rootViewController = viewController
         window?.makeKeyAndVisible()
 
-        let singleFile = StylesResources.bundle.url(forResource: "jsonFile", withExtension: "json")
-        guard let singleFile = singleFile else {
+        guard let _ = StylesResources.bundle.url(forResource: "jsonFile", withExtension: "json") else {
             fatalError("singleFile is missing")
         }
 
+        FeatureOne.greetings()
         AppKit.start()
 
         return true

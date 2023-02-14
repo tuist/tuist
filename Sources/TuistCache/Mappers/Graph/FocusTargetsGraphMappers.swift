@@ -30,7 +30,7 @@ public final class FocusTargetsGraphMappers: GraphMapping {
         )
         let includedTargets = includedTargets.isEmpty ?
             localSwiftPackageTargets.union(graphTraverser.allInternalTargets().map(\.target.name)) :
-            includedTargets
+            includedTargets.union(localSwiftPackageTargets)
 
         let userSpecifiedSourceTargets = graphTraverser.allTargets().filter { includedTargets.contains($0.target.name) }
         let filteredTargets = Set(try topologicalSort(

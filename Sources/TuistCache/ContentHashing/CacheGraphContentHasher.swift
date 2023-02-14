@@ -74,6 +74,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         let product = target.target.product
         let name = target.target.name
 
+        /// Note: Targets (like `SnapshotTests` library) that depend on `XCTest` cannot be cached
         return CacheGraphContentHasher.cachableProducts.contains(product) &&
             !excludedTargets.contains(name) &&
             !excludedTargets.contains(frameworkNameFromResourceTargetName) &&

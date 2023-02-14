@@ -9,6 +9,7 @@ import FirebaseFirestore
 import GRDB
 import IterableSDK
 import Stripe
+import Styles
 import TYStatusBarView
 
 public enum AppKit {
@@ -40,5 +41,8 @@ public enum AppKit {
 
         // Use GRDB to make sure it links fine
         try? DatabasePool(path: NSTemporaryDirectory().appending("db.sqlite")).erase()
+
+        // Use Styles from LocalSwiftPackage
+        print(Styles.Color.orange)
     }
 }

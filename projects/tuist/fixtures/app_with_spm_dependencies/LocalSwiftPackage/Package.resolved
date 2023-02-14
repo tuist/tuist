@@ -1,6 +1,15 @@
 {
   "pins" : [
     {
+      "identity" : "splitview",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/stevengharris/SplitView",
+      "state" : {
+        "branch" : "main",
+        "revision" : "ec90f7c254343849717af7c1e6b0fd0579207bf6"
+      }
+    },
+    {
       "identity" : "swift-snapshot-testing",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-snapshot-testing",

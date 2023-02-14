@@ -263,10 +263,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                                 case let .target(name, _):
                                     // When multiple platforms are supported, add the platform name as a suffix to the target
                                     let targetName = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
-                                    return .project(
-                                        target: targetName,
-                                        path: Path(packageToFolder[packageInfo.key]!.pathString)
-                                    )
+                                    return .project(target: targetName, path: Path(packageToFolder[packageInfo.key]!.pathString))
                                 case .externalTarget:
                                     throw PackageInfoMapperError.unknownProductTarget(
                                         package: packageInfo.key,
@@ -403,52 +400,32 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         let targets: [ProjectDescription.Target] = try packageInfo.targets
             .flatMap { target -> [ProjectDescription.Target] in
+                /// Define test products for external test targets found in `testsFromPackage` in `Dependencies.swift`
+                let includeExternalTests = (testTargetsToPackage.contains(target.name) && target.type == .test)
+                let products = includeExternalTests ? [.init(name: target.name, type: .test, targets: [target.name])] :
+                    targetToProducts[target.name] ?? []
 
-                switch target.type {
-                case .test where testTargetsToPackage.contains(target.name):
-                    return try platforms.compactMap { platform in
-                        try ProjectDescription.Target.from(
-                            target: target,
-                            products: [.init(name: target.name, type: .test, targets: [target.name])],
-                            includeTests: true,
-                            packageName: name,
-                            packageInfo: packageInfo,
-                            packageInfos: packageInfos,
-                            packageFolder: path,
-                            packageToProject: packageToProject,
-                            productTypes: productTypes,
-                            baseSettings: baseSettings,
-                            targetSettings: targetSettings,
-                            platform: platform,
-                            minDeploymentTargets: minDeploymentTargets,
-                            targetToResolvedDependencies: targetToResolvedDependencies,
-                            targetToModuleMap: targetToModuleMap,
-                            addPlatformSuffix: platforms.count != 1
-                        )
-                    }
+                guard !products.isEmpty else { return [] }
 
-                default:
-                    guard let products = targetToProducts[target.name] else { return [] }
-
-                    return try platforms.compactMap { platform in
-                        try ProjectDescription.Target.from(
-                            target: target,
-                            products: products,
-                            packageName: name,
-                            packageInfo: packageInfo,
-                            packageInfos: packageInfos,
-                            packageFolder: path,
-                            packageToProject: packageToProject,
-                            productTypes: productTypes,
-                            baseSettings: baseSettings,
-                            targetSettings: targetSettings,
-                            platform: platform,
-                            minDeploymentTargets: minDeploymentTargets,
-                            targetToResolvedDependencies: targetToResolvedDependencies,
-                            targetToModuleMap: targetToModuleMap,
-                            addPlatformSuffix: platforms.count != 1
-                        )
-                    }
+                return try platforms.compactMap { platform in
+                    try ProjectDescription.Target.from(
+                        target: target,
+                        products: products,
+                        includeTests: includeExternalTests,
+                        packageName: name,
+                        packageInfo: packageInfo,
+                        packageInfos: packageInfos,
+                        packageFolder: path,
+                        packageToProject: packageToProject,
+                        productTypes: productTypes,
+                        baseSettings: baseSettings,
+                        targetSettings: targetSettings,
+                        platform: platform,
+                        minDeploymentTargets: minDeploymentTargets,
+                        targetToResolvedDependencies: targetToResolvedDependencies,
+                        targetToModuleMap: targetToModuleMap,
+                        addPlatformSuffix: platforms.count != 1
+                    )
                 }
             }
 

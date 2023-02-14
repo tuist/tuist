@@ -19,7 +19,10 @@ let dependencies = Dependencies(
         // TODO: Figure out why this target need to be a dynamic framework. "TestsSupport" is a framework like "Quick" & "Nimble" which provide unit testing support and depends on "XCTest" framework
         productTypes: ["TestsSupport": .framework],
         baseSettings: .targetSettings,
-        targetSettings: ["TestsSupport": ["ENABLE_TESTING_SEARCH_PATHS": "YES"]],
+        targetSettings: [
+            "TestsSupport": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
+            "StylesTests": ["ENABLE_TESTABILITY": "YES"],
+        ],
         projectOptions: [
             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
         ],
