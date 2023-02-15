@@ -6,12 +6,12 @@ import XCTest
 @testable import TuistEnvKit
 
 final class VersionResolverErrorTests: XCTestCase {
-    func test_errorDescription() {
+    func test_errorDescription() throws {
         let path = try AbsolutePath(validating: "/test")
         XCTAssertEqual(VersionResolverError.readError(path: path).description, "Cannot read the version file at path /test.")
     }
 
-    func test_equatable() {
+    func test_equatable() throws {
         let path = try AbsolutePath(validating: "/test")
         XCTAssertEqual(VersionResolverError.readError(path: path), VersionResolverError.readError(path: path))
     }
