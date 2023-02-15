@@ -27,7 +27,7 @@
     "jest": "^27.4.5",
     "prettier": "^2.7.1",
     "rollup": "^2.78.1",
-    "sass": "^1.57.1",
+    "sass": "^1.58.0",
     "ts-jest": "^27.1.5",
     "typescript": "^4.8.2",
     "typescript-plugin-css-modules": "^3.4.0",
@@ -39,7 +39,7 @@
     "webpack-dev-server": "^3"
   },
   "dependencies": {
-    "@apollo/client": "^3.7.4",
+    "@apollo/client": "^3.7.7",
     "@babel/preset-react": "^7.18.6",
     "@babel/preset-typescript": "^7.18.6",
     "@juggle/resize-observer": "^3.4.0",
