@@ -7,7 +7,8 @@ import XcodeProj
 
 extension WorkspaceDescriptor {
     public static func test(
-        path: AbsolutePath = try! AbsolutePath(validating: "/Test"),
+        path: AbsolutePath = try! AbsolutePath(validating: "/Test"), // swiftlint:disable:this force_try
+        // swiftlint:disable:next force_try
         xcworkspacePath: AbsolutePath = try! AbsolutePath(validating: "/Test/Project.xcworkspace"),
         projects: [ProjectDescriptor] = [],
         schemes: [SchemeDescriptor] = [],

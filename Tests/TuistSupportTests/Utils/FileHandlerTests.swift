@@ -10,7 +10,10 @@ final class FileHandlerErrorTests: XCTestCase {
             FileHandlerError.invalidTextEncoding(try AbsolutePath(validating: "/path")).description,
             "The file at /path is not a utf8 text file"
         )
-        XCTAssertEqual(FileHandlerError.writingError(try AbsolutePath(validating: "/path")).description, "Couldn't write to the file /path")
+        XCTAssertEqual(
+            FileHandlerError.writingError(try AbsolutePath(validating: "/path")).description,
+            "Couldn't write to the file /path"
+        )
     }
 }
 

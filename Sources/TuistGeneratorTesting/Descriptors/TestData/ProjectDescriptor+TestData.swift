@@ -7,7 +7,7 @@ import XcodeProj
 
 extension ProjectDescriptor {
     public static func test(
-        path: AbsolutePath = try! AbsolutePath(validating: "/Test"),
+        path: AbsolutePath = try! AbsolutePath(validating: "/Test"), // swiftlint:disable:this force_try
         xcodeprojPath: AbsolutePath? = nil,
         schemes: [SchemeDescriptor] = [],
         sideEffects: [SideEffectDescriptor] = []

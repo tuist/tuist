@@ -371,8 +371,14 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         // Given
         let settings = Settings.test(
             base: [:],
-            debug: Configuration(settings: ["Configuration": "A"], xcconfig: try AbsolutePath(validating: "/project/debug.xcconfig")),
-            release: Configuration(settings: ["Configuration": "B"], xcconfig: try AbsolutePath(validating: "/project/release.xcconfig"))
+            debug: Configuration(
+                settings: ["Configuration": "A"],
+                xcconfig: try AbsolutePath(validating: "/project/debug.xcconfig")
+            ),
+            release: Configuration(
+                settings: ["Configuration": "B"],
+                xcconfig: try AbsolutePath(validating: "/project/release.xcconfig")
+            )
         )
 
         let target = Target.test(

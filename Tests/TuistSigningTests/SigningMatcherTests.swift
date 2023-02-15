@@ -99,7 +99,8 @@ final class SigningMatcherTests: TuistUnitTestCase {
         ]
 
         let debugProvisioningProfilePath = try AbsolutePath(validating: "/\(targetName).\(debugConfiguration).mobileprovision")
-        let releaseProvisioningProfilePath = try AbsolutePath(validating: "/\(targetName).\(releaseConfiguration).mobileprovision")
+        let releaseProvisioningProfilePath =
+            try AbsolutePath(validating: "/\(targetName).\(releaseConfiguration).mobileprovision")
         signingFilesLocator.locateProvisioningProfilesStub = { _ in
             [
                 debugProvisioningProfilePath,

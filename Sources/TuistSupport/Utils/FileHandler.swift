@@ -95,11 +95,11 @@ public class FileHandler: FileHandling {
     }
 
     public var currentPath: AbsolutePath {
-        try! AbsolutePath(validating: fileManager.currentDirectoryPath)
+        try! AbsolutePath(validating: fileManager.currentDirectoryPath) // swiftlint:disable:this force_try
     }
 
     public var homeDirectory: AbsolutePath {
-        try! AbsolutePath(validating: NSHomeDirectory())
+        try! AbsolutePath(validating: NSHomeDirectory()) // swiftlint:disable:this force_try
     }
 
     public func replace(_ to: AbsolutePath, with: AbsolutePath) throws {
@@ -264,7 +264,7 @@ public class FileHandler: FileHandling {
 
         let configPath = from.appending(component: path)
 
-        let root = try! AbsolutePath(validating: "/")
+        let root = try! AbsolutePath(validating: "/") // swiftlint:disable:this force_try
         if FileHandler.shared.exists(configPath) {
             return configPath
         } else if from == root {

@@ -4,8 +4,8 @@ import TSCBasic
 
 extension Certificate {
     static func test(
-        publicKey: AbsolutePath = try! AbsolutePath(validating: "/"),
-        privateKey: AbsolutePath = try! AbsolutePath(validating: "/"),
+        publicKey: AbsolutePath = try! AbsolutePath(validating: "/"), // swiftlint:disable:this force_try
+        privateKey: AbsolutePath = try! AbsolutePath(validating: "/"), // swiftlint:disable:this force_try
         fingerprint: String = "",
         developmentTeam: String = "",
         name: String = "",

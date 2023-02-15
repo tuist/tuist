@@ -4,6 +4,7 @@ import XCTest
 
 extension ProvisioningProfile {
     public static func test(
+        // swiftlint:disable:next force_try
         path: AbsolutePath = try! AbsolutePath(validating: "/targetName.configurationName.mobileprovision"),
         name: String = "name",
         targetName: String = "targetName",

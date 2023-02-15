@@ -48,7 +48,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ],
             idToPackage: [:],
             packageToFolder: ["Package": basePath],
-            packageToTargetsToArtifactPaths: ["Package": ["Target_1": try! .init(validating: "/artifacts/Package/Target_1.xcframework")]],
+            packageToTargetsToArtifactPaths: ["Package": [
+                "Target_1": try!
+                    .init(validating: "/artifacts/Package/Target_1.xcframework"),
+            ]],
             platforms: [.iOS]
         )
 

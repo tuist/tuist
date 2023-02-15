@@ -7,7 +7,7 @@ extension XCTestCase {
     // MARK: - Fixtures
 
     public func fixturePath(path: RelativePath) -> AbsolutePath {
-        try! AbsolutePath(validating: #file)
+        try! AbsolutePath(validating: #file) // swiftlint:disable:this force_try
             .appending(RelativePath("../../../../Tests/Fixtures"))
             .appending(path)
     }

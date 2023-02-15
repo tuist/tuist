@@ -539,6 +539,7 @@ class ProjectFileElements {
         toGroup: PBXGroup,
         pbxproj: PBXProj
     ) {
+        // swiftlint:disable:next force_try
         let sdkPath = sdkNodePath.relative(to: try! AbsolutePath(validating: "/")) // SDK paths are relative
 
         let lastKnownFileType = sdkPath.extension.flatMap { Xcode.filetype(extension: $0) }
@@ -592,7 +593,7 @@ class ProjectFileElements {
             range: range
         ) {
             let lprojPath = (pathString as NSString).substring(with: localizedMatch.range(at: 1))
-            return try! AbsolutePath(validating: lprojPath)
+            return try! AbsolutePath(validating: lprojPath) // swiftlint:disable:this force_try
         } else {
             return path
         }

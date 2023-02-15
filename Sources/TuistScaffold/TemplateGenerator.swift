@@ -62,8 +62,8 @@ public final class TemplateGenerator: TemplateGenerating {
                 var contents = $0.contents
                 if case let Template.Contents.file(path) = contents {
                     contents = .file(
-                        try AbsolutePath(validating: 
-                            path.pathString.replacingOccurrences(
+                        try AbsolutePath(
+                            validating: path.pathString.replacingOccurrences(
                                 of: "{{ \(attribute.key) }}", with: attribute.value
                             )
                         )
@@ -71,8 +71,8 @@ public final class TemplateGenerator: TemplateGenerating {
                 }
                 if case let Template.Contents.directory(path) = contents {
                     contents = .directory(
-                        try AbsolutePath(validating: 
-                            path.pathString.replacingOccurrences(
+                        try AbsolutePath(
+                            validating: path.pathString.replacingOccurrences(
                                 of: "{{ \(attribute.key) }}", with: attribute.value
                             )
                         )

@@ -647,7 +647,10 @@ final class LinkGeneratorTests: XCTestCase {
             path: path,
             graphTraverser: graphTraverser
         )) {
-            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingReference(path: try! AbsolutePath(validating: "/test.framework")))
+            XCTAssertEqual(
+                $0 as? LinkGeneratorError,
+                LinkGeneratorError.missingReference(path: try! AbsolutePath(validating: "/test.framework"))
+            )
         }
     }
 

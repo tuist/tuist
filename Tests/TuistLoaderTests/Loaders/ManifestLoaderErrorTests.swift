@@ -25,7 +25,8 @@ final class ManifestLoaderErrorTests: TuistUnitTestCase {
             "Manifest not found at path /test"
         )
         XCTAssertEqual(
-            ManifestLoaderError.manifestLoadingFailed(path: try AbsolutePath(validating: "/test/"), context: "Context").description,
+            ManifestLoaderError.manifestLoadingFailed(path: try AbsolutePath(validating: "/test/"), context: "Context")
+                .description,
             """
             Unable to load manifest at \("/test".bold())
             Context
@@ -37,6 +38,9 @@ final class ManifestLoaderErrorTests: TuistUnitTestCase {
         XCTAssertEqual(ManifestLoaderError.projectDescriptionNotFound(try AbsolutePath(validating: "/test")).type, .bug)
         XCTAssertEqual(ManifestLoaderError.unexpectedOutput(try AbsolutePath(validating: "/test/")).type, .bug)
         XCTAssertEqual(ManifestLoaderError.manifestNotFound(.project, try AbsolutePath(validating: "/test/")).type, .abort)
-        XCTAssertEqual(ManifestLoaderError.manifestLoadingFailed(path: try AbsolutePath(validating: "/test/"), context: "Context").type, .abort)
+        XCTAssertEqual(
+            ManifestLoaderError.manifestLoadingFailed(path: try AbsolutePath(validating: "/test/"), context: "Context").type,
+            .abort
+        )
     }
 }

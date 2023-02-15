@@ -76,7 +76,10 @@ final class SigningCipherTests: TuistUnitTestCase {
         signingFilesLocator.locateEncryptedPrivateKeysStub = { path in
             let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
             return [
-                try AbsolutePath(validating: signingDirectory.pathString + "/ProfileFile.txt" + "." + Constants.encryptedExtension),
+                try AbsolutePath(
+                    validating: signingDirectory.pathString + "/ProfileFile.txt" + "." + Constants
+                        .encryptedExtension
+                ),
             ]
         }
         let certFile = signingDirectory.appending(component: "CertFile.txt")
@@ -93,11 +96,17 @@ final class SigningCipherTests: TuistUnitTestCase {
         XCTAssertEqual(try fileHandler.readTextFile(profileFile), profileContent)
         XCTAssertFalse(
             fileHandler
-                .exists(try AbsolutePath(validating: signingDirectory.pathString + "/ProfileFile.txt" + "." + Constants.encryptedExtension))
+                .exists(try AbsolutePath(
+                    validating: signingDirectory.pathString + "/ProfileFile.txt" + "." + Constants
+                        .encryptedExtension
+                ))
         )
         XCTAssertFalse(
             fileHandler
-                .exists(try AbsolutePath(validating: signingDirectory.pathString + "/CertFile.txt" + "." + Constants.encryptedExtension))
+                .exists(try AbsolutePath(
+                    validating: signingDirectory.pathString + "/CertFile.txt" + "." + Constants
+                        .encryptedExtension
+                ))
         )
     }
 
@@ -135,7 +144,10 @@ final class SigningCipherTests: TuistUnitTestCase {
         signingFilesLocator.locateEncryptedPrivateKeysStub = { path in
             let signingDirectory = path.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
             return [
-                try AbsolutePath(validating: signingDirectory.pathString + "/ProfileFile.txt" + "." + Constants.encryptedExtension),
+                try AbsolutePath(
+                    validating: signingDirectory.pathString + "/ProfileFile.txt" + "." + Constants
+                        .encryptedExtension
+                ),
             ]
         }
         let certFile = signingDirectory.appending(component: "CertFile.txt")
@@ -157,11 +169,17 @@ final class SigningCipherTests: TuistUnitTestCase {
         XCTAssertEqual(try fileHandler.readTextFile(profileFile), profileContent)
         XCTAssertFalse(
             fileHandler
-                .exists(try AbsolutePath(validating: signingDirectory.pathString + "/ProfileFile.txt" + "." + Constants.encryptedExtension))
+                .exists(try AbsolutePath(
+                    validating: signingDirectory.pathString + "/ProfileFile.txt" + "." + Constants
+                        .encryptedExtension
+                ))
         )
         XCTAssertFalse(
             fileHandler
-                .exists(try AbsolutePath(validating: signingDirectory.pathString + "/CertFile.txt" + "." + Constants.encryptedExtension))
+                .exists(try AbsolutePath(
+                    validating: signingDirectory.pathString + "/CertFile.txt" + "." + Constants
+                        .encryptedExtension
+                ))
         )
     }
 

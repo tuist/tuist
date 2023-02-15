@@ -48,7 +48,8 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         let path = try subject.locate(platform: .iOS, projectPath: projectPath, configuration: configuration)
 
         // THEN
-        let expectedPath = try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)-\(sdk)")
+        let expectedPath =
+            try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)-\(sdk)")
         XCTAssertEqual(path, expectedPath)
     }
 }

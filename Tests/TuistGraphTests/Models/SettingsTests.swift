@@ -16,7 +16,10 @@ final class SettingsTests: XCTestCase {
     func testXcconfigs() {
         // Given
         let configurations: [BuildConfiguration: Configuration?] = [
-            BuildConfiguration(name: "D", variant: .debug): Configuration(settings: [:], xcconfig: try! AbsolutePath(validating: "/D")),
+            BuildConfiguration(name: "D", variant: .debug): Configuration(
+                settings: [:],
+                xcconfig: try! AbsolutePath(validating: "/D")
+            ),
             .release("C"): nil,
             .debug("A"): Configuration(settings: [:], xcconfig: try! AbsolutePath(validating: "/A")),
             .release("B"): Configuration(settings: [:], xcconfig: try! AbsolutePath(validating: "/B")),

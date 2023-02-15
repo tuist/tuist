@@ -111,7 +111,7 @@ class GeneratorFactory: GeneratorFactorying {
 
         let graphMappers = graphMapperFactory.automation(config: config, testsCacheDirectory: testsCacheDirectory)
         let workspaceMappers = workspaceMapperFactory.automation(
-            workspaceDirectory: try! FileHandler.shared.resolveSymlinks(automationPath)
+            workspaceDirectory: try! FileHandler.shared.resolveSymlinks(automationPath) // swiftlint:disable:this force_try
         )
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(

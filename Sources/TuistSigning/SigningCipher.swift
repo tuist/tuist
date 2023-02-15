@@ -111,7 +111,10 @@ public final class SigningCipher: SigningCiphering {
 
         try zip(decipheredKeys, signingKeyFiles).forEach { key, keyFile in
             logger.debug("Decrypting \(keyFile.pathString)")
-            let decryptedPath = try AbsolutePath(validating: keyFile.parentDirectory.pathString + "/" + keyFile.basenameWithoutExt)
+            let decryptedPath = try AbsolutePath(
+                validating: keyFile.parentDirectory.pathString + "/" + keyFile
+                    .basenameWithoutExt
+            )
             try key.write(to: decryptedPath.url)
         }
 

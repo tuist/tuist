@@ -83,8 +83,8 @@ struct TestCommand: AsyncParsableCommand {
             osVersion: os,
             skipUITests: skipUITests,
             resultBundlePath: resultBundlePath.map {
-                try AbsolutePath(validating: 
-                    $0,
+                try AbsolutePath(
+                    validating: $0,
                     relativeTo: FileHandler.shared.currentPath
                 )
             },

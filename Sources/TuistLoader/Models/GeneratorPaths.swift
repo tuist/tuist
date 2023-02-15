@@ -48,7 +48,8 @@ public struct GeneratorPaths {
         case .relativeToManifest:
             return try AbsolutePath(validating: path.pathString, relativeTo: manifestDirectory)
         case .relativeToRoot:
-            guard let rootPath = rootDirectoryLocator.locate(from: try AbsolutePath(validating: manifestDirectory.pathString)) else {
+            guard let rootPath = rootDirectoryLocator.locate(from: try AbsolutePath(validating: manifestDirectory.pathString))
+            else {
                 throw GeneratorPathsError.rootDirectoryNotFound(try AbsolutePath(validating: manifestDirectory.pathString))
             }
             return try AbsolutePath(validating: path.pathString, relativeTo: rootPath)
