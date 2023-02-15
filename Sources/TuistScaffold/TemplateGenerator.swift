@@ -29,7 +29,7 @@ public final class TemplateGenerator: TemplateGenerating {
         to destinationPath: AbsolutePath,
         attributes: [String: String]
     ) throws {
-        let renderedItems = renderItems(
+        let renderedItems = try renderItems(
             template: template,
             attributes: attributes
         )
@@ -51,9 +51,9 @@ public final class TemplateGenerator: TemplateGenerating {
     private func renderItems(
         template: Template,
         attributes: [String: String]
-    ) -> [Template.Item] {
-        attributes.reduce(template.items) { items, attribute in
-            items.map {
+    ) throws -> [Template.Item] {
+        try attributes.reduce(template.items) { items, attribute in
+            try items.map {
                 let path = RelativePath(
                     $0.path.pathString
                         .replacingOccurrences(of: "{{ \(attribute.key) }}", with: attribute.value)
@@ -62,7 +62,7 @@ public final class TemplateGenerator: TemplateGenerating {
                 var contents = $0.contents
                 if case let Template.Contents.file(path) = contents {
                     contents = .file(
-                        AbsolutePath(
+                        try AbsolutePath(validating: 
                             path.pathString.replacingOccurrences(
                                 of: "{{ \(attribute.key) }}", with: attribute.value
                             )
@@ -71,7 +71,7 @@ public final class TemplateGenerator: TemplateGenerating {
                 }
                 if case let Template.Contents.directory(path) = contents {
                     contents = .directory(
-                        AbsolutePath(
+                        try AbsolutePath(validating: 
                             path.pathString.replacingOccurrences(
                                 of: "{{ \(attribute.key) }}", with: attribute.value
                             )

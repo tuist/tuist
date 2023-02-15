@@ -36,7 +36,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let resourceSynthesizers = [sourceRootPath].map { $0.appending(component: "resourceSynthesizer") }
         let stencils = [sourceRootPath].map { $0.appending(component: "Stencil") }
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
-        let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
+        let tuistPath = try AbsolutePath(validating: "/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
         let projectsGroup = ProjectGroup.group(name: projectName)
         let pluginPaths = [
@@ -228,7 +228,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let resourceSynthesizers: [AbsolutePath] = []
         let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
-        let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
+        let tuistPath = try AbsolutePath(validating: "/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
         let projectsGroup = ProjectGroup.group(name: projectName)
 
@@ -312,7 +312,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let resourceSynthesizers: [AbsolutePath] = []
         let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
-        let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
+        let tuistPath = try AbsolutePath(validating: "/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
 
         // When
@@ -420,7 +420,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let resourceSynthesizers: [AbsolutePath] = []
         let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
-        let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
+        let tuistPath = try AbsolutePath(validating: "/usr/bin/foo/bar/tuist")
         let projectName = "Plugins"
         let projectsGroup = ProjectGroup.group(name: projectName)
 
@@ -501,7 +501,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let resourceSynthesizers: [AbsolutePath] = []
         let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
-        let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
+        let tuistPath = try AbsolutePath(validating: "/usr/bin/foo/bar/tuist")
         let projectName = "Plugins"
         let projectsGroup = ProjectGroup.group(name: projectName)
 
@@ -605,7 +605,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let resourceSynthesizers: [AbsolutePath] = []
         let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
-        let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
+        let tuistPath = try AbsolutePath(validating: "/usr/bin/foo/bar/tuist")
         try createFiles([
             "Unrelated/Source.swift",
             "Source.swift",
@@ -657,7 +657,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let resourceSynthesizers: [AbsolutePath] = []
         let stencils: [AbsolutePath] = []
         let projectDescriptionPath = sourceRootPath.appending(components: "Frameworks", "ProjectDescription.framework")
-        let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
+        let tuistPath = try AbsolutePath(validating: "/usr/bin/foo/bar/tuist")
         let manifestsProjectName = "Manifests"
         let pluginsProjectName = "Plugins"
         let projectsGroup = ProjectGroup.group(name: manifestsProjectName)

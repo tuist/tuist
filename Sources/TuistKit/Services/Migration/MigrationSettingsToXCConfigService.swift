@@ -18,9 +18,9 @@ class MigrationSettingsToXCConfigService {
 
     func run(xcodeprojPath: String, xcconfigPath: String, target: String?) throws {
         try settingsToXCConfigExtractor.extract(
-            xcodeprojPath: AbsolutePath(xcodeprojPath, relativeTo: FileHandler.shared.currentPath),
+            xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: FileHandler.shared.currentPath),
             targetName: target,
-            xcconfigPath: AbsolutePath(xcconfigPath, relativeTo: FileHandler.shared.currentPath)
+            xcconfigPath: try AbsolutePath(validating: xcconfigPath, relativeTo: FileHandler.shared.currentPath)
         )
     }
 }

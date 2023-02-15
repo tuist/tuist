@@ -41,7 +41,7 @@ public class XcodeController: XcodeControlling {
             return nil
         }
 
-        let xcode = try Xcode.read(path: AbsolutePath(path).parentDirectory.parentDirectory)
+        let xcode = try Xcode.read(path: try AbsolutePath(validating: path).parentDirectory.parentDirectory)
         selectedXcode = xcode
         return xcode
     }

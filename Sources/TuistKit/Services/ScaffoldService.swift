@@ -58,7 +58,7 @@ final class ScaffoldService {
         templateName: String,
         path: String?
     ) async throws -> (required: [String], optional: [String]) {
-        let path = self.path(path)
+        let path = try self.path(path)
         let plugins = try await loadPlugins(at: path)
         let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
         let templateDirectory = try templateDirectory(
@@ -84,7 +84,7 @@ final class ScaffoldService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?]
     ) async throws {
-        let path = self.path(path)
+        let path = try self.path(path)
         let plugins = try await loadPlugins(at: path)
         let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
 
@@ -112,9 +112,9 @@ final class ScaffoldService {
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) -> AbsolutePath {
+    private func path(_ path: String?) throws -> AbsolutePath {
         if let path = path {
-            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
         }

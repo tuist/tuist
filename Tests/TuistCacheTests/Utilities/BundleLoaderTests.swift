@@ -7,7 +7,7 @@ import XCTest
 final class BundleLoaderErrorTests: TuistUnitTestCase {
     func test_type_when_bundleNotFound() {
         // Given
-        let path = AbsolutePath("/bundles/tuist.bundle")
+        let path = try! AbsolutePath(validating: "/bundles/tuist.bundle")
         let subject = BundleLoaderError.bundleNotFound(path)
 
         // When
@@ -19,7 +19,7 @@ final class BundleLoaderErrorTests: TuistUnitTestCase {
 
     func test_description_when_bundleNotFound() {
         // Given
-        let path = AbsolutePath("/bundles/tuist.bundle")
+        let path = try! AbsolutePath(validating: "/bundles/tuist.bundle")
         let subject = BundleLoaderError.bundleNotFound(path)
 
         // When

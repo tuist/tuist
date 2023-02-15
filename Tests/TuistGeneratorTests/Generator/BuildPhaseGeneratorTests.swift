@@ -11,13 +11,13 @@ import XCTest
 
 final class BuildPhaseGenerationErrorTests: TuistUnitTestCase {
     func test_description_when_missingFileReference() {
-        let path = AbsolutePath("/test")
+        let path = try! AbsolutePath(validating: "/test")
         let expected = "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
         XCTAssertEqual(BuildPhaseGenerationError.missingFileReference(path).description, expected)
     }
 
     func test_type_when_missingFileReference() {
-        let path = AbsolutePath("/test")
+        let path = try! AbsolutePath(validating: "/test")
         XCTAssertEqual(BuildPhaseGenerationError.missingFileReference(path).type, .bug)
     }
 }
@@ -153,7 +153,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
-        let path = AbsolutePath("/test/file.swift")
+        let path = try! AbsolutePath(validating: "/test/file.swift")
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
@@ -236,7 +236,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() {
-        let path = AbsolutePath("/test/Base.lproj/file.intentdefinition")
+        let path = try! AbsolutePath(validating: "/test/Base.lproj/file.intentdefinition")
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
@@ -305,12 +305,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: pbxTarget)
 
         let fileElements = ProjectFileElements()
-        let path = AbsolutePath("/test/file.swift")
+        let path = try AbsolutePath(validating: "/test/file.swift")
 
         let sourceFileReference = PBXFileReference(sourceTree: .group, name: "Test")
         fileElements.elements[path] = sourceFileReference
 
-        let headerPath = AbsolutePath("/test.h")
+        let headerPath = try AbsolutePath(validating: "/test.h")
         let headers = Headers.test(public: [path], private: [], project: [])
 
         let headerFileReference = PBXFileReference()
@@ -344,12 +344,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: pbxTarget)
 
         let fileElements = ProjectFileElements()
-        let path = AbsolutePath("/test/file.swift")
+        let path = try AbsolutePath(validating: "/test/file.swift")
 
         let sourceFileReference = PBXFileReference(sourceTree: .group, name: "Test")
         fileElements.elements[path] = sourceFileReference
 
-        let headerPath = AbsolutePath("/test.h")
+        let headerPath = try AbsolutePath(validating: "/test.h")
         let headers = Headers.test(public: [path], private: [], project: [])
 
         let headerFileReference = PBXFileReference()
@@ -517,8 +517,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     func test_generateSourcesBuildPhase_whenCoreDataModel() throws {
         // Given
         let coreDataModel = CoreDataModel(
-            path: AbsolutePath("/Model.xcdatamodeld"),
-            versions: [AbsolutePath("/Model.xcdatamodeld/1.xcdatamodel")],
+            path: try AbsolutePath(validating: "/Model.xcdatamodeld"),
+            versions: [try AbsolutePath(validating: "/Model.xcdatamodeld/1.xcdatamodel")],
             currentVersion: "1"
         )
         let target = Target.test(resources: [], coreDataModels: [coreDataModel])
@@ -527,12 +527,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         let versionGroup = XCVersionGroup()
         pbxproj.add(object: versionGroup)
-        fileElements.elements[AbsolutePath("/Model.xcdatamodeld")] = versionGroup
+        fileElements.elements[try AbsolutePath(validating: "/Model.xcdatamodeld")] = versionGroup
 
         let model = PBXFileReference()
         pbxproj.add(object: model)
         versionGroup.children.append(model)
-        fileElements.elements[AbsolutePath("/Model.xcdatamodeld/1.xcdatamodel")] = model
+        fileElements.elements[try AbsolutePath(validating: "/Model.xcdatamodeld/1.xcdatamodel")] = model
 
         let nativeTarget = PBXNativeTarget(name: "Test")
 
@@ -555,7 +555,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     func test_generateResourcesBuildPhase_whenNormalResource() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let path = AbsolutePath("/image.png")
+        let path = try AbsolutePath(validating: "/image.png")
         let target = Target.test(resources: [.file(path: path)])
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
@@ -634,7 +634,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateResourceBundle() throws {
         // Given
-        let path = AbsolutePath("/path")
+        let path = try AbsolutePath(validating: "/path")
         let bundle1 = Target.test(name: "Bundle1", product: .bundle)
         let bundle2 = Target.test(name: "Bundle2", product: .bundle)
         let app = Target.test(name: "App", product: .app)
@@ -968,7 +968,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let fileElements = ProjectFileElements([:])
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
-        let path = AbsolutePath("/test")
+        let path = try AbsolutePath(validating: "/test")
         let pbxproj = PBXProj()
         let pbxProject = createPbxProject(pbxproj: pbxproj)
         let target = Target.test(
@@ -1043,7 +1043,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let fileElements = ProjectFileElements([:])
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
-        let path = AbsolutePath("/test")
+        let path = try AbsolutePath(validating: "/test")
         let pbxproj = PBXProj()
         let pbxProject = createPbxProject(pbxproj: pbxproj)
         let target = Target.test(
@@ -1109,7 +1109,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let fileElements = ProjectFileElements([:])
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
-        let path = AbsolutePath("/")
+        let path = try AbsolutePath(validating: "/")
         let pbxproj = PBXProj()
         let pbxProject = createPbxProject(pbxproj: pbxproj)
         let target = Target.test(
@@ -1214,7 +1214,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateBuildPhases_whenStaticFrameworkWithCoreDataModels() throws {
         // Given
-        let path = AbsolutePath("/path/to/project")
+        let path = try AbsolutePath(validating: "/path/to/project")
         let coreDataModel = CoreDataModel(
             path: path.appending(component: "Model.xcdatamodeld"),
             versions: [
@@ -1256,7 +1256,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateBuildPhases_whenBundleWithCoreDataModels() throws {
         // Given
-        let path = AbsolutePath("/path/to/project")
+        let path = try AbsolutePath(validating: "/path/to/project")
         let coreDataModel = CoreDataModel(
             path: path.appending(component: "Model.xcdatamodeld"),
             versions: [

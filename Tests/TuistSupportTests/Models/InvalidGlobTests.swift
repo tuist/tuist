@@ -7,7 +7,7 @@ import XCTest
 final class InvalidGlobTests: TuistUnitTestCase {
     func test_description() {
         // Given
-        let subject = InvalidGlob(pattern: "/path/**/*", nonExistentPath: AbsolutePath("/path"))
+        let subject = InvalidGlob(pattern: "/path/**/*", nonExistentPath: try! AbsolutePath(validating: "/path"))
 
         // When
         let got = subject.description

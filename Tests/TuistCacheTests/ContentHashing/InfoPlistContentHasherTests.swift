@@ -13,7 +13,7 @@ import XCTest
 final class InfoPlistContentHasherTests: TuistUnitTestCase {
     private var subject: InfoPlistContentHasher!
     private var mockContentHasher: MockContentHasher!
-    private let filePath1 = AbsolutePath("/file1")
+    private let filePath1 = try! AbsolutePath(validating: "/file1")
 
     override func setUp() {
         super.setUp()

@@ -335,8 +335,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
     func test_generate_localSwiftPackagePaths() throws {
         // Given
-        let projectPath = AbsolutePath("/Project")
-        let localPackagePath = AbsolutePath("/Packages/LocalPackageA")
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let localPackagePath = try AbsolutePath(validating: "/Packages/LocalPackageA")
         let project = Project.test(
             path: projectPath,
             sourceRootPath: projectPath,

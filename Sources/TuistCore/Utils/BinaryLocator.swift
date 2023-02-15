@@ -32,14 +32,14 @@ public final class BinaryLocator: BinaryLocating {
     private func binariesPaths() throws -> [AbsolutePath] {
         #if DEBUG
             // Used only for debug purposes
-            let bundlePath = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
+            let bundlePath = try AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
                 .removingLastComponent()
                 .removingLastComponent()
                 .removingLastComponent()
                 .removingLastComponent()
                 .appending(RelativePath("projects/tuist/vendor"))
         #else
-            let bundlePath = AbsolutePath(Bundle(for: BinaryLocator.self).bundleURL.path)
+            let bundlePath = try AbsolutePath(validating: Bundle(for: BinaryLocator.self).bundleURL.path)
         #endif
         return [
             bundlePath,

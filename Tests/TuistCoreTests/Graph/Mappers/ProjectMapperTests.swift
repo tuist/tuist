@@ -37,7 +37,7 @@ final class TargetProjectMapperTests: XCTestCase {
             var updated = $0
             updated.name = "Updated_\($0.name)"
             return (updated, [
-                .file(.init(path: AbsolutePath("/Targets/\($0.name).swift"))),
+                .file(.init(path: try! AbsolutePath(validating: "/Targets/\($0.name).swift"))),
             ])
         }
         let subject = TargetProjectMapper(mapper: targetMapper)
@@ -50,8 +50,8 @@ final class TargetProjectMapperTests: XCTestCase {
 
         // Then
         XCTAssertEqual(sideEffects, [
-            .file(.init(path: AbsolutePath("/Targets/A.swift"))),
-            .file(.init(path: AbsolutePath("/Targets/B.swift"))),
+            .file(.init(path: try! AbsolutePath(validating: "/Targets/A.swift"))),
+            .file(.init(path: try! AbsolutePath(validating: "/Targets/B.swift"))),
         ])
     }
 

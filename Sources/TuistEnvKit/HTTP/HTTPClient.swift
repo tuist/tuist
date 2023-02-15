@@ -103,7 +103,7 @@ final class HTTPClient: HTTPClienting {
             if let error = error {
                 clientError = HTTPClientError.clientError(url, error)
             } else if let downloadURL = downloadURL {
-                let from = AbsolutePath(downloadURL.path)
+                let from = try AbsolutePath(validating: downloadURL.path)
                 do {
                     try FileHandler.shared.copy(from: from, to: to)
                 } catch {

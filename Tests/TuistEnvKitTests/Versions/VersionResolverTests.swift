@@ -7,12 +7,12 @@ import XCTest
 
 final class VersionResolverErrorTests: XCTestCase {
     func test_errorDescription() {
-        let path = AbsolutePath("/test")
+        let path = try AbsolutePath(validating: "/test")
         XCTAssertEqual(VersionResolverError.readError(path: path).description, "Cannot read the version file at path /test.")
     }
 
     func test_equatable() {
-        let path = AbsolutePath("/test")
+        let path = try AbsolutePath(validating: "/test")
         XCTAssertEqual(VersionResolverError.readError(path: path), VersionResolverError.readError(path: path))
     }
 }

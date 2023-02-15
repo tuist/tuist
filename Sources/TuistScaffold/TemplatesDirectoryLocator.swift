@@ -33,12 +33,12 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
         #if DEBUG
             // Used only for debug purposes to find templates in your tuist working directory
             // `bundlePath` points to tuist/Templates
-            let bundlePath = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
+            let bundlePath = try! AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
                 .removingLastComponent()
                 .removingLastComponent()
                 .removingLastComponent()
         #else
-            let bundlePath = AbsolutePath(Bundle(for: TemplatesDirectoryLocator.self).bundleURL.path)
+            let bundlePath = try AbsolutePath(validating: Bundle(for: TemplatesDirectoryLocator.self).bundleURL.path)
         #endif
         let paths = [
             bundlePath,

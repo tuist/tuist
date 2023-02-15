@@ -189,7 +189,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
             // direct dependency module map
             if case let .string(dependencyModuleMap) = dependentTarget.settings?.base[Self.modulemapFileSetting] {
                 let pathString = dependentProject.path.pathString
-                let dependencyModuleMapPath = AbsolutePath(
+                let dependencyModuleMapPath = try AbsolutePath(validating: 
                     dependencyModuleMap
                         .replacingOccurrences(of: "$(PROJECT_DIR)", with: pathString)
                         .replacingOccurrences(of: "$(SRCROOT)", with: pathString)

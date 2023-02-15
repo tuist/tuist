@@ -7,7 +7,7 @@ import XcodeProj
 
 extension ProjectDescriptor {
     public static func test(
-        path: AbsolutePath = AbsolutePath("/Test"),
+        path: AbsolutePath = try! AbsolutePath(validating: "/Test"),
         xcodeprojPath: AbsolutePath? = nil,
         schemes: [SchemeDescriptor] = [],
         sideEffects: [SideEffectDescriptor] = []

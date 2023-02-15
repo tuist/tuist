@@ -76,9 +76,9 @@ final class RunServiceTests: TuistUnitTestCase {
         let expectation = self.expectation(description: "generates when required")
         generator.generateWithGraphStub = { _ in
             expectation.fulfill()
-            return (AbsolutePath("/path/to/project.xcworkspace"), .test())
+            return (try AbsolutePath(validating: "/path/to/project.xcworkspace"), .test())
         }
-        buildGraphInspector.workspacePathStub = { _ in AbsolutePath("/path/to/project.xcworkspace") }
+        buildGraphInspector.workspacePathStub = { _ in try! AbsolutePath(validating: "/path/to/project.xcworkspace") }
         buildGraphInspector.runnableSchemesStub = { _ in [.test()] }
         buildGraphInspector.runnableTargetStub = { _, _ in .test() }
 
@@ -137,7 +137,7 @@ final class RunServiceTests: TuistUnitTestCase {
 
     func test_run_runsTarget() async throws {
         // Given
-        let workspacePath = AbsolutePath("/path/to/project.xcworkspace")
+        let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
         let expectation = self.expectation(description: "runs target")
         let schemeName = "AScheme"
         let configuration = "Test"

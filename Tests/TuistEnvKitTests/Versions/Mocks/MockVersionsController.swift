@@ -31,7 +31,7 @@ final class MockVersionsController: VersionsControlling {
 
     func path(version: String) -> AbsolutePath {
         pathCallCount += 1
-        return pathStub?(version) ?? AbsolutePath("/test")
+        return pathStub?(version) ?? try AbsolutePath(validating: "/test")
     }
 
     func install(version: String, installation: Installation) throws {

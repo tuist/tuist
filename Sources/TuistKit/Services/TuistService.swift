@@ -31,7 +31,7 @@ final class TuistService: NSObject {
 
         let path: AbsolutePath
         if let pathOptionIndex = arguments.firstIndex(of: "--path") ?? arguments.firstIndex(of: "--p") {
-            path = AbsolutePath(
+            path = try AbsolutePath(validating: 
                 arguments[pathOptionIndex + 1],
                 relativeTo: FileHandler.shared.currentPath
             )

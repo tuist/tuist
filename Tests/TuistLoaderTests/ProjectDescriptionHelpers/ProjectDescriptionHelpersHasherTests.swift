@@ -37,7 +37,7 @@ class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
 
     func test_prefixHash() throws {
         // Given
-        let path = AbsolutePath("/path/to/helpers")
+        let path = try AbsolutePath(validating: "/path/to/helpers")
         let pathString = path.pathString
         let index = pathString.index(pathString.startIndex, offsetBy: 7)
         let expected = String(pathString.md5[..<index])

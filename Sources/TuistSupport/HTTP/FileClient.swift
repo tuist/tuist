@@ -68,7 +68,7 @@ public class FileClient: FileClienting {
                 throw FileClientError.invalidResponse(request, nil)
             }
             if successStatusCodeRange.contains(response.statusCode) {
-                return AbsolutePath(localUrl.path)
+                return try AbsolutePath(validating: localUrl.path)
             } else {
                 throw FileClientError.invalidResponse(request, nil)
             }

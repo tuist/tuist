@@ -16,7 +16,7 @@ enum TuistApp {
 
         let path: AbsolutePath
         if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
-            path = AbsolutePath(CommandLine.arguments[argumentIndex + 1], relativeTo: .current)
+            path = try AbsolutePath(validating: CommandLine.arguments[argumentIndex + 1], relativeTo: .current)
         } else {
             path = .current
         }

@@ -93,7 +93,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
                 path: directory.appending(component: "Project.swift")
             ),
         ]
-        let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
+        let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
         let configPath = directory.appending(components: "Tuist", "Config.swift")
         let dependenciesPath = directory.appending(components: "Tuist", "Dependencies.swif")
         try FileHandler.shared.createFolder(directory.appending(component: "a folder"))
@@ -173,7 +173,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
         let pluginManifest = directory.appending(component: "Plugin.swift")
-        let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
+        let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
 
         // When
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
@@ -208,7 +208,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             directory.appending(components: "C", "Plugin.swift"),
             directory.appending(components: "D", "Plugin.swift"),
         ]
-        let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
+        let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
 
         // When
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
@@ -254,7 +254,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let pluginManifestPath = pluginDirectory.appending(component: "Plugin.swift")
         try FileHandler.shared.touch(pluginManifestPath)
 
-        let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
+        let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
@@ -301,7 +301,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Local plugin
         let pluginManifestPath = rootPath.appending(component: "Plugin.swift")
 
-        let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
+        let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
@@ -344,7 +344,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
                 path: directory.appending(component: "Project.swift")
             ),
         ]
-        let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
+        let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
@@ -362,7 +362,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
 
         // When
         let plugins = Plugins.test(projectDescriptionHelpers: [
-            .init(name: "RemotePlugin", path: AbsolutePath("/Some/Path/To/Plugin"), location: .remote),
+            .init(name: "RemotePlugin", path: try AbsolutePath(validating: "/Some/Path/To/Plugin"), location: .remote),
         ])
         try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
 
@@ -375,7 +375,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEmpty(try XCTUnwrap(mapArgs?.editablePluginManifests))
         XCTAssertEqual(
             mapArgs?.pluginProjectDescriptionHelpersModule,
-            [ProjectDescriptionHelpersModule(name: "RemotePlugin", path: AbsolutePath("/Some/Path/To/Plugin"))]
+            [ProjectDescriptionHelpersModule(name: "RemotePlugin", path: try AbsolutePath(validating: "/Some/Path/To/Plugin"))]
         )
     }
 }

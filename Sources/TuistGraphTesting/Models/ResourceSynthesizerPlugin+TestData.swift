@@ -5,7 +5,7 @@ import TSCBasic
 extension PluginResourceSynthesizer {
     public static func test(
         name: String = "Plugin",
-        path: AbsolutePath = AbsolutePath("/test")
+        path: AbsolutePath = try! AbsolutePath(validating: "/test")
     ) -> Self {
         .init(
             name: name,

@@ -64,7 +64,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         _ = try await subject.run(path: fullPath, xcframeworks: false, profile: nil)
 
         // Then
-        XCTAssertEqual(generator.invokedLoadParameterPath, AbsolutePath(fullPath))
+        XCTAssertEqual(generator.invokedLoadParameterPath, try AbsolutePath(validating: fullPath))
     }
 
     func test_run_withoutPath_loads_the_graph() async throws {
@@ -98,7 +98,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             generator.invokedLoadParameterPath,
-            AbsolutePath("RelativePath", relativeTo: FileHandler.shared.currentPath)
+            try AbsolutePath(validating: "RelativePath", relativeTo: FileHandler.shared.currentPath)
         )
     }
 

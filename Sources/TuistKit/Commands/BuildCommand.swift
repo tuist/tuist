@@ -61,7 +61,7 @@ struct BuildCommand: AsyncParsableCommand {
     func run() async throws {
         let absolutePath: AbsolutePath
         if let path = path {
-            absolutePath = AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+            absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             absolutePath = FileHandler.shared.currentPath
         }
@@ -71,7 +71,7 @@ struct BuildCommand: AsyncParsableCommand {
             generate: generate,
             clean: clean,
             configuration: configuration,
-            buildOutputPath: buildOutputPath.map { AbsolutePath($0, relativeTo: FileHandler.shared.currentPath) },
+            buildOutputPath: buildOutputPath.map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) },
             path: absolutePath,
             device: device,
             osVersion: os

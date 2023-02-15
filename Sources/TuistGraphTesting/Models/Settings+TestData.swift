@@ -5,7 +5,7 @@ import TSCBasic
 extension Configuration {
     public static func test(
         settings: SettingsDictionary = [:],
-        xcconfig: AbsolutePath? = AbsolutePath("/Config.xcconfig")
+        xcconfig: AbsolutePath? = try! AbsolutePath(validating: "/Config.xcconfig")
     ) -> Configuration {
         Configuration(settings: settings, xcconfig: xcconfig)
     }
@@ -14,8 +14,8 @@ extension Configuration {
 extension Settings {
     public static func test(
         base: SettingsDictionary = [:],
-        debug: Configuration = Configuration(settings: [:], xcconfig: AbsolutePath("/Debug.xcconfig")),
-        release: Configuration = Configuration(settings: [:], xcconfig: AbsolutePath("/Release.xcconfig"))
+        debug: Configuration = Configuration(settings: [:], xcconfig: try! AbsolutePath(validating: "/Debug.xcconfig")),
+        release: Configuration = Configuration(settings: [:], xcconfig: try! AbsolutePath(validating: "/Release.xcconfig"))
     ) -> Settings {
         Settings(
             base: base,

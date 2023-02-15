@@ -17,7 +17,7 @@ final class PluginRunService {
         if let path = path {
             runCommand += [
                 "--package-path",
-                AbsolutePath(path, relativeTo: FileHandler.shared.currentPath).pathString,
+                try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath).pathString,
             ]
         }
         if buildTests {

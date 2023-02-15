@@ -28,7 +28,7 @@ final class InfoPlistTests: XCTestCase {
 
     func test_path_when_file() {
         // Given
-        let path = AbsolutePath("/path/Info.list")
+        let path = try! AbsolutePath(validating: "/path/Info.list")
         let subject: InfoPlist = .file(path: path)
 
         // Then
@@ -40,6 +40,6 @@ final class InfoPlistTests: XCTestCase {
         let subject: InfoPlist = "/path/Info.list"
 
         // Then
-        XCTAssertEqual(subject.path, AbsolutePath("/path/Info.list"))
+        XCTAssertEqual(subject.path, try AbsolutePath(validating: "/path/Info.list"))
     }
 }

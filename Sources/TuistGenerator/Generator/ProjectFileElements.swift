@@ -539,7 +539,7 @@ class ProjectFileElements {
         toGroup: PBXGroup,
         pbxproj: PBXProj
     ) {
-        let sdkPath = sdkNodePath.relative(to: AbsolutePath("/")) // SDK paths are relative
+        let sdkPath = sdkNodePath.relative(to: try! AbsolutePath(validating: "/")) // SDK paths are relative
 
         let lastKnownFileType = sdkPath.extension.flatMap { Xcode.filetype(extension: $0) }
         let file = PBXFileReference(
@@ -592,7 +592,7 @@ class ProjectFileElements {
             range: range
         ) {
             let lprojPath = (pathString as NSString).substring(with: localizedMatch.range(at: 1))
-            return AbsolutePath(lprojPath)
+            return try! AbsolutePath(validating: lprojPath)
         } else {
             return path
         }

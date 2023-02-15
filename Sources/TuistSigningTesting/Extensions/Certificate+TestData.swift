@@ -4,8 +4,8 @@ import TSCBasic
 
 extension Certificate {
     static func test(
-        publicKey: AbsolutePath = AbsolutePath("/"),
-        privateKey: AbsolutePath = AbsolutePath("/"),
+        publicKey: AbsolutePath = try! AbsolutePath(validating: "/"),
+        privateKey: AbsolutePath = try! AbsolutePath(validating: "/"),
         fingerprint: String = "",
         developmentTeam: String = "",
         name: String = "",

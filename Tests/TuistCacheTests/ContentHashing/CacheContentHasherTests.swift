@@ -51,7 +51,7 @@ final class CacheContentHasherTests: TuistUnitTestCase {
 
     func test_hashpath_callsContentHasherWithExpectedPath() throws {
         // Given
-        let path = AbsolutePath("/foo")
+        let path = try AbsolutePath(validating: "/foo")
         mockContentHashing.stubHashForPath[path] = "foo-hash"
 
         // When
@@ -64,7 +64,7 @@ final class CacheContentHasherTests: TuistUnitTestCase {
 
     func test_hashpath_secondTime_doesntCallContentHasher() throws {
         // Given
-        let path = AbsolutePath("/foo")
+        let path = try AbsolutePath(validating: "/foo")
         mockContentHashing.stubHashForPath[path] = "foo-hash"
 
         // When

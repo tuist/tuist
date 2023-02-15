@@ -12,9 +12,9 @@ import XCTest
 final class DependenciesContentHasherTests: TuistUnitTestCase {
     private var subject: DependenciesContentHasher!
     private var mockContentHasher: MockContentHasher!
-    private var filePath1: AbsolutePath! = AbsolutePath("/file1")
-    private var filePath2: AbsolutePath! = AbsolutePath("/file2")
-    private var filePath3: AbsolutePath! = AbsolutePath("/file3")
+    private var filePath1: AbsolutePath! = try! AbsolutePath(validating: "/file1")
+    private var filePath2: AbsolutePath! = try! AbsolutePath(validating: "/file2")
+    private var filePath3: AbsolutePath! = try! AbsolutePath(validating: "/file3")
     private var graphTarget: GraphTarget!
     private var hashedTargets: [GraphHashedTarget: String]!
     private var hashedPaths: [AbsolutePath: String]!

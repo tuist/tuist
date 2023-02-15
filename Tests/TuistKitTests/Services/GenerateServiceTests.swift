@@ -59,7 +59,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
     }
 
     func test_run() async throws {
-        let workspacePath = AbsolutePath("/test.xcworkspace")
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
 
         generator.generateStub = { _ in
             workspacePath
@@ -79,7 +79,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
 
     func test_run_timeIsPrinted() async throws {
         // Given
-        let workspacePath = AbsolutePath("/test.xcworkspace")
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
 
         generator.generateStub = { _ in
             workspacePath

@@ -78,7 +78,7 @@ final class ContentHasherTests: TuistUnitTestCase {
 
     func test_hashFile_whenFileDoesntExist_itThrowsFileNotFound() {
         // Given
-        let wrongPath = AbsolutePath("/shakirashakira")
+        let wrongPath = try! AbsolutePath(validating: "/shakirashakira")
 
         // Then
         XCTAssertThrowsError(try subject.hash(path: wrongPath)) { error in

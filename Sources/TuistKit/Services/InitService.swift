@@ -64,7 +64,7 @@ class InitService {
         required: [String],
         optional: [String]
     ) {
-        let path = self.path(path)
+        let path = try self.path(path)
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
         var attributes: [Template.Attribute] = []
 
@@ -107,7 +107,7 @@ class InitService {
         optionalTemplateOptions: [String: String?]
     ) throws {
         let platform = try self.platform(platform)
-        let path = self.path(path)
+        let path = try self.path(path)
         let name = try self.name(name, path: path)
         let templateName = templateName ?? "default"
         try verifyDirectoryIsEmpty(path: path)
@@ -219,9 +219,9 @@ class InitService {
         return initName.camelized.uppercasingFirst
     }
 
-    private func path(_ path: String?) -> AbsolutePath {
+    private func path(_ path: String?) throws -> AbsolutePath {
         if let path = path {
-            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
         }

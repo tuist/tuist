@@ -20,7 +20,7 @@ final class CacheWarmService {
     }
 
     func run(path: String?, profile: String?, xcframeworks: Bool, targets: Set<String>, dependenciesOnly: Bool) async throws {
-        let path = self.path(path)
+        let path = try self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let storages = try CacheStorageProvider(config: config).storages()
         let cache = Cache(storages: storages)
@@ -44,9 +44,9 @@ final class CacheWarmService {
 
     // MARK: - Fileprivate
 
-    private func path(_ path: String?) -> AbsolutePath {
+    private func path(_ path: String?) throws -> AbsolutePath {
         if let path = path {
-            return AbsolutePath(path, relativeTo: currentPath)
+            return try AbsolutePath(validating: path, relativeTo: currentPath)
         } else {
             return currentPath
         }
