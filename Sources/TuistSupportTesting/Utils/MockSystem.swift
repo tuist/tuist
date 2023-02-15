@@ -66,7 +66,8 @@ public final class MockSystem: Systeming {
             .mapToString()
             .collectOutput()
             .eraseToAnyPublisher()
-            .values.makeAsyncIterator()
+            .stream
+            .makeAsyncIterator()
 
         return try await values.next()!
     }
