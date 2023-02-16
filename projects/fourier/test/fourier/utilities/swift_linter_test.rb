@@ -19,7 +19,7 @@ module Fourier
           arguments << "lint"
         end
         arguments << "--quiet"
-        arguments.concat(["--config", Constants::SWIFTLINT_CONFIG_PATH])
+        arguments.push("--config", Constants::SWIFTLINT_CONFIG_PATH)
         arguments.concat(directories.flat_map { |p| ["--path", p] })
 
         Utilities::System.expects(:system).with(*arguments)

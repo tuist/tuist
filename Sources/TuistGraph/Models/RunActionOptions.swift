@@ -6,6 +6,9 @@ public struct RunActionOptions: Equatable, Codable {
     /// App Language.
     public let language: String?
 
+    /// App Region.
+    public let region: String?
+
     /// The path of the
     /// [StoreKit configuration
     /// file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700)
@@ -36,11 +39,13 @@ public struct RunActionOptions: Equatable, Codable {
 
     public init(
         language: String? = nil,
+        region: String? = nil,
         storeKitConfigurationPath: AbsolutePath? = nil,
         simulatedLocation: SimulatedLocation? = nil,
         enableGPUFrameCaptureMode: GPUFrameCaptureMode = .autoEnabled
     ) {
         self.language = language
+        self.region = region
         self.storeKitConfigurationPath = storeKitConfigurationPath
         self.simulatedLocation = simulatedLocation
         self.enableGPUFrameCaptureMode = enableGPUFrameCaptureMode

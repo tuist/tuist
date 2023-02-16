@@ -32,7 +32,7 @@ extension Dictionary {
     ///
     /// - Parameters:
     ///   - context: The execution context to perform the `perform` operation with
-    ///   - transform: The perform closure to call on each element in the dictionary
+    ///   - perform: The perform closure to call on each element in the dictionary
     public func forEach(context: ExecutionContext, _ perform: (Key, Value) throws -> Void) rethrows {
         try map { ($0.key, $0.value) }
             .forEach(context: context, perform)

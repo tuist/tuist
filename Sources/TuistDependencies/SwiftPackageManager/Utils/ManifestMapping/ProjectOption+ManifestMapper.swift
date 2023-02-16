@@ -26,11 +26,23 @@ extension ProjectDescription.Project.Options.AutomaticSchemesOptions {
         manifest: TuistGraph.Project.Options.AutomaticSchemesOptions
     ) -> Self {
         switch manifest {
-        case let .enabled(targetSchemesGrouping, codeCoverageEnabled, testingOptions):
+        case let .enabled(
+            targetSchemesGrouping,
+            codeCoverageEnabled,
+            testingOptions,
+            testLanguage,
+            testRegion,
+            runLanguage,
+            runRegion
+        ):
             return .enabled(
                 targetSchemesGrouping: .from(manifest: targetSchemesGrouping),
                 codeCoverageEnabled: codeCoverageEnabled,
-                testingOptions: .from(manifest: testingOptions)
+                testingOptions: .from(manifest: testingOptions),
+                testLanguage: testLanguage.map { .init(identifier: $0) },
+                testRegion: testRegion,
+                runLanguage: runLanguage.map { .init(identifier: $0) },
+                runRegion: runRegion
             )
         case .disabled:
             return .disabled

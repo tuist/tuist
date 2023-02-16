@@ -39,7 +39,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
     ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
-    ///    - generationOptions: The custom project options for each project generated from a swift package
+    ///    - projectOptions: The custom project options for each project generated from a swift package
 
     public init(
         _ packages: [Package],

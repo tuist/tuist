@@ -18,7 +18,12 @@ extension Workspace {
             /// Tuist will not automatically generate any schemes
             case disabled
             /// Tuist will generate schemes with the associated testing options
-            case enabled(codeCoverageMode: CodeCoverageMode = .disabled, testingOptions: TestingOptions = [])
+            case enabled(
+                codeCoverageMode: CodeCoverageMode = .disabled,
+                testingOptions: TestingOptions = [],
+                testLanguage: SchemeLanguage? = nil,
+                testRegion: String? = nil
+            )
         }
 
         /// Enable or disable automatic generation of schemes by Xcode.

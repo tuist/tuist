@@ -26,7 +26,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
         // Given
         let projectID = "project"
         let cloudURL = URL.test()
-        let config = Cloud(url: cloudURL, projectId: projectID, options: [.analytics])
+        let config = Cloud(url: cloudURL, projectId: projectID, options: [])
         mockCloudClient.mock(
             object: (),
             response: .test(statusCode: 200)

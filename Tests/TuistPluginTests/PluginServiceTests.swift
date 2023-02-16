@@ -74,9 +74,9 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginCFingerprint = "\(pluginCGitURL)-\(pluginCGitTag)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginAGitURL, gitReference: .sha(pluginAGitSha), directory: nil),
-                .git(url: pluginBGitURL, gitReference: .tag(pluginBGitTag), directory: nil),
-                .git(url: pluginCGitURL, gitReference: .tag(pluginCGitTag), directory: "Sub/Subfolder"),
+                .git(url: pluginAGitURL, gitReference: .sha(pluginAGitSha), directory: nil, releaseUrl: nil),
+                .git(url: pluginBGitURL, gitReference: .tag(pluginBGitTag), directory: nil, releaseUrl: nil),
+                .git(url: pluginCGitURL, gitReference: .tag(pluginCGitTag), directory: "Sub/Subfolder", releaseUrl: nil),
             ]
         )
         let pluginADirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
@@ -120,7 +120,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitSha)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginGitURL, gitReference: .sha(pluginGitSha), directory: nil),
+                .git(url: pluginGitURL, gitReference: .sha(pluginGitSha), directory: nil, releaseUrl: nil),
             ]
         )
         var invokedCloneURL: String?
@@ -161,7 +161,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitTag)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag), directory: nil),
+                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag), directory: nil, releaseUrl: nil),
             ]
         )
         var invokedCloneURL: String?
@@ -202,7 +202,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitTag)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag), directory: nil),
+                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag), directory: nil, releaseUrl: nil),
             ]
         )
 
@@ -270,7 +270,12 @@ final class PluginServiceTests: TuistUnitTestCase {
         try fileHandler.createFolder(cachedPluginPath.appending(component: Constants.helpersDirectoryName))
 
         let config = mockConfig(plugins: [
-            TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), directory: nil),
+            TuistGraph.PluginLocation.git(
+                url: pluginGitUrl,
+                gitReference: .tag(pluginGitReference),
+                directory: nil,
+                releaseUrl: nil
+            ),
         ])
 
         // When
@@ -333,7 +338,12 @@ final class PluginServiceTests: TuistUnitTestCase {
 
         let config =
             mockConfig(plugins: [
-                TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), directory: nil),
+                TuistGraph.PluginLocation.git(
+                    url: pluginGitUrl,
+                    gitReference: .tag(pluginGitReference),
+                    directory: nil,
+                    releaseUrl: nil
+                ),
             ])
 
         // When
@@ -405,7 +415,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let config =
             mockConfig(plugins: [
                 TuistGraph.PluginLocation
-                    .git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), directory: nil),
+                    .git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), directory: nil, releaseUrl: nil),
             ])
 
         // Then

@@ -50,7 +50,8 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
       else
         0
       end
-    }, got.map(&:duration_average)
+    },
+      got.map(&:duration_average)
   end
 
   test "returns average for the last thirty days for a subcommand" do
@@ -76,6 +77,7 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
       else
         0
       end
-    }, got.map(&:duration_average)
+    },
+      got.map(&:duration_average)
   end
 end

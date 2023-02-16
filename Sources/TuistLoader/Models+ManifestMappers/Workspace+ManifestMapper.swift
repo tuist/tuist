@@ -8,7 +8,7 @@ import TuistSupport
 extension TuistGraph.Workspace {
     /// Maps a ProjectDescription.Workspace instance into a TuistGraph.Workspace model.
     /// - Parameters:
-    ///   - manifest: Manifest representation of  workspace.
+    ///   - manifest: Manifest representation of workspace.
     ///   - generatorPaths: Generator paths.
     static func from(
         manifest: ProjectDescription.Workspace,

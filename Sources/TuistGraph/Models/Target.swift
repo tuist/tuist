@@ -270,7 +270,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     }
 
     /// Returns a new copy of the target with the given additional settings
-    /// - Parameter settingsDictionary: settings to be added.
+    /// - Parameter additionalSettings: settings to be added.
     public func with(additionalSettings: SettingsDictionary) -> Target {
         var copy = self
         if let oldSettings = copy.settings {

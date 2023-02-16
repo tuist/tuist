@@ -20,11 +20,16 @@ extension Workspace {
             /// Tuist will not automatically generate the workspace schemes
             case disabled
             /// Tuist will generate the workspace schemes
-            case enabled(codeCoverageMode: CodeCoverageMode = .disabled, testingOptions: TestingOptions = [])
+            case enabled(
+                codeCoverageMode: CodeCoverageMode = .disabled,
+                testingOptions: TestingOptions = [],
+                testLanguage: String? = nil,
+                testRegion: String? = nil
+            )
 
             public var codeCoverageMode: CodeCoverageMode {
                 switch self {
-                case let .enabled(codeCoverageMode, _):
+                case let .enabled(codeCoverageMode, _, _, _):
                     return codeCoverageMode
                 case .disabled:
                     return .disabled
@@ -33,10 +38,28 @@ extension Workspace {
 
             public var testingOptions: TestingOptions {
                 switch self {
-                case let .enabled(_, testingOptions):
+                case let .enabled(_, testingOptions, _, _):
                     return testingOptions
                 case .disabled:
                     return []
+                }
+            }
+
+            public var testLanguage: String? {
+                switch self {
+                case let .enabled(_, _, language, _):
+                    return language
+                case .disabled:
+                    return nil
+                }
+            }
+
+            public var testRegion: String? {
+                switch self {
+                case let .enabled(_, _, _, region):
+                    return region
+                case .disabled:
+                    return nil
                 }
             }
         }

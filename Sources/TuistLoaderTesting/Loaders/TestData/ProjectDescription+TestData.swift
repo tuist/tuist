@@ -105,7 +105,8 @@ extension TargetScript {
         inputPaths: [Path] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = []
+        outputFileListPaths: [Path] = [],
+        dependencyFile: Path? = nil
     ) -> TargetScript {
         TargetScript(
             name: name,
@@ -114,7 +115,8 @@ extension TargetScript {
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
-            outputFileListPaths: outputFileListPaths
+            outputFileListPaths: outputFileListPaths,
+            dependencyFile: dependencyFile
         )
     }
 }

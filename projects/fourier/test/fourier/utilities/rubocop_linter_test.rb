@@ -15,7 +15,7 @@ module Fourier
         executable_path = File.join(gem_path, "exe/rubocop")
         arguments = [executable_path]
         arguments << "-A" if fix
-        arguments.concat(["-c", File.expand_path(".rubocop.yml", Constants::ROOT_DIRECTORY)])
+        arguments.push("-c", File.expand_path(".rubocop.yml", Constants::ROOT_DIRECTORY))
         arguments.concat(directories)
 
         Utilities::System.expects(:system).with(*arguments)

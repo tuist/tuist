@@ -14,7 +14,7 @@ public protocol ProjectDescriptionHelpersBuilding: AnyObject {
     ///
     /// - Parameters:
     ///   - path: Path to the directory that contains the manifest being loaded.
-    ///   - projectDescriptionPath: Path to the project description module.
+    ///   - projectDescriptionSearchPaths: Path to the project description module.
     ///   - projectDescriptionHelperPlugins: List of custom project description helper plugins to include and build.
     func build(
         at path: AbsolutePath,
@@ -61,7 +61,8 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
     /// - Parameters:
     ///   - projectDescriptionHelpersHasher: Project description helpers hasher.
     ///   - cacheDirectory: Path to the cache directory.
-    ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
+    ///   - helpersDirectoryLocator: Instance to locate the helpers directory.
+    ///   - clock: Clock for measuring build duration.
     public init(
         projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing = ProjectDescriptionHelpersHasher(),
         cacheDirectory: AbsolutePath,
