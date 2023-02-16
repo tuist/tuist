@@ -120,6 +120,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
   <a href="https://vk.company/" target="_blank">
     <img src="assets/companies/VK_logo.svg" style="width: 50px;" hspace="8"/>
   </a>
+  <a href="https://hd.kinopoisk.ru/" target="_blank">
+    <img src="assets/companies/kinopoisk_logo.svg" style="width: 120px;" hspace="8"/>
+  </a>
 </div>
 
 ## Documentation 📝
