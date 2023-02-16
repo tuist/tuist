@@ -67,6 +67,7 @@ func targets() -> [Target] {
                     .target(name: "ProjectDescription"),
                 ],
                 testingDependencies: [
+                    .target(name: "TuistCore"),
                     .target(name: "TuistGraph"),
                 ]
             ),

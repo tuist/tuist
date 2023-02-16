@@ -234,6 +234,7 @@ let package = Package(
         .testTarget(
             name: "TuistSupportTests",
             dependencies: [
+                "TuistCore",
                 "TuistSupport",
                 "TuistSupportTesting",
             ]
