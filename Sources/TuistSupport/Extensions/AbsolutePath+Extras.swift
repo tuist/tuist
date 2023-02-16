@@ -63,9 +63,8 @@ extension AbsolutePath {
 
     /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
     public var isPackage: Bool {
-        let ext = URL(fileURLWithPath: pathString).pathExtension as CFString
-        guard let uti = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, ext, nil) else { return false }
-        return UTTypeConformsTo(uti.takeRetainedValue(), kUTTypePackage)
+        guard let utType = UTType(tag: URL(fileURLWithPath: pathString).pathExtension, tagClass: .filenameExtension, conformingTo: nil) else { return false }
+        return utType.conforms(to: UTType.package)
     }
 
     /// An opaque directory is a directory that should be treated like a file, therefor ignoring its content.
