@@ -2,8 +2,7 @@ import ProjectDescription
 
 /// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
 public struct DependenciesGraph: Equatable, Codable {
-    /// A dictionary of Platforms to a dictionary where the keys are the names of dependencies, and the values are the
-    /// dependencies themselves.
+    /// A dictionary of Platforms to a dictionary where the keys are the names of dependencies, and the values are the dependencies themselves.
     public let externalDependencies: [Platform: [String: [TargetDependency]]]
 
     /// A dictionary where the keys are the folder of external projects, and the values are the projects themselves.

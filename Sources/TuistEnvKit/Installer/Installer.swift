@@ -15,8 +15,7 @@ protocol Installing: AnyObject {
 /// Error thrown by the installer.
 ///
 /// - versionNotFound: When the specified version cannot be found.
-/// - incompatibleSwiftVersion: When the environment Swift version is incompatible with the Swift version Tuist has been compiled
-/// with.
+/// - incompatibleSwiftVersion: When the environment Swift version is incompatible with the Swift version Tuist has been compiled with.
 enum InstallerError: FatalError, Equatable {
     case versionNotFound(String)
     case incompatibleSwiftVersion(local: String, expected: String)

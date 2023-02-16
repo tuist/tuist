@@ -90,8 +90,7 @@ public final class SigningInteractor: SigningInteracting {
         provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]
     ) throws -> [LintingIssue] {
         let targetConfigurations = target.target.settings?.configurations ?? [:]
-        /// Filtering certificate-provisioning profile pairs, so they are installed only when necessary (they correspond to some
-        /// configuration and target in the project)
+        /// Filtering certificate-provisioning profile pairs, so they are installed only when necessary (they correspond to some configuration and target in the project)
         let signingPairs = Set(
             targetConfigurations
                 .merging(

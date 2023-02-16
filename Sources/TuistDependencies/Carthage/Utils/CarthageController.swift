@@ -39,10 +39,8 @@ enum CarthageControllerError: FatalError, Equatable {
             """
         case let .xcframeworksProductionNotSupported(installedVersion):
             return """
-            The version of Carthage installed in your environment (\(
-                installedVersion
-                    .description
-            )) doesn't suppport production of XCFrameworks.
+            The version of Carthage installed in your environment (\(installedVersion
+                .description)) doesn't suppport production of XCFrameworks.
             You have to update the tool to at least 0.37.0 version.
             """
         }

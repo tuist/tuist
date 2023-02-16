@@ -62,15 +62,15 @@ extension TuistGraph.TargetDependency {
             return [.xctest]
         case let .external(name):
             var dependencies = [TuistGraph.TargetDependency]()
-
+            
             for platform in platforms {
                 guard let platformDependencies = externalDependencies[platform]?[name] else {
                     throw TargetDependencyMapperError.invalidExternalDependency(name: name, platform: platform.rawValue)
                 }
-
+                
                 dependencies.append(contentsOf: platformDependencies)
             }
-
+            
             return dependencies
         }
     }

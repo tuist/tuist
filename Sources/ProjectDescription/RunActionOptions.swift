@@ -9,8 +9,7 @@ public struct RunActionOptions: Equatable, Codable {
     public let region: String?
 
     /// The path of the
-    /// [StoreKit configuration
-    /// file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
+    /// [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
     public let storeKitConfigurationPath: Path?
 
     /// A simulated GPS location to use when running the app.
@@ -25,8 +24,7 @@ public struct RunActionOptions: Equatable, Codable {
     ///     - language: language (e.g. "pl").
     ///
     ///     - storeKitConfigurationPath: The path of the
-    ///     [StoreKit configuration
-    /// file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
+    ///     [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
     ///     Please note that this file is automatically added to the Project/Workpace. You should not add it manually.
     ///     The default value is `nil`, which results in no configuration defined for the scheme
     ///
@@ -56,8 +54,7 @@ public struct RunActionOptions: Equatable, Codable {
     ///     - language: language (e.g. "pl").
     ///
     ///     - storeKitConfigurationPath: The path of the
-    ///     [StoreKit configuration
-    /// file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
+    ///     [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
     ///     Please note that this file is automatically added to the Project/Workpace. You should not add it manually.
     ///     The default value is `nil`, which results in no configuration defined for the scheme
     ///

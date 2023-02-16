@@ -60,8 +60,7 @@ extension String {
         guard !isEmpty else { return self }
 
         var words: [Range<String.Index>] = []
-        // The general idea of this algorithm is to split words on transition from lower to upper case, then on transition of >1
-        // upper case characters to lowercase
+        // The general idea of this algorithm is to split words on transition from lower to upper case, then on transition of >1 upper case characters to lowercase
         //
         // myProperty -> my_property
         // myURLProperty -> my_url_property
@@ -84,16 +83,14 @@ extension String {
                 break
             }
 
-            // Is the next lowercase letter more than 1 after the uppercase? If so, we encountered a group of uppercase letters
-            // that we should treat as its own word
+            // Is the next lowercase letter more than 1 after the uppercase? If so, we encountered a group of uppercase letters that we should treat as its own word
             let nextCharacterAfterCapital = index(after: upperCaseRange.lowerBound)
             if lowerCaseRange.lowerBound == nextCharacterAfterCapital {
                 // The next character after capital is a lower case character and therefore not a word boundary.
                 // Continue searching for the next upper case for the boundary.
                 wordStart = upperCaseRange.lowerBound
             } else {
-                // There was a range of >1 capital letters. Turn those into a word, stopping at the capital before the lower case
-                // character.
+                // There was a range of >1 capital letters. Turn those into a word, stopping at the capital before the lower case character.
                 let beforeLowerIndex = index(before: lowerCaseRange.lowerBound)
                 words.append(upperCaseRange.lowerBound ..< beforeLowerIndex)
 

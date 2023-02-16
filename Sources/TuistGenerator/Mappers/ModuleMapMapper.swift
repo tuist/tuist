@@ -32,10 +32,8 @@ enum ModuleMapMapperError: FatalError {
         case let .invalidProjectTargetDependency(sourceProject, sourceTarget, dependentProject, dependentTarget):
             return """
             Target '\(sourceTarget)' of the project at path '\(sourceProject.pathString)' \
-            depends on a target '\(dependentTarget)' of the project at path '\(
-                dependentProject
-                    .pathString
-            )' that can't be found. \
+            depends on a target '\(dependentTarget)' of the project at path '\(dependentProject
+                .pathString)' that can't be found. \
             Please make sure your project configuration is correct.
             """
         }
@@ -43,8 +41,7 @@ enum ModuleMapMapperError: FatalError {
 }
 
 /// Mapper that maps the `MODULE_MAP` build setting to the `-fmodule-map-file` compiler flags.
-/// It is required to avoid embedding the module map into the frameworks during cache operations, which would make the framework
-/// not portable, as
+/// It is required to avoid embedding the module map into the frameworks during cache operations, which would make the framework not portable, as
 /// the modulemap could contain absolute paths.
 public final class ModuleMapMapper: WorkspaceMapping {
     private static let modulemapFileSetting = "MODULEMAP_FILE"

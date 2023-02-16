@@ -21,8 +21,7 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
     // MARK: - TargetScriptsContentHashing
 
     /// Returns the hash that uniquely identifies an array of target scripts
-    /// The hash takes into consideration the content of the script to execute, the content of input/output files, the name of the
-    /// tool to execute, the order, the arguments and its name
+    /// The hash takes into consideration the content of the script to execute, the content of input/output files, the name of the tool to execute, the order, the arguments and its name
     public func hash(targetScripts: [TargetScript], sourceRootPath: AbsolutePath) throws -> String {
         var stringsToHash: [String] = []
         for script in targetScripts {

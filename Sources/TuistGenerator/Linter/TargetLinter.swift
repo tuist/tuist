@@ -199,19 +199,19 @@ class TargetLinter: TargetLinting {
         
         for deploymentTarget in target.deploymentTargets {
             let versionFormatIssue = LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)
-
+            
             let osVersionRegex = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
             if !deploymentTarget.version.matches(pattern: osVersionRegex) {
                 issues.append(versionFormatIssue)
                 break
             }
-
+            
             let platform = target.platform
             let inconsistentPlatformIssue = LintingIssue(
                 reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`",
                 severity: .error
             )
-
+            
             if target.deploymentTargets.allSatisfy { $0.platform != platform.caseValue } {
                 issues.append(inconsistentPlatformIssue)
             }

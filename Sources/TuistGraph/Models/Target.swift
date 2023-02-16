@@ -219,7 +219,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
                 break
             }
         }
-
+        
         return nil
     }
 

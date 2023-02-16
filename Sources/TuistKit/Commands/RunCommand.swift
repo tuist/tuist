@@ -16,8 +16,7 @@ struct RunCommand: AsyncParsableCommand {
             // add this documentation when this is true
             //
             // For example: calling `tuist run --device iPhone 12 MyScheme Arg1 --arg2 --arg3`
-            // Will result in running the application on an iPhone 12 simulator while 'Arg1', '--arg2', and '--arg3' are forwarded
-            // to the application.
+            // Will result in running the application on an iPhone 12 simulator while 'Arg1', '--arg2', and '--arg3' are forwarded to the application.
         )
     }
 

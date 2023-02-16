@@ -121,7 +121,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         let product = settingsHelper.settingsProviderProduct(target)
         let platform = settingsHelper.settingsProviderPlatform(target)
         let variant = settingsHelper.variant(buildConfiguration)
-
+        
         let targetDefaultAll = try targetDefaultSettings(
             variant: .all,
             platform: platform,
@@ -129,7 +129,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             swift: true,
             deploymentTargets: target.deploymentTargets
         )
-
+        
         let additionalTargetDefaults = additionalTargetSettings(for: target)
         let targetDefaultVariant = try targetDefaultSettings(
             variant: variant,
@@ -148,12 +148,11 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         settingsHelper.extend(buildSettings: &settings, with: additionalTargetDefaults)
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant)
         settingsHelper.extend(buildSettings: &settings, with: projectOverridableTargetDefaultSettings(for: project))
-
+        
         return settings.filter(filter)
     }
 
     // MARK: - Private
-
     private func targetDefaultSettings(
         variant: BuildSettingsProvider.Variant? = nil,
         platform: BuildSettingsProvider.Platform?,
@@ -162,14 +161,15 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         deploymentTargets: [DeploymentTarget]
     ) throws -> SettingsDictionary {
         var settings: SettingsDictionary
-
+        
         settings = try BuildSettingsProvider.targetDefault(
             variant: variant,
             platform: platform,
             product: product,
             swift: swift
         ).toSettings()
-
+        
+        
         let mapDeploymentTarget: (DeploymentTarget) -> BuildSettingsProvider.Platform = {
             switch $0 {
             case .iOS: return .iOS
@@ -178,10 +178,10 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             case .tvOS: return .tvOS
             }
         }
-
+        
         try deploymentTargets
-            .map { mapDeploymentTarget($0) }
-            .filter { $0 != platform }
+            .map({ mapDeploymentTarget($0) })
+            .filter({ $0 != platform })
             .forEach { currentPlatform in
                 let platformSettings = try BuildSettingsProvider.targetDefault(
                     variant: variant,
@@ -189,25 +189,26 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                     product: product,
                     swift: swift
                 ).toSettings()
-
-                settings.merge(platformSettings) { current, _ in current }
-
-                settings["TARGETED_DEVICE_FAMILY"] = SettingValue(
+                
+                settings.merge(platformSettings) { (current, _) in current }
+                
+                settings["TARGETED_DEVICE_FAMILY"] = SettingValue.init(
                     stringLiteral: [
                         settings["TARGETED_DEVICE_FAMILY"],
-                        platformSettings["TARGETED_DEVICE_FAMILY"],
+                        platformSettings["TARGETED_DEVICE_FAMILY"]
                     ]
-                    .flatMap { setting in
-                        switch setting {
-                        case let .array(values): return values
-                        case let .string(value): return [value]
-                        case .none: return []
+                        .flatMap { setting in
+                            switch setting {
+                            case .array(let values): return values
+                            case .string(let value): return [value]
+                            case .none: return []
+                            }
                         }
-                    }
-                    .joined(separator: ",")
+                        .joined(separator: ",")
                 )
             }
-
+        
+        
         return settings
     }
 

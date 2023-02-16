@@ -30,8 +30,7 @@ public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLi
 
 // MARK: - Configuration
 
-/// A the build settings and the .xcconfig file of a project or target. It is initialized with either the `.debug` or `.release`
-/// static method.
+/// A the build settings and the .xcconfig file of a project or target. It is initialized with either the `.debug` or `.release` static method.
 public struct Configuration: Equatable, Codable {
     public enum Variant: String, Codable {
         case debug
@@ -97,12 +96,9 @@ public struct Configuration: Equatable, Codable {
 /// The default settings can be overridden via `Settings base: SettingsDictionary`
 /// and `Configuration settings: SettingsDictionary`.
 public enum DefaultSettings: Codable, Equatable {
-    /// Recommended settings including warning flags to help you catch some of the bugs at the early stage of development. If you
-    /// need to override certain settings in a `Configuration` it's possible to add those keys to `excluding`.
+    /// Recommended settings including warning flags to help you catch some of the bugs at the early stage of development. If you need to override certain settings in a `Configuration` it's possible to add those keys to `excluding`.
     case recommended(excluding: Set<String> = [])
-    /// A minimal set of settings to make the project compile without any additional settings for example `PRODUCT_NAME` or
-    /// `TARGETED_DEVICE_FAMILY`. If you need to override certain settings in a Configuration it's possible to add those keys to
-    /// `excluding`.
+    /// A minimal set of settings to make the project compile without any additional settings for example `PRODUCT_NAME` or `TARGETED_DEVICE_FAMILY`. If you need to override certain settings in a Configuration it's possible to add those keys to `excluding`.
     case essential(excluding: Set<String> = [])
     /// Tuist won't generate any build settings for the target or project.
     case none
@@ -145,8 +141,7 @@ public struct Settings: Equatable, Codable {
     ///   - release: The release configuration settings.
     ///   - defaultSettings: An enum specifying the set of default settings.
     ///
-    /// - Note: To specify custom configurations (e.g. `Debug`, `Beta` & `Release`) or to specify xcconfigs, you can use the
-    /// alternate static method
+    /// - Note: To specify custom configurations (e.g. `Debug`, `Beta` & `Release`) or to specify xcconfigs, you can use the alternate static method
     ///         `.settings(base:configurations:defaultSettings:)`
     ///
     /// - seealso: Configuration

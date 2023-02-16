@@ -13,10 +13,8 @@ final class SigningLinter: SigningLinting {
         var issues: [LintingIssue] = []
         if certificate.developmentTeam != provisioningProfile.teamId {
             let reason = """
-            Certificate \(certificate.name)'s development team \(
-                certificate
-                    .developmentTeam
-            ) does not correspond to \(provisioningProfile.teamId).
+            Certificate \(certificate.name)'s development team \(certificate
+                .developmentTeam) does not correspond to \(provisioningProfile.teamId).
             Make sure they are the same.
             """
             issues.append(LintingIssue(reason: reason, severity: .error))
@@ -41,10 +39,8 @@ final class SigningLinter: SigningLinting {
         let appId = appIdPrefix + "." + target.bundleId
         let invalidProvisioningProfileIssue = LintingIssue(
             reason: """
-            App id \(provisioningProfile.appId) does not correspond to \(appIdPrefix).\(
-                target
-                    .bundleId
-            ). Make sure the provisioning profile has been added to the right target.
+            App id \(provisioningProfile.appId) does not correspond to \(appIdPrefix).\(target
+                .bundleId). Make sure the provisioning profile has been added to the right target.
             """,
             severity: .error
         )

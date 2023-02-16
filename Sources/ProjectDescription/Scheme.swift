@@ -6,8 +6,7 @@ import Foundation
 public struct Scheme: Equatable, Codable {
     /// The name of the scheme.
     public let name: String
-    /// Marks the scheme as shared (i.e. one that is checked in to the repository and is visible to xcodebuild from the command
-    /// line).
+    /// Marks the scheme as shared (i.e. one that is checked in to the repository and is visible to xcodebuild from the command line).
     public let shared: Bool
     /// When `true` the scheme doesn't show up in the dropdown scheme's list.
     public let hidden: Bool

@@ -16,8 +16,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
     public enum TemplateType: Codable, Equatable {
         /// Plugin template file
         /// `name` is a name of a plugin
-        /// `resourceName` is a name of the resource - that is used for finding a template as well as naming the resulting
-        /// `.swift` file
+        /// `resourceName` is a name of the resource - that is used for finding a template as well as naming the resulting `.swift` file
         case plugin(name: String, resourceName: String)
         /// Default template defined `Tuist/{ProjectName}`, or if not present there, in tuist itself
         /// `resourceName` is used for the name of the resulting `.swift` file
@@ -26,8 +25,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
 
     /// There are multiple parsers you can choose from
     /// Each parser will give you different metadata from a file
-    /// You can read more about available parsers and how to use their metadata here:
-    /// https://github.com/SwiftGen/SwiftGen#available-parsers
+    /// You can read more about available parsers and how to use their metadata here: https://github.com/SwiftGen/SwiftGen#available-parsers
     public enum Parser: String, Codable {
         case strings
         case assets

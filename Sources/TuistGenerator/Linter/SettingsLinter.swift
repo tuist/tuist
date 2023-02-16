@@ -55,4 +55,5 @@ final class SettingsLinter: SettingsLinting {
         }
         return []
     }
+
 }

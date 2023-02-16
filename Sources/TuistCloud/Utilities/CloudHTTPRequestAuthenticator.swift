@@ -2,8 +2,7 @@ import Foundation
 import TuistSupport
 
 /// Protocol that defines the interface to map HTTP requests and include authentication information.
-/// Depending on the environment where Tuist is running (local or CI), it returns the token from the credentials store (i.e.
-/// Keychain)
+/// Depending on the environment where Tuist is running (local or CI), it returns the token from the credentials store (i.e. Keychain)
 /// or a environment variable.
 public protocol CloudHTTPRequestAuthenticating {
     /// Given a request, it returns a copy of it including information to authenticate requests to the cloud.

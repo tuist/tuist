@@ -2,8 +2,7 @@ import Foundation
 import TSCBasic
 
 public enum ResourceFileElement: Equatable, Hashable, Codable {
-    /// A file path (or glob pattern) to include, a list of file paths (or glob patterns) to exclude, and ODR tags list. For
-    /// convenience, a string literal can be used as an alternate way to specify this option.
+    /// A file path (or glob pattern) to include, a list of file paths (or glob patterns) to exclude, and ODR tags list. For convenience, a string literal can be used as an alternate way to specify this option.
     case file(path: AbsolutePath, tags: [String] = [])
     /// A directory path to include as a folder reference and ODR tags list.
     case folderReference(path: AbsolutePath, tags: [String] = [])
