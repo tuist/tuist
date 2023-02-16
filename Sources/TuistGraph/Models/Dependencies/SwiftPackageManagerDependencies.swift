@@ -71,6 +71,7 @@ extension SwiftPackageManagerDependencies {
                 }.joined(separator: "\n        "))
             ]
         )
+        
         """
     }
 }

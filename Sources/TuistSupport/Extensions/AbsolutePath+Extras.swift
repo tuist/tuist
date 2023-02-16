@@ -63,7 +63,8 @@ extension AbsolutePath {
 
     /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
     public var isPackage: Bool {
-        guard let utType = UTType(tag: URL(fileURLWithPath: pathString).pathExtension, tagClass: .filenameExtension, conformingTo: nil) else { return false }
+        let ext = URL(fileURLWithPath: pathString).pathExtension
+        guard let utType = UTType(tag: ext, tagClass: .filenameExtension, conformingTo: nil) else { return false }
         return utType.conforms(to: UTType.package)
     }
 
