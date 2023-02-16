@@ -19,6 +19,18 @@ public struct Template: Codable, Equatable {
         self.items = items
         dumpIfNeeded(self)
     }
+  
+  public convenience init(
+    description: String,
+    attributes: Attribute... = [],
+    items: Item... = []
+  ) {
+    self.init(
+      description: description,
+      attributes: attributes,
+      items: items
+    )
+  }
 
     /// Enum containing information about how to generate item
     public enum Contents: Codable, Equatable {

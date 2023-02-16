@@ -25,6 +25,20 @@ public struct TestActionOptions: Equatable, Codable {
         self.coverage = coverage
         self.codeCoverageTargets = codeCoverageTargets
     }
+  
+  convenience init(
+    language: SchemeLanguage?,
+    region: String?,
+    coverage: Bool,
+    codeCoverageTargets: TargetReference...
+  ) {
+    self.init(
+      language: language,
+      region: region,
+      coverage: coverage,
+      codeCoverageTargets: codeCoverageTargets
+    )
+  }
 
     /// Returns a set of options for a test action.
     /// - Parameters:
@@ -46,4 +60,25 @@ public struct TestActionOptions: Equatable, Codable {
             codeCoverageTargets: codeCoverageTargets
         )
     }
+  
+  /// Returns a set of options for a test action.
+  /// - Parameters:
+  ///   - language: Language used for running the tests.
+  ///   - region: Region used for running the tests.
+  ///   - coverage: Whether test coverage should be collected.
+  ///   - codeCoverageTargets: List of tests whose code coverage information should be collected.
+  /// - Returns: A set of options.
+  public static func options(
+      language: SchemeLanguage? = nil,
+      region: String? = nil,
+      coverage: Bool = false,
+      codeCoverageTargets: TargetReference... = []
+  ) -> TestActionOptions {
+      options(
+        language: language,
+        region: region,
+        coverage: coverage,
+        codeCoverageTargets: codeCoverageTargets
+      )
+  }
 }

@@ -8,6 +8,10 @@ public struct ResourceFileElements: Codable, Equatable {
     public init(resources: [ResourceFileElement]) {
         self.resources = resources
     }
+  
+  public convenience init(resources: ResourceFileElement) {
+    self.init(resources: resources)
+  }
 }
 
 extension ResourceFileElements: ExpressibleByStringInterpolation {

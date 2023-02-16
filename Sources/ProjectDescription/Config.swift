@@ -72,4 +72,22 @@ public struct Config: Codable, Equatable {
         self.swiftVersion = swiftVersion
         dumpIfNeeded(self)
     }
+  
+  public convenience init(
+    compatibleXcodeVersions: CompatibleXcodeVersions = .all,
+    cloud: Cloud? = nil,
+    cache: Cache? = nil,
+    swiftVersion: Version? = nil,
+    plugins: PluginLocation... = [],
+    generationOptions: GenerationOptions = .options()
+  ) {
+    self.init(
+      compatibleXcodeVersions: compatibleXcodeVersions,
+      cloud: cloud,
+      cache: cache,
+      swiftVersion: swiftVersion,
+      plugins: plugins,
+      generationOptions: generationOptions
+    )
+  }
 }

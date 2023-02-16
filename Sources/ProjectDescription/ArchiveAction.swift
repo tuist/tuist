@@ -28,6 +28,22 @@ public struct ArchiveAction: Equatable, Codable {
         self.preActions = preActions
         self.postActions = postActions
     }
+  
+  convenience init(
+    configuration: ConfigurationName,
+    revealArchiveInOrganizer: Bool = true,
+    customArchiveName: String? = nil,
+    preActions: ExecutionAction... = [],
+    postActions: ExecutionAction... = []
+  ) {
+    self.init(
+      configuration: configuration,
+      revealArchiveInOrganizer: revealArchiveInOrganizer,
+      customArchiveName: customArchiveName,
+      preActions: preActions,
+      postActions: postActions
+    )
+  }
 
     /// Initialize a `ArchiveAction`
     /// - Parameters:

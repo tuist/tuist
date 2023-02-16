@@ -49,6 +49,22 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
     }
+  
+  public convenience init(
+    _ packages: Package...,
+      productTypes: [String: Product] = [:],
+      baseSettings: Settings = .settings(),
+      targetSettings: [String: SettingsDictionary] = [:],
+    projectOptions: [String: ProjectDescription.Project.Options] = [:]
+  ) {
+    self.init(
+      packages,
+      productTypes: productTypes,
+      baseSettings: baseSettings,
+      targetSettings: targetSettings,
+      projectOptions: projectOptions
+    )
+  }
 }
 
 // MARK: - ExpressibleByArrayLiteral

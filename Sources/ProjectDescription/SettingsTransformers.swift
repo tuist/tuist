@@ -148,6 +148,11 @@ extension SettingsDictionary {
     public func otherCFlags(_ flags: [String]) -> SettingsDictionary {
         merging(["OTHER_CFLAGS": .array(flags)])
     }
+  
+  /// Sets `"OTHER_CFLAGS"` to `flags`
+  public func otherCFlags(_ flags: String...) -> SettingsDictionary {
+    otherCFlags(flags)
+  }
 
     // MARK: - Linking
 
@@ -155,6 +160,11 @@ extension SettingsDictionary {
     public func otherLinkerFlags(_ flags: [String]) -> SettingsDictionary {
         merging(["OTHER_LDFLAGS": .array(flags)])
     }
+  
+  /// Sets `"OTHER_LDFLAGS"` to `flags`
+  public func otherLinkerFlags(_ flags: String...) -> SettingsDictionary {
+    otherLinkerFlags(flags)
+  }
 
     // MARK: - Bitcode
 

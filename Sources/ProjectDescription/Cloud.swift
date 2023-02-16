@@ -38,4 +38,8 @@ public struct Cloud: Codable, Equatable {
     public static func cloud(projectId: String, url: String, options: [Option] = []) -> Cloud {
         Cloud(url: url, projectId: projectId, options: options)
     }
+  
+  public static func cloud(projectId: String, url: String, options: Option... = []) -> Cloud {
+    cloud(projectId: projectId, url: url, options: options)
+  }
 }

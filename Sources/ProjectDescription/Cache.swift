@@ -49,4 +49,8 @@ public struct Cache: Codable, Equatable {
     public static func cache(profiles: [Profile] = [], path: Path? = nil) -> Cache {
         Cache(profiles: profiles, path: path)
     }
+  
+  public static func cache(profiles: Profile... = [], path: Path? = nil) -> Cache {
+    cache(profiles: profiles, path: path)
+  }
 }

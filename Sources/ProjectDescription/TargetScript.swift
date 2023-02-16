@@ -96,6 +96,48 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         self.shellPath = shellPath
         self.dependencyFile = dependencyFile
     }
+  
+  /// Creates the target script with its attributes.
+  ///
+  /// - Parameters:
+  ///   - name: Name of the build phase when the project gets generated.
+  ///   - script: The script to be executed.
+  ///   - order: Target script order
+  ///   - inputPaths: List of input file paths.
+  ///   - inputFileListPaths: List of input filelist paths.
+  ///   - outputPaths: List of output file paths.
+  ///   - outputFileListPaths: List of output filelist paths.
+  ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+  ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+  ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+  ///   - dependencyFile The path to the dependency file. Default is `nil`.
+  convenience init(
+    name: String,
+    script: Script = .embedded(""),
+    order: Order,
+    inputPaths: Path... = [],
+    inputFileListPaths: [Path] = [],
+    outputPaths: Path... = [],
+    outputFileListPaths: Path... = [],
+    basedOnDependencyAnalysis: Bool? = nil,
+    runForInstallBuildsOnly: Bool = false,
+    shellPath: String = "/bin/sh",
+    dependencyFile: Path? = nil
+  ) {
+    self.init(
+      name: name,
+      script: script,
+      order: order,
+      inputPaths: inputPaths,
+      inputFileListPaths: inputFileListPaths,
+      outputPaths: outputPaths,
+      outputFileListPaths: outputFileListPaths,
+      basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+      runForInstallBuildsOnly: runForInstallBuildsOnly,
+      shellPath: shellPath,
+      dependencyFile: dependencyFile
+    )
+  }
 
     // MARK: - Path init
 
@@ -141,6 +183,51 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             dependencyFile: dependencyFile
         )
     }
+  
+  // MARK: - Path init
+
+  /// Returns a target script that gets executed before the sources and resources build phase.
+  ///
+  /// - Parameters:
+  ///   - path: Path to the script to execute.
+  ///   - arguments: Arguments that to be passed.
+  ///   - name: Name of the build phase when the project gets generated.
+  ///   - inputPaths: List of input file paths.
+  ///   - inputFileListPaths: List of input filelist paths.
+  ///   - outputPaths: List of output file paths.
+  ///   - outputFileListPaths: List of output filelist paths.
+  ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+  ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+  ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+  ///   - dependencyFile The path to the dependency file. Default is `nil`.
+  /// - Returns: Target script.
+  public static func pre(
+    path: Path,
+    arguments: String...,
+    name: String,
+    inputPaths: Path... = [],
+    inputFileListPaths: Path... = [],
+    outputPaths: Path... = [],
+    outputFileListPaths: Path... = [],
+    basedOnDependencyAnalysis: Bool? = nil,
+    runForInstallBuildsOnly: Bool = false,
+    shellPath: String = "/bin/sh",
+    dependencyFile: Path? = nil
+  ) -> TargetScript {
+    pre(
+      path: path,
+      arguments: arguments,
+      name: name,
+      inputPaths: inputPaths,
+      inputFileListPaths: inputFileListPaths,
+      outputPaths: outputPaths,
+      outputFileListPaths: outputFileListPaths,
+      basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+      runForInstallBuildsOnly: runForInstallBuildsOnly,
+      shellPath: shellPath,
+      dependencyFile: dependencyFile
+    )
+  }
 
     /// Returns a target script that gets executed before the sources and resources build phase.
     ///
@@ -227,6 +314,50 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             dependencyFile: dependencyFile
         )
     }
+  
+  /// Returns a target script that gets executed after the sources and resources build phase.
+  ///
+  /// - Parameters:
+  ///   - path: Path to the script to execute.
+  ///   - arguments: Arguments that to be passed.
+  ///   - name: Name of the build phase when the project gets generated.
+  ///   - inputPaths: List of input file paths.
+  ///   - inputFileListPaths: List of input filelist paths.
+  ///   - outputPaths: List of output file paths.
+  ///   - outputFileListPaths: List of output filelist paths.
+  ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+  ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+  ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+  ///   - dependencyFile The path to the dependency file. Default is `nil`.
+  /// - Returns: Target script.
+  public static func post(
+    path: Path,
+    arguments: String...,
+    name: String,
+    inputPaths: Path... = [],
+    inputFileListPaths: Path... = [],
+    outputPaths: Path... = [],
+    outputFileListPaths: Path... = [],
+    basedOnDependencyAnalysis: Bool? = nil,
+    runForInstallBuildsOnly: Bool = false,
+    shellPath: String = "/bin/sh",
+    dependencyFile: Path? = nil
+  ) -> TargetScript {
+    post(
+      path: path,
+      arguments: arguments,
+      name: name,
+      inputPaths: inputPaths,
+      inputFileListPaths: inputFileListPaths,
+      outputPaths: outputPaths,
+      outputFileListPaths: outputFileListPaths,
+      basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+      runForInstallBuildsOnly: runForInstallBuildsOnly,
+      shellPath: shellPath,
+      dependencyFile: dependencyFile
+    )
+  }
+
 
     /// Returns a target script that gets executed after the sources and resources build phase.
     ///
@@ -316,6 +447,49 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
         )
     }
 
+  /// Returns a target script that gets executed before the sources and resources build phase.
+  ///
+  /// - Parameters:
+  ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
+  ///   - arguments: Arguments that to be passed.
+  ///   - name: Name of the build phase when the project gets generated.
+  ///   - inputPaths: List of input file paths.
+  ///   - inputFileListPaths: List of input filelist paths.
+  ///   - outputPaths: List of output file paths.
+  ///   - outputFileListPaths: List of output filelist paths.
+  ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+  ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+  ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+  ///   - dependencyFile The path to the dependency file. Default is `nil`.
+  /// - Returns: Target script.
+  public static func pre(
+    tool: String,
+    arguments: String...,
+    name: String,
+    inputPaths: Path... = [],
+    inputFileListPaths: Path... = [],
+    outputPaths: Path... = [],
+    outputFileListPaths: Path... = [],
+    basedOnDependencyAnalysis: Bool? = nil,
+    runForInstallBuildsOnly: Bool = false,
+    shellPath: String = "/bin/sh",
+    dependencyFile: Path? = nil
+  ) -> TargetScript {
+    pre(
+      tool: tool,
+      arguments: arguments,
+      name: name,
+      inputPaths: inputPaths,
+      inputFileListPaths: inputFileListPaths,
+      outputPaths: outputPaths,
+      outputFileListPaths: outputFileListPaths,
+      basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+      runForInstallBuildsOnly: runForInstallBuildsOnly,
+      shellPath: shellPath,
+      dependencyFile: dependencyFile
+    )
+  }
+  
     /// Returns a target script that gets executed before the sources and resources build phase.
     ///
     /// - Parameters:
@@ -401,6 +575,49 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             dependencyFile: dependencyFile
         )
     }
+  
+  /// Returns a target script that gets executed after the sources and resources build phase.
+  ///
+  /// - Parameters:
+  ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
+  ///   - arguments: Arguments that to be passed.
+  ///   - name: Name of the build phase when the project gets generated.
+  ///   - inputPaths: List of input file paths.
+  ///   - inputFileListPaths: List of input filelist paths.
+  ///   - outputPaths: List of output file paths.
+  ///   - outputFileListPaths: List of output filelist paths.
+  ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+  ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+  ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+  ///   - dependencyFile The path to the dependency file. Default is `nil`.
+  /// - Returns: Target script.
+  public static func post(
+    tool: String,
+    arguments: String...,
+    name: String,
+    inputPaths: [Path] = [],
+    inputFileListPaths: [Path] = [],
+    outputPaths: [Path] = [],
+    outputFileListPaths: [Path] = [],
+    basedOnDependencyAnalysis: Bool? = nil,
+    runForInstallBuildsOnly: Bool = false,
+    shellPath: String = "/bin/sh",
+    dependencyFile: Path? = nil
+  ) -> TargetScript {
+    post(
+      tool: tool,
+      arguments: arguments,
+      name: name,
+      inputPaths: inputPaths,
+      inputFileListPaths: inputFileListPaths,
+      outputPaths: outputPaths,
+      outputFileListPaths: outputFileListPaths,
+      basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+      runForInstallBuildsOnly: runForInstallBuildsOnly,
+      shellPath: shellPath,
+      dependencyFile: dependencyFile
+    )
+  }
 
     /// Returns a target script that gets executed after the sources and resources build phase.
     ///
@@ -488,6 +705,47 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             dependencyFile: dependencyFile
         )
     }
+  
+  /// Returns a target script that gets executed before the sources and resources build phase.
+  ///
+  /// - Parameters:
+  ///   - script: The text of the script to run. This should be kept small.
+  ///   - arguments: Arguments that to be passed.
+  ///   - name: Name of the build phase when the project gets generated.
+  ///   - inputPaths: List of input file paths.
+  ///   - inputFileListPaths: List of input filelist paths.
+  ///   - outputPaths: List of output file paths.
+  ///   - outputFileListPaths: List of output filelist paths.
+  ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+  ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+  ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+  ///   - dependencyFile The path to the dependency file. Default is `nil`.
+  /// - Returns: Target script.
+  public static func pre(
+    script: String,
+    name: String,
+    inputPaths: Path... = [],
+    inputFileListPaths: Path... = [],
+    outputPaths: Path... = [],
+    outputFileListPaths: Path... = [],
+    basedOnDependencyAnalysis: Bool? = nil,
+    runForInstallBuildsOnly: Bool = false,
+    shellPath: String = "/bin/sh",
+    dependencyFile: Path? = nil
+  ) -> TargetScript {
+    pre(
+      script: script,
+      name: name,
+      inputPaths: inputPaths,
+      inputFileListPaths: inputFileListPaths,
+      outputPaths: outputPaths,
+      outputFileListPaths: outputFileListPaths,
+      basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+      runForInstallBuildsOnly: runForInstallBuildsOnly,
+      shellPath: shellPath,
+      dependencyFile: dependencyFile
+    )
+  }
 
     /// Returns a target script that gets executed after the sources and resources build phase.
     ///
@@ -529,4 +787,44 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
             dependencyFile: dependencyFile
         )
     }
+  
+  /// Returns a target script that gets executed after the sources and resources build phase.
+  ///
+  /// - Parameters:
+  ///   - script: The script to be executed.
+  ///   - name: Name of the build phase when the project gets generated.
+  ///   - inputPaths: List of input file paths.
+  ///   - inputFileListPaths: List of input filelist paths.
+  ///   - outputPaths: List of output file paths.
+  ///   - outputFileListPaths: List of output filelist paths.
+  ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+  ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+  ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+  ///   - dependencyFile The path to the dependency file. Default is `nil`.
+  /// - Returns: Target script.
+  public static func post(
+    script: String,
+    name: String,
+    inputPaths: Path... = [],
+    inputFileListPaths: Path... = [],
+    outputPaths: Path... = [],
+    outputFileListPaths: Path... = [],
+    basedOnDependencyAnalysis: Bool? = nil,
+    runForInstallBuildsOnly: Bool = false,
+    shellPath: String = "/bin/sh",
+    dependencyFile: Path? = nil
+  ) -> TargetScript {
+    post(
+      script: script,
+      name: name,
+      inputPaths: inputPaths,
+      inputFileListPaths: inputFileListPaths,
+      outputPaths: outputPaths,
+      outputFileListPaths: outputFileListPaths,
+      basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+      runForInstallBuildsOnly: runForInstallBuildsOnly,
+      shellPath: shellPath,
+      dependencyFile: dependencyFile
+    )
+  }
 }

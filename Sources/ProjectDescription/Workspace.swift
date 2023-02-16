@@ -57,4 +57,22 @@ public struct Workspace: Codable, Equatable {
         self.generationOptions = generationOptions
         dumpIfNeeded(self)
     }
+  
+  public convenience init(
+    name: String,
+    projects: Path...,
+    schemes: Scheme... = [],
+    fileHeaderTemplate: FileHeaderTemplate? = nil,
+    additionalFiles: FileElement... = [],
+    generationOptions: GenerationOptions = .options()
+  ) {
+    self.init(
+      name: name,
+      projects: projects,
+      schemes: schemes,
+      fileHeaderTemplate : fileHeaderTemplate,
+      additionalFiles: additionalFiles,
+      generationOptions: generationOptions
+    )
+  }
 }

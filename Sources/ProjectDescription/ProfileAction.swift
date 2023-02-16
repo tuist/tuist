@@ -32,6 +32,22 @@ public struct ProfileAction: Equatable, Codable {
         self.executable = executable
         self.arguments = arguments
     }
+  
+  convenience init(
+    configuration: ConfigurationName = .release,
+    preActions: [ExecutionAction] = [],
+    postActions: [ExecutionAction] = [],
+    executable: TargetReference? = nil,
+    arguments: Arguments? = nil
+  ) {
+    self.init(
+      configuration: configuration,
+      preActions: preActions,
+      postActions: postActions,
+      executable: executable,
+      arguments: arguments
+    )
+  }
 
     /// Returns a profile action.
     /// - Parameters:
@@ -56,4 +72,20 @@ public struct ProfileAction: Equatable, Codable {
             arguments: arguments
         )
     }
+  
+  public static func profileAction(
+    configuration: ConfigurationName = .release,
+    preActions: ExecutionAction... = [],
+    postActions: ExecutionAction... = [],
+    executable: TargetReference? = nil,
+    arguments: Arguments? = nil
+  ) -> ProfileAction {
+    profileAction(
+      configuration: configuration,
+      preActions: preActions,
+      postActions: postActions,
+      executable: executable,
+      arguments: arguments
+    )
+  }
 }

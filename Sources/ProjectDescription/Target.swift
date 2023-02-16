@@ -102,4 +102,48 @@ public struct Target: Codable, Equatable {
         self.deploymentTarget = deploymentTarget
         self.additionalFiles = additionalFiles
     }
+  
+  public convenience init(
+    name: String,
+    platform: Platform,
+    product: Product,
+    productName: String? = nil,
+    bundleId: String,
+    deploymentTarget: DeploymentTarget? = nil,
+    infoPlist: InfoPlist? = .default,
+    sources: SourceFilesList? = nil,
+    resources: ResourceFileElements? = nil,
+    copyFiles: CopyFilesAction...? = nil,
+    headers: Headers? = nil,
+    entitlements: Path? = nil,
+    scripts: TargetScript... = [],
+    dependencies: TargetDependency... = [],
+    settings: Settings? = nil,
+    coreDataModels: CoreDataModel... = [],
+    environment: [String: String] = [:],
+    launchArguments: LaunchArgument... = [],
+    additionalFiles: FileElement... = []
+  ) {
+    self.init(
+      name: name,
+      platform: platform,
+      product: product,
+      productName: productName,
+      bundleId: bundleId,
+      deploymentTarget: deploymentTarget,
+      infoPlist: infoPlist,
+      sources: sources,
+      resources: resources,
+      copyFiles: copyFiles,
+      headers: headers,
+      entitlements: entitlements,
+      scripts: scripts,
+      dependencies: dependencies,
+      settings: settings,
+      coreDataModels: coreDataModels,
+      environment: environment,
+      launchArguments: launchArguments,
+      additionalFiles: additionalFiles
+    )
+  }
 }

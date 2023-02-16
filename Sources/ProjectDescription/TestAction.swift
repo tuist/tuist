@@ -94,6 +94,42 @@ public struct TestAction: Equatable, Codable {
             diagnosticsOptions: diagnosticsOptions
         )
     }
+  
+  /// Returns a test action from a list of targets to be tested.
+  /// - Parameters:
+  ///   - targets: List of targets to be tested.
+  ///   - arguments: Arguments passed when running the tests.
+  ///   - configuration: Configuration to be used.
+  ///   - attachDebugger: A boolean controlling whether a debugger is attached to the process running the tests.
+  ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables definition
+  ///   - preActions: Actions to execute before running the tests.
+  ///   - postActions: Actions to execute after running the tests.
+  ///   - options: Test options.
+  ///   - diagnosticsOptions: Diagnostics options.
+  /// - Returns: An initialized test action.
+  public static func targets(
+    _ targets: TestableTarget...,
+    arguments: Arguments? = nil,
+    configuration: ConfigurationName = .debug,
+    attachDebugger: Bool = true,
+    expandVariableFromTarget: TargetReference? = nil,
+    preActions: ExecutionAction... = [],
+    postActions: ExecutionAction... = [],
+    options: TestActionOptions = .options(),
+    diagnosticsOptions: SchemeDiagnosticsOption... = [.mainThreadChecker]
+  ) -> Self {
+    targets(
+      targets,
+      arguments: arguments,
+      configuration: configuration,
+      attachDebugger: attachDebugger,
+      expandVariableFromTarget: expandVariableFromTarget,
+      preActions: preActions,
+      postActions: postActions,
+      options: options,
+      diagnosticsOptions: diagnosticsOptions
+    )
+  }
 
     /// Returns a test action from a list of test plans.
     /// - Parameters:
@@ -123,4 +159,28 @@ public struct TestAction: Equatable, Codable {
             diagnosticsOptions: []
         )
     }
+  
+  /// Returns a test action from a list of test plans.
+  /// - Parameters:
+  ///   - testPlans: List of test plans to run.
+  ///   - configuration: Configuration to be used.
+  ///   - attachDebugger: A boolean controlling whether a debugger is attached to the process running the tests.
+  ///   - preActions: Actions to execute before running the tests.
+  ///   - postActions: Actions to execute after running the tests.
+  /// - Returns: A test action.
+  public static func testPlans(
+    _ testPlans: Path...,
+    configuration: ConfigurationName = .debug,
+    attachDebugger: Bool = true,
+    preActions: ExecutionAction... = [],
+    postActions: ExecutionAction... = []
+  ) -> Self {
+    testPlans(
+      testPlans,
+      configuration: configuration,
+      attachDebugger: attachDebugger,
+      preActions: preActions,
+      postActions: postActions
+    )
+  }
 }

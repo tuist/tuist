@@ -14,6 +14,14 @@ public struct FileList: Codable, Equatable {
     public static func list(_ globs: [FileListGlob]) -> FileList {
         FileList(globs: globs)
     }
+  
+  /// Creates a file list from a collection of glob patterns.
+  ///
+  ///   - glob: Relative glob pattern.
+  ///   - excluding: Relative glob patterns for excluded files.
+  public static func list(_ globs: FileListGlob...) -> FileList {
+      list(globs)
+  }
 }
 
 extension FileList: ExpressibleByStringInterpolation {

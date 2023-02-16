@@ -31,6 +31,22 @@ public struct Version: Hashable, Codable {
         self.prereleaseIdentifiers = prereleaseIdentifiers
         self.buildMetadataIdentifiers = buildMetadataIdentifiers
     }
+  
+  public convenience init(
+    _ major: Int,
+    _ minor: Int,
+    _ patch: Int,
+    prereleaseIdentifiers: String... = [],
+    buildMetadataIdentifiers: String... = []
+  ) {
+    self.init(
+      major,
+      minor,
+      patch,
+      prereleaseIdentifiers: prereleaseIdentifiers,
+      buildMetadataIdentifiers: buildMetadataIdentifiers
+    )
+  }
 }
 
 extension Version: Comparable {

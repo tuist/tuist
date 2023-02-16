@@ -10,6 +10,10 @@ public struct CarthageDependencies: Codable, Equatable {
     public init(_ dependencies: [Dependency]) {
         self.dependencies = dependencies
     }
+  
+  public convenience init(_ dependencies: Dependency...) {
+    self.init(dependencies)
+  }
 }
 
 // MARK: - ExpressibleByArrayLiteral

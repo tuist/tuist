@@ -24,6 +24,20 @@ public struct BuildAction: Equatable, Codable {
         self.postActions = postActions
         self.runPostActionsOnFailure = runPostActionsOnFailure
     }
+  
+  public convenience init(
+    targets: TargetReference...,
+    preActions: ExecutionAction... = [],
+    postActions: ExecutionAction... = [],
+    runPostActionsOnFailure: Bool = false
+  ) {
+    self.init(
+      targets: targets,
+      preActions: preActions,
+      postActions: postActions,
+      runPostActionsOnFailure: runPostActionsOnFailure
+    )
+  }
 
     /// Returns a build action.
     /// - Parameters:
@@ -45,4 +59,18 @@ public struct BuildAction: Equatable, Codable {
             runPostActionsOnFailure: runPostActionsOnFailure
         )
     }
+  
+  public static func buildAction(
+    targets: TargetReference...,
+    preActions: ExecutionAction... = [],
+    postActions: ExecutionAction... = [],
+    runPostActionsOnFailure: Bool = false
+  ) -> BuildAction {
+    buildAction(
+      targets: targets,
+      preActions: preActions,
+      postActions: postActions,
+      runPostActionsOnFailure: runPostActionsOnFailure
+    )
+  }
 }

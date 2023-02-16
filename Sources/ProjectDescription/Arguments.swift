@@ -12,4 +12,14 @@ public struct Arguments: Equatable, Codable {
         self.environment = environment
         self.launchArguments = launchArguments
     }
+  
+  public convenience init(
+    environment: [String: String] = [:],
+    launchArguments: LaunchArgument = []
+  ) {
+    self.init(
+      environment: environment,
+      launchArguments: launchArguments
+    )
+  }
 }

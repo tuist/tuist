@@ -29,6 +29,27 @@ public struct SourceFileGlob: Codable, Equatable {
     ) -> Self {
         .init(glob: glob, excluding: excluding, compilerFlags: compilerFlags, codeGen: codeGen)
     }
+  
+  /// Returns a source glob pattern configuration.
+  ///
+  /// - Parameters:
+  ///   - glob: Glob pattern to the source files.
+  ///   - excluding: Glob patterns for source files that will be excluded.
+  ///   - compilerFlags: The compiler flags to be set to the source files in the sources build phase.
+  ///   - codeGen: The source file attribute to be set in the build phase.
+  public static func glob(
+      _ glob: Path,
+      excluding: Path... = [],
+      compilerFlags: String? = nil,
+      codeGen: FileCodeGen? = nil
+  ) -> Self {
+    glob(
+      glob,
+      excluding: excluding,
+      compilerFlags: compilerFlags,
+      codeGen: codeGen
+    )
+  }
 
     public static func glob(
         _ glob: Path,
@@ -58,6 +79,13 @@ public struct SourceFilesList: Codable, Equatable {
     public init(globs: [SourceFileGlob]) {
         self.globs = globs
     }
+  
+  /// Creates the source files list with the glob patterns.
+  ///
+  /// - Parameter globs: Glob patterns.
+  public convenience init(globs: SourceFileGlob...) {
+    self.init(globs: globs)
+  }
 
     /// Creates the source files list with the glob patterns as strings.
     ///
@@ -65,12 +93,25 @@ public struct SourceFilesList: Codable, Equatable {
     public init(globs: [String]) {
         self.globs = globs.map(SourceFileGlob.init)
     }
+  
+  /// Creates the source files list with the glob patterns as strings.
+  ///
+  /// - Parameter globs: Glob patterns.
+  public convenience init(globs: String...) {
+    self.init(globs: globs)
+  }
 
     /// Returns a sources list from a list of paths.
     /// - Parameter paths: Source paths.
     public static func paths(_ paths: [Path]) -> SourceFilesList {
         SourceFilesList(globs: paths.map { .glob($0) })
     }
+  
+  /// Returns a sources list from a list of paths.
+  /// - Parameter paths: Source paths.
+  public static func paths(_ paths: Path...) -> SourceFilesList {
+      paths(paths)
+  }
 }
 
 /// Support file as single string

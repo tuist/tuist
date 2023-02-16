@@ -48,6 +48,28 @@ extension Project {
                 xcodeProjectName: xcodeProjectName
             )
         }
+      
+      public static func options(
+        automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
+        defaultKnownRegions: [String]? = nil,
+        developmentRegion: String? = nil,
+        disableBundleAccessors: Bool = false,
+        disableShowEnvironmentVarsInScriptPhases: Bool = false,
+        disableSynthesizedResourceAccessors: Bool = false,
+        textSettings: TextSettings = .textSettings(),
+        xcodeProjectName: String? = nil
+      ) -> Self {
+        options(
+          automaticSchemesOptions: automaticSchemesOptions,
+          defaultKnownRegions: defaultKnownRegions,
+          developmentRegion: developmentRegion,
+          disableBundleAccessors: disableBundleAccessors,
+          disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
+          disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
+          textSettings: textSettings,
+          xcodeProjectName: xcodeProjectName
+        )
+      }
     }
 }
 

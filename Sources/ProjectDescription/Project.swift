@@ -106,4 +106,30 @@ public struct Project: Codable, Equatable {
         self.resourceSynthesizers = resourceSynthesizers
         dumpIfNeeded(self)
     }
+  
+  public convenience init(
+    name: String,
+    organizationName: String? = nil,
+    options: Options = .options(),
+    packages: Package = [],
+    settings: Settings? = nil,
+    targets: Target = [],
+    schemes: Scheme = [],
+    fileHeaderTemplate: FileHeaderTemplate? = nil,
+    additionalFiles: FileElement = [],
+    resourceSynthesizers: ResourceSynthesizer = .default
+  ) {
+    self.init(
+      name: name,
+      organizationName: organizationName,
+      options: options,
+      packages: packages,
+      settings: settings,
+      targets: targets,
+      schemes: schemes,
+      fileHeaderTemplate: fileHeaderTemplate,
+      additionalFiles: additionalFiles,
+      resourceSynthesizers: resourceSynthesizers
+    )
+  }
 }

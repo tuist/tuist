@@ -186,4 +186,29 @@ public struct Settings: Equatable, Codable {
             defaultSettings: defaultSettings
         )
     }
+  
+  /// Creates settings with any number of configurations.
+  ///
+  /// - Parameters:
+  ///   - base: A dictionary with build settings that are inherited from all the configurations.
+  ///   - configurations: A list of configurations.
+  ///   - defaultSettings: An enum specifying the set of default settings.
+  ///
+  /// - Note: Configurations shouldn't be empty, please use the alternate static method
+  ///         `.settings(base:debug:release:defaultSettings:)` to leverage the default configurations
+  ///          if you don't have any custom configurations.
+  ///
+  /// - seealso: Configuration
+  /// - seealso: DefaultSettings
+  public static func settings(
+    base: SettingsDictionary = [:],
+    configurations: Configuration...,
+    defaultSettings: DefaultSettings = .recommended
+  ) -> Settings {
+    settings(
+      base: base,
+      configurations: configurations,
+      defaultSettings: defaultSettings
+    )
+  }
 }
