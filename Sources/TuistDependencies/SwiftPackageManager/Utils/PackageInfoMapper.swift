@@ -254,9 +254,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                                 case let .xcframework(path, _):
                                     return .xcframework(path: path)
                                 case let .target(name, _):
-                                    // When multiple platforms are supported, add the platform name as a suffix to the target
-                                    let targetName = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
-                                    return .project(target: targetName, path: Path(packageToFolder[packageInfo.key]!.pathString))
+                                    return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
                                 case .externalTarget:
                                     throw PackageInfoMapperError.unknownProductTarget(
                                         package: packageInfo.key,
@@ -395,11 +393,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         productTypes: productTypes,
                         baseSettings: baseSettings,
                         targetSettings: targetSettings,
-                        platforms: Array(platforms),
+                        platforms: platforms,
                         minDeploymentTargets: minDeploymentTargets,
                         targetToResolvedDependencies: targetToResolvedDependencies,
-                        targetToModuleMap: targetToModuleMap,
-                        addPlatformSuffix: platforms.count != 1
+                        targetToModuleMap: targetToModuleMap
                     )
                 ].compactMap { $0 }
             }
@@ -448,11 +445,10 @@ extension ProjectDescription.Target {
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
-        platforms: [ProjectDescription.Platform],
+        platforms: Set<ProjectDescription.Platform>,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        targetToModuleMap: [String: ModuleMap],
-        addPlatformSuffix: Bool
+        targetToModuleMap: [String: ModuleMap]
     ) throws -> Self? {
         guard target.type.isSupported else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
@@ -509,8 +505,7 @@ extension ProjectDescription.Target {
                 resolvedDependencies: resolvedDependencies,
                 platform: platforms.first!,
                 settings: target.settings,
-                packageToProject: packageToProject,
-                addPlatformSuffix: addPlatformSuffix
+                packageToProject: packageToProject
             )
         }
 
@@ -531,9 +526,7 @@ extension ProjectDescription.Target {
 
         // TODO: Update multi platform Target
         return ProjectDescription.Target(
-            name: addPlatformSuffix ? "\(PackageInfoMapper.sanitize(targetName: target.name))_\(platforms.first!.rawValue)" :
-                PackageInfoMapper
-                .sanitize(targetName: target.name),
+            name: PackageInfoMapper.sanitize(targetName: target.name),
             platform: platforms.first!,
             product: product,
             productName: PackageInfoMapper
@@ -554,7 +547,7 @@ extension ProjectDescription.Target {
 
 extension ProjectDescription.DeploymentTarget {
     fileprivate static func from(
-        platforms: [ProjectDescription.Platform],
+        platforms: Set<ProjectDescription.Platform>,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         package: [PackageInfo.Platform],
         packageName _: String
@@ -758,8 +751,7 @@ extension ProjectDescription.TargetDependency {
         resolvedDependencies: [PackageInfoMapper.ResolvedDependency],
         platform: ProjectDescription.Platform,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
-        packageToProject: [String: AbsolutePath],
-        addPlatformSuffix: Bool
+        packageToProject: [String: AbsolutePath]
     ) throws -> [Self] {
         let targetDependencies = resolvedDependencies.compactMap { dependency -> Self? in
             if let condition = dependency.condition, !condition.platforms.contains(platform) {
@@ -767,12 +759,12 @@ extension ProjectDescription.TargetDependency {
             }
             switch dependency {
             case let .target(name, _):
-                return .target(name: addPlatformSuffix ? "\(name)_\(platform.rawValue)" : name)
+                return .target(name: name)
             case let .xcframework(path, _):
                 return .xcframework(path: path)
             case let .externalTarget(project, target, _):
                 return .project(
-                    target: addPlatformSuffix ? "\(target)_\(platform.rawValue)" : target,
+                    target: target,
                     path: Path(packageToProject[project]!.pathString)
                 )
             }

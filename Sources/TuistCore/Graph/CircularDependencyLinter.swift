@@ -65,9 +65,7 @@ public class CircularDependencyLinter: CircularDependencyLinting {
         guard let referencedTargetProject = cache.allTargets[path],
               let target = referencedTargetProject[name]
         else {
-            // TODO: Update this logic as we use single dependency multi platform target
-            //throw GraphLoadingError.targetNotFound(name, path)
-            return
+            throw GraphLoadingError.targetNotFound(name, path)
         }
 
         cache.add(target: target, path: path)
