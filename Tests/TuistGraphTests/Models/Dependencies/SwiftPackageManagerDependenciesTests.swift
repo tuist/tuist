@@ -143,7 +143,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .package(path: "path/path"),
             ]
         )
-        
+
         """
         XCTAssertEqual(got, expected)
     }
