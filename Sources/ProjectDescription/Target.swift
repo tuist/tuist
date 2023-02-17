@@ -61,6 +61,9 @@ public struct Target: Codable, Equatable {
     /// The additional files for the target. For project's additional files, see ``Project/additionalFiles``.
     public let additionalFiles: [FileElement]
 
+    /// The build rules used for transformation of source files during compilation.
+    public let buildRules: [BuildRule]
+
     public init(
         name: String,
         platform: Platform,
@@ -80,7 +83,8 @@ public struct Target: Codable, Equatable {
         coreDataModels: [CoreDataModel] = [],
         environment: [String: String] = [:],
         launchArguments: [LaunchArgument] = [],
-        additionalFiles: [FileElement] = []
+        additionalFiles: [FileElement] = [],
+        buildRules: [BuildRule] = []
     ) {
         self.name = name
         self.platform = platform
@@ -101,5 +105,6 @@ public struct Target: Codable, Equatable {
         self.launchArguments = launchArguments
         self.deploymentTarget = deploymentTarget
         self.additionalFiles = additionalFiles
+        self.buildRules = buildRules
     }
 }
