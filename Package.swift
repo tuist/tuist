@@ -60,7 +60,7 @@ let package = Package(
         .package(url: "https://github.com/SwiftDocOrg/GraphViz.git", exact: "0.2.0"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", exact: "2.9.0"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.5.0"),
-        .package(url: "https://github.com/tuist/XcodeProj.git", from: "8.8.0"),
+        .package(url: "https://github.com/tuist/XcodeProj.git", from: "8.9.0"),
         .package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.16"),
     ],
     targets: [
