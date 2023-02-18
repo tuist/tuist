@@ -8,7 +8,7 @@ extension SynthesizedResourceInterfaceTemplates {
     {% if families %}
     {% set accessModifier %}{% if param.publicAccess %}public{% else %}internal{% endif %}{% endset %}
     {% set fontType %}{{param.name}}FontConvertible{% endset %}
-    #if os(OSX)
+    #if os(macOS)
       import AppKit.NSFont
     #elseif os(iOS) || os(tvOS) || os(watchOS)
       import UIKit.UIFont
@@ -50,7 +50,7 @@ extension SynthesizedResourceInterfaceTemplates {
       {{accessModifier}} let family: String
       {{accessModifier}} let path: String
 
-      #if os(OSX)
+      #if os(macOS)
       {{accessModifier}} typealias Font = NSFont
       #elseif os(iOS) || os(tvOS) || os(watchOS)
       {{accessModifier}} typealias Font = UIFont
@@ -85,7 +85,7 @@ extension SynthesizedResourceInterfaceTemplates {
         if !UIFont.fontNames(forFamilyName: font.family).contains(font.name) {
           font.register()
         }
-        #elseif os(OSX)
+        #elseif os(macOS)
         if let url = font.url, CTFontManagerGetScopeForURL(url as CFURL) == .none {
           font.register()
         }
