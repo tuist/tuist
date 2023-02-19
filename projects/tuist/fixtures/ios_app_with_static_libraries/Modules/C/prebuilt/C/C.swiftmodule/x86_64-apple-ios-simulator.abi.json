@@ -1,0 +1,108 @@
+{
+  "ABIRoot": {
+    "kind": "Root",
+    "name": "TopLevel",
+    "printedName": "TopLevel",
+    "children": [
+      {
+        "kind": "Import",
+        "name": "Foundation",
+        "printedName": "Foundation",
+        "declKind": "Import",
+        "moduleName": "C"
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "C",
+        "printedName": "C",
+        "children": [
+          {
+            "kind": "Var",
+            "name": "value",
+            "printedName": "value",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:1CAAO5valueSSvpZ",
+            "mangledName": "$s1CAAO5valueSSvpZ",
+            "moduleName": "C",
+            "static": true,
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:1CAAO5valueSSvgZ",
+                "mangledName": "$s1CAAO5valueSSvgZ",
+                "moduleName": "C",
+                "static": true,
+                "implicit": true,
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Function",
+            "name": "printFromC",
+            "printedName": "printFromC()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:1CAAO10printFromCyyFZ",
+            "mangledName": "$s1CAAO10printFromCyyFZ",
+            "moduleName": "C",
+            "static": true,
+            "declAttributes": [
+              "AccessControl"
+            ],
+            "funcSelfKind": "NonMutating"
+          }
+        ],
+        "declKind": "Enum",
+        "usr": "s:1CAAO",
+        "mangledName": "$s1CAAO",
+        "moduleName": "C",
+        "declAttributes": [
+          "AccessControl"
+        ]
+      }
+    ],
+    "json_format_version": 8
+  },
+  "ConstValues": [
+    {
+      "filePath": "\/Users\/df\/Developer\/tuist\/projects\/tuist\/fixtures\/ios_app_with_static_libraries\/Modules\/C\/Sources\/C.swift",
+      "kind": "StringLiteral",
+      "offset": 73,
+      "length": 8,
+      "value": "\"cValue\""
+    }
+  ]
+}
