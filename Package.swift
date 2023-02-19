@@ -337,6 +337,9 @@ let package = Package(
                 "TuistSupport",
                 "TuistCloudSchema",
                 .product(name: "Apollo", package: "apollo-ios"),
+            ],
+            exclude: [
+                "graphql/CreateProject.graphql",
             ]
         ),
         .testTarget(
