@@ -38,7 +38,7 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
                 .removingLastComponent()
                 .removingLastComponent()
         #else
-            let bundlePath = try? AbsolutePath(validating: Bundle(for: TemplatesDirectoryLocator.self).bundleURL.path)
+            let maybeBundlePath = try? AbsolutePath(validating: Bundle(for: TemplatesDirectoryLocator.self).bundleURL.path)
         #endif
         guard let bundlePath = maybeBundlePath else { return nil }
         let paths = [
