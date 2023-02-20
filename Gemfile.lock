@@ -90,8 +90,8 @@ GEM
       retriable (>= 2.0, < 4.a)
       rexml
       webrick
-    google-apis-iamcredentials_v1 (0.16.0)
-      google-apis-core (>= 0.9.1, < 2.a)
+    google-apis-iamcredentials_v1 (0.17.0)
+      google-apis-core (>= 0.11.0, < 2.a)
     google-apis-storage_v1 (0.19.0)
       google-apis-core (>= 0.9.0, < 2.a)
     google-cloud-core (1.6.0)
@@ -129,11 +129,11 @@ GEM
     middleware (0.1.0)
     mime-types (3.4.1)
       mime-types-data (~> 3.2015)
-    mime-types-data (3.2022.0105)
+    mime-types-data (3.2023.0218.1)
     mini_mime (1.1.2)
     mini_portile2 (2.8.1)
     minitest (5.17.0)
-    minitest-reporters (1.5.0)
+    minitest-reporters (1.6.0)
       ansi
       builder
       minitest (>= 5.0)
@@ -143,7 +143,7 @@ GEM
     multi_test (0.1.2)
     nanaimo (0.3.0)
     naturally (2.2.1)
-    nokogiri (1.14.1)
+    nokogiri (1.14.2)
       mini_portile2 (~> 2.8.0)
       racc (~> 1.4)
     octokit (4.25.1)
