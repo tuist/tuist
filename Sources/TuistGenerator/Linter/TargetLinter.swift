@@ -33,7 +33,7 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintHasSourceFiles(target: target))
         issues.append(contentsOf: lintCopiedFiles(target: target))
         issues.append(contentsOf: lintLibraryHasNoResources(target: target))
-        issues.append(contentsOf: lintDeploymentTarget(target: target))
+        issues.append(contentsOf: lintDeploymentTargets(target: target))
         issues.append(contentsOf: settingsLinter.lint(target: target))
         issues.append(contentsOf: lintDuplicateDependency(target: target))
         issues.append(contentsOf: lintValidSourceFileCodeGenAttributes(target: target))
@@ -89,23 +89,24 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintHasSourceFiles(target: Target) -> [LintingIssue] {
-        let supportsSources = target.supportsSources
-        let sources = target.sources
-
-        let hasNoSources = supportsSources && sources.isEmpty
-        let hasNoDependencies = target.dependencies.isEmpty
-        let hasNoScripts = target.scripts.isEmpty
-
-        if hasNoSources, hasNoDependencies, hasNoScripts {
-            return [LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)]
-        } else if !supportsSources, !sources.isEmpty {
-            return [LintingIssue(
-                reason: "Target \(target.name) cannot contain sources. \(target.platform) \(target.product) targets don't support source files",
-                severity: .error
-            )]
-        }
-
         return []
+//        let supportsSources = target.supportsSources
+//        let sources = target.sources
+//
+//        let hasNoSources = supportsSources && sources.isEmpty
+//        let hasNoDependencies = target.dependencies.isEmpty
+//        let hasNoScripts = target.scripts.isEmpty
+//
+//        if hasNoSources, hasNoDependencies, hasNoScripts {
+//            return [LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)]
+//        } else if !supportsSources, !sources.isEmpty {
+//            return [LintingIssue(
+//                reason: "Target \(target.name) cannot contain sources. \(target.platform) \(target.product) targets don't support source files",
+//                severity: .error
+//            )]
+//        }
+//
+//        return []
     }
 
     private func lintCopiedFiles(target: Target) -> [LintingIssue] {
@@ -192,10 +193,8 @@ class TargetLinter: TargetLinting {
         return []
     }
 
-    private func lintDeploymentTarget(target: Target) -> [LintingIssue] {
+    private func lintDeploymentTargets(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        // TODO: Update this logic
-        return []
         
         for deploymentTarget in target.deploymentTargets {
             let versionFormatIssue = LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)
@@ -205,38 +204,39 @@ class TargetLinter: TargetLinting {
                 issues.append(versionFormatIssue)
                 break
             }
-            
-            let platform = target.platform
-            let inconsistentPlatformIssue = LintingIssue(
-                reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`",
+        }
+        
+        let duplicates = Dictionary(grouping: target.deploymentTargets, by: \.platform).filter { $1.count > 1 }
+        
+        for duplicate in duplicates {
+            let duplicateIssue = LintingIssue(
+                reason: "Found duplicates in `\(duplicate.value)`",
                 severity: .error
             )
-            
-            if target.deploymentTargets.allSatisfy { $0.platform != platform.caseValue } {
-                issues.append(inconsistentPlatformIssue)
-            }
+            issues.append(duplicateIssue)
         }
 
         return issues
     }
 
     private func lintValidPlatformProductCombinations(target: Target) -> [LintingIssue] {
-        let invalidProductsForPlatforms: [Platform: [Product]] = [
-            .iOS: [.watch2App, .watch2Extension, .tvTopShelfExtension],
-        ]
-
-        if let invalidProducts = invalidProductsForPlatforms[target.platform],
-           invalidProducts.contains(target.product)
-        {
-            return [
-                LintingIssue(
-                    reason: "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",
-                    severity: .error
-                ),
-            ]
-        }
-
         return []
+//        let invalidProductsForPlatforms: [Platform: [Product]] = [
+//            .iOS: [.watch2App, .watch2Extension, .tvTopShelfExtension],
+//        ]
+//
+//        if let invalidProducts = invalidProductsForPlatforms[target.platform],
+//           invalidProducts.contains(target.product)
+//        {
+//            return [
+//                LintingIssue(
+//                    reason: "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",
+//                    severity: .error
+//                ),
+//            ]
+//        }
+//
+//        return []
     }
 
     private func lintDuplicateDependency(target: Target) -> [LintingIssue] {

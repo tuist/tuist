@@ -17,7 +17,6 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     // MARK: - Attributes
 
     public var name: String
-    public var platform: Platform
     public var product: Product
     public var bundleId: String
     public var productName: String
@@ -47,7 +46,6 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 
     public init(
         name: String,
-        platform: Platform,
         product: Product,
         productName: String?,
         bundleId: String,
@@ -72,7 +70,6 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     ) {
         self.name = name
         self.product = product
-        self.platform = platform
         self.bundleId = bundleId
         self.productName = productName ?? name.replacingOccurrences(of: "-", with: "_")
         self.deploymentTargets = deploymentTargets
@@ -137,12 +134,16 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 
     /// Returns true if the target supports having sources.
     public var supportsSources: Bool {
-        switch (platform, product) {
-        case (.iOS, .bundle), (.iOS, .stickerPackExtension), (.watchOS, .watch2App):
-            return false
-        default:
-            return true
+        for deploymentTarget in deploymentTargets {
+            switch (deploymentTarget.platform, product) {
+            case (.iOS, .bundle), (.iOS, .stickerPackExtension), (.watchOS, .watch2App):
+                continue
+            default:
+                return true
+            }
         }
+        
+        return false
     }
 
     /// Returns true if the target supports hosting resources
@@ -181,23 +182,31 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// Determines if the target is an embeddable watch application
     /// i.e. a product that can be bundled with a host iOS application
     public func isEmbeddableWatchApplication() -> Bool {
-        switch (platform, product) {
-        case (.watchOS, .watch2App), (.watchOS, .app):
-            return true
-        default:
-            return false
+        for deploymentTarget in deploymentTargets {
+            switch (deploymentTarget.platform, product) {
+            case (.watchOS, .watch2App), (.watchOS, .app):
+                return true
+            default:
+                continue
+            }
         }
+        
+        return false
     }
 
     /// Determines if the target is able to embed a watch application
     /// i.e. a product that can be bundled with a watchOS application
     public func canEmbedWatchApplications() -> Bool {
-        switch (platform, product) {
-        case (.iOS, .app):
-            return true
-        default:
-            return false
+        for deploymentTarget in deploymentTargets {
+            switch (deploymentTarget.platform, product) {
+            case (.iOS, .app):
+                return true
+            default:
+                continue
+            }
         }
+        
+        return false
     }
 
     /// For iOS targets that support macOS (Catalyst), this value is used
@@ -222,12 +231,21 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         
         return nil
     }
+    
+    /// Returns main platform
+    public var mainPlatform : Platform {
+        guard let mainPlatform = deploymentTargets.first?.platform else {
+            fatalError("Deployment targets can't be empty")
+        }
+        
+        return mainPlatform
+    }
 
     // MARK: - Equatable
 
     public static func == (lhs: Target, rhs: Target) -> Bool {
         lhs.name == rhs.name &&
-            lhs.platform == rhs.platform &&
+            lhs.deploymentTargets == rhs.deploymentTargets &&
             lhs.product == rhs.product &&
             lhs.bundleId == rhs.bundleId &&
             lhs.productName == rhs.productName &&
@@ -245,7 +263,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(name)
-        hasher.combine(platform)
+        hasher.combine(deploymentTargets)
         hasher.combine(product)
         hasher.combine(bundleId)
         hasher.combine(productName)

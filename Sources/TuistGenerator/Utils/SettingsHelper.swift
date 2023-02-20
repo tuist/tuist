@@ -23,7 +23,7 @@ final class SettingsHelper {
     }
 
     func settingsProviderPlatform(_ target: Target) -> BuildSettingsProvider.Platform? {
-        switch target.platform {
+        switch target.deploymentTargets.first!.platform {
         case .iOS: return .iOS
         case .macOS: return .macOS
         case .tvOS: return .tvOS

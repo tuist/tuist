@@ -7,7 +7,6 @@ extension Target {
     /// Note: Referenced paths may not exist
     public static func test(
         name: String = "Target",
-        platform: Platform = .iOS,
         product: Product = .app,
         productName: String? = nil,
         bundleId: String? = nil,
@@ -32,7 +31,6 @@ extension Target {
     ) -> Target {
         Target(
             name: name,
-            platform: platform,
             product: product,
             productName: productName,
             bundleId: bundleId ?? "io.tuist.\(name)",
@@ -60,7 +58,6 @@ extension Target {
     /// Creates a bare bones Target with as little data as possible
     public static func empty(
         name: String = "Target",
-        platform: Platform = .iOS,
         product: Product = .app,
         productName: String? = nil,
         bundleId: String? = nil,
@@ -81,7 +78,6 @@ extension Target {
     ) -> Target {
         Target(
             name: name,
-            platform: platform,
             product: product,
             productName: productName,
             bundleId: bundleId ?? "io.tuist.\(name)",

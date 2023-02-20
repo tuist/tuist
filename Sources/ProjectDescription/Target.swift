@@ -5,9 +5,6 @@ public struct Target: Codable, Equatable {
     /// The name of the target. Also, the product name if not specified with ``productName``.
     public let name: String
 
-    /// The platform the target product is built for.
-    public let platform: Platform
-
     /// The type of build product this target will output.
     public let product: Product
 
@@ -63,7 +60,6 @@ public struct Target: Codable, Equatable {
 
     public init(
         name: String,
-        platform: Platform,
         product: Product,
         productName: String? = nil,
         bundleId: String,
@@ -83,7 +79,6 @@ public struct Target: Codable, Equatable {
         additionalFiles: [FileElement] = []
     ) {
         self.name = name
-        self.platform = platform
         self.bundleId = bundleId
         self.productName = productName
         self.product = product
@@ -105,7 +100,6 @@ public struct Target: Codable, Equatable {
 
     public init(
         name: String,
-        platform: Platform,
         product: Product,
         productName: String? = nil,
         bundleId: String,
@@ -126,7 +120,6 @@ public struct Target: Codable, Equatable {
     ) {
         self.init(
             name: name,
-            platform: platform,
             product: product,
             productName: productName,
             bundleId: bundleId,

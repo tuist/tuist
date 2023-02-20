@@ -7,15 +7,16 @@ public enum DeploymentTarget: Hashable, Codable {
     case macOS(String)
     case watchOS(String)
     case tvOS(String)
-
-    public var platform: String {
+    
+    public var platform: Platform {
         switch self {
-        case .iOS: return "iOS"
-        case .macOS: return "macOS"
-        case .watchOS: return "watchOS"
-        case .tvOS: return "tvOS"
+        case .iOS: return .iOS
+        case .macOS: return .macOS
+        case .tvOS: return .tvOS
+        case .watchOS: return .watchOS
         }
     }
+
 
     public var version: String {
         switch self {

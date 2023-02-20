@@ -247,17 +247,21 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     }
 
     private func additionalTargetSettings(for target: Target) -> SettingsDictionary {
-        switch (target.platform, target.product) {
-        case (.watchOS, .app):
-            return [
-                "LD_RUNPATH_SEARCH_PATHS": [
-                    "$(inherited)",
-                    "@executable_path/Frameworks",
-                ],
-            ]
-        default:
-            return [:]
+        for deploymentTarget in target.deploymentTargets {
+            switch (deploymentTarget.platform, target.product) {
+            case (.watchOS, .app):
+                return [
+                    "LD_RUNPATH_SEARCH_PATHS": [
+                        "$(inherited)",
+                        "@executable_path/Frameworks",
+                    ],
+                ]
+            default:
+                continue
+            }
         }
+        
+        return [:]
     }
 }
 

@@ -39,38 +39,38 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
         // Bundle Executable
         extend(&content, with: bundleExecutable(target))
 
-        // iOS app
-        if target.product == .app, target.platform == .iOS {
-            extend(&content, with: iosApp())
-        }
-
-        // macOS app
-        if target.product == .app, target.platform == .macOS {
-            extend(&content, with: macosApp())
-        }
-
-        // macOS
-        if target.platform == .macOS {
-            extend(&content, with: macos())
-        }
-
-        // watchOS app
-        if target.product == .watch2App, target.platform == .watchOS {
-            let host = hostTarget(for: target, in: project)
-            extend(&content, with: watchosApp(
-                name: target.name,
-                hostAppBundleId: host?.bundleId
-            ))
-        }
-
-        // watchOS app extension
-        if target.product == .watch2Extension, target.platform == .watchOS {
-            let host = hostTarget(for: target, in: project)
-            extend(&content, with: watchosAppExtension(
-                name: target.name,
-                hostAppBundleId: host?.bundleId
-            ))
-        }
+//        // iOS app
+//        if target.product == .app, target.platform == .iOS {
+//            extend(&content, with: iosApp())
+//        }
+//
+//        // macOS app
+//        if target.product == .app, target.platform == .macOS {
+//            extend(&content, with: macosApp())
+//        }
+//
+//        // macOS
+//        if target.platform == .macOS {
+//            extend(&content, with: macos())
+//        }
+//
+//        // watchOS app
+//        if target.product == .watch2App, target.platform == .watchOS {
+//            let host = hostTarget(for: target, in: project)
+//            extend(&content, with: watchosApp(
+//                name: target.name,
+//                hostAppBundleId: host?.bundleId
+//            ))
+//        }
+//
+//        // watchOS app extension
+//        if target.product == .watch2Extension, target.platform == .watchOS {
+//            let host = hostTarget(for: target, in: project)
+//            extend(&content, with: watchosAppExtension(
+//                name: target.name,
+//                hostAppBundleId: host?.bundleId
+//            ))
+//        }
 
         extend(&content, with: extendedWith.unwrappingValues())
 
@@ -126,12 +126,16 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
 
     func bundleExecutable(_ target: Target) -> [String: Any] {
         let shouldIncludeBundleExecutableKey: (Target) -> Bool = {
-            switch ($0.platform, $0.product) {
-            case (.iOS, .bundle):
-                return false
-            default:
-                return true
+            for deploymentTarget in target.deploymentTargets {
+                switch (deploymentTarget.platform, $0.product) {
+                case (.iOS, .bundle):
+                    continue
+                default:
+                    return true
+                }
             }
+            
+            return false
         }
 
         if shouldIncludeBundleExecutableKey(target) {

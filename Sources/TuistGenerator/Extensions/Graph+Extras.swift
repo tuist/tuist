@@ -22,7 +22,7 @@ extension TuistGraph.Graph {
                 return false
             }
 
-            if let platformToFilter = platformToFilter, target.target.platform != platformToFilter {
+            if let platformToFilter = platformToFilter, target.target.mainPlatform != platformToFilter {
                 return false
             }
 

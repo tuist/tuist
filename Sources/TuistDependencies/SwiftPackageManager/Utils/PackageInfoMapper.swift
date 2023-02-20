@@ -500,16 +500,14 @@ extension ProjectDescription.Target {
         if target.type.supportsDependencies {
             let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
 
-            // TODO: Update multi platform dependencies
             dependencies = try ProjectDescription.TargetDependency.from(
                 resolvedDependencies: resolvedDependencies,
-                platform: platforms.first!,
+                platforms: platforms,
                 settings: target.settings,
                 packageToProject: packageToProject
             )
         }
 
-        // TODO: Update multi platform settings
         let settings = try Settings.from(
             target: target,
             packageFolder: packageFolder,
@@ -518,7 +516,7 @@ extension ProjectDescription.Target {
             packageToProject: packageToProject,
             targetToResolvedDependencies: targetToResolvedDependencies,
             settings: target.settings,
-            platform: platforms.first!,
+            platforms: platforms,
             targetToModuleMap: targetToModuleMap,
             baseSettings: baseSettings,
             targetSettings: targetSettings
@@ -527,7 +525,6 @@ extension ProjectDescription.Target {
         // TODO: Update multi platform Target
         return ProjectDescription.Target(
             name: PackageInfoMapper.sanitize(targetName: target.name),
-            platform: platforms.first!,
             product: product,
             productName: PackageInfoMapper
                 .sanitize(targetName: target.name)
@@ -749,12 +746,12 @@ extension ResourceFileElements {
 extension ProjectDescription.TargetDependency {
     fileprivate static func from(
         resolvedDependencies: [PackageInfoMapper.ResolvedDependency],
-        platform: ProjectDescription.Platform,
+        platforms: Set<ProjectDescription.Platform>,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         packageToProject: [String: AbsolutePath]
     ) throws -> [Self] {
         let targetDependencies = resolvedDependencies.compactMap { dependency -> Self? in
-            if let condition = dependency.condition, !condition.platforms.contains(platform) {
+            if let condition = dependency.condition, !condition.platforms.contains(platforms) {
                 return nil
             }
             switch dependency {
@@ -772,7 +769,7 @@ extension ProjectDescription.TargetDependency {
 
         let linkerDependencies: [ProjectDescription.TargetDependency] = settings.compactMap { setting in
             if let condition = setting.condition {
-                guard condition.platformNames.contains(platform.rawValue) else {
+                guard condition.platformNames.contains(platforms.map { $0.rawValue }) else {
                     return nil
                 }
             }
@@ -817,7 +814,7 @@ extension ProjectDescription.Settings {
         packageToProject: [String: AbsolutePath],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
-        platform: ProjectDescription.Platform,
+        platforms: Set<ProjectDescription.Platform>,
         targetToModuleMap: [String: ModuleMap],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary]
@@ -865,7 +862,7 @@ extension ProjectDescription.Settings {
         if target.type.supportsCustomSettings {
             try settings.forEach { setting in
                 if let condition = setting.condition {
-                    guard condition.platformNames.contains(platform.rawValue) else {
+                    guard condition.platformNames.contains(platforms.map { $0.rawValue }) else {
                         return
                     }
                 }

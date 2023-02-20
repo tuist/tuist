@@ -241,7 +241,7 @@ final class ConfigGenerator: ConfigGenerating {
         if let entitlements = target.entitlements {
             settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)")
         }
-        settings["SDKROOT"] = .string(target.platform.xcodeSdkRoot)
+        settings["SDKROOT"] = .string(target.deploymentTargets.first!.platform.xcodeSdkRoot)
 
         if target.product == .staticFramework {
             settings["MACH_O_TYPE"] = "staticlib"
@@ -273,7 +273,7 @@ final class ConfigGenerator: ConfigGenerating {
         if target.product == .unitTests {
             var testHostPath = "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)"
 
-            if target.platform == .macOS {
+            if target.mainPlatform == .macOS {
                 testHostPath += "/Contents/MacOS"
             }
 
@@ -341,10 +341,8 @@ final class ConfigGenerator: ConfigGenerating {
         var supportedPlatforms = [String?]()
 
         for deploymentTarget in target.deploymentTargets {
-            guard let platform = Platform(rawValue: deploymentTarget.platform.lowercased()) else { continue }
-
-            supportedPlatforms.append(platform.xcodeDeviceSDK)
-            supportedPlatforms.append(platform.xcodeSimulatorSDK)
+            supportedPlatforms.append(deploymentTarget.platform.xcodeDeviceSDK)
+            supportedPlatforms.append(deploymentTarget.platform.xcodeSimulatorSDK)
         }
 
         let supportedPlatformsString = supportedPlatforms.compactMap { $0 }.joined(separator: " ")

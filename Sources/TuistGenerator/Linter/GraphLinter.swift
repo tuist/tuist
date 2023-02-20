@@ -115,36 +115,37 @@ public class GraphLinter: GraphLinting {
     }
 
     private func lintDependency(from: GraphTarget, to: [GraphTarget]) -> [LintingIssue] {
-        let fromTarget = LintableTarget(
-            platform: from.target.platform,
-            product: from.target.product
-        )
-
-        guard let supportedTargets = GraphLinter.validLinks[fromTarget] else {
-            let reason =
-                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' which is an invalid or not supported yet combination."
-            return [LintingIssue(reason: reason, severity: .error)]
-        }
-        
-        var lintingIssues = [LintingIssue]()
-        
-        for toTarget in to {
-            let lintableTarget = LintableTarget(
-                platform: toTarget.target.platform,
-                product: toTarget.target.product
-            )
-            
-            guard supportedTargets.contains(lintableTarget) else {
-                let reason =
-                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' and depends on target \(toTarget.target.name) of type \(toTarget.target.product) and platform '\(toTarget.target.platform)' which is an invalid or not supported yet combination."
-                lintingIssues.append(LintingIssue(reason: reason, severity: .error))
-                continue
-            }
-            
-            return []
-        }
-
-        return lintingIssues
+        return []
+//        let fromTarget = LintableTarget(
+//            platform: from.target.platform,
+//            product: from.target.product
+//        )
+//
+//        guard let supportedTargets = GraphLinter.validLinks[fromTarget] else {
+//            let reason =
+//                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' which is an invalid or not supported yet combination."
+//            return [LintingIssue(reason: reason, severity: .error)]
+//        }
+//        
+//        var lintingIssues = [LintingIssue]()
+//        
+//        for toTarget in to {
+//            let lintableTarget = LintableTarget(
+//                platform: toTarget.target.platform,
+//                product: toTarget.target.product
+//            )
+//            
+//            guard supportedTargets.contains(lintableTarget) else {
+//                let reason =
+//                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' and depends on target \(toTarget.target.name) of type \(toTarget.target.product) and platform '\(toTarget.target.platform)' which is an invalid or not supported yet combination."
+//                lintingIssues.append(LintingIssue(reason: reason, severity: .error))
+//                continue
+//            }
+//            
+//            return []
+//        }
+//
+//        return lintingIssues
     }
 
     private func lintMismatchingConfigurations(graphTraverser: GraphTraversing) -> [LintingIssue] {
