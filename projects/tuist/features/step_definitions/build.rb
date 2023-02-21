@@ -9,11 +9,6 @@ Then(/^tuist builds the scheme ([a-zA-Z\-]+) from the project$/) do |scheme|
   system(@tuist, "build", scheme, "--path", @dir)
 end
 
-Then(/^tuist builds the scheme ([a-zA-Z\-]+) from the project with device "(.+)"$/) do |scheme, device|
-  system(@tuist, "build", scheme, "--device", %Q{"#{device}"}, "--path", @dir)
-end
-
-
 Then(%r{^tuist builds the scheme ([a-zA-Z\-_]+) from the project at ([a-zA-Z/]+)$}) do |scheme, path|
   system(@tuist, "build", scheme, "--path", File.join(@dir, path))
 end
