@@ -491,7 +491,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         guard !appExtensions.isEmpty else { return }
         var pbxBuildFiles = [PBXBuildFile]()
 
-        let appExtensionsBuildPhase = PBXCopyFilesBuildPhase(dstSubfolderSpec: .plugins, name: "Embed App Extensions")
+        let appExtensionsBuildPhase = PBXCopyFilesBuildPhase(dstSubfolderSpec: .plugins, name: "Embed Foundation Extensions")
         pbxproj.add(object: appExtensionsBuildPhase)
         pbxTarget.buildPhases.append(appExtensionsBuildPhase)
 
