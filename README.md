@@ -123,6 +123,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
   <a href="https://hd.kinopoisk.ru/" target="_blank">
     <img src="assets/companies/kinopoisk_logo.svg" style="width: 120px;" hspace="8"/>
   </a>
+  <a href="https://qnips.io/" target="_blank">
+    <img src="assets/companies/qnips.svg" style="width: 90px;" hspace="8"/>
+  </a>
 </div>
 
 ## Documentation 📝
@@ -311,6 +314,7 @@ Thanks goes to these wonderful people:
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/MontakOleg"><img src="https://avatars.githubusercontent.com/u/1800899?v=4" width="100px;" alt=""/><br /><sub><b>MontakOleg</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/waltflanagan"><img src="https://avatars.githubusercontent.com/u/398293?v=4" width="100px;" alt=""/><br /><sub><b>Mike Simons</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/oozoofrog"><img src="https://avatars.githubusercontent.com/u/3011832?v=4" width="100px;" alt=""/><br /><sub><b>oozoofrog</b></sub></a></td>
     </tr>
   </tbody>
 </table>
