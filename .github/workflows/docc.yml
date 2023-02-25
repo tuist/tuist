@@ -19,18 +19,18 @@ jobs:
     runs-on: macos-12
     steps:
       - name: Checkout Package
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: Checkout swift-docc
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: apple/swift-docc
           ref: main
           path: swift-docc
       - name: Cache DocC
         id: cache-docc
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           key: swift-url-docc-build
           path: swift-docc/.build
@@ -38,7 +38,7 @@ jobs:
         run: |
           cd swift-docc; swift build --product docc -c release; cd ..
       - name: Checkout swift-docc-render
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: apple/swift-docc-render
           ref: main
@@ -47,7 +47,7 @@ jobs:
         run: |
           cd swift-docc-render; npm install && npm run build; cd ..
       - name: Checkout gh-pages Branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: gh-pages
           path: docs-out
