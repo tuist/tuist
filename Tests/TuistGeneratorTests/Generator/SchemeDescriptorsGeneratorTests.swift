@@ -860,6 +860,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
         let runAction = RunAction.test(
             configurationName: "Release",
+            customLLDBInitFile: "/path/to/lldbinit",
             executable: TargetReference(projectPath: projectPath, name: "App"),
             arguments: Arguments(environment: environment, launchArguments: launchArguments),
             options: .init(
@@ -920,7 +921,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         ])
         XCTAssertNil(result.askForAppToLaunch)
         XCTAssertNil(result.launchAutomaticallySubstyle)
-        XCTAssertNil(result.customLLDBInitFile)
+        XCTAssertEqual(result.customLLDBInitFile, "/path/to/lldbinit")
         XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
         XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         XCTAssertEqual(buildableReference.referencedContainer, "container:Projects/Project/Project.xcodeproj")

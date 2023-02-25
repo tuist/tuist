@@ -10,7 +10,7 @@ final class RunActionTests: TuistUnitTestCase {
         let subject = RunAction(
             configurationName: "name",
             attachDebugger: true,
-            customLLDBInitFile: nil,
+            customLLDBInitFile: "/path/to/project",
             executable: .init(
                 projectPath: "/path/to/project",
                 name: "name"
