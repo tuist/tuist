@@ -920,7 +920,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         ])
         XCTAssertNil(result.askForAppToLaunch)
         XCTAssertNil(result.launchAutomaticallySubstyle)
-        XCTAssertEqual(result.customLLDBInitFile, "/path/to/lldbinit")
+        XCTAssertNil(result.customLLDBInitFile)
         XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
         XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
         XCTAssertEqual(buildableReference.referencedContainer, "container:Projects/Project/Project.xcodeproj")
