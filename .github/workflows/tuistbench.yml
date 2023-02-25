@@ -1,9 +1,6 @@
 name: Tuistbench
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     paths:
       - projects/fourier/**
@@ -21,7 +18,7 @@ env:
 jobs:
   test:
     name: Build benchmarking tooling with Xcode
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -41,10 +38,9 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Build
         run: ./fourier build benchmark
-
   lint:
     name: Lint
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode

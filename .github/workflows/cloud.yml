@@ -1,13 +1,11 @@
 name: Cloud
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     paths:
       - projects/cloud/**
       - projects/fourier/**
+      - .github/workflows/cloud.yml
 
 env:
   RAILS_ENV: test
@@ -70,7 +68,7 @@ jobs:
           bundle exec rails test
   lint:
     name: Lint
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode

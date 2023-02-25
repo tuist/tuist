@@ -1,9 +1,6 @@
 name: Website
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     paths:
       - projects/website/**

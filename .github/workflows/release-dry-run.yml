@@ -1,9 +1,6 @@
 name: Release dry-run
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     paths:
       - Tuist/Dependencies/Lockfiles/Package.resolved
@@ -22,7 +19,7 @@ env:
 jobs:
   bundle-all:
     name: Bundle tuist and tuistenv with Xcode
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - uses: ruby/setup-ruby@v1

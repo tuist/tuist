@@ -1,9 +1,6 @@
 name: Tuist
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     paths:
       - Tuist/**
@@ -16,9 +13,9 @@ on:
       - Tests/**
       - projects/tuist/features/**
       - projects/tuist/fixtures/**
-      - .github/workflows/tuist.yml
       - .package.resolved
       - projects/fourier/**
+      - .github/workflows/tuist.yml
 
 concurrency:
   group: tuist-${{ github.head_ref }}
@@ -34,7 +31,7 @@ env:
 jobs:
   unit_tests:
     name: Unit tests with Xcode
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -65,7 +62,7 @@ jobs:
           ./fourier test tuist unit
   release_build:
     name: Release build with Xcode
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - uses: actions/cache@v2
@@ -87,7 +84,7 @@ jobs:
 
   acceptance_tests:
     name: ${{ matrix.feature }} acceptance tests with Xcode
-    runs-on: macOS-12
+    runs-on: macos-12
     strategy:
       matrix:
         feature:
@@ -203,7 +200,7 @@ jobs:
   
   lint:
     name: Lint
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -228,7 +225,7 @@ jobs:
   
   lint-lockfiles:
     name: Lint lockfiles
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode

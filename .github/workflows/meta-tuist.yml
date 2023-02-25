@@ -1,9 +1,6 @@
 name: Meta Tuist
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     paths:
       - Tuist/**
@@ -15,9 +12,9 @@ on:
       - Tests/**
       - projects/tuist/features/**
       - projects/tuist/fixtures/**
-      - .github/workflows/meta-tuist.yml
       - .package.resolved
       - projects/fourier/**
+      - .github/workflows/meta-tuist.yml
 
 concurrency:
   group: meta-tuist-${{ github.head_ref }}
@@ -31,7 +28,7 @@ env:
 jobs:
   build:
     name: Build with Xcode
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -54,7 +51,7 @@ jobs:
           ./fourier build tuist all
   generate:
     name: Generate with Xcode
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -77,7 +74,7 @@ jobs:
           ./fourier generate tuist --targets tuist
   test:
     name: Test with Xcode
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -101,7 +98,7 @@ jobs:
   
   lint-lockfiles:
     name: Lint lockfiles
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
