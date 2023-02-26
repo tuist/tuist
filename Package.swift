@@ -312,6 +312,7 @@ let package = Package(
             name: "TuistCacheTesting",
             dependencies: [
                 "TuistCache",
+                "TuistCloud",
                 swiftToolsSupportDependency,
                 "TuistCore",
                 "TuistSupportTesting",
