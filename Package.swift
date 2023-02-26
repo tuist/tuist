@@ -45,6 +45,7 @@ let package = Package(
         ),
     ],
     dependencies: [
+        .package(url: "https://github.com/apple/swift-docc-plugin.git", from: "1.1.0"),
         .package(url: "https://github.com/tuist/XcodeProj.git", from: "8.8.0"),
         .package(url: "https://github.com/rnine/Checksum.git", from: "1.0.2"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.4.4"),
