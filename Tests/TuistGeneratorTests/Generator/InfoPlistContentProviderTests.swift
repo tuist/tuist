@@ -54,6 +54,10 @@ final class InfoPlistContentProviderTests: XCTestCase {
             "ExtraAttribute": "Value",
             "CFBundleExecutable": "$(EXECUTABLE_NAME)",
             "CFBundleInfoDictionaryVersion": "6.0",
+            "UIApplicationSceneManifest": [
+                "UIApplicationSupportsMultipleScenes": false,
+                "UISceneConfigurations": [:]
+            ]
         ])
     }
 
