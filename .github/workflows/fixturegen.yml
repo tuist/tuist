@@ -10,8 +10,8 @@ on:
       - Package.swift
       - Package.resolved
       - Sources/**
-      - .github/workflows/fixture-generator.yml
       - projects/fourier/**
+      - .github/workflows/fixturegen.yml
 
 concurrency:
   group: fixture-generator-${{ github.head_ref }}
@@ -23,7 +23,7 @@ env:
 jobs:
   test:
     name: Test the fixture generator with Xcode
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -47,7 +47,7 @@ jobs:
         run: ./fourier tuist generate --path Fixture
   lint:
     name: Lint
-    runs-on: macOS-12
+    runs-on: macos-12
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
