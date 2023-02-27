@@ -16,7 +16,7 @@ extension TuistGraph.RunAction {
         let configurationName = manifest.configuration.rawValue
 
         let customLLDBInitFile = try manifest.customLLDBInitFile.map {
-            try generatorPaths.resolveSchemeActionProjectPath($0)
+            try generatorPaths.resolve(path: $0)
         }
 
         let preActions = try manifest.preActions.map {
