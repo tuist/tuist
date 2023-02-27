@@ -330,6 +330,7 @@ final class TestModelGenerator {
                 runAction: RunAction(
                     configurationName: "Debug",
                     attachDebugger: true,
+                    customLLDBInitFile: nil,
                     executable: nil,
                     filePath: nil,
                     arguments: createArguments(),
