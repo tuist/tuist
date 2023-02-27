@@ -40,6 +40,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
+            buildForDeviceOnly: false,
             into: temporaryPath
         )
 
@@ -66,6 +67,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
+            buildForDeviceOnly: false,
             into: temporaryPath
         )
 

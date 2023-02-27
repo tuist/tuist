@@ -40,6 +40,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
+            buildForDeviceOnly: false,
             into: temporaryPath
         )
 
@@ -49,6 +50,34 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let infoPlist = try infoPlist(xcframeworkPath: xcframeworkPath)
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64") }))
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("x86_64") }))
+        XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "ios" })
+        try FileHandler.shared.delete(xcframeworkPath)
+    }
+
+    func test_build_when_iOS_device_only_framework() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let frameworksPath = try temporaryFixture("Frameworks")
+        let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
+        let scheme = Scheme.test(name: "iOS")
+
+        // When
+        try await subject.build(
+            scheme: scheme,
+            projectTarget: XcodeBuildTarget(with: projectPath),
+            configuration: "Debug",
+            osVersion: nil,
+            deviceName: nil,
+            buildForDeviceOnly: true,
+            into: temporaryPath
+        )
+
+        // Then
+        XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
+        let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
+        let infoPlist = try infoPlist(xcframeworkPath: xcframeworkPath)
+        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64") }))
+        XCTAssertFalse(infoPlist.availableLibraries.contains(where: { $0.supportedArchitectures.contains("x86_64") }))
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "ios" })
         try FileHandler.shared.delete(xcframeworkPath)
     }
@@ -67,6 +96,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
+            buildForDeviceOnly: false,
             into: temporaryPath
         )
 
@@ -95,6 +125,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
+            buildForDeviceOnly: false,
             into: temporaryPath
         )
 
@@ -122,6 +153,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
+            buildForDeviceOnly: false,
             into: temporaryPath
         )
 
@@ -150,6 +182,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
+            buildForDeviceOnly: false,
             into: temporaryPath
         )
 
