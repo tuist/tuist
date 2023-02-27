@@ -56,8 +56,8 @@ final class InfoPlistContentProviderTests: XCTestCase {
             "CFBundleInfoDictionaryVersion": "6.0",
             "UIApplicationSceneManifest": [
                 "UIApplicationSupportsMultipleScenes": false,
-                "UISceneConfigurations": [:]
-            ]
+                "UISceneConfigurations": [:],
+            ],
         ])
     }
 

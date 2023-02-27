@@ -165,8 +165,8 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             ],
             "UIApplicationSceneManifest": [
                 "UIApplicationSupportsMultipleScenes": false,
-                "UISceneConfigurations": [:]
-            ]
+                "UISceneConfigurations": [:],
+            ],
         ]
     }
 
