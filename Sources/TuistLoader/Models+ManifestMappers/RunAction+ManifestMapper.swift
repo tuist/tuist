@@ -46,6 +46,7 @@ extension TuistGraph.RunAction {
         return TuistGraph.RunAction(
             configurationName: configurationName,
             attachDebugger: manifest.attachDebugger,
+            customLLDBInitFile: manifest.customLLDBInitFile,
             preActions: preActions,
             postActions: postActions,
             executable: executableResolved,
