@@ -63,6 +63,16 @@ The financial sustainability of the project is possible thanks to the ongoing co
   </a>
 </div>
 
+### Bronze sponsor: [MacPaw](https://macpaw.com/)
+
+<div>
+  <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
+    <picture>
+      <img src="assets/companies/macpaw.png"/>
+    </picture>
+  </a>
+</div>
+
 ## Companies using Tuist
 
 <div align="center" style="background-color: white">
