@@ -22,13 +22,13 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Set Node.js
         uses: actions/setup-node@master
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Cache node modules
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         env:
           cache-name: cache-node-modules
         with:
@@ -42,7 +42,7 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: vendor/bundle
           key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
