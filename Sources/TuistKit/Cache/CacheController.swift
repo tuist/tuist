@@ -158,6 +158,7 @@ final class CacheController: CacheControlling {
                     configuration: cacheProfile.configuration,
                     osVersion: cacheProfile.os,
                     deviceName: cacheProfile.device,
+                    buildForDeviceOnly: cacheProfile.deviceOnlyXCFramework,
                     into: outputDirectory
                 )
             }
@@ -171,6 +172,7 @@ final class CacheController: CacheControlling {
                     configuration: cacheProfile.configuration,
                     osVersion: cacheProfile.os,
                     deviceName: cacheProfile.device,
+                    buildForDeviceOnly: cacheProfile.deviceOnlyXCFramework,
                     into: outputDirectory
                 )
             }

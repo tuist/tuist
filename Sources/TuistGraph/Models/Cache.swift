@@ -12,17 +12,20 @@ public struct Cache: Equatable, Hashable {
         public let configuration: String
         public let device: String?
         public let os: Version?
+        public let deviceOnlyXCFramework: Bool
 
         public init(
             name: String,
             configuration: String,
             device: String? = nil,
-            os: Version? = nil
+            os: Version? = nil,
+            deviceOnlyXCFramework: Bool = false
         ) {
             self.name = name
             self.configuration = configuration
             self.device = device
             self.os = os
+            self.deviceOnlyXCFramework = deviceOnlyXCFramework
         }
 
         public var description: String {

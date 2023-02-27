@@ -16,6 +16,8 @@ public struct Cache: Codable, Equatable {
         /// The version of the OS to be used when building the project during a caching warmup
         public let os: String?
 
+        public let deviceOnlyXCFramework: Bool
+
         /// Returns a `Cache.Profile` instance.
         ///
         /// - Parameters:
@@ -28,9 +30,16 @@ public struct Cache: Codable, Equatable {
             name: String,
             configuration: String,
             device: String? = nil,
-            os: String? = nil
+            os: String? = nil,
+            deviceOnlyXCFramework: Bool = false
         ) -> Profile {
-            Profile(name: name, configuration: configuration, device: device, os: os)
+            Profile(
+                name: name,
+                configuration: configuration,
+                device: device,
+                os: os,
+                deviceOnlyXCFramework: deviceOnlyXCFramework
+            )
         }
     }
 

@@ -14,6 +14,7 @@ public protocol CacheArtifactBuilding {
     ///   - configuration: The configuration that will be used when compiling the given target.
     ///   - osVersion: The specific version of the OS that will be used when compiling the given target.
     ///   - deviceName: The specific device that will be used when compiling the given target.
+    ///   - buildForDeviceOnly: Build the artifact for device only
     ///   - into: The directory into which the output artifacts will be copied.
     func build(
         scheme: Scheme,
@@ -21,6 +22,7 @@ public protocol CacheArtifactBuilding {
         configuration: String,
         osVersion: Version?,
         deviceName: String?,
+        buildForDeviceOnly: Bool,
         into outputDirectory: AbsolutePath
     ) async throws
 }

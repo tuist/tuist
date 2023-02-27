@@ -55,3 +55,13 @@ Scenario: The project is an application and a target is generated as sources (io
     Then App embeds the xcframework UIComponents
     Then I should be able to build for iOS the scheme App
     Then I should be able to test for iOS the scheme App
+
+Scenario: The project is an application and a target depends on xcframework with only device slice (ios_app_with_device_only_xcframework)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_device_only_xcframework into the working directory
+    Then tuist warms the cache with xcframeworks
+    When tuist focuses the targets MyTarget using xcframeworks
+    Then MyTarget links the xcframework MyFramework
+    Then MyTarget doesn't embed the xcframework MyFramework
+    Then I should be able to build for device of iOS the scheme MyTarget

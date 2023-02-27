@@ -27,6 +27,7 @@ public final class CacheProfileContentHasher: CacheProfileContentHashing {
         if let os = cacheProfile.os {
             stringsToHash.append(os.description)
         }
+        stringsToHash.append("\(cacheProfile.deviceOnlyXCFramework)")
         return try contentHasher.hash(stringsToHash)
     }
 }

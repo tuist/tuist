@@ -95,6 +95,18 @@ let config = Config(
 )
 ```
 
+Or if you want to build cache for device only as xcframeworks (useful when caching on CI):
+
+(Note that this option only works if you pass `--xcframeworks` param for `cache` command)
+
+```swift
+let config = Config(
+    cache: .cache(profiles: [
+        .profile(name: "CI", configuration: "Debug", deviceOnlyXCFramework: true)
+    ])
+)
+```
+
 You can change the cache directory in `Config.swift`, for example:
 
 ```

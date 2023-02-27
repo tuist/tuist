@@ -36,6 +36,7 @@ public final class MockCacheArtifactBuilder: CacheArtifactBuilding {
         configuration _: String,
         osVersion _: Version?,
         deviceName _: String?,
+        buildForDeviceOnly _: Bool,
         into outputDirectory: AbsolutePath
     ) throws {
         invokedBuildSchemeProject = true

@@ -30,6 +30,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
         configuration: String,
         osVersion _: Version?,
         deviceName _: String?,
+        buildForDeviceOnly: Bool,
         into outputDirectory: AbsolutePath
     ) async throws {
         let platform = self.platform(scheme: scheme)
@@ -39,7 +40,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
             // Build for the simulator
             var simulatorArchivePath: AbsolutePath?
-            if platform.hasSimulators {
+            if platform.hasSimulators, !buildForDeviceOnly {
                 simulatorArchivePath = temporaryDirectory.appending(component: "simulator.xcarchive")
                 try await self.simulatorBuild(
                     projectTarget: projectTarget,

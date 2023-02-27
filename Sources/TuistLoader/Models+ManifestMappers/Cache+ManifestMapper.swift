@@ -49,7 +49,8 @@ extension TuistGraph.Cache.Profile {
             name: manifest.name,
             configuration: manifest.configuration,
             device: manifest.device,
-            os: resolvedVersion
+            os: resolvedVersion,
+            deviceOnlyXCFramework: manifest.deviceOnlyXCFramework
         )
     }
 }
