@@ -552,7 +552,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             region: scheme.runAction?.options.region,
             launchAutomaticallySubstyle: launchActionConstants.launchAutomaticallySubstyle,
             storeKitConfigurationFileReference: storeKitConfigurationFileReference,
-            customLLDBInitFile: scheme.runAction?.customLLDBInitFile
+            customLLDBInitFile: scheme.runAction?.customLLDBInitFile?.pathString
         )
     }
 

@@ -15,6 +15,10 @@ extension TuistGraph.RunAction {
     ) throws -> TuistGraph.RunAction {
         let configurationName = manifest.configuration.rawValue
 
+        let customLLDBInitFile = try manifest.customLLDBInitFile.map {
+            try generatorPaths.resolveSchemeActionProjectPath($0)
+        }
+
         let preActions = try manifest.preActions.map {
             try TuistGraph.ExecutionAction.from(
                 manifest: $0,
@@ -46,7 +50,7 @@ extension TuistGraph.RunAction {
         return TuistGraph.RunAction(
             configurationName: configurationName,
             attachDebugger: manifest.attachDebugger,
-            customLLDBInitFile: manifest.customLLDBInitFile,
+            customLLDBInitFile: customLLDBInitFile,
             preActions: preActions,
             postActions: postActions,
             executable: executableResolved,
