@@ -213,7 +213,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentXCFrameworkHash = try subject.contentHashes(
             for: graph,
             cacheProfile: .test(),
-            cacheOutputType: .xcframework,
+            cacheOutputType: .xcframework(nil),
             excludedTargets: []
         )
 

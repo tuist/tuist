@@ -36,6 +36,8 @@ public enum CacheOutputType: CustomStringConvertible {
     }
 }
 
+extension CacheOutputType: Equatable {}
+
 extension CacheOutputType {
     public var isXCFramework: Bool {
         switch self {
@@ -53,39 +55,25 @@ extension CacheOutputType {
         case .framework:
             return true
         case let .xcframework(type):
-            return type == nil || type == .simulator
+            switch type {
+            case .simulator, nil:
+                return true
+            case .device:
+                return false
+            }
         }
     }
 
     public var shouldBuildForDevice: Bool {
         switch self {
-        case .bundle:
+        case .bundle, .framework:
             return false
-        case .framework:
-            return true
         case let .xcframework(type):
-            return type == nil || type == .device
-        }
-    }
-}
-
-extension CacheOutputType: Equatable {
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        switch lhs {
-        case .bundle:
-            switch rhs {
-            case .bundle: return true
-            case .framework, .xcframework: return false
-            }
-        case .framework:
-            switch rhs {
-            case .framework: return true
-            case .bundle, .xcframework: return false
-            }
-        case let .xcframework(lhsType):
-            switch rhs {
-            case let .xcframework(rhsType): return lhsType == rhsType
-            case .bundle, .framework: return false
+            switch type {
+            case .device, nil:
+                return true
+            case .simulator:
+                return false
             }
         }
     }
