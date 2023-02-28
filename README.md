@@ -66,9 +66,19 @@ The financial sustainability of the project is possible thanks to the ongoing co
 ### Bronze sponsor: [MacPaw](https://macpaw.com/)
 
 <div>
-  <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
+  <a href="https://macpaw.com" target="_blank">
     <picture>
       <img src="assets/companies/macpaw.png"/>
+    </picture>
+  </a>
+</div>
+
+### Bronze sponsor: [Asana](https://asana.com/)
+
+<div>
+  <a href="https://asana.com" target="_blank">
+    <picture>
+      <img src="assets/companies/Asana.png"/>
     </picture>
   </a>
 </div>
