@@ -561,7 +561,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             region: scheme.runAction?.options.region,
             launchAutomaticallySubstyle: launchActionConstants.launchAutomaticallySubstyle,
             storeKitConfigurationFileReference: storeKitConfigurationFileReference,
-            customLLDBInitFile: customLLDBInitFilePath?.pathString
+            customLLDBInitFile: customLLDBInitFilePath.map { "$(SRCROOT)/\($0.pathString)" }
         )
     }
 
