@@ -40,6 +40,7 @@ final class GenerateService {
         sources: Set<String>,
         noOpen: Bool,
         xcframeworks: Bool,
+        xcframeworksType: CacheXCFrameworkType?,
         profile: String?,
         ignoreCache: Bool
     ) async throws {
@@ -51,6 +52,7 @@ final class GenerateService {
             config: config,
             sources: sources,
             xcframeworks: xcframeworks,
+            xcframeworksType: xcframeworksType,
             cacheProfile: cacheProfile,
             ignoreCache: ignoreCache
         )

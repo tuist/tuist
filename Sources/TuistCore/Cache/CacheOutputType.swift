@@ -11,6 +11,12 @@ public enum CacheOutputType: CustomStringConvertible {
     /// XCFrameworks built for the simulator and device.
     case xcframework
 
+    /// XCFrameworks built for devices.
+    case deviceXCFramework
+
+    /// XCFrameworks built for simulators.
+    case simulatorXCFramework
+
     public var description: String {
         switch self {
         case .bundle:
@@ -19,6 +25,19 @@ public enum CacheOutputType: CustomStringConvertible {
             return "framework"
         case .xcframework:
             return "xcframework"
+        case .deviceXCFramework:
+            return "device-xcframework"
+        case .simulatorXCFramework:
+            return "simulator-xcframework"
+        }
+    }
+
+    public var isXCFramework: Bool {
+        switch self {
+        case .bundle, .framework:
+            return false
+        case .xcframework, .deviceXCFramework, .simulatorXCFramework:
+            return true
         }
     }
 }

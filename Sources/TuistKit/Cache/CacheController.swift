@@ -83,12 +83,14 @@ final class CacheController: CacheControlling {
         includedTargets: Set<String>,
         dependenciesOnly: Bool
     ) async throws {
-        let xcframeworks = artifactBuilder.cacheOutputType == .xcframework
+        let xcframeworks = artifactBuilder.cacheOutputType.isXCFramework
+        let xcframeworksType = xcframeworksType(from: artifactBuilder)
         let generator = generatorFactory.cache(
             config: config,
             includedTargets: includedTargets,
             focusedTargets: nil,
             xcframeworks: xcframeworks,
+            xcframeworksType: xcframeworksType,
             cacheProfile: cacheProfile
         )
         let (_, graph) = try await generator.generateWithGraph(path: path)
@@ -121,6 +123,7 @@ final class CacheController: CacheControlling {
                 includedTargets: targetsToBeCached,
                 focusedTargets: targetsToBeCached,
                 xcframeworks: xcframeworks,
+                xcframeworksType: xcframeworksType,
                 cacheProfile: cacheProfile
             )
             .generateWithGraph(path: path)
@@ -133,6 +136,17 @@ final class CacheController: CacheControlling {
             "All cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s",
             metadata: .success
         )
+    }
+
+    private func xcframeworksType(from builder: CacheArtifactBuilding) -> CacheXCFrameworkType? {
+        switch builder.cacheOutputType {
+        case .deviceXCFramework:
+            return .device
+        case .simulatorXCFramework:
+            return .simulator
+        default:
+            return nil
+        }
     }
 
     private func archive(

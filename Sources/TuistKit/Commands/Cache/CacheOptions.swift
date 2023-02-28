@@ -1,6 +1,11 @@
 import ArgumentParser
 import Foundation
 
+enum CacheXCFrameworkType: String, ExpressibleByArgument {
+    case device
+    case simulator
+}
+
 struct CacheOptions: ParsableArguments {
     @Option(
         name: .shortAndLong,
@@ -20,4 +25,10 @@ struct CacheOptions: ParsableArguments {
         help: "When passed it caches the targets for simulator and device using xcframeworks."
     )
     var xcframeworks: Bool = false
+
+    @Option(
+        name: .long,
+        help: "Output type of xcframeworks when --xcframeworks is passed (device/simulator)"
+    )
+    var xcframeworksType: CacheXCFrameworkType?
 }

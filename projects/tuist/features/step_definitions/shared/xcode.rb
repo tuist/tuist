@@ -31,6 +31,34 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   xcodebuild(*args)
 end
 
+Then(/I should be able to (.+) for device of (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do |action, platform, scheme|
+  args = [
+    "-scheme", scheme,
+  ]
+  if @workspace_path.nil?
+    args.concat(["-project", @xcodeproj_path]) unless @xcodeproj_path.nil?
+  else
+    args.concat(["-workspace", @workspace_path]) unless @workspace_path.nil?
+  end
+
+  args << if ["iOS", "tvOS", "watchOS"].include?(platform)
+    "-destination generic/platform=#{platform}"
+  else
+    "-destination generic/platform=OS X"
+  end
+
+  args.concat(["-derivedDataPath", @derived_data_path])
+
+  args << "clean"
+  args << action
+  args << "CODE_SIGNING_ALLOWED=NO"
+  args << "CODE_SIGNING_IDENTITY=\"\""
+  args << "CODE_SIGNING_REQUIRED=NO"
+  args << "CODE_SIGN_ENTITLEMENTS=\"\""
+
+  xcodebuild(*args)
+end
+
 Then(/the scheme (.+) has a build setting (.+) with value (.+) for the configuration (.+)/) do |scheme, key, value, config| # rubocop:disable Metrics/LineLength
   args = [
     "-scheme", scheme,

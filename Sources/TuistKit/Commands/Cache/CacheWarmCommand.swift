@@ -37,6 +37,7 @@ struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
             path: options.path,
             profile: options.profile,
             xcframeworks: options.xcframeworks,
+            xcframeworksType: options.xcframeworksType,
             targets: Set(targets),
             dependenciesOnly: dependenciesOnly
         )

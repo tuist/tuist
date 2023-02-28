@@ -41,6 +41,12 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     var xcframeworks: Bool = false
 
     @Option(
+        name: [.long],
+        help: "Type of cached xcframeworks to use when --xcframeworks is passed (device/simulator)"
+    )
+    var xcframeworksType: CacheXCFrameworkType?
+
+    @Option(
         name: [.customShort("P"), .long],
         help: "The name of the cache profile to be used when focusing on the target."
     )
@@ -58,6 +64,7 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
             sources: Set(sources),
             noOpen: noOpen,
             xcframeworks: xcframeworks,
+            xcframeworksType: xcframeworksType,
             profile: profile,
             ignoreCache: ignoreCache
         )

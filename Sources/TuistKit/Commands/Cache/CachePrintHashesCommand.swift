@@ -19,6 +19,7 @@ struct CachePrintHashesCommand: AsyncParsableCommand {
         try await CachePrintHashesService().run(
             path: options.path,
             xcframeworks: options.xcframeworks,
+            xcframeworksType: options.xcframeworksType,
             profile: options.profile
         )
     }

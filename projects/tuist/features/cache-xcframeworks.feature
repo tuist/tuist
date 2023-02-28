@@ -55,3 +55,26 @@ Scenario: The project is an application and a target is generated as sources (io
     Then App embeds the xcframework UIComponents
     Then I should be able to build for iOS the scheme App
     Then I should be able to test for iOS the scheme App
+    
+  Scenario: The project is an application with templates using device caches (ios_app_with_templates)
+    Given that tuist is available 
+    And I have a working directory
+    And I initialize a ios application named MyApp
+    And tuist warms the cache with device xcframeworks
+    When tuist focuses the targets MyApp using device xcframeworks
+    Then MyApp links the xcframework MyAppKit
+    Then MyApp embeds the xcframework MyAppKit
+    Then MyApp embeds the xcframework MyAppUI
+    Then I should be able to build for device of iOS the scheme MyApp
+    
+  Scenario: The project is an application with templates using simulator caches (ios_app_with_templates)
+    Given that tuist is available 
+    And I have a working directory
+    And I initialize a ios application named MyApp
+    And tuist warms the cache with simulator xcframeworks
+    When tuist focuses the targets MyApp,MyAppTests using simulator xcframeworks
+    Then MyApp links the xcframework MyAppKit
+    Then MyApp embeds the xcframework MyAppKit
+    Then MyApp embeds the xcframework MyAppUI
+    Then I should be able to build for iOS the scheme MyApp
+    Then I should be able to test for iOS the scheme MyApp

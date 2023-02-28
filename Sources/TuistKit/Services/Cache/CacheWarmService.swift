@@ -19,7 +19,14 @@ final class CacheWarmService {
         pluginService = PluginService()
     }
 
-    func run(path: String?, profile: String?, xcframeworks: Bool, targets: Set<String>, dependenciesOnly: Bool) async throws {
+    func run(
+        path: String?,
+        profile: String?,
+        xcframeworks: Bool,
+        xcframeworksType: CacheXCFrameworkType?,
+        targets: Set<String>,
+        dependenciesOnly: Bool
+    ) async throws {
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let storages = try CacheStorageProvider(config: config).storages()
@@ -27,7 +34,12 @@ final class CacheWarmService {
         let contentHasher = CacheContentHasher()
         let cacheController: CacheControlling
         if xcframeworks {
-            cacheController = xcframeworkCacheController(cache: cache, contentHasher: contentHasher)
+            let outputType: CacheOutputType = .init(xcframeworksType: xcframeworksType)
+            cacheController = xcframeworkCacheController(
+                cache: cache,
+                outputType: outputType,
+                contentHasher: contentHasher
+            )
         } else {
             cacheController = simulatorFrameworkCacheController(cache: cache, contentHasher: contentHasher)
         }
@@ -67,8 +79,15 @@ final class CacheWarmService {
         )
     }
 
-    private func xcframeworkCacheController(cache: CacheStoring, contentHasher: ContentHashing) -> CacheControlling {
-        let frameworkBuilder = CacheXCFrameworkBuilder(xcodeBuildController: XcodeBuildController())
+    private func xcframeworkCacheController(
+        cache: CacheStoring,
+        outputType: CacheOutputType,
+        contentHasher: ContentHashing
+    ) -> CacheControlling {
+        let frameworkBuilder = CacheXCFrameworkBuilder(
+            xcodeBuildController: XcodeBuildController(),
+            cacheOutputType: outputType
+        )
         let bundleBuilder = CacheBundleBuilder(xcodeBuildController: XcodeBuildController())
         return CacheController(
             cache: cache,

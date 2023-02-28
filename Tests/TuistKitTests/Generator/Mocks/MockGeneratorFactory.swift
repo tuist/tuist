@@ -22,6 +22,7 @@ final class MockGeneratorFactory: GeneratorFactorying {
         config: Config,
         sources: Set<String>,
         xcframeworks: Bool,
+        xcframeworksType _: CacheXCFrameworkType?,
         cacheProfile: TuistGraph.Cache.Profile,
         ignoreCache: Bool
     ) -> Generating {
@@ -90,6 +91,7 @@ final class MockGeneratorFactory: GeneratorFactorying {
         includedTargets: Set<String>,
         focusedTargets: Set<String>?,
         xcframeworks: Bool,
+        xcframeworksType _: CacheXCFrameworkType?,
         cacheProfile: Cache.Profile
     ) -> Generating {
         invokedCache = true
