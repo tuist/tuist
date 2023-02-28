@@ -476,6 +476,14 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
 
+        let customLLDBInitFilePath: RelativePath?
+        if let customLLDBInitFile = scheme.runAction?.customLLDBInitFile,
+            let graphTarget = graphTarget {
+            customLLDBInitFilePath = customLLDBInitFile.relative(to: graphTarget.path)
+        } else {
+            customLLDBInitFilePath = nil
+        }
+
         if let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath,
            let graphTarget = graphTarget
         {
@@ -552,7 +560,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             region: scheme.runAction?.options.region,
             launchAutomaticallySubstyle: launchActionConstants.launchAutomaticallySubstyle,
             storeKitConfigurationFileReference: storeKitConfigurationFileReference,
-            customLLDBInitFile: scheme.runAction?.customLLDBInitFile?.pathString
+            customLLDBInitFile: customLLDBInitFilePath?.pathString
         )
     }
 
