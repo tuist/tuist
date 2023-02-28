@@ -36,9 +36,7 @@ public enum CacheOutputType: CustomStringConvertible {
     }
 }
 
-extension CacheOutputType: Equatable {}
-
-extension CacheOutputType {
+extension CacheOutputType: Equatable {
     public var isXCFramework: Bool {
         switch self {
         case .bundle, .framework:
