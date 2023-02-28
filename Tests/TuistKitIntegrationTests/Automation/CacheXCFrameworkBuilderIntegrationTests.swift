@@ -19,7 +19,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         plistDecoder = PropertyListDecoder()
         subject = CacheXCFrameworkBuilder(
             xcodeBuildController: XcodeBuildController(),
-            cacheOutputType: .xcframework
+            cacheOutputType: .xcframework(nil)
         )
     }
 
@@ -63,7 +63,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "iOS")
 
-        subject.cacheOutputType = .deviceXCFramework
+        subject.cacheOutputType = .xcframework(.device)
 
         // When
         try await subject.build(
@@ -93,7 +93,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "iOS")
 
-        subject.cacheOutputType = .simulatorXCFramework
+        subject.cacheOutputType = .xcframework(.simulator)
 
         // When
         try await subject.build(

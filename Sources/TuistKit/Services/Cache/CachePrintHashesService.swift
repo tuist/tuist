@@ -52,7 +52,7 @@ final class CachePrintHashesService {
         let config = try configLoader.loadConfig(path: absolutePath)
         let generator = generatorFactory.default()
         let graph = try await generator.load(path: absolutePath)
-        let cacheOutputType: CacheOutputType = xcframeworks ? .init(xcframeworksType: xcframeworksType) : .framework
+        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework(xcframeworksType) : .framework
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
         let hashes = try cacheGraphContentHasher.contentHashes(
             for: graph,

@@ -12,17 +12,15 @@ import TuistSupport
 protocol GeneratorFactorying {
     /// Returns the generator for focused projects.
     /// - Parameter config: The project configuration.
-    /// - Parameter sources: The list of targets whose sources should be inclued.
-    /// - Parameter xcframeworks: Whether targets should be cached as xcframeworks.
-    /// - Parameter xcframeworksType: Output type of xcframeworks to be cached (device/simulator).
+    /// - Parameter sources: The list of targets whose sources should be included.
+    /// - Parameter cacheOutputType: Output type of frameworks to be cached.
     /// - Parameter cacheProfile: The caching profile.
     /// - Parameter ignoreCache: True to not include binaries from the cache.
     /// - Returns: The generator for focused projects.
     func focus(
         config: Config,
         sources: Set<String>,
-        xcframeworks: Bool,
-        xcframeworksType: CacheXCFrameworkType?,
+        cacheOutputType: CacheOutputType,
         cacheProfile: TuistGraph.Cache.Profile,
         ignoreCache: Bool
     ) -> Generating
@@ -48,16 +46,14 @@ protocol GeneratorFactorying {
     /// Returns a generator that generates a cacheable project.
     /// - Parameter config: The project configuration.
     /// - Parameter includedTargets: The targets to cache. When nil, it caches all the cacheable targets.
-    /// - Parameter xcframeworks: Whether targets should be cached as xcframeworks.
-    /// - Parameter xcframeworksType: Output type of xcframeworks to be cached (device/simulator).
+    /// - Parameter cacheOutputType: Output type of frameworks to be cached.
     /// - Parameter cacheProfile: The caching profile.
     /// - Returns: A Generator instance.
     func cache(
         config: Config,
         includedTargets: Set<String>,
         focusedTargets: Set<String>?,
-        xcframeworks: Bool,
-        xcframeworksType: CacheXCFrameworkType?,
+        cacheOutputType: CacheOutputType,
         cacheProfile: TuistGraph.Cache.Profile
     ) -> Generating
 }
@@ -72,8 +68,7 @@ class GeneratorFactory: GeneratorFactorying {
     func focus(
         config: Config,
         sources: Set<String>,
-        xcframeworks: Bool,
-        xcframeworksType: CacheXCFrameworkType?,
+        cacheOutputType: CacheOutputType,
         cacheProfile: TuistGraph.Cache.Profile,
         ignoreCache: Bool
     ) -> Generating {
@@ -88,7 +83,7 @@ class GeneratorFactory: GeneratorFactorying {
             cache: !ignoreCache,
             cacheSources: sources,
             cacheProfile: cacheProfile,
-            cacheOutputType: xcframeworks ? .init(xcframeworksType: xcframeworksType) : .framework
+            cacheOutputType: cacheOutputType
         )
         let workspaceMappers = workspaceMapperFactory.default()
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
@@ -133,8 +128,7 @@ class GeneratorFactory: GeneratorFactorying {
         config: Config,
         includedTargets: Set<String>,
         focusedTargets: Set<String>?,
-        xcframeworks: Bool,
-        xcframeworksType: CacheXCFrameworkType?,
+        cacheOutputType: CacheOutputType,
         cacheProfile: TuistGraph.Cache.Profile
     ) -> Generating {
         let contentHasher = ContentHasher()
@@ -150,7 +144,7 @@ class GeneratorFactory: GeneratorFactorying {
                 cache: true,
                 cacheSources: focusedTargets,
                 cacheProfile: cacheProfile,
-                cacheOutputType: xcframeworks ? .init(xcframeworksType: xcframeworksType) : .framework
+                cacheOutputType: cacheOutputType
             ) + graphMapperFactory.cache(includedTargets: includedTargets)
         } else {
             graphMappers = graphMapperFactory.cache(includedTargets: includedTargets)

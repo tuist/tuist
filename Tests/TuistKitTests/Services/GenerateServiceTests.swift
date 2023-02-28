@@ -12,7 +12,7 @@ import XCTest
 
 private typealias GeneratorParameters = (
     sources: Set<String>,
-    xcframeworks: Bool,
+    cacheOutputType: CacheOutputType,
     cacheProfile: TuistGraph.Cache.Profile,
     ignoreCache: Bool
 )

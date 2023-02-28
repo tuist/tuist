@@ -2,6 +2,7 @@ import AnyCodable
 import ArgumentParser
 import Foundation
 import TuistCache
+import TuistCore
 
 struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
@@ -58,6 +59,12 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var ignoreCache: Bool = false
 
+    func validate() throws {
+        if !xcframeworks, xcframeworksType != nil {
+            throw ValidationError.invalidXCFrameworkOptions
+        }
+    }
+
     func run() async throws {
         try await GenerateService().run(
             path: path,
@@ -79,5 +86,16 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
                 "remote_cache_target_hits": AnyCodable(CacheAnalytics.remoteCacheTargetsHits),
             ]
         )
+    }
+
+    enum ValidationError: LocalizedError {
+        case invalidXCFrameworkOptions
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidXCFrameworkOptions:
+                return "--xcframeworks must be enabled when --xcframeworks-type is set"
+            }
+        }
     }
 }

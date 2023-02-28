@@ -32,6 +32,12 @@ struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var dependenciesOnly: Bool = false
 
+    func validate() throws {
+        if !options.xcframeworks, options.xcframeworksType != nil {
+            throw ValidationError.invalidXCFrameworkOptions
+        }
+    }
+
     func run() async throws {
         try await CacheWarmService().run(
             path: options.path,
@@ -50,5 +56,16 @@ struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
                 "remote_cache_target_hits": AnyCodable(CacheAnalytics.remoteCacheTargetsHits),
             ]
         )
+    }
+
+    enum ValidationError: LocalizedError {
+        case invalidXCFrameworkOptions
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidXCFrameworkOptions:
+                return "--xcframeworks must be enabled when --xcframeworks-type is set"
+            }
+        }
     }
 }

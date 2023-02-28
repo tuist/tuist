@@ -34,7 +34,7 @@ final class CacheWarmService {
         let contentHasher = CacheContentHasher()
         let cacheController: CacheControlling
         if xcframeworks {
-            let outputType: CacheOutputType = .init(xcframeworksType: xcframeworksType)
+            let outputType: CacheOutputType = .xcframework(xcframeworksType)
             cacheController = xcframeworkCacheController(
                 cache: cache,
                 outputType: outputType,

@@ -15,10 +15,12 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
     /// Initializes the builder.
     /// - Parameter xcodeBuildController: Xcode build controller instance to run xcodebuild commands.
+    /// - Parameter cacheOutputType: Output type of xcframework (device and/or simulator)
     public init(
         xcodeBuildController: XcodeBuildControlling,
         cacheOutputType: CacheOutputType
     ) {
+        precondition(cacheOutputType.isXCFramework, "cacheOutputType of CacheXCFrameworkBuilder must be a xcframework type")
         self.xcodeBuildController = xcodeBuildController
         self.cacheOutputType = cacheOutputType
     }
@@ -43,8 +45,8 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
             // Build for the simulator - if required
             var simulatorArchivePath: AbsolutePath?
-            let buildForSimulator = self.cacheOutputType == .xcframework || self.cacheOutputType == .simulatorXCFramework
-            if platform.hasSimulators && buildForSimulator {
+            let buildForSimulator = self.cacheOutputType.shouldBuildForSimulator
+            if platform.hasSimulators, buildForSimulator {
                 simulatorArchivePath = temporaryDirectory.appending(component: "simulator.xcarchive")
                 try await self.simulatorBuild(
                     projectTarget: projectTarget,
@@ -57,7 +59,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
             // Build for the device - if required
             var deviceArchivePath: AbsolutePath?
-            let buildForDevice = self.cacheOutputType == .xcframework || self.cacheOutputType == .deviceXCFramework
+            let buildForDevice = self.cacheOutputType.shouldBuildForDevice
             if buildForDevice {
                 deviceArchivePath = temporaryDirectory.appending(component: "device.xcarchive")
                 try await self.deviceBuild(

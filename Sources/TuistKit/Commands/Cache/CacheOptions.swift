@@ -1,10 +1,6 @@
 import ArgumentParser
 import Foundation
-
-enum CacheXCFrameworkType: String, ExpressibleByArgument {
-    case device
-    case simulator
-}
+import TuistCore
 
 struct CacheOptions: ParsableArguments {
     @Option(
@@ -32,3 +28,5 @@ struct CacheOptions: ParsableArguments {
     )
     var xcframeworksType: CacheXCFrameworkType?
 }
+
+extension CacheXCFrameworkType: ExpressibleByArgument {}

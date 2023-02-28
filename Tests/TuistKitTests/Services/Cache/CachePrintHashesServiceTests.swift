@@ -177,19 +177,19 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         _ = try await subject.run(path: path, xcframeworks: true, xcframeworksType: nil, profile: nil)
 
         // Then
-        XCTAssertEqual(xcframeworkOutputType, .xcframework)
+        XCTAssertEqual(xcframeworkOutputType, .xcframework(nil))
 
         // When
         _ = try await subject.run(path: path, xcframeworks: true, xcframeworksType: .device, profile: nil)
 
         // Then
-        XCTAssertEqual(xcframeworkOutputType, .deviceXCFramework)
+        XCTAssertEqual(xcframeworkOutputType, .xcframework(.device))
 
         // When
         _ = try await subject.run(path: path, xcframeworks: true, xcframeworksType: .simulator, profile: nil)
 
         // Then
-        XCTAssertEqual(xcframeworkOutputType, .simulatorXCFramework)
+        XCTAssertEqual(xcframeworkOutputType, .xcframework(.simulator))
 
         // Given
         var frameworkOutputType: CacheOutputType?
