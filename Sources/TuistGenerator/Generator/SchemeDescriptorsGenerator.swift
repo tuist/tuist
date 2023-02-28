@@ -478,7 +478,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let customLLDBInitFilePath: RelativePath?
         if let customLLDBInitFile = scheme.runAction?.customLLDBInitFile,
-            let graphTarget = graphTarget {
+           let graphTarget = graphTarget
+        {
             customLLDBInitFilePath = customLLDBInitFile.relative(to: graphTarget.project.path)
         } else {
             customLLDBInitFilePath = nil
