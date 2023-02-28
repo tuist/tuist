@@ -36,10 +36,10 @@ jobs:
     name: Unit tests with Xcode
     runs-on: macos-12
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         name: 'Cache Tuist .build folder'
         with:
           path: .build
@@ -50,7 +50,7 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: vendor/bundle
           key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
@@ -67,8 +67,8 @@ jobs:
     name: Release build with Xcode
     runs-on: macos-12
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions/cache@v2
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
         name: 'Cache Tuist .build folder'
         with:
           path: .build
@@ -123,12 +123,12 @@ jobs:
       TUIST_CONFIG_GITHUB_API_TOKEN: ${{ secrets.GH_TOKEN }}
     needs: release_build
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         name: 'Cache Tuist .build folder'
         with:
           path: .build
@@ -139,7 +139,7 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: vendor/bundle
           key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock', 'project/cloud/Gemfile.lock') }}
@@ -149,11 +149,11 @@ jobs:
         run: |
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Cache cloud node modules
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         env:
           cache-name: cache-node-modules
         with:
@@ -205,13 +205,13 @@ jobs:
     name: Lint
     runs-on: macos-12
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: vendor/bundle
           key: ${{ runner.os }}-${{ env.RUBY_VERSION }}${{ hashFiles('Gemfile.lock') }}
@@ -230,13 +230,13 @@ jobs:
     name: Lint lockfiles
     runs-on: macos-12
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: vendor/bundle
           key: ${{ runner.os }}-${{ env.RUBY_VERSION }}${{ hashFiles('Gemfile.lock') }}

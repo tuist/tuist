@@ -23,13 +23,13 @@ jobs:
     name: Build benchmarking tooling with Xcode
     runs-on: macos-12
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: vendor/bundle
           key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
@@ -46,13 +46,13 @@ jobs:
     name: Lint
     runs-on: macos-12
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v3
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v3
         with:
           path: vendor/bundle
           key: ${{ runner.os }}-${{ env.RUBY_VERSION }}${{ hashFiles('Gemfile.lock') }}
