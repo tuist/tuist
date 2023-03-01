@@ -1,0 +1,10 @@
+#!/bin/sh
+
+MAIN_APP_NAME="MainApp.app"
+XPC_NAME="XPCApp.xpc"
+
+SOURCE_PATH="${TARGET_BUILD_DIR}/${XPC_NAME}"
+TARGET_PATH="${TARGET_BUILD_DIR}/${MAIN_APP_NAME}/Contents/XPCServices"
+
+mkdir ${TARGET_PATH}
+cp -r ${SOURCE_PATH} ${TARGET_PATH}
