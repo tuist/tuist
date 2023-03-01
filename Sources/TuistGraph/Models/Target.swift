@@ -116,6 +116,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             .framework,
             .app,
             .commandLineTool,
+            .xpc,
             .unitTests,
             .uiTests,
             .appExtension,
@@ -165,7 +166,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         case .commandLineTool,
              .dynamicLibrary,
              .staticLibrary,
-             .staticFramework:
+             .staticFramework,
+             .xpc:
             return false
         }
     }

@@ -72,6 +72,7 @@ final class ProductTests: XCTestCase {
             .framework,
             .unitTests,
             .uiTests,
+            .xpc,
         ]
         XCTAssertEqual(got, Set(expected))
     }
@@ -184,6 +185,10 @@ final class ProductTests: XCTestCase {
 
         // TV Top Shelf Extension
         subject = Product.tvTopShelfExtension
+        XCTAssertFalse(subject.canHostTests())
+
+        // XPC
+        subject = Product.xpc
         XCTAssertFalse(subject.canHostTests())
     }
 }
