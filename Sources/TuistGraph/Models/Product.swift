@@ -180,6 +180,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
 
         if platform == .macOS {
             base.append(.commandLineTool)
+            base.append(.xpc)
         }
 
         //        if platform == .watchOS {
