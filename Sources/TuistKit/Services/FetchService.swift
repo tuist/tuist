@@ -63,12 +63,6 @@ final class FetchService {
     }
 
     private func fetchDependencies(path: AbsolutePath, update: Bool, with plugins: TuistGraph.Plugins) throws {
-        guard FileHandler.shared.exists(
-            path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
-        ) else {
-            return
-        }
-
         if update {
             logger.info("Updating dependencies.", metadata: .section)
         } else {
