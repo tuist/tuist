@@ -35,11 +35,11 @@ let project = Project(
                 .external(name: "FirebaseCrashlytics"),
                 .external(name: "FirebaseDatabase"),
                 .external(name: "FirebaseFirestore"),
+                .external(name: "GRDB"),
                 .external(name: "IterableSDK"),
                 .external(name: "Stripe"),
                 .external(name: "StripeCardScan"),
                 .external(name: "TYStatusBarView"),
-                .external(name: "GRDB"),
             ],
             settings: .targetSettings
         ),

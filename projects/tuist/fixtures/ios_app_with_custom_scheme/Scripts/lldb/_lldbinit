@@ -1,0 +1,2 @@
+command script import -c commands_for_customscheme.py
+
