@@ -39,7 +39,6 @@ let project = Project(
                 .external(name: "IterableSDK"),
                 .external(name: "Stripe"),
                 .external(name: "StripeCardScan"),
-                .external(name: "SuperwallKit"),
                 .external(name: "TYStatusBarView"),
             ],
             settings: .targetSettings

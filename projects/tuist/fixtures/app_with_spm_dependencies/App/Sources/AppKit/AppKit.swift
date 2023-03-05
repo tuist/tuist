@@ -9,7 +9,6 @@ import FirebaseFirestore
 import GRDB
 import IterableSDK
 import Stripe
-import SuperwallKit
 import TYStatusBarView
 
 public enum AppKit {
@@ -34,9 +33,6 @@ public enum AppKit {
 
         // Use Stripe to make sure it links fine
         _ = STPAPIClient.shared
-
-        // Use Superwall to make sure it links fine
-        _ = Superwall.shared
 
         // Use IterableSDK to make sure it links fine
         _ = IterableSDK.IterableAPI.sdkVersion
