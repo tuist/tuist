@@ -40,7 +40,7 @@ extension TuistGraph.CoreDataModel {
             if CoreDataVersionExtractor.isVersioned(at: modelPath) {
                 return try CoreDataVersionExtractor.version(fromVersionFileAtPath: modelPath)
             } else {
-                return modelPath.basenameWithoutExt
+                return (versions.count == 1 ? versions[0] : modelPath).basenameWithoutExt
             }
         }()
         return CoreDataModel(path: modelPath, versions: versions, currentVersion: currentVersion)
