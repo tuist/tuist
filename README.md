@@ -63,6 +63,26 @@ The financial sustainability of the project is possible thanks to the ongoing co
   </a>
 </div>
 
+### Bronze sponsor: [MacPaw](https://macpaw.com/)
+
+<div>
+  <a href="https://macpaw.com" target="_blank">
+    <picture>
+      <img src="assets/companies/macpaw.png"/>
+    </picture>
+  </a>
+</div>
+
+### Bronze sponsor: [Asana](https://asana.com/)
+
+<div>
+  <a href="https://asana.com" target="_blank">
+    <picture>
+      <img src="assets/companies/Asana.png"/>
+    </picture>
+  </a>
+</div>
+
 ## Companies using Tuist
 
 <div align="center" style="background-color: white">
@@ -122,6 +142,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
   </a>
   <a href="https://hd.kinopoisk.ru/" target="_blank">
     <img src="assets/companies/kinopoisk_logo.svg" style="width: 120px;" hspace="8"/>
+  </a>
+  <a href="https://qnips.io/" target="_blank">
+    <img src="assets/companies/qnips.svg" style="width: 90px;" hspace="8"/>
   </a>
 </div>
 
@@ -311,6 +334,7 @@ Thanks goes to these wonderful people:
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/MontakOleg"><img src="https://avatars.githubusercontent.com/u/1800899?v=4" width="100px;" alt=""/><br /><sub><b>MontakOleg</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/waltflanagan"><img src="https://avatars.githubusercontent.com/u/398293?v=4" width="100px;" alt=""/><br /><sub><b>Mike Simons</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/oozoofrog"><img src="https://avatars.githubusercontent.com/u/3011832?v=4" width="100px;" alt=""/><br /><sub><b>oozoofrog</b></sub></a></td>
     </tr>
   </tbody>
 </table>

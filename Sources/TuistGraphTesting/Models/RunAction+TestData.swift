@@ -6,6 +6,7 @@ extension RunAction {
     public static func test(
         configurationName: String = BuildConfiguration.debug.name,
         attachDebugger: Bool = true,
+        customLLDBInitFile: AbsolutePath? = nil,
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
         executable: TargetReference? = TargetReference(projectPath: "/Project", name: "App"),
@@ -17,6 +18,7 @@ extension RunAction {
         RunAction(
             configurationName: configurationName,
             attachDebugger: attachDebugger,
+            customLLDBInitFile: customLLDBInitFile,
             preActions: preActions,
             postActions: postActions,
             executable: executable,
