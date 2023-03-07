@@ -10,9 +10,6 @@ let project = Project(
             bundleId: "io.tuist.MainApp",
             infoPlist: "MainApp/Info.plist",
             sources: ["MainApp/Sources/**"],
-            scripts: [
-                .post(path: "Scripts/install_xpc.sh", arguments: [], name: "Install XPC", basedOnDependencyAnalysis: false),
-            ],
             dependencies: [
                 .target(name: "XPCApp"),
             ]
