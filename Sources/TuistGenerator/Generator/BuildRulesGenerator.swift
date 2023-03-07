@@ -3,11 +3,7 @@ import TuistGraph
 import XcodeProj
 
 protocol BuildRulesGenerating: AnyObject {
-    func generateBuildRules(
-        target: Target,
-        pbxTarget: PBXTarget,
-        pbxproj: PBXProj
-    ) throws
+    func generateBuildRules(target: Target, pbxTarget: PBXTarget, pbxproj: PBXProj) throws
 }
 
 final class BuildRulesGenerator: BuildRulesGenerating {
