@@ -18,10 +18,10 @@ public struct BuildRule: Codable, Equatable {
     public let outputFiles: [String]
 
     /// Build rule input files.
-    public let inputFiles: [String]?
+    public let inputFiles: [String]
 
     /// Build rule output files compiler flags.
-    public let outputFilesCompilerFlags: [String]?
+    public let outputFilesCompilerFlags: [String]
 
     /// Build rule custom script when `customScript` is used.
     public let script: String?
@@ -34,9 +34,9 @@ public struct BuildRule: Codable, Equatable {
         fileType: FileType,
         filePatterns: String? = nil,
         compilerSpec: CompilerSpec,
-        inputFiles: [String]? = nil,
+        inputFiles: [String] = [],
         outputFiles: [String] = [],
-        outputFilesCompilerFlags: [String]? = nil,
+        outputFilesCompilerFlags: [String] = [],
         script: String? = nil,
         runOncePerArchitecture: Bool = false
     ) {
