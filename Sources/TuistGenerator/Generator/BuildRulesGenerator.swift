@@ -7,11 +7,7 @@ protocol BuildRulesGenerating: AnyObject {
 }
 
 final class BuildRulesGenerator: BuildRulesGenerating {
-    func generateBuildRules(
-        target: Target,
-        pbxTarget: PBXTarget,
-        pbxproj: PBXProj
-    ) throws {
+    func generateBuildRules(target: Target, pbxTarget: PBXTarget, pbxproj: PBXProj) throws {
         target.buildRules.forEach {
             let rule = PBXBuildRule(
                 compilerSpec: $0.compilerSpec.rawValue,
