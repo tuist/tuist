@@ -517,7 +517,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target_1", basePath: basePath, customBundleID: "Target-1"),
+                    .test("Target_1", basePath: basePath, customBundleID: "Target.1"),
                 ]
             )
         )
