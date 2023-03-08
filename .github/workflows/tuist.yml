@@ -199,7 +199,7 @@ jobs:
           bin/rails db:seed
       - name: Run tests
         if: ${{ (matrix.feature != 'cloud') || (github.event.pull_request.head.repo.full_name == github.repository) }}
-        run: ./fourier test tuist acceptance projects/tuist/features/${{ matrix.feature }}.feature --verbose
+        run: ./fourier test tuist acceptance projects/tuist/features/${{ matrix.feature }}.feature
   
   lint:
     name: Lint
