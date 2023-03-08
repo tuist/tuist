@@ -29,7 +29,7 @@ class S3BucketsFetchService < ApplicationService
     raise Error::Unauthorized.new(account_name) unless AccountPolicy.new(user, account).show?
 
     account.s3_buckets.reject { |s3_bucket|
-      s3_bucket.is_default && s3_bucket.name != "#{account_name}-#{project_name}"
+      s3_bucket.is_default && !s3_bucket.name.end_with?("#{account_name}-#{project_name}")
     }
   end
 end
