@@ -1933,6 +1933,53 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
     }
 
+    func test_linkableDependencies_excludeStaticLibraryXCFrameworkFromTransitive() throws {
+        // Given
+        let target = Target.test(name: "Main")
+        let dependency = Target.test(name: "Dependency", product: .framework)
+        let staticLibraryXCFramework = GraphDependency.xcframework(
+            path: "/xcframeworks/StaticLibrary.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/StaticLibrary.xcframework/StaticLibrary.a",
+            linking: .static
+        )
+        let project = Project.test(targets: [target])
+
+        // Given: Value Graph
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: target.name, path: project.path): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
+            .target(
+                name: dependency.name,
+                path: project.path
+            ): Set(arrayLiteral: staticLibraryXCFramework),
+            staticLibraryXCFramework: Set(),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [
+                target.name: target,
+                dependency.name: dependency,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.linkableDependencies(
+            path: project.path,
+            name: target.name
+        ).sorted()
+
+        // Then
+        XCTAssertEqual(got.count, 1)
+        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "Dependency.framework", platformFilter: .ios))
+
+        let frameworkGot = try subject.linkableDependencies(path: project.path, name: dependency.name)
+
+        XCTAssertEqual(frameworkGot.count, 1)
+        XCTAssertEqual(frameworkGot.first, GraphDependencyReference(staticLibraryXCFramework))
+    }
+
     func test_linkableDependencies_transitiveDynamicLibrariesOneStaticHop() throws {
         // Given
         let staticFramework = Target.test(

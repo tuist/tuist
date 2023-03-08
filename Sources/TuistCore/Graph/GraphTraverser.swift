@@ -301,6 +301,8 @@ public class GraphTraverser: GraphTraversing {
         // Static libraries and frameworks / Static libraries' dynamic libraries
         if target.target.canLinkStaticProducts() {
             let transitiveStaticTargetReferences = transitiveStaticDependencies(from: .target(name: name, path: path))
+                .lazy
+                .filter(\.isNotStaticLibrary)
 
             // Exclude any static products linked in a host application
             // however, for search paths it's fine to keep them included
@@ -321,16 +323,17 @@ public class GraphTraverser: GraphTraversing {
                     .filter(isDependencyDynamicTarget)
             }
 
-            let staticDependenciesPrecompiledLibrariesAndFrameworks = transitiveStaticTargetReferences.flatMap { dependency in
+            let staticDependenciesPrecompiledFrameworks = transitiveStaticTargetReferences.flatMap { dependency in
                 self.graph.dependencies[dependency, default: []]
                     .lazy
                     .filter(\.isPrecompiled)
+                    .filter(\.isNotStaticLibrary)
             }
 
             let allDependencies = (
                 transitiveStaticTargetReferences
                     + staticDependenciesDynamicLibrariesAndFrameworks
-                    + staticDependenciesPrecompiledLibrariesAndFrameworks
+                    + staticDependenciesPrecompiledFrameworks
             )
 
             references.formUnion(
