@@ -1,7 +1,6 @@
 import Foundation
 
 extension BuildRule {
-
     /// Mapping of file types supported by a build rule to Xcode's internal representation.
     /// All values were coppied from `pbxproj`.
     public enum FileType: String, Codable {
