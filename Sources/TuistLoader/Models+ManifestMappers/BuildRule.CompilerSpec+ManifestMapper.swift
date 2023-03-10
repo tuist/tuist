@@ -1,0 +1,113 @@
+import Foundation
+import ProjectDescription
+import TuistGraph
+
+// swiftlint:disable function_body_length
+extension TuistGraph.BuildRule.CompilerSpec {
+    static func from(
+        manifest: ProjectDescription.BuildRule.CompilerSpec
+    ) -> TuistGraph.BuildRule.CompilerSpec {
+        switch manifest {
+        case .appIntentsMetadataExtractor:
+            return .appIntentsMetadataExtractor
+        case .appShortcutStringsMetadataExtractor:
+            return .appShortcutStringsMetadataExtractor
+        case .appleClang:
+            return .appleClang
+        case .assetCatalogCompiler:
+            return .assetCatalogCompiler
+        case .codeSign:
+            return .codeSign
+        case .compileRealityComposerProject:
+            return .compileRealityComposerProject
+        case .compileSceneKitShaders:
+            return .compileSceneKitShaders
+        case .compileSkybox:
+            return .compileSkybox
+        case .compileUSDZ:
+            return .compileUSDZ
+        case .compressPNG:
+            return .compressPNG
+        case .copyPlistFile:
+            return .copyPlistFile
+        case .copySceneKitAssets:
+            return .copySceneKitAssets
+        case .copyStringsFile:
+            return .copyStringsFile
+        case .copyTiffFile:
+            return .copyTiffFile
+        case .coreDataMappingModelCompiler:
+            return .coreDataMappingModelCompiler
+        case .coreMLModelCompiler:
+            return .coreMLModelCompiler
+        case .dataModelCompiler:
+            return .dataModelCompiler
+        case .defaultCompiler:
+            return .defaultCompiler
+        case .dTrace:
+            return .dTrace
+        case .generateSpriteKitTextureAtlas:
+            return .generateSpriteKitTextureAtlas
+        case .iconutil:
+            return .iconutil
+        case .instrumetsPackageBuilder:
+            return .instrumetsPackageBuilder
+        case .intentDefinitionCompiler:
+            return .intentDefinitionCompiler
+        case .interfaceBuilderNIBPostprocessor:
+            return .interfaceBuilderNIBPostprocessor
+        case .interfaceBuilderStoryboardCompiler:
+            return .interfaceBuilderStoryboardCompiler
+        case .interfaceBuilderStoryboardLinker:
+            return .interfaceBuilderStoryboardLinker
+        case .interfaceBuilderStoryboardPostprocessor:
+            return .interfaceBuilderStoryboardPostprocessor
+        case .interfaceBuilderXIBCompiler:
+            return .interfaceBuilderXIBCompiler
+        case .ioKitInterfaceGenerator:
+            return .ioKitInterfaceGenerator
+        case .lex:
+            return .lex
+        case .lsRegisterURL:
+            return .lsRegisterURL
+        case .metalCompiler:
+            return .metalCompiler
+        case .metalLinker:
+            return .metalLinker
+        case .mig:
+            return .mig
+        case .nasm:
+            return .nasm
+        case .nmedit:
+            return .nmedit
+        case .openCL:
+            return .openCL
+        case .osaCompile:
+            return .osaCompile
+        case .pbxcp:
+            return .pbxcp
+        case .processSceneKitDocument:
+            return .processSceneKitDocument
+        case .processXCAppExtensionPoints:
+            return .processXCAppExtensionPoints
+        case .rez:
+            return .rez
+        case .stripSymbols:
+            return .stripSymbols
+        case .swiftCompiler:
+            return .swiftCompiler
+        case .swiftABIBaselineGenerator:
+            return .swiftABIBaselineGenerator
+        case .swiftFrameworkABIChecker:
+            return .swiftFrameworkABIChecker
+        case .textBasedAPITool:
+            return .textBasedAPITool
+        case .unifdef:
+            return .unifdef
+        case .yacc:
+            return .yacc
+        case .customScript:
+            return .customScript
+        }
+    }
+}
