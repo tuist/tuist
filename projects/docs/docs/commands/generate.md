@@ -39,6 +39,6 @@ Thanks to that developers can safely clean their Xcode environment because they'
 | `--path`          | `-p`  | The path to the directory that contains the definition of the project.                                         | Current directory | No       |
 | `--no-open `      | `-n`  | Don't open the project after generating it.                                                                    | False             | No       |
 | `--xcframeworks ` | `-x`  | When passed it uses xcframeworks (simulator and device) from the cache instead of frameworks (only simulator). | False             | No       |
-| `--destination`   | `N/A` | Type of cached xcframeworks to use when `--xcframeworks` is passed (device/simulator/all)                      | all               | No       |
+| `--destination`   | `N/A` | Type of cached xcframeworks to use when `--xcframeworks` is passed (device/simulator)                          |               | No       |
 | `--no-cache `     | `-x`  | Ignore cached targets, and use their sources instead.                                                          | False             | No       |
 | `--profile `      | `-P`  | The name of the cache profile.                                                                                 |                   | No       |

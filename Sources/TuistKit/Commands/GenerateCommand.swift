@@ -43,9 +43,10 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         name: [.long],
-        help: "Type of cached xcframeworks to use when --xcframeworks is passed (device/simulator/all)"
+        help: "Type of cached xcframeworks to use when --xcframeworks is passed (device/simulator)",
+        completion: .list(["device", "simulator"])
     )
-    var destination: CacheXCFrameworkDestination = [.all]
+    var destination: CacheXCFrameworkDestination = []
 
     @Option(
         name: [.customShort("P"), .long],
@@ -60,7 +61,7 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     var ignoreCache: Bool = false
 
     func validate() throws {
-        if !xcframeworks, destination != .all {
+        if !xcframeworks, !destination.isEmpty {
             throw ValidationError.invalidXCFrameworkOptions
         }
     }

@@ -197,7 +197,7 @@ extension CacheOutputType {
         case .framework:
             return true
         case let .xcframework(destination):
-            return destination.contains(.simulator)
+            return destination.isEmpty || destination.contains(.simulator)
         }
     }
 
@@ -206,7 +206,7 @@ extension CacheOutputType {
         case .bundle, .framework:
             return false
         case let .xcframework(destination):
-            return destination.contains(.device)
+            return destination.isEmpty || destination.contains(.device)
         }
     }
 }

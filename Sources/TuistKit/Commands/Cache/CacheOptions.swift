@@ -24,13 +24,21 @@ struct CacheOptions: ParsableArguments {
 
     @Option(
         name: .long,
-        help: "Output type of xcframeworks when --xcframeworks is passed (device/simulator/all)"
+        help: "Output type of xcframeworks when --xcframeworks is passed (device/simulator)",
+        completion: .list(["device", "simulator"])
     )
-    var destination: CacheXCFrameworkDestination = [.all]
+    var destination: CacheXCFrameworkDestination = []
 }
 
 extension CacheXCFrameworkDestination: ExpressibleByArgument {
     public init?(argument: String) {
-        self.init(string: argument)
+        switch argument {
+        case "device":
+            self = .device
+        case "simulator":
+            self = .simulator
+        default:
+            return nil
+        }
     }
 }

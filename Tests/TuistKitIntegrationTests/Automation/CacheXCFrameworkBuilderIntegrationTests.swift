@@ -19,7 +19,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         plistDecoder = PropertyListDecoder()
         subject = CacheXCFrameworkBuilder(
             xcodeBuildController: XcodeBuildController(),
-            destination: .all
+            destination: []
         )
     }
 
