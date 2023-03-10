@@ -43,7 +43,7 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         name: [.long],
-        help: "Type of cached xcframeworks to use when --xcframeworks is passed (device/simulator)"
+        help: "Type of cached xcframeworks to use when --xcframeworks is passed (device/simulator/all)"
     )
     var destination: CacheXCFrameworkDestination = [.all]
 

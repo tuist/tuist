@@ -24,7 +24,7 @@ struct CacheOptions: ParsableArguments {
 
     @Option(
         name: .long,
-        help: "Output type of xcframeworks when --xcframeworks is passed (device/simulator)"
+        help: "Output type of xcframeworks when --xcframeworks is passed (device/simulator/all)"
     )
     var destination: CacheXCFrameworkDestination = [.all]
 }
