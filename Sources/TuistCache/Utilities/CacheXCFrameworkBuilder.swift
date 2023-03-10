@@ -6,6 +6,20 @@ import TuistGraph
 import TuistSupport
 
 public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
+    public enum BuilderError: LocalizedError {
+        case invalidCacheOutputType
+        case buildDestinationUnavailable
+
+        public var errorDescription: String? {
+            switch self {
+            case .invalidCacheOutputType:
+                return "cacheOutputType of CacheXCFrameworkBuilder must be a xcframework type"
+            case .buildDestinationUnavailable:
+                return "Neither simulator nor device build destination is available"
+            }
+        }
+    }
+
     // MARK: - Attributes
 
     /// Xcode build controller instance to run xcodebuild commands.
@@ -19,8 +33,10 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     public init(
         xcodeBuildController: XcodeBuildControlling,
         cacheOutputType: CacheOutputType
-    ) {
-        precondition(cacheOutputType.isXCFramework, "cacheOutputType of CacheXCFrameworkBuilder must be a xcframework type")
+    ) throws {
+        if !cacheOutputType.isXCFramework {
+            throw BuilderError.invalidCacheOutputType
+        }
         self.xcodeBuildController = xcodeBuildController
         self.cacheOutputType = cacheOutputType
     }
@@ -71,37 +87,64 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                 )
             }
 
-            guard let archivePath = deviceArchivePath ?? simulatorArchivePath else {
-                return
-            }
-
-            let productNames = archivePath
-                .appending(RelativePath("Products/Library/Frameworks/"))
-                .glob("*.framework")
-                .map(\.basenameWithoutExt)
-
-            // Build the xcframework
-            for productName in productNames {
-                var frameworkpaths = [AbsolutePath]()
-                if let simulatorArchivePath = simulatorArchivePath {
-                    frameworkpaths.append(self.frameworkPath(fromArchivePath: simulatorArchivePath, productName: productName))
-                }
-                if let deviceArchivePath = deviceArchivePath {
-                    frameworkpaths.append(self.frameworkPath(fromArchivePath: deviceArchivePath, productName: productName))
-                }
-                let xcframeworkPath = outputDirectory.appending(component: "\(productName).xcframework")
-                try await self.xcodeBuildController.createXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
-                    .printFormattedOutput()
-
-                try FileHandler.shared.move(
-                    from: xcframeworkPath,
-                    to: outputDirectory.appending(component: xcframeworkPath.basename)
-                )
-            }
+            try await self.createXCFramework(
+                simulatorArchivePath: simulatorArchivePath,
+                deviceArchivePath: deviceArchivePath,
+                outputDirectory: outputDirectory
+            )
         }
     }
 
     // MARK: - Fileprivate
+
+    fileprivate func createXCFramework(
+        simulatorArchivePath: AbsolutePath?,
+        deviceArchivePath: AbsolutePath?,
+        outputDirectory: AbsolutePath
+    ) async throws {
+        let archivePath: AbsolutePath
+
+        if let deviceArchivePath = deviceArchivePath {
+            archivePath = deviceArchivePath
+        } else if let simulatorArchivePath = simulatorArchivePath {
+            archivePath = simulatorArchivePath
+        } else {
+            throw BuilderError.buildDestinationUnavailable
+        }
+
+        let productNames = archivePath
+            .appending(RelativePath("Products/Library/Frameworks/"))
+            .glob("*.framework")
+            .map(\.basenameWithoutExt)
+
+        // Build the xcframework
+        for productName in productNames {
+            var frameworkpaths = [AbsolutePath]()
+            if let simulatorArchivePath = simulatorArchivePath {
+                frameworkpaths.append(self.frameworkPath(
+                    fromArchivePath: simulatorArchivePath,
+                    productName: productName
+                ))
+            }
+            if let deviceArchivePath = deviceArchivePath {
+                frameworkpaths.append(self.frameworkPath(
+                    fromArchivePath: deviceArchivePath,
+                    productName: productName
+                ))
+            }
+            let xcframeworkPath = outputDirectory.appending(component: "\(productName).xcframework")
+            try await self.xcodeBuildController.createXCFramework(
+                frameworks: frameworkpaths,
+                output: xcframeworkPath
+            )
+            .printFormattedOutput()
+
+            try FileHandler.shared.move(
+                from: xcframeworkPath,
+                to: outputDirectory.appending(component: xcframeworkPath.basename)
+            )
+        }
+    }
 
     fileprivate func deviceBuild(
         projectTarget: XcodeBuildTarget,

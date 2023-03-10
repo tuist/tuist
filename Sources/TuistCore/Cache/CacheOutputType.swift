@@ -1,7 +1,7 @@
 import Foundation
 
 /// An enum that represents the type of xcframeworks output
-public enum CacheXCFrameworkType: String {
+public enum CacheXCFrameworkDestination: String {
     case device
     case simulator
 }
@@ -15,7 +15,7 @@ public enum CacheOutputType: CustomStringConvertible {
     case framework
 
     /// XCFrameworks built for the simulator and/or device.
-    case xcframework(CacheXCFrameworkType?)
+    case xcframework(CacheXCFrameworkDestination?)
 
     public var description: String {
         switch self {

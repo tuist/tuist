@@ -33,7 +33,7 @@ struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
     var dependenciesOnly: Bool = false
 
     func validate() throws {
-        if !options.xcframeworks, options.xcframeworksType != nil {
+        if !options.xcframeworks, options.destination != nil {
             throw ValidationError.invalidXCFrameworkOptions
         }
     }
@@ -43,7 +43,7 @@ struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
             path: options.path,
             profile: options.profile,
             xcframeworks: options.xcframeworks,
-            xcframeworksType: options.xcframeworksType,
+            destination: options.destination,
             targets: Set(targets),
             dependenciesOnly: dependenciesOnly
         )
@@ -64,7 +64,7 @@ struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
         var errorDescription: String? {
             switch self {
             case .invalidXCFrameworkOptions:
-                return "--xcframeworks must be enabled when --xcframeworks-type is set"
+                return "--xcframeworks must be enabled when --destination is set"
             }
         }
     }

@@ -56,7 +56,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
                     sources: ["Target"],
                     noOpen: true,
                     xcframeworks: false,
-                    xcframeworksType: nil,
+                    destination: nil,
                     profile: nil,
                     ignoreCache: false
                 )
@@ -78,7 +78,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
             sources: ["Target"],
             noOpen: false,
             xcframeworks: false,
-            xcframeworksType: nil,
+            destination: nil,
             profile: nil,
             ignoreCache: false
         )
@@ -104,7 +104,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
             sources: ["Target"],
             noOpen: false,
             xcframeworks: false,
-            xcframeworksType: nil,
+            destination: nil,
             profile: nil,
             ignoreCache: false
         )
