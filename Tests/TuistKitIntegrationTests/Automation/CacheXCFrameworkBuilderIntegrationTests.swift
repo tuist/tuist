@@ -17,7 +17,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
     override func setUp() {
         super.setUp()
         plistDecoder = PropertyListDecoder()
-        subject = CacheXCFrameworkBuilder(
+        subject = try! CacheXCFrameworkBuilder(
             xcodeBuildController: XcodeBuildController(),
             cacheOutputType: .xcframework(nil)
         )
