@@ -23,7 +23,7 @@ final class CacheWarmService {
         path: String?,
         profile: String?,
         xcframeworks: Bool,
-        destination: CacheXCFrameworkDestination?,
+        destination: CacheXCFrameworkDestination,
         targets: Set<String>,
         dependenciesOnly: Bool
     ) async throws {
@@ -34,10 +34,9 @@ final class CacheWarmService {
         let contentHasher = CacheContentHasher()
         let cacheController: CacheControlling
         if xcframeworks {
-            let outputType: CacheOutputType = .xcframework(destination)
             cacheController = try xcframeworkCacheController(
                 cache: cache,
-                outputType: outputType,
+                destination: destination,
                 contentHasher: contentHasher
             )
         } else {
@@ -81,12 +80,12 @@ final class CacheWarmService {
 
     private func xcframeworkCacheController(
         cache: CacheStoring,
-        outputType: CacheOutputType,
+        destination: CacheXCFrameworkDestination,
         contentHasher: ContentHashing
     ) throws -> CacheControlling {
-        let frameworkBuilder = try CacheXCFrameworkBuilder(
+        let frameworkBuilder = CacheXCFrameworkBuilder(
             xcodeBuildController: XcodeBuildController(),
-            cacheOutputType: outputType
+            destination: destination
         )
         let bundleBuilder = CacheBundleBuilder(xcodeBuildController: XcodeBuildController())
         return CacheController(

@@ -44,7 +44,7 @@ final class CachePrintHashesService {
     func run(
         path: String?,
         xcframeworks: Bool,
-        destination: CacheXCFrameworkDestination?,
+        destination: CacheXCFrameworkDestination,
         profile: String?
     ) async throws {
         let absolutePath = absolutePath(path)

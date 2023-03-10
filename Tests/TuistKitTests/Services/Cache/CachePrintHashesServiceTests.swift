@@ -61,7 +61,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
         let fullPath = FileHandler.shared.currentPath.pathString + "/full/path"
         // When
-        _ = try await subject.run(path: fullPath, xcframeworks: false, destination: nil, profile: nil)
+        _ = try await subject.run(path: fullPath, xcframeworks: false, destination: .all, profile: nil)
 
         // Then
         XCTAssertEqual(generator.invokedLoadParameterPath, AbsolutePath(fullPath))
@@ -77,7 +77,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try await subject.run(path: nil, xcframeworks: false, destination: nil, profile: nil)
+        _ = try await subject.run(path: nil, xcframeworks: false, destination: .all, profile: nil)
 
         // Then
         XCTAssertEqual(generator.invokedLoadParameterPath, FileHandler.shared.currentPath)
@@ -93,7 +93,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try await subject.run(path: "RelativePath", xcframeworks: false, destination: nil, profile: nil)
+        _ = try await subject.run(path: "RelativePath", xcframeworks: false, destination: .all, profile: nil)
 
         // Then
         XCTAssertEqual(
@@ -112,7 +112,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try await subject.run(path: path, xcframeworks: false, destination: nil, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: false, destination: .all, profile: nil)
 
         // Then
         XCTAssertEqual(generator.invokedLoadParameterPath, "/Test")
@@ -136,7 +136,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try await subject.run(path: path, xcframeworks: false, destination: nil, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: false, destination: .all, profile: nil)
 
         // Then
         XCTAssertEqual(invokedGraph, graph)
@@ -158,7 +158,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try await subject.run(path: path, xcframeworks: false, destination: nil, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: false, destination: .all, profile: nil)
 
         // Then
         XCTAssertPrinterOutputContains("ShakiOne - hash1")
@@ -174,10 +174,10 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try await subject.run(path: path, xcframeworks: true, destination: nil, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: true, destination: .all, profile: nil)
 
         // Then
-        XCTAssertEqual(xcframeworkOutputType, .xcframework(nil))
+        XCTAssertEqual(xcframeworkOutputType, .xcframework(.all))
 
         // When
         _ = try await subject.run(path: path, xcframeworks: true, destination: .device, profile: nil)
@@ -199,7 +199,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try await subject.run(path: path, xcframeworks: false, destination: nil, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: false, destination: .all, profile: nil)
 
         // Then
         XCTAssertEqual(frameworkOutputType, .framework)
@@ -224,7 +224,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try await subject.run(path: path, xcframeworks: false, destination: nil, profile: "Simulator")
+        _ = try await subject.run(path: path, xcframeworks: false, destination: .all, profile: "Simulator")
 
         // Then
         XCTAssertEqual(invokedCacheProfile, profile)

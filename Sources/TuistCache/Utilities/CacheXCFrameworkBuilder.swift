@@ -7,13 +7,10 @@ import TuistSupport
 
 public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     public enum BuilderError: LocalizedError {
-        case invalidCacheOutputType
         case buildDestinationUnavailable
 
         public var errorDescription: String? {
             switch self {
-            case .invalidCacheOutputType:
-                return "cacheOutputType of CacheXCFrameworkBuilder must be a xcframework type"
             case .buildDestinationUnavailable:
                 return "Neither simulator nor device build destination is available"
             }
@@ -29,16 +26,13 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
     /// Initializes the builder.
     /// - Parameter xcodeBuildController: Xcode build controller instance to run xcodebuild commands.
-    /// - Parameter cacheOutputType: Output type of xcframework (device and/or simulator)
+    /// - Parameter destination: Output type of xcframework (device and/or simulator)
     public init(
         xcodeBuildController: XcodeBuildControlling,
-        cacheOutputType: CacheOutputType
-    ) throws {
-        if !cacheOutputType.isXCFramework {
-            throw BuilderError.invalidCacheOutputType
-        }
+        destination: CacheXCFrameworkDestination
+    ) {
         self.xcodeBuildController = xcodeBuildController
-        self.cacheOutputType = cacheOutputType
+        self.cacheOutputType = .xcframework(destination)
     }
 
     // MARK: - ArtifactBuilding
@@ -192,5 +186,27 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     ///   - productName: Product name.
     fileprivate func frameworkPath(fromArchivePath archivePath: AbsolutePath, productName: String) -> AbsolutePath {
         archivePath.appending(RelativePath("Products/Library/Frameworks/\(productName).framework"))
+    }
+}
+
+extension CacheOutputType {
+    fileprivate var shouldBuildForSimulator: Bool {
+        switch self {
+        case .bundle:
+            return false
+        case .framework:
+            return true
+        case let .xcframework(destination):
+            return destination.contains(.simulator)
+        }
+    }
+
+    fileprivate var shouldBuildForDevice: Bool {
+        switch self {
+        case .bundle, .framework:
+            return false
+        case let .xcframework(destination):
+            return destination.contains(.device)
+        }
     }
 }

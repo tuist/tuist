@@ -40,7 +40,7 @@ final class GenerateService {
         sources: Set<String>,
         noOpen: Bool,
         xcframeworks: Bool,
-        destination: CacheXCFrameworkDestination?,
+        destination: CacheXCFrameworkDestination,
         profile: String?,
         ignoreCache: Bool
     ) async throws {

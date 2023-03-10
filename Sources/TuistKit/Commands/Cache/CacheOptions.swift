@@ -26,7 +26,11 @@ struct CacheOptions: ParsableArguments {
         name: .long,
         help: "Output type of xcframeworks when --xcframeworks is passed (device/simulator)"
     )
-    var destination: CacheXCFrameworkDestination?
+    var destination: CacheXCFrameworkDestination = [.all]
 }
 
-extension CacheXCFrameworkDestination: ExpressibleByArgument {}
+extension CacheXCFrameworkDestination: ExpressibleByArgument {
+    public init?(argument: String) {
+        self.init(string: argument)
+    }
+}
