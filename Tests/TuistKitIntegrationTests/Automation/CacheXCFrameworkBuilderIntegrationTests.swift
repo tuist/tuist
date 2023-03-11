@@ -17,7 +17,10 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
     override func setUp() {
         super.setUp()
         plistDecoder = PropertyListDecoder()
-        subject = CacheXCFrameworkBuilder(xcodeBuildController: XcodeBuildController())
+        subject = CacheXCFrameworkBuilder(
+            xcodeBuildController: XcodeBuildController(),
+            destination: [.device, .simulator]
+        )
     }
 
     override func tearDown() {
@@ -50,6 +53,65 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64") }))
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("x86_64") }))
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "ios" })
+        try FileHandler.shared.delete(xcframeworkPath)
+    }
+
+    func test_build_when_iOS_device_framework() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let frameworksPath = try temporaryFixture("Frameworks")
+        let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
+        let scheme = Scheme.test(name: "iOS")
+
+        subject.cacheOutputType = .xcframework(.device)
+
+        // When
+        try await subject.build(
+            scheme: scheme,
+            projectTarget: XcodeBuildTarget(with: projectPath),
+            configuration: "Debug",
+            osVersion: nil,
+            deviceName: nil,
+            into: temporaryPath
+        )
+
+        // Then
+        XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
+        let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
+        let infoPlist = try infoPlist(xcframeworkPath: xcframeworkPath)
+        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64") }))
+        XCTAssertFalse(infoPlist.availableLibraries.contains(where: { $0.supportedArchitectures.contains("x86_64") }))
+        XCTAssertFalse(infoPlist.availableLibraries.contains(where: { $0.supportedPlatformVariant == "simulator" }))
+        XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "ios" })
+        try FileHandler.shared.delete(xcframeworkPath)
+    }
+
+    func test_build_when_iOS_simulator_framework() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let frameworksPath = try temporaryFixture("Frameworks")
+        let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
+        let scheme = Scheme.test(name: "iOS")
+
+        subject.cacheOutputType = .xcframework(.simulator)
+
+        // When
+        try await subject.build(
+            scheme: scheme,
+            projectTarget: XcodeBuildTarget(with: projectPath),
+            configuration: "Debug",
+            osVersion: nil,
+            deviceName: nil,
+            into: temporaryPath
+        )
+
+        // Then
+        XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
+        let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
+        let infoPlist = try infoPlist(xcframeworkPath: xcframeworkPath)
+        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("x86_64") }))
+        XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "ios" })
+        XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatformVariant == "simulator" })
         try FileHandler.shared.delete(xcframeworkPath)
     }
 
@@ -182,12 +244,14 @@ private struct XCFrameworkInfoPlist: Decodable {
         let path: String
         let supportedArchitectures: [String]
         let supportedPlatform: String
+        let supportedPlatformVariant: String?
 
         enum CodingKeys: String, CodingKey {
             case identifier = "LibraryIdentifier"
             case path = "LibraryPath"
             case supportedArchitectures = "SupportedArchitectures"
             case supportedPlatform = "SupportedPlatform"
+            case supportedPlatformVariant = "SupportedPlatformVariant"
         }
     }
 }

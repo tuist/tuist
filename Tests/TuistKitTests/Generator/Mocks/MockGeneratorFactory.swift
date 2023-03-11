@@ -10,25 +10,31 @@ final class MockGeneratorFactory: GeneratorFactorying {
     var invokedFocusParameters: (
         config: Config,
         sources: Set<String>,
-        xcframeworks: Bool,
+        cacheOutputType: CacheOutputType,
         cacheProfile: TuistGraph.Cache.Profile,
         ignoreCache: Bool
     )?
     var invokedFocusParametersList =
-        [(config: Config, sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)]()
+        [(
+            config: Config,
+            sources: Set<String>,
+            cacheOutputType: CacheOutputType,
+            cacheProfile: TuistGraph.Cache.Profile,
+            ignoreCache: Bool
+        )]()
     var stubbedFocusResult: Generating!
 
     func focus(
         config: Config,
         sources: Set<String>,
-        xcframeworks: Bool,
+        cacheOutputType: CacheOutputType,
         cacheProfile: TuistGraph.Cache.Profile,
         ignoreCache: Bool
     ) -> Generating {
         invokedFocus = true
         invokedFocusCount += 1
-        invokedFocusParameters = (config, sources, xcframeworks, cacheProfile, ignoreCache)
-        invokedFocusParametersList.append((config, sources, xcframeworks, cacheProfile, ignoreCache))
+        invokedFocusParameters = (config, sources, cacheOutputType, cacheProfile, ignoreCache)
+        invokedFocusParametersList.append((config, sources, cacheOutputType, cacheProfile, ignoreCache))
         return stubbedFocusResult
     }
 
@@ -73,14 +79,14 @@ final class MockGeneratorFactory: GeneratorFactorying {
         config: Config,
         includedTargets: Set<String>,
         focusedTargets: Set<String>?,
-        xcframeworks: Bool,
+        cacheOutputType: CacheOutputType,
         cacheProfile: Cache.Profile
     )?
     var invokedCacheParametersList = [(
         config: Config,
         includedTargets: Set<String>,
         focusedTargets: Set<String>?,
-        xcframeworks: Bool,
+        cacheOutputType: CacheOutputType,
         cacheProfile: Cache.Profile
     )]()
     var stubbedCacheResult: Generating!
@@ -89,13 +95,13 @@ final class MockGeneratorFactory: GeneratorFactorying {
         config: Config,
         includedTargets: Set<String>,
         focusedTargets: Set<String>?,
-        xcframeworks: Bool,
+        cacheOutputType: CacheOutputType,
         cacheProfile: Cache.Profile
     ) -> Generating {
         invokedCache = true
         invokedCacheCount += 1
-        invokedCacheParameters = (config, includedTargets, focusedTargets, xcframeworks, cacheProfile)
-        invokedCacheParametersList.append((config, includedTargets, focusedTargets, xcframeworks, cacheProfile))
+        invokedCacheParameters = (config, includedTargets, focusedTargets, cacheOutputType, cacheProfile)
+        invokedCacheParametersList.append((config, includedTargets, focusedTargets, cacheOutputType, cacheProfile))
         return stubbedCacheResult
     }
 }
