@@ -27,10 +27,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     /// Initializes the builder.
     /// - Parameter xcodeBuildController: Xcode build controller instance to run xcodebuild commands.
     /// - Parameter destination: Output type of xcframework (device and/or simulator)
-    public init(
-        xcodeBuildController: XcodeBuildControlling,
-        destination: CacheXCFrameworkDestination
-    ) {
+    public init(xcodeBuildController: XcodeBuildControlling, destination: CacheXCFrameworkDestination) {
         self.xcodeBuildController = xcodeBuildController
         self.cacheOutputType = .xcframework(destination)
     }
