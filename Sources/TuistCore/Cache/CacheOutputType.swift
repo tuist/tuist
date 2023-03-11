@@ -26,8 +26,7 @@ public enum CacheOutputType: CustomStringConvertible, Equatable {
             case .simulator:
                 return "simulator-xcframework"
             default:
-                // invalid option
-                return ""
+                fatalError("xcframework should contain at least one destination")
             }
         }
     }
