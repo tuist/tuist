@@ -159,3 +159,14 @@ have (.+) as an output path$}) do |project_name, target_name, output_path_name|
   flunk("The target #{target_name} doesn't have build phases") if build_phase.nil?
   assert build_phase.output_paths.include? output_path_name
 end
+
+Then(/the target (.+) should have the build rule (.+) with pattern (.+)$/) do |target_name, build_rule_name, pattern|
+  project = Xcodeproj::Project.open(@xcodeproj_path)
+  targets = project.targets
+  target = targets.detect { |t| t.name == target_name }
+  flunk("Target #{target_name} not found in the project") if target.nil?
+  build_rule = target.build_rules.detect { |b| b.name == build_rule_name }
+  flunk("The target #{target_name} doesn't have build rules") if build_rule.nil?
+  assert_equal build_rule_name, build_rule.name
+  assert_equal pattern, build_rule.file_patterns
+end
