@@ -17,9 +17,11 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     private var helpersDirectoryLocator = MockHelpersDirectoryLocator()
     private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
     private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactory!
+    private var workspaceManifests: [AbsolutePath: Workspace] = [:]
     private var projectManifests: [AbsolutePath: Project] = [:]
     private var configManifests: [AbsolutePath: Config] = [:]
     private var pluginManifests: [AbsolutePath: Plugin] = [:]
+    private var recordedLoadWorkspaceCalls: Int = 0
     private var recordedLoadProjectCalls: Int = 0
     private var recordedLoadConfigCalls: Int = 0
     private var recordedLoadPluginCalls: Int = 0
@@ -39,6 +41,14 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         }
 
         subject = createSubject()
+        
+        manifestLoader.loadWorkspaceStub = { [unowned self] path in
+            guard let manifest = self.workspaceManifests[path] else {
+                throw ManifestLoaderError.manifestNotFound(.workspace, path)
+            }
+            self.recordedLoadWorkspaceCalls += 1
+            return manifest
+        }
 
         manifestLoader.loadProjectStub = { [unowned self] path in
             guard let manifest = self.projectManifests[path] else {
@@ -249,6 +259,60 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             ManifestLoaderError.manifestNotFound(.project, path)
         )
     }
+    
+    func test_validate_projectExists() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        
+        // When
+        let project = Project.test(name: "App")
+        try stubProject(project, at: path)
+        _ = try subject.loadProject(at: path)
+        
+        // Then
+        XCTAssertThrowsSpecific(
+            try subject.validateHasProjectOrWorkspaceManifest(at: path),
+            ManifestLoaderError.manifestNotFound(path)
+        )
+    }
+    
+    func test_validate_workspaceExists() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        
+        // When
+        let workspace = Workspace.test(name: "App")
+        try stubWorkspace(workspace, at: path)
+        _ = try subject.loadWorkspace(at: path)
+        
+        // Then
+        XCTAssertThrowsSpecific(
+            try subject.validateHasProjectOrWorkspaceManifest(at: path),
+            ManifestLoaderError.manifestNotFound(path)
+        )
+    }
+    
+    func test_validate_projectDoesNotExist() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try subject.validateHasProjectOrWorkspaceManifest(at: path),
+            ManifestLoaderError.manifestNotFound(path)
+        )
+    }
+    
+    func test_validate_workspaceDoesNotExist() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try subject.validateHasProjectOrWorkspaceManifest(at: path),
+            ManifestLoaderError.manifestNotFound(path)
+        )
+    }
 
     // MARK: - Helpers
 
@@ -262,6 +326,17 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             cacheDirectoryProviderFactory: cacheDirectoriesProviderFactory,
             tuistVersion: tuistVersion
         )
+    }
+    
+    private func stubWorkspace(
+        _ workspace: Workspace,
+        at path: AbsolutePath
+    ) throws {
+        let manifestPath = path.appending(component: Manifest.workspace.fileName(path))
+        try fileHandler.touch(manifestPath)
+        let manifestData = try JSONEncoder().encode(workspace)
+        try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
+        workspaceManifests[path] = workspace
     }
 
     private func stubProject(
