@@ -45,6 +45,8 @@ extension Product {
             return .commandLineTool
         case .appClip:
             return .onDemandInstallCapableApplication
+        case .xpc:
+            return .xpcService
         }
     }
 }

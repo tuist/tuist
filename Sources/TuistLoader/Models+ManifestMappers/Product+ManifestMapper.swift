@@ -41,6 +41,8 @@ extension TuistGraph.Product {
             return .commandLineTool
         case .appClip:
             return .appClip
+        case .xpc:
+            return .xpc
         }
     }
 }

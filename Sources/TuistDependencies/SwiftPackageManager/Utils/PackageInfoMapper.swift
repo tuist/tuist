@@ -1075,6 +1075,8 @@ extension ProjectDescription.Product {
             return .stickerPackExtension
         case .appClip:
             return .appClip
+        case .xpc:
+            return .xpc
         }
     }
 }
