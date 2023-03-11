@@ -22,7 +22,7 @@ class S3BucketsFetchServiceTest < ActiveSupport::TestCase
     s3_bucket_default_one = account.s3_buckets.create!(
       access_key_id: "2",
       is_default: true,
-      name: "#{account.name}-project_one",
+      name: "random-id-#{account.name}-project_one",
       secret_access_key: "secret",
       region: "region",
     )

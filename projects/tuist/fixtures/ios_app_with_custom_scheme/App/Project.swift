@@ -11,6 +11,7 @@ let debugScheme = Scheme(
     ),
     testAction: TestAction.targets(["AppTests"]),
     runAction: .runAction(
+        customLLDBInitFile: .relativeToManifest("../Scripts/lldb/_lldbinit"),
         executable: "App",
         options: .options(simulatedLocation: .johannesburg, enableGPUFrameCaptureMode: .metal),
         diagnosticsOptions: [.mainThreadChecker]

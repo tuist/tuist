@@ -11,7 +11,7 @@ public struct RunAction: Equatable, Codable {
     public let attachDebugger: Bool
 
     /// The path of custom lldbinit file.
-    public let customLLDBInitFile: String?
+    public let customLLDBInitFile: Path?
 
     /// A list of actions that are executed before starting the run process.
     public let preActions: [ExecutionAction]
@@ -34,7 +34,7 @@ public struct RunAction: Equatable, Codable {
     init(
         configuration: ConfigurationName,
         attachDebugger: Bool = true,
-        customLLDBInitFile: String? = nil,
+        customLLDBInitFile: Path? = nil,
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
         executable: TargetReference? = nil,
@@ -67,7 +67,7 @@ public struct RunAction: Equatable, Codable {
     public static func runAction(
         configuration: ConfigurationName = .debug,
         attachDebugger: Bool = true,
-        customLLDBInitFile: String? = nil,
+        customLLDBInitFile: Path? = nil,
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
         executable: TargetReference? = nil,

@@ -538,7 +538,7 @@ extension ProjectDescription.Target {
                 .sanitize(targetName: target.name)
                 .replacingOccurrences(of: "-", with: "_"),
             bundleId: target.name
-                .replacingOccurrences(of: "_", with: "-"),
+                .replacingOccurrences(of: "_", with: "."),
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
             sources: sources,

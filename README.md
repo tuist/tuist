@@ -66,9 +66,19 @@ The financial sustainability of the project is possible thanks to the ongoing co
 ### Bronze sponsor: [MacPaw](https://macpaw.com/)
 
 <div>
-  <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
+  <a href="https://macpaw.com" target="_blank">
     <picture>
       <img src="assets/companies/macpaw.png"/>
+    </picture>
+  </a>
+</div>
+
+### Bronze sponsor: [Asana](https://asana.com/)
+
+<div>
+  <a href="https://asana.com" target="_blank">
+    <picture>
+      <img src="assets/companies/Asana.png"/>
     </picture>
   </a>
 </div>
@@ -325,6 +335,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/MontakOleg"><img src="https://avatars.githubusercontent.com/u/1800899?v=4" width="100px;" alt=""/><br /><sub><b>MontakOleg</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/waltflanagan"><img src="https://avatars.githubusercontent.com/u/398293?v=4" width="100px;" alt=""/><br /><sub><b>Mike Simons</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/oozoofrog"><img src="https://avatars.githubusercontent.com/u/3011832?v=4" width="100px;" alt=""/><br /><sub><b>oozoofrog</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/MartinStrambach"><img src="https://avatars.githubusercontent.com/u/11178869?v=4" width="100px;" alt=""/><br /><sub><b>Martin Strambach</b></sub></a></td>
     </tr>
   </tbody>
 </table>

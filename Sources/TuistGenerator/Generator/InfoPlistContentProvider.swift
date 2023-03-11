@@ -163,6 +163,10 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
                 "UIInterfaceOrientationLandscapeLeft",
                 "UIInterfaceOrientationLandscapeRight",
             ],
+            "UIApplicationSceneManifest": [
+                "UIApplicationSupportsMultipleScenes": false,
+                "UISceneConfigurations": [:],
+            ],
         ]
     }
 

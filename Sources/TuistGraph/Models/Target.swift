@@ -42,6 +42,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var rawScriptBuildPhases: [RawScriptBuildPhase]
     public var playgrounds: [AbsolutePath]
     public let additionalFiles: [FileElement]
+    public var buildRules: [BuildRule]
     public var prune: Bool
 
     // MARK: - Init
@@ -69,6 +70,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         rawScriptBuildPhases: [RawScriptBuildPhase] = [],
         playgrounds: [AbsolutePath] = [],
         additionalFiles: [FileElement] = [],
+        buildRules: [BuildRule] = [],
         prune: Bool = false
     ) {
         self.name = name
@@ -93,6 +95,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         self.rawScriptBuildPhases = rawScriptBuildPhases
         self.playgrounds = playgrounds
         self.additionalFiles = additionalFiles
+        self.buildRules = buildRules
         self.prune = prune
     }
 
