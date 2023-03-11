@@ -69,7 +69,6 @@ final class FetchService {
         try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
 
         guard FileHandler.shared.exists(
-havebeenfitz marked this conversation as resolved.
             path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
         ) else {
             return
