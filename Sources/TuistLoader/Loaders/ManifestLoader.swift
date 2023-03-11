@@ -84,8 +84,11 @@ public protocol ManifestLoading {
     func validateHasProjectOrWorkspaceManifest(at path: AbsolutePath) throws
 
     /// List all the manifests in the given directory.
-    /// - Parameter path: Path to the directory whose manifest files will be returend.
+    /// - Parameter path: Path to the directory whose manifest files will be returned.
     func manifests(at path: AbsolutePath) -> Set<Manifest>
+
+    /// Verifies that there is a project or workspace manifest at the given path, or throws an error otherwise.
+    func validateHasProjectOrWorkspaceManifest(at: AbsolutePath) throws
 
     /// Registers plugins that will be used within the manifest loading process.
     /// - Parameter plugins: The plugins to register.
@@ -144,6 +147,13 @@ public class ManifestLoader: ManifestLoading {
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
         Set(manifestFilesLocator.locateManifests(at: path).map(\.0))
+    }
+
+    public func validateHasProjectOrWorkspaceManifest(at path: AbsolutePath) throws {
+        let manifests = manifests(at: path)
+        guard manifests.contains(.workspace) || manifests.contains(.project) else {
+            throw ManifestLoaderError.manifestNotFound(path)
+        }
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
