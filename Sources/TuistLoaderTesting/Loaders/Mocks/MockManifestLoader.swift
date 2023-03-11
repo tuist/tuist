@@ -40,13 +40,6 @@ public final class MockManifestLoader: ManifestLoading {
     public func loadWorkspace(at path: AbsolutePath) throws -> Workspace {
         try loadWorkspaceStub?(path) ?? Workspace.test()
     }
-    
-    public func validateHasProjectOrWorkspaceManifest(at path: AbsolutePath) throws {
-        let manifests = manifests(at: path)
-        guard manifests.contains(.workspace) || manifests.contains(.project) else {
-            throw ManifestLoaderError.manifestNotFound(path)
-        }
-    }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
         manifestsAtCount += 1

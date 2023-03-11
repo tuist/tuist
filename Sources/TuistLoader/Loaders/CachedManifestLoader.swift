@@ -93,10 +93,6 @@ public class CachedManifestLoader: ManifestLoading {
     public func loadDependencies(at path: AbsolutePath) throws -> Dependencies {
         try manifestLoader.loadDependencies(at: path)
     }
-    
-    public func validateHasProjectOrWorkspaceManifest(at path: AbsolutePath) throws {
-        try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
-    }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
         manifestLoader.manifests(at: path)
