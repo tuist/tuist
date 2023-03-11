@@ -33,7 +33,7 @@ struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
     var dependenciesOnly: Bool = false
 
     func validate() throws {
-        if !options.xcframeworks, !options.destination.isEmpty {
+        if !options.xcframeworks, options.destination != [.device, .simulator] {
             throw ValidationError.invalidXCFrameworkOptions
         }
     }

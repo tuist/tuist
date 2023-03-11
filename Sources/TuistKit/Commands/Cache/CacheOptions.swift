@@ -27,7 +27,7 @@ struct CacheOptions: ParsableArguments {
         help: "Output type of xcframeworks when --xcframeworks is passed (device/simulator)",
         completion: .list(["device", "simulator"])
     )
-    var destination: CacheXCFrameworkDestination = []
+    var destination: CacheXCFrameworkDestination = [.device, .simulator]
 }
 
 extension CacheXCFrameworkDestination: ExpressibleByArgument {
@@ -38,7 +38,7 @@ extension CacheXCFrameworkDestination: ExpressibleByArgument {
         case "simulator":
             self = .simulator
         default:
-            return nil
+            self = [.device, .simulator]
         }
     }
 }

@@ -18,13 +18,17 @@ public enum CacheOutputType: CustomStringConvertible, Equatable {
         case .framework:
             return "framework"
         case let .xcframework(destination):
-            if destination.contains(.device) {
+            switch destination {
+            case [.device, .simulator]:
+                return "xcframework"
+            case .device:
                 return "device-xcframework"
-            }
-            if destination.contains(.simulator) {
+            case .simulator:
                 return "simulator-xcframework"
+            default:
+                // invalid option
+                return ""
             }
-            return "xcframework"
         }
     }
 }
