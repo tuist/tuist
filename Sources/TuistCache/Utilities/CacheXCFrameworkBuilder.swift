@@ -52,8 +52,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
             // Build for the simulator - if required
             var simulatorArchivePath: AbsolutePath?
-            let buildForSimulator = self.cacheOutputType.shouldBuildForSimulator
-            if platform.hasSimulators, buildForSimulator {
+            if platform.hasSimulators, self.cacheOutputType.shouldBuildForSimulator {
                 simulatorArchivePath = temporaryDirectory.appending(component: "simulator.xcarchive")
                 try await self.simulatorBuild(
                     projectTarget: projectTarget,
@@ -66,8 +65,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
             // Build for the device - if required
             var deviceArchivePath: AbsolutePath?
-            let buildForDevice = self.cacheOutputType.shouldBuildForDevice
-            if buildForDevice {
+            if self.cacheOutputType.shouldBuildForDevice {
                 deviceArchivePath = temporaryDirectory.appending(component: "device.xcarchive")
                 try await self.deviceBuild(
                     projectTarget: projectTarget,
