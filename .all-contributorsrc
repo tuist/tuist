@@ -985,6 +985,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "MartinStrambach",
+      "name": "Martin Strambach",
+      "avatar_url": "https://avatars.githubusercontent.com/u/11178869?v=4",
+      "profile": "https://github.com/MartinStrambach",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

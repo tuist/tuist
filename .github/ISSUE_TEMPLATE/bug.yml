@@ -20,10 +20,10 @@ body:
     id: how-to-reproduce-it
     attributes:
       label: How do we reproduce it?
-      description: It's important that you take the time to explain us how to reproduce it to be able to provide you with a solution faster.
+      description: |
+        It's important that you take the time to explain us how to reproduce it to be able to provide you with a solution faster.
+        Any issue without a sample project and the steps to reproduce will be closed for lack of information.
       placeholder: |
-        Any issue without a sample project and the steps to reproduce it might be closed for lack of information.
-
         1. Use the attached sample project or the `XXX` fixture
         2. Run `…`
         3. See the error
