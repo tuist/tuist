@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 
+// swiftlint:disable:next type_body_length
 public struct Target: Equatable, Hashable, Comparable, Codable {
     // MARK: - Static
 
