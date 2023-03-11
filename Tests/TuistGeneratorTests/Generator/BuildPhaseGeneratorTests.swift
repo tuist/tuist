@@ -962,6 +962,51 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
     }
 
+    func test_generateEmbedXPCServicesBuildPhase() throws {
+        // Given
+        let app = Target.test(name: "App", platform: .macOS, product: .app)
+        let xpcService = Target.test(name: "XPCService", platform: .macOS, product: .xpc)
+        let project = Project.test()
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, xpcService])
+
+        let targets: [AbsolutePath: [String: Target]] = [
+            project.path: [app.name: app, xpcService.name: xpcService],
+        ]
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: xpcService.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: xpcService.name, path: project.path)]),
+        ]
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: targets,
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateEmbedXPCServicesBuildPhase(
+            path: project.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+            "XPCService",
+        ])
+        XCTAssertEqual(
+            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+        )
+    }
+
     func test_generateTarget_actions() throws {
         // Given
         system.swiftVersionStub = { "5.2" }

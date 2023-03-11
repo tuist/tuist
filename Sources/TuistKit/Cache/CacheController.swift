@@ -83,12 +83,11 @@ final class CacheController: CacheControlling {
         includedTargets: Set<String>,
         dependenciesOnly: Bool
     ) async throws {
-        let xcframeworks = artifactBuilder.cacheOutputType == .xcframework
         let generator = generatorFactory.cache(
             config: config,
             includedTargets: includedTargets,
             focusedTargets: nil,
-            xcframeworks: xcframeworks,
+            cacheOutputType: artifactBuilder.cacheOutputType,
             cacheProfile: cacheProfile
         )
         let (_, graph) = try await generator.generateWithGraph(path: path)
@@ -120,7 +119,7 @@ final class CacheController: CacheControlling {
                 config: config,
                 includedTargets: targetsToBeCached,
                 focusedTargets: targetsToBeCached,
-                xcframeworks: xcframeworks,
+                cacheOutputType: artifactBuilder.cacheOutputType,
                 cacheProfile: cacheProfile
             )
             .generateWithGraph(path: path)

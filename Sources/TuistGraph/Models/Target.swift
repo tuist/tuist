@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 
+// swiftlint:disable:next type_body_length
 public struct Target: Equatable, Hashable, Comparable, Codable {
     // MARK: - Static
 
@@ -119,6 +120,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             .framework,
             .app,
             .commandLineTool,
+            .xpc,
             .unitTests,
             .uiTests,
             .appExtension,
@@ -168,7 +170,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         case .commandLineTool,
              .dynamicLibrary,
              .staticLibrary,
-             .staticFramework:
+             .staticFramework,
+             .xpc:
             return false
         }
     }
@@ -192,11 +195,33 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         }
     }
 
+    /// Determines if the target is an embeddable xpc service
+    /// i.e. a product that can be bundled with a host macOS application
+    public func isEmbeddableXPCService() -> Bool {
+        switch (platform, product) {
+        case (.macOS, .xpc):
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Determines if the target is able to embed a watch application
     /// i.e. a product that can be bundled with a watchOS application
     public func canEmbedWatchApplications() -> Bool {
         switch (platform, product) {
         case (.iOS, .app):
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Determines if the target is able to embed an xpc serivce
+    /// i.e. a product that can be bundled with a macOS application
+    public func canEmbedXPCServices() -> Bool {
+        switch (platform, product) {
+        case (.macOS, .app):
             return true
         default:
             return false

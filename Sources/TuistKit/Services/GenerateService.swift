@@ -40,6 +40,7 @@ final class GenerateService {
         sources: Set<String>,
         noOpen: Bool,
         xcframeworks: Bool,
+        destination: CacheXCFrameworkDestination,
         profile: String?,
         ignoreCache: Bool
     ) async throws {
@@ -47,10 +48,11 @@ final class GenerateService {
         let path = try self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
+        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework(destination) : .framework
         let generator = generatorFactory.focus(
             config: config,
             sources: sources,
-            xcframeworks: xcframeworks,
+            cacheOutputType: cacheOutputType,
             cacheProfile: cacheProfile,
             ignoreCache: ignoreCache
         )
