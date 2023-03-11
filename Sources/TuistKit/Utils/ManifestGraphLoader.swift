@@ -86,10 +86,8 @@ final class ManifestGraphLoader: ManifestGraphLoading {
 
     // swiftlint:disable:next large_tuple
     func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue]) {
+        try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
         let manifests = manifestLoader.manifests(at: path)
-        guard manifests.contains(.workspace) || manifests.contains(.project) else {
-            throw ManifestLoaderError.manifestNotFound(path)
-        }
 
         // Load Plugins
         let plugins = try await loadPlugins(at: path)

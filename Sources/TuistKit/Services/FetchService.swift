@@ -66,10 +66,7 @@ final class FetchService {
     }
 
     private func fetchDependencies(path: AbsolutePath, update: Bool, with plugins: TuistGraph.Plugins) throws {
-        let manifests = manifestLoader.manifests(at: path)
-        guard manifests.contains(.workspace) || manifests.contains(.project) else {
-            throw ManifestLoaderError.manifestNotFound(path)
-        }
+        try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
 
         if update {
             logger.info("Updating dependencies.", metadata: .section)
