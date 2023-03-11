@@ -45,7 +45,7 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/apollographql/apollo-ios.git", from: "1.0.7"),
+        .package(url: "https://github.com/apollographql/apollo-ios.git", exact: "1.0.5"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.2"),
         .package(url: "https://github.com/apple/swift-docc-plugin.git", from: "1.1.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.2"),

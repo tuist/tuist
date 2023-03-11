@@ -23,8 +23,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apollographql/apollo-ios.git",
       "state" : {
-        "revision" : "f9a452cf786e02cafff85c4acf9f72e99011b3ad",
-        "version" : "1.0.7"
+        "revision" : "014660b14262df15f0d2c7b7e973d0a53be27b7e",
+        "version" : "1.0.5"
       }
     },
     {
@@ -187,6 +187,24 @@
       "state" : {
         "revision" : "937e904258d22af6e447a0b72c0bc67583ef64a2",
         "version" : "1.0.4"
+      }
+    },
+    {
+      "identity" : "swift-docc-plugin",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-docc-plugin.git",
+      "state" : {
+        "revision" : "10bc670db657d11bdd561e07de30a9041311b2b1",
+        "version" : "1.1.0"
+      }
+    },
+    {
+      "identity" : "swift-docc-symbolkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-docc-symbolkit",
+      "state" : {
+        "revision" : "b45d1f2ed151d057b54504d653e0da5552844e34",
+        "version" : "1.0.0"
       }
     },
     {
