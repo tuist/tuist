@@ -291,13 +291,14 @@ final class ConfigGenerator: ConfigGenerating {
         var settings: SettingsDictionary = [:]
 
         switch deploymentTarget {
-        case let .iOS(version, devices):
+        case let .iOS(version, devices, supportsMacDesignedForIPhone):
             var deviceFamilyValues: [Int] = []
             if devices.contains(.iphone) { deviceFamilyValues.append(1) }
             if devices.contains(.ipad) { deviceFamilyValues.append(2) }
 
             settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
             settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
+            settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = supportsMacDesignedForIPhone ? "YES" : "NO"
 
             if devices.contains(.ipad), devices.contains(.mac) {
                 settings["SUPPORTS_MACCATALYST"] = "YES"
@@ -306,6 +307,7 @@ final class ConfigGenerator: ConfigGenerating {
                 // Unless explicitly specified, when the platform the Product is a framework, these default to YES.
                 settings["SUPPORTS_MACCATALYST"] = "NO"
             }
+
         case let .macOS(version):
             settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
         case let .watchOS(version):

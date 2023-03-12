@@ -19,9 +19,9 @@ final class InfoPlistContentProviderTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_content_wheniOSApp() {
+    func test_content_wheniOSApp_withiPadSupport() {
         // Given
-        let target = Target.test(platform: .iOS, product: .app)
+        let target = Target.test(platform: .iOS, product: .app, deploymentTarget: .iOS("16.0", [.iphone, .ipad], true))
 
         // When
         let got = subject.content(
@@ -50,6 +50,42 @@ final class InfoPlistContentProviderTests: XCTestCase {
                 "UIInterfaceOrientationLandscapeLeft",
                 "UIInterfaceOrientationLandscapeRight",
             ],
+            "CFBundleVersion": "1",
+            "ExtraAttribute": "Value",
+            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+            "CFBundleInfoDictionaryVersion": "6.0",
+            "UIApplicationSceneManifest": [
+                "UIApplicationSupportsMultipleScenes": false,
+                "UISceneConfigurations": [:],
+            ],
+        ])
+    }
+
+    func test_content_wheniOSApp_withoutiPadSupport() {
+        // Given
+        let target = Target.test(platform: .iOS, product: .app, deploymentTarget: .iOS("16.0", .iphone, true))
+
+        // When
+        let got = subject.content(
+            project: .empty(),
+            target: target,
+            extendedWith: ["ExtraAttribute": "Value"]
+        )
+
+        // Then
+        assertEqual(got, [
+            "CFBundleName": "$(PRODUCT_NAME)",
+            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+            "UIRequiredDeviceCapabilities": ["armv7"],
+            "UISupportedInterfaceOrientations": [
+                "UIInterfaceOrientationPortrait",
+                "UIInterfaceOrientationLandscapeLeft",
+                "UIInterfaceOrientationLandscapeRight",
+            ],
+            "CFBundleShortVersionString": "1.0",
+            "LSRequiresIPhoneOS": true,
+            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+            "CFBundlePackageType": "APPL",
             "CFBundleVersion": "1",
             "ExtraAttribute": "Value",
             "CFBundleExecutable": "$(EXECUTABLE_NAME)",

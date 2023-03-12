@@ -22,8 +22,8 @@ public final class DeploymentTargetContentHasher: DeploymentTargetContentHashing
     public func hash(deploymentTarget: DeploymentTarget) throws -> String {
         let stringToHash: String
         switch deploymentTarget {
-        case let .iOS(version, device):
-            stringToHash = "iOS-\(version)-\(device.rawValue)"
+        case let .iOS(version, device, supportsMacDesignedForIPhone):
+            stringToHash = "iOS-\(version)-\(device.rawValue)-\(supportsMacDesignedForIPhone)"
         case let .macOS(version):
             stringToHash = "macOS-\(version)"
         case let .watchOS(version):
