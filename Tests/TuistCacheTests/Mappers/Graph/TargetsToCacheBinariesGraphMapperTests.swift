@@ -258,7 +258,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             cacheGraphContentHasher: cacheGraphContentHasher,
             sources: [],
             cacheProfile: .test(),
-            cacheOutputType: .xcframework,
+            cacheOutputType: .xcframework([.device, .simulator]),
             cacheGraphMutator: cacheGraphMutator
         )
 
@@ -303,6 +303,6 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(invokedCacheProfile, .test())
-        XCTAssertEqual(invokedCacheOutputType, .xcframework)
+        XCTAssertEqual(invokedCacheOutputType, .xcframework([.device, .simulator]))
     }
 }

@@ -50,7 +50,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         _ = try subject.contentHashes(
             for: Graph.test(),
             cacheProfile: TuistGraph.Cache.Profile(name: "Development", configuration: "Debug"),
-            cacheOutputType: .xcframework,
+            cacheOutputType: .xcframework([.device, .simulator]),
             excludedTargets: []
         )
         XCTAssertTrue(contentHashesCalled)
@@ -77,7 +77,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         _ = try subject.contentHashes(
             for: Graph.test(),
             cacheProfile: TuistGraph.Cache.Profile(name: "Development", configuration: "Debug"),
-            cacheOutputType: .xcframework,
+            cacheOutputType: .xcframework([.device, .simulator]),
             excludedTargets: ["Excluded"]
         )
         XCTAssertTrue(contentHashesCalled)
@@ -112,7 +112,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         _ = try subject.contentHashes(
             for: Graph.test(),
             cacheProfile: TuistGraph.Cache.Profile(name: "Development", configuration: "Debug"),
-            cacheOutputType: .xcframework,
+            cacheOutputType: .xcframework([.device, .simulator]),
             excludedTargets: ["Excluded"]
         )
         XCTAssertTrue(contentHashesCalled)

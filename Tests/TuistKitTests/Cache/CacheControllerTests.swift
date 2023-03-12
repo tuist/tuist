@@ -120,7 +120,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
             nodeWithHashes
         }
-        artifactBuilder.stubbedCacheOutputType = .xcframework
+        artifactBuilder.stubbedCacheOutputType = .xcframework([.device, .simulator])
 
         // When
         try await subject.cache(
@@ -198,7 +198,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
             nodeWithHashes
         }
-        artifactBuilder.stubbedCacheOutputType = .xcframework
+        artifactBuilder.stubbedCacheOutputType = .xcframework([.device, .simulator])
 
         let remoteCacheError = TestError("remote cache error")
         cache.existsStub = { _, _ in throw remoteCacheError }
@@ -271,7 +271,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
             nodeWithHashes
         }
-        artifactBuilder.stubbedCacheOutputType = .xcframework
+        artifactBuilder.stubbedCacheOutputType = .xcframework([.device, .simulator])
 
         // When
         try await subject.cache(
@@ -344,7 +344,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
             filteredNodeWithHashes
         }
-        artifactBuilder.stubbedCacheOutputType = .xcframework
+        artifactBuilder.stubbedCacheOutputType = .xcframework([.device, .simulator])
 
         // When
         try await subject.cache(
@@ -404,7 +404,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             return nodeWithHashes
         }
 
-        artifactBuilder.stubbedCacheOutputType = .xcframework
+        artifactBuilder.stubbedCacheOutputType = .xcframework([.device, .simulator])
 
         // When
         let results = try await subject.makeHashesByTargetToBeCached(
@@ -453,7 +453,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         let results = try await subject.makeHashesByTargetToBeCached(
             for: graph,
             cacheProfile: .test(),
-            cacheOutputType: .xcframework,
+            cacheOutputType: .xcframework([.device, .simulator]),
             includedTargets: [aTarget.name],
             dependenciesOnly: false
         )

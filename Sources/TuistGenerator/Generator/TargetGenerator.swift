@@ -32,6 +32,7 @@ final class TargetGenerator: TargetGenerating {
     let buildPhaseGenerator: BuildPhaseGenerating
     let linkGenerator: LinkGenerating
     let fileGenerator: FileGenerating
+    let buildRulesGenerator: BuildRulesGenerating
 
     // MARK: - Init
 
@@ -39,12 +40,14 @@ final class TargetGenerator: TargetGenerating {
         configGenerator: ConfigGenerating = ConfigGenerator(),
         fileGenerator: FileGenerating = FileGenerator(),
         buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
-        linkGenerator: LinkGenerating = LinkGenerator()
+        linkGenerator: LinkGenerating = LinkGenerator(),
+        buildRulesGenerator: BuildRulesGenerating = BuildRulesGenerator()
     ) {
         self.configGenerator = configGenerator
         self.fileGenerator = fileGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
         self.linkGenerator = linkGenerator
+        self.buildRulesGenerator = buildRulesGenerator
     }
 
     // MARK: - TargetGenerating
@@ -126,6 +129,13 @@ final class TargetGenerator: TargetGenerating {
             pbxproj: pbxproj,
             sourceRootPath: project.sourceRootPath
         )
+
+        try buildRulesGenerator.generateBuildRules(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj
+        )
+
         return pbxTarget
     }
 
