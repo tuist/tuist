@@ -118,6 +118,7 @@ public final class TargetRunner: TargetRunning {
     public func assertCanRunTarget(_ target: Target) throws {
         switch (target.platform, target.product) {
         case (.macOS, .commandLineTool),
+             (.macOS, .xpc),
              (_, .app):
             break
         default:

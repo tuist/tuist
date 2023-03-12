@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistCore
 
 struct CacheOptions: ParsableArguments {
     @Option(
@@ -20,4 +21,24 @@ struct CacheOptions: ParsableArguments {
         help: "When passed it caches the targets for simulator and device using xcframeworks."
     )
     var xcframeworks: Bool = false
+
+    @Option(
+        name: .long,
+        help: "Output type of xcframeworks when --xcframeworks is passed (device/simulator)",
+        completion: .list(["device", "simulator"])
+    )
+    var destination: CacheXCFrameworkDestination = [.device, .simulator]
+}
+
+extension CacheXCFrameworkDestination: ExpressibleByArgument {
+    public init?(argument: String) {
+        switch argument {
+        case "device":
+            self = .device
+        case "simulator":
+            self = .simulator
+        default:
+            self = [.device, .simulator]
+        }
+    }
 }

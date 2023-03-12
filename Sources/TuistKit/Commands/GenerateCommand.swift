@@ -2,6 +2,7 @@ import AnyCodable
 import ArgumentParser
 import Foundation
 import TuistCache
+import TuistCore
 
 struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
@@ -41,6 +42,13 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     var xcframeworks: Bool = false
 
     @Option(
+        name: [.long],
+        help: "Type of cached xcframeworks to use when --xcframeworks is passed (device/simulator)",
+        completion: .list(["device", "simulator"])
+    )
+    var destination: CacheXCFrameworkDestination = [.device, .simulator]
+
+    @Option(
         name: [.customShort("P"), .long],
         help: "The name of the cache profile to be used when focusing on the target."
     )
@@ -52,12 +60,19 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var ignoreCache: Bool = false
 
+    func validate() throws {
+        if !xcframeworks, destination != [.device, .simulator] {
+            throw ValidationError.invalidXCFrameworkOptions
+        }
+    }
+
     func run() async throws {
         try await GenerateService().run(
             path: path,
             sources: Set(sources),
             noOpen: noOpen,
             xcframeworks: xcframeworks,
+            destination: destination,
             profile: profile,
             ignoreCache: ignoreCache
         )
@@ -72,5 +87,16 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
                 "remote_cache_target_hits": AnyCodable(CacheAnalytics.remoteCacheTargetsHits),
             ]
         )
+    }
+
+    enum ValidationError: LocalizedError {
+        case invalidXCFrameworkOptions
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidXCFrameworkOptions:
+                return "--xcframeworks must be enabled when --destination is set"
+            }
+        }
     }
 }

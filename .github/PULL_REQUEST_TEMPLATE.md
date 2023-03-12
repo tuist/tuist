@@ -18,4 +18,4 @@ Resolves https://github.com/tuist/tuist/issues/YYY
 ### Reviewer checklist ✅
 
 - [ ] The code architecture and patterns are consistent with the rest of the codebase
-- [ ] Contributors have checked that, if needed, the PR includes the label `changelog:added`, `changelog:fixed`, or `changelog:changed`, and the title is usable as a changelog entry
+- [ ] Reviewer has checked that, if needed, the PR includes the label `changelog:added`, `changelog:fixed`, or `changelog:changed`, and the title is usable as a changelog entry

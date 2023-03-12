@@ -98,6 +98,10 @@ public class CachedManifestLoader: ManifestLoading {
         manifestLoader.manifests(at: path)
     }
 
+    public func validateHasProjectOrWorkspaceManifest(at path: AbsolutePath) throws {
+        try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
+    }
+
     public func register(plugins: Plugins) throws {
         pluginsHashCache = try calculatePluginsHash(for: plugins)
         try manifestLoader.register(plugins: plugins)

@@ -41,13 +41,18 @@ final class CachePrintHashesService {
         }
     }
 
-    func run(path: String?, xcframeworks: Bool, profile: String?) async throws {
+    func run(
+        path: String?,
+        xcframeworks: Bool,
+        destination: CacheXCFrameworkDestination,
+        profile: String?
+    ) async throws {
         let absolutePath = absolutePath(path)
         let timer = clock.startTimer()
         let config = try configLoader.loadConfig(path: absolutePath)
         let generator = generatorFactory.default()
         let graph = try await generator.load(path: absolutePath)
-        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework : .framework
+        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework(destination) : .framework
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
         let hashes = try cacheGraphContentHasher.contentHashes(
             for: graph,
