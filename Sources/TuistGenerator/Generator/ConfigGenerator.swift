@@ -307,7 +307,6 @@ final class ConfigGenerator: ConfigGenerating {
                 // Unless explicitly specified, when the platform the Product is a framework, these default to YES.
                 settings["SUPPORTS_MACCATALYST"] = "NO"
             }
-
         case let .macOS(version):
             settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
         case let .watchOS(version):
