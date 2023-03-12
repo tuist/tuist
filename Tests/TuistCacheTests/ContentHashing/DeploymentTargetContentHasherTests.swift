@@ -31,17 +31,17 @@ final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
 
         // Then
         let hash = try subject.hash(deploymentTarget: deploymentTarget)
-        XCTAssertEqual(hash, "iOS-v1-1-hash")
+        XCTAssertEqual(hash, "iOS-v1-1-false-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
 
     func test_hash_whenIosIpadV2_callsContentHasherWithExpectedStrings() throws {
         // When
-        let deploymentTarget = DeploymentTarget.iOS("v2", .ipad, false)
+        let deploymentTarget = DeploymentTarget.iOS("v2", .ipad, true)
 
         // Then
         let hash = try subject.hash(deploymentTarget: deploymentTarget)
-        XCTAssertEqual(hash, "iOS-v2-2-hash")
+        XCTAssertEqual(hash, "iOS-v2-2-true-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
 
