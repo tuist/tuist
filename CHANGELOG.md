@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.17.0 - 2023-03-12
+
+### Added
+
+- Add support for `customLLDBInitFile` settings in `Scheme.RunAction` [#5060](https://github.com/tuist/tuist/pull/5060) by [@oozoofrog](https://github.com/oozoofrog)
+- Add support for build rules [#5088](https://github.com/tuist/tuist/pull/5088) by [@MartinStrambach](https://github.com/MartinStrambach)
+- Add option to cache as device or simulator xcframeworks [#5075](https://github.com/tuist/tuist/pull/5075) by [@kientux](https://github.com/kientux)
+- Support for `xpc` product type on `macOS` [#5077](https://github.com/tuist/tuist/pull/5077) by [@serejahh](https://github.com/serejahh)
+
+### Fixed
+
+- Consider system architecture when computing macOS target hashes [#5064](https://github.com/tuist/tuist/pull/5064) by [@danyf90](https://github.com/danyf90)
+- Update the Info.plist default for iOS for Xcode 14.2 [#5067](https://github.com/tuist/tuist/pull/5067) by [@ronanociosoig-200](https://github.com/ronanociosoig-200)
+- Fix CoreData model when `xcdatamodel` file has a name different from the `xcdatamodeld` folder [#5049](https://github.com/tuist/tuist/pull/5049) by [@danyf90](https://github.com/danyf90)
+- Fix for `tuist fetch` not failing when run outside of a Tuist project [#5082](https://github.com/tuist/tuist/pull/5082) by [@havebeenfitz](https://github.com/havebeenfitz)
+
 ## 3.16.0 - 2023-02-09
 
 ### Changed
