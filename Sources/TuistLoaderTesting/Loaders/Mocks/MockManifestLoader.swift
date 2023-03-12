@@ -46,6 +46,13 @@ public final class MockManifestLoader: ManifestLoading {
         return manifestsAtStub?(path) ?? Set()
     }
 
+    public func validateHasProjectOrWorkspaceManifest(at path: AbsolutePath) throws {
+        let manifests = manifests(at: path)
+        guard manifests.contains(.workspace) || manifests.contains(.project) else {
+            throw ManifestLoaderError.manifestNotFound(path)
+        }
+    }
+
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath {
         manifestPathCount += 1
         return try manifestPathStub?(path, manifest) ?? TemporaryDirectory(removeTreeOnDeinit: true).path
