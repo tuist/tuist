@@ -233,7 +233,9 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenIOS_withMacForIPhoneSupport() throws {
         // Given
         let project = Project.test()
-        let target = Target.test(deploymentTarget: .iOS("12.0", [.iphone, .ipad], true))
+        let target = Target.test(
+            deploymentTarget: .iOS("12.0", [.iphone, .ipad], supportsMacDesignedForIOS: true)
+        )
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -267,7 +269,9 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenIOS_withoutMacForIPhoneSupport() throws {
         // Given
         let project = Project.test()
-        let target = Target.test(deploymentTarget: .iOS("12.0", [.iphone, .ipad], false))
+        let target = Target.test(
+            deploymentTarget: .iOS("12.0", [.iphone, .ipad], supportsMacDesignedForIOS: false)
+        )
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -300,7 +304,10 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     func test_generateTargetWithDeploymentTarget_whenIOS_for_framework() throws {
         // Given
-        let target = Target.test(product: .framework, deploymentTarget: .iOS("13.0", [.iphone, .ipad], true))
+        let target = Target.test(
+            product: .framework,
+            deploymentTarget: .iOS("13.0", [.iphone, .ipad], supportsMacDesignedForIOS: true)
+        )
         let project = Project.test(targets: [target])
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
@@ -367,7 +374,9 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenCatalyst() throws {
         // Given
         let project = Project.test()
-        let target = Target.test(deploymentTarget: .iOS("13.1", [.iphone, .ipad, .mac], false))
+        let target = Target.test(
+            deploymentTarget: .iOS("13.1", [.iphone, .ipad, .mac], supportsMacDesignedForIOS: false)
+        )
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
 

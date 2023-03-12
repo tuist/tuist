@@ -1144,11 +1144,11 @@ extension ProjectDescription.DefaultSettings {
 extension ProjectDescription.DeploymentTarget {
     fileprivate static func from(deploymentTarget: TuistGraph.DeploymentTarget) -> Self {
         switch deploymentTarget {
-        case let .iOS(version, devices, supportsMacDesignedForIPhone):
+        case let .iOS(version, devices, supportsMacDesignedForIOS):
             return .iOS(
                 targetVersion: version,
                 devices: .from(devices: devices),
-                supportsMacDesignedForIPhone: supportsMacDesignedForIPhone
+                supportsMacDesignedForIOS: supportsMacDesignedForIOS
             )
         case let .macOS(version):
             return .macOS(targetVersion: version)

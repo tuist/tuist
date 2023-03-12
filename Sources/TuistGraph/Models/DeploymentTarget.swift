@@ -3,7 +3,7 @@ import Foundation
 // MARK: - DeploymentTarget
 
 public enum DeploymentTarget: Hashable, Codable {
-    case iOS(String, DeploymentDevice, Bool)
+    case iOS(String, DeploymentDevice, supportsMacDesignedForIOS: Bool)
     case macOS(String)
     case watchOS(String)
     case tvOS(String)

@@ -27,7 +27,7 @@ final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenIosIphoneV1_callsContentHasherWithExpectedStrings() throws {
         // When
-        let deploymentTarget = DeploymentTarget.iOS("v1", .iphone, false)
+        let deploymentTarget = DeploymentTarget.iOS("v1", .iphone, supportsMacDesignedForIOS: false)
 
         // Then
         let hash = try subject.hash(deploymentTarget: deploymentTarget)
@@ -37,7 +37,7 @@ final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenIosIpadV2_callsContentHasherWithExpectedStrings() throws {
         // When
-        let deploymentTarget = DeploymentTarget.iOS("v2", .ipad, true)
+        let deploymentTarget = DeploymentTarget.iOS("v2", .ipad, supportsMacDesignedForIOS: true)
 
         // Then
         let hash = try subject.hash(deploymentTarget: deploymentTarget)

@@ -5,7 +5,7 @@ import Foundation
 /// A supported minimum deployment target.
 public enum DeploymentTarget: Codable, Hashable {
     /// The minimum iOS version and the list of devices your product will support.
-    case iOS(targetVersion: String, devices: DeploymentDevice, supportsMacDesignedForIPhone: Bool = true)
+    case iOS(targetVersion: String, devices: DeploymentDevice, supportsMacDesignedForIOS: Bool = true)
     /// The minimum macOS version your product will support.
     case macOS(targetVersion: String)
     /// The minimum watchOS version your product will support.

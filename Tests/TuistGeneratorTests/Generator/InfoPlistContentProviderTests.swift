@@ -21,7 +21,11 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
     func test_content_wheniOSApp_withiPadSupport() {
         // Given
-        let target = Target.test(platform: .iOS, product: .app, deploymentTarget: .iOS("16.0", [.iphone, .ipad], true))
+        let target = Target.test(
+            platform: .iOS,
+            product: .app,
+            deploymentTarget: .iOS("16.0", [.iphone, .ipad], supportsMacDesignedForIOS: true)
+        )
 
         // When
         let got = subject.content(
@@ -63,7 +67,11 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
     func test_content_wheniOSApp_withoutiPadSupport() {
         // Given
-        let target = Target.test(platform: .iOS, product: .app, deploymentTarget: .iOS("16.0", .iphone, true))
+        let target = Target.test(
+            platform: .iOS,
+            product: .app,
+            deploymentTarget: .iOS("16.0", .iphone, supportsMacDesignedForIOS: true)
+        )
 
         // When
         let got = subject.content(
