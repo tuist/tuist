@@ -24,7 +24,7 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
         bundleName: String?,
         paths: [AbsolutePath]
     ) throws -> String {
-        let template = Template(
+        let template = StencilSwiftTemplate(
             templateString: templateString,
             environment: stencilSwiftEnvironment()
         )
