@@ -149,7 +149,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             "/path/to/workspace/Documentation/setup",
             "/path/to/workspace/Documentation/setup/usage.md",
         ]
-        let workspace = Workspace.test(additionalFiles: paths.map { .file(path: AbsolutePath($0)) })
+        let workspace = Workspace.test(additionalFiles: paths.map { .file(path: try! AbsolutePath(validating: $0)) })
 
         // When
         let structure = subject.generateStructure(
@@ -181,7 +181,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             "/path/to/workspace",
             "/path/to/workspace/Documentation",
         ]
-        let workspace = Workspace.test(additionalFiles: paths.map { .file(path: AbsolutePath($0)) })
+        let workspace = Workspace.test(additionalFiles: paths.map { .file(path: try! AbsolutePath(validating: $0)) })
 
         // When
         let structure = subject.generateStructure(
@@ -207,7 +207,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             "/path/to/workspace/Pods.xcodeproj",
             "/path/to/workspace/Testing.playground",
         ]
-        let workspace = Workspace.test(additionalFiles: paths.map { .file(path: AbsolutePath($0)) })
+        let workspace = Workspace.test(additionalFiles: paths.map { .file(path: try! AbsolutePath(validating: $0)) })
 
         // When
         let structure = subject.generateStructure(
@@ -289,7 +289,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
 
     @discardableResult
     func createFolders(_ folders: [String]) throws -> [AbsolutePath] {
-        let paths = folders.map { AbsolutePath($0) }
+        let paths = folders.map { try! AbsolutePath(validating: $0) }
         try paths.forEach {
             try fileHandler.createFolder($0)
         }
@@ -298,7 +298,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
 
     @discardableResult
     func createFiles(_ files: [String]) throws -> [AbsolutePath] {
-        let paths = files.map { AbsolutePath($0) }
+        let paths = files.map { try! AbsolutePath(validating: $0) }
         try paths.forEach {
             try fileHandler.touch($0)
         }
@@ -382,7 +382,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         }
 
         func createFolder(_ path: AbsolutePath) throws {
-            var pathSoFar = AbsolutePath("/")
+            var pathSoFar = try AbsolutePath(validating: "/")
             for component in path.components.dropFirst() {
                 pathSoFar = pathSoFar.appending(component: component)
                 cache[pathSoFar] = .folder

@@ -21,8 +21,8 @@
 /// import ProjectDescription
 ///
 /// let config = Config(
-///     compatibleXcodeVersions: ["10.3"],
-///     swiftVersion: "5.4.0"
+///     compatibleXcodeVersions: ["14.2"],
+///     swiftVersion: "5.7.0"
 /// )
 /// ```
 public struct Config: Codable, Equatable {

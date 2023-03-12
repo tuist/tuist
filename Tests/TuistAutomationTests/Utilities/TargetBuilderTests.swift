@@ -60,7 +60,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
     func test_buildScheme_callsXcodeBuildControllerWithArguments() async throws {
         // Given
         let scheme = Scheme.test(name: "A")
-        let workspacePath = AbsolutePath("/path/to/project.xcworkspace")
+        let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
         let configuration = "TestRelease"
         let clean = false
         let buildArguments: [XcodeBuildArgument] = [
@@ -109,7 +109,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let buildOutputPath = path.appending(component: ".build")
         let scheme = Scheme.test(name: "A")
-        let workspacePath = AbsolutePath("/path/to/project.xcworkspace")
+        let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
         let graphTraverser = MockGraphTraverser()
 
         xcodeBuildController.buildStub = { _, _, _, _, _ in
@@ -157,7 +157,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let buildOutputPath = path.appending(component: ".build")
         let scheme = Scheme.test(name: "A")
         let configuration = "TestRelease"
-        let workspacePath = AbsolutePath("/path/to/project.xcworkspace")
+        let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
         let graphTraverser = MockGraphTraverser()
 
         xcodeBuildController.buildStub = { _, _, _, _, _ in

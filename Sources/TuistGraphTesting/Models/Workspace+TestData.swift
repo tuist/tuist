@@ -5,8 +5,8 @@ import TSCUtility
 
 extension Workspace {
     public static func test(
-        path: AbsolutePath = AbsolutePath("/"),
-        xcWorkspacePath: AbsolutePath = AbsolutePath("/"),
+        path: AbsolutePath = try! AbsolutePath(validating: "/"), // swiftlint:disable:this force_try
+        xcWorkspacePath: AbsolutePath = try! AbsolutePath(validating: "/"), // swiftlint:disable:this force_try
         name: String = "test",
         projects: [AbsolutePath] = [],
         schemes: [Scheme] = [],

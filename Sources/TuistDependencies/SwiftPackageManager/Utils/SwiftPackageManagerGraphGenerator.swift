@@ -97,16 +97,16 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
                     throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
                 }
-                packageFolder = AbsolutePath(path)
+                packageFolder = try AbsolutePath(validating: path)
             default:
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
 
             let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: packageFolder)
-            let targetToArtifactPaths = workspaceState.object.artifacts
+            let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in
-                    result[artifact.targetName] = AbsolutePath(artifact.path)
+                    result[artifact.targetName] = try AbsolutePath(validating: artifact.path)
                 }
 
             return (

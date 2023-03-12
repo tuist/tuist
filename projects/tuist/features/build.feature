@@ -3,6 +3,7 @@ Feature: Build projects using Tuist build
     Given that tuist is available
     And I have a working directory
     When I initialize a ios application named MyApp
+    Then tuist generates the project
     Then tuist builds the project
     Then tuist builds the scheme MyApp from the project
     Then tuist builds the scheme MyApp and configuration Debug from the project
@@ -11,6 +12,7 @@ Feature: Build projects using Tuist build
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture app_with_framework_and_tests into the working directory
+    Then tuist generates the project
     Then tuist builds the project
     Then tuist builds the scheme App from the project
     Then tuist builds the scheme AppCustomScheme from the project
@@ -20,6 +22,7 @@ Feature: Build projects using Tuist build
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture app_with_tests into the working directory
+    Then tuist generates the project
     Then tuist builds the project
     Then tuist builds the scheme App from the project
     Then tuist builds the scheme App-Workspace-iOS from the project
@@ -30,6 +33,7 @@ Feature: Build projects using Tuist build
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_custom_configuration into the working directory
+    Then tuist generates the project
     Then tuist builds the scheme App and configuration debug from the project to output path Builds
     Then a directory Builds/debug-iphonesimulator/App.app exists
     Then a directory Builds/debug-iphonesimulator/App.swiftmodule exists

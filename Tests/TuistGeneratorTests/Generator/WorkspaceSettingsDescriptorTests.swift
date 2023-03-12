@@ -6,7 +6,7 @@ import XCTest
 final class WorkspaceSettingsDescriptorTests: XCTestCase {
     func test_xcsettingsFilePath() {
         // Given
-        let basePath = AbsolutePath("/temp")
+        let basePath = try! AbsolutePath(validating: "/temp")
 
         // When
         let actual = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: basePath)
@@ -14,7 +14,7 @@ final class WorkspaceSettingsDescriptorTests: XCTestCase {
         // Then
         XCTAssertEqual(
             actual,
-            AbsolutePath("/temp/xcshareddata/WorkspaceSettings.xcsettings")
+            try AbsolutePath(validating: "/temp/xcshareddata/WorkspaceSettings.xcsettings")
         )
     }
 }

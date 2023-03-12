@@ -40,7 +40,7 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
         let frameworkPath = FileHandler.shared.glob(carthagePath, glob: "*.framework").first!
 
         // When
-        let got = subject.dsymPath(frameworkPath: frameworkPath)
+        let got = try subject.dsymPath(frameworkPath: frameworkPath)
 
         // Then
         XCTAssertTrue(got == carthagePath.appending(component: "\(frameworkPath.basename).dSYM"))

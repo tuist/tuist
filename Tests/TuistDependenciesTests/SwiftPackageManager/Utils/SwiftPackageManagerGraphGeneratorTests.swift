@@ -77,12 +77,19 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generate_google_measurement() throws {
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/nanopb/Sources/nanopb"))
+        try fileHandler.createFolder(try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/nanopb/Sources/nanopb"))
         try fileHandler
-            .createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULAppDelegateSwizzler"))
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULNSData"))
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULMethodSwizzler"))
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULNetwork"))
+            .createFolder(
+                try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULAppDelegateSwizzler")
+            )
+        try fileHandler
+            .createFolder(try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULNSData"))
+        try fileHandler
+            .createFolder(
+                try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULMethodSwizzler")
+            )
+        try fileHandler
+            .createFolder(try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULNetwork"))
 
         // swiftformat:disable wrap
         try checkGenerated(
@@ -169,12 +176,17 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generate_test_local_path() throws {
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary"))
-        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TestUtilities"))
+        try fileHandler
+            .createFolder(try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
+        try fileHandler
+            .createFolder(try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
+        try fileHandler
+            .createFolder(
+                try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary")
+            )
+        try fileHandler.createFolder(try AbsolutePath(validating: "/tmp/localPackage/Sources/TestUtilities"))
 
-        let testPath = AbsolutePath("/tmp/localPackage")
+        let testPath = try AbsolutePath(validating: "/tmp/localPackage")
         try checkGenerated(
             workspaceDependenciesJSON: """
             [
@@ -230,13 +242,18 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generate_test_local_location_spm_pre_v5_6() throws {
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary"))
-        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TestUtilities"))
-        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TuistKit"))
+        try fileHandler
+            .createFolder(try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
+        try fileHandler
+            .createFolder(try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
+        try fileHandler
+            .createFolder(
+                try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary")
+            )
+        try fileHandler.createFolder(try AbsolutePath(validating: "/tmp/localPackage/Sources/TestUtilities"))
+        try fileHandler.createFolder(try AbsolutePath(validating: "/tmp/localPackage/Sources/TuistKit"))
 
-        let testPath = AbsolutePath("/tmp/localPackage")
+        let testPath = try AbsolutePath(validating: "/tmp/localPackage")
         try checkGenerated(
             workspaceDependenciesJSON: """
             [
@@ -292,13 +309,18 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generate_test_fileSystem_location_spm_v5_6() throws {
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary"))
-        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TestUtilities"))
-        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TuistKit"))
+        try fileHandler
+            .createFolder(try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
+        try fileHandler
+            .createFolder(try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
+        try fileHandler
+            .createFolder(
+                try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary")
+            )
+        try fileHandler.createFolder(try AbsolutePath(validating: "/tmp/localPackage/Sources/TestUtilities"))
+        try fileHandler.createFolder(try AbsolutePath(validating: "/tmp/localPackage/Sources/TuistKit"))
 
-        let testPath = AbsolutePath("/tmp/localPackage")
+        let testPath = try AbsolutePath(validating: "/tmp/localPackage")
         try checkGenerated(
             workspaceDependenciesJSON: """
             [
@@ -354,12 +376,17 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
     }
 
     func test_generate_test_localSourceControl_location_spm_v5_6() throws {
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary"))
-        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TuistKit"))
+        try fileHandler
+            .createFolder(try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
+        try fileHandler
+            .createFolder(try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
+        try fileHandler
+            .createFolder(
+                try AbsolutePath(validating: "\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary")
+            )
+        try fileHandler.createFolder(try AbsolutePath(validating: "/tmp/localPackage/Sources/TuistKit"))
 
-        let testPath = AbsolutePath("/tmp/localPackage")
+        let testPath = try AbsolutePath(validating: "/tmp/localPackage")
         try checkGenerated(
             workspaceDependenciesJSON: """
             [
@@ -421,7 +448,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
         dependenciesGraph: TuistCore.DependenciesGraph
     ) throws {
         // Given
-        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TestUtilities"))
+        try fileHandler.createFolder(try AbsolutePath(validating: "/tmp/localPackage/Sources/TestUtilities"))
         fileHandler.stubReadFile = {
             XCTAssertEqual($0, self.path.appending(component: "workspace-state.json"))
             return """

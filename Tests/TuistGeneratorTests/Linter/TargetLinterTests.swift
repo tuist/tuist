@@ -96,8 +96,8 @@ final class TargetLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_when_a_infoplist_file_is_being_copied() {
-        let infoPlistPath = AbsolutePath("/Info.plist")
-        let googeServiceInfoPlistPath = AbsolutePath("/GoogleService-Info.plist")
+        let infoPlistPath = try! AbsolutePath(validating: "/Info.plist")
+        let googeServiceInfoPlistPath = try! AbsolutePath(validating: "/GoogleService-Info.plist")
 
         let target = Target.test(
             infoPlist: .file(path: infoPlistPath),
@@ -126,7 +126,7 @@ final class TargetLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_when_a_entitlements_file_is_being_copied() {
-        let path = AbsolutePath("/App.entitlements")
+        let path = try! AbsolutePath(validating: "/App.entitlements")
         let target = Target.test(resources: [.file(path: path)])
 
         let got = subject.lint(target: target)

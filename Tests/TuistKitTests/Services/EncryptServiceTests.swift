@@ -23,7 +23,7 @@ final class EncryptServiceTests: TuistUnitTestCase {
 
     func test_calls_encrypt_with_provided_path() throws {
         // Given
-        let expectedPath = AbsolutePath("/path")
+        let expectedPath = try AbsolutePath(validating: "/path")
         var path: AbsolutePath?
         signingCipher.encryptSigningStub = { encryptPath, _ in
             path = encryptPath

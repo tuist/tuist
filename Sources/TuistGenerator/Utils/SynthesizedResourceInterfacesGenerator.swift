@@ -1,4 +1,5 @@
 import PathKit
+import Stencil
 import StencilSwiftKit
 import SwiftGenKit
 import TSCBasic
@@ -23,7 +24,7 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
         bundleName: String?,
         paths: [AbsolutePath]
     ) throws -> String {
-        let template = StencilSwiftTemplate(
+        let template = Template(
             templateString: templateString,
             environment: stencilSwiftEnvironment()
         )

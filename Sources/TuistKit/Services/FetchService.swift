@@ -32,16 +32,16 @@ final class FetchService {
         path: String?,
         update: Bool
     ) async throws {
-        let path = self.path(path)
+        let path = try self.path(path)
 
         try await fetchDependencies(path: path, update: update, with: fetchPlugins(path: path))
     }
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) -> AbsolutePath {
+    private func path(_ path: String?) throws -> AbsolutePath {
         if let path = path {
-            return AbsolutePath(path, relativeTo: currentPath)
+            return try AbsolutePath(validating: path, relativeTo: currentPath)
         } else {
             return currentPath
         }

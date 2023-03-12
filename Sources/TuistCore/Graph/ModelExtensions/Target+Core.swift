@@ -53,14 +53,14 @@ extension Target {
         var invalidGlobs: [InvalidGlob] = []
 
         try sources.forEach { source in
-            let sourcePath = AbsolutePath(source.glob)
-            let base = AbsolutePath(sourcePath.dirname)
+            let sourcePath = try AbsolutePath(validating: source.glob)
+            let base = try AbsolutePath(validating: sourcePath.dirname)
 
             // Paths that should be excluded from sources
             var excluded: [AbsolutePath] = []
-            source.excluding.forEach { path in
-                let absolute = AbsolutePath(path)
-                let globs = AbsolutePath(absolute.dirname).glob(absolute.basename)
+            try source.excluding.forEach { path in
+                let absolute = try AbsolutePath(validating: path)
+                let globs = try AbsolutePath(validating: absolute.dirname).glob(absolute.basename)
                 excluded.append(contentsOf: globs)
             }
 

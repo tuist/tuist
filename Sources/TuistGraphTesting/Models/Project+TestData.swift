@@ -5,9 +5,10 @@ import TSCUtility
 
 extension Project {
     public static func test(
-        path: AbsolutePath = AbsolutePath("/Project"),
-        sourceRootPath: AbsolutePath = AbsolutePath("/Project"),
-        xcodeProjPath: AbsolutePath = AbsolutePath("/Project/Project.xcodeproj"),
+        path: AbsolutePath = try! AbsolutePath(validating: "/Project"), // swiftlint:disable:this force_try
+        sourceRootPath: AbsolutePath = try! AbsolutePath(validating: "/Project"), // swiftlint:disable:this force_try
+        // swiftlint:disable:next force_try
+        xcodeProjPath: AbsolutePath = try! AbsolutePath(validating: "/Project/Project.xcodeproj"),
         name: String = "Project",
         organizationName: String? = nil,
         defaultKnownRegions: [String]? = nil,
@@ -47,9 +48,9 @@ extension Project {
     }
 
     public static func empty(
-        path: AbsolutePath = AbsolutePath("/test/"),
-        sourceRootPath: AbsolutePath = AbsolutePath("/test/"),
-        xcodeProjPath: AbsolutePath = AbsolutePath("/test/text.xcodeproj"),
+        path: AbsolutePath = try! AbsolutePath(validating: "/test/"), // swiftlint:disable:this force_try
+        sourceRootPath: AbsolutePath = try! AbsolutePath(validating: "/test/"), // swiftlint:disable:this force_try
+        xcodeProjPath: AbsolutePath = try! AbsolutePath(validating: "/test/text.xcodeproj"), // swiftlint:disable:this force_try
         name: String = "Project",
         organizationName: String? = nil,
         defaultKnownRegions: [String]? = nil,

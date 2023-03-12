@@ -24,7 +24,7 @@ final class MigrationCheckEmptyBuildSettingsServiceTests: TuistUnitTestCase {
 
     func test_run() throws {
         // Given
-        let xcodeprojPath = AbsolutePath("/test.xcodeproj")
+        let xcodeprojPath = try AbsolutePath(validating: "/test.xcodeproj")
         let target = "test"
 
         // When
@@ -37,7 +37,7 @@ final class MigrationCheckEmptyBuildSettingsServiceTests: TuistUnitTestCase {
 
     func test_run_rethrows_errors_thrown_by_the_checker() throws {
         // Given
-        let xcodeprojPath = AbsolutePath("/test.xcodeproj")
+        let xcodeprojPath = try AbsolutePath(validating: "/test.xcodeproj")
         let target = "test"
         let error = TestError("error")
         emptyBuildSettingsChecker.stubbedCheckError = error

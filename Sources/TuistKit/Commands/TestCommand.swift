@@ -69,7 +69,7 @@ struct TestCommand: AsyncParsableCommand {
         let absolutePath: AbsolutePath
 
         if let path = path {
-            absolutePath = AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+            absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             absolutePath = FileHandler.shared.currentPath
         }
@@ -83,8 +83,8 @@ struct TestCommand: AsyncParsableCommand {
             osVersion: os,
             skipUITests: skipUITests,
             resultBundlePath: resultBundlePath.map {
-                AbsolutePath(
-                    $0,
+                try AbsolutePath(
+                    validating: $0,
                     relativeTo: FileHandler.shared.currentPath
                 )
             },

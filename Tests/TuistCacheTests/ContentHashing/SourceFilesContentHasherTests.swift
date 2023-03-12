@@ -12,8 +12,8 @@ import XCTest
 final class SourceFilesContentHasherTests: TuistUnitTestCase {
     private var subject: SourceFilesContentHasher!
     private var mockContentHasher: MockContentHasher!
-    private let sourceFile1Path = AbsolutePath("/file1")
-    private let sourceFile2Path = AbsolutePath("/file2")
+    private let sourceFile1Path = try! AbsolutePath(validating: "/file1")
+    private let sourceFile2Path = try! AbsolutePath(validating: "/file2")
     private var sourceFile1: SourceFile!
     private var sourceFile2: SourceFile!
 

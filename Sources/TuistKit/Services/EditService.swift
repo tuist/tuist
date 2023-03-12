@@ -52,7 +52,7 @@ final class EditService {
         permanent: Bool,
         onlyCurrentDirectory: Bool
     ) async throws {
-        let path = self.path(path)
+        let path = try self.path(path)
         let plugins = await loadPlugins(at: path)
 
         if !permanent {
@@ -90,9 +90,9 @@ final class EditService {
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) -> AbsolutePath {
+    private func path(_ path: String?) throws -> AbsolutePath {
         if let path = path {
-            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
         }

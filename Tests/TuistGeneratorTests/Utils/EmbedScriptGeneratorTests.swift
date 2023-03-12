@@ -22,9 +22,9 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
 
     func test_script_when_includingSymbolsInFileLists() throws {
         // Given
-        let path = AbsolutePath("/frameworks/tuist.framework")
-        let dsymPath = AbsolutePath("/frameworks/tuist.dSYM")
-        let bcsymbolPath = AbsolutePath("/frameworks/tuist.bcsymbolmap")
+        let path = try AbsolutePath(validating: "/frameworks/tuist.framework")
+        let dsymPath = try AbsolutePath(validating: "/frameworks/tuist.dSYM")
+        let bcsymbolPath = try AbsolutePath(validating: "/frameworks/tuist.bcsymbolmap")
         let framework = GraphDependencyReference.testFramework(
             path: path,
             binaryPath: path.appending(component: "tuist"),
@@ -55,9 +55,9 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
 
     func test_script_when_not_includingSymbolsInFileLists() throws {
         // Given
-        let path = AbsolutePath("/frameworks/tuist.framework")
-        let dsymPath = AbsolutePath("/frameworks/tuist.dSYM")
-        let bcsymbolPath = AbsolutePath("/frameworks/tuist.bcsymbolmap")
+        let path = try AbsolutePath(validating: "/frameworks/tuist.framework")
+        let dsymPath = try AbsolutePath(validating: "/frameworks/tuist.dSYM")
+        let bcsymbolPath = try AbsolutePath(validating: "/frameworks/tuist.bcsymbolmap")
         let framework = GraphDependencyReference.testFramework(
             path: path,
             binaryPath: path.appending(component: "tuist"),
