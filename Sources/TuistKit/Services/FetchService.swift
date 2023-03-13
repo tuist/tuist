@@ -10,6 +10,7 @@ import TuistSupport
 final class FetchService {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
+    private let manifestLoader: ManifestLoading
     private let dependenciesController: DependenciesControlling
     private let dependenciesModelLoader: DependenciesModelLoading
     private let converter: ManifestModelConverting
@@ -17,12 +18,14 @@ final class FetchService {
     init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader()),
+        manifestLoader: ManifestLoading = ManifestLoader(),
         dependenciesController: DependenciesControlling = DependenciesController(),
         dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader(),
         converter: ManifestModelConverting = ManifestModelConverter()
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader
+        self.manifestLoader = manifestLoader
         self.dependenciesController = dependenciesController
         self.dependenciesModelLoader = dependenciesModelLoader
         self.converter = converter
@@ -63,6 +66,8 @@ final class FetchService {
     }
 
     private func fetchDependencies(path: AbsolutePath, update: Bool, with plugins: TuistGraph.Plugins) throws {
+        try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
+
         guard FileHandler.shared.exists(
             path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
         ) else {

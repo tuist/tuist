@@ -69,7 +69,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         ]
         let destination = XcodeBuildDestination.device("this_is_a_udid")
         let version = "15.2".version()
-        let device = "iPhone 13 Pro"
+        let device = "iPhone 14 Pro"
 
         simulatorController.findAvailableDeviceStub = { _, _version, _, _deviceName in
             XCTAssertEqual(_version, version)

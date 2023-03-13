@@ -46,6 +46,15 @@
       }
     },
     {
+      "identity" : "commander",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kylef/Commander.git",
+      "state" : {
+        "revision" : "4a1f2fb82fb6cef613c4a25d2e38f702e4d812c2",
+        "version" : "0.9.2"
+      }
+    },
+    {
       "identity" : "cryptoswift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/krzyzanowskim/CryptoSwift.git",
@@ -158,8 +167,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/stencilproject/Stencil.git",
       "state" : {
-        "revision" : "4f222ac85d673f35df29962fc4c36ccfdaf9da5b",
-        "version" : "0.15.1"
+        "revision" : "ccd9402682f4c07dac9561befd207c8156e80e20",
+        "version" : "0.14.2"
       }
     },
     {
@@ -247,8 +256,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftGen/SwiftGen",
       "state" : {
-        "revision" : "1cf6d7eebd70c2157f69d5a991bc57c1ef182ed1",
-        "version" : "6.6.2"
+        "revision" : "d498d285867f42ef0c74c5ebd9ddced747831372",
+        "version" : "6.5.1"
       }
     },
     {
