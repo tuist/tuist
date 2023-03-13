@@ -7,10 +7,13 @@ import XCTest
 final class FileHandlerErrorTests: XCTestCase {
     func test_description() {
         XCTAssertEqual(
-            FileHandlerError.invalidTextEncoding(AbsolutePath("/path")).description,
+            FileHandlerError.invalidTextEncoding(try AbsolutePath(validating: "/path")).description,
             "The file at /path is not a utf8 text file"
         )
-        XCTAssertEqual(FileHandlerError.writingError(AbsolutePath("/path")).description, "Couldn't write to the file /path")
+        XCTAssertEqual(
+            FileHandlerError.writingError(try AbsolutePath(validating: "/path")).description,
+            "Couldn't write to the file /path"
+        )
     }
 }
 
@@ -99,7 +102,7 @@ final class FileHandlerTests: TuistUnitTestCase {
     // MARK: - Private
 
     private func countItemsInRootTempDirectory(appropriateFor url: URL) throws -> Int {
-        let tempPath = AbsolutePath(try fileManager.url(
+        let tempPath = try AbsolutePath(validating: try fileManager.url(
             for: .itemReplacementDirectory,
             in: .userDomainMask,
             appropriateFor: url,

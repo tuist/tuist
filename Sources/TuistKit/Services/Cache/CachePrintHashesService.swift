@@ -33,9 +33,9 @@ final class CachePrintHashesService {
         self.configLoader = configLoader
     }
 
-    private func absolutePath(_ path: String?) -> AbsolutePath {
+    private func absolutePath(_ path: String?) throws -> AbsolutePath {
         if let path = path {
-            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
         }
@@ -47,7 +47,7 @@ final class CachePrintHashesService {
         destination: CacheXCFrameworkDestination,
         profile: String?
     ) async throws {
-        let absolutePath = absolutePath(path)
+        let absolutePath = try absolutePath(path)
         let timer = clock.startTimer()
         let config = try configLoader.loadConfig(path: absolutePath)
         let generator = generatorFactory.default()

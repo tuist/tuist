@@ -9,7 +9,7 @@ final class MockVersionsController: VersionsControlling {
     private let tmpDir: TemporaryDirectory
     var path: AbsolutePath { tmpDir.path }
     var pathCallCount: UInt = 0
-    var pathStub: ((String) -> AbsolutePath)?
+    var pathStub: ((String) throws -> AbsolutePath)?
     var installCallCount: UInt = 0
     var installStub: ((String, Installation) throws -> Void)?
     var versionsCallCount: UInt = 0
@@ -29,9 +29,9 @@ final class MockVersionsController: VersionsControlling {
         }
     }
 
-    func path(version: String) -> AbsolutePath {
+    func path(version: String) throws -> AbsolutePath {
         pathCallCount += 1
-        return pathStub?(version) ?? AbsolutePath("/test")
+        return try pathStub?(version) ?? AbsolutePath(validating: "/test")
     }
 
     func install(version: String, installation: Installation) throws {

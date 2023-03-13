@@ -31,6 +31,11 @@ module Fourier
             Utilities::System.system(
               "xcrun",
               "xcodebuild",
+              "-resolvePackageDependencies",
+            )
+            Utilities::System.system(
+              "xcrun",
+              "xcodebuild",
               "-scheme",
               product,
               "-configuration",
@@ -83,16 +88,16 @@ module Fourier
 
           command = [
             "swift",
-"build",
+            "build",
             "--configuration",
-"release",
+            "release",
             "--disable-sandbox",
             "--package-path",
-path,
+            path,
             "--product",
-product,
+            product,
             "--build-path",
-swift_build_directory,
+            swift_build_directory,
           ]
 
           arm_64 = [*command, "--triple", ARM64_TARGET]

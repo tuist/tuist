@@ -15,7 +15,7 @@ final class DumpService {
     func run(path: String?, manifest: DumpableManifest) async throws {
         let projectPath: AbsolutePath
         if let path = path {
-            projectPath = AbsolutePath(path, relativeTo: AbsolutePath.current)
+            projectPath = try AbsolutePath(validating: path, relativeTo: AbsolutePath.current)
         } else {
             projectPath = AbsolutePath.current
         }

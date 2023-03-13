@@ -68,7 +68,7 @@ extension Publisher where Output == SystemEvent<String>, Failure == Error {
 }
 
 extension Publisher {
-    public var values: AsyncThrowingStream<Output, Error> {
+    public var stream: AsyncThrowingStream<Output, Error> {
         AsyncThrowingStream(Output.self) { continuation in
             let cancellable = sink { completion in
                 switch completion {

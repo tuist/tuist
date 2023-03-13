@@ -6,13 +6,13 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class BundleServiceErrorTests: XCTestCase {
-    func test_type() {
-        let path = AbsolutePath("/test")
+    func test_type() throws {
+        let path = try AbsolutePath(validating: "/test")
         XCTAssertEqual(BundleServiceError.missingVersionFile(path).type, .abort)
     }
 
-    func test_description() {
-        let path = AbsolutePath("/test")
+    func test_description() throws {
+        let path = try AbsolutePath(validating: "/test")
         XCTAssertEqual(
             BundleServiceError.missingVersionFile(path).description,
             "Couldn't find a .tuist-version file in the directory \(path.pathString)"
@@ -56,7 +56,7 @@ final class BundleServiceTests: TuistUnitTestCase {
         try "3.2.1".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
 
         installer.installStub = { version in
-            let versionPath = self.versionsController.path(version: version)
+            let versionPath = try self.versionsController.path(version: version)
             try FileHandler.shared.createFolder(versionPath)
             try Data().write(to: versionPath.appending(component: "test").url)
         }
@@ -75,7 +75,7 @@ final class BundleServiceTests: TuistUnitTestCase {
 
         let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
         try "3.2.1".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
-        let versionPath = versionsController.path(version: "3.2.1")
+        let versionPath = try versionsController.path(version: "3.2.1")
         try FileHandler.shared.createFolder(versionPath)
 
         try subject.run()
@@ -88,7 +88,7 @@ final class BundleServiceTests: TuistUnitTestCase {
 
         let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
         try "3.2.1\n\t".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
-        let versionPath = versionsController.path(version: "3.2.1")
+        let versionPath = try versionsController.path(version: "3.2.1")
         try FileHandler.shared.createFolder(versionPath)
 
         try subject.run()
@@ -104,7 +104,7 @@ final class BundleServiceTests: TuistUnitTestCase {
         try "3.2.1".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
 
         installer.installStub = { version in
-            let versionPath = self.versionsController.path(version: version)
+            let versionPath = try self.versionsController.path(version: version)
             try FileHandler.shared.createFolder(versionPath)
             try Data().write(to: versionPath.appending(component: "test").url)
         }

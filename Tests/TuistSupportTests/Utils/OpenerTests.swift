@@ -7,12 +7,12 @@ import XCTest
 
 final class OpeningErrorTests: XCTestCase {
     func test_type() {
-        let path = AbsolutePath("/test")
+        let path = try! AbsolutePath(validating: "/test")
         XCTAssertEqual(OpeningError.notFound(path).type, .bug)
     }
 
     func test_description() {
-        let path = AbsolutePath("/test")
+        let path = try! AbsolutePath(validating: "/test")
         XCTAssertEqual(OpeningError.notFound(path).description, "Couldn't open file at path /test")
     }
 }

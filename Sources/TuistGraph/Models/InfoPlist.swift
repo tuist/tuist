@@ -58,7 +58,7 @@ public enum InfoPlist: Equatable, Codable {
 
 extension InfoPlist: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
-        self = .file(path: AbsolutePath(value))
+        self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
     }
 }
 

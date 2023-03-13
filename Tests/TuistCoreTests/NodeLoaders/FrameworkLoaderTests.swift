@@ -9,7 +9,7 @@ import XCTest
 final class FrameworkLoaderErrorTests: TuistUnitTestCase {
     func test_type_when_frameworkNotFound() {
         // Given
-        let path = AbsolutePath("/frameworks/tuist.framework")
+        let path = try! AbsolutePath(validating: "/frameworks/tuist.framework")
         let subject = FrameworkLoaderError.frameworkNotFound(path)
 
         // When
@@ -21,7 +21,7 @@ final class FrameworkLoaderErrorTests: TuistUnitTestCase {
 
     func test_description_when_frameworkNotFound() {
         // Given
-        let path = AbsolutePath("/frameworks/tuist.framework")
+        let path = try! AbsolutePath(validating: "/frameworks/tuist.framework")
         let subject = FrameworkLoaderError.frameworkNotFound(path)
 
         // When
