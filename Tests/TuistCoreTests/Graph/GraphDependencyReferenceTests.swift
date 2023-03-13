@@ -80,13 +80,13 @@ private enum KnownGraphDependencyReference: CaseIterable {
     func sampleReferences(name: String) -> [GraphDependencyReference] {
         switch self {
         case .xcframework:
-            return [.testXCFramework(path: AbsolutePath("/dependencies/\(name).xcframework"))]
+            return [.testXCFramework(path: try! AbsolutePath(validating: "/dependencies/\(name).xcframework"))]
         case .framework:
-            return [.testFramework(path: AbsolutePath("/dependencies/\(name).framework"))]
+            return [.testFramework(path: try! AbsolutePath(validating: "/dependencies/\(name).framework"))]
         case .bundle:
-            return [.bundle(path: AbsolutePath("/dependencies/\(name).bundle"))]
+            return [.bundle(path: try! AbsolutePath(validating: "/dependencies/\(name).bundle"))]
         case .library:
-            return [.testLibrary(path: AbsolutePath("/dependencies/lib\(name).a"))]
+            return [.testLibrary(path: try! AbsolutePath(validating: "/dependencies/lib\(name).a"))]
         case .product:
             return [
                 .product(target: name, productName: "\(name).framework", platformFilter: nil),
@@ -98,8 +98,8 @@ private enum KnownGraphDependencyReference: CaseIterable {
             ]
         case .sdk:
             return [
-                .sdk(path: AbsolutePath("/sdks/\(name).framework"), status: .required, source: .system),
-                .sdk(path: AbsolutePath("/sdks/\(name).tbd"), status: .required, source: .system),
+                .sdk(path: try! AbsolutePath(validating: "/sdks/\(name).framework"), status: .required, source: .system),
+                .sdk(path: try! AbsolutePath(validating: "/sdks/\(name).tbd"), status: .required, source: .system),
             ]
         }
     }

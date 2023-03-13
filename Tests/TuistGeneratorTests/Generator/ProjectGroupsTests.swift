@@ -19,8 +19,8 @@ final class ProjectGroupsTests: XCTestCase {
     override func setUp() {
         super.setUp()
 
-        let path = AbsolutePath("/test/")
-        sourceRootPath = AbsolutePath("/test/")
+        let path = try! AbsolutePath(validating: "/test/")
+        sourceRootPath = try! AbsolutePath(validating: "/test/")
         project = Project(
             path: path,
             sourceRootPath: path,

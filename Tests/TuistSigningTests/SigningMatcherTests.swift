@@ -55,10 +55,10 @@ final class SigningMatcherTests: TuistUnitTestCase {
         let releaseConfiguration = "release"
         let date = Date()
         let targetName = "TargetOne"
-        let publicKeyPath = AbsolutePath("/\(targetName)/\(debugConfiguration).cer")
-        let privateKeyPath = AbsolutePath("/\(targetName)/\(debugConfiguration).p12")
-        let releasePublicKeyPath = AbsolutePath("/\(targetName)/\(releaseConfiguration).cer")
-        let releasePrivateKeyPath = AbsolutePath("/\(targetName)/\(releaseConfiguration).p12")
+        let publicKeyPath = try AbsolutePath(validating: "/\(targetName)/\(debugConfiguration).cer")
+        let privateKeyPath = try AbsolutePath(validating: "/\(targetName)/\(debugConfiguration).p12")
+        let releasePublicKeyPath = try AbsolutePath(validating: "/\(targetName)/\(releaseConfiguration).cer")
+        let releasePrivateKeyPath = try AbsolutePath(validating: "/\(targetName)/\(releaseConfiguration).p12")
         signingFilesLocator.locateUnencryptedCertificatesStub = { _ in
             [
                 publicKeyPath,
@@ -98,8 +98,9 @@ final class SigningMatcherTests: TuistUnitTestCase {
             ),
         ]
 
-        let debugProvisioningProfilePath = AbsolutePath("/\(targetName).\(debugConfiguration).mobileprovision")
-        let releaseProvisioningProfilePath = AbsolutePath("/\(targetName).\(releaseConfiguration).mobileprovision")
+        let debugProvisioningProfilePath = try AbsolutePath(validating: "/\(targetName).\(debugConfiguration).mobileprovision")
+        let releaseProvisioningProfilePath =
+            try AbsolutePath(validating: "/\(targetName).\(releaseConfiguration).mobileprovision")
         signingFilesLocator.locateProvisioningProfilesStub = { _ in
             [
                 debugProvisioningProfilePath,

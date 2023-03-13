@@ -248,7 +248,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             projectSettings: .default,
             fileElements: ProjectFileElements(),
             graphTraverser: graphTraverser,
-            sourceRootPath: AbsolutePath("/project")
+            sourceRootPath: try AbsolutePath(validating: "/project")
         )
 
         // Then
@@ -321,7 +321,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             projectSettings: .default,
             fileElements: ProjectFileElements(),
             graphTraverser: graphTraverser,
-            sourceRootPath: AbsolutePath("/project")
+            sourceRootPath: try AbsolutePath(validating: "/project")
         )
 
         // Then
@@ -355,7 +355,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             projectSettings: .default,
             fileElements: ProjectFileElements(),
             graphTraverser: graphTraverser,
-            sourceRootPath: AbsolutePath("/project")
+            sourceRootPath: try AbsolutePath(validating: "/project")
         )
 
         // Then
@@ -389,7 +389,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             projectSettings: .default,
             fileElements: ProjectFileElements(),
             graphTraverser: graphTraverser,
-            sourceRootPath: AbsolutePath("/project")
+            sourceRootPath: try AbsolutePath(validating: "/project")
         )
 
         // Then
@@ -425,7 +425,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             projectSettings: .default,
             fileElements: ProjectFileElements(),
             graphTraverser: graphTraverser,
-            sourceRootPath: AbsolutePath("/project")
+            sourceRootPath: try AbsolutePath(validating: "/project")
         )
 
         // Then
@@ -457,7 +457,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             projectSettings: .default,
             fileElements: ProjectFileElements(),
             graphTraverser: graphTraverser,
-            sourceRootPath: AbsolutePath("/project")
+            sourceRootPath: try AbsolutePath(validating: "/project")
         )
 
         // Then
@@ -533,7 +533,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             projectSettings: projectSettings,
             fileElements: ProjectFileElements(),
             graphTraverser: graphTraverser,
-            sourceRootPath: AbsolutePath("/project")
+            sourceRootPath: try AbsolutePath(validating: "/project")
         )
 
         // Then
@@ -561,7 +561,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             projectSettings: projectSettings,
             fileElements: ProjectFileElements(),
             graphTraverser: graphTraverser,
-            sourceRootPath: AbsolutePath("/project")
+            sourceRootPath: try AbsolutePath(validating: "/project")
         )
 
         // Then
@@ -604,7 +604,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             projectSettings: projectSettings,
             fileElements: ProjectFileElements(),
             graphTraverser: graphTraverser,
-            sourceRootPath: AbsolutePath("/project")
+            sourceRootPath: try AbsolutePath(validating: "/project")
         )
 
         // Then
@@ -682,8 +682,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let target = Target.test(
             name: "Test",
             bundleId: "com.test.bundle_id",
-            infoPlist: .file(path: AbsolutePath("/Info.plist")),
-            entitlements: AbsolutePath("/Test.entitlements"),
+            infoPlist: .file(path: try AbsolutePath(validating: "/Info.plist")),
+            entitlements: try AbsolutePath(validating: "/Test.entitlements"),
             settings: Settings(base: ["Base": "Base"], configurations: configurations)
         )
         let project = Project.test(
@@ -713,7 +713,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             projectSettings: project.settings,
             fileElements: fileElements,
             graphTraverser: graphTraverser,
-            sourceRootPath: AbsolutePath("/")
+            sourceRootPath: try AbsolutePath(validating: "/")
         )
     }
 

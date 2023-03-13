@@ -12,12 +12,12 @@ import XCTest
 final class HeadersContentHasherTests: TuistUnitTestCase {
     private var subject: HeadersContentHasher!
     private var mockContentHasher: MockContentHasher!
-    private let filePath1 = AbsolutePath("/file1")
-    private let filePath2 = AbsolutePath("/file2")
-    private let filePath3 = AbsolutePath("/file3")
-    private let filePath4 = AbsolutePath("/file4")
-    private let filePath5 = AbsolutePath("/file5")
-    private let filePath6 = AbsolutePath("/file6")
+    private let filePath1 = try! AbsolutePath(validating: "/file1")
+    private let filePath2 = try! AbsolutePath(validating: "/file2")
+    private let filePath3 = try! AbsolutePath(validating: "/file3")
+    private let filePath4 = try! AbsolutePath(validating: "/file4")
+    private let filePath5 = try! AbsolutePath(validating: "/file5")
+    private let filePath6 = try! AbsolutePath(validating: "/file6")
 
     override func setUp() {
         super.setUp()

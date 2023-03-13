@@ -74,7 +74,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
 
     func test_map_removes_project_schemes_with_whose_all_targets_have_been_removed() throws {
         // Given
-        let path = AbsolutePath("/project")
+        let path = try AbsolutePath(validating: "/project")
         let prunedTarget = Target.test(name: "first", prune: true)
         let keptTarget = Target.test(name: "second", prune: false)
         let schemes: [Scheme] = [
@@ -99,7 +99,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
     }
 
     func test_map_keeps_project_schemes_with_whose_all_targets_have_been_removed_but_have_test_plans() throws {
-        let path = AbsolutePath("/project")
+        let path = try AbsolutePath(validating: "/project")
         let prunedTarget = Target.test(name: "first", prune: true)
         let keptTarget = Target.test(name: "second", prune: false)
         let schemes: [Scheme] = [
@@ -136,7 +136,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
 
     func test_map_removes_the_workspace_projects_that_no_longer_exist() throws {
         // Given
-        let path = AbsolutePath("/project")
+        let path = try AbsolutePath(validating: "/project")
         let removedProjectPath = AbsolutePath.root.appending(component: "Other")
         let target = Target.test(name: "first", prune: true)
         let schemes: [Scheme] = [
@@ -166,7 +166,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
 
     func test_map_treeshakes_the_workspace_schemes() throws {
         // Given
-        let path = AbsolutePath("/project")
+        let path = try AbsolutePath(validating: "/project")
         let removedProjectPath = AbsolutePath.root.appending(component: "Other")
         let target = Target.test(name: "first", prune: true)
         let schemes: [Scheme] = [
@@ -196,7 +196,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
 
     func test_map_removes_pruned_targets_from_scheme() throws {
         // Given
-        let path = AbsolutePath("/project")
+        let path = try AbsolutePath(validating: "/project")
         let targets = [
             Target.test(name: "first", prune: true),
             Target.test(name: "second", prune: false),

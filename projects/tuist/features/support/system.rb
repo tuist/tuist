@@ -15,7 +15,10 @@ module System
       end
       assert(status.success?)
     else
-      _, err, status = Open3.capture3(args.join(" "))
+      out, err, status = Open3.capture3(args.join(" "))
+      puts args.join(" ")
+      puts out
+      puts status
       assert(status.success?, err)
     end
   end

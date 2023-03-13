@@ -43,7 +43,7 @@ final class BundleService {
         let version = try String(contentsOf: versionFilePath.url).trimmingCharacters(in: .whitespacesAndNewlines)
         logger.notice("Bundling the version \(version) in the directory \(binFolderPath.pathString)", metadata: .section)
 
-        let versionPath = versionsController.path(version: version)
+        let versionPath = try versionsController.path(version: version)
 
         // Installing
         if !FileHandler.shared.exists(versionPath) {

@@ -37,13 +37,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let settings = Settings(
             base: [:],
             configurations: [
-                .debug: Configuration(xcconfig: AbsolutePath("/project/debug.xcconfig")),
-                .release: Configuration(xcconfig: AbsolutePath("/project/release.xcconfig")),
+                .debug: Configuration(xcconfig: try! AbsolutePath(validating: "/project/debug.xcconfig")),
+                .release: Configuration(xcconfig: try! AbsolutePath(validating: "/project/release.xcconfig")),
             ]
         )
 
         let project = Project.test(
-            path: AbsolutePath("/project/"),
+            path: try! AbsolutePath(validating: "/project/"),
             settings: settings,
             schemes: [
                 .test(
@@ -371,8 +371,14 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         // Given
         let settings = Settings.test(
             base: [:],
-            debug: Configuration(settings: ["Configuration": "A"], xcconfig: AbsolutePath("/project/debug.xcconfig")),
-            release: Configuration(settings: ["Configuration": "B"], xcconfig: AbsolutePath("/project/release.xcconfig"))
+            debug: Configuration(
+                settings: ["Configuration": "A"],
+                xcconfig: try AbsolutePath(validating: "/project/debug.xcconfig")
+            ),
+            release: Configuration(
+                settings: ["Configuration": "B"],
+                xcconfig: try AbsolutePath(validating: "/project/release.xcconfig")
+            )
         )
 
         let target = Target.test(
@@ -380,13 +386,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             platform: .iOS,
             product: .app,
             bundleId: "com.bundle.id",
-            infoPlist: .file(path: AbsolutePath("/project/info.plist")),
-            entitlements: AbsolutePath("/project/app.entitlements"),
+            infoPlist: .file(path: try AbsolutePath(validating: "/project/info.plist")),
+            entitlements: try AbsolutePath(validating: "/project/app.entitlements"),
             settings: settings,
-            sources: [SourceFile(path: AbsolutePath("/project/file.swift"))],
+            sources: [SourceFile(path: try AbsolutePath(validating: "/project/file.swift"))],
             resources: [
-                .file(path: AbsolutePath("/project/image.png")),
-                .folderReference(path: AbsolutePath("/project/reference")),
+                .file(path: try AbsolutePath(validating: "/project/image.png")),
+                .folderReference(path: try AbsolutePath(validating: "/project/reference")),
             ],
             copyFiles: [
                 CopyFilesAction(
@@ -400,18 +406,18 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                 ),
             ],
             coreDataModels: [CoreDataModel(
-                path: AbsolutePath("/project/model.xcdatamodeld"),
-                versions: [AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")],
+                path: try AbsolutePath(validating: "/project/model.xcdatamodeld"),
+                versions: [try AbsolutePath(validating: "/project/model.xcdatamodeld/1.xcdatamodel")],
                 currentVersion: "1"
             )],
             headers: Headers(
-                public: [AbsolutePath("/project/public.h")],
-                private: [AbsolutePath("/project/private.h")],
-                project: [AbsolutePath("/project/project.h")]
+                public: [try AbsolutePath(validating: "/project/public.h")],
+                private: [try AbsolutePath(validating: "/project/private.h")],
+                project: [try AbsolutePath(validating: "/project/project.h")]
             ),
             dependencies: [],
             playgrounds: ["/project/MyPlayground.playground"],
-            additionalFiles: [.file(path: AbsolutePath("/project/README.md"))]
+            additionalFiles: [.file(path: try AbsolutePath(validating: "/project/README.md"))]
         )
 
         // When
@@ -542,7 +548,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_generateDependencies_whenPrecompiledNode() throws {
         let pbxproj = PBXProj()
-        let sourceRootPath = AbsolutePath("/")
+        let sourceRootPath = try AbsolutePath(validating: "/")
         let target = Target.test()
         let projectGroupName = "Project"
         let projectGroup: ProjectGroup = .group(name: projectGroupName)
@@ -575,7 +581,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     func test_generatePath_whenGroupIsSpecified() throws {
         // Given
         let pbxproj = PBXProj()
-        let path = AbsolutePath("/a/b/c/file.swift")
+        let path = try AbsolutePath(validating: "/a/b/c/file.swift")
         let fileElement = GroupFileElement(path: path, group: .group(name: "SomeGroup"))
         let project = Project.test(
             path: .root,
@@ -583,7 +589,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"),
             filesGroup: .group(name: "SomeGroup")
         )
-        let sourceRootPath = AbsolutePath("/a/project/")
+        let sourceRootPath = try AbsolutePath(validating: "/a/project/")
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         // When
@@ -639,8 +645,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_addPlayground() throws {
         // Given
-        let from = AbsolutePath("/project/")
-        let fileAbsolutePath = AbsolutePath("/project/MyPlayground.playground")
+        let from = try AbsolutePath(validating: "/project/")
+        let fileAbsolutePath = try AbsolutePath(validating: "/project/MyPlayground.playground")
         let fileRelativePath = RelativePath("./MyPlayground.playground")
         let group = PBXGroup()
         let pbxproj = PBXProj()
@@ -666,8 +672,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_addVersionGroupElement() throws {
         // Given
-        let from = AbsolutePath("/project/")
-        let folderAbsolutePath = AbsolutePath("/project/model.xcdatamodeld")
+        let from = try AbsolutePath(validating: "/project/")
+        let folderAbsolutePath = try AbsolutePath(validating: "/project/model.xcdatamodeld")
         let folderRelativePath = RelativePath("./model.xcdatamodeld")
         let group = PBXGroup()
         let pbxproj = PBXProj()
@@ -692,8 +698,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     }
 
     func test_addFileElement() throws {
-        let from = AbsolutePath("/project/")
-        let fileAbsolutePath = AbsolutePath("/project/file.swift")
+        let from = try AbsolutePath(validating: "/project/")
+        let fileAbsolutePath = try AbsolutePath(validating: "/project/file.swift")
         let fileRelativePath = RelativePath("./file.swift")
         let group = PBXGroup()
         let pbxproj = PBXProj()
@@ -715,43 +721,43 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
     func test_group() {
         let group = PBXGroup()
-        let path = AbsolutePath("/path/to/folder")
+        let path = try! AbsolutePath(validating: "/path/to/folder")
         subject.elements[path] = group
         XCTAssertEqual(subject.group(path: path), group)
     }
 
     func test_file() {
         let file = PBXFileReference()
-        let path = AbsolutePath("/path/to/folder")
+        let path = try! AbsolutePath(validating: "/path/to/folder")
         subject.elements[path] = file
         XCTAssertEqual(subject.file(path: path), file)
     }
 
     func test_isLocalized() {
-        let path = AbsolutePath("/path/to/es.lproj")
+        let path = try! AbsolutePath(validating: "/path/to/es.lproj")
         XCTAssertTrue(subject.isLocalized(path: path))
     }
 
     func test_isVersionGroup() {
-        let path = AbsolutePath("/path/to/model.xcdatamodeld")
+        let path = try! AbsolutePath(validating: "/path/to/model.xcdatamodeld")
         XCTAssertTrue(subject.isVersionGroup(path: path))
     }
 
     func test_normalize_whenLocalized() {
-        let path = AbsolutePath("/test/es.lproj/Main.storyboard")
+        let path = try! AbsolutePath(validating: "/test/es.lproj/Main.storyboard")
         let normalized = subject.normalize(path)
-        XCTAssertEqual(normalized, AbsolutePath("/test/es.lproj"))
+        XCTAssertEqual(normalized, try AbsolutePath(validating: "/test/es.lproj"))
     }
 
     func test_normalize() {
-        let path = AbsolutePath("/test/file.swift")
+        let path = try! AbsolutePath(validating: "/test/file.swift")
         let normalized = subject.normalize(path)
         XCTAssertEqual(normalized, path)
     }
 
     func test_closestRelativeElementPath() {
-        let pathRelativeToSourceRoot = AbsolutePath("/a/framework/framework.framework")
-            .relative(to: AbsolutePath("/a/b/c/project"))
+        let pathRelativeToSourceRoot = try! AbsolutePath(validating: "/a/framework/framework.framework")
+            .relative(to: try! AbsolutePath(validating: "/a/b/c/project"))
         let got = subject.closestRelativeElementPath(pathRelativeToSourceRoot: pathRelativeToSourceRoot)
         XCTAssertEqual(got, RelativePath("../../../framework"))
     }
@@ -759,7 +765,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     func test_generateDependencies_sdks() throws {
         // Given
         let pbxproj = PBXProj()
-        let sourceRootPath = AbsolutePath("/a/project/")
+        let sourceRootPath = try AbsolutePath(validating: "/a/project/")
         let project = Project.test(
             path: sourceRootPath,
             sourceRootPath: sourceRootPath,

@@ -47,7 +47,7 @@ public final class SystemFrameworkMetadataProvider: SystemFrameworkMetadataProvi
         platform: Platform,
         source: SDKSource
     ) throws -> SystemFrameworkMetadata {
-        let sdkNamePath = AbsolutePath("/\(sdkName)")
+        let sdkNamePath = try AbsolutePath(validating: "/\(sdkName)")
         guard let sdkExtension = sdkNamePath.extension,
               let sdkType = SDKType(rawValue: sdkExtension)
         else {
@@ -66,13 +66,13 @@ public final class SystemFrameworkMetadataProvider: SystemFrameworkMetadataProvi
         switch source {
         case .developer:
             let xcodeDeveloperSdkRootPath = platform.xcodeDeveloperSdkRootPath
-            let sdkRootPath = AbsolutePath("/\(xcodeDeveloperSdkRootPath)")
+            let sdkRootPath = try AbsolutePath(validating: "/\(xcodeDeveloperSdkRootPath)")
             return sdkRootPath
                 .appending(RelativePath("Frameworks"))
                 .appending(component: name)
 
         case .system:
-            let sdkRootPath = AbsolutePath("/\(platform.xcodeSdkRootPath)")
+            let sdkRootPath = try AbsolutePath(validating: "/\(platform.xcodeSdkRootPath)")
             switch type {
             case .framework:
                 return sdkRootPath

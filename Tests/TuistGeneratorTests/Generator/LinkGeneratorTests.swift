@@ -11,7 +11,7 @@ import XCTest
 
 final class LinkGeneratorPathTests: TuistUnitTestCase {
     func test_xcodeValue() {
-        let path = AbsolutePath("/my-path")
+        let path = try! AbsolutePath(validating: "/my-path")
         XCTAssertEqual(LinkGeneratorPath.absolutePath(path).xcodeValue(sourceRootPath: .root), "$(SRCROOT)/my-path")
         XCTAssertEqual(
             LinkGeneratorPath.string("$(DEVELOPER_FRAMEWORKS_DIR)").xcodeValue(sourceRootPath: .root),
@@ -42,7 +42,7 @@ final class LinkGeneratorTests: XCTestCase {
             "Couldn't find a reference for the product name."
         )
         XCTAssertEqual(
-            LinkGeneratorError.missingReference(path: AbsolutePath("/")).description,
+            LinkGeneratorError.missingReference(path: try AbsolutePath(validating: "/")).description,
             "Couldn't find a reference for the file at path /."
         )
         XCTAssertEqual(
@@ -53,7 +53,7 @@ final class LinkGeneratorTests: XCTestCase {
 
     func test_linkGeneratorError_type() {
         XCTAssertEqual(LinkGeneratorError.missingProduct(name: "name").type, .bug)
-        XCTAssertEqual(LinkGeneratorError.missingReference(path: AbsolutePath("/")).type, .bug)
+        XCTAssertEqual(LinkGeneratorError.missingReference(path: try AbsolutePath(validating: "/")).type, .bug)
         XCTAssertEqual(LinkGeneratorError.missingConfigurationList(targetName: "target").type, .bug)
     }
 
@@ -68,14 +68,14 @@ final class LinkGeneratorTests: XCTestCase {
         let wakaFile = PBXFileReference()
         pbxproj.add(object: wakaFile)
         fileElements.products["Test"] = wakaFile
-        let sourceRootPath = AbsolutePath("/")
+        let sourceRootPath = try AbsolutePath(validating: "/")
         embedScriptGenerator.scriptStub = .success(EmbedScript(
             script: "script",
             inputPaths: [RelativePath("frameworks/A.framework")],
             outputPaths: ["output/A.framework"]
         ))
 
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
 
@@ -119,9 +119,9 @@ final class LinkGeneratorTests: XCTestCase {
         let wakaFile = PBXFileReference()
         pbxproj.add(object: wakaFile)
         fileElements.products["Test"] = wakaFile
-        let sourceRootPath = AbsolutePath("/")
+        let sourceRootPath = try AbsolutePath(validating: "/")
 
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
 
@@ -165,13 +165,13 @@ final class LinkGeneratorTests: XCTestCase {
             let wakaFile = PBXFileReference()
             pbxproj.add(object: wakaFile)
             fileElements.products["Test"] = wakaFile
-            let sourceRootPath = AbsolutePath("/")
+            let sourceRootPath = try AbsolutePath(validating: "/")
             embedScriptGenerator.scriptStub = .success(EmbedScript(
                 script: "script",
                 inputPaths: [RelativePath("frameworks/A.framework")],
                 outputPaths: ["output/A.framework"]
             ))
-            let path = AbsolutePath("/path/")
+            let path = try AbsolutePath(validating: "/path/")
             let graphTraverser = MockGraphTraverser()
             graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
 
@@ -206,13 +206,13 @@ final class LinkGeneratorTests: XCTestCase {
             let wakaFile = PBXFileReference()
             pbxproj.add(object: wakaFile)
             fileElements.products["Test"] = wakaFile
-            let sourceRootPath = AbsolutePath("/")
+            let sourceRootPath = try AbsolutePath(validating: "/")
             embedScriptGenerator.scriptStub = .success(EmbedScript(
                 script: "script",
                 inputPaths: [RelativePath("frameworks/A.framework")],
                 outputPaths: ["output/A.framework"]
             ))
-            let path = AbsolutePath("/path/")
+            let path = try AbsolutePath(validating: "/path/")
             let graphTraverser = MockGraphTraverser()
             graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
 
@@ -240,8 +240,8 @@ final class LinkGeneratorTests: XCTestCase {
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
-        let sourceRootPath = AbsolutePath("/")
-        let path = AbsolutePath("/path/")
+        let sourceRootPath = try AbsolutePath(validating: "/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
 
@@ -264,14 +264,14 @@ final class LinkGeneratorTests: XCTestCase {
         dependencies.insert(GraphDependencyReference.testXCFramework(path: "/Frameworks/Test.xcframework"))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
-        let sourceRootPath = AbsolutePath("/")
+        let sourceRootPath = try AbsolutePath(validating: "/")
 
         let group = PBXGroup()
         pbxproj.add(object: group)
 
-        let fileAbsolutePath = AbsolutePath("/Frameworks/Test.xcframework")
+        let fileAbsolutePath = try AbsolutePath(validating: "/Frameworks/Test.xcframework")
         let fileElements = createFileElements(fileAbsolutePath: fileAbsolutePath)
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
 
@@ -299,14 +299,14 @@ final class LinkGeneratorTests: XCTestCase {
     func test_setupRunPathSearchPath() throws {
         // Given
         let paths = [
-            AbsolutePath("/path/Dependencies/Frameworks/"),
-            AbsolutePath("/path/Dependencies/XCFrameworks/"),
+            try AbsolutePath(validating: "/path/Dependencies/Frameworks/"),
+            try AbsolutePath(validating: "/path/Dependencies/XCFrameworks/"),
         ].shuffled()
-        let sourceRootPath = AbsolutePath("/path")
+        let sourceRootPath = try AbsolutePath(validating: "/path")
         let xcodeprojElements = createXcodeprojElements()
         xcodeprojElements.config.buildSettings["LD_RUNPATH_SEARCH_PATHS"] = "my/custom/path"
         let target = Target.test()
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedRunPathSearchPathsResult = Set(paths)
 
@@ -342,11 +342,11 @@ final class LinkGeneratorTests: XCTestCase {
             GraphDependencyReference.testSDK(path: "/XCTest.framework", source: .developer),
             GraphDependencyReference.testProduct(target: "Foo", productName: "Foo.framework"),
         ].shuffled()
-        let sourceRootPath = AbsolutePath("/path")
+        let sourceRootPath = try AbsolutePath(validating: "/path")
         let xcodeprojElements = createXcodeprojElements()
         xcodeprojElements.config.buildSettings["FRAMEWORK_SEARCH_PATHS"] = "my/custom/path"
         let target = Target.test()
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedSearchablePathDependenciesResult = Set(dependencies)
         // When
@@ -371,7 +371,7 @@ final class LinkGeneratorTests: XCTestCase {
     }
 
     func test_setupHeadersSearchPath() throws {
-        let headersFolders = [AbsolutePath("/headers")]
+        let headersFolders = [try AbsolutePath(validating: "/headers")]
         let pbxproj = PBXProj()
 
         let pbxTarget = PBXNativeTarget(name: "Test")
@@ -385,9 +385,9 @@ final class LinkGeneratorTests: XCTestCase {
         pbxproj.add(object: config)
         configurationList.buildConfigurations.append(config)
 
-        let sourceRootPath = AbsolutePath("/")
+        let sourceRootPath = try AbsolutePath(validating: "/")
         let target = Target.test()
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLibrariesPublicHeadersFoldersResult = Set(headersFolders)
 
@@ -406,14 +406,14 @@ final class LinkGeneratorTests: XCTestCase {
     func test_setupHeadersSearchPaths_extendCustomSettings() throws {
         // Given
         let searchPaths = [
-            AbsolutePath("/path/to/libraries"),
-            AbsolutePath("/path/to/other/libraries"),
+            try AbsolutePath(validating: "/path/to/libraries"),
+            try AbsolutePath(validating: "/path/to/other/libraries"),
         ]
-        let sourceRootPath = AbsolutePath("/path")
+        let sourceRootPath = try AbsolutePath(validating: "/path")
         let xcodeprojElements = createXcodeprojElements()
         xcodeprojElements.config.buildSettings["HEADER_SEARCH_PATHS"] = "my/custom/path"
         let target = Target.test()
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLibrariesPublicHeadersFoldersResult = Set(searchPaths)
 
@@ -439,14 +439,14 @@ final class LinkGeneratorTests: XCTestCase {
     func test_setupHeadersSearchPaths_mergesDuplicates() throws {
         // Given
         let searchPaths = [
-            AbsolutePath("/path/to/libraries"),
-            AbsolutePath("/path/to/libraries"),
-            AbsolutePath("/path/to/libraries"),
+            try AbsolutePath(validating: "/path/to/libraries"),
+            try AbsolutePath(validating: "/path/to/libraries"),
+            try AbsolutePath(validating: "/path/to/libraries"),
         ]
-        let sourceRootPath = AbsolutePath("/path")
+        let sourceRootPath = try AbsolutePath(validating: "/path")
         let xcodeprojElements = createXcodeprojElements()
         let target = Target.test()
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLibrariesPublicHeadersFoldersResult = Set(searchPaths)
 
@@ -468,14 +468,14 @@ final class LinkGeneratorTests: XCTestCase {
     }
 
     func test_setupHeadersSearchPath_throws_whenTheConfigurationListIsMissing() throws {
-        let headersFolders = [AbsolutePath("/headers")]
+        let headersFolders = [try AbsolutePath(validating: "/headers")]
         let pbxproj = PBXProj()
 
         let pbxTarget = PBXNativeTarget(name: "Test")
         pbxproj.add(object: pbxTarget)
-        let sourceRootPath = AbsolutePath("/")
+        let sourceRootPath = try AbsolutePath(validating: "/")
         let target = Target.test()
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLibrariesPublicHeadersFoldersResult = Set(headersFolders)
 
@@ -493,13 +493,13 @@ final class LinkGeneratorTests: XCTestCase {
     func test_setupLibrarySearchPaths_multiplePaths() throws {
         // Given
         let searchPaths = [
-            AbsolutePath("/path/to/libraries"),
-            AbsolutePath("/path/to/other/libraries"),
+            try AbsolutePath(validating: "/path/to/libraries"),
+            try AbsolutePath(validating: "/path/to/other/libraries"),
         ]
-        let sourceRootPath = AbsolutePath("/path")
+        let sourceRootPath = try AbsolutePath(validating: "/path")
         let xcodeprojElements = createXcodeprojElements()
         let target = Target.test()
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLibrariesSearchPathsResult = Set(searchPaths)
 
@@ -521,10 +521,10 @@ final class LinkGeneratorTests: XCTestCase {
     func test_setupLibrarySearchPaths_noPaths() throws {
         // Given
         let searchPaths: [AbsolutePath] = []
-        let sourceRootPath = AbsolutePath("/path")
+        let sourceRootPath = try AbsolutePath(validating: "/path")
         let xcodeprojElements = createXcodeprojElements()
         let target = Target.test()
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLibrariesSearchPathsResult = Set(searchPaths)
 
@@ -545,13 +545,13 @@ final class LinkGeneratorTests: XCTestCase {
     func test_setupSwiftIncludePaths_multiplePaths() throws {
         // Given
         let searchPaths = [
-            AbsolutePath("/path/to/libraries"),
-            AbsolutePath("/path/to/other/libraries"),
+            try AbsolutePath(validating: "/path/to/libraries"),
+            try AbsolutePath(validating: "/path/to/other/libraries"),
         ]
-        let sourceRootPath = AbsolutePath("/path")
+        let sourceRootPath = try AbsolutePath(validating: "/path")
         let xcodeprojElements = createXcodeprojElements()
         let target = Target.test()
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLibrariesSwiftIncludePathsResult = Set(searchPaths)
 
@@ -573,10 +573,10 @@ final class LinkGeneratorTests: XCTestCase {
     func test_setupSwiftIncludePaths_noPaths() throws {
         // Given
         let searchPaths: [AbsolutePath] = []
-        let sourceRootPath = AbsolutePath("/path")
+        let sourceRootPath = try AbsolutePath(validating: "/path")
         let xcodeprojElements = createXcodeprojElements()
         let target = Target.test()
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLibrariesSwiftIncludePathsResult = Set(searchPaths)
 
@@ -606,8 +606,8 @@ final class LinkGeneratorTests: XCTestCase {
         let wakaFile = PBXFileReference()
         pbxproj.add(object: wakaFile)
         fileElements.products["Test"] = wakaFile
-        fileElements.elements[AbsolutePath("/test.framework")] = testFile
-        let path = AbsolutePath("/path/")
+        fileElements.elements[try AbsolutePath(validating: "/test.framework")] = testFile
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLinkableDependenciesResult = dependencies
 
@@ -635,7 +635,7 @@ final class LinkGeneratorTests: XCTestCase {
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLinkableDependenciesResult = dependencies
 
@@ -647,7 +647,10 @@ final class LinkGeneratorTests: XCTestCase {
             path: path,
             graphTraverser: graphTraverser
         )) {
-            XCTAssertEqual($0 as? LinkGeneratorError, LinkGeneratorError.missingReference(path: AbsolutePath("/test.framework")))
+            XCTAssertEqual(
+                $0 as? LinkGeneratorError,
+                LinkGeneratorError.missingReference(path: try! AbsolutePath(validating: "/test.framework"))
+            )
         }
     }
 
@@ -657,7 +660,7 @@ final class LinkGeneratorTests: XCTestCase {
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLinkableDependenciesResult = dependencies
 
@@ -685,7 +688,7 @@ final class LinkGeneratorTests: XCTestCase {
         let optionalFile = PBXFileReference(name: "optional")
         fileElements.sdks["/Strong/Foo.framework"] = requiredFile
         fileElements.sdks["/Weak/Bar.framework"] = optionalFile
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLinkableDependenciesResult = dependencies
 
@@ -715,7 +718,7 @@ final class LinkGeneratorTests: XCTestCase {
 
     func test_generateCopyProductsBuildPhase_staticTargetDependsOnStaticProducts() throws {
         // Given
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         var dependencies: Set<GraphDependencyReference> = []
         dependencies
             .insert(GraphDependencyReference.testProduct(target: "StaticDependency", productName: "libStaticDependency.a"))
@@ -752,7 +755,7 @@ final class LinkGeneratorTests: XCTestCase {
 
     func test_generateCopyProductsBuildPhase_dynamicTargetDependsOnStaticProducts() throws {
         // Given
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let target = Target.test(name: "Dynamic", product: .framework)
         let graph = Graph.test(
@@ -794,7 +797,7 @@ final class LinkGeneratorTests: XCTestCase {
 
     func test_generateCopyProductsBuildPhase_resourceBundles() throws {
         // Given
-        let path = AbsolutePath("/path/")
+        let path = try AbsolutePath(validating: "/path/")
         let resourceBundle = Target.test(name: "ResourceBundle", product: .bundle)
         let target = Target.test(name: "Target", product: .app)
         let graph = Graph.test(

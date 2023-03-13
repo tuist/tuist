@@ -79,7 +79,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
 
         versionsController.versionsStub = []
         versionsController.pathStub = {
-            $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
+            $0 == "3.2.1" ? temporaryPath : try AbsolutePath(validating: "/invalid")
         }
 
         versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(temporaryPath, "3.2.1") }
@@ -115,7 +115,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
 
         versionsController.versionsStub = []
         versionsController.pathStub = {
-            $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
+            $0 == "3.2.1" ? temporaryPath : try AbsolutePath(validating: "/invalid")
         }
 
         versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(temporaryPath, "3.2.1")
@@ -136,7 +136,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
 
         versionsController.semverVersionsStub = [Version("3.2.1")]
         versionsController.pathStub = {
-            $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
+            $0 == "3.2.1" ? temporaryPath : try AbsolutePath(validating: "/invalid")
         }
 
         system.succeedCommand([binaryPath.pathString, "--help"], output: "")
@@ -157,7 +157,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
         }
 
         versionsController.pathStub = {
-            $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
+            $0 == "3.2.1" ? temporaryPath : try AbsolutePath(validating: "/invalid")
         }
 
         system.succeedCommand([binaryPath.pathString, "--help"], output: "")
@@ -192,7 +192,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
 
         versionsController.semverVersionsStub = [Version("3.2.1")]
         versionsController.pathStub = {
-            $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
+            $0 == "3.2.1" ? temporaryPath : try AbsolutePath(validating: "/invalid")
         }
 
         system.errorCommand([binaryPath.pathString, "--help"], error: "error")

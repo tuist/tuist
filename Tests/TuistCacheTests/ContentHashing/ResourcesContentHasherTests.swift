@@ -12,8 +12,8 @@ import XCTest
 final class ResourcesContentHasherTests: TuistUnitTestCase {
     private var subject: ResourcesContentHasher!
     private var mockContentHasher: MockContentHasher!
-    private let filePath1 = AbsolutePath("/file1")
-    private let filePath2 = AbsolutePath("/file2")
+    private let filePath1 = try! AbsolutePath(validating: "/file1")
+    private let filePath2 = try! AbsolutePath(validating: "/file2")
 
     override func setUp() {
         super.setUp()

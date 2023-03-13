@@ -73,7 +73,7 @@ public protocol FileHandling: AnyObject {
     func urlSafeBase64MD5(path: AbsolutePath) throws -> String
     func fileSize(path: AbsolutePath) throws -> UInt64
     func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath
-    func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath
+    func resolveSymlinks(_ path: AbsolutePath) throws -> AbsolutePath
     func fileAttributes(at path: AbsolutePath) throws -> [FileAttributeKey: Any]
     func filesAndDirectoriesContained(in path: AbsolutePath) -> [AbsolutePath]?
     func zipItem(at sourcePath: AbsolutePath, to destinationPath: AbsolutePath) throws
@@ -95,11 +95,11 @@ public class FileHandler: FileHandling {
     }
 
     public var currentPath: AbsolutePath {
-        AbsolutePath(fileManager.currentDirectoryPath)
+        try! AbsolutePath(validating: fileManager.currentDirectoryPath) // swiftlint:disable:this force_try
     }
 
     public var homeDirectory: AbsolutePath {
-        AbsolutePath(NSHomeDirectory())
+        try! AbsolutePath(validating: NSHomeDirectory()) // swiftlint:disable:this force_try
     }
 
     public func replace(_ to: AbsolutePath, with: AbsolutePath) throws {
@@ -264,9 +264,10 @@ public class FileHandler: FileHandling {
 
         let configPath = from.appending(component: path)
 
+        let root = try! AbsolutePath(validating: "/") // swiftlint:disable:this force_try
         if FileHandler.shared.exists(configPath) {
             return configPath
-        } else if from == AbsolutePath("/") {
+        } else if from == root {
             return nil
         } else {
             return locateDirectoryTraversingParents(from: from.parentDirectory, path: path)
@@ -274,15 +275,15 @@ public class FileHandler: FileHandling {
     }
 
     public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
-        try fileManager.contentsOfDirectory(atPath: path.pathString).map { AbsolutePath(path, $0) }
+        try fileManager.contentsOfDirectory(atPath: path.pathString).map { try AbsolutePath(validating: $0, relativeTo: path) }
     }
 
     public func createSymbolicLink(at path: AbsolutePath, destination: AbsolutePath) throws {
         try fileManager.createSymbolicLink(atPath: path.pathString, withDestinationPath: destination.pathString)
     }
 
-    public func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath {
-        TSCBasic.resolveSymlinks(path)
+    public func resolveSymlinks(_ path: AbsolutePath) throws -> AbsolutePath {
+        try TSCBasic.resolveSymlinks(path)
     }
 
     public func fileAttributes(at path: AbsolutePath) throws -> [FileAttributeKey: Any] {

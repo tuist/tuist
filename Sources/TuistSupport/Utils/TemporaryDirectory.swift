@@ -42,7 +42,7 @@ public final class TemporaryDirectory {
             throw MakeDirectoryError.other(errno)
         }
 
-        self.path = AbsolutePath(String(cString: template))
+        self.path = try AbsolutePath(validating: String(cString: template))
     }
 
     /// Remove the temporary file before deallocating.

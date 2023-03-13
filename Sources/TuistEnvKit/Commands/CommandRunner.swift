@@ -97,7 +97,7 @@ class CommandRunner: CommandRunning {
             version = highgestVersion
         }
 
-        let path = versionsController.path(version: version)
+        let path = try versionsController.path(version: version)
         try runAtPath(path)
     }
 
@@ -113,7 +113,7 @@ class CommandRunner: CommandRunning {
             try installer.install(version: version)
         }
 
-        let path = versionsController.path(version: version)
+        let path = try versionsController.path(version: version)
         try runAtPath(path)
     }
 

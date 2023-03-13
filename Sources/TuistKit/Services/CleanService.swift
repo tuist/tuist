@@ -17,7 +17,7 @@ final class CleanService {
         categories: [CleanCategory],
         path: String?
     ) throws {
-        let path: AbsolutePath = self.path(path)
+        let path: AbsolutePath = try self.path(path)
         let manifestLoaderFactory = ManifestLoaderFactory()
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
@@ -39,9 +39,9 @@ final class CleanService {
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) -> AbsolutePath {
+    private func path(_ path: String?) throws -> AbsolutePath {
         if let path = path {
-            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
         }

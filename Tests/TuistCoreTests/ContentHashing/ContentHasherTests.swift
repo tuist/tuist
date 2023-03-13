@@ -76,9 +76,9 @@ final class ContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(hash, "37b51d194a7513e45b56f6524f2d51f2") // This is the md5 of "bar"
     }
 
-    func test_hashFile_whenFileDoesntExist_itThrowsFileNotFound() {
+    func test_hashFile_whenFileDoesntExist_itThrowsFileNotFound() throws {
         // Given
-        let wrongPath = AbsolutePath("/shakirashakira")
+        let wrongPath = try AbsolutePath(validating: "/shakirashakira")
 
         // Then
         XCTAssertThrowsError(try subject.hash(path: wrongPath)) { error in
