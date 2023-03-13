@@ -8,44 +8,44 @@ import XCTest
 final class AbsolutePathExtrasTests: TuistUnitTestCase {
     func test_commonAncestor_siblings() {
         // Given
-        let pathA = AbsolutePath("/path/to/A")
-        let pathB = AbsolutePath("/path/to/B")
+        let pathA = try! AbsolutePath(validating: "/path/to/A")
+        let pathB = try! AbsolutePath(validating: "/path/to/B")
 
         // When
         let result = pathA.commonAncestor(with: pathB)
 
         // Then
-        XCTAssertEqual(result, AbsolutePath("/path/to"))
+        XCTAssertEqual(result, try AbsolutePath(validating: "/path/to"))
     }
 
     func test_commonAncestor_parent() {
         // Given
-        let pathA = AbsolutePath("/path/to/A")
-        let pathB = AbsolutePath("/path/to/")
+        let pathA = try! AbsolutePath(validating: "/path/to/A")
+        let pathB = try! AbsolutePath(validating: "/path/to/")
 
         // When
         let result = pathA.commonAncestor(with: pathB)
 
         // Then
-        XCTAssertEqual(result, AbsolutePath("/path/to"))
+        XCTAssertEqual(result, try AbsolutePath(validating: "/path/to"))
     }
 
     func test_commonAncestor_none() {
         // Given
-        let pathA = AbsolutePath("/path/to/A")
-        let pathB = AbsolutePath("/another/path")
+        let pathA = try! AbsolutePath(validating: "/path/to/A")
+        let pathB = try! AbsolutePath(validating: "/another/path")
 
         // When
         let result = pathA.commonAncestor(with: pathB)
 
         // Then
-        XCTAssertEqual(result, AbsolutePath("/"))
+        XCTAssertEqual(result, try AbsolutePath(validating: "/"))
     }
 
     func test_commonAncestor_commutative() {
         // Given
-        let pathA = AbsolutePath("/path/to/A")
-        let pathB = AbsolutePath("/path/to/B")
+        let pathA = try! AbsolutePath(validating: "/path/to/A")
+        let pathB = try! AbsolutePath(validating: "/path/to/B")
 
         // When
         let resultA = pathA.commonAncestor(with: pathB)
@@ -70,26 +70,26 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
     }
 
     func test_isInOpaqueDirectory() throws {
-        XCTAssertFalse(AbsolutePath("/test/directory.bundle").isInOpaqueDirectory)
-        XCTAssertFalse(AbsolutePath("/test/directory.xcassets").isInOpaqueDirectory)
-        XCTAssertFalse(AbsolutePath("/test/directory.xcassets").isInOpaqueDirectory)
-        XCTAssertFalse(AbsolutePath("/test/directory.scnassets").isInOpaqueDirectory)
-        XCTAssertFalse(AbsolutePath("/test/directory.xcdatamodeld").isInOpaqueDirectory)
-        XCTAssertFalse(AbsolutePath("/test/directory.docc").isInOpaqueDirectory)
-        XCTAssertFalse(AbsolutePath("/test/directory.playground").isInOpaqueDirectory)
-        XCTAssertFalse(AbsolutePath("/test/directory.bundle").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.xcassets").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.scnassets").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.xcdatamodeld").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.docc").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.playground").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
 
-        XCTAssertFalse(AbsolutePath("/").isInOpaqueDirectory)
-        XCTAssertFalse(AbsolutePath("/test/directory.notopaque/file.notopaque").isInOpaqueDirectory)
-        XCTAssertFalse(AbsolutePath("/test/directory.notopaque/directory.bundle").isInOpaqueDirectory)
-        XCTAssertTrue(AbsolutePath("/test/directory.notopaque/directory.bundle/file.png").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle").isInOpaqueDirectory)
+        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.notopaque/directory.bundle/file.png").isInOpaqueDirectory)
 
-        XCTAssertTrue(AbsolutePath("/test/directory.bundle/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(AbsolutePath("/test/directory.xcassets/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(AbsolutePath("/test/directory.xcassets/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(AbsolutePath("/test/directory.scnassets/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(AbsolutePath("/test/directory.xcdatamodeld/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(AbsolutePath("/test/directory.docc/file.png").isInOpaqueDirectory)
-        XCTAssertTrue(AbsolutePath("/test/directory.playground/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.bundle/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.xcassets/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.xcassets/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.scnassets/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.xcdatamodeld/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.docc/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(try AbsolutePath(validating: "/test/directory.playground/file.png").isInOpaqueDirectory)
     }
 }

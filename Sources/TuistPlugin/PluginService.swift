@@ -140,12 +140,12 @@ public final class PluginService: PluginServicing { // swiftlint:disable:this ty
 
         try await fetchRemotePlugins(using: config)
 
-        let localPluginPaths: [AbsolutePath] = config.plugins
+        let localPluginPaths: [AbsolutePath] = try config.plugins
             .compactMap { pluginLocation in
                 switch pluginLocation {
                 case let .local(path):
                     logger.debug("Using plugin \(pluginLocation.description)", metadata: .subsection)
-                    return AbsolutePath(path)
+                    return try AbsolutePath(validating: path)
                 case .git:
                     return nil
                 }

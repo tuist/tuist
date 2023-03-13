@@ -45,7 +45,9 @@ public class Environment: Environmenting {
     public static var shared: Environmenting = Environment()
 
     /// Returns the default local directory.
-    static let defaultDirectory = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".tuist")
+    static let defaultDirectory = try! AbsolutePath( // swiftlint:disable:this force_try
+        validating: URL(fileURLWithPath: NSHomeDirectory()).path
+    ).appending(component: ".tuist")
 
     // MARK: - Attributes
 
@@ -116,19 +118,20 @@ public class Environment: Environmenting {
     /// Returns the directory where all the versions are.
     public var versionsDirectory: AbsolutePath {
         if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.versionsDirectory] {
-            return AbsolutePath(envVariable)
+            return try! AbsolutePath(validating: envVariable) // swiftlint:disable:this force_try
         } else {
             return directory.appending(component: "Versions")
         }
     }
 
     public var automationPath: AbsolutePath? {
-        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath].map { AbsolutePath($0) }
+        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath]
+            .map { try! AbsolutePath(validating: $0) } // swiftlint:disable:this force_try
     }
 
     public var queueDirectory: AbsolutePath {
         if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.queueDirectory] {
-            return AbsolutePath(envVariable)
+            return try! AbsolutePath(validating: envVariable) // swiftlint:disable:this force_try
         } else {
             return directory.appending(component: Constants.AsyncQueue.directoryName)
         }

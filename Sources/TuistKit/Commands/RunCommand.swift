@@ -52,7 +52,7 @@ struct RunCommand: AsyncParsableCommand {
     var scheme: String
 
     @Argument(
-        parsing: .unconditionalRemaining,
+        parsing: .captureForPassthrough,
         help: "The arguments to pass to the runnable target during execution."
     )
     var arguments: [String] = []

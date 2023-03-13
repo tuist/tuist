@@ -24,23 +24,23 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
     func test_locate_WHEN_platform_IS_macOS() throws {
         // GIVEN
         let projectName = "TestProject"
-        let projectPath = AbsolutePath("/Project/\(projectName)")
-        derivedDataLocator.locateStub = { _ in AbsolutePath("/Xcode/DerivedData/\(projectName)") }
+        let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
+        derivedDataLocator.locateStub = { _ in try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)") }
         let configuration = "Release"
 
         // WHEN
         let path = try subject.locate(platform: .macOS, projectPath: projectPath, configuration: configuration)
 
         // THEN
-        let expectedPath = AbsolutePath("/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)")
+        let expectedPath = try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)")
         XCTAssertEqual(path, expectedPath)
     }
 
     func test_locate_WHEN_platform_IS_iOS() throws {
         // GIVEN
         let projectName = "TestProject"
-        let projectPath = AbsolutePath("/Project/\(projectName)")
-        derivedDataLocator.locateStub = { _ in AbsolutePath("/Xcode/DerivedData/\(projectName)") }
+        let projectPath = try AbsolutePath(validating: "/Project/\(projectName)")
+        derivedDataLocator.locateStub = { _ in try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)") }
         let configuration = "Release"
         let sdk = "iphonesimulator"
 
@@ -48,7 +48,8 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         let path = try subject.locate(platform: .iOS, projectPath: projectPath, configuration: configuration)
 
         // THEN
-        let expectedPath = AbsolutePath("/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)-\(sdk)")
+        let expectedPath =
+            try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)-\(sdk)")
         XCTAssertEqual(path, expectedPath)
     }
 }

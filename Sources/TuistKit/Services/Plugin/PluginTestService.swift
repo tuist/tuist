@@ -15,7 +15,7 @@ final class PluginTestService {
         if let path = path {
             testCommand += [
                 "--package-path",
-                AbsolutePath(path, relativeTo: FileHandler.shared.currentPath).pathString,
+                try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath).pathString,
             ]
         }
         if buildTests {

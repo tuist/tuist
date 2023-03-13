@@ -17,7 +17,7 @@ public class MachineEnvironment: MachineEnvironmentRetrieving {
     /// `clientId` is a unique anonymous hash that identifies the machine running Tuist
     public lazy var clientId: String = {
         let matchingDict = IOServiceMatching("IOPlatformExpertDevice")
-        let platformExpert = IOServiceGetMatchingService(kIOMasterPortDefault, matchingDict)
+        let platformExpert = IOServiceGetMatchingService(kIOMainPortDefault, matchingDict)
         defer { IOObjectRelease(platformExpert) }
         guard platformExpert != 0 else {
             fatalError("Couldn't obtain the platform expert")

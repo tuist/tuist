@@ -18,6 +18,7 @@ import XCTest
 final class FetchServiceTests: TuistUnitTestCase {
     private var pluginService: MockPluginService!
     private var configLoader: MockConfigLoader!
+    private var manifestLoader: MockManifestLoader!
     private var dependenciesController: MockDependenciesController!
     private var dependenciesModelLoader: MockDependenciesModelLoader!
 
@@ -28,12 +29,15 @@ final class FetchServiceTests: TuistUnitTestCase {
 
         pluginService = MockPluginService()
         configLoader = MockConfigLoader()
+        manifestLoader = MockManifestLoader()
+        manifestLoader.manifestsAtStub = { _ in [.project] }
         dependenciesController = MockDependenciesController()
         dependenciesModelLoader = MockDependenciesModelLoader()
 
         subject = FetchService(
             pluginService: pluginService,
             configLoader: configLoader,
+            manifestLoader: manifestLoader,
             dependenciesController: dependenciesController,
             dependenciesModelLoader: dependenciesModelLoader
         )

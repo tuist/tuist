@@ -61,10 +61,10 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
         let fullPath = FileHandler.shared.currentPath.pathString + "/full/path"
         // When
-        _ = try await subject.run(path: fullPath, xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: fullPath, xcframeworks: false, destination: [], profile: nil)
 
         // Then
-        XCTAssertEqual(generator.invokedLoadParameterPath, AbsolutePath(fullPath))
+        XCTAssertEqual(generator.invokedLoadParameterPath, try AbsolutePath(validating: fullPath))
     }
 
     func test_run_withoutPath_loads_the_graph() async throws {
@@ -77,7 +77,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try await subject.run(path: nil, xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: nil, xcframeworks: false, destination: [], profile: nil)
 
         // Then
         XCTAssertEqual(generator.invokedLoadParameterPath, FileHandler.shared.currentPath)
@@ -93,12 +93,12 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try await subject.run(path: "RelativePath", xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: "RelativePath", xcframeworks: false, destination: [], profile: nil)
 
         // Then
         XCTAssertEqual(
             generator.invokedLoadParameterPath,
-            AbsolutePath("RelativePath", relativeTo: FileHandler.shared.currentPath)
+            try AbsolutePath(validating: "RelativePath", relativeTo: FileHandler.shared.currentPath)
         )
     }
 
@@ -112,7 +112,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try await subject.run(path: path, xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: false, destination: [], profile: nil)
 
         // Then
         XCTAssertEqual(generator.invokedLoadParameterPath, "/Test")
@@ -136,7 +136,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try await subject.run(path: path, xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: false, destination: [], profile: nil)
 
         // Then
         XCTAssertEqual(invokedGraph, graph)
@@ -158,7 +158,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try await subject.run(path: path, xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: false, destination: [], profile: nil)
 
         // Then
         XCTAssertPrinterOutputContains("ShakiOne - hash1")
@@ -174,10 +174,22 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try await subject.run(path: path, xcframeworks: true, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: true, destination: [.device, .simulator], profile: nil)
 
         // Then
-        XCTAssertEqual(xcframeworkOutputType, .xcframework)
+        XCTAssertEqual(xcframeworkOutputType, .xcframework([.device, .simulator]))
+
+        // When
+        _ = try await subject.run(path: path, xcframeworks: true, destination: .device, profile: nil)
+
+        // Then
+        XCTAssertEqual(xcframeworkOutputType, .xcframework(.device))
+
+        // When
+        _ = try await subject.run(path: path, xcframeworks: true, destination: .simulator, profile: nil)
+
+        // Then
+        XCTAssertEqual(xcframeworkOutputType, .xcframework(.simulator))
 
         // Given
         var frameworkOutputType: CacheOutputType?
@@ -187,7 +199,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try await subject.run(path: path, xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: false, destination: [], profile: nil)
 
         // Then
         XCTAssertEqual(frameworkOutputType, .framework)
@@ -212,7 +224,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try await subject.run(path: path, xcframeworks: false, profile: "Simulator")
+        _ = try await subject.run(path: path, xcframeworks: false, destination: [], profile: "Simulator")
 
         // Then
         XCTAssertEqual(invokedCacheProfile, profile)

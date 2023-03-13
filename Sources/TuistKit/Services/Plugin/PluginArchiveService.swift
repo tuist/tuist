@@ -21,7 +21,7 @@ final class PluginArchiveService {
     }
 
     func run(path: String?) throws {
-        let path = self.path(path)
+        let path = try self.path(path)
 
         let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: path)
         let taskProducts = packageInfo.products
@@ -56,9 +56,9 @@ final class PluginArchiveService {
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) -> AbsolutePath {
+    private func path(_ path: String?) throws -> AbsolutePath {
         if let path = path {
-            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
         }

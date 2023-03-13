@@ -33,7 +33,7 @@ public struct SourceFile: ExpressibleByStringLiteral, Equatable, Codable {
     // MARK: - ExpressibleByStringLiteral
 
     public init(stringLiteral value: String) {
-        path = AbsolutePath(value)
+        path = try! AbsolutePath(validating: value) // swiftlint:disable:this force_try
         compilerFlags = nil
         contentHash = nil
         codeGen = nil
