@@ -36,6 +36,49 @@ public enum SwiftOptimizationLevel: String {
     case oSize = "-Osize"
 }
 
+public enum ApplicationCategory: String {
+    case business = "public.app-category.business"
+    case developerTools = "public.app-category.developer-tools"
+    case education = "public.app-category.education"
+    case entertainment = "public.app-category.entertainment"
+    case finance = "public.app-category.finance"
+    case games = "public.app-category.games"
+    case actionGames = "public.app-category.action-games"
+    case adventureGames = "public.app-category.adventure-games"
+    case arcadeGames = "public.app-category.arcade-games"
+    case boardGames = "public.app-category.board-games"
+    case cardGames = "public.app-category.card-games"
+    case casinoGames = "public.app-category.casino-games"
+    case diceGames = "public.app-category.dice-games"
+    case educationalGames = "public.app-category.educational-games"
+    case familyGames = "public.app-category.family-games"
+    case kidsGames = "public.app-category.kids-games"
+    case musicGames = "public.app-category.music-games"
+    case puzzleGames = "public.app-category.puzzle-games"
+    case racingGames = "public.app-category.racing-games"
+    case rolePlayingGames = "public.app-category.role-playing-games"
+    case simulationGames = "public.app-category.simulation-games"
+    case sportsGames = "public.app-category.sports-games"
+    case strategyGames = "public.app-category.strategy-games"
+    case triviaGames = "public.app-category.trivia-games"
+    case wordGames = "public.app-category.word-games"
+    case graphicsDesign = "public.app-category.graphics-design"
+    case healthcareFitness = "public.app-category.healthcare-fitness"
+    case lifestyle = "public.app-category.lifestyle"
+    case medical = "public.app-category.medical"
+    case music = "public.app-category.music"
+    case news = "public.app-category.news"
+    case photography = "public.app-category.photography"
+    case productivity = "public.app-category.productivity"
+    case reference = "public.app-category.reference"
+    case socialNetworking = "public.app-category.social-networking"
+    case sports = "public.app-category.sports"
+    case travel = "public.app-category.travel"
+    case utilities = "public.app-category.utilities"
+    case video = "public.app-category.video"
+    case weather = "public.app-category.weather"
+}
+
 extension SettingsDictionary {
     // MARK: - Code signing
 
@@ -168,6 +211,18 @@ extension SettingsDictionary {
     /// Sets `"DEBUG_INFORMATION_FORMAT"`to `"dwarf"` or `"dwarf-with-dsym"`
     public func debugInformationFormat(_ format: DebugInformationFormat) -> SettingsDictionary {
         merging(["DEBUG_INFORMATION_FORMAT": SettingValue(format)])
+    }
+
+    // MARK: - Info.plist Values
+
+    /// Sets `INFOPLIST_KEY_LSApplicationCategoryType` to `category`.
+    public func applicationCategory(_ category: ApplicationCategory) -> SettingsDictionary {
+        merging(["INFOPLIST_KEY_LSApplicationCategoryType": SettingValue(category.rawValue)])
+    }
+
+    /// Sets `INFOPLIST_KEY_LSApplicationCategoryType` to `name`.
+    public func bundleDisplayName(_ name: String) -> SettingsDictionary {
+        merging(["INFOPLIST_KEY_CFBundleDisplayName": SettingValue(name)])
     }
 }
 
