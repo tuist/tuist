@@ -176,8 +176,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftGen/StencilSwiftKit.git",
       "state" : {
-        "revision" : "20e2de5322c83df005939d9d9300fab130b49f97",
-        "version" : "2.10.1"
+        "revision" : "a329217a79ce9b20557f870b926f7ae9769af05e",
+        "version" : "2.9.0"
       }
     },
     {
@@ -274,8 +274,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jpsim/Yams.git",
       "state" : {
-        "revision" : "f47ba4838c30dbd59998a4e4c87ab620ff959e8a",
-        "version" : "5.0.5"
+        "revision" : "9ff1cc9327586db4e0c8f46f064b6a82ec1566fa",
+        "version" : "4.0.6"
       }
     },
     {
