@@ -53,3 +53,14 @@ Feature: A set of tests that run with pre-compiled binaries that are only compat
     Then I should be able to build for iOS the scheme App
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the framework 'MyFramework' with architecture 'x86_64'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers
+
+  Scenario: The project is an iOS application with a static library in an xcframework (ios_app_with_static_library_in_xcframework)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_static_library_in_xcframework into the working directory
+    Then tuist generates the project
+    Then I should be able to build for iOS the scheme App
+    Then App links the framework MyStaticFramework
+    Then App doesn't link the framework MyStaticLibrary
+    Then MyStaticFramework links the xcframework MyStaticLibrary
+    

@@ -103,6 +103,16 @@ Then(/^([a-zA-Z0-9]+) links the framework ([a-zA-Z0-9]+)$/) do |target_name, fra
   end
 end
 
+Then(/^([a-zA-Z0-9]+) doesn't link the framework ([a-zA-Z0-9]+)$/) do |target_name, framework|
+  projects = Xcode.projects(@workspace_path)
+  target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
+  flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
+  framework_deps = target.frameworks_build_phases.file_display_names.filter { |d| d.include?(".framework") }
+  if framework_deps.include?("#{framework}.framework")
+    flunk("Target #{target_name} links the framework #{framework}")
+  end
+end
+
 Then(/^([a-zA-Z0-9]+) embeds the xcframework ([a-zA-Z0-9]+)$/) do |target_name, xcframework|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }

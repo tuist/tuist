@@ -1,0 +1,4 @@
+framework module MyStaticFramework {
+  header "MyStaticFramework-Swift.h"
+  requires objc
+}
