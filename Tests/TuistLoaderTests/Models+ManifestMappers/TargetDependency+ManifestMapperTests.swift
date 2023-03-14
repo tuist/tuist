@@ -13,7 +13,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_external_xcframework() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.external(name: "library")
-        let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
         let got = try TuistGraph.TargetDependency.from(
@@ -37,7 +37,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_external_project() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.external(name: "library")
-        let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
         let got = try TuistGraph.TargetDependency.from(
@@ -62,7 +62,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_external_multiple() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.external(name: "library")
-        let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
         let got = try TuistGraph.TargetDependency.from(
@@ -98,7 +98,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_sdkLibrary() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.sdk(name: "c++", type: .library, status: .required)
-        let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
         let got = try TuistGraph.TargetDependency.from(
@@ -121,7 +121,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_sdkFramework() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.sdk(name: "ARKit", type: .framework, status: .required)
-        let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
 
         // When
         let got = try TuistGraph.TargetDependency.from(

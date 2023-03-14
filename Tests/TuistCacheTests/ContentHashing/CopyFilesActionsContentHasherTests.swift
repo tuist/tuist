@@ -54,8 +54,8 @@ final class CopyFilesActionsContentHasherTests: TuistUnitTestCase {
         let file1Hash = "file1-content-hash"
         let file2Hash = "file2-content-hash"
         let copyFilesAction = makeCopyFilesAction()
-        contentHasher.stubHashForPath[AbsolutePath("/file1.ttf")] = file1Hash
-        contentHasher.stubHashForPath[AbsolutePath("/file2.ttf")] = file2Hash
+        contentHasher.stubHashForPath[try AbsolutePath(validating: "/file1.ttf")] = file1Hash
+        contentHasher.stubHashForPath[try AbsolutePath(validating: "/file2.ttf")] = file2Hash
 
         // When
         _ = try subject.hash(copyFiles: [copyFilesAction])
@@ -76,7 +76,7 @@ final class CopyFilesActionsContentHasherTests: TuistUnitTestCase {
             files: [.file(path: "/file1.template")]
         )
 
-        contentHasher.stubHashForPath[AbsolutePath("/file1.template")] = file1Hash
+        contentHasher.stubHashForPath[try AbsolutePath(validating: "/file1.template")] = file1Hash
 
         // When
         _ = try subject.hash(copyFiles: [copyFilesAction])

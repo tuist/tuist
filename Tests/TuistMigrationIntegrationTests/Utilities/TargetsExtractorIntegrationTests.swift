@@ -21,7 +21,7 @@ final class TargetsExtractorIntegrationTests: TuistTestCase {
 
     func test_when_the_xcodeproj_path_doesnt_exist() throws {
         // Given
-        let xcodeprojPath = AbsolutePath("/invalid/path.xcodeproj")
+        let xcodeprojPath = try AbsolutePath(validating: "/invalid/path.xcodeproj")
 
         // Then
         XCTAssertThrowsSpecific(

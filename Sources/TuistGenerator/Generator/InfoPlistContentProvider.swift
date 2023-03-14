@@ -30,50 +30,54 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
         if target.product == .staticLibrary || target.product == .dynamicLibrary {
             return nil
         }
-
+        
         var content = base()
-
+        
         // Bundle package type
         extend(&content, with: bundlePackageType(target))
-
+        
         // Bundle Executable
         extend(&content, with: bundleExecutable(target))
-
-//        // iOS app
-//        if target.product == .app, target.platform == .iOS {
-//            extend(&content, with: iosApp())
-//        }
-//
-//        // macOS app
-//        if target.product == .app, target.platform == .macOS {
-//            extend(&content, with: macosApp())
-//        }
-//
-//        // macOS
-//        if target.platform == .macOS {
-//            extend(&content, with: macos())
-//        }
-//
-//        // watchOS app
-//        if target.product == .watch2App, target.platform == .watchOS {
-//            let host = hostTarget(for: target, in: project)
-//            extend(&content, with: watchosApp(
-//                name: target.name,
-//                hostAppBundleId: host?.bundleId
-//            ))
-//        }
-//
-//        // watchOS app extension
-//        if target.product == .watch2Extension, target.platform == .watchOS {
-//            let host = hostTarget(for: target, in: project)
-//            extend(&content, with: watchosAppExtension(
-//                name: target.name,
-//                hostAppBundleId: host?.bundleId
-//            ))
-//        }
-
+        
+        // iOS app
+        if target.product == .app, target.platform == .iOS {
+            if case let .iOS(_, devices, _) = target.deploymentTarget, !devices.contains(.ipad) {
+                extend(&content, with: iosApp(iPadSupport: false))
+            } else {
+                extend(&content, with: iosApp(iPadSupport: true))
+            }
+        }
+        
+        // macOS app
+        if target.product == .app, target.platform == .macOS {
+            extend(&content, with: macosApp())
+        }
+        
+        // macOS
+        if target.platform == .macOS {
+            extend(&content, with: macos())
+        }
+        
+        // watchOS app
+        if target.product == .watch2App, target.platform == .watchOS {
+            let host = hostTarget(for: target, in: project)
+            extend(&content, with: watchosApp(
+                name: target.name,
+                hostAppBundleId: host?.bundleId
+            ))
+        }
+        
+        // watchOS app extension
+        if target.product == .watch2Extension, target.platform == .watchOS {
+            let host = hostTarget(for: target, in: project)
+            extend(&content, with: watchosAppExtension(
+                name: target.name,
+                hostAppBundleId: host?.bundleId
+            ))
+        }
+        
         extend(&content, with: extendedWith.unwrappingValues())
-
+        
         return content
     }
 
@@ -111,7 +115,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             packageType = "FMWK"
         case .watch2App, .watch2Extension, .tvTopShelfExtension:
             packageType = "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
-        case .appExtension, .stickerPackExtension, .messagesExtension:
+        case .appExtension, .stickerPackExtension, .messagesExtension, .xpc:
             packageType = "XPC!"
         case .commandLineTool:
             packageType = nil
@@ -149,9 +153,10 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
 
     /// Returns the default Info.plist content that iOS apps should have.
     ///
+    /// - Parameter iPadSupport: Wether the `iOS` application supports `iPadOS`.
     /// - Returns: Info.plist content.
-    func iosApp() -> [String: Any] {
-        [
+    func iosApp(iPadSupport: Bool) -> [String: Any] {
+        var baseInfo: [String: Any] = [
             "LSRequiresIPhoneOS": true,
             "UIRequiredDeviceCapabilities": [
                 "armv7",
@@ -161,13 +166,22 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
                 "UIInterfaceOrientationLandscapeLeft",
                 "UIInterfaceOrientationLandscapeRight",
             ],
-            "UISupportedInterfaceOrientations~ipad": [
+            "UIApplicationSceneManifest": [
+                "UIApplicationSupportsMultipleScenes": false,
+                "UISceneConfigurations": [:],
+            ],
+        ]
+
+        if iPadSupport {
+            baseInfo["UISupportedInterfaceOrientations~ipad"] = [
                 "UIInterfaceOrientationPortrait",
                 "UIInterfaceOrientationPortraitUpsideDown",
                 "UIInterfaceOrientationLandscapeLeft",
                 "UIInterfaceOrientationLandscapeRight",
-            ],
-        ]
+            ]
+        }
+
+        return baseInfo
     }
 
     /// Returns the default Info.plist content that macOS apps should have.

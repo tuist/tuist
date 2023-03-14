@@ -71,7 +71,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // When
         try? await subject.testRun(
-            path: AbsolutePath("/test")
+            path: try AbsolutePath(validating: "/test")
         )
 
         // Then
@@ -291,7 +291,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_uses_resource_bundle_path() async throws {
         // Given
-        let expectedResourceBundlePath = AbsolutePath("/test")
+        let expectedResourceBundlePath = try AbsolutePath(validating: "/test")
         var resourceBundlePath: AbsolutePath?
 
         xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _, _ in
@@ -322,7 +322,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_uses_resource_bundle_path_with_given_scheme() async throws {
         // Given
-        let expectedResourceBundlePath = AbsolutePath("/test")
+        let expectedResourceBundlePath = try AbsolutePath(validating: "/test")
         var resourceBundlePath: AbsolutePath?
 
         xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _, _ in

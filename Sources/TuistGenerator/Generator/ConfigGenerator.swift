@@ -286,16 +286,18 @@ final class ConfigGenerator: ConfigGenerating {
 
     private func deploymentTargetDerivedSettings(target: Target) -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
+
         
         for deploymentTarget in target.deploymentTargets {
             switch deploymentTarget {
-            case let .iOS(version, devices):
+            case let .iOS(version, devices, supportsMacDesignedForIOS):
                 var deviceFamilyValues: [Int] = []
                 if devices.contains(.iphone) { deviceFamilyValues.append(1) }
                 if devices.contains(.ipad) { deviceFamilyValues.append(2) }
                 
                 settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
                 settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
+                settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = supportsMacDesignedForIOS ? "YES" : "NO"
                 
                 if devices.contains(.ipad), devices.contains(.mac) {
                     settings["SUPPORTS_MACCATALYST"] = "YES"

@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import TSCBasic
+import UniformTypeIdentifiers
 
 let systemGlob = Darwin.glob
 
@@ -20,7 +21,7 @@ public enum GlobError: FatalError, Equatable {
 extension AbsolutePath {
     /// Returns the current path.
     public static var current: AbsolutePath {
-        AbsolutePath(FileManager.default.currentDirectoryPath)
+        try! AbsolutePath(validating: FileManager.default.currentDirectoryPath) // swiftlint:disable:this force_try
     }
 
     /// Returns the URL that references the absolute path.
@@ -33,7 +34,8 @@ extension AbsolutePath {
     /// - Parameter pattern: Relative glob pattern used to match the paths.
     /// - Returns: List of paths that match the given pattern.
     public func glob(_ pattern: String) -> [AbsolutePath] {
-        Glob(pattern: appending(RelativePath(pattern)).pathString).paths.map { AbsolutePath($0) }
+        // swiftlint:disable:next force_try
+        Glob(pattern: appending(RelativePath(pattern)).pathString).paths.map { try! AbsolutePath(validating: $0) }
     }
 
     /// Returns the list of paths that match the given glob pattern, if the directory exists.
@@ -45,7 +47,7 @@ extension AbsolutePath {
         let globPath = appending(RelativePath(pattern)).pathString
 
         if globPath.isGlobComponent {
-            let pathUpToLastNonGlob = AbsolutePath(globPath).upToLastNonGlob
+            let pathUpToLastNonGlob = try AbsolutePath(validating: globPath).upToLastNonGlob
 
             if !FileHandler.shared.isFolder(pathUpToLastNonGlob) {
                 let invalidGlob = InvalidGlob(
@@ -61,9 +63,9 @@ extension AbsolutePath {
 
     /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
     public var isPackage: Bool {
-        let ext = URL(fileURLWithPath: pathString).pathExtension as CFString
-        guard let uti = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, ext, nil) else { return false }
-        return UTTypeConformsTo(uti.takeRetainedValue(), kUTTypePackage)
+        let ext = URL(fileURLWithPath: pathString).pathExtension
+        guard let utType = UTType(tag: ext, tagClass: .filenameExtension, conformingTo: nil) else { return false }
+        return utType.conforms(to: UTType.package)
     }
 
     /// An opaque directory is a directory that should be treated like a file, therefor ignoring its content.
@@ -101,7 +103,7 @@ extension AbsolutePath {
     ///
     /// - Returns: Path with the last component removed.
     public func removingLastComponent() -> AbsolutePath {
-        AbsolutePath("/\(components.dropLast().joined(separator: "/"))")
+        try! AbsolutePath(validating: "/\(components.dropLast().joined(separator: "/"))") // swiftlint:disable:this force_try
     }
 
     /// Returns the common ancestor path with another path
@@ -115,7 +117,7 @@ extension AbsolutePath {
     /// - Parameter path: The other path to find a common path with
     /// - Returns: An absolute path to the common ancestor
     public func commonAncestor(with path: AbsolutePath) -> AbsolutePath {
-        var ancestorPath = AbsolutePath("/")
+        var ancestorPath = try! AbsolutePath(validating: "/") // swiftlint:disable:this force_try
         for component in components.dropFirst() {
             let nextPath = ancestorPath.appending(component: component)
             if path.isDescendantOfOrEqual(to: nextPath) {
@@ -132,7 +134,7 @@ extension AbsolutePath {
             return self
         }
 
-        return AbsolutePath(components[0 ..< index].joined(separator: "/"))
+        return try! AbsolutePath(validating: components[0 ..< index].joined(separator: "/")) // swiftlint:disable:this force_try
     }
 
     /// Returns the hash of the file the path points to.
@@ -143,7 +145,7 @@ extension AbsolutePath {
 
 extension AbsolutePath: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
-        self = AbsolutePath(value)
+        self = try! AbsolutePath(validating: value) // swiftlint:disable:this force_try
     }
 }
 

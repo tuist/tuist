@@ -12,7 +12,7 @@ import XCTest
 class GeneratorPathsErrorTests: TuistUnitTestCase {
     func test_type_when_rootDirectoryNotFound() {
         // Given
-        let path = AbsolutePath("/")
+        let path = try! AbsolutePath(validating: "/")
         let error = GeneratorPathsError.rootDirectoryNotFound(path)
 
         // Then
@@ -21,7 +21,7 @@ class GeneratorPathsErrorTests: TuistUnitTestCase {
 
     func test_description_when_rootDirectoryNotFound() {
         // Given
-        let path = AbsolutePath("/")
+        let path = try! AbsolutePath(validating: "/")
         let error = GeneratorPathsError.rootDirectoryNotFound(path)
 
         // Then

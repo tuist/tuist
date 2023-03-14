@@ -10,8 +10,12 @@ extension TuistGraph.DeploymentTarget {
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.DeploymentTarget) -> TuistGraph.DeploymentTarget {
         switch manifest {
-        case let .iOS(version, devices):
-            return .iOS(version, DeploymentDevice(rawValue: devices.rawValue))
+        case let .iOS(version, devices, supportsMacDesignedForIOS):
+            return .iOS(
+                version,
+                DeploymentDevice(rawValue: devices.rawValue),
+                supportsMacDesignedForIOS: supportsMacDesignedForIOS
+            )
         case let .macOS(version):
             return .macOS(version)
         case let .watchOS(version):

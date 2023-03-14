@@ -21,7 +21,8 @@ module.exports = {
       theme: require('prism-react-renderer/themes/dracula'),
     },
     algolia: {
-      apiKey: process.env.ALGOLIA_API_KEY || 'dev',
+      appId: 'TKP20U9DH0',
+      apiKey: '927a1ebcb792b7e9a652c185c3e10bae',
       indexName: process.env.ALGOLIA_INDEX_NAME || 'dev',
       contextualSearch: true,
       searchParameters: {},

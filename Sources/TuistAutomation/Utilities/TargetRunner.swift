@@ -115,17 +115,18 @@ public final class TargetRunner: TargetRunning {
         }
     }
 
-    public func assertCanRunTarget(_ target: Target) throws {
-        for deploymentTarget in target.deploymentTargets {
-            switch (deploymentTarget.platform, target.product) {
-            case (.macOS, .commandLineTool),
-                (_, .app):
-                break
-            default:
-                throw TargetRunnerError.runningNotSupported(target: target)
-            }
-        }
+  public func assertCanRunTarget(_ target: Target) throws {
+    for deploymentTarget in target.deploymentTargets {
+      switch (deploymentTarget.platform, target.product) {
+      case (.macOS, .commandLineTool),
+        (.macOS, .xpc),
+        (_, .app):
+        break
+      default:
+        throw TargetRunnerError.runningNotSupported(target: target)
+      }
     }
+  }
 
     private func runExecutable(_ executablePath: AbsolutePath, arguments: [String]) throws {
         logger.notice("Running executable \(executablePath.basename)", metadata: .section)

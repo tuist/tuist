@@ -27,7 +27,7 @@ struct MigrationCheckEmptyBuildSettingsCommand: ParsableCommand {
 
     func run() throws {
         try MigrationCheckEmptyBuildSettingsService().run(
-            xcodeprojPath: AbsolutePath(xcodeprojPath, relativeTo: FileHandler.shared.currentPath),
+            xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: FileHandler.shared.currentPath),
             target: target
         )
     }

@@ -6,7 +6,7 @@ import XcodeProj
 extension GeneratedProject {
     static func test(
         pbxproj: PBXProj = .init(),
-        path: AbsolutePath = AbsolutePath("/project.xcodeproj"),
+        path: AbsolutePath = try! AbsolutePath(validating: "/project.xcodeproj"),
         targets: [String: PBXNativeTarget] = [:],
         name: String = "project.xcodeproj"
     ) -> GeneratedProject {

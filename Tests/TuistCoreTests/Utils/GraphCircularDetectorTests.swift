@@ -196,6 +196,6 @@ final class GraphCircularDetectorTests: XCTestCase {
     }
 
     private func node(_ name: String) -> GraphCircularDetectorNode {
-        GraphCircularDetectorNode(path: AbsolutePath("/\(name)/"), name: name)
+        GraphCircularDetectorNode(path: try! AbsolutePath(validating: "/\(name)/"), name: name)
     }
 }

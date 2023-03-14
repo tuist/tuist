@@ -5,7 +5,7 @@ import TuistSupport
 
 extension Xcode {
     static func test(
-        path: AbsolutePath = AbsolutePath("/Applications/Xcode.app"),
+        path: AbsolutePath = try! AbsolutePath(validating: "/Applications/Xcode.app"), // swiftlint:disable:this force_try
         infoPlist: Xcode.InfoPlist = .test()
     ) -> Xcode {
         Xcode(path: path, infoPlist: infoPlist)

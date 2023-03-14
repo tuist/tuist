@@ -66,7 +66,7 @@ extension TuistGraph.TargetScript {
                 return [try generatorPaths.resolve(path: path)]
             }
             let absolutePath = try generatorPaths.resolve(path: path)
-            let base = AbsolutePath(absolutePath.dirname)
+            let base = try AbsolutePath(validating: absolutePath.dirname)
             return try base.throwingGlob(absolutePath.basename)
         }.reduce([], +)
     }

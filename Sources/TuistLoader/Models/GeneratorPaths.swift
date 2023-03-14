@@ -43,15 +43,16 @@ public struct GeneratorPaths {
     func resolve(path: Path) throws -> AbsolutePath {
         switch path.type {
         case .relativeToCurrentFile:
-            let callerAbsolutePath = AbsolutePath(path.callerPath!).removingLastComponent()
-            return AbsolutePath(path.pathString, relativeTo: callerAbsolutePath)
+            let callerAbsolutePath = try AbsolutePath(validating: path.callerPath!).removingLastComponent()
+            return try AbsolutePath(validating: path.pathString, relativeTo: callerAbsolutePath)
         case .relativeToManifest:
-            return AbsolutePath(path.pathString, relativeTo: manifestDirectory)
+            return try AbsolutePath(validating: path.pathString, relativeTo: manifestDirectory)
         case .relativeToRoot:
-            guard let rootPath = rootDirectoryLocator.locate(from: AbsolutePath(manifestDirectory.pathString)) else {
-                throw GeneratorPathsError.rootDirectoryNotFound(AbsolutePath(manifestDirectory.pathString))
+            guard let rootPath = rootDirectoryLocator.locate(from: try AbsolutePath(validating: manifestDirectory.pathString))
+            else {
+                throw GeneratorPathsError.rootDirectoryNotFound(try AbsolutePath(validating: manifestDirectory.pathString))
             }
-            return AbsolutePath(path.pathString, relativeTo: rootPath)
+            return try AbsolutePath(validating: path.pathString, relativeTo: rootPath)
         }
     }
 

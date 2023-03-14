@@ -178,8 +178,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "d31f7192381862aa6b74c7bbf2f097ce")
-        XCTAssertEqual(contentHash[framework2], "d0229bc4f00ff0b52bccb45668b9baa9")
+        XCTAssertEqual(contentHash[framework1], "d4631574745e74fc2ab6b7b9cceab088")
+        XCTAssertEqual(contentHash[framework2], "86a8f13a091f073b5395eddb452f14da")
     }
 
     func test_contentHashes_hashChangesWithCacheOutputType() throws {
@@ -213,7 +213,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentXCFrameworkHash = try subject.contentHashes(
             for: graph,
             cacheProfile: .test(),
-            cacheOutputType: .xcframework,
+            cacheOutputType: .xcframework([.device, .simulator]),
             excludedTargets: []
         )
 

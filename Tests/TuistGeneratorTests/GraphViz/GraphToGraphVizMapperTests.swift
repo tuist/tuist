@@ -198,8 +198,8 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let project = Project.test(path: "/")
         let coreProject = Project.test(path: "/Core")
         let externalProject = Project.test(path: "/Tuist/Dependencies", isExternal: true)
-        let framework = GraphDependency.testFramework(path: AbsolutePath("/XcodeProj.framework"))
-        let library = GraphDependency.testLibrary(path: AbsolutePath("/RxSwift.a"))
+        let framework = GraphDependency.testFramework(path: try AbsolutePath(validating: "/XcodeProj.framework"))
+        let library = GraphDependency.testLibrary(path: try AbsolutePath(validating: "/RxSwift.a"))
         let sdk = GraphDependency.testSDK(name: "CoreData.framework", status: .required, source: .developer)
 
         let core = GraphTarget.test(

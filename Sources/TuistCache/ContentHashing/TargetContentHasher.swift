@@ -130,6 +130,12 @@ public final class TargetContentHasher: TargetContentHashing {
             stringsToHash.append(settingsHash)
         }
         stringsToHash += additionalStrings
+        switch graphTarget.target.deploymentTarget {
+        case .macOS, .none:
+            stringsToHash.append(DeveloperEnvironment.shared.architecture.rawValue)
+        case .iOS, .watchOS, .tvOS:
+            break
+        }
 
         return try contentHasher.hash(stringsToHash)
     }

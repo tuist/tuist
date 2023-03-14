@@ -671,7 +671,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_resourceBundleDependencies_precompiledResourceBundles_testBundle() {
         // Given
-        let bundlePath = AbsolutePath("/path/cache/CachedStaticFrameworkA.bundle")
+        let bundlePath = try! AbsolutePath(validating: "/path/cache/CachedStaticFrameworkA.bundle")
         let bundle = GraphDependency.bundle(path: bundlePath)
         let cachedFramework = GraphDependency.testFramework(
             path: "/path/cache/CachedStaticFrameworkA.framework",
@@ -731,7 +731,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_resourceBundleDependencies_precompiledResourceBundles_staticFramework() {
         // Given
-        let bundlePath = AbsolutePath("/path/cache/CachedStaticFrameworkA.bundle")
+        let bundlePath = try! AbsolutePath(validating: "/path/cache/CachedStaticFrameworkA.bundle")
         let bundle = GraphDependency.bundle(path: bundlePath)
         let cachedFramework = GraphDependency.testFramework(
             path: "/path/cache/CachedStaticFrameworkA.framework",
@@ -791,7 +791,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_resourceBundleDependencies_precompiledResourceBundles_dynamicFramework() {
         // Given
-        let bundlePath = AbsolutePath("/path/cache/CachedStaticFrameworkA.bundle")
+        let bundlePath = try! AbsolutePath(validating: "/path/cache/CachedStaticFrameworkA.bundle")
         let bundle = GraphDependency.bundle(path: bundlePath)
         let cachedFramework = GraphDependency.testFramework(
             path: "/path/cache/CachedStaticFrameworkA.framework",
@@ -1135,7 +1135,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
         // Given
-        let frameworkPath = AbsolutePath("/test/test.framework")
+        let frameworkPath = try AbsolutePath(validating: "/test/test.framework")
         let target = Target.test(name: "Main", platform: .iOS)
         let project = Project.test(targets: [target])
 
@@ -1480,12 +1480,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
     func test_librariesPublicHeadersFolders() throws {
         // Given
         let target = Target.test(name: "Main")
-        let publicHeadersPath = AbsolutePath("/test/public/")
+        let publicHeadersPath = try AbsolutePath(validating: "/test/public/")
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
         let precompiledDependency = GraphDependency.testLibrary(
-            path: AbsolutePath("/test/test.a"),
+            path: try AbsolutePath(validating: "/test/test.a"),
             publicHeaders: publicHeadersPath,
             linking: .static,
             architectures: []
@@ -1536,7 +1536,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.librariesSearchPaths(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [AbsolutePath("/test")])
+        XCTAssertEqual(got, [try AbsolutePath(validating: "/test")])
     }
 
     func test_linkableDependencies_whenPrecompiled() throws {
@@ -2879,7 +2879,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_linkableDependencies_when_dependencyIsAFramework() throws {
         // Given
-        let frameworkPath = AbsolutePath("/test/test.framework")
+        let frameworkPath = try AbsolutePath(validating: "/test/test.framework")
         let target = Target.test(name: "Main", platform: .iOS)
         let project = Project.test(targets: [target])
 
@@ -3243,7 +3243,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [AbsolutePath("/test/modules")])
+        XCTAssertEqual(got, [try AbsolutePath(validating: "/test/modules")])
     }
 
     func test_runPathSearchPaths() throws {
@@ -3287,7 +3287,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             got,
-            [AbsolutePath("/test")]
+            [try AbsolutePath(validating: "/test")]
         )
     }
 
@@ -3422,9 +3422,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_allTargets_returns_all_the_targets() {
         // Given
-        let firstPath = AbsolutePath("/first")
+        let firstPath = try! AbsolutePath(validating: "/first")
         let firstProject = Project.test(path: firstPath)
-        let secondPath = AbsolutePath("/second")
+        let secondPath = try! AbsolutePath(validating: "/second")
         let secondProject = Project.test(path: secondPath)
         let firstTarget = Target.test(name: "first")
         let secondTarget = Target.test(name: "second")
@@ -3453,7 +3453,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_hasRemotePackages_when_has_remotePackages() {
         // Given
-        let path = AbsolutePath("/project")
+        let path = try! AbsolutePath(validating: "/project")
         let package = Package.remote(url: "https://git.tuist.io", requirement: .branch("main"))
         let graph = Graph.test(
             packages: [path: ["Test": package]],

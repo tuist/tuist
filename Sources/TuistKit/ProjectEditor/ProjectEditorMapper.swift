@@ -264,6 +264,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let runAction = RunAction(
             configurationName: "Debug",
             attachDebugger: true,
+            customLLDBInitFile: nil,
             executable: nil,
             filePath: tuistPath,
             arguments: arguments,

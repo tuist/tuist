@@ -12,16 +12,16 @@ public final class MockResourceLocator: ResourceLocating {
 
     public func projectDescription() throws -> AbsolutePath {
         projectDescriptionCount += 1
-        return try projectDescriptionStub?() ?? AbsolutePath("/")
+        return try projectDescriptionStub?() ?? AbsolutePath(validating: "/")
     }
 
     public func cliPath() throws -> AbsolutePath {
         cliPathCount += 1
-        return try cliPathStub?() ?? AbsolutePath("/")
+        return try cliPathStub?() ?? AbsolutePath(validating: "/")
     }
 
     public func embedPath() throws -> AbsolutePath {
         embedPathCount += 1
-        return try embedPathStub?() ?? AbsolutePath("/")
+        return try embedPathStub?() ?? AbsolutePath(validating: "/")
     }
 }

@@ -98,6 +98,13 @@ When(/^tuist focuses the targets ([a-zA-Z,\-]+) using xcframeworks$/) do |target
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
+When(/^tuist focuses the targets ([a-zA-Z,\-]+) using (device|simulator) xcframeworks$/) do |targets, type|
+  system(@tuist, "generate", "--no-open", "--path", @dir, *targets.split(","),
+    "--xcframeworks", "--destination #{type}")
+  @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
+end
+
 When(%r{^tuist focuses the target ([a-zA-Z\-]+) at ([a-zA-Z/]+) using xcframeworks$}) do |target, path|
   system(@tuist, "generate", "--no-open", "--path", File.join(@dir, path), target, "--xcframeworks")
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first

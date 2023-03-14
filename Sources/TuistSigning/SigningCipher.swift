@@ -87,7 +87,7 @@ public final class SigningCipher: SigningCiphering {
         try zip(cipheredKeys, signingKeyFiles)
             .forEach { key, file in
                 logger.debug("Encrypting \(file.pathString)")
-                let encryptedPath = AbsolutePath(file.pathString + "." + Constants.encryptedExtension)
+                let encryptedPath = try AbsolutePath(validating: file.pathString + "." + Constants.encryptedExtension)
                 try key.write(to: encryptedPath.url)
             }
 
@@ -111,7 +111,10 @@ public final class SigningCipher: SigningCiphering {
 
         try zip(decipheredKeys, signingKeyFiles).forEach { key, keyFile in
             logger.debug("Decrypting \(keyFile.pathString)")
-            let decryptedPath = AbsolutePath(keyFile.parentDirectory.pathString + "/" + keyFile.basenameWithoutExt)
+            let decryptedPath = try AbsolutePath(
+                validating: keyFile.parentDirectory.pathString + "/" + keyFile
+                    .basenameWithoutExt
+            )
             try key.write(to: decryptedPath.url)
         }
 
@@ -148,7 +151,7 @@ public final class SigningCipher: SigningCiphering {
         masterKey: Data
     ) throws -> [(unencrypted: AbsolutePath, encrypted: AbsolutePath)] {
         try locateUnencryptedSigningFiles(at: path).compactMap { unencryptedFile in
-            let encryptedFile = AbsolutePath(unencryptedFile.pathString + "." + Constants.encryptedExtension)
+            let encryptedFile = try AbsolutePath(validating: unencryptedFile.pathString + "." + Constants.encryptedExtension)
             guard FileHandler.shared.exists(encryptedFile) else { return nil }
             let isEncryptionNeeded: Bool = try self.isEncryptionNeeded(
                 encryptedFile: encryptedFile,
