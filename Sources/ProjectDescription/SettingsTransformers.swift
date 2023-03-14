@@ -215,12 +215,12 @@ extension SettingsDictionary {
 
     // MARK: - Info.plist Values
 
-    /// Sets `INFOPLIST_KEY_LSApplicationCategoryType` to `category`.
+    /// Sets `INFOPLIST_KEY_LSApplicationCategoryType` to the given category.
     public func applicationCategory(_ category: ApplicationCategory) -> SettingsDictionary {
         merging(["INFOPLIST_KEY_LSApplicationCategoryType": SettingValue(category.rawValue)])
     }
 
-    /// Sets `INFOPLIST_KEY_LSApplicationCategoryType` to `name`.
+    /// Sets `INFOPLIST_KEY_CFBundleDisplayName` to the given name.
     public func bundleDisplayName(_ name: String) -> SettingsDictionary {
         merging(["INFOPLIST_KEY_CFBundleDisplayName": SettingValue(name)])
     }
