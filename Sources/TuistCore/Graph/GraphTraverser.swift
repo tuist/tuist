@@ -232,6 +232,9 @@ public class GraphTraverser: GraphTraversing {
 
     public func searchablePathDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
         try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
+            .union(
+                staticPrecompiledDependenciesAndTheirDependencies(path: path, name: name)
+            )
     }
 
     public func linkableDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
@@ -294,6 +297,7 @@ public class GraphTraverser: GraphTraversing {
             .flatMap { filterDependencies(from: $0) }
 
         let precompiledLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
+            .filter(isDependencyPrecompiledDynamicAndLinkable)
             .compactMap(dependencyReference)
 
         references.formUnion(precompiledLibrariesAndFrameworks)
@@ -358,6 +362,7 @@ public class GraphTraverser: GraphTraversing {
 
         if target.target.product.isStatic {
             dependencies.formUnion(directStaticDependencies(path: path, name: name))
+            dependencies.formUnion(staticPrecompiledDependenciesAndTheirDependencies(path: path, name: name))
         }
 
         dependencies.formUnion(resourceBundleDependencies(path: path, name: name))
@@ -731,6 +736,22 @@ public class GraphTraverser: GraphTraversing {
                 GraphTarget(path: projectPath, target: target, project: project)
             }
         })
+    }
+
+    private func staticPrecompiledDependenciesAndTheirDependencies(
+        path: AbsolutePath,
+        name: String
+    ) -> [GraphDependencyReference] {
+        let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
+            .lazy
+            .filter(\.isPrecompiled)
+
+        let precompiledDependencies = precompiled
+            .flatMap { filterDependencies(from: $0) }
+
+        return Set(precompiled + precompiledDependencies)
+            .filter(isDependencyStatic)
+            .compactMap(dependencyReference)
     }
 }
 

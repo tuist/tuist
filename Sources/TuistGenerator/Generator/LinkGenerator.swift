@@ -469,15 +469,30 @@ final class LinkGenerator: LinkGenerating {
     ) throws {
         var files: [PBXBuildFile] = []
 
-        for case let .product(target, _, platformFilter) in dependencies.sorted() {
-            guard let fileRef = fileElements.product(target: target) else {
-                throw LinkGeneratorError.missingProduct(name: target)
+        for dependency in dependencies.sorted() {
+            switch dependency {
+            case let .product(target: target, _, platformFilter: platformFilter):
+                guard let fileRef = fileElements.product(target: target) else {
+                    throw LinkGeneratorError.missingProduct(name: target)
+                }
+                
+                let buildFile = PBXBuildFile(file: fileRef)
+                buildFile.platformFilter = platformFilter?.xcodeprojValue
+                pbxproj.add(object: buildFile)
+                files.append(buildFile)
+            case let .xcframework(path: path, _, _, _),
+                let .framework(path: path, _, _, _, _, _, _, _),
+                let .library(path: path, _, _, _):
+                guard let fileRef = fileElements.file(path: path) else {
+                    throw LinkGeneratorError.missingReference(path: path)
+                }
+                let buildFile = PBXBuildFile(file: fileRef)
+                pbxproj.add(object: buildFile)
+                files.append(buildFile)
+                break
+            default:
+                break
             }
-
-            let buildFile = PBXBuildFile(file: fileRef)
-            buildFile.platformFilter = platformFilter?.xcodeprojValue
-            pbxproj.add(object: buildFile)
-            files.append(buildFile)
         }
 
         // Nothing to link, move on.
