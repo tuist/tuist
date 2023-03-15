@@ -203,7 +203,12 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// Determines if the target is an embeddable xpc service
     /// i.e. a product that can be bundled with a host macOS application
     public func isEmbeddableXPCService() -> Bool {
-        switch (platform, product) {
+        guard
+            deploymentTargets.count == 1,
+            let deploymentTarget = deploymentTargets.first
+        else { return false }
+        
+        switch (deploymentTarget.platform, product) {
         case (.macOS, .xpc):
             return true
         default:
@@ -229,7 +234,12 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// Determines if the target is able to embed an xpc serivce
     /// i.e. a product that can be bundled with a macOS application
     public func canEmbedXPCServices() -> Bool {
-        switch (platform, product) {
+        guard
+            deploymentTargets.count == 1,
+            let deploymentTarget = deploymentTargets.first
+        else { return false }
+        
+        switch (deploymentTarget.platform, product) {
         case (.macOS, .app):
             return true
         default:
@@ -244,9 +254,9 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var targetDependencyBuildFilesPlatformFilter: BuildFilePlatformFilter? {
         for deploymentTarget in deploymentTargets {
             switch deploymentTarget {
-            case let .iOS(_, devices) where devices.contains(.all):
+            case let .iOS(_, devices, _) where devices.contains(.all):
                 return nil
-            case let .iOS(_, devices):
+            case let .iOS(_, devices, _):
                 if devices.contains(.mac) {
                     return .catalyst
                 } else {

@@ -61,7 +61,6 @@ extension Project {
 extension Target {
     public static func test(
         name: String = "Target",
-        platform: Platform = .iOS,
         product: Product = .framework,
         productName: String? = nil,
         bundleId: String = "com.some.bundle.id",
@@ -78,7 +77,6 @@ extension Target {
     ) -> Target {
         Target(
             name: name,
-            platform: platform,
             product: product,
             productName: productName,
             bundleId: bundleId,

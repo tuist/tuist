@@ -752,7 +752,9 @@ extension ProjectDescription.TargetDependency {
         packageToProject: [String: AbsolutePath]
     ) throws -> [Self] {
         let targetDependencies = resolvedDependencies.compactMap { dependency -> Self? in
-            if let condition = dependency.condition, !condition.platforms.contains(platforms) {
+            if
+                let condition = dependency.condition,
+                Set(condition.platforms).intersection(platforms).isEmpty {
                 return nil
             }
             switch dependency {
@@ -770,9 +772,9 @@ extension ProjectDescription.TargetDependency {
 
         let linkerDependencies: [ProjectDescription.TargetDependency] = settings.compactMap { setting in
             if let condition = setting.condition {
-                guard condition.platformNames.contains(platforms.map { $0.rawValue }) else {
-                    return nil
-                }
+                guard
+                    !Set(condition.platformNames).intersection(platforms.map { $0.rawValue }).isEmpty
+                else { return nil }
             }
 
             switch (setting.tool, setting.name) {
@@ -863,7 +865,7 @@ extension ProjectDescription.Settings {
         if target.type.supportsCustomSettings {
             try settings.forEach { setting in
                 if let condition = setting.condition {
-                    guard condition.platformNames.contains(platforms.map { $0.rawValue }) else {
+                    guard !Set(condition.platformNames).intersection(platforms.map { $0.rawValue }).isEmpty else {
                         return
                     }
                 }

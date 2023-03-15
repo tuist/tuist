@@ -20,7 +20,6 @@ extension Target {
         }
         return Target(
             name: name,
-            platform: .macOS,
             product: product,
             bundleId: "io.tuist.\(name)",
             deploymentTargets: [Constants.deploymentTarget],

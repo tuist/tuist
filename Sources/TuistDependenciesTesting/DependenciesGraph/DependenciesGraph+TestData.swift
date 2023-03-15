@@ -71,7 +71,6 @@ extension TuistCore.DependenciesGraph {
             [
                 .init(
                     name: self.resolveTargetName(targetName: "Tuist", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
                     product: .staticFramework,
                     productName: "Tuist",
                     bundleId: "Tuist",
@@ -115,7 +114,6 @@ extension TuistCore.DependenciesGraph {
                 ),
                 .init(
                     name: self.resolveTargetName(targetName: "TuistKit", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
                     product: .staticFramework,
                     productName: "TuistKit",
                     bundleId: "TuistKit",
@@ -198,7 +196,6 @@ extension TuistCore.DependenciesGraph {
             [
                 .init(
                     name: resolveTargetName(targetName: "ALibrary", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
                     product: .staticFramework,
                     productName: "ALibrary",
                     bundleId: "ALibrary",
@@ -217,7 +214,6 @@ extension TuistCore.DependenciesGraph {
                 ),
                 .init(
                     name: self.resolveTargetName(targetName: "ALibraryUtils", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
                     product: .staticFramework,
                     productName: "ALibraryUtils",
                     bundleId: "ALibraryUtils",
@@ -280,7 +276,6 @@ extension TuistCore.DependenciesGraph {
         let targets: [Target] = platforms.map { platform in
             .init(
                 name: self.resolveTargetName(targetName: "AnotherLibrary", for: platform, addSuffix: addPlatfomSuffix),
-                platform: platform,
                 product: .staticFramework,
                 productName: "AnotherLibrary",
                 bundleId: "AnotherLibrary",
@@ -338,7 +333,6 @@ extension TuistCore.DependenciesGraph {
         let targets: [Target] = platforms.map { platform in
             .init(
                 name: self.resolveTargetName(targetName: "Alamofire", for: platform, addSuffix: addPlatfomSuffix),
-                platform: platform,
                 product: .staticFramework,
                 productName: "Alamofire",
                 bundleId: "Alamofire",
@@ -415,7 +409,6 @@ extension TuistCore.DependenciesGraph {
                         for: platform,
                         addSuffix: addPlatfomSuffix
                     ),
-                    platform: platform,
                     product: .staticFramework,
                     productName: "GoogleAppMeasurementTarget",
                     bundleId: "GoogleAppMeasurementTarget",
@@ -467,7 +460,6 @@ extension TuistCore.DependenciesGraph {
                         for: platform,
                         addSuffix: addPlatfomSuffix
                     ),
-                    platform: platform,
                     product: .staticFramework,
                     productName: "GoogleAppMeasurementWithoutAdIdSupportTarget",
                     bundleId: "GoogleAppMeasurementWithoutAdIdSupportTarget",
@@ -600,7 +592,6 @@ extension TuistCore.DependenciesGraph {
                         for: platform,
                         addSuffix: addPlatfomSuffix
                     ),
-                    platform: platform,
                     product: customProductTypes["GULAppDelegateSwizzler"] ?? .staticFramework,
                     productName: "GULAppDelegateSwizzler",
                     bundleId: "GULAppDelegateSwizzler",
@@ -613,7 +604,6 @@ extension TuistCore.DependenciesGraph {
                 ),
                 .init(
                     name: self.resolveTargetName(targetName: "GULMethodSwizzler", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
                     product: customProductTypes["GULMethodSwizzler"] ?? .staticFramework,
                     productName: "GULMethodSwizzler",
                     bundleId: "GULMethodSwizzler",
@@ -627,7 +617,6 @@ extension TuistCore.DependenciesGraph {
 
                 .init(
                     name: self.resolveTargetName(targetName: "GULNSData", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
                     product: customProductTypes["GULNSData"] ?? .staticFramework,
                     productName: "GULNSData",
                     bundleId: "GULNSData",
@@ -640,7 +629,6 @@ extension TuistCore.DependenciesGraph {
                 ),
                 .init(
                     name: self.resolveTargetName(targetName: "GULNetwork", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
                     product: customProductTypes["GULNetwork"] ?? .staticFramework,
                     productName: "GULNetwork",
                     bundleId: "GULNetwork",
@@ -700,7 +688,6 @@ extension TuistCore.DependenciesGraph {
         let targets: [Target] = platforms.map { platform in
             .init(
                 name: self.resolveTargetName(targetName: "nanopb", for: platform, addSuffix: addPlatfomSuffix),
-                platform: platform,
                 product: .staticFramework,
                 productName: "nanopb",
                 bundleId: "nanopb",
