@@ -63,4 +63,3 @@ Feature: A set of tests that run with pre-compiled binaries that are only compat
     Then App links the framework MyStaticFramework
     Then App doesn't link the framework MyStaticLibrary
     Then MyStaticFramework links the xcframework MyStaticLibrary
-    
