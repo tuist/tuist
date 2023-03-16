@@ -1,0 +1,152 @@
+{
+  "ABIRoot": {
+    "kind": "Root",
+    "name": "TopLevel",
+    "printedName": "TopLevel",
+    "children": [
+      {
+        "kind": "Import",
+        "name": "Foundation",
+        "printedName": "Foundation",
+        "declKind": "Import",
+        "moduleName": "MyStaticLibrary"
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "MyStaticLibraryA",
+        "printedName": "MyStaticLibraryA",
+        "children": [
+          {
+            "kind": "Var",
+            "name": "name",
+            "printedName": "name",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:15MyStaticLibrary0abC1AC4nameSSvp",
+            "mangledName": "$s15MyStaticLibrary0abC1AC4nameSSvp",
+            "moduleName": "MyStaticLibrary",
+            "isOpen": true,
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:15MyStaticLibrary0abC1AC4nameSSvg",
+                "mangledName": "$s15MyStaticLibrary0abC1AC4nameSSvg",
+                "moduleName": "MyStaticLibrary",
+                "implicit": true,
+                "isOpen": true,
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:15MyStaticLibrary0abC1AC4nameSSvs",
+                "mangledName": "$s15MyStaticLibrary0abC1AC4nameSSvs",
+                "moduleName": "MyStaticLibrary",
+                "implicit": true,
+                "isOpen": true,
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:15MyStaticLibrary0abC1AC4nameSSvM",
+                "mangledName": "$s15MyStaticLibrary0abC1AC4nameSSvM",
+                "moduleName": "MyStaticLibrary",
+                "implicit": true,
+                "isOpen": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MyStaticLibraryA",
+                "printedName": "MyStaticLibrary.MyStaticLibraryA",
+                "usr": "s:15MyStaticLibrary0abC1AC"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "s:15MyStaticLibrary0abC1ACACycfc",
+            "mangledName": "$s15MyStaticLibrary0abC1ACACycfc",
+            "moduleName": "MyStaticLibrary",
+            "declAttributes": [
+              "AccessControl"
+            ],
+            "init_kind": "Designated"
+          }
+        ],
+        "declKind": "Class",
+        "usr": "s:15MyStaticLibrary0abC1AC",
+        "mangledName": "$s15MyStaticLibrary0abC1AC",
+        "moduleName": "MyStaticLibrary",
+        "isOpen": true,
+        "declAttributes": [
+          "AccessControl"
+        ]
+      }
+    ],
+    "json_format_version": 8
+  },
+  "ConstValues": [
+    {
+      "filePath": "\/Users\/Z006LFH\/Projects\/tuist\/projects\/tuist\/fixtures\/ios_app_with_static_library_in_xcframework\/Frameworks\/MyStaticLibrary\/Sources\/MyStaticLibraryA.swift",
+      "kind": "StringLiteral",
+      "offset": 73,
+      "length": 18,
+      "value": "\"MyStaticLibraryA\""
+    }
+  ]
+}
