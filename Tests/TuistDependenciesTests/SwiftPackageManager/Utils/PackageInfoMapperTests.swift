@@ -2147,6 +2147,51 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+    
+    func testMap_whenSettingsContainsLinkedFramework_mapsToSDKDependency_optional() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(RelativePath("Package/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            settings: [
+                                .init(tool: .linker, name: .linkedFramework, condition: nil, value: ["AdServices"]),
+                            ]
+                        ),
+                    ],
+                    platforms: [
+                        .init(platformName: "iOS", version: "11.0", options: [])
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        dependencies: [.sdk(name: "AdServices", type: .framework, status: .optional)]
+                    ),
+                ]
+            )
+        )
+    }
 
     func testMap_whenSettingsContainsLinkedLibrary_mapsToSDKDependency() throws {
         let basePath = try temporaryPath()

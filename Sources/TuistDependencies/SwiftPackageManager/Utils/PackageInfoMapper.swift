@@ -508,6 +508,7 @@ extension ProjectDescription.Target {
             dependencies = try ProjectDescription.TargetDependency.from(
                 resolvedDependencies: resolvedDependencies,
                 platform: platform,
+                deploymentTarget: deploymentTarget,
                 settings: target.settings,
                 packageToProject: packageToProject,
                 addPlatformSuffix: addPlatformSuffix
@@ -747,6 +748,7 @@ extension ProjectDescription.TargetDependency {
     fileprivate static func from(
         resolvedDependencies: [PackageInfoMapper.ResolvedDependency],
         platform: ProjectDescription.Platform,
+        deploymentTarget: ProjectDescription.DeploymentTarget,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         packageToProject: [String: AbsolutePath],
         addPlatformSuffix: Bool
@@ -777,7 +779,12 @@ extension ProjectDescription.TargetDependency {
 
             switch (setting.tool, setting.name) {
             case (.linker, .linkedFramework):
-                return .sdk(name: setting.value[0], type: .framework, status: .required)
+                let name = setting.value[0]
+                return .sdk(
+                    name: name,
+                    type: .framework,
+                    status: frameworkStatus(name: name, platform: platform, deploymentTarget: deploymentTarget)
+                )
             case (.linker, .linkedLibrary):
                 return .sdk(name: setting.value[0], type: .library, status: .required)
             case (.c, _), (.cxx, _), (.swift, _), (.linker, .headerSearchPath), (.linker, .define), (.linker, .unsafeFlags):
@@ -786,6 +793,33 @@ extension ProjectDescription.TargetDependency {
         }
 
         return targetDependencies + linkerDependencies
+    }
+    
+    private static func frameworkStatus(
+        name: String,
+        platform: ProjectDescription.Platform,
+        deploymentTarget: ProjectDescription.DeploymentTarget
+    ) -> ProjectDescription.SDKStatus {
+        guard
+            let data = try? Data(contentsOf: URL(
+                string: "https://developer.apple.com/tutorials/data/documentation/\(name.camelCaseToSnakeCase()).json")!
+            ),
+            let json = try? JSON(data: data),
+            let platforms = try? json.getJSON("metadata").getArray("platforms"),
+            let introducedAtString: String = platforms.first(where: {
+                (try? $0.getJSON("name")) == .string(String(describing: platform))
+            })?.get("introducedAt"),
+            let introducedAt = Double(introducedAtString),
+            let targetVersion = Double(deploymentTarget.targetVersion)
+        else {
+            return .required
+        }
+        
+        if targetVersion < introducedAt {
+            return .optional
+        }
+        
+        return .required
     }
 }
 
