@@ -102,12 +102,14 @@ public final class CarthageInteractor: CarthageInteracting {
             try carthageController.update(
                 at: pathsProvider.dependenciesDirectory,
                 platforms: platforms,
+                options: dependencies.options,
                 printOutput: true
             )
         } else {
             try carthageController.bootstrap(
                 at: pathsProvider.dependenciesDirectory,
                 platforms: platforms,
+                options: dependencies.options,
                 printOutput: true
             )
         }

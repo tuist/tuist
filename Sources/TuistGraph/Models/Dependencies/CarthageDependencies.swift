@@ -5,13 +5,19 @@ public struct CarthageDependencies: Equatable {
     /// List of dependencies that can be installed using Carthage.
     public let dependencies: [Dependency]
 
+    /// List of options that can be used on Carthage command.
+    public let options: Set<Options>
+
     /// Initializes a new `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of dependencies that can be installed using Carthage.
+    ///   - options: Set of options that can be used on Carthage.
     public init(
-        _ dependencies: [Dependency]
+        _ dependencies: [Dependency],
+        _ options: Set<Options> = [.noUseBinaries, .useNetRC, .cacheBuilds, .newResolver]
     ) {
         self.dependencies = dependencies
+        self.options = options
     }
 
     /// Returns `Cartfile` representation.
@@ -72,5 +78,23 @@ extension CarthageDependencies {
                 return #""\#(revision)""#
             }
         }
+    }
+}
+
+// MARK: - CarthageDependencies.Options
+
+extension CarthageDependencies {
+    public enum Options: String {
+        /// Don't use downloaded binaries when possible
+        case noUseBinaries = "--no-use-binaries"
+
+        /// Use authentication credentials from ~/.netrc file when downloading binary only frameworks.
+        case useNetRC = "--use-netrc"
+
+        /// Use cached builds when possible
+        case cacheBuilds = "--cache-builds"
+
+        /// Use the new resolver codeline when calculating dependencies.
+        case newResolver = "--new-resolver"
     }
 }
