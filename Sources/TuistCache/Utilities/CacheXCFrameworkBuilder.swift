@@ -66,7 +66,10 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
             // Build for the macCatalyst
             var macCatalystArchivePath: AbsolutePath?
-            for target in buildTargets where platform == .iOS && self.isMacCatalystSupported(projectPath: target.projectPath, projectName: target.name) {
+            for target in buildTargets where platform == .iOS && self.isMacCatalystSupported(
+                projectPath: target.projectPath,
+                projectName: target.name
+            ) {
                 macCatalystArchivePath = temporaryDirectory.appending(component: "macCatalyst.xcarchive")
                 try await self.macCatalystBuild(
                     projectTarget: projectTarget,
@@ -133,7 +136,10 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                 ))
             }
 
-            for target in buildTargets where target.name == productName && self.isMacCatalystSupported(projectPath: target.projectPath, projectName: target.name) {
+            for target in buildTargets where target.name == productName && self.isMacCatalystSupported(
+                projectPath: target.projectPath,
+                projectName: target.name
+            ) {
                 if let macCatalystArchivePath = macCatalystArchivePath {
                     frameworkpaths.append(self.frameworkPath(
                         fromArchivePath: macCatalystArchivePath,
