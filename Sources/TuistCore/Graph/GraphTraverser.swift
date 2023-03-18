@@ -232,9 +232,7 @@ public class GraphTraverser: GraphTraversing {
 
     public func searchablePathDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
         try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
-            .union(
-                staticPrecompiledDependenciesAndTheirDependencies(path: path, name: name)
-            )
+            .union(staticPrecompiledFrameworksDependencies(path: path, name: name))
     }
 
     public func linkableDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
@@ -362,7 +360,7 @@ public class GraphTraverser: GraphTraversing {
 
         if target.target.product.isStatic {
             dependencies.formUnion(directStaticDependencies(path: path, name: name))
-            dependencies.formUnion(staticPrecompiledDependenciesAndTheirDependencies(path: path, name: name))
+            dependencies.formUnion(staticPrecompiledXCFrameworksDependencies(path: path, name: name))
         }
 
         dependencies.formUnion(resourceBundleDependencies(path: path, name: name))
@@ -738,19 +736,45 @@ public class GraphTraverser: GraphTraversing {
         })
     }
 
-    private func staticPrecompiledDependenciesAndTheirDependencies(
+    private func staticPrecompiledFrameworksDependencies(
         path: AbsolutePath,
         name: String
     ) -> [GraphDependencyReference] {
-        let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
-            .lazy
-            .filter(\.isPrecompiled)
+        let precompiledStatic = graph.dependencies[.target(name: name, path: path), default: []]
+            .filter { dependency in
+                switch dependency {
+                case let .framework(_, _, _, _, linking: linking, _, _):
+                    return linking == .static
+                case .xcframework, .library, .bundle, .packageProduct, .target, .sdk:
+                    return false
+                }
+            }
 
-        let precompiledDependencies = precompiled
+        let precompiledDependencies = precompiledStatic
             .flatMap { filterDependencies(from: $0) }
 
-        return Set(precompiled + precompiledDependencies)
-            .filter(isDependencyStatic)
+        return Set(precompiledStatic + precompiledDependencies)
+            .compactMap(dependencyReference)
+    }
+
+    private func staticPrecompiledXCFrameworksDependencies(
+        path: AbsolutePath,
+        name: String
+    ) -> [GraphDependencyReference] {
+        let precompiledStatic = graph.dependencies[.target(name: name, path: path), default: []]
+            .filter { dependency in
+                switch dependency {
+                case let .xcframework(_, _, _, linking: linking):
+                    return linking == .static
+                case .framework, .library, .bundle, .packageProduct, .target, .sdk:
+                    return false
+                }
+            }
+
+        let precompiledDependencies = precompiledStatic
+            .flatMap { filterDependencies(from: $0) }
+
+        return Set(precompiledStatic + precompiledDependencies)
             .compactMap(dependencyReference)
     }
 }

@@ -475,14 +475,14 @@ final class LinkGenerator: LinkGenerating {
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)
                 }
-                
+
                 let buildFile = PBXBuildFile(file: fileRef)
                 buildFile.platformFilter = platformFilter?.xcodeprojValue
                 pbxproj.add(object: buildFile)
                 files.append(buildFile)
             case let .xcframework(path: path, _, _, _),
-                let .framework(path: path, _, _, _, _, _, _, _),
-                let .library(path: path, _, _, _):
+                 let .framework(path: path, _, _, _, _, _, _, _),
+                 let .library(path: path, _, _, _):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }
