@@ -489,7 +489,6 @@ final class LinkGenerator: LinkGenerating {
                 let buildFile = PBXBuildFile(file: fileRef)
                 pbxproj.add(object: buildFile)
                 files.append(buildFile)
-                break
             default:
                 break
             }
