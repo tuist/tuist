@@ -36,7 +36,8 @@ public final class MockCacheArtifactBuilder: CacheArtifactBuilding {
         configuration _: String,
         osVersion _: Version?,
         deviceName _: String?,
-        into outputDirectory: AbsolutePath
+        into outputDirectory: AbsolutePath,
+        macCatalystSupportedTargets _: [Target]?
     ) throws {
         invokedBuildSchemeProject = true
         invokedBuildSchemeProjectCount += 1

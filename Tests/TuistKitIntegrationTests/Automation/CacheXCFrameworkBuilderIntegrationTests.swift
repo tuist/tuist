@@ -43,7 +43,8 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath
+            into: temporaryPath,
+            macCatalystSupportedTargets: nil
         )
 
         // Then
@@ -72,7 +73,8 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath
+            into: temporaryPath,
+            macCatalystSupportedTargets: nil
         )
 
         // Then
@@ -102,7 +104,8 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath
+            into: temporaryPath,
+            macCatalystSupportedTargets: nil
         )
 
         // Then
@@ -112,6 +115,43 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("x86_64") }))
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "ios" })
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatformVariant == "simulator" })
+        try FileHandler.shared.delete(xcframeworkPath)
+    }
+
+    func test_build_when_macCatalyst_framework() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let frameworksPath = try temporaryFixture("Frameworks")
+        let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
+        let scheme = Scheme.test(
+            name: "iOS",
+            buildAction: .test(targets: [TargetReference(projectPath: "/Project", name: "iOS")])
+        )
+        let aTarget = Target.test(
+            name: "iOS",
+            deploymentTarget: .iOS("14.0", [.iphone, .ipad, .mac], supportsMacDesignedForIOS: true)
+        )
+
+        // When
+        try await subject.build(
+            scheme: scheme,
+            projectTarget: XcodeBuildTarget(with: projectPath),
+            configuration: "Debug",
+            osVersion: nil,
+            deviceName: nil,
+            into: temporaryPath,
+            macCatalystSupportedTargets: [aTarget]
+        )
+
+        // Then
+        XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
+        let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
+        let infoPlist = try infoPlist(xcframeworkPath: xcframeworkPath)
+        XCTAssertTrue(infoPlist.availableLibraries.contains(where: { $0.identifier == "ios-arm64_x86_64-maccatalyst" }))
+        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64") }))
+        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("x86_64") }))
+        XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "ios" })
+        XCTAssertTrue(infoPlist.availableLibraries.contains(where: { $0.supportedPlatformVariant == "maccatalyst" }))
         try FileHandler.shared.delete(xcframeworkPath)
     }
 
@@ -129,7 +169,8 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath
+            into: temporaryPath,
+            macCatalystSupportedTargets: nil
         )
 
         // Then
@@ -157,7 +198,8 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath
+            into: temporaryPath,
+            macCatalystSupportedTargets: nil
         )
 
         // Then
@@ -184,7 +226,8 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath
+            into: temporaryPath,
+            macCatalystSupportedTargets: nil
         )
 
         // Then
@@ -212,7 +255,8 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath
+            into: temporaryPath,
+            macCatalystSupportedTargets: nil
         )
 
         // Then

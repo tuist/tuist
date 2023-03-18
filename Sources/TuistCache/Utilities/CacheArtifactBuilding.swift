@@ -21,7 +21,8 @@ public protocol CacheArtifactBuilding {
         configuration: String,
         osVersion: Version?,
         deviceName: String?,
-        into outputDirectory: AbsolutePath
+        into outputDirectory: AbsolutePath,
+        macCatalystSupportedTargets: [Target]?
     ) async throws
 }
 

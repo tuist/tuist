@@ -51,7 +51,8 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         configuration: String,
         osVersion: Version?,
         deviceName: String?,
-        into outputDirectory: AbsolutePath
+        into outputDirectory: AbsolutePath,
+        macCatalystSupportedTargets _: [Target]?
     ) async throws {
         let platform = self.platform(scheme: scheme)
 
