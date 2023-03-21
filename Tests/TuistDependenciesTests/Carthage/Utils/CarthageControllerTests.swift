@@ -59,9 +59,8 @@ final class CarthageControllerTests: TuistUnitTestCase {
         // Given
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: "0.37.0", exitstatus: 0)
 
-        let options: Set<CarthageDependencies.Options> = [
-            .noUseBinaries, .useNetRC, .cacheBuilds, .newResolver,
-        ]
+        let options: CarthageDependencies.Options = .init()
+
         let path = try temporaryPath()
         system.succeedCommand([
             "carthage",
@@ -69,7 +68,11 @@ final class CarthageControllerTests: TuistUnitTestCase {
             "--project-directory",
             path.pathString,
             "--use-xcframeworks",
-        ] + options.map(\.rawValue))
+            "--no-use-binaries",
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+        ])
 
         // When / Then
         XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [], options: options, printOutput: false))
@@ -79,9 +82,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
         // Given
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: "0.37.0", exitstatus: 0)
 
-        let options: Set<CarthageDependencies.Options> = [
-            .noUseBinaries, .useNetRC, .cacheBuilds, .newResolver,
-        ]
+        let options: CarthageDependencies.Options = .init()
 
         let path = try temporaryPath()
         system.succeedCommand([
@@ -92,7 +93,11 @@ final class CarthageControllerTests: TuistUnitTestCase {
             "--platform",
             "iOS",
             "--use-xcframeworks",
-        ] + options.map(\.rawValue))
+            "--no-use-binaries",
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+        ])
 
         // When / Then
         XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [.iOS], options: options, printOutput: false))
@@ -102,7 +107,12 @@ final class CarthageControllerTests: TuistUnitTestCase {
         // Given
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: "0.37.0", exitstatus: 0)
 
-        let options: Set<CarthageDependencies.Options> = []
+        let options: CarthageDependencies.Options = .init(
+            noUseBinaries: false,
+            useNetRC: false,
+            cacheBuilds: false,
+            newResolver: false
+        )
 
         let path = try temporaryPath()
         system.succeedCommand([
@@ -124,9 +134,8 @@ final class CarthageControllerTests: TuistUnitTestCase {
         let carthageVersion = Version("0.36.0")
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: carthageVersion.description, exitstatus: 0)
 
-        let options: Set<CarthageDependencies.Options> = [
-            .noUseBinaries, .useNetRC, .cacheBuilds, .newResolver,
-        ]
+        let options: CarthageDependencies.Options = .init()
+
         let path = try temporaryPath()
         system.succeedCommand([
             "carthage",
@@ -136,7 +145,11 @@ final class CarthageControllerTests: TuistUnitTestCase {
             "--platform",
             "iOS",
             "--use-xcframeworks",
-        ] + options.map(\.rawValue))
+            "--no-use-binaries",
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+        ])
 
         // When / Then
         XCTAssertThrowsSpecific(
@@ -148,9 +161,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
     func test_update() throws {
         // Given
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: "0.37.0", exitstatus: 0)
-        let options: Set<CarthageDependencies.Options> = [
-            .noUseBinaries, .useNetRC, .cacheBuilds, .newResolver,
-        ]
+        let options: CarthageDependencies.Options = .init()
         let path = try temporaryPath()
         system.succeedCommand([
             "carthage",
@@ -158,7 +169,11 @@ final class CarthageControllerTests: TuistUnitTestCase {
             "--project-directory",
             path.pathString,
             "--use-xcframeworks",
-        ] + options.map(\.rawValue))
+            "--no-use-binaries",
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+        ])
 
         // When / Then
         XCTAssertNoThrow(try subject.update(at: path, platforms: [], options: options, printOutput: false))
@@ -167,9 +182,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
     func test_update_with_platforms() throws {
         // Given
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: "0.37.0", exitstatus: 0)
-        let options: Set<CarthageDependencies.Options> = [
-            .noUseBinaries, .useNetRC, .cacheBuilds, .newResolver,
-        ]
+        let options: CarthageDependencies.Options = .init()
         let path = try temporaryPath()
         system.succeedCommand([
             "carthage",
@@ -179,7 +192,11 @@ final class CarthageControllerTests: TuistUnitTestCase {
             "--platform",
             "iOS",
             "--use-xcframeworks",
-        ] + options.map(\.rawValue))
+            "--no-use-binaries",
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+        ])
 
         // When / Then
         XCTAssertNoThrow(try subject.update(at: path, platforms: [.iOS], options: options, printOutput: false))
@@ -188,7 +205,12 @@ final class CarthageControllerTests: TuistUnitTestCase {
     func test_update_without_options() throws {
         // Given
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: "0.37.0", exitstatus: 0)
-        let options: Set<CarthageDependencies.Options> = []
+        let options: CarthageDependencies.Options = .init(
+            noUseBinaries: false,
+            useNetRC: false,
+            cacheBuilds: false,
+            newResolver: false
+        )
         let path = try temporaryPath()
         system.succeedCommand([
             "carthage",
@@ -208,9 +230,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
         // Given
         let carthageVersion = Version("0.36.0")
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: carthageVersion.description, exitstatus: 0)
-        let options: Set<CarthageDependencies.Options> = [
-            .noUseBinaries, .useNetRC, .cacheBuilds, .newResolver,
-        ]
+        let options: CarthageDependencies.Options = .init()
         let path = try temporaryPath()
         system.succeedCommand([
             "carthage",
@@ -220,7 +240,11 @@ final class CarthageControllerTests: TuistUnitTestCase {
             "--platform",
             "iOS",
             "--use-xcframeworks",
-        ] + options.map(\.rawValue))
+            "--no-use-binaries",
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+        ])
 
         // When / Then
         XCTAssertThrowsSpecific(

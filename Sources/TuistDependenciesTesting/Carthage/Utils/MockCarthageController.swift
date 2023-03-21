@@ -32,12 +32,12 @@ public final class MockCarthageController: CarthageControlling {
     }
 
     var invokedBootstrap = false
-    var bootstrapStub: ((AbsolutePath, Set<TuistGraph.Platform>, Set<CarthageDependencies.Options>, Bool) throws -> Void)?
+    var bootstrapStub: ((AbsolutePath, Set<TuistGraph.Platform>, CarthageDependencies.Options, Bool) throws -> Void)?
 
     public func bootstrap(
         at path: AbsolutePath,
         platforms: Set<TuistGraph.Platform>,
-        options: Set<TuistGraph.CarthageDependencies.Options>,
+        options: CarthageDependencies.Options,
         printOutput: Bool
     ) throws {
         invokedBootstrap = true
@@ -45,12 +45,12 @@ public final class MockCarthageController: CarthageControlling {
     }
 
     var invokedUpdate = false
-    var updateStub: ((AbsolutePath, Set<TuistGraph.Platform>, Set<CarthageDependencies.Options>, Bool) throws -> Void)?
+    var updateStub: ((AbsolutePath, Set<TuistGraph.Platform>, CarthageDependencies.Options, Bool) throws -> Void)?
 
     public func update(
         at path: AbsolutePath,
         platforms: Set<TuistGraph.Platform>,
-        options: Set<CarthageDependencies.Options>,
+        options: CarthageDependencies.Options,
         printOutput: Bool
     ) throws {
         invokedUpdate = true

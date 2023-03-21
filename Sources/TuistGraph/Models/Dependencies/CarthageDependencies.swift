@@ -6,15 +6,15 @@ public struct CarthageDependencies: Equatable {
     public let dependencies: [Dependency]
 
     /// List of options that can be used on Carthage command.
-    public let options: Set<Options>
+    public let options: Options
 
     /// Initializes a new `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of dependencies that can be installed using Carthage.
-    ///   - options: Set of options that can be used on Carthage.
+    ///   - options: Set up Carthage's options.
     public init(
         _ dependencies: [Dependency],
-        _ options: Set<Options> = [.noUseBinaries, .useNetRC, .cacheBuilds, .newResolver]
+        _ options: Options = .init()
     ) {
         self.dependencies = dependencies
         self.options = options
@@ -84,17 +84,25 @@ extension CarthageDependencies {
 // MARK: - CarthageDependencies.Options
 
 extension CarthageDependencies {
-    public enum Options: String {
+    /// A set of available options when running Carthage on Tuist.
+    public struct Options: Equatable {
         /// Don't use downloaded binaries when possible
-        case noUseBinaries = "--no-use-binaries"
+        public let noUseBinaries: Bool
 
-        /// Use authentication credentials from ~/.netrc file when downloading binary only frameworks.
-        case useNetRC = "--use-netrc"
+        /// Use authentication credentials from `~/.netrc` file when downloading binary only frameworks.
+        public let useNetRC: Bool
 
         /// Use cached builds when possible
-        case cacheBuilds = "--cache-builds"
+        public let cacheBuilds: Bool
 
         /// Use the new resolver codeline when calculating dependencies.
-        case newResolver = "--new-resolver"
+        public let newResolver: Bool
+
+        public init(noUseBinaries: Bool = true, useNetRC: Bool = true, cacheBuilds: Bool = true, newResolver: Bool = true) {
+            self.noUseBinaries = noUseBinaries
+            self.useNetRC = useNetRC
+            self.cacheBuilds = cacheBuilds
+            self.newResolver = newResolver
+        }
     }
 }

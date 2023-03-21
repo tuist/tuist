@@ -47,7 +47,12 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: "Build")
 
         let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
-        let customOptions: Set<CarthageDependencies.Options> = [.noUseBinaries, .cacheBuilds, .useNetRC, .newResolver]
+        let customOptions = CarthageDependencies.Options(
+            noUseBinaries: true,
+            useNetRC: true,
+            cacheBuilds: true,
+            newResolver: true
+        )
         let stubbedDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
@@ -157,7 +162,12 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: "Build")
 
         let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
-        let customOptions: Set<CarthageDependencies.Options> = [.noUseBinaries, .cacheBuilds, .useNetRC, .newResolver]
+        let customOptions = CarthageDependencies.Options(
+            noUseBinaries: true,
+            useNetRC: true,
+            cacheBuilds: true,
+            newResolver: true
+        )
         let stubbedDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),

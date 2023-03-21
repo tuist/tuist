@@ -66,7 +66,7 @@ public protocol CarthageControlling {
     func bootstrap(
         at path: AbsolutePath,
         platforms: Set<TuistGraph.Platform>,
-        options: Set<CarthageDependencies.Options>,
+        options: CarthageDependencies.Options,
         printOutput: Bool
     ) throws
 
@@ -79,7 +79,7 @@ public protocol CarthageControlling {
     func update(
         at path: AbsolutePath,
         platforms: Set<TuistGraph.Platform>,
-        options: Set<CarthageDependencies.Options>,
+        options: CarthageDependencies.Options,
         printOutput: Bool
     ) throws
 }
@@ -124,7 +124,7 @@ public final class CarthageController: CarthageControlling {
     public func bootstrap(
         at path: AbsolutePath,
         platforms: Set<TuistGraph.Platform>,
-        options: Set<CarthageDependencies.Options>,
+        options: CarthageDependencies.Options,
         printOutput: Bool
     ) throws {
         guard try isXCFrameworksProductionSupported() else {
@@ -141,7 +141,7 @@ public final class CarthageController: CarthageControlling {
     public func update(
         at path: AbsolutePath,
         platforms: Set<TuistGraph.Platform>,
-        options: Set<CarthageDependencies.Options>,
+        options: CarthageDependencies.Options,
         printOutput: Bool
     ) throws {
         guard try isXCFrameworksProductionSupported() else {
@@ -161,7 +161,7 @@ public final class CarthageController: CarthageControlling {
         path: AbsolutePath,
         platforms: Set<TuistGraph.Platform>,
         subcommand: String,
-        options: Set<CarthageDependencies.Options>
+        options: CarthageDependencies.Options
     ) -> [String] {
         var commandComponents: [String] = [
             "carthage",
@@ -180,7 +180,7 @@ public final class CarthageController: CarthageControlling {
             ]
         }
 
-        commandComponents += ["--use-xcframeworks"] + options.map(\.rawValue)
+        commandComponents += ["--use-xcframeworks"] + CarthageArguments.map(fromFlagOptions: options)
 
         return commandComponents
     }
