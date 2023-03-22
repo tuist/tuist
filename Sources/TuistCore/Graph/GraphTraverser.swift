@@ -386,7 +386,7 @@ public class GraphTraverser: GraphTraversing {
 
         // In addition to any directly linked libraries, search paths for any transitivley linked libraries
         // are also needed.
-        let linkedLibraryPaths = try linkableDependencies(
+        let linkedLibraryPaths: [AbsolutePath] = try linkableDependencies(
             path: path,
             name: name,
             shouldExcludeHostAppDependencies: false
