@@ -311,7 +311,7 @@ final class LinkGenerator: LinkGenerating {
         path: AbsolutePath,
         graphTraverser: GraphTraversing
     ) throws {
-        let librarySearchPaths = graphTraverser.librariesSearchPaths(path: path, name: target.name).sorted()
+        let librarySearchPaths = try graphTraverser.librariesSearchPaths(path: path, name: target.name).sorted()
         try setup(
             setting: "LIBRARY_SEARCH_PATHS",
             paths: librarySearchPaths.map(LinkGeneratorPath.absolutePath),

@@ -377,13 +377,29 @@ public class GraphTraverser: GraphTraversing {
         return Set(libraryPublicHeaders)
     }
 
-    public func librariesSearchPaths(path: AbsolutePath, name: String) -> Set<AbsolutePath> {
-        let dependencies = graph.dependencies[.target(name: name, path: path), default: []]
-        let libraryPaths = dependencies.compactMap { dependency -> AbsolutePath? in
+    public func librariesSearchPaths(path: AbsolutePath, name: String) throws -> Set<AbsolutePath> {
+        let directDependencies = graph.dependencies[.target(name: name, path: path), default: []]
+        let directDependenciesLibraryPaths = directDependencies.compactMap { dependency -> AbsolutePath? in
             guard case let GraphDependency.library(path, _, _, _, _) = dependency else { return nil }
             return path
         }
-        return Set(libraryPaths.compactMap { $0.removingLastComponent() })
+
+        // In addition to any directly linked libraries, search paths for any transitivley linked libraries
+        // are also needed.
+        let linkedLibraryPaths = try linkableDependencies(
+            path: path,
+            name: name,
+            shouldExcludeHostAppDependencies: false
+        ).compactMap { dependency in
+            switch dependency {
+            case let .library(path: path, linking: _, architectures: _, product: _):
+                return path
+            default:
+                return nil
+            }
+        }
+
+        return Set((directDependenciesLibraryPaths + linkedLibraryPaths).compactMap { $0.removingLastComponent() })
     }
 
     public func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> Set<AbsolutePath> {
