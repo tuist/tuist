@@ -127,6 +127,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             .watch2Extension,
             .messagesExtension,
             .appClip,
+            .tvTopShelfExtension,
         ].contains(product)
     }
 
