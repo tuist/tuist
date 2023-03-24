@@ -65,7 +65,13 @@ final class Installer: Installing {
 
     func install(version: String, temporaryDirectory: AbsolutePath) throws {
         try installFromBundle(
-            bundleURL: URL(string: "https://github.com/tuist/tuist/releases/download/\(version)/tuist.zip")!,
+            bundleURL: {
+                if version.contains("-") {
+                    return URL(string: "https://app.zhenguanyu.com/iphone/Tuist/\(version)/tuist.zip")!
+                } else {
+                    return URL(string: "https://github.com/tuist/tuist/releases/download/\(version)/tuist.zip")!
+                }
+            }(),
             version: version,
             temporaryDirectory: temporaryDirectory
         )

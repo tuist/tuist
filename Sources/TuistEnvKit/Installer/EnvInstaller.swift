@@ -65,7 +65,13 @@ final class EnvInstaller: EnvInstalling {
 
     func install(version: String, temporaryDirectory: AbsolutePath) throws {
         try installFromBundle(
-            bundleURL: URL(string: "https://github.com/tuist/tuist/releases/download/\(version)/tuistenv.zip")!,
+            bundleURL: {
+                if version.contains("-") {
+                    return URL(string: "https://app.zhenguanyu.com/iphone/Tuist/\(version)/tuistenv.zip")!
+                } else {
+                    return URL(string: "https://github.com/tuist/tuist/releases/download/\(version)/tuistenv.zip")!
+                }
+            }(),
             version: version,
             temporaryDirectory: temporaryDirectory
         )
