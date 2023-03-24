@@ -367,6 +367,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "RxTest", // https://github.com/ReactiveX/RxSwift
                     "RxTest-Dynamic", // https://github.com/ReactiveX/RxSwift
                     "SnapshotTesting", // https://github.com/pointfreeco/swift-snapshot-testing
+                    "SwiftyMocky", // https://github.com/MakeAWishFoundation/SwiftyMocky
                     "TempuraTesting", // https://github.com/BendingSpoons/tempura-swift
                     "TSCTestSupport", // https://github.com/apple/swift-tools-support-core
                     "ViewInspector", // https://github.com/nalexn/ViewInspector
@@ -537,7 +538,7 @@ extension ProjectDescription.Target {
                 .sanitize(targetName: target.name)
                 .replacingOccurrences(of: "-", with: "_"),
             bundleId: target.name
-                .replacingOccurrences(of: "_", with: "-"),
+                .replacingOccurrences(of: "_", with: "."),
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
             sources: sources,
@@ -1074,6 +1075,8 @@ extension ProjectDescription.Product {
             return .stickerPackExtension
         case .appClip:
             return .appClip
+        case .xpc:
+            return .xpc
         case .extensionKitExtension:
             return .extensionKitExtension
         }
@@ -1145,8 +1148,12 @@ extension ProjectDescription.DefaultSettings {
 extension ProjectDescription.DeploymentTarget {
     fileprivate static func from(deploymentTarget: TuistGraph.DeploymentTarget) -> Self {
         switch deploymentTarget {
-        case let .iOS(version, devices):
-            return .iOS(targetVersion: version, devices: .from(devices: devices))
+        case let .iOS(version, devices, supportsMacDesignedForIOS):
+            return .iOS(
+                targetVersion: version,
+                devices: .from(devices: devices),
+                supportsMacDesignedForIOS: supportsMacDesignedForIOS
+            )
         case let .macOS(version):
             return .macOS(targetVersion: version)
         case let .tvOS(version):

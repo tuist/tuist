@@ -40,17 +40,19 @@ final class GenerateService {
         sources: Set<String>,
         noOpen: Bool,
         xcframeworks: Bool,
+        destination: CacheXCFrameworkDestination,
         profile: String?,
         ignoreCache: Bool
     ) async throws {
         let timer = clock.startTimer()
-        let path = self.path(path)
+        let path = try self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
+        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework(destination) : .framework
         let generator = generatorFactory.focus(
             config: config,
             sources: sources,
-            xcframeworks: xcframeworks,
+            cacheOutputType: cacheOutputType,
             cacheProfile: cacheProfile,
             ignoreCache: ignoreCache
         )
@@ -64,9 +66,9 @@ final class GenerateService {
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) -> AbsolutePath {
+    private func path(_ path: String?) throws -> AbsolutePath {
         if let path = path {
-            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
         }

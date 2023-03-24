@@ -8,7 +8,7 @@ protocol VersionsControlling: AnyObject {
 
     func install(version: String, installation: Installation) throws
     func uninstall(version: String) throws
-    func path(version: String) -> AbsolutePath
+    func path(version: String) throws -> AbsolutePath
     func versions() -> [InstalledVersion]
     func semverVersions() -> [Version]
 }

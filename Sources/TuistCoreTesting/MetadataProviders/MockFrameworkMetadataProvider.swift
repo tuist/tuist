@@ -13,9 +13,9 @@ public final class MockFrameworkMetadataProvider: MockPrecompiledMetadataProvide
         }
     }
 
-    public var dsymPathStub: ((AbsolutePath) -> AbsolutePath?)?
-    public func dsymPath(frameworkPath: AbsolutePath) -> AbsolutePath? {
-        dsymPathStub?(frameworkPath) ?? nil
+    public var dsymPathStub: ((AbsolutePath) throws -> AbsolutePath?)?
+    public func dsymPath(frameworkPath: AbsolutePath) throws -> AbsolutePath? {
+        try dsymPathStub?(frameworkPath) ?? nil
     }
 
     public var bcsymbolmapPathsStub: ((AbsolutePath) throws -> [AbsolutePath])?

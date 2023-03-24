@@ -242,7 +242,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
     fileprivate func run(command: [String], isVerbose: Bool) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         run(command: command, isVerbose: isVerbose)
-            .mapAsXcodeBuildOutput().values
+            .mapAsXcodeBuildOutput()
+            .stream
     }
 
     fileprivate func run(command: [String], isVerbose: Bool) -> AnyPublisher<SystemEvent<Data>, Error> {

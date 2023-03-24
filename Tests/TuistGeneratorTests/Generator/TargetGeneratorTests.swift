@@ -18,7 +18,7 @@ final class TargetGeneratorTests: XCTestCase {
     override func setUp() {
         super.setUp()
 
-        path = AbsolutePath("/test")
+        path = try! AbsolutePath(validating: "/test")
         pbxproj = PBXProj()
         pbxProject = createPbxProject(pbxproj: pbxproj)
         fileElements = ProjectFileElements([:])

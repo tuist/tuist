@@ -11,7 +11,7 @@ extension Target {
         product: Product = .app,
         productName: String? = nil,
         bundleId: String? = nil,
-        deploymentTarget: DeploymentTarget? = .iOS("13.1", [.iphone, .ipad]),
+        deploymentTarget: DeploymentTarget? = .iOS("13.1", [.iphone, .ipad], supportsMacDesignedForIOS: true),
         infoPlist: InfoPlist? = nil,
         entitlements: AbsolutePath? = nil,
         settings: Settings? = Settings.test(),

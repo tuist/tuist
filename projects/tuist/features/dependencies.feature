@@ -14,7 +14,7 @@ Feature: Tuist dependencies.
         Then I copy the fixture app_with_spm_dependencies into the working directory
         Then tuist fetches dependencies
         Then tuist generates the project
-        Then tuist builds the scheme App from the project with device "iPhone 8"
+        Then tuist builds the scheme App from the project
 
     Scenario: The project is a sub project within a workspace with SPM Dependencies.swift (app_with_spm_dependencies)
         Given that tuist is available

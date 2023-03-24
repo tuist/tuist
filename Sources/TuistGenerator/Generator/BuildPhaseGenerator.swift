@@ -126,6 +126,17 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             )
         }
 
+        if target.canEmbedXPCServices() {
+            try generateEmbedXPCServicesBuildPhase(
+                path: path,
+                target: target,
+                graphTraverser: graphTraverser,
+                pbxTarget: pbxTarget,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        }
+
         generateRawScriptBuildPhases(
             target.rawScriptBuildPhases,
             pbxTarget: pbxTarget,
@@ -567,6 +578,37 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxBuildFiles.append(pbxBuildFile)
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         embedAppClipsBuildPhase.files = pbxBuildFiles
+    }
+
+    func generateEmbedXPCServicesBuildPhase(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: path, name: target.name).sorted()
+        let xpcServices = targetDependencies.filter { $0.target.isEmbeddableXPCService() }
+        guard !xpcServices.isEmpty else { return }
+        var pbxBuildFiles = [PBXBuildFile]()
+
+        let embedXPCServicesBuildPhase = PBXCopyFilesBuildPhase(
+            dstPath: "$(CONTENTS_FOLDER_PATH)/XPCServices",
+            dstSubfolderSpec: .productsDirectory,
+            name: "Embed XPC Services"
+        )
+        pbxproj.add(object: embedXPCServicesBuildPhase)
+        pbxTarget.buildPhases.append(embedXPCServicesBuildPhase)
+
+        let refs = xpcServices.compactMap { fileElements.product(target: $0.target.name) }
+
+        refs.forEach {
+            let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
+            pbxBuildFiles.append(pbxBuildFile)
+        }
+        pbxBuildFiles.forEach { pbxproj.add(object: $0) }
+        embedXPCServicesBuildPhase.files = pbxBuildFiles
     }
 
     func generateExtensionKitExtensionsBuildPhase(

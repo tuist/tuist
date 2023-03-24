@@ -18,9 +18,9 @@ extension TuistGraph.ResourceFileElement {
     ) throws -> [TuistGraph.ResourceFileElement] {
         func globFiles(_ path: AbsolutePath, excluding: [String]) throws -> [AbsolutePath] {
             var excluded: Set<AbsolutePath> = []
-            excluding.forEach { path in
-                let absolute = AbsolutePath(path)
-                let globs = AbsolutePath(absolute.dirname).glob(absolute.basename)
+            try excluding.forEach { path in
+                let absolute = try AbsolutePath(validating: path)
+                let globs = try AbsolutePath(validating: absolute.dirname).glob(absolute.basename)
                 excluded.formUnion(globs)
             }
 

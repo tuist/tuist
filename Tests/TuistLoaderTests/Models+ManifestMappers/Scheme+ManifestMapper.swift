@@ -16,7 +16,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
             name: "Scheme",
             shared: false
         )
-        let projectPath = AbsolutePath("/somepath/Project")
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
         let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
 
         // When
@@ -36,7 +36,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
             ]
         )
 
-        let projectPath = AbsolutePath("/somepath")
+        let projectPath = try AbsolutePath(validating: "/somepath")
         let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
 
         let buildAction = ProjectDescription.BuildAction.test(targets: ["A", "B"])

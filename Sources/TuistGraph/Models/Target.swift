@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 
+// swiftlint:disable:next type_body_length
 public struct Target: Equatable, Hashable, Comparable, Codable {
     // MARK: - Static
 
@@ -41,6 +42,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var rawScriptBuildPhases: [RawScriptBuildPhase]
     public var playgrounds: [AbsolutePath]
     public let additionalFiles: [FileElement]
+    public var buildRules: [BuildRule]
     public var prune: Bool
 
     // MARK: - Init
@@ -68,6 +70,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         rawScriptBuildPhases: [RawScriptBuildPhase] = [],
         playgrounds: [AbsolutePath] = [],
         additionalFiles: [FileElement] = [],
+        buildRules: [BuildRule] = [],
         prune: Bool = false
     ) {
         self.name = name
@@ -92,6 +95,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         self.rawScriptBuildPhases = rawScriptBuildPhases
         self.playgrounds = playgrounds
         self.additionalFiles = additionalFiles
+        self.buildRules = buildRules
         self.prune = prune
     }
 
@@ -116,12 +120,14 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             .framework,
             .app,
             .commandLineTool,
+            .xpc,
             .unitTests,
             .uiTests,
             .appExtension,
             .watch2Extension,
             .messagesExtension,
             .appClip,
+            .tvTopShelfExtension,
             .extensionKitExtension,
         ].contains(product)
     }
@@ -167,7 +173,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         case .commandLineTool,
              .dynamicLibrary,
              .staticLibrary,
-             .staticFramework:
+             .staticFramework,
+             .xpc:
             return false
         }
     }
@@ -191,11 +198,33 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         }
     }
 
+    /// Determines if the target is an embeddable xpc service
+    /// i.e. a product that can be bundled with a host macOS application
+    public func isEmbeddableXPCService() -> Bool {
+        switch (platform, product) {
+        case (.macOS, .xpc):
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Determines if the target is able to embed a watch application
     /// i.e. a product that can be bundled with a watchOS application
     public func canEmbedWatchApplications() -> Bool {
         switch (platform, product) {
         case (.iOS, .app):
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Determines if the target is able to embed an xpc serivce
+    /// i.e. a product that can be bundled with a macOS application
+    public func canEmbedXPCServices() -> Bool {
+        switch (platform, product) {
+        case (.macOS, .app):
             return true
         default:
             return false
@@ -208,9 +237,9 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// with Catalyst compatibility.
     public var targetDependencyBuildFilesPlatformFilter: BuildFilePlatformFilter? {
         switch deploymentTarget {
-        case let .iOS(_, devices) where devices.contains(.all):
+        case let .iOS(_, devices, _) where devices.contains(.all):
             return nil
-        case let .iOS(_, devices):
+        case let .iOS(_, devices, _):
             if devices.contains(.mac) {
                 return .catalyst
             } else {

@@ -55,7 +55,7 @@ class SchemeLinterTests: TuistTestCase {
             .init(
                 name: "SchemeWithTargetThatDoesExist",
                 shared: true,
-                buildAction: .init(targets: [.init(projectPath: AbsolutePath("/Project"), name: "Target")])
+                buildAction: .init(targets: [.init(projectPath: try! AbsolutePath(validating: "/Project"), name: "Target")])
             ),
         ])
 
@@ -72,7 +72,10 @@ class SchemeLinterTests: TuistTestCase {
             .init(
                 name: "SchemeWithTargetThatDoesNotExist",
                 shared: true,
-                buildAction: .init(targets: [.init(projectPath: AbsolutePath("/Project/../Framework"), name: "Framework")])
+                buildAction: .init(targets: [.init(
+                    projectPath: try! AbsolutePath(validating: "/Project/../Framework"),
+                    name: "Framework"
+                )])
             ),
         ])
 
@@ -100,7 +103,10 @@ class SchemeLinterTests: TuistTestCase {
                     name: "SchemeWithTargetThatDoesNotExist",
                     shared: true,
                     testAction: .init(
-                        targets: [.init(target: .init(projectPath: AbsolutePath("/Project/../Framework"), name: "Framework"))],
+                        targets: [.init(target: .init(
+                            projectPath: try! AbsolutePath(validating: "/Project/../Framework"),
+                            name: "Framework"
+                        ))],
                         arguments: nil,
                         configurationName: "Beta",
                         attachDebugger: true,
@@ -136,7 +142,7 @@ class SchemeLinterTests: TuistTestCase {
                     title: "Something",
                     scriptText: "Script",
                     target: .init(
-                        projectPath: AbsolutePath("/Project/../Project2"),
+                        projectPath: try! AbsolutePath(validating: "/Project/../Project2"),
                         name: "Target2"
                     )
                 )])

@@ -12,7 +12,7 @@ public final class MockResourceSynthesizerPathLocator: ResourceSynthesizerPathLo
         resourceName: String,
         resourceSynthesizerPlugins: [PluginResourceSynthesizer]
     ) throws -> AbsolutePath {
-        try templatePathStub?(pluginName, resourceName, resourceSynthesizerPlugins) ?? AbsolutePath("/test")
+        try templatePathStub?(pluginName, resourceName, resourceSynthesizerPlugins) ?? AbsolutePath(validating: "/test")
     }
 
     public var templatePathResourceStub: ((String, AbsolutePath) -> AbsolutePath?)?

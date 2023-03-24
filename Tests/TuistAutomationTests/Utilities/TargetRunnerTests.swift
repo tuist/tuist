@@ -92,7 +92,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
             // THEN
             XCTAssertEqual(_configuration, BuildConfiguration.debug.name)
             expectation.fulfill()
-            return AbsolutePath("/path/to/proj.xcworkspace")
+            return try AbsolutePath(validating: "/path/to/proj.xcworkspace")
         }
 
         // WHEN

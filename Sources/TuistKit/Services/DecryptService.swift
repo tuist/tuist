@@ -12,16 +12,16 @@ final class DecryptService {
     }
 
     func run(path: String?) throws {
-        let path = self.path(path)
+        let path = try self.path(path)
         try signingCipher.decryptSigning(at: path, keepFiles: false)
         logger.notice("Successfully decrypted all signing files", metadata: .success)
     }
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) -> AbsolutePath {
+    private func path(_ path: String?) throws -> AbsolutePath {
         if let path = path {
-            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
         }

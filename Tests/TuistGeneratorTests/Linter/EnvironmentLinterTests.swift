@@ -108,7 +108,7 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
 
     func test_lintConfigPath_returnsALintingIssue_when_configManifestIsNotLocatedAtTuistDirectory() {
         // Given
-        let fakeRoot = AbsolutePath("/root")
+        let fakeRoot = try! AbsolutePath(validating: "/root")
         rootDirectoryLocator.locateStub = fakeRoot
 
         let configPath = fakeRoot.appending(RelativePath("Config.swift"))
@@ -124,7 +124,7 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
 
     func test_lintConfigPath_doesntReturnALintingIssue_when_configManifestIsLocatedAtTuistDirectory() {
         // Given
-        let fakeRoot = AbsolutePath("/root")
+        let fakeRoot = try! AbsolutePath(validating: "/root")
         rootDirectoryLocator.locateStub = fakeRoot
 
         let configPath = fakeRoot

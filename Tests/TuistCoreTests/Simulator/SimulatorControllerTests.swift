@@ -162,7 +162,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
     func test_installApp_should_bootSimulatorIfNotBooted() throws {
         // Given
         let deviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
-        let appPath = AbsolutePath("/path/to/app.App")
+        let appPath = try AbsolutePath(validating: "/path/to/app.App")
         let udid = deviceAndRuntime.device.udid
         let bootCommand = ["/usr/bin/xcrun", "simctl", "boot", udid]
         system.succeedCommand(bootCommand)
@@ -177,7 +177,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
     func test_installApp_should_installAppOnSimulatorWithUdid() throws {
         // Given
         let deviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
-        let appPath = AbsolutePath("/path/to/app.App")
+        let appPath = try AbsolutePath(validating: "/path/to/app.App")
         let udid = deviceAndRuntime.device.udid
         let bootCommand = ["/usr/bin/xcrun", "simctl", "boot", udid]
         system.succeedCommand(bootCommand)
@@ -315,8 +315,8 @@ final class SimulatorControllerTests: TuistUnitTestCase {
 
         return SimulatorDeviceAndRuntime(
             device: SimulatorDevice(
-                dataPath: AbsolutePath(dataPath),
-                logPath: AbsolutePath(logPath),
+                dataPath: try! AbsolutePath(validating: dataPath),
+                logPath: try! AbsolutePath(validating: logPath),
                 udid: udid,
                 isAvailable: true,
                 deviceTypeIdentifier: deviceTypeIdentifier,
@@ -326,9 +326,9 @@ final class SimulatorControllerTests: TuistUnitTestCase {
                 runtimeIdentifier: runTimeIdentifier
             ),
             runtime: SimulatorRuntime(
-                bundlePath: AbsolutePath(bundlePath),
+                bundlePath: try! AbsolutePath(validating: bundlePath),
                 buildVersion: buildVersion,
-                runtimeRoot: AbsolutePath(runtimeRoot),
+                runtimeRoot: try! AbsolutePath(validating: runtimeRoot),
                 identifier: identifier,
                 version: .init(major: 14, minor: 4, patch: nil),
                 isAvailable: true,

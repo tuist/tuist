@@ -70,7 +70,7 @@ final class RunService {
     ) async throws {
         let runPath: AbsolutePath
         if let path = path {
-            runPath = AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+            runPath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             runPath = FileHandler.shared.currentPath
         }

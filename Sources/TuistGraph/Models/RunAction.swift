@@ -6,6 +6,7 @@ public struct RunAction: Equatable, Codable {
 
     public let configurationName: String
     public let attachDebugger: Bool
+    public let customLLDBInitFile: AbsolutePath?
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
     public let executable: TargetReference?
@@ -19,6 +20,7 @@ public struct RunAction: Equatable, Codable {
     public init(
         configurationName: String,
         attachDebugger: Bool,
+        customLLDBInitFile: AbsolutePath?,
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
         executable: TargetReference?,
@@ -29,6 +31,7 @@ public struct RunAction: Equatable, Codable {
     ) {
         self.configurationName = configurationName
         self.attachDebugger = attachDebugger
+        self.customLLDBInitFile = customLLDBInitFile
         self.preActions = preActions
         self.postActions = postActions
         self.executable = executable

@@ -35,7 +35,7 @@ public protocol FrameworkMetadataProviding: PrecompiledMetadataProviding {
     /// Given the path to a framework, it returns the path to its dSYMs if they exist
     /// in the same framework directory.
     /// - Parameter frameworkPath: Path to the .framework directory.
-    func dsymPath(frameworkPath: AbsolutePath) -> AbsolutePath?
+    func dsymPath(frameworkPath: AbsolutePath) throws -> AbsolutePath?
 
     /// Given the path to a framework, it returns the list of .bcsymbolmap files that
     /// are associated to the framework and that are present in the same directory.
@@ -60,7 +60,7 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
             throw FrameworkMetadataProviderError.frameworkNotFound(path)
         }
         let binaryPath = binaryPath(frameworkPath: path)
-        let dsymPath = dsymPath(frameworkPath: path)
+        let dsymPath = try dsymPath(frameworkPath: path)
         let bcsymbolmapPaths = try bcsymbolmapPaths(frameworkPath: path)
         let linking = try linking(binaryPath: binaryPath)
         let architectures = try architectures(binaryPath: binaryPath)
@@ -76,8 +76,8 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
         )
     }
 
-    public func dsymPath(frameworkPath: AbsolutePath) -> AbsolutePath? {
-        let path = AbsolutePath("\(frameworkPath.pathString).dSYM")
+    public func dsymPath(frameworkPath: AbsolutePath) throws -> AbsolutePath? {
+        let path = try AbsolutePath(validating: "\(frameworkPath.pathString).dSYM")
         if FileHandler.shared.exists(path) { return path }
         return nil
     }

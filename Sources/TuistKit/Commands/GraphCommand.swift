@@ -88,8 +88,9 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
             open: !noOpen,
             platformToFilter: platform,
             targetsToFilter: targets,
-            path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath,
-            outputPath: outputPath.map { AbsolutePath($0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
+            path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath,
+            outputPath: outputPath
+                .map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
                 .currentPath
         )
     }

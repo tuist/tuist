@@ -7,7 +7,7 @@ import XCTest
 final class DeploymentTargetTests: TuistUnitTestCase {
     func test_codable_iOS() {
         // Given
-        let subject = DeploymentTarget.iOS("12.1", [.iphone, .mac])
+        let subject = DeploymentTarget.iOS("12.1", [.iphone, .mac], supportsMacDesignedForIOS: true)
 
         // Then
         XCTAssertCodable(subject)

@@ -12,7 +12,7 @@ final class EncryptService {
     }
 
     func run(path: String?) throws {
-        let path = self.path(path)
+        let path = try self.path(path)
         try signingCipher.encryptSigning(at: path, keepFiles: false)
 
         logger.notice("Successfully encrypted all signing files", metadata: .success)
@@ -20,9 +20,9 @@ final class EncryptService {
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) -> AbsolutePath {
+    private func path(_ path: String?) throws -> AbsolutePath {
         if let path = path {
-            return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
+            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
         }

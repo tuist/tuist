@@ -16,9 +16,8 @@ A server opens the door to new practical workflows that significantly **improve 
 
 The project is an [open-source](https://github.com/tuist/tuist/tree/main/projects/cloud) Rails app licensed under MIT.
 Teams can self-host it themselves by following [this](./self-hosting.md) guide.
-However, 
-we document the process to self-host the project and design it for easy hosting.
-We **recommend** the usage of the Tuist-hosted solution.
+While we document the process to self-host the project and design it for easy hosting,
+we **recommend** the usage of the Tuist-hosted solution.
 It provides benefits like support, monitoring, and continuous updates,
 and you support a project your project depends on.
 
