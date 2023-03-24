@@ -203,7 +203,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                     target: target,
                     condition: condition
                 )
-            case .framework, .library, .project, .sdk, .target, .xcframework, .xctest:
+            case .framework, .library, .project, .sdk, .target, .xcframework, .xctest, .cocoapod:
                 break
             }
         }
@@ -440,9 +440,19 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 case .bundle:
                     break
                 case let .product(dependencyTarget, _, condition):
-                    guard let fileRef = fileElements.product(target: dependencyTarget) else {
-                        throw LinkGeneratorError.missingProduct(name: dependencyTarget)
-                    }
+                    let fileRef: PBXFileReference = try {
+                        if dependencyTarget.hasPrefix("Pods-") {
+                            guard let fileRef = fileElements.pods(target: dependencyTarget) else {
+                                throw LinkGeneratorError.missingProduct(name: dependencyTarget)
+                            }
+                            return fileRef
+                        } else {
+                            guard let fileRef = fileElements.product(target: dependencyTarget) else {
+                                throw LinkGeneratorError.missingProduct(name: dependencyTarget)
+                            }
+                            return fileRef
+                        }
+                    }()
                     let buildFile = PBXBuildFile(file: fileRef)
                     buildFile.applyCondition(condition, applicableTo: target)
                     pbxproj.add(object: buildFile)

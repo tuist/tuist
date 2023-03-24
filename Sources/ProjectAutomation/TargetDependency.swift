@@ -20,5 +20,6 @@ public enum TargetDependency: Equatable, Hashable, Codable {
     case packagePlugin(product: String)
     case packageMacro(product: String)
     case sdk(name: String, status: SDKStatus)
+    case cocoapod(content: String)
     case xctest
 }

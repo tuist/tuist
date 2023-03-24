@@ -125,12 +125,27 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
-        try workspaceData.children = structure.contents.map {
-            try recursiveChildElement(
-                generatedProjects: generatedProjects,
-                element: $0,
-                path: graphTraverser.workspace.xcWorkspacePath.parentDirectory
-            )
+        try workspaceData.children = structure.contents.map { element in
+            if
+                case .group(let name, _, let contents) = element,
+                name == "Pods",
+                let firstChildElement = contents.first
+            {
+                return try recursiveChildElement(
+                    generatedProjects: generatedProjects,
+                    element: firstChildElement,
+                    path: graphTraverser.workspace.xcWorkspacePath.parentDirectory
+                )
+            } else {
+                return try recursiveChildElement(
+                    generatedProjects: generatedProjects,
+                    element: element,
+                    path: graphTraverser.workspace.xcWorkspacePath.parentDirectory
+                )
+            }
+        }
+        if graphTraverser.name == "Leo" {
+            workspaceData.children.append(workspaceFileElement(path: RelativePath("Pods/Pods.xcodeproj")))
         }
 
         // Schemes

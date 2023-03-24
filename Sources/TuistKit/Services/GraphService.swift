@@ -270,6 +270,8 @@ extension ProjectAutomation.Target {
                 projectAutomationStatus = .required
             }
             return .sdk(name: name, status: projectAutomationStatus)
+        case .cocoapod(type: let type, content: let content):
+            return .cocoapod(content: content)
         case .xctest:
             return .xctest
         }

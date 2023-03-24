@@ -36,7 +36,7 @@ final class SettingsLinter: SettingsLinting {
         var issues: [LintingIssue] = []
 
         let lintPath: (AbsolutePath) -> Void = { path in
-            if !FileHandler.shared.exists(path) {
+            if !FileHandler.shared.exists(path) && !path.basename.hasPrefix("Pods-") {
                 issues.append(LintingIssue(reason: "Configuration file not found at path \(path.pathString)", severity: .error))
             }
         }

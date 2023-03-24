@@ -39,6 +39,7 @@ class ProjectFileElements {
     var elements: [AbsolutePath: PBXFileElement] = [:]
     var products: [String: PBXFileReference] = [:]
     var compiled: [AbsolutePath: PBXFileReference] = [:]
+    var podDependencies: [String: PBXFileReference] = [:]
     var knownRegions: Set<String> = Set([])
 
     // MARK: - Init
@@ -248,6 +249,10 @@ class ProjectFileElements {
                     pbxproj: pbxproj
                 )
             case let .product(target: target, productName: productName, _):
+                guard !target.hasPrefix("Pods-") else {
+                    generatePods(targetName: target, productName: productName, groups: groups, pbxproj: pbxproj)
+                    return
+                }
                 try generateProduct(
                     targetName: target,
                     productName: productName,
@@ -307,6 +312,36 @@ class ProjectFileElements {
         pbxproj.add(object: fileReference)
         groups.products.children.append(fileReference)
         products[targetName] = fileReference
+    }
+
+    private func generatePods(
+        targetName: String,
+        productName: String,
+        groups: ProjectGroups,
+        pbxproj: PBXProj
+    ) {
+        guard podDependencies[targetName] == nil else { return }
+        let fileReference: PBXFileReference = {
+            if productName.hasSuffix(".framework") {
+                return PBXFileReference(
+                    sourceTree: .buildProductsDir,
+                    explicitFileType: Xcode.filetype(extension: "framework"),
+                    path: "\(targetName.replacingOccurrences(of: "-", with: "_")).framework",
+                    includeInIndex: false
+                )
+            } else {
+                return PBXFileReference(
+                    sourceTree: .buildProductsDir,
+                    explicitFileType: Xcode.filetype(extension: "a"),
+                    path: "lib\(targetName).a",
+                    includeInIndex: false
+                )
+            }
+        }()
+
+        pbxproj.add(object: fileReference)
+        groups.products.children.append(fileReference)
+        podDependencies[targetName] = fileReference
     }
 
     func generate(
@@ -629,6 +664,10 @@ class ProjectFileElements {
 
     func product(target name: String) -> PBXFileReference? {
         products[name]
+    }
+
+    func pods(target name: String) -> PBXFileReference? {
+        podDependencies[name]
     }
 
     func sdk(path: AbsolutePath) -> PBXFileReference? {

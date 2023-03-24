@@ -11,6 +11,11 @@ public enum SDKStatus: String, Codable {
     case optional
 }
 
+public enum PodDependencyType: String, Codable {
+    case library
+    case framework
+}
+
 public enum TargetDependency: Equatable, Hashable, Codable {
     public enum PackageType: String, Equatable, Hashable, Codable {
         case runtime
@@ -87,6 +92,7 @@ public enum TargetDependency: Equatable, Hashable, Codable {
     )
     case package(product: String, type: PackageType, condition: Condition? = nil)
     case sdk(name: String, status: SDKStatus, condition: Condition? = nil)
+    case cocoapod(type: PodDependencyType, content: String)
     case xctest
 
     public var condition: Condition? {
@@ -105,7 +111,7 @@ public enum TargetDependency: Equatable, Hashable, Codable {
             condition
         case .sdk(name: _, status: _, condition: let condition):
             condition
-        case .xctest: nil
+        case .xctest, .cocoapod: nil
         }
     }
 
@@ -126,6 +132,7 @@ public enum TargetDependency: Equatable, Hashable, Codable {
         case .sdk(name: let name, status: let status, condition: _):
             return .sdk(name: name, status: status, condition: condition)
         case .xctest: return .xctest
+        case .cocoapod: return self
         }
     }
 }
