@@ -230,10 +230,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    func test_generateTargetWithDeploymentTarget_whenIOS() throws {
+    func test_generateTargetWithDeploymentTarget_whenIOS_withMacForIPhoneSupport() throws {
         // Given
         let project = Project.test()
-        let target = Target.test(deploymentTarget: .iOS("12.0", [.iphone, .ipad]))
+        let target = Target.test(
+            deploymentTarget: .iOS("12.0", [.iphone, .ipad], supportsMacDesignedForIOS: true)
+        )
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -257,6 +259,43 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let expectedSettings = [
             "TARGETED_DEVICE_FAMILY": "1,2",
             "IPHONEOS_DEPLOYMENT_TARGET": "12.0",
+            "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "YES",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
+    func test_generateTargetWithDeploymentTarget_whenIOS_withoutMacForIPhoneSupport() throws {
+        // Given
+        let project = Project.test()
+        let target = Target.test(
+            deploymentTarget: .iOS("12.0", [.iphone, .ipad], supportsMacDesignedForIOS: false)
+        )
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: AbsolutePath("/project")
+        )
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings = [
+            "TARGETED_DEVICE_FAMILY": "1,2",
+            "IPHONEOS_DEPLOYMENT_TARGET": "12.0",
+            "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "NO",
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
@@ -265,7 +304,10 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     func test_generateTargetWithDeploymentTarget_whenIOS_for_framework() throws {
         // Given
-        let target = Target.test(product: .framework, deploymentTarget: .iOS("13.0", [.iphone, .ipad]))
+        let target = Target.test(
+            product: .framework,
+            deploymentTarget: .iOS("13.0", [.iphone, .ipad], supportsMacDesignedForIOS: true)
+        )
         let project = Project.test(targets: [target])
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
@@ -332,7 +374,9 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenCatalyst() throws {
         // Given
         let project = Project.test()
-        let target = Target.test(deploymentTarget: .iOS("13.1", [.iphone, .ipad, .mac]))
+        let target = Target.test(
+            deploymentTarget: .iOS("13.1", [.iphone, .ipad, .mac], supportsMacDesignedForIOS: false)
+        )
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -358,6 +402,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "IPHONEOS_DEPLOYMENT_TARGET": "13.1",
             "SUPPORTS_MACCATALYST": "YES",
             "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "YES",
+            "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "NO",
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
