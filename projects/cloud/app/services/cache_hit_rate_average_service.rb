@@ -29,14 +29,16 @@ class CacheHitRateAverageService < ApplicationService
     end
 
     def query(name)
-      "LEAST(array_length(string_to_array((#{name} || \';\'), \';\'), 1) - 1, char_length(#{name}))::double precision"
+      "LEAST(array_length(string_to_array((#{name} || ';'), ';'), 1) - 1, char_length(#{name}))::double precision"
     end
 
     project.command_events
-      .where(created_at: 30.days.ago.., name: name, subcommand: subcommand)
+      .where(created_at: 30.days.ago..Time.now, name: name, subcommand: subcommand)
       .where.not(cacheable_targets: "")
       .group_by_day(:created_at, range: 30.days.ago..Time.now)
-      .average("(#{query('local_cache_target_hits')} + #{query('remote_cache_target_hits')}) / #{query('cacheable_targets')}")
+      .average(
+        "(#{query("local_cache_target_hits")} + #{query("remote_cache_target_hits")}) / #{query("cacheable_targets")}",
+      )
       .map { |key, value| CacheHitRateAverage.new(date: key, cache_hit_rate_average: value.nil? ? 0 : value) }
   end
 end

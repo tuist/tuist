@@ -29,7 +29,7 @@ class CommandAverageService < ApplicationService
     end
 
     project.command_events
-      .where(created_at: 30.days.ago.., name: name, subcommand: subcommand)
+      .where(created_at: 30.days.ago..Time.now, name: name, subcommand: subcommand)
       .group_by_day(:created_at, range: 30.days.ago..Time.now)
       .average(:duration)
       .map { |key, value| CommandAverage.new(date: key, duration_average: value.nil? ? 0 : value) }
