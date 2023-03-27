@@ -38,17 +38,17 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     public var cacheOutputType: CacheOutputType
 
     public func build(
+        graph: Graph,
         scheme: Scheme,
         projectTarget: XcodeBuildTarget,
         configuration: String,
         osVersion _: Version?,
         deviceName _: String?,
-        into outputDirectory: AbsolutePath,
-        macCatalystSupportedTargets: [Target]?
+        into outputDirectory: AbsolutePath
     ) async throws {
         guard let buildTargets = scheme.buildAction?.targets else { return }
         let platform = self.platform(scheme: scheme)
-        let isMacCatalystSupported = macCatalystSupportedTargets != nil
+        let macCatalystSupportedTargets = getMacCatalystTargets(graph: graph, scheme: scheme)
 
         // Create temporary directories
         return try await FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
@@ -68,7 +68,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
             // Build for the macCatalyst
             var macCatalystArchivePath: AbsolutePath?
-            if platform == .iOS, isMacCatalystSupported {
+            if platform == .iOS, !macCatalystSupportedTargets.isEmpty {
                 macCatalystArchivePath = temporaryDirectory.appending(component: "macCatalyst.xcarchive")
                 try await self.macCatalystBuild(
                     projectTarget: projectTarget,
@@ -106,7 +106,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
     fileprivate func createXCFramework(
         buildTargets: [TargetReference],
-        macCatalystSupportedTargets: [Target]?,
+        macCatalystSupportedTargets: [Target],
         simulatorArchivePath: AbsolutePath?,
         macCatalystArchivePath: AbsolutePath?,
         deviceArchivePath: AbsolutePath?,
@@ -137,7 +137,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                 ))
             }
 
-            if let macCatalystSupportedTargets = macCatalystSupportedTargets {
+            if !macCatalystSupportedTargets.isEmpty {
                 zip(buildTargets, macCatalystSupportedTargets)
                     .filter { $0.0.name == $0.1.name }
                     .filter { $0.0.name == productName }
@@ -171,6 +171,16 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                 to: outputDirectory.appending(component: xcframeworkPath.basename)
             )
         }
+    }
+
+    fileprivate func getMacCatalystTargets(graph: Graph, scheme: Scheme) -> [Target] {
+        guard let buildTargets = scheme.buildAction?.targets else { return [] }
+        let buildTargetsSet = Set(buildTargets.map(\.name))
+        return graph.targets
+            .flatMap(\.value)
+            .filter { buildTargetsSet.contains($0.key) }
+            .map(\.value)
+            .filter(\.supportsCatalyst)
     }
 
     fileprivate func deviceBuild(
@@ -259,6 +269,18 @@ extension CacheOutputType {
             return false
         case let .xcframework(destination):
             return destination.contains(.device)
+        }
+    }
+}
+
+extension Target {
+    fileprivate var supportsCatalyst: Bool {
+      switch self.deploymentTarget {
+        // MacCatalyst should support DeploymentDevice .iphone, .ipad, .mac as OptionSet bit value 7
+        case let .iOS(_, devices, _) where devices.rawValue == 7:
+            return true
+        default:
+            return false
         }
     }
 }

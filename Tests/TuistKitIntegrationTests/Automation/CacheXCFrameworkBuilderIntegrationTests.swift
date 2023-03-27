@@ -35,16 +35,17 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "iOS")
+        let graph = Graph.test()
 
         // When
         try await subject.build(
+            graph: graph,
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath,
-            macCatalystSupportedTargets: nil
+            into: temporaryPath
         )
 
         // Then
@@ -63,18 +64,19 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "iOS")
+        let graph = Graph.test()
 
         subject.cacheOutputType = .xcframework(.device)
 
         // When
         try await subject.build(
+            graph: graph,
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath,
-            macCatalystSupportedTargets: nil
+            into: temporaryPath
         )
 
         // Then
@@ -94,18 +96,19 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "iOS")
+        let graph = Graph.test()
 
         subject.cacheOutputType = .xcframework(.simulator)
 
         // When
         try await subject.build(
+            graph: graph,
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath,
-            macCatalystSupportedTargets: nil
+            into: temporaryPath
         )
 
         // Then
@@ -127,20 +130,26 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
             name: "iOS",
             buildAction: .test(targets: [TargetReference(projectPath: "/Project", name: "iOS")])
         )
-        let aTarget = Target.test(
-            name: "iOS",
-            deploymentTarget: .iOS("14.0", [.iphone, .ipad, .mac], supportsMacDesignedForIOS: true)
+        let graph = Graph.test(
+            targets: [
+                try AbsolutePath(validating: "/test"): [
+                    "iOS": Target.test(
+                        name: "iOS",
+                        deploymentTarget: .iOS("14.0", [.iphone, .ipad, .mac], supportsMacDesignedForIOS: true)
+                    ),
+                ],
+            ]
         )
 
         // When
         try await subject.build(
+            graph: graph,
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath,
-            macCatalystSupportedTargets: [aTarget]
+            into: temporaryPath
         )
 
         // Then
@@ -161,16 +170,17 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "macOS")
+        let graph = Graph.test()
 
         // When
         try await subject.build(
+            graph: graph,
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath,
-            macCatalystSupportedTargets: nil
+            into: temporaryPath
         )
 
         // Then
@@ -190,16 +200,17 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "tvOS")
+        let graph = Graph.test()
 
         // When
         try await subject.build(
+            graph: graph,
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath,
-            macCatalystSupportedTargets: nil
+            into: temporaryPath
         )
 
         // Then
@@ -218,16 +229,17 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "watchOS")
+        let graph = Graph.test()
 
         // When
         try await subject.build(
+            graph: graph,
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath,
-            macCatalystSupportedTargets: nil
+            into: temporaryPath
         )
 
         // Then
@@ -247,16 +259,17 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "Documentation-iOS")
+        let graph = Graph.test()
 
         // When
         try await subject.build(
+            graph: graph,
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
             osVersion: nil,
             deviceName: nil,
-            into: temporaryPath,
-            macCatalystSupportedTargets: nil
+            into: temporaryPath
         )
 
         // Then

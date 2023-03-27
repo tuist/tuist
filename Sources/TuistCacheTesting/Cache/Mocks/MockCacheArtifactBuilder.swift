@@ -31,13 +31,13 @@ public final class MockCacheArtifactBuilder: CacheArtifactBuilding {
         [(scheme: Scheme, projectTarget: XcodeBuildTarget, outputDirectory: AbsolutePath)]()
     public var stubbedBuildSchemeProjectError: Error?
     public func build(
+        graph _: Graph,
         scheme: Scheme,
         projectTarget: XcodeBuildTarget,
         configuration _: String,
         osVersion _: Version?,
         deviceName _: String?,
-        into outputDirectory: AbsolutePath,
-        macCatalystSupportedTargets _: [Target]?
+        into outputDirectory: AbsolutePath
     ) throws {
         invokedBuildSchemeProject = true
         invokedBuildSchemeProjectCount += 1

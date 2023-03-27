@@ -26,13 +26,13 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
     }
 
     public func build(
+        graph _: Graph,
         scheme: Scheme,
         projectTarget: XcodeBuildTarget,
         configuration: String,
         osVersion: Version?,
         deviceName: String?,
-        into outputDirectory: AbsolutePath,
-        macCatalystSupportedTargets _: [Target]?
+        into outputDirectory: AbsolutePath
     ) async throws {
         let platform = platform(scheme: scheme)
 

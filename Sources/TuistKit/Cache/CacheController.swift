@@ -151,31 +151,29 @@ final class CacheController: CacheControlling {
 
             for scheme in binariesSchemes {
                 let outputDirectory = outputDirectory.appending(component: scheme.name)
-                let macCatalystSupportedTargets = self.getMacCatalystTargets(graph: graph, scheme: scheme)
                 try FileHandler.shared.createFolder(outputDirectory)
                 try await self.artifactBuilder.build(
+                    graph: graph,
                     scheme: scheme,
                     projectTarget: XcodeBuildTarget(with: projectPath),
                     configuration: cacheProfile.configuration,
                     osVersion: cacheProfile.os,
                     deviceName: cacheProfile.device,
-                    into: outputDirectory,
-                    macCatalystSupportedTargets: macCatalystSupportedTargets
+                    into: outputDirectory
                 )
             }
 
             for scheme in bundlesSchemes {
                 let outputDirectory = outputDirectory.appending(component: scheme.name)
-                let macCatalystSupportedTargets = self.getMacCatalystTargets(graph: graph, scheme: scheme)
                 try FileHandler.shared.createFolder(outputDirectory)
                 try await self.bundleArtifactBuilder.build(
+                    graph: graph,
                     scheme: scheme,
                     projectTarget: XcodeBuildTarget(with: projectPath),
                     configuration: cacheProfile.configuration,
                     osVersion: cacheProfile.os,
                     deviceName: cacheProfile.device,
-                    into: outputDirectory,
-                    macCatalystSupportedTargets: macCatalystSupportedTargets
+                    into: outputDirectory
                 )
             }
 
@@ -183,24 +181,6 @@ final class CacheController: CacheControlling {
             logger.notice("Storing \(hashesByCacheableTarget.count) cacheable targets: \(targetsToStore)")
             try await self.store(hashesByCacheableTarget, outputDirectory: outputDirectory)
         }
-    }
-
-    private func getMacCatalystTargets(graph: Graph, scheme: Scheme) -> [Target]? {
-        guard let buildTargets = scheme.buildAction?.targets else { return [] }
-        let buildTargetsSet = Set(buildTargets.map(\.name))
-        return graph.targets
-            .flatMap(\.value)
-            .filter { buildTargetsSet.contains($0.key) }
-            .map(\.value)
-            .compactMap { target in
-                switch target.deploymentTarget {
-                // MacCatalyst should support DeploymentDevice .iphone, .ipad, .mac as OptionSet bit value 7
-                case let .iOS(_, device, _) where device.rawValue == 7:
-                    return target
-                default:
-                    return nil
-                }
-            }
     }
 
     func store(
