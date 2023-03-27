@@ -32,9 +32,11 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "iOS")
+        let graph = Graph.test()
 
         // When
         try await subject.build(
+            graph: graph,
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
@@ -58,9 +60,11 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "macOS")
+        let graph = Graph.test()
 
         // When
         try await subject.build(
+            graph: graph,
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",

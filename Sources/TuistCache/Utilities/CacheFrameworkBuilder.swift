@@ -46,6 +46,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     public var cacheOutputType: CacheOutputType = .framework
 
     public func build(
+        graph _: Graph,
         scheme: Scheme,
         projectTarget: XcodeBuildTarget,
         configuration: String,
