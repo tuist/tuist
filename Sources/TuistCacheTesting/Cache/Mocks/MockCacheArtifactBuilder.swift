@@ -31,6 +31,7 @@ public final class MockCacheArtifactBuilder: CacheArtifactBuilding {
         [(scheme: Scheme, projectTarget: XcodeBuildTarget, outputDirectory: AbsolutePath)]()
     public var stubbedBuildSchemeProjectError: Error?
     public func build(
+        graph _: Graph,
         scheme: Scheme,
         projectTarget: XcodeBuildTarget,
         configuration _: String,

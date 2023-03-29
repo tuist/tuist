@@ -26,6 +26,7 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
     }
 
     public func build(
+        graph _: Graph,
         scheme: Scheme,
         projectTarget: XcodeBuildTarget,
         configuration: String,
