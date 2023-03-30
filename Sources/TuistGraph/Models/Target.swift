@@ -144,8 +144,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// Returns true if the target supports having sources.
     public var supportsSources: Bool {
         switch (platform, product) {
-        case (.iOS, .bundle), (.iOS, .stickerPackExtension), 
-            (.watchOS, .watch2App), (.tvOS, .bundle):
+        case (.iOS, .bundle), (.iOS, .stickerPackExtension),
+             (.watchOS, .watch2App), (.tvOS, .bundle):
             return false
         default:
             return true
