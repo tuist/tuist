@@ -37,6 +37,7 @@ final class ScaffoldService {
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
+    private let templateGitLoader: TemplateGitLoading
     private let configLoader: ConfigLoading
     private let pluginService: PluginServicing
 
@@ -44,31 +45,42 @@ final class ScaffoldService {
         templateLoader: TemplateLoading = TemplateLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         templateGenerator: TemplateGenerating = TemplateGenerator(),
+        templateGitLoader: TemplateGitLoading = TemplateGitLoader(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         pluginService: PluginServicing = PluginService()
     ) {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
+        self.templateGitLoader = templateGitLoader
         self.configLoader = configLoader
         self.pluginService = pluginService
     }
 
     func loadTemplateOptions(
         templateName: String,
-        path: String?
+        path: String?,
+        url: String?
     ) async throws -> (required: [String], optional: [String]) {
         let path = try self.path(path)
         let plugins = try await loadPlugins(at: path)
         let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
-        let templateDirectory = try templateDirectory(
-            templateDirectories: templateDirectories,
-            template: templateName
-        )
+        var attributes: [Template.Attribute] = []
 
-        let template = try templateLoader.loadTemplate(at: templateDirectory)
+        if let templateUrl = url, templateUrl.isGitURL {
+            try templateGitLoader.loadTemplate(from: templateUrl, templateName: templateName) { template in
+                attributes = template.attributes
+            }
+        } else {
+            let templateDirectory = try templateDirectory(
+                templateDirectories: templateDirectories,
+                template: templateName
+            )
 
-        return template.attributes.reduce(into: (required: [], optional: [])) { currentValue, attribute in
+            let template = try templateLoader.loadTemplate(at: templateDirectory)
+            attributes = template.attributes
+        }
+        return attributes.reduce(into: (required: [], optional: [])) { currentValue, attribute in
             switch attribute {
             case let .optional(name, default: _):
                 currentValue.optional.append(name)
@@ -80,32 +92,50 @@ final class ScaffoldService {
 
     func run(
         path: String?,
+        templateUrl: String?,
         templateName: String,
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?]
     ) async throws {
         let path = try self.path(path)
         let plugins = try await loadPlugins(at: path)
-        let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
 
-        let templateDirectory = try templateDirectory(
-            templateDirectories: templateDirectories,
-            template: templateName
-        )
+        if let templateUrl = templateUrl, templateUrl.isGitURL {
+            try templateGitLoader.loadTemplate(from: templateUrl, templateName: templateName, closure: { template in
+                let parsedAttributes = try parseAttributes(
+                    requiredTemplateOptions: requiredTemplateOptions,
+                    optionalTemplateOptions: optionalTemplateOptions,
+                    template: template
+                )
 
-        let template = try templateLoader.loadTemplate(at: templateDirectory)
+                try templateGenerator.generate(
+                    template: template,
+                    to: path,
+                    attributes: parsedAttributes
+                )
+            })
+        } else {
+            let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
 
-        let parsedAttributes = try parseAttributes(
-            requiredTemplateOptions: requiredTemplateOptions,
-            optionalTemplateOptions: optionalTemplateOptions,
-            template: template
-        )
+            let templateDirectory = try templateDirectory(
+                templateDirectories: templateDirectories,
+                template: templateName
+            )
 
-        try templateGenerator.generate(
-            template: template,
-            to: path,
-            attributes: parsedAttributes
-        )
+            let template = try templateLoader.loadTemplate(at: templateDirectory)
+
+            let parsedAttributes = try parseAttributes(
+                requiredTemplateOptions: requiredTemplateOptions,
+                optionalTemplateOptions: optionalTemplateOptions,
+                template: template
+            )
+
+            try templateGenerator.generate(
+                template: template,
+                to: path,
+                attributes: parsedAttributes
+            )
+        }
 
         logger.notice("Template \(templateName) was successfully generated", metadata: .success)
     }

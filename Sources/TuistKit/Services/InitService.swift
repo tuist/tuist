@@ -58,6 +58,7 @@ class InitService {
     }
 
     func loadTemplateOptions(
+        name: String,
         templateName: String,
         path: String?
     ) throws -> (
@@ -69,7 +70,7 @@ class InitService {
         var attributes: [Template.Attribute] = []
 
         if templateName.isGitURL {
-            try templateGitLoader.loadTemplate(from: templateName) { template in
+            try templateGitLoader.loadTemplate(from: templateName, templateName: name) { template in
                 attributes = template.attributes
             }
         } else {
@@ -113,7 +114,7 @@ class InitService {
         try verifyDirectoryIsEmpty(path: path)
 
         if templateName.isGitURL {
-            try templateGitLoader.loadTemplate(from: templateName, closure: { template in
+            try templateGitLoader.loadTemplate(from: templateName, templateName: name, closure: { template in
                 let parsedAttributes = try parseAttributes(
                     name: name,
                     platform: platform,

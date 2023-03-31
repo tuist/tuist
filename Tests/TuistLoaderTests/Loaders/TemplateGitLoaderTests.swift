@@ -49,7 +49,7 @@ final class TemplateGitLoaderTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.loadTemplate(from: "https://url/to/repo.git", closure: { _ in })
+        try subject.loadTemplate(from: "https://url/to/repo.git", templateName: "MyTemplate", closure: { _ in })
 
         // Then
         XCTAssertNotNil(pathToLoadTemplateFrom)

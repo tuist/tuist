@@ -7,7 +7,7 @@ public protocol TemplateGitLoading {
     /// - Parameters:
     ///     - templateURL: Git repository url
     ///     - closure: Closure to perform work on loaded template
-    func loadTemplate(from templateURL: String, closure: (TuistGraph.Template) throws -> Void) throws
+    func loadTemplate(from templateURL: String, templateName: String, closure: (TuistGraph.Template) throws -> Void) throws
 }
 
 public final class TemplateGitLoader: TemplateGitLoading {
@@ -38,9 +38,11 @@ public final class TemplateGitLoader: TemplateGitLoading {
         self.templateLocationParser = templateLocationParser
     }
 
-    public func loadTemplate(from templateURL: String, closure: (TuistGraph.Template) throws -> Void) throws {
+    public func loadTemplate(from templateURL: String, templateName: String, closure: (TuistGraph.Template) throws -> Void) throws {
+        // TODO: [Bug] `templateLocationParser` currently doesn't support git urls with user names in them:
+        //       "ssh://git@some.server.com:7999/repos/my-tuist-templates.git"
         let repoURL = templateLocationParser.parseRepositoryURL(from: templateURL)
-        let repoBranch = templateLocationParser.parseRepositoryBranch(from: templateURL)
+        let repoBranch: String? = templateLocationParser.parseRepositoryBranch(from: templateURL)
         try fileHandler.inTemporaryDirectory { temporaryPath in
             let templatePath = temporaryPath.appending(component: "Template")
             try fileHandler.createFolder(templatePath)
@@ -48,7 +50,7 @@ public final class TemplateGitLoader: TemplateGitLoading {
             if let repoBranch = repoBranch {
                 try gitHandler.checkout(id: repoBranch, in: templatePath)
             }
-            let template = try templateLoader.loadTemplate(at: templatePath)
+            let template = try templateLoader.loadTemplate(at: templatePath.appending(components: ["Templates", templateName]))
             try closure(template)
         }
     }

@@ -46,6 +46,12 @@ struct ScaffoldCommand: AsyncParsableCommand {
     )
     var path: String?
 
+    @Option(
+        name: .shortAndLong,
+        help: "The git URL pointing to a Tuist templates plugin."
+    )
+    var url: String?
+
     @Argument(
         help: "Name of template you want to use"
     )
@@ -62,6 +68,7 @@ struct ScaffoldCommand: AsyncParsableCommand {
         template = try container.decode(Argument<String>.self, forKey: .template).wrappedValue
         json = try container.decodeIfPresent(Option<Bool>.self, forKey: .json)?.wrappedValue ?? false
         path = try container.decodeIfPresent(Option<String>.self, forKey: .path)?.wrappedValue
+        url = try container.decodeIfPresent(Option<String>.self, forKey: .url)?.wrappedValue
         try ScaffoldCommand.requiredTemplateOptions.forEach { option in
             requiredTemplateOptions[option.name] = try container.decode(
                 Option<String>.self,
@@ -84,6 +91,7 @@ struct ScaffoldCommand: AsyncParsableCommand {
         } else {
             try await ScaffoldService().run(
                 path: path,
+                templateUrl: url,
                 templateName: template,
                 requiredTemplateOptions: requiredTemplateOptions,
                 optionalTemplateOptions: optionalTemplateOptions
@@ -111,7 +119,7 @@ extension ScaffoldCommand {
         }
         let filteredArguments = pairedArguments
             .filter {
-                $0.first == "--path" || $0.first == "-p" || $0.first == "--json"
+                $0.first == "--path" || $0.first == "-p" || $0.first == "--json" || $0.first == "--url"
             }
             .flatMap { $0 }
 
@@ -119,7 +127,8 @@ extension ScaffoldCommand {
 
         let (required, optional) = try await ScaffoldService().loadTemplateOptions(
             templateName: command.template,
-            path: command.path
+            path: command.path,
+            url: command.url
         )
 
         ScaffoldCommand.requiredTemplateOptions = required.map {
@@ -138,6 +147,7 @@ extension ScaffoldCommand {
         case template
         case json
         case path
+        case url
         case required(String)
         case optional(String)
 
@@ -149,6 +159,8 @@ extension ScaffoldCommand {
                 return "json"
             case .path:
                 return "path"
+            case .url:
+                return "url"
             case let .required(required):
                 return required
             case let .optional(optional):
@@ -164,6 +176,8 @@ extension ScaffoldCommand {
                 self = .json
             case "path":
                 self = .path
+            case "url":
+                self = .url
             default:
                 if ScaffoldCommand.requiredTemplateOptions.map(\.name).contains(stringValue) {
                     self = .required(stringValue)
@@ -193,6 +207,7 @@ extension ScaffoldCommand: CustomReflectable {
             Mirror.Child(label: "template", value: _template),
             Mirror.Child(label: "json", value: _json),
             Mirror.Child(label: "path", value: _path),
+            Mirror.Child(label: "url", value: _url),
         ].filter {
             // Prefer attributes defined in a template if it clashes with predefined ones
             $0.label.map { label in

@@ -108,7 +108,7 @@ extension InitCommand {
         let pairedArguments: [[String]] = stride(from: 1, to: arguments.count, by: 2).map {
             Array(arguments[$0 ..< min($0 + 2, arguments.count)])
         }
-        let possibleValues = ["--path", "-p", "--template", "-t"]
+        let possibleValues = ["--name", "-n", "--path", "-p", "--template", "-t"]
         let filteredArguments = pairedArguments
             .filter {
                 possibleValues.contains($0.first ?? "")
@@ -116,11 +116,13 @@ extension InitCommand {
             .flatMap { $0 }
 
         guard let command = try parseAsRoot(filteredArguments) as? InitCommand,
+              let name = command.name,
               let templateName = command.template,
               templateName != "default"
         else { return }
 
         let (required, optional) = try InitService().loadTemplateOptions(
+            name: name,
             templateName: templateName,
             path: command.path
         )
