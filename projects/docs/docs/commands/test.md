@@ -46,15 +46,22 @@ tuist test --device "iPhone X" --os 14.0
 One of the benefits of using Tuist over other automation tools is that developers can get familiar with a set of commands that they can use in any Tuist project.
 :::
 
+**Test in parallel**
+
+```bash
+tuist test --additional-parameters -parallel-testing-enabled
+```
+
 ### Arguments
 
-| Argument               | Short | Description                                                         | Default           | Required |
-| ---------------------- | ----- | ------------------------------------------------------------------- | ----------------- | -------- |
-| `--clean`              | `-c`  | `When passed, it cleans the project before testing it.`             | False             | No       |
-| `--path`               | `-p`  | `The path to the directory that contains the project to be tested.` | Current directory | No       |
-| `--device`             | `-d`  | `Test on a specific device.`                                        |                   | No       |
-| `--os`                 | `-o`  | `Test with a specific version of the OS.`                           |                   | No       |
-| `--configuration`      | `-C`  | `The configuration to be used when building the scheme.`            |                   | No       |
-| `--skip-ui-tests`      | n/a   | `When passed, it skips testing UI Tests targets.`                   | False             | No       |
-| `--result-bundle-path` | `-T`  | `Path where test result bundle will be saved`                       |                   | No       |
-| `--retry-count`        | n/a   | `Tests will retry <number> of times until they succeed.`              | 0                 | No       |
+| Argument                  | Short | Description                                                                                  | Default           | Required |
+| ------------------------- | ----- | -------------------------------------------------------------------------------------------- | ----------------- | -------- |
+| `--clean`                 | `-c`  | `When passed, it cleans the project before testing it.`                                      | False             | No       |
+| `--path`                  | `-p`  | `The path to the directory that contains the project to be tested.`                          | Current directory | No       |
+| `--device`                | `-d`  | `Test on a specific device.`                                                                 |                   | No       |
+| `--os`                    | `-o`  | `Test with a specific version of the OS.`                                                    |                   | No       |
+| `--configuration`         | `-C`  | `The configuration to be used when building the scheme.`                                     |                   | No       |
+| `--skip-ui-tests`         | n/a   | `When passed, it skips testing UI Tests targets.`                                            | False             | No       |
+| `--result-bundle-path`    | `-T`  | `Path where test result bundle will be saved`                                                |                   | No       |
+| `--retry-count`           | n/a   | `Tests will retry <number> of times until they succeed.`                                     | 0                 |          |
+| `--additional-parameters` | n/a   | `When passed, all options following will be passed-through as-is to the xcodebuild command.` |                   |          |
