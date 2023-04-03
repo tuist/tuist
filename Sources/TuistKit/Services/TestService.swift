@@ -77,7 +77,8 @@ final class TestService {
         osVersion: String?,
         skipUITests: Bool,
         resultBundlePath: AbsolutePath?,
-        retryCount: Int
+        retryCount: Int,
+        additionalParameters: [String]
     ) async throws {
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
@@ -104,7 +105,6 @@ final class TestService {
         ).1
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
-
         let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
             buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
         logger.log(
@@ -137,7 +137,8 @@ final class TestService {
                     version: version,
                     deviceName: deviceName,
                     resultBundlePath: resultBundlePath,
-                    retryCount: retryCount
+                    retryCount: retryCount,
+                    additionalParameters: additionalParameters
                 )
             }
         } else {
@@ -160,7 +161,8 @@ final class TestService {
                     version: version,
                     deviceName: deviceName,
                     resultBundlePath: resultBundlePath,
-                    retryCount: retryCount
+                    retryCount: retryCount,
+                    additionalParameters: additionalParameters
                 )
             }
         }
@@ -197,7 +199,8 @@ final class TestService {
         version: Version?,
         deviceName: String?,
         resultBundlePath: AbsolutePath?,
-        retryCount: Int
+        retryCount: Int,
+        additionalParameters: [String]
     ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
@@ -226,7 +229,8 @@ final class TestService {
                 configuration: configuration,
                 skipSigning: false
             ),
-            retryCount: retryCount
+            retryCount: retryCount,
+            additionalParameters: additionalParameters
         )
         .printFormattedOutput()
     }

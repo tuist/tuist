@@ -79,7 +79,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument],
-        retryCount: Int
+        retryCount: Int,
+        additionalParameters: [String]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -120,6 +121,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
         if let resultBundlePath = resultBundlePath {
             command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
         }
+
+        command.append(contentsOf: additionalParameters)
 
         return run(command: command, isVerbose: environment.isVerbose)
     }

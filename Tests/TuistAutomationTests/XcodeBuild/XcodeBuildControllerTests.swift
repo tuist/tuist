@@ -92,7 +92,8 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             derivedDataPath: nil,
             resultBundlePath: nil,
             arguments: [],
-            retryCount: 0
+            retryCount: 0,
+            additionalParameters: []
         )
 
         let result = try await events.toArray()
@@ -131,7 +132,8 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             derivedDataPath: nil,
             resultBundlePath: nil,
             arguments: [],
-            retryCount: 0
+            retryCount: 0,
+            additionalParameters: []
         )
 
         let result = try await events.toArray()
@@ -170,7 +172,8 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             derivedDataPath: derivedDataPath,
             resultBundlePath: nil,
             arguments: [],
-            retryCount: 0
+            retryCount: 0,
+            additionalParameters: []
         )
 
         let result = try await events.toArray()
@@ -209,7 +212,45 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             derivedDataPath: nil,
             resultBundlePath: resultBundlePath,
             arguments: [],
-            retryCount: 0
+            retryCount: 0,
+            additionalParameters: []
+        )
+
+        let result = try await events.toArray()
+        XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
+    }
+
+    func test_test_with_additional_parameters() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Project.xcworkspace")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+        let scheme = "Scheme"
+        let resultBundlePath = try temporaryPath()
+
+        let additionalParameters = (0 ..< 10).map { "\($0)" }
+        var command = [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "test",
+        ] + additionalParameters
+        command.append(contentsOf: target.xcodebuildArguments)
+        command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
+
+        system.succeedCommand(command, output: "output")
+        developerEnvironment.stubbedArchitecture = .x8664
+
+        // When
+        let events = subject.test(
+            target,
+            scheme: scheme,
+            clean: true,
+            destination: .mac,
+            derivedDataPath: nil,
+            resultBundlePath: resultBundlePath,
+            arguments: [],
+            retryCount: 0,
+            additionalParameters: additionalParameters
         )
 
         let result = try await events.toArray()

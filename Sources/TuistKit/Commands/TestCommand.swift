@@ -65,6 +65,13 @@ struct TestCommand: AsyncParsableCommand {
     )
     var retryCount: Int = 0
 
+    @Option(
+        name: .long,
+        parsing: .remaining,
+        help: "List of options to pass through to the xcodebuild invocation."
+    )
+    var additionalParameters: [String] = []
+
     func run() async throws {
         let absolutePath: AbsolutePath
 
@@ -88,7 +95,8 @@ struct TestCommand: AsyncParsableCommand {
                     relativeTo: FileHandler.shared.currentPath
                 )
             },
-            retryCount: retryCount
+            retryCount: retryCount,
+            additionalParameters: additionalParameters
         )
     }
 }
