@@ -24,8 +24,15 @@ public protocol BuildGraphInspecting {
 
     ///  From the list of testable targets of the given scheme, it returns the first one.
     /// - Parameters:
+    ///   - testPlan: When specified, the Test Plan to use.
     ///   - scheme: Scheme in which to look up the target.
-    func testableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget?
+    func testableTarget(
+        scheme: Scheme,
+        testPlan: String?,
+        onlyTesting: [TestIdentifier],
+        skipTesting: [TestIdentifier],
+        graphTraverser: GraphTraversing
+    ) -> GraphTarget?
 
     /// Given a graphTraverser, it returns a list of buildable schemes.
     func buildableSchemes(graphTraverser: GraphTraversing) -> [Scheme]
@@ -101,9 +108,37 @@ public final class BuildGraphInspector: BuildGraphInspecting {
         )
     }
 
-    public func testableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
-        guard let testTarget = scheme.testAction?.targets.first else { return nil }
-        return graphTraverser.target(path: testTarget.target.projectPath, name: testTarget.target.name)
+    public func testableTarget(
+        scheme: Scheme,
+        testPlan: String?,
+        onlyTesting: [TestIdentifier],
+        skipTesting: [TestIdentifier],
+        graphTraverser: GraphTraversing
+    ) -> GraphTarget? {
+        func isIncluded(_ testTarget: XCTestPlan.TestTarget) -> Bool {
+            if !testTarget.enabled {
+                return false
+            }
+            if onlyTesting.isEmpty {
+                return !skipTesting.contains { $0.target == testTarget.target.name }
+            }
+            return onlyTesting.contains { $0.target == testTarget.target.name }
+        }
+
+        if let testPlanName = testPlan,
+           let testPlan = scheme.testAction?.testPlans?.first(where: { $0.path.basenameWithoutExt == testPlanName }),
+           case let jsonDecoder = JSONDecoder(),
+           let testPlanData = try? Data(contentsOf: testPlan.path.asURL),
+           let xcTestPlan = try? jsonDecoder.decode(XCTestPlan.self, from: testPlanData),
+           let target = xcTestPlan.testTargets.first(where: { isIncluded($0) })?.target,
+           let project = graphTraverser.projects.first(where: { $0.value.xcodeProjPath.basename == target.projectBasename })?
+           .value
+        {
+            return graphTraverser.target(path: project.path, name: target.name)
+        } else if let testTarget = scheme.testAction?.targets.first {
+            return graphTraverser.target(path: testTarget.target.projectPath, name: testTarget.target.name)
+        }
+        return nil
     }
 
     public func buildableSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
@@ -122,7 +157,7 @@ public final class BuildGraphInspector: BuildGraphInspecting {
 
     public func testableSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
         graphTraverser.schemes()
-            .filter { $0.testAction?.targets.isEmpty == false }
+            .filter { $0.testAction?.targets.isEmpty == false || $0.testAction?.testPlans?.isEmpty == false }
             .sorted(by: { $0.name < $1.name })
     }
 
@@ -166,4 +201,54 @@ public final class BuildGraphInspector: BuildGraphInspecting {
             }
             .first
     }
+}
+
+private struct XCTestPlan: Decodable {
+    struct Target: Decodable {
+        let projectBasename: String
+        let name: String
+
+        enum CodingKeys: CodingKey {
+            case containerPath
+            case name
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+
+            let containerPath = try container.decode(String.self, forKey: .containerPath)
+            let containerInfo = containerPath.split(separator: ":")
+            switch containerInfo.count {
+            case 1:
+                projectBasename = containerPath
+            case 2 where containerInfo[0] == "container":
+                projectBasename = (try? AbsolutePath(validating: String(containerInfo[1])))?.basename ?? String(containerInfo[1])
+            default:
+                throw DecodingError.valueNotFound(
+                    String.self,
+                    .init(codingPath: container.codingPath, debugDescription: "Invalid containerPath")
+                )
+            }
+            name = try container.decode(String.self, forKey: .name)
+        }
+    }
+
+    struct TestTarget: Decodable {
+        let enabled: Bool
+        let target: Target
+
+        enum CodingKeys: CodingKey {
+            case enabled
+            case target
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+
+            enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+            target = try container.decode(XCTestPlan.Target.self, forKey: .target)
+        }
+    }
+
+    let testTargets: [TestTarget]
 }

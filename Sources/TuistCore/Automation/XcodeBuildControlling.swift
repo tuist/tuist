@@ -42,7 +42,12 @@ public protocol XcodeBuildControlling {
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument],
-        retryCount: Int
+        retryCount: Int,
+        testPlan: String?,
+        onlyTesting: [TestIdentifier],
+        skipTesting: [TestIdentifier],
+        onlyTestConfiguration: [String],
+        skipTestConfiguration: [String]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable that archives the given project using xcodebuild.

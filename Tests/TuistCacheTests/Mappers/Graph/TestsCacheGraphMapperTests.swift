@@ -27,6 +27,8 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         subject = TestsCacheGraphMapper(
             hashesCacheDirectory: hashesCacheDirectory,
             config: Config.default,
+            targetToInclude: [],
+            targetToExclude: [],
             graphContentHasher: graphContentHasher,
             cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
         )

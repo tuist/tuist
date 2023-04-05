@@ -126,7 +126,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         // When
         let got = subject.automation(
             config: config,
-            testsCacheDirectory: testsCacheDirectory
+            testsCacheDirectory: testsCacheDirectory,
+            targetToInclude: [],
+            targetToExclude: []
         )
 
         // Then
@@ -143,7 +145,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         // When
         let got = subject.automation(
             config: config,
-            testsCacheDirectory: testsCacheDirectory
+            testsCacheDirectory: testsCacheDirectory,
+            targetToInclude: [],
+            targetToExclude: []
         )
 
         // Then
@@ -158,7 +162,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         // When
         let got = subject.automation(
             config: config,
-            testsCacheDirectory: testsCacheDirectory
+            testsCacheDirectory: testsCacheDirectory,
+            targetToInclude: [],
+            targetToExclude: []
         )
 
         // Then

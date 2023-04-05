@@ -10,22 +10,40 @@ import TuistSupport
 
 enum TestServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
-    case schemeWithoutTestableTargets(scheme: String)
+    case schemeWithoutTestableTargets(scheme: String, testPlan: String?)
+    case testPlanNotFound(scheme: String, testPlan: String, existing: [String])
+    case testIdentifierInvalid(value: String)
 
     // Error description
     var description: String {
         switch self {
         case let .schemeNotFound(scheme, existing):
             return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
-        case let .schemeWithoutTestableTargets(scheme):
-            return "The scheme \(scheme) cannot be built because it contains no buildable targets."
+        case let .schemeWithoutTestableTargets(scheme, testPlan):
+            let testPlanMessage: String
+            if let testPlan = testPlan, !testPlan.isEmpty {
+                testPlanMessage = "test plan \(testPlan) in "
+            } else {
+                testPlanMessage = ""
+            }
+            return "The \(testPlanMessage)scheme \(scheme) cannot be built because it contains no buildable targets."
+        case let .testPlanNotFound(scheme, testPlan, existing):
+            let existingMessage: String
+            if existing.isEmpty {
+                existingMessage = "No test plans are defined for this scheme"
+            } else {
+                existingMessage = "The available test plans are: \(existing.joined(separator: ","))"
+            }
+            return "Couldn't find test plan \(testPlan) in scheme \(scheme). \(existingMessage)."
+        case let .testIdentifierInvalid(value):
+            return "Invalid test identifiers \(value). The expected format is TestTarget[/TestClass[/TestMethod]]."
         }
     }
 
     // Error type
     var type: ErrorType {
         switch self {
-        case .schemeNotFound, .schemeWithoutTestableTargets:
+        case .schemeNotFound, .schemeWithoutTestableTargets, .testPlanNotFound, .testIdentifierInvalid:
             return .abort
         }
     }
@@ -77,7 +95,12 @@ final class TestService {
         osVersion: String?,
         skipUITests: Bool,
         resultBundlePath: AbsolutePath?,
-        retryCount: Int
+        retryCount: Int,
+        testPlan: String?,
+        onlyTesting: [TestIdentifier],
+        skipTesting: [TestIdentifier],
+        onlyTestConfiguration: [String],
+        skipTestConfiguration: [String]
     ) async throws {
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
@@ -96,6 +119,8 @@ final class TestService {
             config: config,
             automationPath: Environment.shared.automationPath ?? projectDirectory,
             testsCacheDirectory: testsCacheTemporaryDirectory.path,
+            includedTargets: Set(onlyTesting.map(\.target)),
+            excludedTargets: Set(skipTesting.map(\.target)),
             skipUITests: skipUITests
         )
         logger.notice("Generating project for testing", metadata: .section)
@@ -104,7 +129,6 @@ final class TestService {
         ).1
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
-
         let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
             buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
         logger.log(
@@ -121,9 +145,15 @@ final class TestService {
                 )
             }
 
-            if scheme.testAction.map(\.targets.isEmpty) ?? true {
+            switch (testPlan, scheme.testAction?.targets.isEmpty, scheme.testAction?.testPlans?.isEmpty) {
+            case (nil, true, _), (nil, nil, _):
                 logger.log(level: .info, "There are no tests to run, finishing early")
                 return
+            case (_?, _, true), (_?, _, nil):
+                logger.log(level: .info, "There are no test plans to run, finishing early")
+                return
+            default:
+                break
             }
 
             let testSchemes: [Scheme] = [scheme]
@@ -137,7 +167,12 @@ final class TestService {
                     version: version,
                     deviceName: deviceName,
                     resultBundlePath: resultBundlePath,
-                    retryCount: retryCount
+                    retryCount: retryCount,
+                    testPlan: testPlan,
+                    onlyTesting: onlyTesting,
+                    skipTesting: skipTesting,
+                    onlyTestConfiguration: onlyTestConfiguration,
+                    skipTestConfiguration: skipTestConfiguration
                 )
             }
         } else {
@@ -160,7 +195,12 @@ final class TestService {
                     version: version,
                     deviceName: deviceName,
                     resultBundlePath: resultBundlePath,
-                    retryCount: retryCount
+                    retryCount: retryCount,
+                    testPlan: testPlan,
+                    onlyTesting: onlyTesting,
+                    skipTesting: skipTesting,
+                    onlyTestConfiguration: onlyTestConfiguration,
+                    skipTestConfiguration: skipTestConfiguration
                 )
             }
         }
@@ -197,11 +237,31 @@ final class TestService {
         version: Version?,
         deviceName: String?,
         resultBundlePath: AbsolutePath?,
-        retryCount: Int
+        retryCount: Int,
+        testPlan: String?,
+        onlyTesting: [TestIdentifier],
+        skipTesting: [TestIdentifier],
+        onlyTestConfiguration: [String],
+        skipTestConfiguration: [String]
     ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
-        guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
-            throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
+        if let testPlan = testPlan, let testPlans = scheme.testAction?.testPlans,
+           !testPlans.contains(where: { $0.path.basenameWithoutExt == testPlan })
+        {
+            throw TestServiceError.testPlanNotFound(
+                scheme: scheme.name,
+                testPlan: testPlan,
+                existing: testPlans.map(\.path.basenameWithoutExt)
+            )
+        }
+        guard let buildableTarget = buildGraphInspector.testableTarget(
+            scheme: scheme,
+            testPlan: testPlan,
+            onlyTesting: onlyTesting,
+            skipTesting: skipTesting,
+            graphTraverser: graphTraverser
+        ) else {
+            throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name, testPlan: testPlan)
         }
 
         let destination = try await XcodeBuildDestination.find(
@@ -226,7 +286,12 @@ final class TestService {
                 configuration: configuration,
                 skipSigning: false
             ),
-            retryCount: retryCount
+            retryCount: retryCount,
+            testPlan: testPlan,
+            onlyTesting: onlyTesting,
+            skipTesting: skipTesting,
+            onlyTestConfiguration: onlyTestConfiguration,
+            skipTestConfiguration: skipTestConfiguration
         )
         .printFormattedOutput()
     }

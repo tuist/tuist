@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistSupport
 
 /// Command that tests a target from the project in the current directory.
@@ -65,6 +66,42 @@ struct TestCommand: AsyncParsableCommand {
     )
     var retryCount: Int = 0
 
+    @Option(
+        name: .long,
+        help: "The test plan to run."
+    )
+    var testPlan: String?
+
+    @Option(
+        name: .long,
+        parsing: .upToNextOption,
+        help: "The list of test identifiers you want to test. Takes precedence over --skip-testing",
+        transform: TestIdentifier.init(string:)
+    )
+    var onlyTesting: [TestIdentifier] = []
+
+    @Option(
+        name: .long,
+        parsing: .upToNextOption,
+        help: "The list of test identifiers you want to skip testing.",
+        transform: TestIdentifier.init(string:)
+    )
+    var skipTesting: [TestIdentifier] = []
+
+    @Option(
+        name: .long,
+        parsing: .upToNextOption,
+        help: "The list of configurations you want to test. Takes precedence over --skip-test-configuration"
+    )
+    var onlyTestConfiguration: [String] = []
+
+    @Option(
+        name: .long,
+        parsing: .upToNextOption,
+        help: "The list of configurations you want to skip testing."
+    )
+    var skipTestConfiguration: [String] = []
+
     func run() async throws {
         let absolutePath: AbsolutePath
 
@@ -88,7 +125,12 @@ struct TestCommand: AsyncParsableCommand {
                     relativeTo: FileHandler.shared.currentPath
                 )
             },
-            retryCount: retryCount
+            retryCount: retryCount,
+            testPlan: testPlan,
+            onlyTesting: onlyTesting,
+            skipTesting: skipTesting,
+            onlyTestConfiguration: onlyTestConfiguration,
+            skipTestConfiguration: skipTestConfiguration
         )
     }
 }

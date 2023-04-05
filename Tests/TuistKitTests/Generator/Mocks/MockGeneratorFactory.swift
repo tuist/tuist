@@ -44,22 +44,26 @@ final class MockGeneratorFactory: GeneratorFactorying {
         config: Config,
         automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
+        includedTargets: Set<String>,
+        excludedTargets: Set<String>,
         skipUITests: Bool
     )?
     var invokedTestParametersList =
-        [(config: Config, automationPath: AbsolutePath, testsCacheDirectory: AbsolutePath, skipUITests: Bool)]()
+    [(config: Config, automationPath: AbsolutePath, testsCacheDirectory: AbsolutePath, includedTargets: Set<String>, excludedTargets: Set<String>, skipUITests: Bool)]()
     var stubbedTestResult: Generating!
 
     func test(
         config: Config,
         automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
+        includedTargets: Set<String>,
+        excludedTargets: Set<String>,
         skipUITests: Bool
     ) -> Generating {
         invokedTest = true
         invokedTestCount += 1
-        invokedTestParameters = (config, automationPath, testsCacheDirectory, skipUITests)
-        invokedTestParametersList.append((config, automationPath, testsCacheDirectory, skipUITests))
+        invokedTestParameters = (config, automationPath, testsCacheDirectory, includedTargets, excludedTargets, skipUITests)
+        invokedTestParametersList.append((config, automationPath, testsCacheDirectory, includedTargets, excludedTargets, skipUITests))
         return stubbedTestResult
     }
 
