@@ -52,13 +52,13 @@ public class GraphTraverser: GraphTraversing {
         allTargets(excludingExternalTargets: true)
     }
 
-    public func filterIncludedTargets(
-        basedOn targets: some Collection<GraphTarget>,
+    public func filterIncludedTargets<GraphTargets: Collection>(
+        basedOn targets: GraphTargets,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
         excludingExternalTargets: Bool = false
-    ) -> Set<GraphTarget> {
+    ) -> Set<GraphTarget> where GraphTargets.Element == GraphTarget {
         let allTestPlansTargetNames: Set<String>?
         if includedTargets.isEmpty, let testPlanName = testPlan, let testPlan = self.testPlan(name: testPlanName) {
             allTestPlansTargetNames = Set(testPlan.testTargets.filter(\.isEnabled).map(\.target.name))
