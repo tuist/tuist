@@ -92,8 +92,7 @@ jobs:
       matrix:
         feature:
           [
-            # This is throwing a SIGSEGV in CI after bumping Xcode to 14.2
-            # 'build'
+            'build',
             'cache-frameworks',
             'cache-xcframeworks',
             'cloud',
