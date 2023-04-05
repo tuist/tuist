@@ -150,11 +150,11 @@ final class MockGraphTraverser: GraphTraversing {
     var stubbedFilterIncludedTargetsResult: Set<GraphTarget>! = []
 
     func filterIncludedTargets(
-        basedOn targets: some Collection<GraphTarget>,
-        testPlan: String?,
-        includedTargets: Set<String>,
-        excludedTargets: Set<String>,
-        excludingExternalTargets: Bool = false
+        basedOn _: some Collection<GraphTarget>,
+        testPlan _: String?,
+        includedTargets _: Set<String>,
+        excludedTargets _: Set<String>,
+        excludingExternalTargets _: Bool = false
     ) -> Set<GraphTarget> {
         invokedFilterIncludedTargets = true
         invokedFilterIncludedTargetsCount += 1
@@ -175,7 +175,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedTestPlanCount = 0
     var stubbedTestPlanResult: TestPlan?
 
-    func testPlan(name: String) -> TestPlan? {
+    func testPlan(name _: String) -> TestPlan? {
         invokedTestPlan = true
         invokedTestPlanCount += 1
         return stubbedTestPlanResult

@@ -18,7 +18,7 @@ public struct TestPlan: Hashable, Codable {
     public let isDefault: Bool
 
     public init(path: AbsolutePath, testTargets: [TestTarget], isDefault: Bool) {
-        self.name = path.basenameWithoutExt
+        name = path.basenameWithoutExt
         self.path = path
         self.testTargets = testTargets
         self.isDefault = isDefault

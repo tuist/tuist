@@ -20,6 +20,7 @@ public struct TestIdentifier: CustomStringConvertible {
             }
         }
     }
+
     public let target: String
     public let `class`: String?
     public let method: String?
@@ -35,9 +36,9 @@ public struct TestIdentifier: CustomStringConvertible {
         return description
     }
 
-    public init(target: String, `class`: String? = nil, method: String? = nil) {
+    public init(target: String, class: String? = nil, method: String? = nil) {
         self.target = target
-        self.`class` = `class`
+        self.class = `class`
         self.method = method
     }
 
