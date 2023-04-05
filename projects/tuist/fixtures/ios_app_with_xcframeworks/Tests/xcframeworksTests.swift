@@ -1,4 +1,5 @@
 import Foundation
+import MyStaticLibrary
 import XCTest
 
 @testable import App
