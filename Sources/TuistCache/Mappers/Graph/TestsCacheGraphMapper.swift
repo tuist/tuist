@@ -9,8 +9,9 @@ import TuistSupport
 public final class TestsCacheGraphMapper: GraphMapping {
     let hashesCacheDirectory: AbsolutePath
     let config: Config
-    let targetToInclude: Set<String>
-    let targetToExclude: Set<String>
+    let testPlan: String?
+    let includedTargets: Set<String>
+    let excludedTargets: Set<String>
     private let graphContentHasher: GraphContentHashing
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
 
@@ -21,14 +22,16 @@ public final class TestsCacheGraphMapper: GraphMapping {
     public convenience init(
         hashesCacheDirectory: AbsolutePath,
         config: Config,
-        targetToInclude: Set<String>,
-        targetToExclude: Set<String>
+        testPlan: String?,
+        includedTargets: Set<String>,
+        excludedTargets: Set<String>
     ) {
         self.init(
             hashesCacheDirectory: hashesCacheDirectory,
             config: config,
-            targetToInclude: targetToInclude,
-            targetToExclude: targetToExclude,
+            testPlan: testPlan,
+            includedTargets: includedTargets,
+            excludedTargets: excludedTargets,
             graphContentHasher: GraphContentHasher(contentHasher: ContentHasher()),
             cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory()
         )
@@ -37,15 +40,17 @@ public final class TestsCacheGraphMapper: GraphMapping {
     init(
         hashesCacheDirectory: AbsolutePath,
         config: Config,
-        targetToInclude: Set<String>,
-        targetToExclude: Set<String>,
+        testPlan: String?,
+        includedTargets: Set<String>,
+        excludedTargets: Set<String>,
         graphContentHasher: GraphContentHashing,
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     ) {
         self.hashesCacheDirectory = hashesCacheDirectory
         self.config = config
-        self.targetToInclude = targetToInclude
-        self.targetToExclude = targetToExclude
+        self.testPlan = testPlan
+        self.includedTargets = includedTargets
+        self.excludedTargets = excludedTargets
         self.graphContentHasher = graphContentHasher
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
     }
@@ -68,7 +73,13 @@ public final class TestsCacheGraphMapper: GraphMapping {
                 )
             }
         let schemes = mappedSchemes.map(\.0)
-        let cachedTestableTargets = mappedSchemes.flatMap(\.1)
+        let cachedTestableTargets = graphTraverser.filterIncludedTargets(
+            basedOn: mappedSchemes.flatMap(\.1),
+            testPlan: testPlan,
+            includedTargets: includedTargets,
+            excludedTargets: excludedTargets
+        )
+
         Set(cachedTestableTargets).forEach {
             logger.notice("\($0.target.name) has not changed from last successful run, skipping...")
         }
@@ -156,19 +167,24 @@ public final class TestsCacheGraphMapper: GraphMapping {
         var scheme = scheme
         guard let testAction = scheme.testAction else { return (scheme, []) }
 
-        let cachedTestableTargets = testableTargets(
-            scheme: scheme,
-            graphTraverser: graphTraverser
+        let cachedTestableTargets = graphTraverser.filterIncludedTargets(
+            basedOn: testableTargets(
+                scheme: scheme,
+                graphTraverser: graphTraverser
+            ).filter { testableTarget in
+                isCached(
+                    testableTarget,
+                    graphTraverser: graphTraverser,
+                    hashes: hashes,
+                    visited: &visited,
+                    testsCacheDirectory: testsCacheDirectory
+                )
+            },
+            testPlan: testPlan,
+            includedTargets: includedTargets,
+            excludedTargets: excludedTargets,
+            excludingExternalTargets: false
         )
-        .filter { testableTarget in
-            isIncluded(testableTarget) && isCached(
-                testableTarget,
-                graphTraverser: graphTraverser,
-                hashes: hashes,
-                visited: &visited,
-                testsCacheDirectory: testsCacheDirectory
-            )
-        }
 
         scheme.testAction?.targets = testAction.targets.filter { testTarget in
             !cachedTestableTargets.contains(where: { $0.target.name == testTarget.target.name })
@@ -180,17 +196,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
             }
         }
 
-        return (scheme, cachedTestableTargets)
-    }
-
-    private func isIncluded(_ target: GraphTarget) -> Bool {
-        if targetToInclude.contains(target.target.name) {
-            return true
-        }
-        if targetToExclude.contains(target.target.name) {
-            return false
-        }
-        return true
+        return (scheme, Array(cachedTestableTargets))
     }
 
     private func isCached(

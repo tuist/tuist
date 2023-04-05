@@ -127,8 +127,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         let got = subject.automation(
             config: config,
             testsCacheDirectory: testsCacheDirectory,
-            targetToInclude: [],
-            targetToExclude: []
+            testPlan: nil,
+            includedTargets: [],
+            excludedTargets: []
         )
 
         // Then
@@ -146,8 +147,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         let got = subject.automation(
             config: config,
             testsCacheDirectory: testsCacheDirectory,
-            targetToInclude: [],
-            targetToExclude: []
+            testPlan: nil,
+            includedTargets: [],
+            excludedTargets: []
         )
 
         // Then
@@ -163,8 +165,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         let got = subject.automation(
             config: config,
             testsCacheDirectory: testsCacheDirectory,
-            targetToInclude: [],
-            targetToExclude: []
+            testPlan: nil,
+            includedTargets: [],
+            excludedTargets: []
         )
 
         // Then

@@ -15,8 +15,9 @@ protocol GraphMapperFactorying {
     func automation(
         config: Config,
         testsCacheDirectory: AbsolutePath,
-        targetToInclude: Set<String>,
-        targetToExclude: Set<String>
+        testPlan: String?,
+        includedTargets: Set<String>,
+        excludedTargets: Set<String>
     ) -> [GraphMapping]
 
     /// Returns the graph mapper for generating focused projects where some targets are pruned from the graph
@@ -49,19 +50,27 @@ final class GraphMapperFactory: GraphMapperFactorying {
     func automation(
         config: Config,
         testsCacheDirectory: AbsolutePath,
-        targetToInclude: Set<String>,
-        targetToExclude: Set<String>
+        testPlan: String?,
+        includedTargets: Set<String>,
+        excludedTargets: Set<String>
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(
             TestsCacheGraphMapper(
                 hashesCacheDirectory: testsCacheDirectory,
                 config: config,
-                targetToInclude: targetToInclude,
-                targetToExclude: targetToExclude
+                testPlan: testPlan,
+                includedTargets: includedTargets,
+                excludedTargets: excludedTargets
             )
         )
-        mappers.append(FocusTargetsGraphMappers(includedTargets: targetToInclude, excludedTargets: targetToExclude))
+        mappers.append(
+            FocusTargetsGraphMappers(
+                testPlan: testPlan,
+                includedTargets: includedTargets,
+                excludedTargets: excludedTargets
+            )
+        )
         mappers.append(TreeShakePrunedTargetsGraphMapper())
         mappers.append(contentsOf: self.default())
         return mappers

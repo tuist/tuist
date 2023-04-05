@@ -428,7 +428,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 Scheme.test(
                     name: "TestScheme",
                     testAction: .test(
-                        testPlans: [.init(path: testPlanPath, isDefault: true)]
+                        testPlans: [.init(path: testPlanPath, testTargets: [], isDefault: true)]
                     )
                 ),
             ]
@@ -473,7 +473,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 Scheme.test(
                     name: "TestScheme",
                     testAction: .test(
-                        testPlans: [.init(path: testPlanPath, isDefault: true)]
+                        testPlans: [.init(path: testPlanPath, testTargets: [], isDefault: true)]
                     )
                 ),
             ]

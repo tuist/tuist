@@ -119,6 +119,7 @@ final class TestService {
             config: config,
             automationPath: Environment.shared.automationPath ?? projectDirectory,
             testsCacheDirectory: testsCacheTemporaryDirectory.path,
+            testPlan: testPlan,
             includedTargets: Set(onlyTesting.map(\.target)),
             excludedTargets: Set(skipTesting.map(\.target)),
             skipUITests: skipUITests
@@ -246,12 +247,12 @@ final class TestService {
     ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         if let testPlan = testPlan, let testPlans = scheme.testAction?.testPlans,
-           !testPlans.contains(where: { $0.path.basenameWithoutExt == testPlan })
+           !testPlans.contains(where: { $0.name == testPlan })
         {
             throw TestServiceError.testPlanNotFound(
                 scheme: scheme.name,
                 testPlan: testPlan,
-                existing: testPlans.map(\.path.basenameWithoutExt)
+                existing: testPlans.map(\.name)
             )
         }
         guard let buildableTarget = buildGraphInspector.testableTarget(

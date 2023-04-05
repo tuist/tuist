@@ -115,8 +115,8 @@ public final class BuildGraphInspector: BuildGraphInspecting {
         skipTesting: [TestIdentifier],
         graphTraverser: GraphTraversing
     ) -> GraphTarget? {
-        func isIncluded(_ testTarget: XCTestPlan.TestTarget) -> Bool {
-            if !testTarget.enabled {
+        func isIncluded(_ testTarget: TestPlan.TestTarget) -> Bool {
+            if !testTarget.isEnabled {
                 return false
             }
             if onlyTesting.isEmpty {
@@ -126,15 +126,10 @@ public final class BuildGraphInspector: BuildGraphInspecting {
         }
 
         if let testPlanName = testPlan,
-           let testPlan = scheme.testAction?.testPlans?.first(where: { $0.path.basenameWithoutExt == testPlanName }),
-           case let jsonDecoder = JSONDecoder(),
-           let testPlanData = try? Data(contentsOf: testPlan.path.asURL),
-           let xcTestPlan = try? jsonDecoder.decode(XCTestPlan.self, from: testPlanData),
-           let target = xcTestPlan.testTargets.first(where: { isIncluded($0) })?.target,
-           let project = graphTraverser.projects.first(where: { $0.value.xcodeProjPath.basename == target.projectBasename })?
-           .value
+           let testPlan = scheme.testAction?.testPlans?.first(where: { $0.name == testPlanName }),
+           let target = testPlan.testTargets.first(where: { isIncluded($0) })?.target
         {
-            return graphTraverser.target(path: project.path, name: target.name)
+            return graphTraverser.target(path: target.projectPath, name: target.name)
         } else if let testTarget = scheme.testAction?.targets.first {
             return graphTraverser.target(path: testTarget.target.projectPath, name: testTarget.target.name)
         }
@@ -201,54 +196,4 @@ public final class BuildGraphInspector: BuildGraphInspecting {
             }
             .first
     }
-}
-
-private struct XCTestPlan: Decodable {
-    struct Target: Decodable {
-        let projectBasename: String
-        let name: String
-
-        enum CodingKeys: CodingKey {
-            case containerPath
-            case name
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-
-            let containerPath = try container.decode(String.self, forKey: .containerPath)
-            let containerInfo = containerPath.split(separator: ":")
-            switch containerInfo.count {
-            case 1:
-                projectBasename = containerPath
-            case 2 where containerInfo[0] == "container":
-                projectBasename = (try? AbsolutePath(validating: String(containerInfo[1])))?.basename ?? String(containerInfo[1])
-            default:
-                throw DecodingError.valueNotFound(
-                    String.self,
-                    .init(codingPath: container.codingPath, debugDescription: "Invalid containerPath")
-                )
-            }
-            name = try container.decode(String.self, forKey: .name)
-        }
-    }
-
-    struct TestTarget: Decodable {
-        let enabled: Bool
-        let target: Target
-
-        enum CodingKeys: CodingKey {
-            case enabled
-            case target
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-
-            enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
-            target = try container.decode(XCTestPlan.Target.self, forKey: .target)
-        }
-    }
-
-    let testTargets: [TestTarget]
 }
