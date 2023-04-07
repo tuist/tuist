@@ -39,42 +39,44 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
         // Bundle Executable
         extend(&content, with: bundleExecutable(target))
         
-//        // iOS app
-//        if target.product == .app, target.platform == .iOS {
-//            if case let .iOS(_, devices, _) = target.deploymentTarget, !devices.contains(.ipad) {
-//                extend(&content, with: iosApp(iPadSupport: false))
-//            } else {
-//                extend(&content, with: iosApp(iPadSupport: true))
-//            }
-//        }
-//        
-//        // macOS app
-//        if target.product == .app, target.platform == .macOS {
-//            extend(&content, with: macosApp())
-//        }
-//        
-//        // macOS
-//        if target.platform == .macOS {
-//            extend(&content, with: macos())
-//        }
-//        
-//        // watchOS app
-//        if target.product == .watch2App, target.platform == .watchOS {
-//            let host = hostTarget(for: target, in: project)
-//            extend(&content, with: watchosApp(
-//                name: target.name,
-//                hostAppBundleId: host?.bundleId
-//            ))
-//        }
-//        
-//        // watchOS app extension
-//        if target.product == .watch2Extension, target.platform == .watchOS {
-//            let host = hostTarget(for: target, in: project)
-//            extend(&content, with: watchosAppExtension(
-//                name: target.name,
-//                hostAppBundleId: host?.bundleId
-//            ))
-//        }
+        for deploymentTarget in target.deploymentTargets {
+            // iOS app
+            if target.product == .app, deploymentTarget.platform == .iOS {
+                if case let .iOS(_, devices, _) = deploymentTarget, !devices.contains(.ipad) {
+                    extend(&content, with: iosApp(iPadSupport: false))
+                } else {
+                    extend(&content, with: iosApp(iPadSupport: true))
+                }
+            }
+            
+            // macOS app
+            if target.product == .app, deploymentTarget.platform == .macOS {
+                extend(&content, with: macosApp())
+            }
+            
+            // macOS
+            if deploymentTarget.platform == .macOS {
+                extend(&content, with: macos())
+            }
+            
+            // watchOS app
+            if target.product == .watch2App, deploymentTarget.platform == .watchOS {
+                let host = hostTarget(for: target, in: project)
+                extend(&content, with: watchosApp(
+                    name: target.name,
+                    hostAppBundleId: host?.bundleId
+                ))
+            }
+            
+            // watchOS app extension
+            if target.product == .watch2Extension, deploymentTarget.platform == .watchOS {
+                let host = hostTarget(for: target, in: project)
+                extend(&content, with: watchosAppExtension(
+                    name: target.name,
+                    hostAppBundleId: host?.bundleId
+                ))
+            }
+        }
         
         extend(&content, with: extendedWith.unwrappingValues())
         

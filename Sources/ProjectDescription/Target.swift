@@ -15,7 +15,7 @@ public struct Target: Codable, Equatable {
     public let bundleId: String
 
     /// The minimum deployment targets your product will support.
-    public let deploymentTargets: [DeploymentTarget]
+    public let deploymentTargets: Set<DeploymentTarget>
 
     /// The Info.plist representation.
     public let infoPlist: InfoPlist?
@@ -66,7 +66,7 @@ public struct Target: Codable, Equatable {
         product: Product,
         productName: String? = nil,
         bundleId: String,
-        deploymentTargets: [DeploymentTarget],
+        deploymentTargets: Set<DeploymentTarget>,
         infoPlist: InfoPlist? = .default,
         sources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil,
@@ -101,49 +101,5 @@ public struct Target: Codable, Equatable {
         self.deploymentTargets = deploymentTargets
         self.additionalFiles = additionalFiles
         self.buildRules = buildRules
-    }
-
-    public init(
-        name: String,
-        product: Product,
-        productName: String? = nil,
-        bundleId: String,
-        deploymentTarget: DeploymentTarget? = nil,
-        infoPlist: InfoPlist? = .default,
-        sources: SourceFilesList? = nil,
-        resources: ResourceFileElements? = nil,
-        copyFiles: [CopyFilesAction]? = nil,
-        headers: Headers? = nil,
-        entitlements: Path? = nil,
-        scripts: [TargetScript] = [],
-        dependencies: [TargetDependency] = [],
-        settings: Settings? = nil,
-        coreDataModels: [CoreDataModel] = [],
-        environment: [String: String] = [:],
-        launchArguments: [LaunchArgument] = [],
-        additionalFiles: [FileElement] = [],
-        buildRules: [BuildRule] = []
-    ) {
-        self.init(
-            name: name,
-            product: product,
-            productName: productName,
-            bundleId: bundleId,
-            deploymentTargets: [deploymentTarget].compactMap { $0 },
-            infoPlist: infoPlist,
-            sources: sources,
-            resources: resources,
-            copyFiles: copyFiles,
-            headers: headers,
-            entitlements: entitlements,
-            scripts: scripts,
-            dependencies: dependencies,
-            settings: settings,
-            coreDataModels: coreDataModels,
-            environment: environment,
-            launchArguments: launchArguments,
-            additionalFiles: additionalFiles,
-            buildRules: buildRules
-        )
     }
 }

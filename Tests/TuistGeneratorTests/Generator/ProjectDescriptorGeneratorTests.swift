@@ -30,12 +30,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let app = Target.test(
             name: "App",
-            platform: .iOS,
             product: .app
         )
         let test = Target.test(
             name: "Tests",
-            platform: .iOS,
             product: .unitTests
         )
         let project = Project.test(

@@ -199,12 +199,6 @@ final class SettingsHelpersTests: XCTestCase {
         ]])
     }
 
-    func testSettingsProviderPlatform() {
-        XCTAssertEqual(subject.settingsProviderPlatform(.test(platform: .iOS)), .iOS)
-        XCTAssertEqual(subject.settingsProviderPlatform(.test(platform: .macOS)), .macOS)
-        XCTAssertEqual(subject.settingsProviderPlatform(.test(platform: .tvOS)), .tvOS)
-    }
-
     func testSettingsProviderProduct() {
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .app)), .application)
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .dynamicLibrary)), .dynamicLibrary)
