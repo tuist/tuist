@@ -54,12 +54,12 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
     public func testableTarget(
         scheme: Scheme,
         testPlan: String?,
-        onlyTesting: [TestIdentifier],
-        skipTesting: [TestIdentifier],
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
         graphTraverser: GraphTraversing
     ) -> GraphTarget? {
         if let testableTargetStub = testableTargetStub {
-            return testableTargetStub(scheme, testPlan, onlyTesting, skipTesting, graphTraverser)
+            return testableTargetStub(scheme, testPlan, testTargets, skipTestTargets, graphTraverser)
         } else {
             return GraphTarget.test()
         }

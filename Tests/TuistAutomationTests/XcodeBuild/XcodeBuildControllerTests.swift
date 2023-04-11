@@ -94,10 +94,10 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             arguments: [],
             retryCount: 0,
             testPlan: nil,
-            onlyTesting: [],
-            skipTesting: [],
-            onlyTestConfiguration: [],
-            skipTestConfiguration: []
+            testTargets: [],
+            skipTestTargets: [],
+            testConfigurations: [],
+            skipTestConfigurations: []
         )
 
         let result = try await events.toArray()
@@ -138,10 +138,10 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             arguments: [],
             retryCount: 0,
             testPlan: nil,
-            onlyTesting: [],
-            skipTesting: [],
-            onlyTestConfiguration: [],
-            skipTestConfiguration: []
+            testTargets: [],
+            skipTestTargets: [],
+            testConfigurations: [],
+            skipTestConfigurations: []
         )
 
         let result = try await events.toArray()
@@ -182,10 +182,10 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             arguments: [],
             retryCount: 0,
             testPlan: nil,
-            onlyTesting: [],
-            skipTesting: [],
-            onlyTestConfiguration: [],
-            skipTestConfiguration: []
+            testTargets: [],
+            skipTestTargets: [],
+            testConfigurations: [],
+            skipTestConfigurations: []
         )
 
         let result = try await events.toArray()
@@ -226,10 +226,10 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             arguments: [],
             retryCount: 0,
             testPlan: nil,
-            onlyTesting: [],
-            skipTesting: [],
-            onlyTestConfiguration: [],
-            skipTestConfiguration: []
+            testTargets: [],
+            skipTestTargets: [],
+            testConfigurations: [],
+            skipTestConfigurations: []
         )
 
         let result = try await events.toArray()

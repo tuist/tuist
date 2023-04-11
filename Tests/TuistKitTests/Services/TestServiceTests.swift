@@ -522,10 +522,10 @@ extension TestService {
         resultBundlePath: AbsolutePath? = nil,
         retryCount: Int = 0,
         testPlan: String? = nil,
-        onlyTesting: [TestIdentifier] = [],
-        skipTesting: [TestIdentifier] = [],
-        onlyTestConfiguration: [String] = [],
-        skipTestConfiguration: [String] = []
+        testTargets: [TestIdentifier] = [],
+        skipTestTargets: [TestIdentifier] = [],
+        testConfigurations: [String] = [],
+        skipTestConfigurations: [String] = []
     ) async throws {
         try await run(
             schemeName: schemeName,
@@ -538,10 +538,10 @@ extension TestService {
             resultBundlePath: resultBundlePath,
             retryCount: retryCount,
             testPlan: testPlan,
-            onlyTesting: onlyTesting,
-            skipTesting: skipTesting,
-            onlyTestConfiguration: onlyTestConfiguration,
-            skipTestConfiguration: skipTestConfiguration
+            testTargets: testTargets,
+            skipTestTargets: skipTestTargets,
+            testConfigurations: testConfigurations,
+            skipTestConfigurations: skipTestConfigurations
         )
     }
 }

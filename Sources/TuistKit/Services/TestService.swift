@@ -97,10 +97,10 @@ final class TestService {
         resultBundlePath: AbsolutePath?,
         retryCount: Int,
         testPlan: String?,
-        onlyTesting: [TestIdentifier],
-        skipTesting: [TestIdentifier],
-        onlyTestConfiguration: [String],
-        skipTestConfiguration: [String]
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        testConfigurations: [String],
+        skipTestConfigurations: [String]
     ) async throws {
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
@@ -120,8 +120,8 @@ final class TestService {
             automationPath: Environment.shared.automationPath ?? projectDirectory,
             testsCacheDirectory: testsCacheTemporaryDirectory.path,
             testPlan: testPlan,
-            includedTargets: Set(onlyTesting.map(\.target)),
-            excludedTargets: Set(skipTesting.map(\.target)),
+            includedTargets: Set(testTargets.map(\.target)),
+            excludedTargets: Set(skipTestTargets.map(\.target)),
             skipUITests: skipUITests
         )
         logger.notice("Generating project for testing", metadata: .section)
@@ -170,10 +170,10 @@ final class TestService {
                     resultBundlePath: resultBundlePath,
                     retryCount: retryCount,
                     testPlan: testPlan,
-                    onlyTesting: onlyTesting,
-                    skipTesting: skipTesting,
-                    onlyTestConfiguration: onlyTestConfiguration,
-                    skipTestConfiguration: skipTestConfiguration
+                    testTargets: testTargets,
+                    skipTestTargets: skipTestTargets,
+                    testConfigurations: testConfigurations,
+                    skipTestConfigurations: skipTestConfigurations
                 )
             }
         } else {
@@ -198,10 +198,10 @@ final class TestService {
                     resultBundlePath: resultBundlePath,
                     retryCount: retryCount,
                     testPlan: testPlan,
-                    onlyTesting: onlyTesting,
-                    skipTesting: skipTesting,
-                    onlyTestConfiguration: onlyTestConfiguration,
-                    skipTestConfiguration: skipTestConfiguration
+                    testTargets: testTargets,
+                    skipTestTargets: skipTestTargets,
+                    testConfigurations: testConfigurations,
+                    skipTestConfigurations: skipTestConfigurations
                 )
             }
         }
@@ -240,10 +240,10 @@ final class TestService {
         resultBundlePath: AbsolutePath?,
         retryCount: Int,
         testPlan: String?,
-        onlyTesting: [TestIdentifier],
-        skipTesting: [TestIdentifier],
-        onlyTestConfiguration: [String],
-        skipTestConfiguration: [String]
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        testConfigurations: [String],
+        skipTestConfigurations: [String]
     ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         if let testPlan = testPlan, let testPlans = scheme.testAction?.testPlans,
@@ -258,8 +258,8 @@ final class TestService {
         guard let buildableTarget = buildGraphInspector.testableTarget(
             scheme: scheme,
             testPlan: testPlan,
-            onlyTesting: onlyTesting,
-            skipTesting: skipTesting,
+            testTargets: testTargets,
+            skipTestTargets: skipTestTargets,
             graphTraverser: graphTraverser
         ) else {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name, testPlan: testPlan)
@@ -289,10 +289,10 @@ final class TestService {
             ),
             retryCount: retryCount,
             testPlan: testPlan,
-            onlyTesting: onlyTesting,
-            skipTesting: skipTesting,
-            onlyTestConfiguration: onlyTestConfiguration,
-            skipTestConfiguration: skipTestConfiguration
+            testTargets: testTargets,
+            skipTestTargets: skipTestTargets,
+            testConfigurations: testConfigurations,
+            skipTestConfigurations: skipTestConfigurations
         )
         .printFormattedOutput()
     }

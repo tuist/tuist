@@ -78,7 +78,7 @@ struct TestCommand: AsyncParsableCommand {
         help: "The list of test identifiers you want to test. Takes precedence over --skip-testing",
         transform: TestIdentifier.init(string:)
     )
-    var onlyTesting: [TestIdentifier] = []
+    var testTargets: [TestIdentifier] = []
 
     @Option(
         name: .long,
@@ -86,21 +86,21 @@ struct TestCommand: AsyncParsableCommand {
         help: "The list of test identifiers you want to skip testing.",
         transform: TestIdentifier.init(string:)
     )
-    var skipTesting: [TestIdentifier] = []
+    var skipTestTargets: [TestIdentifier] = []
 
     @Option(
         name: .long,
         parsing: .upToNextOption,
         help: "The list of configurations you want to test. Takes precedence over --skip-test-configuration"
     )
-    var onlyTestConfiguration: [String] = []
+    var testConfigurations: [String] = []
 
     @Option(
         name: .long,
         parsing: .upToNextOption,
         help: "The list of configurations you want to skip testing."
     )
-    var skipTestConfiguration: [String] = []
+    var skipTestConfigurations: [String] = []
 
     func run() async throws {
         let absolutePath: AbsolutePath
@@ -127,10 +127,10 @@ struct TestCommand: AsyncParsableCommand {
             },
             retryCount: retryCount,
             testPlan: testPlan,
-            onlyTesting: onlyTesting,
-            skipTesting: skipTesting,
-            onlyTestConfiguration: onlyTestConfiguration,
-            skipTestConfiguration: skipTestConfiguration
+            testTargets: testTargets,
+            skipTestTargets: skipTestTargets,
+            testConfigurations: testConfigurations,
+            skipTestConfigurations: skipTestConfigurations
         )
     }
 }

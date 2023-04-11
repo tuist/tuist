@@ -60,10 +60,10 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         arguments: [XcodeBuildArgument],
         retryCount: Int,
         testPlan: String?,
-        onlyTesting: [TestIdentifier],
-        skipTesting: [TestIdentifier],
-        onlyTestConfiguration: [String],
-        skipTestConfiguration: [String]
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        testConfigurations: [String],
+        skipTestConfigurations: [String]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let testStub = testStub {
             let results = testStub(
@@ -76,10 +76,10 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                 arguments,
                 retryCount,
                 testPlan,
-                onlyTesting,
-                skipTesting,
-                onlyTestConfiguration,
-                skipTestConfiguration
+                testTargets,
+                skipTestTargets,
+                testConfigurations,
+                skipTestConfigurations
             )
             if let testErrorStub = testErrorStub {
                 return AsyncThrowingStream {

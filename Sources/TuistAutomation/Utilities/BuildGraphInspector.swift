@@ -29,8 +29,8 @@ public protocol BuildGraphInspecting {
     func testableTarget(
         scheme: Scheme,
         testPlan: String?,
-        onlyTesting: [TestIdentifier],
-        skipTesting: [TestIdentifier],
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
         graphTraverser: GraphTraversing
     ) -> GraphTarget?
 
@@ -111,18 +111,18 @@ public final class BuildGraphInspector: BuildGraphInspecting {
     public func testableTarget(
         scheme: Scheme,
         testPlan: String?,
-        onlyTesting: [TestIdentifier],
-        skipTesting: [TestIdentifier],
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
         graphTraverser: GraphTraversing
     ) -> GraphTarget? {
         func isIncluded(_ testTarget: TestPlan.TestTarget) -> Bool {
             if !testTarget.isEnabled {
                 return false
             }
-            if onlyTesting.isEmpty {
-                return !skipTesting.contains { $0.target == testTarget.target.name }
+            if testTargets.isEmpty {
+                return !skipTestTargets.contains { $0.target == testTarget.target.name }
             }
-            return onlyTesting.contains { $0.target == testTarget.target.name }
+            return testTargets.contains { $0.target == testTarget.target.name }
         }
 
         if let testPlanName = testPlan,

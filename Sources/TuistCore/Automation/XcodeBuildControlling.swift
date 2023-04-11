@@ -44,10 +44,10 @@ public protocol XcodeBuildControlling {
         arguments: [XcodeBuildArgument],
         retryCount: Int,
         testPlan: String?,
-        onlyTesting: [TestIdentifier],
-        skipTesting: [TestIdentifier],
-        onlyTestConfiguration: [String],
-        skipTestConfiguration: [String]
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        testConfigurations: [String],
+        skipTestConfigurations: [String]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable that archives the given project using xcodebuild.

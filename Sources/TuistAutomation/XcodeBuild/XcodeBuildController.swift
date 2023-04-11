@@ -81,10 +81,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
         arguments: [XcodeBuildArgument],
         retryCount: Int,
         testPlan: String?,
-        onlyTesting: [TestIdentifier],
-        skipTesting: [TestIdentifier],
-        onlyTestConfiguration: [String],
-        skipTestConfiguration: [String]
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        testConfigurations: [String],
+        skipTestConfigurations: [String]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -130,19 +130,19 @@ public final class XcodeBuildController: XcodeBuildControlling {
             command.append(contentsOf: ["-testPlan", testPlan])
         }
 
-        for test in onlyTesting {
+        for test in testTargets {
             command.append(contentsOf: ["-only-testing", test.description])
         }
 
-        for test in skipTesting {
-            command.append(contentsOf: ["-only-testing", test.description])
+        for test in skipTestTargets {
+            command.append(contentsOf: ["-skip-testing", test.description])
         }
 
-        for configuration in onlyTestConfiguration {
+        for configuration in testConfigurations {
             command.append(contentsOf: ["-only-test-configuration", configuration])
         }
 
-        for configuration in skipTestConfiguration {
+        for configuration in skipTestConfigurations {
             command.append(contentsOf: ["-skip-test-configuration", configuration])
         }
 

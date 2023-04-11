@@ -11,7 +11,7 @@ Then(/^tuist tests the scheme ([a-zA-Z-]+) using test plan ([a-zA-Z-]+) from the
 end
 
 Then(%r{^tuist tests the scheme ([a-zA-Z-]+) using test plan ([a-zA-Z-]+) testing ([a-zA-Z-][0-9a-zA-Z-]*(?:/[0-9a-zA-Z_-]+)?(?:/[0-9a-zA-Z_-]+)?) from the project$}) do |scheme, test_plan, test_identifier|
-  system(@tuist, 'test', scheme, '--path', @dir, '--test-plan', test_plan, '--only-testing', test_identifier)
+  system(@tuist, 'test', scheme, '--path', @dir, '--test-plan', test_plan, '--test-targets', test_identifier)
 end
 
 Then(/^tuist tests the scheme ([a-zA-Z-]+) and configuration ([a-zA-Z]+) from the project$/) do |scheme, configuration|
