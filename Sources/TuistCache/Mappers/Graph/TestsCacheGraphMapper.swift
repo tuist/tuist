@@ -167,19 +167,20 @@ public final class TestsCacheGraphMapper: GraphMapping {
         var scheme = scheme
         guard let testAction = scheme.testAction else { return (scheme, []) }
 
+        let possibleCachedTestableTargets = testableTargets(
+            scheme: scheme,
+            graphTraverser: graphTraverser
+        ).filter { testableTarget in
+            isCached(
+                testableTarget,
+                graphTraverser: graphTraverser,
+                hashes: hashes,
+                visited: &visited,
+                testsCacheDirectory: testsCacheDirectory
+            )
+        }
         let cachedTestableTargets = graphTraverser.filterIncludedTargets(
-            basedOn: testableTargets(
-                scheme: scheme,
-                graphTraverser: graphTraverser
-            ).filter { testableTarget in
-                isCached(
-                    testableTarget,
-                    graphTraverser: graphTraverser,
-                    hashes: hashes,
-                    visited: &visited,
-                    testsCacheDirectory: testsCacheDirectory
-                )
-            },
+            basedOn: possibleCachedTestableTargets,
             testPlan: testPlan,
             includedTargets: includedTargets,
             excludedTargets: excludedTargets,
