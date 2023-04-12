@@ -4,7 +4,8 @@ import struct TSCUtility.Version
 extension String {
     // swiftlint:disable:next force_try
     private static let whitespaceRegularExpression = try! NSRegularExpression(pattern: "\\s")
-    static let httpRegularExpression = "(\\w+://)(.+@)*([\\w\\d\\.]+)(:[\\d]+){0,1}/*(.*)"
+    // Also possible suggestion from ChatGPT: (?!ssh:\\/\\/)(\\w+://)(.+@)*([\\w\\d\\.]+)(:[\\d]+){0,1}/*(.*)
+    static let httpRegularExpression = "(http(s)?)(://)(.+@)*([\\w\\d\\.]+)(:[\\d]+){0,1}/*(.*)"
     static let sshRegularExpression = "(.+@)*([\\w\\d\\.]+):(.*)"
 
     public var escapingWhitespaces: String {
