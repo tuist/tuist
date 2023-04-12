@@ -3,6 +3,7 @@
 ### Added
 
 - Add support for new `--url` git template url parameter to `tuist scaffold` command (similar to `tuist init -t <git url>` does) by [@Buju77](https://github.com/Buju77)
+- FIX wrong http regex for repo url used in `TemplateLocationParsing` (old regex wrongfully matched with ssh urls that included username) by [@MohgaNabil](https://github.com/MohgaNabil)
 
 ### Fixed
 
