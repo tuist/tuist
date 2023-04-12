@@ -5,7 +5,7 @@ import TuistGraph
 
 /// `FocusTargetsGraphMappers` is used to filter out some targets and their dependencies and tests targets.
 public final class FocusTargetsGraphMappers: GraphMapping {
-    // When specified, if includedTargets is empty it will automatically all targets in the test plan
+    // When specified, if includedTargets is empty it will automatically include all targets in the test plan
     let testPlan: String?
     /// The targets name to be kept as non prunable with their respective dependencies and tests targets
     let includedTargets: Set<String>
@@ -45,18 +45,5 @@ public final class FocusTargetsGraphMappers: GraphMapping {
             }
         }
         return (graph, [])
-    }
-
-    private func isIncluded(_ target: GraphTarget) -> Bool {
-        switch (includedTargets.isEmpty, includedTargets.contains(target.target.name)) {
-        case (true, _):
-            break
-        case let (false, isIncluded):
-            return isIncluded
-        }
-        if excludedTargets.contains(target.target.name) {
-            return false
-        }
-        return true
     }
 }
