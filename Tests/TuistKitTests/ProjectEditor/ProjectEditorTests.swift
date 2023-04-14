@@ -112,6 +112,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
                 excluding,
                 [
                     "**/Tuist/Dependencies/**",
+                    "**/.build/**",
                     "\(directory.pathString)/a folder/**",
                     "\(directory.pathString)/B.swift",
                 ]
