@@ -3,11 +3,22 @@
 ### Added
 
 - Add support for new `--url` git template url parameter to `tuist scaffold` command (similar to `tuist init -t <git url>` does) by [@Buju77](https://github.com/Buju77)
-- FIX wrong http regex for repo url used in `TemplateLocationParsing` (old regex wrongfully matched with ssh urls that included username) by [@MohgaNabil](https://github.com/MohgaNabil)
 
 ### Fixed
 
 - Fixed a "Template.swift" file not found error when executing `tuist init -t <git url>` by [@Buju77](https://github.com/Buju77)
+- Fixed wrong http regex for repo url used in `TemplateLocationParsing` (old regex wrongfully matched with ssh urls that included username) by [@MohgaNabil](https://github.com/MohgaNabil)
+
+## 3.18.0 - 2023-04-14
+
+### Added
+
+- Add support for disabling `Mac (designed for iOS)` destination for iOS deployment target [#5095](https://github.com/tuist/tuist/pull/5095) by [@TheInkedEngineer](https://github.com/TheInkedEngineer)
+
+### Fixed
+
+- Fix link phase for tvOS top shelf extension [#5119](https://github.com/tuist/tuist/pull/5119) by [@sh-a-n](https://github.com/sh-a-n)
+- Ensure static precompiled dependencies are only linked in targets that support linking [#5107](https://github.com/tuist/tuist/pull/5107) by [@kwridan](https://github.com/kwridan)
 
 ## 3.17.0 - 2023-03-12
 
