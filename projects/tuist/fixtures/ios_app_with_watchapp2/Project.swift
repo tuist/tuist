@@ -47,6 +47,24 @@ let project = Project(
             resources: ["WatchAppExtension/**/*.xcassets"],
             dependencies: [
                 .package(product: "LibraryA"),
+                .target(name: "WatchAppWidgetExtension"),
+            ]
+        ),
+        Target(
+            name: "WatchAppWidgetExtension",
+            platform: .watchOS,
+            product: .appExtension,
+            bundleId: "io.tuist.App.watchkitapp.watchkitextension.WatchAppWidget",
+            infoPlist: .extendingDefault(with: [
+                "NSExtension": [
+                    "NSExtensionPointIdentifier": "com.apple.widgetkit-extension"
+                ],
+            ]),
+            sources: ["WatchAppWidgetExtension/**"],
+            resources: ["WatchAppWidgetExtension/**/*.xcassets"],
+            dependencies: [
+                .sdk(name: "WidgetKit", type: .framework, status: .required),
+                .sdk(name: "SwiftUI", type: .framework, status: .required)
             ]
         ),
         Target(
