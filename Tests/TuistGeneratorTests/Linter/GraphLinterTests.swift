@@ -725,6 +725,64 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
+    func test_lint_watch_application_2_withWidgetExtension() throws {
+        // Note: For Xcode 13 style watch apps that use a watch app and watch extension
+        // watchOS extensions can now use WidgetKit extensions
+
+        // Given
+        let path: AbsolutePath = "/project"
+        let widgetExtension = Target.empty(
+            name: "WidgetExtension",
+            platform: .watchOS,
+            product: .appExtension // WidgetKit extension targets are `.appExtension` targets with custom info plist key
+        )
+        let watchExtension = Target.empty(
+            name: "WatchExtension",
+            platform: .watchOS,
+            product: .watch2Extension,
+            dependencies: [
+                .target(name: widgetExtension.name),
+            ]
+        )
+        let watchApplication = Target.empty(
+            name: "WatchApp",
+            platform: .watchOS,
+            product: .watch2App,
+            dependencies: [
+                .target(name: watchExtension.name),
+            ]
+        )
+        let project = Project.test(path: path, targets: [watchApplication, watchExtension, widgetExtension])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: watchApplication.name, path: path): [
+                .target(name: watchExtension.name, path: path),
+            ],
+            .target(name: watchExtension.name, path: path): [],
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            targets: [
+                path: [
+                    watchApplication.name: watchApplication,
+                    watchExtension.name: watchExtension,
+                    widgetExtension.name: widgetExtension,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
+    }
+
     func test_lint_iOSApp_withCompanionWatchApplication() throws {
         // Given
         let path: AbsolutePath = "/project"
