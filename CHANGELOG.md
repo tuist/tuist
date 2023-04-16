@@ -1,5 +1,10 @@
 # Changelog
 
+## Next
+
+### Added
+- Added custom shellPath to ExecuteAction to enable /bin/zsh as shell. [#NNNN](https://github.com/tuist/tuist/pull/NNNN) by [@JCSooHwanCho](https://github.com/JCSooHwanCho)
+
 ## 3.18.0 - 2023-04-14
 
 ### Added
