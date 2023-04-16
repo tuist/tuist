@@ -6,9 +6,14 @@ public struct ExecutionAction: Equatable, Codable {
     public let scriptText: String
     public let target: TargetReference?
 
-    public init(title: String = "Run Script", scriptText: String, target: TargetReference? = nil) {
+    /// The path to the shell which shall execute this script.
+    /// if it is nil, "/bin/sh" will be used
+    public let shellPath: String?
+
+    public init(title: String = "Run Script", scriptText: String, target: TargetReference? = nil, shellPath: String? = nil) {
         self.title = title
         self.scriptText = scriptText
         self.target = target
+        self.shellPath = shellPath
     }
 }

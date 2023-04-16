@@ -19,6 +19,7 @@ final class BuildActionTests: TuistUnitTestCase {
                     title: "preActionTitle",
                     scriptText: "text",
                     target: nil,
+                    shellPath: nil,
                     showEnvVarsInLog: true
                 ),
             ],
@@ -27,6 +28,7 @@ final class BuildActionTests: TuistUnitTestCase {
                     title: "postActionTitle",
                     scriptText: "text",
                     target: nil,
+                    shellPath: nil,
                     showEnvVarsInLog: false
                 ),
             ]
