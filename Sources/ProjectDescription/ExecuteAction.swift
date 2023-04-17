@@ -6,8 +6,7 @@ public struct ExecutionAction: Equatable, Codable {
     public let scriptText: String
     public let target: TargetReference?
 
-    /// The path to the shell which shall execute this script.
-    /// if it is nil, "/bin/sh" will be used
+    /// The path to the shell which shall execute this script. if it is nil, Xcode will use default value.
     public let shellPath: String?
 
     public init(title: String = "Run Script", scriptText: String, target: TargetReference? = nil, shellPath: String? = nil) {

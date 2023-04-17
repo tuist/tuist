@@ -11,8 +11,7 @@ public struct ExecutionAction: Equatable, Codable {
     public let scriptText: String
     /// Name of the build or test target that will provide the action's build settings.
     public let target: TargetReference?
-    /// The path to the shell which shall execute this script.
-    // if it is nil, "/bin/sh" will be used
+    /// The path to the shell which shall execute this script. if it is nil, Xcode will use default value.
     public let shellPath: String?
 
     public let showEnvVarsInLog: Bool
