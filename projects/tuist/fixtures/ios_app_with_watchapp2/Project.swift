@@ -57,14 +57,14 @@ let project = Project(
             bundleId: "io.tuist.App.watchkitapp.watchkitextension.WatchAppWidget",
             infoPlist: .extendingDefault(with: [
                 "NSExtension": [
-                    "NSExtensionPointIdentifier": "com.apple.widgetkit-extension"
+                    "NSExtensionPointIdentifier": "com.apple.widgetkit-extension",
                 ],
             ]),
             sources: ["WatchAppWidgetExtension/**"],
             resources: ["WatchAppWidgetExtension/**/*.xcassets"],
             dependencies: [
                 .sdk(name: "WidgetKit", type: .framework, status: .required),
-                .sdk(name: "SwiftUI", type: .framework, status: .required)
+                .sdk(name: "SwiftUI", type: .framework, status: .required),
             ]
         ),
         Target(
