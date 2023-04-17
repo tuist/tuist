@@ -1,10 +1,5 @@
 # Changelog
 
-## Next
-
-### Added
-- Added custom shellPath to ExecuteAction [#5154](https://github.com/tuist/tuist/pull/5154) by [@JCSooHwanCho](https://github.com/JCSooHwanCho)
-
 ## 3.18.0 - 2023-04-14
 
 ### Added
