@@ -1,17 +1,16 @@
 import ProjectDescription
 
 let project = Project(
-    name: "StaticFrameworkA",
+    name: "StaticFrameworkB",
     targets: [
         Target(
-            name: "StaticFrameworkA",
+            name: "StaticFrameworkB",
             platform: .iOS,
             product: .staticFramework,
-            bundleId: "io.tuist.StaticFrameworkA",
+            bundleId: "io.tuist.StaticFrameworkB",
             infoPlist: .default,
             sources: ["Sources/**"],
             dependencies: [
-                .project(target: "StaticFrameworkB", path: "../StaticFrameworkB"),
                 .xcframework(path: "../../XCFrameworks/MyStaticLibrary/prebuilt/MyStaticLibrary.xcframework"),
             ]
         ),
