@@ -337,6 +337,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/oozoofrog"><img src="https://avatars.githubusercontent.com/u/3011832?v=4" width="100px;" alt=""/><br /><sub><b>oozoofrog</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/MartinStrambach"><img src="https://avatars.githubusercontent.com/u/11178869?v=4" width="100px;" alt=""/><br /><sub><b>Martin Strambach</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/sh-a-n"><img src="https://avatars.githubusercontent.com/u/2219548?v=4" width="100px;" alt=""/><br /><sub><b>sh-a-n</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://linkedin.com/in/batuhansaka"><img src="https://avatars.githubusercontent.com/u/9626765?v=4" width="100px;" alt=""/><br /><sub><b>Batuhan Saka</b></sub></a></td>
     </tr>
   </tbody>
 </table>
