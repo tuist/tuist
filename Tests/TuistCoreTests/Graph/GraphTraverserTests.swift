@@ -1533,7 +1533,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.librariesSearchPaths(path: project.path, name: target.name).sorted()
+        let got = try subject.librariesSearchPaths(path: project.path, name: target.name).sorted()
 
         // Then
         XCTAssertEqual(got, [try AbsolutePath(validating: "/test")])
@@ -2947,37 +2947,229 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_linkableFrameworks_when_staticFrameworkDependsOnPrecompiledStaticFramework() throws {
+    func test_when_staticFrameworkDependsOnPrecompiledStaticFramework() throws {
         // Given
+        // App > StaticFramework > PrecompiledStaticFramework
+        let app = Target.test(name: "App", product: .app)
         let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
-        let project = Project.test(targets: [staticFramework])
+        let project = Project.test(targets: [app, staticFramework])
         let precompiledStaticFramework = GraphDependency.testFramework(
-            path: "/test/StaticFramework.framework",
-            binaryPath: "/test/StaticFramework.framework/StaticFramework",
+            path: "/test/PrecompiledStaticFramework.framework",
+            binaryPath: "/test/PrecompiledStaticFramework.framework/PrecompiledStaticFramework",
             linking: .static
         )
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: staticFramework.name, path: project.path): [
-                precompiledStaticFramework,
-            ],
-        ]
         let graph = Graph.test(
             projects: [
                 project.path: project,
             ],
             targets: [
-                project.path: [staticFramework.name: staticFramework],
+                project.path: [
+                    app.name: app,
+                    staticFramework.name: staticFramework,
+                ],
             ],
-            dependencies: dependencies
+            dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: staticFramework.name, path: project.path),
+                ],
+                .target(name: staticFramework.name, path: project.path): [
+                    precompiledStaticFramework,
+                ],
+            ]
         )
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let results = try subject.linkableDependencies(path: project.path, name: staticFramework.name)
+        let appLinkableProducts = try subject.linkableDependencies(
+            path: project.path,
+            name: app.name
+        )
+        let staticFrameworkLinkableProducts = try subject.linkableDependencies(
+            path: project.path,
+            name: staticFramework.name
+        )
+        let staticFrameworkCopyProducts = subject.copyProductDependencies(
+            path: project.path,
+            name: staticFramework.name
+        )
+        let staticFrameworkSearchPaths = try subject.searchablePathDependencies(
+            path: project.path,
+            name: staticFramework.name
+        )
 
         // Then
-        XCTAssertEqual(results.sorted(), [
+        // To avoid duplicate symbols, the linking only takes place in the final target that supports linking
+        // rather than at every intermediate static framework / library target.
+        //
+        // For precompiled static `.framework`s, ensuring search paths are updated should allow the intermediate
+        // static frameworks to see their symbols during compilation.
+        XCTAssertEqual(appLinkableProducts.sorted(), [
+            .product(
+                target: staticFramework.name,
+                productName: staticFramework.productNameWithExtension,
+                platformFilter: .ios
+            ),
             GraphDependencyReference(precompiledStaticFramework),
+        ])
+        XCTAssertEqual(staticFrameworkLinkableProducts.sorted(), [])
+        XCTAssertEqual(staticFrameworkCopyProducts.sorted(), [])
+        XCTAssertEqual(staticFrameworkSearchPaths.sorted(), [
+            GraphDependencyReference(precompiledStaticFramework),
+        ])
+    }
+
+    func test_when_staticFrameworkDependsOnPrecompiledStaticLibaryXCFramework() throws {
+        // Given
+        // App > StaticFramework > PrecompiledStaticXCFramework
+        let app = Target.test(name: "App", product: .app)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(targets: [app, staticFramework])
+        let precompiledStaticXCFramework = GraphDependency.testXCFramework(
+            path: "/test/PrecompiledStaticFramework.xcframework",
+            linking: .static
+        )
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+            ],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFramework.name: staticFramework,
+                ],
+            ],
+            dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: staticFramework.name, path: project.path),
+                ],
+                .target(name: staticFramework.name, path: project.path): [
+                    precompiledStaticXCFramework,
+                ],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appLinkableProducts = try subject.linkableDependencies(
+            path: project.path,
+            name: app.name
+        )
+        let staticFrameworkLinkableProducts = try subject.linkableDependencies(
+            path: project.path,
+            name: staticFramework.name
+        )
+        let staticFrameworkCopyProducts = subject.copyProductDependencies(
+            path: project.path,
+            name: staticFramework.name
+        )
+        let staticFrameworkSearchPaths = try subject.searchablePathDependencies(
+            path: project.path,
+            name: staticFramework.name
+        )
+
+        // Then
+        // To avoid duplicate symbols, the linking only takes place in the final target that supports linking
+        // rather than at every intermediate static framework / library target.
+        //
+        // For precompiled static `.xcframework`s, ensuring they are part of the copy products build phase
+        // allows the intermediate static frameworks to see their symbols during compilation.
+        XCTAssertEqual(appLinkableProducts.sorted(), [
+            .product(
+                target: staticFramework.name,
+                productName: staticFramework.productNameWithExtension,
+                platformFilter: .ios
+            ),
+            GraphDependencyReference(precompiledStaticXCFramework),
+        ])
+        XCTAssertEqual(staticFrameworkLinkableProducts.sorted(), [])
+        XCTAssertEqual(staticFrameworkCopyProducts.sorted(), [
+            GraphDependencyReference(precompiledStaticXCFramework),
+        ])
+        XCTAssertEqual(staticFrameworkSearchPaths.sorted(), [])
+    }
+
+    func test_when_staticFrameworkDependsOnPrecompiledStaticLibary() throws {
+        // Given
+        // App > StaticFramework > PrecompiledStaticXCFramework
+        let app = Target.test(name: "App", product: .app)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(targets: [app, staticFramework])
+        let precompiledStaticLibrary = GraphDependency.testLibrary(
+            path: "/test/PrecompiledStaticLibrary/PrecompiledStaticLibrary.a",
+            linking: .static,
+            swiftModuleMap: "/test/PrecompiledStaticLibrary/PrecompiledStaticLibrary.swiftmodule"
+        )
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+            ],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFramework.name: staticFramework,
+                ],
+            ],
+            dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: staticFramework.name, path: project.path),
+                ],
+                .target(name: staticFramework.name, path: project.path): [
+                    precompiledStaticLibrary,
+                ],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appLinkableProducts = try subject.linkableDependencies(
+            path: project.path,
+            name: app.name
+        )
+        let appLibrarySearchPaths = try subject.librariesSearchPaths(
+            path: project.path,
+            name: app.name
+        )
+        let staticFrameworkLinkableProducts = try subject.linkableDependencies(
+            path: project.path,
+            name: staticFramework.name
+        )
+        let staticFrameworkCopyProducts = subject.copyProductDependencies(
+            path: project.path,
+            name: staticFramework.name
+        )
+        let staticFrameworkLibrarySearchPaths = try subject.librariesSearchPaths(
+            path: project.path,
+            name: staticFramework.name
+        )
+        let staticFrameworkSwiftIncludePaths = subject.librariesSwiftIncludePaths(
+            path: project.path,
+            name: staticFramework.name
+        )
+
+        // Then
+        // To avoid duplicate symbols, the linking only takes place in the final target that supports linking
+        // rather than at every intermediate static framework / library target.
+        //
+        // For precompiled static library `.a`, ensuring the searc and swift include paths are set
+        // allows the intermediate static frameworks to see their symbols during compilation.
+        XCTAssertEqual(appLinkableProducts.sorted(), [
+            .product(
+                target: staticFramework.name,
+                productName: staticFramework.productNameWithExtension,
+                platformFilter: .ios
+            ),
+            GraphDependencyReference(precompiledStaticLibrary),
+        ])
+        XCTAssertEqual(appLibrarySearchPaths.sorted(), [
+            "/test/PrecompiledStaticLibrary",
+        ])
+        XCTAssertEqual(staticFrameworkLinkableProducts.sorted(), [])
+        XCTAssertEqual(staticFrameworkCopyProducts.sorted(), [])
+        XCTAssertEqual(staticFrameworkLibrarySearchPaths.sorted(), [
+            "/test/PrecompiledStaticLibrary",
+        ])
+        XCTAssertEqual(staticFrameworkSwiftIncludePaths.sorted(), [
+            "/test/PrecompiledStaticLibrary",
         ])
     }
 

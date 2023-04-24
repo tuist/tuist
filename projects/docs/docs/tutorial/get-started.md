@@ -10,7 +10,7 @@ Tuist is a command line tool \(CLI\) that aims to facilitate the generation, mai
 
 The first thing that we need to do to get started is installing the tool. To do so, you can run the following commands in your terminal:
 
-```bash
+```sh
 curl -Ls https://install.tuist.io | bash
 ```
 
@@ -20,18 +20,26 @@ A very common issue working on iOS projects is **not having a reproducible envir
 To avoid that, Tuist is self-contained and comes with `tuistenv` which ensures that the right version is used. It manages different versions in your environment and runs the version your project is pinned to. Thanks to that, we ensure that anyone in your team will use the same version of Tuist.  
 In a more advanced section on the documentation, we'll see the power of `tuistenv`. For now, we'll keep things simple and just assume that we are running Tuist directly.
 
+#### Uninstall
+
+If you wish to remove `tuist` from the system, you can use the uninstall script:
+
+```sh
+curl -Ls https://raw.githubusercontent.com/tuist/tuist/main/script/uninstall | bash
+```
+
 ### Creating our first project
 
 Now that we have Tuist installed, we can create our first project. Create a directory for your app:
 
-```bash
+```sh
 mkdir MyApp
 cd MyApp
 ```
 
 And then run:
 
-```bash
+```sh
 tuist init --platform ios
 ```
 
@@ -91,7 +99,7 @@ Since we are defining an Xcode project, most of the properties might be familiar
 
 To edit your project you can open the relevant Tuist manifests using the command
 
-```bash
+```sh
 tuist edit
 ```
 
@@ -101,7 +109,7 @@ The generated project will contain the `Project.swift` file and any other requir
 
 We have the manifest and the project files, but something missing, the Xcode project. If we don't have an Xcode project, we can't use Xcode, because that's the format that Xcode expects. Fortunately, Tuist comes with a command to generate projects and workspaces from your manifest files. If we run the following command in the terminal:
 
-```bash
+```sh
 tuist generate
 ```
 

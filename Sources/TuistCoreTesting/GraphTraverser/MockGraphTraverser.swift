@@ -383,7 +383,7 @@ final class MockGraphTraverser: GraphTraversing {
         [(path: AbsolutePath, name: String)]()
     var stubbedLibrariesSearchPathsResult: Set<AbsolutePath>! = []
 
-    func librariesSearchPaths(path: AbsolutePath, name: String) -> Set<AbsolutePath> {
+    func librariesSearchPaths(path: AbsolutePath, name: String) throws -> Set<AbsolutePath> {
         invokedLibrariesSearchPaths = true
         invokedLibrariesSearchPathsCount += 1
         invokedLibrariesSearchPathsParameters = (path, name)

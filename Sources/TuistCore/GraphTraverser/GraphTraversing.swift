@@ -138,7 +138,7 @@ public protocol GraphTraversing {
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func librariesSearchPaths(path: AbsolutePath, name: String) -> Set<AbsolutePath>
+    func librariesSearchPaths(path: AbsolutePath, name: String) throws -> Set<AbsolutePath>
 
     /// Given a project directory and a target name, it returns the list of foldres with Swift modules that should be expoed to the target.
     /// - Parameters:

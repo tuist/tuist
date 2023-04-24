@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.18.0 - 2023-04-14
+
+### Added
+
+- Add support for disabling `Mac (designed for iOS)` destination for iOS deployment target [#5095](https://github.com/tuist/tuist/pull/5095) by [@TheInkedEngineer](https://github.com/TheInkedEngineer)
+
+### Fixed
+
+- Fix link phase for tvOS top shelf extension [#5119](https://github.com/tuist/tuist/pull/5119) by [@sh-a-n](https://github.com/sh-a-n)
+- Ensure static precompiled dependencies are only linked in targets that support linking [#5107](https://github.com/tuist/tuist/pull/5107) by [@kwridan](https://github.com/kwridan)
+
 ## 3.17.0 - 2023-03-12
 
 ### Added
