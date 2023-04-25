@@ -54,3 +54,4 @@ Feature: A set of tests that run with pre-compiled binaries that are only compat
     Then I should be able to build for iOS the scheme App
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the framework 'MyFramework' with architecture 'x86_64'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers
+    Then I should be able to archive for iOS the scheme App
