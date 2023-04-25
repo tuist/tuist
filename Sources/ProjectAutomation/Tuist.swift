@@ -27,7 +27,8 @@ public enum Tuist {
 
     /// Loads and returns the graph at the given path.
     /// - parameter path: the path which graph should be loaded. If nil, the current path is used.
-    public static func graph(at path: String? = nil) throws -> Graph {
+    /// - parameter environmentKeys: the environment keys that should be copied. If empty, no environment variables will be passed.
+    public static func graph(at path: String? = nil, environmentKeys: Set<String> = []) throws -> Graph {
         // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
         // Otherwise, fallback to go
         let tuistBinaryPath = ProcessInfo.processInfo.environment["TUIST_CONFIG_BINARY_PATH"] ?? "tuist"
@@ -44,10 +45,10 @@ public enum Tuist {
             }
             let forceConfigCacheDirectory = "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"
             var environment: [String: String] = [:]
-            if let configCacheDirectory = ProcessInfo.processInfo.environment[forceConfigCacheDirectory],
-               !configCacheDirectory.isEmpty
-            {
-                environment[forceConfigCacheDirectory] = configCacheDirectory
+            for environmentKey in environmentKeys + [forceConfigCacheDirectory] {
+                if let value = ProcessInfo.processInfo.environment[environmentKey], !value.isEmpty {
+                    environment[environmentKey] = value
+                }
             }
             try run(
                 arguments,
