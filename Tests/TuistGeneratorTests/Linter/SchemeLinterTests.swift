@@ -144,7 +144,8 @@ class SchemeLinterTests: TuistTestCase {
                     target: .init(
                         projectPath: try! AbsolutePath(validating: "/Project/../Project2"),
                         name: "Target2"
-                    )
+                    ),
+                    shellPath: nil
                 )])
             ),
         ])

@@ -99,7 +99,8 @@ final class SchemeTests: XCTestCase {
                 target: TargetReference(
                     projectPath: nil,
                     target: "target"
-                )
+                ),
+                shellPath: "/bin/sh"
             ),
         ]
     }

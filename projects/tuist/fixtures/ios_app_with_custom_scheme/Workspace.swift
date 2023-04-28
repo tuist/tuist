@@ -10,14 +10,16 @@ let customAppScheme = Scheme(
         ],
         preActions: [
             ExecutionAction(
-                scriptText: "echo pre-action",
-                target: .project(path: "App", target: "App")
+                scriptText: "echo \"pre-action in $SHELL\"",
+                target: .project(path: "App", target: "App"),
+                shellPath: "/bin/zsh"
             ),
         ],
         postActions: [
             ExecutionAction(
-                scriptText: "echo post-action",
-                target: .project(path: "Frameworks/Framework1", target: "Framework1")
+                scriptText: "echo \"post-action in $SHELL\"",
+                target: .project(path: "Frameworks/Framework1", target: "Framework1"),
+                shellPath: "/bin/zsh"
             ),
         ]
     ),
