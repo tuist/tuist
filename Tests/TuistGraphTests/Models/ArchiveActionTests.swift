@@ -16,6 +16,7 @@ final class ArchiveActionTests: TuistUnitTestCase {
                     title: "preActionTitle",
                     scriptText: "text",
                     target: nil,
+                    shellPath: nil,
                     showEnvVarsInLog: false
                 ),
             ],
@@ -24,6 +25,7 @@ final class ArchiveActionTests: TuistUnitTestCase {
                     title: "postActionTitle",
                     scriptText: "text",
                     target: nil,
+                    shellPath: nil,
                     showEnvVarsInLog: true
                 ),
             ]

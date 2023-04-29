@@ -13,6 +13,9 @@ extension SynthesizedResourceInterfaceTemplates {
     #elseif os(iOS) || os(tvOS) || os(watchOS)
       import UIKit.UIFont
     #endif
+    #if canImport(SwiftUI)
+      import SwiftUI
+    #endif
 
     // swiftlint:disable superfluous_disable_command
     // swiftlint:disable file_length
@@ -62,6 +65,20 @@ extension SynthesizedResourceInterfaceTemplates {
         }
         return font
       }
+
+      #if canImport(SwiftUI)
+      @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, *)
+      {{accessModifier}} func swiftUIFont(size: CGFloat) -> SwiftUI.Font {
+        guard let font = Font(font: self, size: size) else {
+          fatalError("Unable to initialize font '\\(name)' (\\(family))")
+        }
+        #if os(macOS)
+        return SwiftUI.Font.custom(font.fontName, size: font.size)
+        #elseif os(iOS) || os(tvOS) || os(watchOS)
+        return SwiftUI.Font(font)
+        #endif
+      }
+      #endif
 
       {{accessModifier}} func register() {
         // swiftlint:disable:next conditional_returns_on_newline

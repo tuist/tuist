@@ -17,6 +17,11 @@ extension TuistGraph.ExecutionAction {
                 name: $0.targetName
             )
         }
-        return ExecutionAction(title: manifest.title, scriptText: manifest.scriptText, target: targetReference)
+        return ExecutionAction(
+            title: manifest.title,
+            scriptText: manifest.scriptText,
+            target: targetReference,
+            shellPath: manifest.shellPath
+        )
     }
 }
