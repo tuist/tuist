@@ -118,11 +118,11 @@ public final class BuildGraphInspector: BuildGraphInspecting {
         func isIncluded(_ testTarget: TestPlan.TestTarget) -> Bool {
             if !testTarget.isEnabled {
                 return false
-            }
-            if testTargets.isEmpty {
+            } else if testTargets.isEmpty {
                 return !skipTestTargets.contains { $0.target == testTarget.target.name }
+            } else {
+              return testTargets.contains { $0.target == testTarget.target.name }
             }
-            return testTargets.contains { $0.target == testTarget.target.name }
         }
 
         if let testPlanName = testPlan,
@@ -132,8 +132,9 @@ public final class BuildGraphInspector: BuildGraphInspecting {
             return graphTraverser.target(path: target.projectPath, name: target.name)
         } else if let testTarget = scheme.testAction?.targets.first {
             return graphTraverser.target(path: testTarget.target.projectPath, name: testTarget.target.name)
+        } else {
+            return nil
         }
-        return nil
     }
 
     public func buildableSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
