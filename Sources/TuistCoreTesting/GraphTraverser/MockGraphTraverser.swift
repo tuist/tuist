@@ -145,26 +145,6 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedAllInternalTargetsResult
     }
 
-    var invokedFilterIncludedTargets = false
-    var invokedFilterIncludedTargetsCount = 0
-    var invokedFilterIncludedParameters: ([GraphTarget], testPlan: String?, includedTargets: Set<String>, excludedTargets: Set<String>, excludingExternalTargets: Bool)?
-    var invokedFilterIncludedParametersList = [([GraphTarget], testPlan: String?, includedTargets: Set<String>, excludedTargets: Set<String>, excludingExternalTargets: Bool)]()
-    var stubbedFilterIncludedTargetsResult: Set<GraphTarget>! = []
-
-    func filterIncludedTargets<GraphTargets: Collection>(
-        basedOn targets: GraphTargets,
-        testPlan: String?,
-        includedTargets: Set<String>,
-        excludedTargets: Set<String>,
-        excludingExternalTargets: Bool
-    ) -> Set<GraphTarget> where GraphTargets.Element == GraphTarget {
-        invokedFilterIncludedTargets = true
-        invokedFilterIncludedTargetsCount += 1
-        invokedFilterIncludedParameters = (Array(targets), testPlan, includedTargets, excludedTargets, excludingExternalTargets)
-        invokedFilterIncludedParametersList.append((Array(targets), testPlan, includedTargets, excludedTargets, excludingExternalTargets))
-        return stubbedFilterIncludedTargetsResult
-    }
-
     var invokedAllTestPlans = false
     var invokedAllTestPlansCount = 0
     var stubbedAllTestPlansResult: Set<TestPlan>! = []

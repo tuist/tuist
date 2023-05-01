@@ -45,15 +45,6 @@ public protocol GraphTraversing {
     /// Returns all the internal targets, that is, excluding `Dependencies`.
     func allInternalTargets() -> Set<GraphTarget>
 
-    /// Returns the included based on the parameters.
-    func filterIncludedTargets<GraphTargets: Collection>(
-        basedOn targets: GraphTargets,
-        testPlan: String?,
-        includedTargets: Set<String>,
-        excludedTargets: Set<String>,
-        excludingExternalTargets: Bool
-    ) -> Set<GraphTarget> where GraphTargets.Element == GraphTarget
-
     /// - Returns: All the test plans of the graph
     func allTestPlans() -> Set<TestPlan>
 
