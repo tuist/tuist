@@ -25,9 +25,16 @@ final class TargetLinterTests: TuistUnitTestCase {
     func test_lint_when_target_has_invalid_product_name() {
         let XCTAssertInvalidProductNameApp: (Target) -> Void = { target in
             let got = self.subject.lint(target: target)
-            let reason = target.product == .app ?
-                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), period (.), and underscore (_) characters." :
-                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), and underscore (_) characters."
+            let reason: String
+            switch target.product {
+            case .app, .commandLineTool:
+                reason =
+                    "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), period (.), and underscore (_) characters."
+            default:
+                reason =
+                    "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9), and underscore (_) characters."
+            }
+
             self.XCTContainsLintingIssue(got, LintingIssue(reason: reason, severity: .warning))
         }
 
