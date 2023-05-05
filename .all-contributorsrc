@@ -1003,6 +1003,33 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "batuhansk",
+      "name": "Batuhan Saka",
+      "avatar_url": "https://avatars.githubusercontent.com/u/9626765?v=4",
+      "profile": "http://linkedin.com/in/batuhansaka",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "JCSooHwanCho",
+      "name": "SooHwanCho",
+      "avatar_url": "https://avatars.githubusercontent.com/u/51935215?v=4",
+      "profile": "http://jcsoohwancho.github.io",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "griches",
+      "name": "Gary Riches",
+      "avatar_url": "https://avatars.githubusercontent.com/u/798117?v=4",
+      "profile": "http://www.bouncingball.mobi",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

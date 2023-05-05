@@ -122,6 +122,7 @@ final class ProjectEditor: ProjectEditing {
 
         let pathsToExclude = [
             "**/\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)/**",
+            "**/\(Constants.DependenciesDirectory.packageBuildDirectoryName)/**",
         ] + tuistIgnoreEntries
 
         let projectDescriptionPath = try resourceLocator.projectDescription()

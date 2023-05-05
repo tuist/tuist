@@ -211,12 +211,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let preAction = ExecutionAction(
             title: "Pre Action",
             scriptText: "echo Pre Actions",
-            target: TargetReference(projectPath: projectPath, name: "App")
+            target: TargetReference(projectPath: projectPath, name: "App"),
+            shellPath: "/bin/sh"
         )
         let postAction = ExecutionAction(
             title: "Post Action",
             scriptText: "echo Post Actions",
-            target: TargetReference(projectPath: projectPath, name: "App")
+            target: TargetReference(projectPath: projectPath, name: "App"),
+            shellPath: "/bin/sh"
         )
         let buildAction = BuildAction.test(
             targets: [TargetReference(projectPath: projectPath, name: "App")],
@@ -252,6 +254,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Pre Action
         XCTAssertEqual(got?.preActions.first?.title, "Pre Action")
         XCTAssertEqual(got?.preActions.first?.scriptText, "echo Pre Actions")
+        XCTAssertEqual(got?.preActions.first?.shellToInvoke, "/bin/sh")
 
         let preBuildableReference = got?.preActions.first?.environmentBuildable
 
@@ -263,6 +266,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Post Action
         XCTAssertEqual(got?.postActions.first?.title, "Post Action")
         XCTAssertEqual(got?.postActions.first?.scriptText, "echo Post Actions")
+        XCTAssertEqual(got?.postActions.first?.shellToInvoke, "/bin/sh")
 
         let postBuildableReference = got?.postActions.first?.environmentBuildable
 
@@ -319,7 +323,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let preAction = ExecutionAction(
             title: "Pre Action",
             scriptText: "echo Pre Actions",
-            target: TargetReference(projectPath: projectPath, name: "App")
+            target: TargetReference(projectPath: projectPath, name: "App"),
+            shellPath: nil
         )
         let buildAction = BuildAction.test(
             targets: [TargetReference(projectPath: projectPath, name: "App")],
@@ -773,12 +778,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let preAction = ExecutionAction(
             title: "Pre Action",
             scriptText: "echo Pre Actions",
-            target: TargetReference(projectPath: projectPath, name: "AppTests")
+            target: TargetReference(projectPath: projectPath, name: "AppTests"),
+            shellPath: "/bin/sh"
         )
         let postAction = ExecutionAction(
             title: "Post Action",
             scriptText: "echo Post Actions",
-            target: TargetReference(projectPath: projectPath, name: "AppTests")
+            target: TargetReference(projectPath: projectPath, name: "AppTests"),
+            shellPath: "/bin/sh"
         )
         let testAction = TestAction.test(
             targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
@@ -824,6 +831,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         XCTAssertEqual(result.preActions.first?.title, "Pre Action")
         XCTAssertEqual(result.preActions.first?.scriptText, "echo Pre Actions")
+        XCTAssertEqual(result.preActions.first?.shellToInvoke, "/bin/sh")
 
         let preBuildableReference = try XCTUnwrap(result.preActions.first?.environmentBuildable)
 
@@ -835,6 +843,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Post Action
         XCTAssertEqual(result.postActions.first?.title, "Post Action")
         XCTAssertEqual(result.postActions.first?.scriptText, "echo Post Actions")
+        XCTAssertEqual(result.postActions.first?.shellToInvoke, "/bin/sh")
 
         let postBuildableReference = try XCTUnwrap(result.postActions.first?.environmentBuildable)
 
@@ -1090,12 +1099,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let preAction = ExecutionAction(
             title: "Pre Action",
             scriptText: "echo Pre Actions",
-            target: TargetReference(projectPath: projectPath, name: "App")
+            target: TargetReference(projectPath: projectPath, name: "App"),
+            shellPath: "/bin/sh"
         )
         let postAction = ExecutionAction(
             title: "Post Action",
             scriptText: "echo Post Actions",
-            target: TargetReference(projectPath: projectPath, name: "App")
+            target: TargetReference(projectPath: projectPath, name: "App"),
+            shellPath: "/bin/sh"
         )
 
         let launchAction = RunAction.test(
@@ -1136,8 +1147,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         XCTAssertEqual(got?.preActions.first?.title, "Pre Action")
         XCTAssertEqual(got?.preActions.first?.scriptText, "echo Pre Actions")
+        XCTAssertEqual(got?.preActions.first?.shellToInvoke, "/bin/sh")
         XCTAssertEqual(got?.postActions.first?.title, "Post Action")
         XCTAssertEqual(got?.postActions.first?.scriptText, "echo Post Actions")
+        XCTAssertEqual(got?.postActions.first?.shellToInvoke, "/bin/sh")
     }
 
     func test_schemeLaunchAction_with_disabled_attachDebugger() throws {
@@ -1562,12 +1575,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let preAction = ExecutionAction(
             title: "Pre Action",
             scriptText: "echo Pre Actions",
-            target: TargetReference(projectPath: projectPath, name: "App")
+            target: TargetReference(projectPath: projectPath, name: "App"),
+            shellPath: "/bin/sh"
         )
         let postAction = ExecutionAction(
             title: "Post Action",
             scriptText: "echo Post Actions",
-            target: TargetReference(projectPath: projectPath, name: "App")
+            target: TargetReference(projectPath: projectPath, name: "App"),
+            shellPath: "/bin/sh"
         )
         let scheme = makeProfileActionScheme(
             preActions: [preAction],
@@ -1599,8 +1614,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         XCTAssertEqual(got?.preActions.first?.title, "Pre Action")
         XCTAssertEqual(got?.preActions.first?.scriptText, "echo Pre Actions")
+        XCTAssertEqual(got?.preActions.first?.shellToInvoke, "/bin/sh")
         XCTAssertEqual(got?.postActions.first?.title, "Post Action")
         XCTAssertEqual(got?.postActions.first?.scriptText, "echo Post Actions")
+        XCTAssertEqual(got?.postActions.first?.shellToInvoke, "/bin/sh")
     }
 
     // MARK: - Analyze Action Tests

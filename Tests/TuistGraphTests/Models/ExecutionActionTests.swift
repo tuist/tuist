@@ -14,6 +14,7 @@ final class ExecutionActionTests: TuistUnitTestCase {
                 projectPath: "/path/to/project",
                 name: "name"
             ),
+            shellPath: nil,
             showEnvVarsInLog: false
         )
 

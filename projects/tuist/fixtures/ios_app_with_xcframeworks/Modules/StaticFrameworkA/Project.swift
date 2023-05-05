@@ -11,6 +11,7 @@ let project = Project(
             infoPlist: .default,
             sources: ["Sources/**"],
             dependencies: [
+                .project(target: "StaticFrameworkB", path: "../StaticFrameworkB"),
                 .xcframework(path: "../../XCFrameworks/MyStaticLibrary/prebuilt/MyStaticLibrary.xcframework"),
             ]
         ),
