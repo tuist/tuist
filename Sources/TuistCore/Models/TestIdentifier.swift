@@ -1,6 +1,6 @@
 import TuistSupport
 
-public struct TestIdentifier: CustomStringConvertible {
+public struct TestIdentifier: CustomStringConvertible, Hashable {
     enum Error: FatalError {
         case invalidTestIdentifier(value: String)
 

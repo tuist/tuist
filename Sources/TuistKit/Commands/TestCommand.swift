@@ -102,6 +102,13 @@ struct TestCommand: AsyncParsableCommand {
     )
     var skipTestConfigurations: [String] = []
 
+    func validate() throws {
+        let intersection = Set(testTargets).intersection(skipTestTargets)
+        if !intersection.isEmpty {
+            throw ValidationError.invalidTestTargetsOptions(intersection)
+        }
+    }
+
     func run() async throws {
         let absolutePath: AbsolutePath
 
@@ -132,5 +139,16 @@ struct TestCommand: AsyncParsableCommand {
             testConfigurations: testConfigurations,
             skipTestConfigurations: skipTestConfigurations
         )
+    }
+
+    enum ValidationError: LocalizedError {
+        case invalidTestTargetsOptions(Set<TestIdentifier>)
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidTestTargetsOptions(let targets):
+                return "The target identifier cannot be specified both in --test-targets and --skip-test-targets (were specified: \(targets.map(\.description).joined(separator: ", ")))"
+            }
+        }
     }
 }
