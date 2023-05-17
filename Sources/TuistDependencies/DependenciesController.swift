@@ -132,11 +132,7 @@ public final class DependenciesController: DependenciesControlling {
         dependenciesGraph: TuistGraph.DependenciesGraph,
         to path: AbsolutePath
     ) throws {
-        if dependenciesGraph.externalDependencies.isEmpty {
-            try dependenciesGraphController.clean(at: path)
-        } else {
-            try dependenciesGraphController.save(dependenciesGraph, to: path)
-        }
+        try dependenciesGraphController.save(dependenciesGraph, to: path)
     }
 
     // MARK: - Helpers
