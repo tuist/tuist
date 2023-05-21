@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.19.0 - 2023-04-29
+
+### Added
+
+- Add support for watchOS extension to have WidgetKit extension dependencies [#5153](https://github.com/tuist/tuist/pull/5153) by [@griches](https://github.com/griches)
+- Support for SwiftUI font in font template [#5168](https://github.com/tuist/tuist/pull/5168) by [@L-j-h-c](https://github.com/L-j-h-c)
+- Support for custom shell path in `ExecuteAction` [#5154](https://github.com/tuist/tuist/pull/5154) by [@JCSooHwanCho](https://github.com/JCSooHwanCho)
+
+### Fixed
+
+- Exclude Swift Package build directory from manifest search [#5143](https://github.com/tuist/tuist/pull/5143) by [@ajevans99](https://github.com/ajevans99)
+- Fix errors when archiving projects with static XCFrameworks [#5157](https://github.com/tuist/tuist/pull/5157) by [@kwridan](https://github.com/kwridan)
+
 ## 3.18.0 - 2023-04-14
 
 ### Added

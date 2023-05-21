@@ -8,7 +8,7 @@ public enum Constants {
     public static let githubAPIURL = "https://api.github.com"
     public static let githubSlug = "tuist/tuist"
     public static let communityURL = "https://github.com/tuist/tuist/discussions/categories/general"
-    public static let version = "3.18.0"
+    public static let version = "3.19.0"
     public static let bundleName: String = "tuist.zip"
     public static let envBundleName: String = "tuistenv.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
@@ -45,6 +45,7 @@ public enum Constants {
         public static let cartfileResolvedName = "Cartfile.resolved"
         public static let packageSwiftName = "Package.swift"
         public static let packageResolvedName = "Package.resolved"
+        public static let packageBuildDirectoryName = ".build"
         public static let carthageDirectoryName = "Carthage"
         public static let swiftPackageManagerDirectoryName = "SwiftPackageManager"
     }

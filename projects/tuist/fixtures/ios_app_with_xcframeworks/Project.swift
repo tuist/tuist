@@ -19,6 +19,7 @@ let project = Project(
                     "$(inherited)",
                     "-ObjC",
                 ],
+                "ENABLE_BITCODE": "NO",
             ])
         ),
         Target(

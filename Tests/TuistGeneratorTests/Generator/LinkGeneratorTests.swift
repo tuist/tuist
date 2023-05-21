@@ -753,6 +753,72 @@ final class LinkGeneratorTests: XCTestCase {
         ])
     }
 
+    func test_generateCopyProductsBuildPhase_staticTargetDependsOnStaticXCFramework2() throws {
+        // Given
+        let path = AbsolutePath("/path/")
+        let target: Target = .test(name: "StaticFramework", product: .staticFramework)
+        let xcframeworkA: GraphDependency = .testXCFramework(
+            path: path.appending(components: "XCFrameworks", "StaticLibraryA.xcframework"),
+            linking: .static
+        )
+        let xcframeworkB: GraphDependency = .testXCFramework(
+            path: path.appending(components: "XCFrameworks", "StaticLibraryB.xcframework"),
+            linking: .static
+        )
+
+        let graph = Graph.test(
+            projects: [path: .test(path: path)],
+            targets: [
+                path: [
+                    target.name: target,
+                ],
+            ],
+            dependencies: [
+                .target(name: target.name, path: path): [
+                    xcframeworkA,
+                    xcframeworkB,
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+        let fileElements = createProjectFileElements(
+            for: [
+                xcframeworkA,
+                xcframeworkB,
+            ],
+            projectPath: path
+        )
+        let xcodeProjElements = createXcodeprojElements()
+
+        // When
+        try subject.generateCopyProductsBuildPhase(
+            path: path,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: xcodeProjElements.pbxTarget,
+            pbxproj: xcodeProjElements.pbxproj,
+            fileElements: fileElements
+        )
+
+        // Then
+        let copyProductsPhase = try XCTUnwrap(
+            xcodeProjElements
+                .pbxTarget
+                .buildPhases
+                .compactMap { $0 as? PBXCopyFilesBuildPhase }
+                .first(where: { $0.name() == "Static XCFramework Dependencies" })
+        )
+
+        XCTAssertEqual(copyProductsPhase.dstSubfolderSpec, .productsDirectory)
+        XCTAssertEqual(copyProductsPhase.dstPath, "_StaticXCFrameworkDependencies/StaticFramework")
+
+        let buildFiles = copyProductsPhase.files?.compactMap { $0.file?.path }
+        XCTAssertEqual(buildFiles, [
+            "XCFrameworks/StaticLibraryA.xcframework",
+            "XCFrameworks/StaticLibraryB.xcframework",
+        ])
+    }
+
     func test_generateCopyProductsBuildPhase_dynamicTargetDependsOnStaticProducts() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/")
@@ -876,6 +942,24 @@ final class LinkGeneratorTests: XCTestCase {
             projectFileElements.products[$0.name] = PBXFileReference(path: $0.productNameWithExtension)
         }
 
+        return projectFileElements
+    }
+
+    func createProjectFileElements(
+        for dependencies: [GraphDependency],
+        projectPath: AbsolutePath
+    ) -> ProjectFileElements {
+        let projectFileElements = ProjectFileElements()
+        dependencies.forEach { dependency in
+            switch dependency {
+            case .xcframework(path: let path, infoPlist: _, primaryBinaryPath: _, linking: _):
+                projectFileElements.elements[path] = PBXFileReference(
+                    path: path.relative(to: projectPath).pathString
+                )
+            default:
+                fatalError("Scenarios not handled in this test stub")
+            }
+        }
         return projectFileElements
     }
 

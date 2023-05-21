@@ -1021,6 +1021,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "griches",
+      "name": "Gary Riches",
+      "avatar_url": "https://avatars.githubusercontent.com/u/798117?v=4",
+      "profile": "http://www.bouncingball.mobi",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

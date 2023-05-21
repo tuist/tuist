@@ -435,6 +435,8 @@ final class LinkGenerator: LinkGenerating {
         pbxproj: PBXProj,
         fileElements: ProjectFileElements
     ) throws {
+        let dependencies = graphTraverser.copyProductDependencies(path: path, name: target.name).sorted()
+
         // If the current target, which is non-shared (e.g., static lib), depends on other focused targets which
         // include Swift code, we must ensure those are treated as dependencies so that Xcode builds the targets
         // in the correct order. Unfortunately, those deps can be part of other projects which would require
@@ -448,17 +450,34 @@ final class LinkGenerator: LinkGenerating {
         //
         // This technique also allows resource bundles that reside in different projects to get built ahead of the
         // "Copy Bundle Resources" phase.
+        try generateDependenciesBuildPhase(
+            dependencies: dependencies,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements
+        )
 
-        let dependencies = graphTraverser.copyProductDependencies(path: path, name: target.name).sorted()
-
-        if !dependencies.isEmpty {
-            try generateDependenciesBuildPhase(
-                dependencies: dependencies,
-                pbxTarget: pbxTarget,
-                pbxproj: pbxproj,
-                fileElements: fileElements
-            )
-        }
+        // For static framewor/library XCFrameworks, we need Xcode to process it to extract the
+        // the relevant product within it within it based on the architecture and place in
+        // the products directory. This allows the current target to see the symbols from the XCFramework.
+        //
+        // Copying to products is not a nop like it is for regular static targets due to the processing step,
+        // applying the same technique results in the following error:
+        //
+        // ```
+        // Multiple commands produce  ...
+        // ```
+        // A slightly different build phase is needed, where the destination is unique per target (this does
+        // lead to some wasted derrived data disk space, but only when archiving to limit impact).
+        // As of Xcode 14.2, this seems to achieve the desired effect of getting Xcode to process the XCFramework
+        // without explicitly linking it nor producing the multiple commands error.
+        try generateStaticXCFrameworksDependenciesBuildPhase(
+            dependencies: dependencies,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            target: target,
+            fileElements: fileElements
+        )
     }
 
     private func generateDependenciesBuildPhase(
@@ -480,8 +499,7 @@ final class LinkGenerator: LinkGenerating {
                 buildFile.platformFilter = platformFilter?.xcodeprojValue
                 pbxproj.add(object: buildFile)
                 files.append(buildFile)
-            case let .xcframework(path: path, _, _, _),
-                 let .framework(path: path, _, _, _, _, _, _, _),
+            case let .framework(path: path, _, _, _, _, _, _, _),
                  let .library(path: path, _, _, _):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
@@ -503,6 +521,48 @@ final class LinkGenerator: LinkGenerating {
             dstPath: nil,
             dstSubfolderSpec: .productsDirectory,
             name: "Dependencies",
+            buildActionMask: 8,
+            files: files,
+            runOnlyForDeploymentPostprocessing: true
+        )
+
+        pbxproj.add(object: buildPhase)
+        pbxTarget.buildPhases.append(buildPhase)
+    }
+
+    private func generateStaticXCFrameworksDependenciesBuildPhase(
+        dependencies: [GraphDependencyReference],
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj,
+        target: Target,
+        fileElements: ProjectFileElements
+    ) throws {
+        var files: [PBXBuildFile] = []
+
+        for dependency in dependencies.sorted() {
+            switch dependency {
+            case let .xcframework(path: path, _, _, _):
+                guard let fileRef = fileElements.file(path: path) else {
+                    throw LinkGeneratorError.missingReference(path: path)
+                }
+                let buildFile = PBXBuildFile(file: fileRef)
+                pbxproj.add(object: buildFile)
+                files.append(buildFile)
+            default:
+                break
+            }
+        }
+
+        if files.isEmpty {
+            return
+        }
+
+        // Need a unique (but stable) destination path per target
+        // to avoid "multiple commands produce:" errors in Xcode
+        let buildPhase = PBXCopyFilesBuildPhase(
+            dstPath: "_StaticXCFrameworkDependencies/\(target.name)",
+            dstSubfolderSpec: .productsDirectory,
+            name: "Static XCFramework Dependencies",
             buildActionMask: 8,
             files: files,
             runOnlyForDeploymentPostprocessing: true
