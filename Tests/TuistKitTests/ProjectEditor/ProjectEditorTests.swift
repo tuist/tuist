@@ -85,7 +85,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let graph = Graph.test(name: "Edit")
         let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
         try FileHandler.shared.createFolder(helpersDirectory)
-        let helpers = ["A.swift", "B.swift"].map { helpersDirectory.appending(component: $0) }
+        let helpers = ["A.swift", "B.swift", "Documentation.docc"].map { helpersDirectory.appending(component: $0) }
         try helpers.forEach { try FileHandler.shared.touch($0) }
         let manifests = [
             ManifestFilesLocator.ProjectManifest(
