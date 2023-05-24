@@ -1030,6 +1030,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "mustiikhalil",
+      "name": "mustiikhalil",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26250654?v=4",
+      "profile": "https://mustiikhalil.github.io/mustiikhalil/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
@@ -1037,5 +1046,6 @@
   "projectOwner": "tuist",
   "repoType": "github",
   "repoHost": "https://github.com",
-  "skipCi": true
+  "skipCi": true,
+  "commitType": "docs"
 }

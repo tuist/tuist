@@ -342,6 +342,7 @@ Thanks goes to these wonderful people:
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="http://www.bouncingball.mobi"><img src="https://avatars.githubusercontent.com/u/798117?v=4" width="100px;" alt=""/><br /><sub><b>Gary Riches</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://mustiikhalil.github.io/mustiikhalil/"><img src="https://avatars.githubusercontent.com/u/26250654?v=4" width="100px;" alt=""/><br /><sub><b>mustiikhalil</b></sub></a></td>
     </tr>
   </tbody>
 </table>
