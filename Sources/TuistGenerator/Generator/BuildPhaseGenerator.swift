@@ -128,6 +128,17 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             )
         }
 
+        if target.canEmbedSystemExtensions() {
+            try generateEmbedSystemExtensionBuildPhase(
+                path: path,
+                target: target,
+                graphTraverser: graphTraverser,
+                pbxTarget: pbxTarget,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        }
+
         generateRawScriptBuildPhases(
             target.rawScriptBuildPhases,
             pbxTarget: pbxTarget,
@@ -600,5 +611,36 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         embedXPCServicesBuildPhase.files = pbxBuildFiles
+    }
+
+    func generateEmbedSystemExtensionBuildPhase(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: path, name: target.name).sorted()
+        let systemExtensions = targetDependencies.filter { $0.target.isEmbeddableSystemExtension() }
+        guard !systemExtensions.isEmpty else { return }
+        var pbxBuildFiles = [PBXBuildFile]()
+
+        let embedSystemExtensionsBuildPhase = PBXCopyFilesBuildPhase(
+            dstPath: "$(CONTENTS_FOLDER_PATH)/Library/SystemExtensions",
+            dstSubfolderSpec: .productsDirectory,
+            name: "Embed System Extensions"
+        )
+        pbxproj.add(object: embedSystemExtensionsBuildPhase)
+        pbxTarget.buildPhases.append(embedSystemExtensionsBuildPhase)
+
+        let refs = systemExtensions.compactMap { fileElements.product(target: $0.target.name) }
+
+        refs.forEach {
+            let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
+            pbxBuildFiles.append(pbxBuildFile)
+        }
+        pbxBuildFiles.forEach { pbxproj.add(object: $0) }
+        embedSystemExtensionsBuildPhase.files = pbxBuildFiles
     }
 }

@@ -1077,6 +1077,8 @@ extension ProjectDescription.Product {
             return .appClip
         case .xpc:
             return .xpc
+        case .systemExtension:
+            return .systemExtension
         }
     }
 }

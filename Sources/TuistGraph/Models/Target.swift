@@ -128,6 +128,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             .messagesExtension,
             .appClip,
             .tvTopShelfExtension,
+            .systemExtension,
         ].contains(product)
     }
 
@@ -166,7 +167,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
              .tvTopShelfExtension,
              .messagesExtension,
              .stickerPackExtension,
-             .appClip:
+             .appClip,
+             .systemExtension:
             return true
 
         case .commandLineTool,
@@ -208,6 +210,17 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         }
     }
 
+    /// Determines if the target is an embeddable system extension
+    /// i.e. a product that can be bundled with a host macOS application
+    public func isEmbeddableSystemExtension() -> Bool {
+        switch (platform, product) {
+        case (.macOS, .systemExtension):
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Determines if the target is able to embed a watch application
     /// i.e. a product that can be bundled with a watchOS application
     public func canEmbedWatchApplications() -> Bool {
@@ -219,9 +232,20 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         }
     }
 
-    /// Determines if the target is able to embed an xpc serivce
+    /// Determines if the target is able to embed an xpc service
     /// i.e. a product that can be bundled with a macOS application
     public func canEmbedXPCServices() -> Bool {
+        switch (platform, product) {
+        case (.macOS, .app):
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Determines if the target is able to embed an system extension
+    /// i.e. a product that can be bundled with a macOS application
+    public func canEmbedSystemExtensions() -> Bool {
         switch (platform, product) {
         case (.macOS, .app):
             return true

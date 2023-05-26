@@ -1007,6 +1007,51 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
     }
 
+    func test_generateEmbedSystemExtensionsBuildPhase() throws {
+        // Given
+        let app = Target.test(name: "App", platform: .macOS, product: .app)
+        let systemExtension = Target.test(name: "SystemExtension", platform: .macOS, product: .systemExtension)
+        let project = Project.test()
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [app, systemExtension])
+
+        let targets: [AbsolutePath: [String: Target]] = [
+            project.path: [app.name: app, systemExtension.name: systemExtension],
+        ]
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: systemExtension.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set([.target(name: systemExtension.name, path: project.path)]),
+        ]
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: targets,
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateEmbedSystemExtensionBuildPhase(
+            path: project.path,
+            target: app,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
+            "SystemExtension",
+        ])
+        XCTAssertEqual(
+            pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
+            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+        )
+    }
+
     func test_generateTarget_actions() throws {
         // Given
         system.swiftVersionStub = { "5.2" }

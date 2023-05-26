@@ -397,6 +397,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .app),
             LintableTarget(platform: .macOS, product: .commandLineTool),
             LintableTarget(platform: .macOS, product: .xpc),
+            LintableTarget(platform: .macOS, product: .systemExtension),
         ],
         LintableTarget(platform: .macOS, product: .staticLibrary): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
@@ -570,6 +571,12 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .watchOS, product: .dynamicLibrary),
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .framework),
+        ],
+        LintableTarget(platform: .macOS, product: .systemExtension): [
+            LintableTarget(platform: .macOS, product: .staticLibrary),
+            LintableTarget(platform: .macOS, product: .dynamicLibrary),
+            LintableTarget(platform: .macOS, product: .framework),
+            LintableTarget(platform: .macOS, product: .staticFramework),
         ],
     ]
 }
