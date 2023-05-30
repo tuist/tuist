@@ -284,7 +284,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             projectSettings: .default,
             fileElements: ProjectFileElements(),
             graphTraverser: graphTraverser,
-            sourceRootPath: AbsolutePath("/project")
+            sourceRootPath: try AbsolutePath(validating: "/project")
         )
 
         // Then
