@@ -6,4 +6,4 @@ Feature: Generate a new project using Tuist (suite 1)
     And I have a working directory
     Then I copy the fixture ios_app_with_tests into the working directory
     Then tuist inits new cloud project
-    # Then tuist cleans the cloud project
+    Then tuist cleans the cloud project

@@ -10,4 +10,9 @@ public final class MockConfigLoader: ConfigLoading {
     public func loadConfig(path: AbsolutePath) throws -> Config {
         try loadConfigStub?(path) ?? .default
     }
+
+    public var locateConfigStub: ((AbsolutePath) -> AbsolutePath?)?
+    public func locateConfig(at: TSCBasic.AbsolutePath) -> TSCBasic.AbsolutePath? {
+        locateConfigStub?(at)
+    }
 }

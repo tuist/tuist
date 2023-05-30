@@ -53,11 +53,11 @@ Then(/^tuist inits new cloud project$/) do
   uuid = SecureRandom.uuid[0...10]
   out, err, status = Open3.capture3(
     { "TUIST_CONFIG_CLOUD_TOKEN" => @cloud_token },
-    @tuist, "cloud", "init", "--name", uuid, "--url", "http://127.0.0.1:3000/"
+    @tuist, "cloud", "init", "--name", uuid, "--url", "http://127.0.0.1:3000/", "--path", @dir
   )
   flunk(err) unless status.success?
   assert(
-    out.include?("cloud: .cloud(projectId: \"#{@cloud_account}/#{uuid}\", url: \"http://127.0.0.1:3000/\")"),
+    out.include?("Tuist Cloud was successfully initialized."),
     "The cloud project was not created properly"
   )
 end
@@ -65,7 +65,7 @@ end
 Then(/^tuist cleans the cloud project$/) do
   out, err, status = Open3.capture3(
     { "TUIST_CONFIG_CLOUD_TOKEN" => @cloud_token },
-    @tuist, "cloud", "clean"
+    @tuist, "cloud", "clean", "--path", @dir
   )
   flunk(err) unless status.success?
   assert(

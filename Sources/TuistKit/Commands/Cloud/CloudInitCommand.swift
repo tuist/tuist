@@ -27,11 +27,19 @@ struct CloudInitCommand: AsyncParsableCommand {
     )
     var url: String = Constants.tuistCloudURL
 
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the Tuist Cloud project.",
+        completion: .directory
+    )
+    var path: String?
+
     func run() async throws {
         try await CloudInitService().createProject(
             name: name,
             owner: owner,
-            url: url
+            url: url,
+            path: path
         )
     }
 }

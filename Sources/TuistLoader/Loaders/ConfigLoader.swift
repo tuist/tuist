@@ -13,6 +13,9 @@ public protocol ConfigLoading {
     /// - Returns: Loaded Config object.
     /// - Throws: An error if the Config.swift can't be parsed.
     func loadConfig(path: AbsolutePath) throws -> TuistGraph.Config
+
+    /// Locates the Config.swift manifest from the given directory.
+    func locateConfig(at: AbsolutePath) -> AbsolutePath?
 }
 
 public final class ConfigLoader: ConfigLoading {
@@ -36,7 +39,7 @@ public final class ConfigLoader: ConfigLoading {
             return cached
         }
 
-        guard let configPath = locateConfigPath(at: path) else {
+        guard let configPath = locateConfig(at: path) else {
             let config = TuistGraph.Config.default
             cachedConfigs[path] = config
             return config
@@ -48,9 +51,7 @@ public final class ConfigLoader: ConfigLoading {
         return config
     }
 
-    // MARK: - Helpers
-
-    private func locateConfigPath(at path: AbsolutePath) -> AbsolutePath? {
+    public func locateConfig(at path: AbsolutePath) -> AbsolutePath? {
         // If the Config.swift file exists in the root Tuist/ directory, we load it from there
         if let rootDirectoryPath = rootDirectoryLocator.locate(from: path) {
             let configPath = rootDirectoryPath
