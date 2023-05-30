@@ -1030,6 +1030,33 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "mustiikhalil",
+      "name": "mustiikhalil",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26250654?v=4",
+      "profile": "https://mustiikhalil.github.io/mustiikhalil/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "serejahh",
+      "name": "Serhii Butenko",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2575555?v=4",
+      "profile": "https://github.com/serejahh",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "petrukha-ivan",
+      "name": "Petrukha Ivan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/93926277?v=4",
+      "profile": "https://github.com/petrukha-ivan",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
@@ -1037,5 +1064,6 @@
   "projectOwner": "tuist",
   "repoType": "github",
   "repoHost": "https://github.com",
-  "skipCi": true
+  "skipCi": true,
+  "commitType": "docs"
 }

@@ -11,7 +11,7 @@ IPHONE_SIM_DIR="$TEMP_DIR/Build/Products/Debug-iphonesimulator"
 rm -rf $TEMP_DIR
 mkdir -p $TEMP_DIR
 
-xcrun xcodebuild build -scheme "$FRAMEWORK_NAME" -workspace "$WORKSPACE_NAME.xcworkspace" -sdk iphonesimulator -destination "platform=iOS Simulator,name=iPhone 13 Pro,OS=latest" -derivedDataPath $TEMP_DIR ONLY_ACTIVE_ARCH=NO
+xcrun xcodebuild build -scheme "$FRAMEWORK_NAME" -workspace "$WORKSPACE_NAME.xcworkspace" -sdk iphonesimulator -destination "platform=iOS Simulator,name=iPhone 14 Pro,OS=latest" -derivedDataPath $TEMP_DIR ONLY_ACTIVE_ARCH=NO
 
 mkdir -p "prebuilt/$FRAMEWORK_NAME.framework"
 

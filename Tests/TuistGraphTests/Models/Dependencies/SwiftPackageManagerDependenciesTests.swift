@@ -29,7 +29,6 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .package(url: "url/url/url", branch: "branch"),
             ]
         )
-
         """
         XCTAssertEqual(got, expected)
     }
@@ -71,7 +70,6 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .package(path: "path/path"),
             ]
         )
-
         """
         XCTAssertEqual(got, expected)
     }
@@ -101,7 +99,6 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .package(url: "url/url/url", .branch("branch")),
             ]
         )
-
         """
         XCTAssertEqual(got, expected)
     }
@@ -143,7 +140,6 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .package(path: "path/path"),
             ]
         )
-
         """
         XCTAssertEqual(got, expected)
     }

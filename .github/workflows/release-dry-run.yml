@@ -22,7 +22,7 @@ env:
 jobs:
   bundle-all:
     name: Bundle tuist and tuistenv with Xcode
-    runs-on: macos-12
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
       - uses: ruby/setup-ruby@v1
