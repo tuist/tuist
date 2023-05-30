@@ -31,7 +31,7 @@ env:
 jobs:
   build:
     name: Build with Xcode
-    runs-on: macos-12
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
       - name: Select Xcode
@@ -54,7 +54,7 @@ jobs:
           ./fourier build tuist all
   generate:
     name: Generate with Xcode
-    runs-on: macos-12
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
       - name: Select Xcode
@@ -77,7 +77,7 @@ jobs:
           ./fourier generate tuist --targets tuist
   test:
     name: Test with Xcode
-    runs-on: macos-12
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
       - name: Select Xcode
@@ -101,7 +101,7 @@ jobs:
   
   lint-lockfiles:
     name: Lint lockfiles
-    runs-on: macos-12
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
       - name: Select Xcode

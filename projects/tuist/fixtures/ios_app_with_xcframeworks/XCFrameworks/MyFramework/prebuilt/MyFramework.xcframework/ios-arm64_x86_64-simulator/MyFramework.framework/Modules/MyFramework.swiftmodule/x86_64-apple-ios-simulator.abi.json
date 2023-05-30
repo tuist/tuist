@@ -1,0 +1,147 @@
+{
+  "ABIRoot": {
+    "kind": "Root",
+    "name": "TopLevel",
+    "printedName": "TopLevel",
+    "children": [
+      {
+        "kind": "Import",
+        "name": "Foundation",
+        "printedName": "Foundation",
+        "declKind": "Import",
+        "moduleName": "MyFramework"
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "MyFramework",
+        "printedName": "MyFramework",
+        "children": [
+          {
+            "kind": "Var",
+            "name": "name",
+            "printedName": "name",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:11MyFrameworkAAC4nameSSvp",
+            "mangledName": "$s11MyFrameworkAAC4nameSSvp",
+            "moduleName": "MyFramework",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:11MyFrameworkAAC4nameSSvg",
+                "mangledName": "$s11MyFrameworkAAC4nameSSvg",
+                "moduleName": "MyFramework",
+                "implicit": true,
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:11MyFrameworkAAC4nameSSvs",
+                "mangledName": "$s11MyFrameworkAAC4nameSSvs",
+                "moduleName": "MyFramework",
+                "implicit": true,
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:11MyFrameworkAAC4nameSSvM",
+                "mangledName": "$s11MyFrameworkAAC4nameSSvM",
+                "moduleName": "MyFramework",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MyFramework",
+                "printedName": "MyFramework.MyFramework",
+                "usr": "s:11MyFrameworkAAC"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "s:11MyFrameworkAACABycfc",
+            "mangledName": "$s11MyFrameworkAACABycfc",
+            "moduleName": "MyFramework",
+            "declAttributes": [
+              "AccessControl"
+            ],
+            "init_kind": "Designated"
+          }
+        ],
+        "declKind": "Class",
+        "usr": "s:11MyFrameworkAAC",
+        "mangledName": "$s11MyFrameworkAAC",
+        "moduleName": "MyFramework",
+        "declAttributes": [
+          "AccessControl"
+        ]
+      }
+    ],
+    "json_format_version": 8
+  },
+  "ConstValues": [
+    {
+      "filePath": "\/Users\/df\/Developer\/tuist\/projects\/tuist\/fixtures\/ios_app_with_xcframeworks\/Frameworks\/MyFramework\/Sources\/MyFramework.swift",
+      "kind": "StringLiteral",
+      "offset": 68,
+      "length": 13,
+      "value": "\"MyFramework\""
+    }
+  ]
+}
