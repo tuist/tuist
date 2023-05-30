@@ -1,9 +1,9 @@
+import TSCBasic
 import TuistCloudTesting
-import TuistSupport
-import TuistLoaderTesting
 import TuistGraph
 import TuistGraphTesting
-import TSCBasic
+import TuistLoaderTesting
+import TuistSupport
 import XCTest
 
 @testable import TuistKit
@@ -83,7 +83,7 @@ final class CloudInitServiceTests: TuistUnitTestCase {
             content = stubContent
         }
         createProjectService.createProjectStub = { _, _, _ in
-            return "slug"
+            "slug"
         }
 
         // When
@@ -110,8 +110,8 @@ final class CloudInitServiceTests: TuistUnitTestCase {
 
     func test_cloud_init_when_cloud_exists() async throws {
         // Given
-        configLoader.loadConfigStub = { _ in 
-            return Config.test(cloud: Cloud.test())
+        configLoader.loadConfigStub = { _ in
+            Config.test(cloud: Cloud.test())
         }
 
         // When / Then
@@ -121,7 +121,7 @@ final class CloudInitServiceTests: TuistUnitTestCase {
                 owner: "tuist-org",
                 url: Constants.tuistCloudURL,
                 path: nil
-            ), 
+            ),
             CloudInitServiceError.cloudAlreadySetUp
         )
     }

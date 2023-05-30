@@ -1,8 +1,8 @@
 import Foundation
-import TuistCloud
-import TuistSupport
-import TuistLoader
 import TSCBasic
+import TuistCloud
+import TuistLoader
+import TuistSupport
 
 protocol CloudInitServicing {
     func createProject(
@@ -88,8 +88,8 @@ final class CloudInitService: CloudInitServicing {
                     cloud: .cloud(projectId: "\(slug)", url: "\(url)")
                 )
 
-                """, 
-                path: tuistDirectoryPath.appending(component: Manifest.config.fileName(path)), 
+                """,
+                path: tuistDirectoryPath.appending(component: Manifest.config.fileName(path)),
                 atomically: true
             )
             logger.info(
@@ -99,12 +99,12 @@ final class CloudInitService: CloudInitServicing {
             )
         } else {
             logger.info(
-            """
-            Put the following line into your Tuist/Config.swift (see the docs for more: https://docs.tuist.io/manifests/config/):
-            cloud: .cloud(projectId: "\(slug)", url: "\(url)")
-            """
+                """
+                Put the following line into your Tuist/Config.swift (see the docs for more: https://docs.tuist.io/manifests/config/):
+                cloud: .cloud(projectId: "\(slug)", url: "\(url)")
+                """
             )
-        } 
+        }
     }
 
     // MARK: - Helpers

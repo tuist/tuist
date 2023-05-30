@@ -1,8 +1,8 @@
 import TuistCloudTesting
-import TuistSupport
-import TuistLoaderTesting
 import TuistGraph
 import TuistGraphTesting
+import TuistLoaderTesting
+import TuistSupport
 import XCTest
 
 @testable import TuistKit
@@ -42,8 +42,8 @@ final class CloudCleanServiceTests: TuistUnitTestCase {
             cleanedProjectURL = $0
             cleanedProjectSlug = $1
         }
-        let url = URL(string:"https://cloud.com")!
-        
+        let url = URL(string: "https://cloud.com")!
+
         configLoader.loadConfigStub = { _ in
             Config.test(
                 cloud: Cloud.test(

@@ -72,7 +72,7 @@ class ProjectFetchService < ApplicationService
     fetch_by_name(
       name: project_name,
       account_name: account_name,
-      user: user
+      user: user,
     )
   end
 end
