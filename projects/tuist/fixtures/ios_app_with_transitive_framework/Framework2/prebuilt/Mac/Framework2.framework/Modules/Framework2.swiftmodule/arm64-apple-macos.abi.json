@@ -1,0 +1,76 @@
+{
+  "ABIRoot": {
+    "kind": "Root",
+    "name": "TopLevel",
+    "printedName": "TopLevel",
+    "children": [
+      {
+        "kind": "Import",
+        "name": "Foundation",
+        "printedName": "Foundation",
+        "declKind": "Import",
+        "moduleName": "Framework2"
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "Framework2File",
+        "printedName": "Framework2File",
+        "children": [
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Framework2File",
+                "printedName": "Framework2.Framework2File",
+                "usr": "s:10Framework20A4FileC"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "s:10Framework20A4FileCACycfc",
+            "mangledName": "$s10Framework20A4FileCACycfc",
+            "moduleName": "Framework2",
+            "declAttributes": [
+              "AccessControl"
+            ],
+            "init_kind": "Designated"
+          },
+          {
+            "kind": "Function",
+            "name": "hello",
+            "printedName": "hello()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "s:10Framework20A4FileC5helloSSyF",
+            "mangledName": "$s10Framework20A4FileC5helloSSyF",
+            "moduleName": "Framework2",
+            "isOpen": true,
+            "declAttributes": [
+              "AccessControl"
+            ],
+            "funcSelfKind": "NonMutating"
+          }
+        ],
+        "declKind": "Class",
+        "usr": "s:10Framework20A4FileC",
+        "mangledName": "$s10Framework20A4FileC",
+        "moduleName": "Framework2",
+        "isOpen": true,
+        "declAttributes": [
+          "AccessControl"
+        ]
+      }
+    ],
+    "json_format_version": 8
+  },
+  "ConstValues": []
+}

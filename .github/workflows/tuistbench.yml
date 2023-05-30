@@ -21,7 +21,7 @@ env:
 jobs:
   test:
     name: Build benchmarking tooling with Xcode
-    runs-on: macos-12
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
       - name: Select Xcode
@@ -44,7 +44,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: macos-12
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
       - name: Select Xcode

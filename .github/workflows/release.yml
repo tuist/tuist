@@ -64,7 +64,7 @@ jobs:
       with:
         commit_message: "[Release] Tuist ${{ steps.semvers.outputs.version }}"
   release:
-    runs-on: macos-12
+    runs-on: macos-13
     needs: prepare-release
     steps:
     - uses: actions/checkout@v3
