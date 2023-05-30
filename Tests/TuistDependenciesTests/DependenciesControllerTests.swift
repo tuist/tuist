@@ -531,7 +531,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         try subject.save(dependenciesGraph: .none, to: rootPath)
 
         // Then
-        XCTAssertTrue(dependenciesGraphController.invokedClean)
-        XCTAssertFalse(dependenciesGraphController.invokedSave)
+        XCTAssertFalse(dependenciesGraphController.invokedClean)
+        XCTAssertTrue(dependenciesGraphController.invokedSave)
     }
 }

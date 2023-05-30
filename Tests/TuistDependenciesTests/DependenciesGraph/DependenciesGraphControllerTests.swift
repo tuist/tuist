@@ -38,6 +38,12 @@ public final class DependenciesGraphControllerTests: TuistUnitTestCase {
     func test_load() throws {
         // Given
         let root = try temporaryPath()
+
+        let dependenciesPath = root.appending(components: "Tuist", "Dependencies.swift")
+        try fileHandler.touch(dependenciesPath)
+
+        try fileHandler.write(TuistGraph.DependenciesGraph.testDependenciesFile, path: dependenciesPath, atomically: true)
+
         let graphPath = root.appending(components: "Tuist", "Dependencies", "graph.json")
         try fileHandler.touch(graphPath)
 
@@ -60,6 +66,12 @@ public final class DependenciesGraphControllerTests: TuistUnitTestCase {
     func test_load_failed() throws {
         // Given
         let root = try temporaryPath()
+
+        let dependenciesPath = root.appending(components: "Tuist", "Dependencies.swift")
+        try fileHandler.touch(dependenciesPath)
+
+        try fileHandler.write(TuistGraph.DependenciesGraph.testDependenciesFile, path: dependenciesPath, atomically: true)
+
         let graphPath = root.appending(components: "Tuist", "Dependencies", "graph.json")
         try fileHandler.touch(graphPath)
 
@@ -84,6 +96,32 @@ public final class DependenciesGraphControllerTests: TuistUnitTestCase {
             try subject.load(at: root),
             DependenciesGraphControllerError.failedToDecodeDependenciesGraph
         )
+    }
+
+    func test_load_without_fetching() throws {
+        // Given
+        let root = try temporaryPath()
+
+        let dependenciesPath = root.appending(components: "Tuist", "Dependencies.swift")
+        try fileHandler.touch(dependenciesPath)
+
+        try fileHandler.write(TuistGraph.DependenciesGraph.testDependenciesFile, path: dependenciesPath, atomically: true)
+
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try subject.load(at: root),
+            DependenciesGraphControllerError.dependenciesWerentFetched
+        )
+    }
+
+    func test_load_no_dependencies() throws {
+        // Given
+        let root = try temporaryPath()
+        let dependenciesPath = root.appending(components: "Tuist")
+        try fileHandler.touch(dependenciesPath)
+
+        // When / Then
+        XCTAssertEqual(try subject.load(at: root), .none)
     }
 
     func test_clean() throws {

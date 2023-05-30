@@ -38,6 +38,7 @@ public enum Constants {
     }
 
     public enum DependenciesDirectory {
+        public static let dependenciesFileName = "Dependencies.swift"
         public static let name = "Dependencies"
         public static let graphName = "graph.json"
         public static let lockfilesDirectoryName = "Lockfiles"
