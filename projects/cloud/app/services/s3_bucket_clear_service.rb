@@ -15,17 +15,26 @@ class S3BucketClearService < ApplicationService
     end
   end
 
-  attr_reader :id, :clearer
+  attr_reader :id, :project_slug, :clearer
 
-  def initialize(id:, clearer:)
+  def initialize(id: nil, project_slug: nil, clearer:)
     super()
     @id = id
+    @project_slug = project_slug
     @clearer = clearer
   end
 
   def call
     begin
-      bucket = S3Bucket.find(id)
+      if id.nil?
+        project = ProjectFetchService.new.fetch_by_slug(
+          slug: project_slug,
+          user: clearer,
+        )
+        bucket = project.remote_cache_storage
+      else
+        bucket = S3Bucket.find(id)
+      end
     rescue ActiveRecord::RecordNotFound
       raise Error::S3BucketNotFound
     end

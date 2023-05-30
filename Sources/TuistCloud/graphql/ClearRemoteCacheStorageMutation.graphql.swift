@@ -4,17 +4,17 @@
 @_exported import ApolloAPI
 import TuistCloudSchema
 
-public class CreateProjectMutation: GraphQLMutation {
-  public static let operationName: String = "CreateProject"
+public class ClearRemoteCacheStorageMutation: GraphQLMutation {
+  public static let operationName: String = "ClearRemoteCacheStorage"
   public static let document: ApolloAPI.DocumentType = .notPersisted(
     definition: .init(
       """
-      mutation CreateProject($input: CreateProjectInput!) {
-        createProject(input: $input) {
+      mutation ClearRemoteCacheStorage($input: ClearRemoteCacheStorageInput!) {
+        clearRemoteCacheStorage(input: $input) {
           __typename
-          project {
+          bucket {
             __typename
-            slug
+            id
           }
           errors {
             __typename
@@ -26,9 +26,9 @@ public class CreateProjectMutation: GraphQLMutation {
       """
     ))
 
-  public var input: TuistCloudSchema.CreateProjectInput
+  public var input: TuistCloudSchema.ClearRemoteCacheStorageInput
 
-  public init(input: TuistCloudSchema.CreateProjectInput) {
+  public init(input: TuistCloudSchema.ClearRemoteCacheStorageInput) {
     self.input = input
   }
 
@@ -40,44 +40,44 @@ public class CreateProjectMutation: GraphQLMutation {
 
     public static var __parentType: ParentType { TuistCloudSchema.Objects.Mutation }
     public static var __selections: [Selection] { [
-      .field("createProject", CreateProject.self, arguments: ["input": .variable("input")]),
+      .field("clearRemoteCacheStorage", ClearRemoteCacheStorage.self, arguments: ["input": .variable("input")]),
     ] }
 
-    /// Creates a new project
-    public var createProject: CreateProject { __data["createProject"] }
+    /// Clears the remote cache storage
+    public var clearRemoteCacheStorage: ClearRemoteCacheStorage { __data["clearRemoteCacheStorage"] }
 
-    /// CreateProject
+    /// ClearRemoteCacheStorage
     ///
-    /// Parent Type: `CreateProject`
-    public struct CreateProject: TuistCloudSchema.SelectionSet {
+    /// Parent Type: `ClearRemoteCacheStorage`
+    public struct ClearRemoteCacheStorage: TuistCloudSchema.SelectionSet {
       public let __data: DataDict
       public init(data: DataDict) { __data = data }
 
-      public static var __parentType: ParentType { TuistCloudSchema.Objects.CreateProject }
+      public static var __parentType: ParentType { TuistCloudSchema.Objects.ClearRemoteCacheStorage }
       public static var __selections: [Selection] { [
-        .field("project", Project?.self),
+        .field("bucket", Bucket?.self),
         .field("errors", [Error].self),
       ] }
 
-      public var project: Project? { __data["project"] }
+      public var bucket: Bucket? { __data["bucket"] }
       public var errors: [Error] { __data["errors"] }
 
-      /// CreateProject.Project
+      /// ClearRemoteCacheStorage.Bucket
       ///
-      /// Parent Type: `Project`
-      public struct Project: TuistCloudSchema.SelectionSet {
+      /// Parent Type: `S3Bucket`
+      public struct Bucket: TuistCloudSchema.SelectionSet {
         public let __data: DataDict
         public init(data: DataDict) { __data = data }
 
-        public static var __parentType: ParentType { TuistCloudSchema.Objects.Project }
+        public static var __parentType: ParentType { TuistCloudSchema.Objects.S3Bucket }
         public static var __selections: [Selection] { [
-          .field("slug", String.self),
+          .field("id", TuistCloudSchema.ID.self),
         ] }
 
-        public var slug: String { __data["slug"] }
+        public var id: TuistCloudSchema.ID { __data["id"] }
       }
 
-      /// CreateProject.Error
+      /// ClearRemoteCacheStorage.Error
       ///
       /// Parent Type: `UserError`
       public struct Error: TuistCloudSchema.SelectionSet {

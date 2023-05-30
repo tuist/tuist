@@ -64,4 +64,15 @@ class ProjectFetchService < ApplicationService
 
     project
   end
+
+  def fetch_by_slug(slug:, user:)
+    split_project_slug = slug.split("/")
+    account_name = split_project_slug.first
+    project_name = split_project_slug.last
+    fetch_by_name(
+      name: project_name,
+      account_name: account_name,
+      user: user
+    )
+  end
 end

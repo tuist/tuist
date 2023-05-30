@@ -4,8 +4,8 @@
 import ApolloAPI
 
 public extension Objects {
-  static let Project = Object(
-    typename: "Project",
+  static let ClearRemoteCacheStorage = Object(
+    typename: "ClearRemoteCacheStorage",
     implementedInterfaces: []
   )
 }

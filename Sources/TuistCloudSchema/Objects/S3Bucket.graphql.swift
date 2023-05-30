@@ -4,8 +4,8 @@
 import ApolloAPI
 
 public extension Objects {
-  static let Project = Object(
-    typename: "Project",
+  static let S3Bucket = Object(
+    typename: "S3Bucket",
     implementedInterfaces: []
   )
 }
