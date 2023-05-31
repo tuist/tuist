@@ -48,12 +48,8 @@ final class CloudInitServiceTests: TuistUnitTestCase {
 
             return "slug"
         }
-        configLoader.loadConfigStub = { _ in
-            Config.test(cloud: nil)
-        }
-        configLoader.locateConfigStub = { _ in
-            AbsolutePath("/some-path")
-        }
+        configLoader.loadConfigStub = { _ in Config.test(cloud: nil) }
+        configLoader.locateConfigStub = { _ in AbsolutePath("/some-path") }
 
         // When
         try await subject.createProject(
@@ -76,15 +72,9 @@ final class CloudInitServiceTests: TuistUnitTestCase {
     func test_cloud_init_when_config_does_not_exist() async throws {
         // Given
         var content: String?
-        configLoader.locateConfigStub = { _ in
-            nil
-        }
-        fileHandler.stubWrite = { stubContent, _, _ in
-            content = stubContent
-        }
-        createProjectService.createProjectStub = { _, _, _ in
-            "slug"
-        }
+        configLoader.locateConfigStub = { _ in nil }
+        fileHandler.stubWrite = { stubContent, _, _ in content = stubContent }
+        createProjectService.createProjectStub = { _, _, _ in "slug" }
 
         // When
         try await subject.createProject(
@@ -103,9 +93,7 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         )
 
         """, content)
-        XCTAssertPrinterOutputContains("""
-        Tuist Cloud was successfully initialized.
-        """)
+        XCTAssertPrinterOutputContains("Tuist Cloud was successfully initialized.")
     }
 
     func test_cloud_init_when_cloud_exists() async throws {

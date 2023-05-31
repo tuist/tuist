@@ -45,9 +45,7 @@ final class CloudCleanService: CloudCleanServicing {
         self.configLoader = configLoader
     }
 
-    func clean(
-        path: String?
-    ) async throws {
+    func clean(path: String?) async throws {
         let path: AbsolutePath = try self.path(path)
         let config = try configLoader.loadConfig(path: path)
 
@@ -57,11 +55,7 @@ final class CloudCleanService: CloudCleanServicing {
             projectSlug: cloud.projectId
         )
 
-        logger.info(
-            """
-            Project was successfully cleaned.
-            """
-        )
+        logger.info("Project was successfully cleaned.")
     }
 
     // MARK: - Helpers

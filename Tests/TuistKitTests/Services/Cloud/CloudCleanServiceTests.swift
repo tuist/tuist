@@ -34,7 +34,7 @@ final class CloudCleanServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_cloud_init() async throws {
+    func test_cloud_clean() async throws {
         // Given
         var cleanedProjectURL: URL?
         var cleanedProjectSlug: String?
@@ -54,15 +54,11 @@ final class CloudCleanServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try await subject.clean(
-            path: "/some-path"
-        )
+        try await subject.clean(path: "/some-path")
 
         // Then
         XCTAssertEqual(cleanedProjectURL?.absoluteString, url.absoluteString)
         XCTAssertEqual(cleanedProjectSlug, "project/slug")
-        XCTAssertPrinterOutputContains("""
-        Project was successfully cleaned.
-        """)
+        XCTAssertPrinterOutputContains("Project was successfully cleaned.")
     }
 }
