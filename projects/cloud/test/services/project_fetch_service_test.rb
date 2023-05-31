@@ -17,6 +17,20 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
     assert_equal project, got
   end
 
+  test "fetches a project with a given project slug" do
+    # Given
+    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    account = user.account
+    Project.create!(name: "tuist-project", account_id: account.id, token: Devise.friendly_token.first(16))
+    project = Project.create!(name: "tuist-project-2", account_id: account.id, token: Devise.friendly_token.first(16))
+
+    # When
+    got = ProjectFetchService.new.fetch_by_slug(slug: "test/tuist-project-2", user: user)
+
+    # Then
+    assert_equal project, got
+  end
+
   test "fails to fetch a project if user does not have rights to access it" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))

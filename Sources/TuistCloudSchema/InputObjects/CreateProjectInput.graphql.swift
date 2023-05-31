@@ -12,15 +12,13 @@ public struct CreateProjectInput: InputObject {
         clientMutationId: GraphQLNullable<String> = nil,
         name: String,
         accountId: GraphQLNullable<TuistCloudSchema.ID> = nil,
-        organizationName: GraphQLNullable<String> = nil,
-        accountName: GraphQLNullable<String> = nil
+        organizationName: GraphQLNullable<String> = nil
     ) {
         __data = InputDict([
             "clientMutationId": clientMutationId,
             "name": name,
             "accountId": accountId,
             "organizationName": organizationName,
-            "accountName": accountName,
         ])
     }
 
@@ -43,10 +41,5 @@ public struct CreateProjectInput: InputObject {
     public var organizationName: GraphQLNullable<String> {
         get { __data["organizationName"] }
         set { __data["organizationName"] = newValue }
-    }
-
-    public var accountName: GraphQLNullable<String> {
-        get { __data["accountName"] }
-        set { __data["accountName"] = newValue }
     }
 }

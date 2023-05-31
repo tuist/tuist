@@ -341,6 +341,7 @@ let package = Package(
             ],
             exclude: [
                 "graphql/CreateProject.graphql",
+                "graphql/ClearRemoteCacheStorage.graphql",
             ]
         ),
         .testTarget(

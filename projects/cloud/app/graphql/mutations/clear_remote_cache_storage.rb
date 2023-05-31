@@ -2,7 +2,8 @@
 
 module Mutations
   class ClearRemoteCacheStorage < ::Mutations::BaseMutation
-    argument :id, ID, required: true
+    argument :id, ID, required: false
+    argument :project_slug, String, required: false
 
     type Types::ClearRemoteCacheStorageType
 

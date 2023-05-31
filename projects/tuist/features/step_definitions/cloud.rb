@@ -36,26 +36,41 @@ And(/^I run a local tuist cloud server$/) do
     @pid = spawn(cmd)
     wait_until_responsive
   end
-end
 
-Then(/^tuist inits new cloud project$/) do
-  uuid = SecureRandom.uuid[0...10]
   account_name, account_name_err, account_name_status = Open3.capture3(
     "#{@rails} testing:get_account_name -f #{@cloud_root}/Rakefile"
   )
+  @cloud_account = account_name.strip
   flunk(account_name_err) unless account_name_status.success?
   token, token_err, token_status = Open3.capture3(
     "#{@rails} testing:get_token #{account_name.strip} -f #{@cloud_root}/Rakefile"
   )
+  @cloud_token = token.strip
   flunk(token_err) unless token_status.success?
+end
+
+Then(/^tuist inits new cloud project$/) do
+  uuid = SecureRandom.uuid[0...10]
   out, err, status = Open3.capture3(
-    { "TUIST_CONFIG_CLOUD_TOKEN" => token.strip },
-    @tuist, "cloud", "init", "--name", uuid, "--url", "http://127.0.0.1:3000/"
+    { "TUIST_CONFIG_CLOUD_TOKEN" => @cloud_token },
+    @tuist, "cloud", "init", "--name", uuid, "--url", "http://127.0.0.1:3000/", "--path", @dir
   )
   flunk(err) unless status.success?
   assert(
-    out.include?("cloud: .cloud(projectId: \"#{account_name.strip}/#{uuid}\", url: \"http://127.0.0.1:3000/\")"),
+    out.include?("Tuist Cloud was successfully initialized."),
     "The cloud project was not created properly"
+  )
+end
+
+Then(/^tuist cleans the cloud project$/) do
+  out, err, status = Open3.capture3(
+    { "TUIST_CONFIG_CLOUD_TOKEN" => @cloud_token },
+    @tuist, "cloud", "clean", "--path", @dir
+  )
+  flunk(err) unless status.success?
+  assert(
+    out.include?("Project was successfully cleaned."),
+    "The cloud project was not cleaned"
   )
 end
 
