@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.20.0 - 2023-05-31
+
+### Changed
+
+- Bump minimum required Xcode version to 14.1 for client use and 14.3 for development [#5201](https://github.com/tuist/tuist/pull/5201) by [@thedavidharris](https://github.com/thedavidharris)
+
+### Added
+
+- Allow using a period in a CLI product name [#5178](https://github.com/tuist/tuist/pull/5178) by [@serejahh](https://github.com/serejahh)
+- Add support for `docc` documentation in ProjectDescriptionHelpers [#5198](https://github.com/tuist/tuist/pull/5198) by [@waltflanagan](https://github.com/waltflanagan)
+- Added cloud clean command [#5211](https://github.com/tuist/tuist/pull/5211) by [@fortmarek](https://github.com/fortmarek)
+
+### Fixed
+
+- chore: Removed `BundleExecutableKey` from Info.plist for watchOS bundles [#5194](https://github.com/tuist/tuist/pull/5194) by [@griches](https://github.com/griches)
+- Improve error message when `tuist generate` is called without calling `tuist fetch` first [#5193](https://github.com/tuist/tuist/pull/5193) by [@mustiikhalil](https://github.com/mustiikhalil)
+
 ## 3.19.0 - 2023-04-29
 
 ### Added
