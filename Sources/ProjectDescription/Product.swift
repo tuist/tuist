@@ -40,6 +40,8 @@ public enum Product: String, Codable, Equatable {
     //    case messagesApplication
     /// An XPC. (macOS platform only).
     case xpc
+    /// An system extension. (macOS platform only).
+    case systemExtension
     /// An ExtensionKit extension.
     case extensionKitExtension = "extension_kit_extension"
 }

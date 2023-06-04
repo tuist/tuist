@@ -49,7 +49,7 @@ public final class CreateProjectService: CreateProjectServicing {
                 mutation: CreateProjectMutation(
                     input: CreateProjectInput(
                         name: name,
-                        accountName: organizationName
+                        organizationName: organizationName
                             .map { GraphQLNullable(stringLiteral: $0) } ?? GraphQLNullable(nilLiteral: ())
                     )
                 )

@@ -23,6 +23,8 @@ public enum SchemaMetadata: ApolloAPI.SchemaMetadata {
         case "CreateProject": return TuistCloudSchema.Objects.CreateProject
         case "Project": return TuistCloudSchema.Objects.Project
         case "UserError": return TuistCloudSchema.Objects.UserError
+        case "ClearRemoteCacheStorage": return TuistCloudSchema.Objects.ClearRemoteCacheStorage
+        case "S3Bucket": return TuistCloudSchema.Objects.S3Bucket
         default: return nil
         }
     }

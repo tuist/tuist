@@ -119,6 +119,8 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             packageType = "XPC!"
         case .commandLineTool:
             packageType = nil
+        case .systemExtension:
+            packageType = "SYSX"
         }
 
         if let packageType = packageType {

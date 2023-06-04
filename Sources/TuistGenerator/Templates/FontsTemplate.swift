@@ -73,7 +73,7 @@ extension SynthesizedResourceInterfaceTemplates {
           fatalError("Unable to initialize font '\\(name)' (\\(family))")
         }
         #if os(macOS)
-        return SwiftUI.Font.custom(font.fontName, size: font.size)
+        return SwiftUI.Font.custom(font.fontName, size: font.pointSize)
         #elseif os(iOS) || os(tvOS) || os(watchOS)
         return SwiftUI.Font(font)
         #endif

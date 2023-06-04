@@ -3,7 +3,7 @@ import TuistCloudSchema
 
 public class CreateProjectMutation: GraphQLMutation {
     public static let operationName: String = "CreateProject"
-    public static let document: DocumentType = .notPersisted(
+    public static let document: ApolloAPI.DocumentType = .notPersisted(
         definition: .init(
             """
             mutation CreateProject($input: CreateProjectInput!) {

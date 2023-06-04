@@ -43,8 +43,8 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Generate Fixture
         run: ./fourier fixture --projects 1 --targets 1 --sources 1 --path Fixture
-      - name: Generate Fixture Project
-        run: ./fourier tuist generate --path Fixture
+      - name: Fetching dependencies & Generating Fixture project
+        run: ./fourier tuist fetch && ./fourier tuist generate --path Fixture
   lint:
     name: Lint
     runs-on: macos-13

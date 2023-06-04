@@ -73,6 +73,7 @@ final class ProductTests: XCTestCase {
             .unitTests,
             .uiTests,
             .xpc,
+            .systemExtension,
         ]
         XCTAssertEqual(got, Set(expected))
     }
@@ -190,6 +191,10 @@ final class ProductTests: XCTestCase {
 
         // XPC
         subject = Product.xpc
+        XCTAssertFalse(subject.canHostTests())
+
+        // System Extension
+        subject = Product.systemExtension
         XCTAssertFalse(subject.canHostTests())
     }
 }

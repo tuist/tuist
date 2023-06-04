@@ -9,10 +9,12 @@ import TuistSupport
 enum DependenciesGraphControllerError: FatalError, Equatable {
     case failedToDecodeDependenciesGraph
     case failedToEncodeDependenciesGraph
+    /// Thrown when there is a `Dependencies.swift` but no `graph.json`
+    case dependenciesWerentFetched
 
     var type: ErrorType {
         switch self {
-        case .failedToDecodeDependenciesGraph:
+        case .dependenciesWerentFetched, .failedToDecodeDependenciesGraph:
             return .abort
         case .failedToEncodeDependenciesGraph:
             return .bug
@@ -21,6 +23,8 @@ enum DependenciesGraphControllerError: FatalError, Equatable {
 
     var description: String {
         switch self {
+        case .dependenciesWerentFetched:
+            return "`Tuist/Dependencies.swift` file is defined but `Tuist/Dependencies/graph.json` cannot be found. Run `tuist fetch` first"
         case .failedToDecodeDependenciesGraph:
             return "Couldn't decode the DependenciesGraph from the serialized JSON file. Running `tuist fetch` should solve the problem."
         case .failedToEncodeDependenciesGraph:
@@ -82,10 +86,16 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
             return .none
         }
 
+        let dependenciesPath = dependenciesPath(at: rootDirectory)
+
+        guard FileHandler.shared.exists(dependenciesPath) else {
+            return .none
+        }
+
         let rootGraphPath = graphPath(at: rootDirectory)
 
         guard FileHandler.shared.exists(rootGraphPath) else {
-            return .none
+            throw DependenciesGraphControllerError.dependenciesWerentFetched
         }
 
         let graphData = try FileHandler.shared.readFile(rootGraphPath)
@@ -108,6 +118,14 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
     }
 
     // MARK: - Helpers
+
+    private func dependenciesPath(at path: AbsolutePath) -> AbsolutePath {
+        path
+            .appending(components: [
+                Constants.tuistDirectoryName,
+                Constants.DependenciesDirectory.dependenciesFileName,
+            ])
+    }
 
     private func graphPath(at path: AbsolutePath) -> AbsolutePath {
         path
