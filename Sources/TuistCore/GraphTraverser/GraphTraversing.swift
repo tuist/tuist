@@ -170,6 +170,12 @@ public protocol GraphTraversing {
     ///   - path: Path to the project tha defines the target.
     ///   - name: Target name.
     func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool
+
+    /// Given a project directory and a target name, it returns all the dependencies that are ExtensionKit extensions.
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func extensionKitExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
 }
 
 extension GraphTraversing {

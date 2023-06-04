@@ -129,6 +129,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             .appClip,
             .tvTopShelfExtension,
             .systemExtension,
+            .extensionKitExtension,
         ].contains(product)
     }
 
@@ -168,7 +169,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
              .messagesExtension,
              .stickerPackExtension,
              .appClip,
-             .systemExtension:
+             .systemExtension,
+             .extensionKitExtension:
             return true
 
         case .commandLineTool,

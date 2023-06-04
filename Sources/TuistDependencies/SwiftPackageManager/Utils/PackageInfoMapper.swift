@@ -1079,6 +1079,8 @@ extension ProjectDescription.Product {
             return .xpc
         case .systemExtension:
             return .systemExtension
+        case .extensionKitExtension:
+            return .extensionKitExtension
         }
     }
 }
