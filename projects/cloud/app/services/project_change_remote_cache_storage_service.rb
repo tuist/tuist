@@ -41,7 +41,7 @@ class ProjectChangeRemoteCacheStorageService < ApplicationService
     end
   end
 
-  def initialize(id:, project_id:, user:)
+  def initialize(id: nil, project_id:, user:)
     super()
     @id = id
     @project_id = project_id
@@ -49,13 +49,15 @@ class ProjectChangeRemoteCacheStorageService < ApplicationService
   end
 
   def call
-    begin
-      s3_bucket = S3Bucket.find(id)
-    rescue ActiveRecord::RecordNotFound
-      raise Error::S3BucketNotFound.new(id)
-    end
+    if !id.nil?
+      begin
+        s3_bucket = S3Bucket.find(id)
+      rescue ActiveRecord::RecordNotFound
+        raise Error::S3BucketNotFound.new(id)
+      end
 
-    raise Error::Unauthorized.new(s3_bucket.account.name) unless AccountPolicy.new(user, s3_bucket.account).update?
+      raise Error::Unauthorized.new(s3_bucket.account.name) unless AccountPolicy.new(user, s3_bucket.account).update?
+    end
 
     begin
       project = Project.find(project_id)
@@ -64,6 +66,10 @@ class ProjectChangeRemoteCacheStorageService < ApplicationService
     end
 
     project.update(remote_cache_storage: s3_bucket)
-    s3_bucket
+    if id.nil?
+      nil
+    else
+      project.remote_cache_storage
+    end
   end
 end

@@ -9,7 +9,7 @@ module Types
       mutation: Mutations::CreateProject
     field :clear_remote_cache_storage,
       ClearRemoteCacheStorageType,
-      null: false,
+      null: true,
       description: "Clears the remote cache storage",
       mutation: Mutations::ClearRemoteCacheStorage
     field :delete_project,
@@ -64,7 +64,7 @@ module Types
       mutation: Mutations::UpdateS3Bucket
     field :change_remote_cache_storage,
       RemoteCacheStorageType,
-      null: false,
+      null: true,
       description: "Change remote cache storage",
       mutation: Mutations::ChangeRemoteCacheStorage
   end
