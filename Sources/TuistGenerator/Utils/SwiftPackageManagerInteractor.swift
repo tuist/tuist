@@ -74,6 +74,13 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         if config.generationOptions.resolveDependenciesWithSystemScm {
             arguments.append(contentsOf: ["-scmProvider", "system"])
         }
+        
+        // Set specific clone directory for Xcode managed SPM dependencies
+        if let clonedSourcePackagesDirPath = config.generationOptions.clonedSourcePackagesDirPath {
+            let workspace = (workspaceName as NSString).deletingPathExtension
+            let path = "\(clonedSourcePackagesDirPath.pathString)/\(workspace)"
+            arguments.append(contentsOf: ["-clonedSourcePackagesDirPath", path])
+        }
 
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 

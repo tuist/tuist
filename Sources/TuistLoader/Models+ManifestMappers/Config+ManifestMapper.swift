@@ -13,7 +13,7 @@ extension TuistGraph.Config {
     ///   - path: The path of the config file.
     static func from(manifest: ProjectDescription.Config, at path: AbsolutePath) throws -> TuistGraph.Config {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let generationOptions = try TuistGraph.Config.GenerationOptions.from(manifest: manifest.generationOptions)
+        let generationOptions = try TuistGraph.Config.GenerationOptions.from(manifest: manifest.generationOptions, generatorPaths: generatorPaths)
         let compatibleXcodeVersions = TuistGraph.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
         let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
         let swiftVersion: TSCUtility.Version?
@@ -49,10 +49,21 @@ extension TuistGraph.Config.GenerationOptions {
     /// Maps a ProjectDescription.Config.GenerationOptions instance into a TuistGraph.Config.GenerationOptions model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config generation options
-    static func from(manifest: ProjectDescription.Config.GenerationOptions) throws -> TuistGraph.Config.GenerationOptions {
-        .init(
+    static func from(
+        manifest: ProjectDescription.Config.GenerationOptions,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.Config.GenerationOptions {
+        let clonedSourcePackagesDirPath: AbsolutePath? = try {
+            if let path = manifest.clonedSourcePackagesDirPath {
+                return try generatorPaths.resolve(path: path)
+            } else {
+                return nil
+            }
+        }()
+        return .init(
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
-            disablePackageVersionLocking: manifest.disablePackageVersionLocking
+            disablePackageVersionLocking: manifest.disablePackageVersionLocking,
+            clonedSourcePackagesDirPath: clonedSourcePackagesDirPath
         )
     }
 }
