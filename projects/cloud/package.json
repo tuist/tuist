@@ -31,11 +31,11 @@
     "ts-jest": "^27.1.5",
     "typescript": "^4.8.2",
     "typescript-plugin-css-modules": "^3.4.0",
-    "vite": "^3.2.7",
+    "vite": "^4.3.9",
     "vite-plugin-bugsnag": "^2.0.2",
     "vite-plugin-environment": "^1.1.2",
     "vite-plugin-full-reload": "^0.2.2",
-    "vite-plugin-ruby": "^3.1.2",
+    "vite-plugin-ruby": "^3.2.2",
     "webpack-dev-server": "^3"
   },
   "dependencies": {
