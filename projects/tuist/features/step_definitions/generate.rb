@@ -112,6 +112,18 @@ Then("the product {string} with destination {string} contains extension {string}
   assert(extension_path)
 end
 
+Then("the product {string} with destination {string} contains extensionKit extension {string}") do |product, destination, extension|
+  extension_path = Xcode.find_extensionKitExtension(
+    product: product,
+    destination: destination,
+    extension: extension,
+    derived_data_path: @derived_data_path
+  )
+  flunk("Product with name #{product} and destination #{destination} not found in DerivedData") if extension_path.nil?
+
+  assert(extension_path)
+end
+
 Then("the product {string} with destination {string} does not contain headers") do |product, destination|
   headers_paths = Xcode.find_headers(
     product: product,

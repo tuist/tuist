@@ -53,6 +53,7 @@ Scenario: The project is an iOS application with extensions (ios_app_with_extens
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains extension 'StickersPackExtension'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains extension 'NotificationServiceExtension'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains extension 'NotificationServiceExtension'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains extensionKit extension 'AppIntentExtension'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers
 
 Scenario: The project is a tvOS application with extensions (tvos_app_with_extensions)

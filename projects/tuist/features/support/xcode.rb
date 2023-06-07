@@ -86,6 +86,22 @@ module Xcode
       extension_path
     end
 
+    def find_extensionKitExtension(product:, destination:, extension:, derived_data_path:)
+      product_path = product_with_name(
+        product,
+        destination: destination,
+        derived_data_path: derived_data_path
+      )
+
+      return if product_path.nil?
+
+      extension_glob = File.join(product_path, "Extensions/#{extension}.appex")
+      # /path/to/product/Extensions/MyExtension.appex
+      extension_path = Dir.glob(extension_glob).first
+
+      extension_path
+    end
+
     def find_headers(product:, destination:, derived_data_path:)
       product_path = product_with_name(
         product,
@@ -108,9 +124,7 @@ module Xcode
         .sort { |l, r| l.runtime.version <=> r.runtime.version }
         .last
 
-      if device.nil?
-        flunk("Couldn't find an available destination simulator for platform #{platform}")
-      end
+      return nil if device.nil?
 
       "platform=#{platform} Simulator,id=#{device.udid}"
     end

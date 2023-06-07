@@ -172,18 +172,23 @@ If you are interested in contributing to the project, our documentation has a se
     <td align="center"><a href="https://github.com/pepibumur"><img src="https://avatars1.githubusercontent.com/u/663605?v=4" width="100px;" alt=""/><br /><sub><b>Pedro Piñera</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a><br /></td>
     <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/danyf90"><img src="https://avatars.githubusercontent.com/u/2794031?v=4" width="100px;" alt=""/><br /><sub><b>Daniele Formichelli</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/adellibovi"><img src="https://avatars3.githubusercontent.com/u/67916?v=4" width="100px;" alt=""/><br /><sub><b>Alfredo Delli Bovi</b></sub></a><br /></td>
+  </tr>
+</table>
+
+## Core Alumni 🚀
+
+The following people were once core contributors helping steer the project in the right direction and ensuring we have a reliable foundation we can build new features upon:
+
+<table>
+  <tr>
     <td align="center"><a href="http://natanrolnik.me"><img src="https://avatars3.githubusercontent.com/u/1164565?v=4" width="100px;" alt=""/><br /><sub><b>Natan Rolnik</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/andreacipriani"><img src="https://avatars3.githubusercontent.com/u/536929?v=4" width="100px;" alt=""/><br /><sub><b>Andrea Cipriani</b></sub></a><br /></td>
-  </tr>
-  <tr>
     <td align="center"><a href="https://github.com/ollieatkinson"><img src="https://avatars1.githubusercontent.com/u/1382565?v=4" width="100px;" alt=""/><br /><sub><b>Oliver Atkinson</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/RomainBoulay"><img src="https://avatars1.githubusercontent.com/u/169323?v=4" width="100px;" alt=""/><br /><sub><b>Romain Boulay</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars1.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a><br /></td>
     <td align="center"><a href="http://www.luispadron.com"><img src="https://avatars3.githubusercontent.com/u/13840545?v=4" width="100px;" alt=""/><br /><sub><b>Luis Padron</b></sub></a></td>
-    <td align="center"><a href="https://github.com/danyf90"><img src="https://avatars.githubusercontent.com/u/2794031?v=4" width="100px;" alt=""/><br /><sub><b>Daniele Formichelli</b></sub></a><br /></td>
-  </tr>
-  <tr>
-    <td align="center"><a href="https://github.com/adellibovi"><img src="https://avatars3.githubusercontent.com/u/67916?v=4" width="100px;" alt=""/><br /><sub><b>Alfredo Delli Bovi</b></sub></a><br /></td>
   </tr>
 </table>
 

@@ -41,7 +41,7 @@ final class SettingsHelper {
             return .staticLibrary
         case .framework, .staticFramework:
             return .framework
-        case .appExtension, .messagesExtension:
+        case .appExtension, .messagesExtension, .extensionKitExtension:
             return .appExtension
         case .watch2Extension:
             return .watchExtension

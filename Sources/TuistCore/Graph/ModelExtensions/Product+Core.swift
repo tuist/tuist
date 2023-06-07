@@ -49,6 +49,8 @@ extension Product {
             return .xpcService
         case .systemExtension:
             return .systemExtension
+        case .extensionKitExtension:
+            return .extensionKitExtension
         }
     }
 }
