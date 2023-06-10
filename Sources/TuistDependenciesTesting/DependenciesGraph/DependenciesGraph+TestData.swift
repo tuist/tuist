@@ -110,7 +110,7 @@ extension TuistCore.DependenciesGraph {
                         "OTHER_CPLUSPLUSFLAGS": ["CUSTOM_CXX_FLAG"],
                         "OTHER_SWIFT_FLAGS": ["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"],
                         "GCC_PREPROCESSOR_DEFINITIONS": ["CXX_DEFINE=CXX_VALUE", "C_DEFINE=C_VALUE"],
-                        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["SWIFT_DEFINE"],
+                        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "SWIFT_DEFINE",
                     ])
                 ),
                 .init(
@@ -782,11 +782,11 @@ extension DependenciesGraph {
             settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)", "SWIFT_PACKAGE=1"])
         }
 
-        if case let .array(swiftDefinitions) = settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] {
+        if case let .string(swiftDefinitions) = settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] {
             settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] =
-                .array(["$(inherited)"] + ["SWIFT_PACKAGE"] + swiftDefinitions)
+                .string("$(inherited) SWIFT_PACKAGE \(swiftDefinitions)")
         } else {
-            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + ["SWIFT_PACKAGE"])
+            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .string("$(inherited) SWIFT_PACKAGE")
         }
 
         if case let .array(cFlags) = settingsDictionary["OTHER_CFLAGS"] {
