@@ -34,6 +34,13 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 archiveVersion: Xcode.LastKnown.archiveVersion
             )
         }
+
+        static var xcode13: ProjectConstants {
+            ProjectConstants(
+                objectVersion: 55,
+                archiveVersion: Xcode.LastKnown.archiveVersion
+            )
+        }
     }
 
     // MARK: - Attributes
@@ -78,7 +85,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         let selfRefFile = XCWorkspaceDataElement.file(selfRef)
         let workspaceData = XCWorkspaceData(children: [selfRefFile])
         let workspace = XCWorkspace(data: workspaceData)
-        let projectConstants = try determineProjectConstants(graphTraverser: graphTraverser)
+        let projectConstants = try determineProjectConstants()
         let pbxproj = PBXProj(
             objectVersion: projectConstants.objectVersion,
             archiveVersion: projectConstants.archiveVersion,
@@ -288,6 +295,9 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             attributes["KnownAssetTags"] = uniqueTags
         }
 
+        // BuildIndependentTargetsInParallel
+        attributes["BuildIndependentTargetsInParallel"] = "YES"
+
         /// Organization name
         if let organizationName = project.organizationName {
             attributes["ORGANIZATIONNAME"] = organizationName
@@ -301,11 +311,8 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         return attributes
     }
 
-    private func determineProjectConstants(graphTraverser: GraphTraversing) throws -> ProjectConstants {
-        if graphTraverser.hasPackages {
-            return .xcode11
-        } else {
-            return .xcode10
-        }
+    private func determineProjectConstants() throws -> ProjectConstants {
+        // TODO: Determine if this can be inferred by the set Xcode version
+        .xcode13
     }
 }
