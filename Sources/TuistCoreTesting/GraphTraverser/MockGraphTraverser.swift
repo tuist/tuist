@@ -470,4 +470,19 @@ final class MockGraphTraverser: GraphTraversing {
     func schemes() -> [Scheme] {
         schemesStub?() ?? []
     }
+
+    var invokedExtensionKitExtensionDependencies = false
+    var invokedExtensionKitExtensionDependenciesCount = 0
+    var invokedExtensionKitExtensionDependenciesParameters: (path: AbsolutePath, name: String)?
+    var invokedExtensionKitExtensionDependenciesParametersList =
+        [(path: AbsolutePath, name: String)]()
+    var stubbedExtensionKitExtensionDependenciesResult: Set<GraphTarget>! = []
+
+    func extensionKitExtensionDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistGraph.GraphTarget> {
+        invokedExtensionKitExtensionDependencies = true
+        invokedExtensionKitExtensionDependenciesCount += 1
+        invokedExtensionKitExtensionDependenciesParameters = (path, name)
+        invokedExtensionKitExtensionDependenciesParametersList.append((path, name))
+        return stubbedExtensionKitExtensionDependenciesResult
+    }
 }

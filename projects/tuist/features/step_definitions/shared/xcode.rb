@@ -14,7 +14,11 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   end
 
   args << if ["iOS", "tvOS", "watchOS"].include?(platform)
-    "-destination '#{Xcode.valid_simulator_destination_for_platform(platform)}'"
+    if Xcode.valid_simulator_destination_for_platform(platform).nil?
+      flunk("Couldn't find an available destination simulator for platform #{platform}")
+    else
+      "-destination '#{Xcode.valid_simulator_destination_for_platform(platform)}'"
+    end
   else
     "-destination 'platform=OS X,arch=x86_64'"
   end
@@ -95,7 +99,7 @@ Then(/^in project (.+) the target (.+) should have the build phase (.+) with a d
   flunk("The target #{target_name} doesn't have build phases") if build_phase.nil?
   dependency_file = build_phase.dependency_file
   flunk("The build phase  #{phase_name} doesn't have a dependency file") if dependency_file.nil?
-  assert_equal dependency_file_name, dependency_file 
+  assert_equal dependency_file_name, dependency_file
 end
 
 Then(/^the target (.+) should have the build phase (.+) in the first position$/) do |target_name, phase_name|

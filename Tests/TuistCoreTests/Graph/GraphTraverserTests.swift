@@ -3666,6 +3666,37 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertFalse(graphTraverser.hasRemotePackages)
     }
 
+    func test_extensionKitExtensionDependencies_when_dependencyIsExtensionKitExtension() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let extensionKitExtension = Target.test(name: "ExtensionKitExtension", product: .extensionKitExtension)
+        let project = Project.test(targets: [app, extensionKitExtension])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([.target(name: extensionKitExtension.name, path: project.path)]),
+            .target(name: extensionKitExtension.name, path: project.path): Set([]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                app.name: app,
+                extensionKitExtension.name: extensionKitExtension,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.extensionKitExtensionDependencies(path: project.path, name: app.name).sorted()
+
+        // Then
+        XCTAssertEqual(got.map(\.target.name), [
+            "ExtensionKitExtension",
+        ])
+    }
+
     // MARK: - Helpers
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {

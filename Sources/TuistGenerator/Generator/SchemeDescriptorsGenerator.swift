@@ -914,7 +914,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
 
         switch graphTarget.target.product {
-        case .appExtension, .messagesExtension:
+        case .appExtension, .messagesExtension, .extensionKitExtension:
             return true
         default:
             return nil
