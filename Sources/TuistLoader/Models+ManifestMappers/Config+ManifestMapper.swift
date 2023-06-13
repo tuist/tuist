@@ -13,7 +13,10 @@ extension TuistGraph.Config {
     ///   - path: The path of the config file.
     static func from(manifest: ProjectDescription.Config, at path: AbsolutePath) throws -> TuistGraph.Config {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let generationOptions = try TuistGraph.Config.GenerationOptions.from(manifest: manifest.generationOptions, generatorPaths: generatorPaths)
+        let generationOptions = try TuistGraph.Config.GenerationOptions.from(
+            manifest: manifest.generationOptions,
+            generatorPaths: generatorPaths
+        )
         let compatibleXcodeVersions = TuistGraph.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
         let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
         let swiftVersion: TSCUtility.Version?
