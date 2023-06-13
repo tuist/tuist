@@ -23,6 +23,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
     case appClip
     case xpc
     case systemExtension = "system_extension"
+    case extensionKitExtension = "extension_kit_extension"
 
     public var caseValue: String {
         switch self {
@@ -70,6 +71,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             return "xpc"
         case .systemExtension:
             return "systemExtension"
+        case .extensionKitExtension:
+            return "extensionKitExtension"
         }
     }
 
@@ -119,6 +122,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             return "xpc"
         case .systemExtension:
             return "system extension"
+        case .extensionKitExtension:
+            return "extensionKit extension"
         }
     }
 
@@ -134,7 +139,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             .messagesExtension,
             .stickerPackExtension,
             .tvTopShelfExtension,
-            .watch2Extension:
+            .watch2Extension,
+            .extensionKitExtension:
             return true
         case
             .bundle,

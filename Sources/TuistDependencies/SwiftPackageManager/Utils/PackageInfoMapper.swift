@@ -822,7 +822,7 @@ extension ProjectDescription.Settings {
     ) throws -> Self? {
         var headerSearchPaths: [String] = []
         var defines = ["SWIFT_PACKAGE": "1"]
-        var swiftDefines = ["SWIFT_PACKAGE"]
+        var swiftDefines = "SWIFT_PACKAGE"
         var cFlags: [String] = []
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
@@ -879,7 +879,7 @@ extension ProjectDescription.Settings {
                 case (.cxx, .unsafeFlags):
                     cxxFlags.append(contentsOf: setting.value)
                 case (.swift, .define):
-                    swiftDefines.append(setting.value[0])
+                    swiftDefines.append(" \(setting.value[0])")
                 case (.swift, .unsafeFlags):
                     swiftFlags.append(contentsOf: setting.value)
                 case (.linker, .unsafeFlags):
@@ -927,7 +927,7 @@ extension ProjectDescription.Settings {
         }
 
         if !swiftDefines.isEmpty {
-            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + swiftDefines)
+            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "$(inherited) \(swiftDefines)"
         }
 
         if !cFlags.isEmpty {
@@ -1079,6 +1079,8 @@ extension ProjectDescription.Product {
             return .xpc
         case .systemExtension:
             return .systemExtension
+        case .extensionKitExtension:
+            return .extensionKitExtension
         }
     }
 }
