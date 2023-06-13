@@ -36,7 +36,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var headers: Headers?
     public var coreDataModels: [CoreDataModel]
     public var scripts: [TargetScript]
-    public var environment: [String: String]
+    public var environmentVariables: [String: EnvironmentVariable]
     public var launchArguments: [LaunchArgument]
     public var filesGroup: ProjectGroup
     public var rawScriptBuildPhases: [RawScriptBuildPhase]
@@ -63,7 +63,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         headers: Headers? = nil,
         coreDataModels: [CoreDataModel] = [],
         scripts: [TargetScript] = [],
-        environment: [String: String] = [:],
+        environmentVariables: [String: EnvironmentVariable] = [:],
         launchArguments: [LaunchArgument] = [],
         filesGroup: ProjectGroup,
         dependencies: [TargetDependency] = [],
@@ -88,7 +88,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         self.headers = headers
         self.coreDataModels = coreDataModels
         self.scripts = scripts
-        self.environment = environment
+        self.environmentVariables = environmentVariables
         self.launchArguments = launchArguments
         self.filesGroup = filesGroup
         self.dependencies = dependencies
@@ -277,7 +277,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             lhs.coreDataModels == rhs.coreDataModels &&
             lhs.scripts == rhs.scripts &&
             lhs.dependencies == rhs.dependencies &&
-            lhs.environment == rhs.environment
+            lhs.environmentVariables == rhs.environmentVariables
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -287,7 +287,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         hasher.combine(bundleId)
         hasher.combine(productName)
         hasher.combine(entitlements)
-        hasher.combine(environment)
+        hasher.combine(environmentVariables)
     }
 
     /// Returns a new copy of the target with the given InfoPlist set.

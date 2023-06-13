@@ -4,11 +4,11 @@ import TSCBasic
 
 extension Arguments {
     public static func test(
-        environment: [String: String] = [:],
+        environmentVariables: [String: EnvironmentVariable] = [:],
         launchArguments: [LaunchArgument] = []
     ) -> Arguments {
         Arguments(
-            environment: environment,
+            environmentVariables: environmentVariables,
             launchArguments: launchArguments
         )
     }
