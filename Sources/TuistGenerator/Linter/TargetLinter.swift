@@ -97,7 +97,7 @@ class TargetLinter: TargetLinting {
         let hasNoScripts = target.scripts.isEmpty
 
         // macOS bundle targets can have source code, but it's optional
-        if target.platform == .macOS && target.product == .bundle && hasNoSources {
+        if target.platform == .macOS, target.product == .bundle, hasNoSources {
             return []
         }
 
