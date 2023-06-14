@@ -65,6 +65,12 @@ struct TestCommand: AsyncParsableCommand {
     )
     var retryCount: Int = 0
 
+    @Flag(
+        name: .shortAndLong,
+        help: "Perform a fetch operation before generating the project"
+    )
+    var fetchDependencies: Bool = false
+
     func run() async throws {
         let absolutePath: AbsolutePath
 
@@ -72,6 +78,13 @@ struct TestCommand: AsyncParsableCommand {
             absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             absolutePath = FileHandler.shared.currentPath
+        }
+
+        if fetchDependencies {
+            try await FetchService().run(
+                path: path,
+                update: false
+            )
         }
 
         try await TestService().run(

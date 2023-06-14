@@ -57,7 +57,19 @@ struct RunCommand: AsyncParsableCommand {
     )
     var arguments: [String] = []
 
+    @Flag(
+        name: .shortAndLong,
+        help: "Perform a fetch operation before generating the project"
+    )
+    var fetchDependencies: Bool = false
+
     func run() async throws {
+        if fetchDependencies {
+            try await FetchService().run(
+                path: path,
+                update: false
+            )
+        }
         try await RunService().run(
             path: path,
             schemeName: scheme,

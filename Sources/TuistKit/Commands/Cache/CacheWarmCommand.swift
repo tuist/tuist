@@ -32,6 +32,12 @@ struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var dependenciesOnly: Bool = false
 
+    @Flag(
+        name: .shortAndLong,
+        help: "Perform a fetch operation before generating the project"
+    )
+    var fetchDependencies: Bool = false
+
     func validate() throws {
         if !options.xcframeworks, options.destination != [.device, .simulator] {
             throw ValidationError.invalidXCFrameworkOptions
@@ -39,6 +45,12 @@ struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
     }
 
     func run() async throws {
+        if fetchDependencies {
+            try await FetchService().run(
+                path: options.path,
+                update: false
+            )
+        }
         try await CacheWarmService().run(
             path: options.path,
             profile: options.profile,

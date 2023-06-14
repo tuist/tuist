@@ -36,6 +36,12 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     var noOpen: Bool = false
 
     @Flag(
+        name: .shortAndLong,
+        help: "Perform a fetch operation before generating the project"
+    )
+    var fetchDependencies: Bool = false
+
+    @Flag(
         name: [.customShort("x"), .long],
         help: "When passed it uses xcframeworks (simulator and device) from the cache instead of frameworks (only simulator)."
     )
@@ -67,6 +73,12 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     }
 
     func run() async throws {
+        if fetchDependencies {
+            try await FetchService().run(
+                path: path,
+                update: false
+            )
+        }
         try await GenerateService().run(
             path: path,
             sources: Set(sources),
