@@ -224,6 +224,22 @@ final class TargetLinterTests: TuistUnitTestCase {
         )
     }
 
+    func test_lint_when_macos_bundle_has_no_sources() {
+        // Given
+        let bundle = Target.empty(
+            platform: .macOS,
+            product: .bundle,
+            sources: [],
+            resources: []
+        )
+
+        // When
+        let result = subject.lint(target: bundle)
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
     func test_lint_valid_ios_bundle() {
         // Given
         let bundle = Target.empty(
