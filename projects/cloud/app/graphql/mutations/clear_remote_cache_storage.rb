@@ -2,14 +2,13 @@
 
 module Mutations
   class ClearRemoteCacheStorage < ::Mutations::BaseMutation
-    argument :id, ID, required: false
-    argument :project_slug, String, required: false
+    argument :project_slug, String, required: true
 
     type Types::ClearRemoteCacheStorageType
 
     def resolve(attributes)
       begin
-        bucket = S3BucketClearService.call(clearer: context[:current_user], **attributes)
+        bucket = CacheClearService.call(clearer: context[:current_user], **attributes)
         {
           bucket: bucket,
           errors: [],

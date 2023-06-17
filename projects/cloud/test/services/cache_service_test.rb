@@ -40,20 +40,23 @@ class CacheServiceTest < ActiveSupport::TestCase
     assert_equal true, got
   end
 
-  test "object exists when remote storage is not defined" do
+  test "uses default bucket when remote storage is not defined" do
     # Given
+    Aws::S3::Client.any_instance.stubs(:head_object).returns(true)
     @project.update(remote_cache_storage: nil)
-    # When / Then
-    assert_raises(CacheService::Error::MissingRemoteCacheStorage) do
-      CacheService.new(
-        project_slug: "my-project/tuist",
-        hash: "artifact-hash",
-        name: "MyFramework",
-        user: @user,
-        project: nil,
-      )
-        .object_exists?
-    end
+
+    # When
+    got = CacheService.new(
+      project_slug: "my-project/tuist",
+      hash: "artifact-hash",
+      name: "MyFramework",
+      user: nil,
+      project: @project,
+    )
+      .object_exists?
+
+    # Then
+    assert_equal true, got
   end
 
   test "object exists with using passed project" do

@@ -16,7 +16,7 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import CommandEventDetailPage from './pages/commandEventDetail/CommandEventDetailPage';
 import Home from './Home';
 import { useMeQuery } from '@/graphql/types';
-import RemoteCachePage from './pages/remote-cache/RemoteCachePage';
+import { RemoteCachePage } from './pages/remote-cache/RemoteCachePage';
 import OrganizationPage from './pages/organization/OrganizationPage';
 
 import TuistCloudAppProvider from './TuistCloudAppProvider';
