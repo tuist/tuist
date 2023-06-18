@@ -52,6 +52,7 @@ extension TuistGraph.Config.GenerationOptions {
     /// Maps a ProjectDescription.Config.GenerationOptions instance into a TuistGraph.Config.GenerationOptions model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config generation options
+    ///   - generatorPaths: Generator paths
     static func from(
         manifest: ProjectDescription.Config.GenerationOptions,
         generatorPaths: GeneratorPaths
