@@ -5,3 +5,5 @@ export type { S3Bucket } from './S3Bucket';
 export { mapS3Bucket } from './S3Bucket';
 export type { OrganizationDetail } from './OrganizationDetail';
 export { mapOrganizationDetail } from './OrganizationDetail';
+export type { Project } from './Project';
+export { mapProject } from './Project';

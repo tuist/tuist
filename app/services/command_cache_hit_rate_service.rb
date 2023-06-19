@@ -12,7 +12,7 @@ class CommandCacheHitRateService < ApplicationService
     if command_event.cacheable_targets == nil &&
         command_event.local_cache_target_hits == nil &&
         command_event.remote_cache_target_hits == nil
-      return nil
+      return
     end
     all_cache_hits =
     command_event.local_cache_target_hits.split(";").length + command_event.remote_cache_target_hits.split(";").length
