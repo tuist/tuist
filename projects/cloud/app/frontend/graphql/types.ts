@@ -49,7 +49,7 @@ export type CancelInviteInput = {
 export type ChangeRemoteCacheStorageInput = {
   /** A unique identifier for the client performing the mutation. */
   clientMutationId?: InputMaybe<Scalars['String']>;
-  id: Scalars['ID'];
+  id?: InputMaybe<Scalars['ID']>;
   projectId: Scalars['ID'];
 };
 
@@ -72,8 +72,7 @@ export type ClearRemoteCacheStorage = {
 export type ClearRemoteCacheStorageInput = {
   /** A unique identifier for the client performing the mutation. */
   clientMutationId?: InputMaybe<Scalars['String']>;
-  id?: InputMaybe<Scalars['ID']>;
-  projectSlug?: InputMaybe<Scalars['String']>;
+  projectSlug: Scalars['String'];
 };
 
 export type CommandAverage = {
@@ -177,7 +176,7 @@ export type Mutation = {
   /** Cancel invite for a user to a given organization */
   cancelInvite: Invitation;
   /** Change remote cache storage */
-  changeRemoteCacheStorage: RemoteCacheStorage;
+  changeRemoteCacheStorage?: Maybe<RemoteCacheStorage>;
   /** Change role of a user for a given organization */
   changeUserRole: User;
   /** Clears the remote cache storage */
@@ -403,7 +402,6 @@ export type S3Bucket = {
   accessKeyId: Scalars['String'];
   accountId: Scalars['ID'];
   id: Scalars['ID'];
-  isDefault: Scalars['Boolean'];
   name: Scalars['String'];
   region: Scalars['String'];
   secretAccessKey?: Maybe<Scalars['String']>;
@@ -476,7 +474,7 @@ export type ChangeRemoteCacheStorageMutationVariables = Exact<{
 }>;
 
 
-export type ChangeRemoteCacheStorageMutation = { __typename?: 'Mutation', changeRemoteCacheStorage: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string, isDefault: boolean } };
+export type ChangeRemoteCacheStorageMutation = { __typename?: 'Mutation', changeRemoteCacheStorage?: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string } | null };
 
 export type ChangeUserRoleMutationVariables = Exact<{
   input: ChangeUserRoleInput;
@@ -536,7 +534,7 @@ export type CreateS3BucketMutationVariables = Exact<{
 }>;
 
 
-export type CreateS3BucketMutation = { __typename?: 'Mutation', createS3Bucket: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string, isDefault: boolean } };
+export type CreateS3BucketMutation = { __typename?: 'Mutation', createS3Bucket: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string } };
 
 export type DeleteProjectMutationVariables = Exact<{
   input: DeleteProjectInput;
@@ -583,7 +581,7 @@ export type OrganizationQuery = { __typename?: 'Query', organization?: { __typen
 
 export type PendingInvitationFragment = { __typename?: 'Invitation', inviteeEmail: string, id: string };
 
-export type ProjectDetailFragment = { __typename?: 'Project', id: string, slug: string, name: string, token: string, account: { __typename?: 'Account', id: string, name: string, owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } }, remoteCacheStorage?: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string, isDefault: boolean } | null };
+export type ProjectDetailFragment = { __typename?: 'Project', id: string, slug: string, name: string, token: string, account: { __typename?: 'Account', id: string, name: string, owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } }, remoteCacheStorage?: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string } | null };
 
 export type ProjectQueryVariables = Exact<{
   name: Scalars['String'];
@@ -591,7 +589,7 @@ export type ProjectQueryVariables = Exact<{
 }>;
 
 
-export type ProjectQuery = { __typename?: 'Query', project?: { __typename?: 'Project', id: string, slug: string, name: string, token: string, account: { __typename?: 'Account', id: string, name: string, owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } }, remoteCacheStorage?: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string, isDefault: boolean } | null } | null };
+export type ProjectQuery = { __typename?: 'Query', project?: { __typename?: 'Project', id: string, slug: string, name: string, token: string, account: { __typename?: 'Account', id: string, name: string, owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } }, remoteCacheStorage?: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string } | null } | null };
 
 export type RemoveUserMutationVariables = Exact<{
   input: RemoveUserInput;
@@ -607,7 +605,7 @@ export type ResendInviteMutationVariables = Exact<{
 
 export type ResendInviteMutation = { __typename?: 'Mutation', resendInvite: { __typename?: 'Invitation', inviteeEmail: string } };
 
-export type S3BucketInfoFragment = { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string, isDefault: boolean };
+export type S3BucketInfoFragment = { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string };
 
 export type S3BucketsQueryVariables = Exact<{
   accountName: Scalars['String'];
@@ -615,7 +613,7 @@ export type S3BucketsQueryVariables = Exact<{
 }>;
 
 
-export type S3BucketsQuery = { __typename?: 'Query', s3Buckets: Array<{ __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string, isDefault: boolean }> };
+export type S3BucketsQuery = { __typename?: 'Query', s3Buckets: Array<{ __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string }> };
 
 export type UpdateLastVisitedProjectMutationVariables = Exact<{
   input: UpdateLastVisitedProjectInput;
@@ -629,7 +627,7 @@ export type UpdateS3BucketMutationVariables = Exact<{
 }>;
 
 
-export type UpdateS3BucketMutation = { __typename?: 'Mutation', updateS3Bucket: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string, isDefault: boolean } };
+export type UpdateS3BucketMutation = { __typename?: 'Mutation', updateS3Bucket: { __typename?: 'S3Bucket', id: string, name: string, accessKeyId: string, secretAccessKey?: string | null, accountId: string, region: string } };
 
 export type UserBasicInfoFragment = { __typename?: 'User', id: string, email: string, avatarUrl?: string | null, account: { __typename?: 'Account', name: string } };
 
@@ -686,7 +684,6 @@ export const S3BucketInfoFragmentDoc = gql`
   secretAccessKey
   accountId
   region
-  isDefault
 }
     `;
 export const ProjectDetailFragmentDoc = gql`

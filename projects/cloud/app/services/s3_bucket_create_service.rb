@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class S3BucketCreateService < ApplicationService
-  attr_reader :name, :access_key_id, :secret_access_key, :region, :account_id, :default_project
+  attr_reader :name, :access_key_id, :secret_access_key, :region, :account_id
 
   module Error
     class DuplicatedName < CloudError
@@ -17,14 +17,13 @@ class S3BucketCreateService < ApplicationService
     end
   end
 
-  def initialize(name:, access_key_id:, secret_access_key:, region:, account_id:, default_project: nil)
+  def initialize(name:, access_key_id:, secret_access_key:, region:, account_id:)
     super()
     @name = name
     @access_key_id = access_key_id
     @secret_access_key = secret_access_key
     @region = region
     @account_id = account_id
-    @default_project = default_project
   end
 
   def call
@@ -38,15 +37,23 @@ class S3BucketCreateService < ApplicationService
     iv = cipher.random_iv
 
     encrypted_secret_access_key = cipher.update(secret_access_key) + cipher.final
-    account = Account.find(account_id)
-    account.s3_buckets.create!(
-      name: name,
-      access_key_id: access_key_id,
-      secret_access_key: Base64.encode64(encrypted_secret_access_key),
-      iv: Base64.encode64(iv),
-      region: region,
-      is_default: default_project.nil? == false,
-      default_project_id: !default_project.nil? ? default_project.id : nil,
-    )
+    if account_id.nil?
+      S3Bucket.create!(
+        name: name,
+        access_key_id: access_key_id,
+        secret_access_key: Base64.encode64(encrypted_secret_access_key),
+        iv: Base64.encode64(iv),
+        region: region,
+      )
+    else
+      account = Account.find(account_id)
+      account.s3_buckets.create!(
+        name: name,
+        access_key_id: access_key_id,
+        secret_access_key: Base64.encode64(encrypted_secret_access_key),
+        iv: Base64.encode64(iv),
+        region: region,
+      )
+    end
   end
 end
