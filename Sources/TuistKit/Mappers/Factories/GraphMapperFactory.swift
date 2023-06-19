@@ -48,7 +48,6 @@ final class GraphMapperFactory: GraphMapperFactorying {
         )
         mappers.append(FocusTargetsGraphMappers(includedTargets: []))
         mappers.append(contentsOf: self.default())
-        
         do {
             let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: nil, from: config)
             let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
@@ -59,7 +58,6 @@ final class GraphMapperFactory: GraphMapperFactorying {
                 cacheOutputType: .xcframework(CacheXCFrameworkDestination.simulator)
             )
             mappers.append(focusTargetsGraphMapper)
-            
         } catch {
             logger.error("Cache profile resolver failed")
         }
