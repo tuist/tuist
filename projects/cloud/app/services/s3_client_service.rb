@@ -9,13 +9,13 @@ class S3ClientService < ApplicationService
   end
 
   def call
-    if s3_bucket.secret_access_key.nil?
-      secret_access_key = DecipherService.call(
-        key: Base64.decode64(bucket.secret_access_key),
-        iv: Base64.decode64(bucket.iv),
-      )
-    else
+    if s3_bucket.iv.nil?
       secret_access_key = s3_bucket.secret_access_key
+    else
+      secret_access_key = DecipherService.call(
+        key: Base64.decode64(s3_bucket.secret_access_key),
+        iv: Base64.decode64(s3_bucket.iv),
+      )
     end
     Aws::S3::Client.new(
       region: s3_bucket.region,

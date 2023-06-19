@@ -49,4 +49,8 @@ class DefaultS3Bucket
   def account_id
     nil
   end
+
+  def iv
+    nil
+  end
 end
