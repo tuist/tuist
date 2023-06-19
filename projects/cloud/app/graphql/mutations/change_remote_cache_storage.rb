@@ -2,7 +2,7 @@
 
 module Mutations
   class ChangeRemoteCacheStorage < ::Mutations::BaseMutation
-    argument :id, ID, required: true
+    argument :id, ID, required: false
     argument :project_id, ID, required: true
 
     def resolve(attributes)
