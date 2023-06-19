@@ -47,8 +47,23 @@ final class GraphMapperFactory: GraphMapperFactorying {
             TestsCacheGraphMapper(hashesCacheDirectory: testsCacheDirectory, config: config)
         )
         mappers.append(FocusTargetsGraphMappers(includedTargets: []))
-        mappers.append(TreeShakePrunedTargetsGraphMapper())
         mappers.append(contentsOf: self.default())
+        
+        do {
+            let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: nil, from: config)
+            let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
+                config: config,
+                cacheStorageProvider: CacheStorageProvider(config: config),
+                sources: Set([]),
+                cacheProfile: cacheProfile,
+                cacheOutputType: .xcframework(CacheXCFrameworkDestination.simulator)
+            )
+            mappers.append(focusTargetsGraphMapper)
+            
+        } catch {
+            logger.error("Cache profile resolver failed")
+        }
+        mappers.append(TreeShakePrunedTargetsGraphMapper())
         return mappers
     }
 
