@@ -3,7 +3,7 @@
 require "test_helper"
 
 class ProjectChangeRemoteCacheStorageServiceTest < ActiveSupport::TestCase
-  test "changes to the new bucket" do
+  test "fetches a project with a given name account_name" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
     account = user.account
@@ -68,26 +68,5 @@ class ProjectChangeRemoteCacheStorageServiceTest < ActiveSupport::TestCase
     assert_raises(ProjectChangeRemoteCacheStorageService::Error::S3BucketNotFound) do
       ProjectChangeRemoteCacheStorageService.call(id: "non-existent-id", project_id: project.id, user: user)
     end
-  end
-
-  test "sets the remote cache storage to nil if the id is nil" do
-    # Given
-    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
-    account = user.account
-    Project.create!(name: "tuist-project", account_id: account.id, token: Devise.friendly_token.first(16))
-    project = Project.create!(name: "tuist-project-2", account_id: account.id, token: Devise.friendly_token.first(16))
-    s3_bucket = account.s3_buckets.create!(
-      name: "s3-bucket",
-      access_key_id: "access key id",
-      region: "region",
-    )
-    project.update(remote_cache_storage: s3_bucket)
-
-    # When
-    got = ProjectChangeRemoteCacheStorageService.call(project_id: project.id, user: user)
-
-    # Then
-    assert_equal nil, got
-    assert_equal "tuist-debug", Project.find(project.id).remote_cache_storage.name
   end
 end

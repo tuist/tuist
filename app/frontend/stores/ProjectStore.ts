@@ -19,7 +19,7 @@ export default class ProjectStore {
   }
 
   async load(name: string, accountName: string) {
-    const { data, errors } = await this.client.query<ProjectQuery>({
+    const { data } = await this.client.query<ProjectQuery>({
       query: ProjectDocument,
       variables: {
         name,
