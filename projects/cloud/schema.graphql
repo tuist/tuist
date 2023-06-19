@@ -40,7 +40,7 @@ input ChangeRemoteCacheStorageInput {
   A unique identifier for the client performing the mutation.
   """
   clientMutationId: String
-  id: ID
+  id: ID!
   projectId: ID!
 }
 
@@ -70,7 +70,8 @@ input ClearRemoteCacheStorageInput {
   A unique identifier for the client performing the mutation.
   """
   clientMutationId: String
-  projectSlug: String!
+  id: ID
+  projectSlug: String
 }
 
 type CommandAverage {
@@ -230,7 +231,7 @@ type Mutation {
     Parameters for ChangeRemoteCacheStorage
     """
     input: ChangeRemoteCacheStorageInput!
-  ): RemoteCacheStorage
+  ): RemoteCacheStorage!
 
   """
   Change role of a user for a given organization
@@ -495,6 +496,7 @@ type S3Bucket {
   accessKeyId: String!
   accountId: ID!
   id: ID!
+  isDefault: Boolean!
   name: String!
   region: String!
   secretAccessKey: String

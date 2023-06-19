@@ -1,6 +1,5 @@
 import { ProjectDetailFragment } from '@/graphql/types';
-import { Account } from './Account';
-import { mapS3Bucket, S3Bucket } from './S3Bucket';
+import { Account, mapS3Bucket, S3Bucket } from '.';
 
 export interface Project {
   id: string;

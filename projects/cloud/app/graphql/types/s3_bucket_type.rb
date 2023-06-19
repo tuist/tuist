@@ -8,5 +8,6 @@ module Types
     field :secret_access_key, String, null: true
     field :account_id, ID, null: false
     field :region, String, null: false
+    field :is_default, Boolean, null: false
   end
 end
