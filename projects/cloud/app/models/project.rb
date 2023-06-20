@@ -28,7 +28,7 @@ end
 class DefaultS3Bucket
   def name
     if Rails.env.production?
-      "tuist"
+      "tuist-production"
     else
       "tuist-debug"
     end
