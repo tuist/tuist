@@ -31,7 +31,7 @@ public struct TestActionOptions: Equatable, Codable {
     ///   - language: Language used for running the tests.
     ///   - region: Region used for running the tests.
     ///   - coverage: Whether test coverage should be collected.
-    ///   - codeCoverageTargets: List of tests whose code coverage information should be collected.
+    ///   - codeCoverageTargets: List of test targets whose code coverage information should be collected.
     /// - Returns: A set of options.
     public static func options(
         language: SchemeLanguage? = nil,

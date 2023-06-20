@@ -350,6 +350,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://mustiikhalil.github.io/mustiikhalil/"><img src="https://avatars.githubusercontent.com/u/26250654?v=4" width="100px;" alt=""/><br /><sub><b>mustiikhalil</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/serejahh"><img src="https://avatars.githubusercontent.com/u/2575555?v=4" width="100px;" alt=""/><br /><sub><b>Serhii Butenko</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/petrukha-ivan"><img src="https://avatars.githubusercontent.com/u/93926277?v=4" width="100px;" alt=""/><br /><sub><b>Petrukha Ivan</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/lo1tuma"><img src="https://avatars.githubusercontent.com/u/169170?v=4" width="100px;" alt=""/><br /><sub><b>Mathias Schreck</b></sub></a></td>
     </tr>
   </tbody>
 </table>
