@@ -830,6 +830,8 @@ extension DependenciesGraph {
             return .macOS(targetVersion: PLATFORM_TEST_VERSION[.macOS]!)
         case .tvOS:
             return .tvOS(targetVersion: PLATFORM_TEST_VERSION[.tvOS]!)
+        case .visionOS:
+            return .visionOS(targetVersion: PLATFORM_TEST_VERSION[.visionOS]!, devices: [.iphone, .ipad, .vision])
         }
     }
 }

@@ -10,6 +10,8 @@ public struct DeploymentDevice: OptionSet, Codable, Hashable {
     public static let ipad = DeploymentDevice(rawValue: 1 << 1)
     /// A Mac device.
     public static let mac = DeploymentDevice(rawValue: 1 << 2)
+    /// An Apple Vision device.
+    public static let vision = DeploymentDevice(rawValue: iphone.rawValue | ipad.rawValue | mac.rawValue)
 
     public let rawValue: UInt
 

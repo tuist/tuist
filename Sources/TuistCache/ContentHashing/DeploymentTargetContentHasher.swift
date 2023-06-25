@@ -30,6 +30,8 @@ public final class DeploymentTargetContentHasher: DeploymentTargetContentHashing
             stringToHash = "watchOS-\(version)"
         case let .tvOS(version):
             stringToHash = "tvOS-\(version)"
+        case let .visionOS(version):
+            stringToHash = "visionOS-\(version)"
         }
         return try contentHasher.hash(stringToHash)
     }

@@ -133,7 +133,7 @@ public final class TargetContentHasher: TargetContentHashing {
         switch graphTarget.target.deploymentTarget {
         case .macOS, .none:
             stringsToHash.append(DeveloperEnvironment.shared.architecture.rawValue)
-        case .iOS, .watchOS, .tvOS:
+        case .iOS, .watchOS, .tvOS, .visionOS:
             break
         }
 

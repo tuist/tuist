@@ -8,13 +8,15 @@ extension CarthageVersionFile {
         iOS: [Product] = [],
         macOS: [Product] = [],
         watchOS: [Product] = [],
-        tvOS: [Product] = []
+        tvOS: [Product] = [],
+        visionOS: [Product] = []
     ) -> Self {
         .init(
             iOS: iOS,
             macOS: macOS,
             watchOS: watchOS,
-            tvOS: tvOS
+            tvOS: tvOS,
+            visionOS: visionOS
         )
     }
 
@@ -47,6 +49,16 @@ extension CarthageVersionFile {
                 ),
             ],
             tvOS: [
+                .init(
+                    name: "Alamofire",
+                    container: "Alamofire.xcframework"
+                ),
+                .init(
+                    name: "Alamofire",
+                    container: "Alamofire.xcframework"
+                ),
+            ],
+            visionOS: [
                 .init(
                     name: "Alamofire",
                     container: "Alamofire.xcframework"
@@ -196,6 +208,44 @@ extension CarthageVersionFile {
                     name: "RxTest",
                     container: "RxTest.xcframework"
                 ),
+            ],
+            visionOS: [
+                .init(
+                    name: "RxBlocking",
+                    container: "RxBlocking.xcframework"
+                ),
+                .init(
+                    name: "RxBlocking",
+                    container: "RxBlocking.xcframework"
+                ),
+                .init(
+                    name: "RxCocoa",
+                    container: "RxCocoa.xcframework"
+                ),
+                .init(
+                    name: "RxCocoa",
+                    container: "RxCocoa.xcframework"
+                ),
+                .init(
+                    name: "RxRelay",
+                    container: "RxRelay.xcframework"
+                ),
+                .init(
+                    name: "RxRelay",
+                    container: "RxRelay.xcframework"
+                ),
+                .init(
+                    name: "RxSwift",
+                    container: "RxSwift.xcframework"
+                ),
+                .init(
+                    name: "RxSwift",
+                    container: "RxSwift.xcframework"
+                ),
+                .init(
+                    name: "RxTest",
+                    container: "RxTest.xcframework"
+                ),
             ]
         )
     }
@@ -222,7 +272,8 @@ extension CarthageVersionFile {
             ],
             macOS: nil,
             watchOS: nil,
-            tvOS: nil
+            tvOS: nil,
+            visionOS: nil
         )
     }
 
@@ -240,7 +291,8 @@ extension CarthageVersionFile {
             ],
             macOS: [],
             watchOS: [],
-            tvOS: []
+            tvOS: [],
+            visionOS: []
         )
     }
 }
