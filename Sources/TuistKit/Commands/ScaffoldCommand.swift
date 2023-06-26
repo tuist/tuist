@@ -27,7 +27,7 @@ public enum ScaffoldCommandError: FatalError, Equatable {
 
 public struct ScaffoldCommand: AsyncParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "scaffold",
@@ -35,7 +35,7 @@ public struct ScaffoldCommand: AsyncParsableCommand {
             subcommands: [ListCommand.self]
         )
     }
-    
+
     // MARK: - Arguments and Flags
 
     @Flag(
@@ -59,7 +59,7 @@ public struct ScaffoldCommand: AsyncParsableCommand {
     var optionalTemplateOptions: [String: String?] = [:]
 
     // MARK: - Init
-    
+
     public init() {}
 
     // Custom decoding to decode dynamic options
@@ -83,7 +83,7 @@ public struct ScaffoldCommand: AsyncParsableCommand {
     }
 
     // MARK: - AsyncParsableCommand
-    
+
     public func run() async throws {
         // Currently, @Argument and subcommand clashes, so we need to handle that ourselves
         if template == ListCommand.configuration.commandName {

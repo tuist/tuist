@@ -6,14 +6,14 @@ import TuistSupport
 
 public struct EditCommand: AsyncParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "edit",
             abstract: "Generates a temporary project to edit the project in the current directory"
         )
     }
-    
+
     // MARK: - Arguments and flags
 
     @Option(
@@ -34,13 +34,13 @@ public struct EditCommand: AsyncParsableCommand {
         help: "It only includes the manifest in the current directory."
     )
     var onlyCurrentDirectory: Bool = false
-    
+
     // MARK: - Init
-    
+
     public init() {}
 
     // MARK: - AsyncParsableCommand
-    
+
     public func run() async throws {
         try await EditService().run(
             path: path,

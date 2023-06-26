@@ -9,27 +9,6 @@ let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", pac
 let swifterDependency: Target.Dependency = .product(name: "Swifter", package: "swifter")
 let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
 
-//"XcodeProj",
-//swiftToolsSupportDependency,
-//argumentParserDependency,
-//"TuistSupport",
-//"TuistGenerator",
-//"TuistCache",
-//"TuistAutomation",
-//"ProjectDescription",
-//"ProjectAutomation",
-//"TuistLoader",
-//"TuistScaffold",
-//"TuistSigning",
-//"TuistDependencies",
-//"TuistCloud",
-//"GraphViz",
-//"TuistMigration",
-//"TuistAsyncQueue",
-//"TuistAnalytics",
-//"TuistPlugin",
-//"TuistGraph",
-
 let package = Package(
     name: "tuist",
     platforms: [.macOS(.v12)],
@@ -39,7 +18,28 @@ let package = Package(
         .library(name: "ProjectDescription", type: .dynamic, targets: ["ProjectDescription"]),
         .library(name: "ProjectAutomation", targets: ["ProjectAutomation"]),
         .library(name: "TuistGraph", targets: ["TuistGraph"]),
-        
+        .library(name: "TuistKit", targets: [
+            "TuistKit",
+            // Features
+            "TuistGenerator",
+            "TuistCache",
+            "TuistAutomation",
+            "TuistLoader",
+            "TuistScaffold",
+            "TuistSigning",
+            "TuistDependencies",
+            "TuistCloud",
+            "TuistMigration",
+            "TuistAsyncQueue",
+            "TuistAnalytics",
+            "TuistPlugin",
+            "TuistGraph",
+            // Core
+            "TuistCore",
+            // Support
+            "TuistSupport",
+        ]),
+
         /// TuistGenerator
         ///
         /// A high level Xcode generator library

@@ -4,7 +4,7 @@ import TSCBasic
 
 public struct PluginBuildCommand: ParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build",
@@ -13,7 +13,7 @@ public struct PluginBuildCommand: ParsableCommand {
     }
 
     // MARK: - Arguments and Flags
-    
+
     @OptionGroup()
     var pluginOptions: PluginCommand.PluginOptions
 
@@ -36,13 +36,13 @@ public struct PluginBuildCommand: ParsableCommand {
         help: "Build the specified products."
     )
     var products: [String] = []
-    
+
     // MARK: - Init
-    
+
     public init() {}
 
     // MARK: - ParsableCommand
-    
+
     public func run() throws {
         try PluginBuildService().run(
             path: pluginOptions.path,

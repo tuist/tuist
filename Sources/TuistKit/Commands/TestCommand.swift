@@ -6,14 +6,14 @@ import TuistSupport
 /// Command that tests a target from the project in the current directory.
 public struct TestCommand: AsyncParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test",
             abstract: "Tests a project"
         )
     }
-    
+
     // MARK: - Arguments and Flags
 
     @Argument(
@@ -68,13 +68,13 @@ public struct TestCommand: AsyncParsableCommand {
         help: "Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times."
     )
     var retryCount: Int = 0
-    
+
     // MARK: - Init
-    
+
     public init() {}
 
     // MARK: - AsyncParsableCommand
-    
+
     public func run() async throws {
         let absolutePath: AbsolutePath
 

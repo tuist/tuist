@@ -3,7 +3,7 @@ import Foundation
 
 public struct ListCommand: AsyncParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list",
@@ -12,7 +12,7 @@ public struct ListCommand: AsyncParsableCommand {
             subcommands: []
         )
     }
-    
+
     // MARK: - Arguments and Flags
 
     @Flag(
@@ -26,11 +26,11 @@ public struct ListCommand: AsyncParsableCommand {
         completion: .directory
     )
     var path: String?
-    
+
     // MARK: - Init
-    
+
     public init() {}
-    
+
     // MARK: - AsyncParsableCommand
 
     public func run() async throws {

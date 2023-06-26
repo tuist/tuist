@@ -8,9 +8,9 @@ import TuistSupport
 /// Command to cache targets as `.(xc)framework`s and speed up your and your peers' build times.
 public struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
-    
+
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "warm",
@@ -39,11 +39,11 @@ public struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
             throw ValidationError.invalidXCFrameworkOptions
         }
     }
-    
+
     // MARK: - Init
-    
+
     public init() {}
-    
+
     // MARK: - AsyncParsableCommand
 
     public func run() async throws {
@@ -65,7 +65,7 @@ public struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
             ]
         )
     }
-    
+
     public enum ValidationError: LocalizedError {
         case invalidXCFrameworkOptions
 

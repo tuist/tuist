@@ -22,9 +22,10 @@ public final class FetchService {
             manifestLoader: ManifestLoader(),
             dependenciesController: DependenciesController(),
             dependenciesModelLoader: DependenciesModelLoader(),
-            converter: ManifestModelConverter())
+            converter: ManifestModelConverter()
+        )
     }
-    
+
     init(
         pluginService: PluginServicing,
         configLoader: ConfigLoading,

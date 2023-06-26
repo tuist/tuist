@@ -12,15 +12,15 @@ public enum InitServiceError: FatalError, Equatable {
     case templateNotProvided
     case attributeNotProvided(String)
     case invalidValue(argument: String, error: String)
-    
+
     public var type: ErrorType {
         switch self {
         case .ungettableProjectName, .nonEmptyDirectory, .templateNotFound, .templateNotProvided, .attributeNotProvided,
-                .invalidValue:
+             .invalidValue:
             return .abort
         }
     }
-    
+
     public var description: String {
         switch self {
         case let .templateNotFound(template):
@@ -44,7 +44,7 @@ public class InitService {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
     private let templateGitLoader: TemplateGitLoading
-    
+
     public init(
         templateLoader: TemplateLoading = TemplateLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
@@ -56,7 +56,7 @@ public class InitService {
         self.templateGenerator = templateGenerator
         self.templateGitLoader = templateGitLoader
     }
-    
+
     func loadTemplateOptions(
         templateName: String,
         path: String?
@@ -67,7 +67,7 @@ public class InitService {
         let path = try self.path(path)
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
         var attributes: [Template.Attribute] = []
-        
+
         if templateName.isGitURL {
             try templateGitLoader.loadTemplate(from: templateName) { template in
                 attributes = template.attributes
@@ -77,11 +77,11 @@ public class InitService {
                 templateDirectories: directories,
                 template: templateName
             )
-            
+
             let template = try templateLoader.loadTemplate(at: templateDirectory)
             attributes = template.attributes
         }
-        
+
         return attributes
             .reduce(into: (required: [], optional: [])) { currentValue, attribute in
                 // name and platform attributes have default values, so add them to the optional
@@ -97,7 +97,7 @@ public class InitService {
                 }
             }
     }
-    
+
     public func run(
         name: String?,
         platform: String?,
@@ -111,7 +111,7 @@ public class InitService {
         let name = try self.name(name, path: path)
         let templateName = templateName ?? "default"
         try verifyDirectoryIsEmpty(path: path)
-        
+
         if templateName.isGitURL {
             try templateGitLoader.loadTemplate(from: templateName, closure: { template in
                 let parsedAttributes = try parseAttributes(
@@ -121,7 +121,7 @@ public class InitService {
                     optionalTemplateOptions: optionalTemplateOptions,
                     template: template
                 )
-                
+
                 try templateGenerator.generate(
                     template: template,
                     to: path,
@@ -132,7 +132,7 @@ public class InitService {
             let directories = try templatesDirectoryLocator.templateDirectories(at: path)
             guard let templateDirectory = directories.first(where: { $0.basename == templateName })
             else { throw InitServiceError.templateNotFound(templateName) }
-            
+
             let template = try templateLoader.loadTemplate(at: templateDirectory)
             let parsedAttributes = try parseAttributes(
                 name: name,
@@ -141,19 +141,19 @@ public class InitService {
                 optionalTemplateOptions: optionalTemplateOptions,
                 template: template
             )
-            
+
             try templateGenerator.generate(
                 template: template,
                 to: path,
                 attributes: parsedAttributes
             )
         }
-        
+
         logger.notice("Project generated at path \(path.pathString).", metadata: .success)
     }
-    
+
     // MARK: - Helpers
-    
+
     /// Checks if the given directory is empty, essentially that it doesn't contain any file or directory.
     ///
     /// - Parameter path: Directory to be checked.
@@ -163,7 +163,7 @@ public class InitService {
             throw InitServiceError.nonEmptyDirectory(path)
         }
     }
-    
+
     /// Parses all `attributes` from `template`
     /// If those attributes are optional, they default to `default` if not provided
     /// - Returns: Array of parsed attributes
@@ -195,7 +195,7 @@ public class InitService {
             }
         }
     }
-    
+
     /// Finds template directory
     /// - Parameters:
     ///     - templateDirectories: Paths of available templates
@@ -206,7 +206,7 @@ public class InitService {
         else { throw InitServiceError.templateNotFound(template) }
         return templateDirectory
     }
-    
+
     private func name(_ name: String?, path: AbsolutePath) throws -> String {
         let initName: String
         if let name = name {
@@ -218,7 +218,7 @@ public class InitService {
         }
         return initName.camelized.uppercasingFirst
     }
-    
+
     private func path(_ path: String?) throws -> AbsolutePath {
         if let path = path {
             return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
@@ -226,7 +226,7 @@ public class InitService {
             return FileHandler.shared.currentPath
         }
     }
-    
+
     private func platform(_ platform: String?) throws -> Platform {
         if let platformString = platform {
             if let platform = Platform(rawValue: platformString) {

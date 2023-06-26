@@ -13,9 +13,8 @@ private typealias Platform = TuistGraph.Platform
 private typealias Product = TuistGraph.Product
 
 public struct InitCommand: ParsableCommand, HasTrackableParameters {
-    
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "init",
@@ -26,7 +25,7 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
 
     // MARK: - Arguments and flags
-    
+
     @Option(
         help: "The platform (ios, tvos or macos) the product will be for (Default: ios)",
         completion: .list(["ios", "tvos", "macos"])
@@ -56,7 +55,7 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
     var optionalTemplateOptions: [String: String?] = [:]
 
     // MARK: - Init
-    
+
     public init() {}
 
     // Custom decoding to decode dynamic options

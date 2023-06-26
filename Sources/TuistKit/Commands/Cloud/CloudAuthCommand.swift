@@ -4,7 +4,7 @@ import TSCBasic
 
 public struct CloudAuthCommand: ParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "auth",
@@ -12,11 +12,11 @@ public struct CloudAuthCommand: ParsableCommand {
             abstract: "Authenticates the user on the server with the URL defined in the Config.swift file"
         )
     }
-    
+
     // MARK: - Init
-    
+
     public init() {}
-    
+
     // MARK: - ParsableCommand
 
     public func run() throws {

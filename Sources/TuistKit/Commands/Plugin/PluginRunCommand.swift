@@ -4,14 +4,14 @@ import TSCBasic
 
 public struct PluginRunCommand: ParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "run",
             abstract: "Runs a plugin."
         )
     }
-    
+
     // MARK: - Arguments and Flags
 
     @OptionGroup()
@@ -38,10 +38,11 @@ public struct PluginRunCommand: ParsableCommand {
     var arguments: [String] = []
 
     // MARK: - Init
-    
+
     public init() {}
-    
+
     // MARK: - ParsableCommand
+
     public func run() throws {
         try PluginRunService().run(
             path: pluginOptions.path,

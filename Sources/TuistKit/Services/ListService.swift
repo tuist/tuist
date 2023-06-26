@@ -18,7 +18,7 @@ public class ListService {
     private let pluginService: PluginServicing
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateLoader: TemplateLoading
-    
+
     public convenience init() {
         self.init(
             configLoader: ConfigLoader(manifestLoader: ManifestLoader()),

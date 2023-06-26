@@ -3,9 +3,8 @@ import Foundation
 import TSCBasic
 
 public struct CacheCommand: ParsableCommand {
-    
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "cache",
@@ -16,8 +15,8 @@ public struct CacheCommand: ParsableCommand {
             ]
         )
     }
-    
+
     // MARK: - Init
-    
+
     public init() {}
 }

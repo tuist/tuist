@@ -3,7 +3,7 @@ import TuistSupport
 
 public final class PluginBuildService {
     public init() {}
-    
+
     public func run(
         path: String?,
         configuration: PluginCommand.PackageConfiguration,

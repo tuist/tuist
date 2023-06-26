@@ -42,7 +42,7 @@ public final class CloudCleanService: CloudCleanServicing {
             configLoader: ConfigLoader()
         )
     }
-    
+
     init(
         cloudSessionController: CloudSessionControlling,
         cleanRemoteCacheStorageService: CleanRemoteCacheStorageServicing,
@@ -52,7 +52,7 @@ public final class CloudCleanService: CloudCleanServicing {
         self.cleanRemoteCacheStorageService = cleanRemoteCacheStorageService
         self.configLoader = configLoader
     }
-    
+
     // MARK: - CloudCleanServicing
 
     public func clean(path: String?) async throws {

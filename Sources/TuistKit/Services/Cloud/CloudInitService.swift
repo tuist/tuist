@@ -40,7 +40,7 @@ public final class CloudInitService: CloudInitServicing {
     private let cloudSessionController: CloudSessionControlling
     private let createProjectService: CreateProjectServicing
     private let configLoader: ConfigLoading
-    
+
     public convenience init() {
         self.init(
             cloudSessionController: CloudSessionController(),

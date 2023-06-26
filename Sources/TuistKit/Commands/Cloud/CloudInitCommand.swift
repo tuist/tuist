@@ -4,9 +4,8 @@ import TSCBasic
 import TuistSupport
 
 public struct CloudInitCommand: AsyncParsableCommand {
-    
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "init",
@@ -14,7 +13,7 @@ public struct CloudInitCommand: AsyncParsableCommand {
             abstract: "Creates a new tuist cloud project."
         )
     }
-    
+
     // MARK: - Arguments and flags
 
     @Option(
@@ -38,13 +37,13 @@ public struct CloudInitCommand: AsyncParsableCommand {
         completion: .directory
     )
     var path: String?
-    
+
     // MARK: - Init
-    
+
     public init() {}
 
     // MARK: - AsyncParsableCommand
-    
+
     public func run() async throws {
         try await CloudInitService().createProject(
             name: name,

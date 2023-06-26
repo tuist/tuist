@@ -4,14 +4,14 @@ import TSCBasic
 
 public struct PluginTestCommand: ParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test",
             abstract: "Tests a plugin."
         )
     }
-    
+
     // MARK: - Arguments and Flags
 
     @OptionGroup()
@@ -26,11 +26,11 @@ public struct PluginTestCommand: ParsableCommand {
         help: "Test the specified products."
     )
     var testProducts: [String] = []
-    
+
     // MARK: - Init
-    
+
     public init() {}
-    
+
     // MARK: - ParsableCommand
 
     public func run() throws {

@@ -4,7 +4,7 @@ import TSCBasic
 
 public struct MigrationCommand: ParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "migration",
@@ -16,8 +16,8 @@ public struct MigrationCommand: ParsableCommand {
             ]
         )
     }
-    
+
     // MARK: - Init
-    
+
     public init() {}
 }

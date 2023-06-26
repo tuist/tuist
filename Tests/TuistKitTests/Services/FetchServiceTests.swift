@@ -40,7 +40,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             manifestLoader: manifestLoader,
             dependenciesController: dependenciesController,
             dependenciesModelLoader: dependenciesModelLoader,
-            converter:  ManifestModelConverter()
+            converter: ManifestModelConverter()
         )
     }
 

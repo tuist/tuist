@@ -34,7 +34,7 @@ public enum CleanCategory: ExpressibleByArgument {
 
 public struct CleanCommand: ParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "clean",
@@ -43,7 +43,7 @@ public struct CleanCommand: ParsableCommand {
     }
 
     // MARK: - Arguments and flags
-    
+
     @Argument(help: "The cache and artifact categories to be cleaned. If no category is specified, everything is cleaned.")
     public var cleanCategories: [CleanCategory] = CleanCategory.allCases
 
@@ -53,11 +53,11 @@ public struct CleanCommand: ParsableCommand {
         completion: .directory
     )
     public var path: String?
-    
+
     // MARK: - Init
-    
+
     public init() {}
-    
+
     // MARK: - ParsableCommand
 
     public func run() throws {

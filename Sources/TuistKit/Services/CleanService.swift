@@ -7,7 +7,7 @@ import TuistSupport
 
 public final class CleanService {
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
-    
+
     public init(
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
     ) {

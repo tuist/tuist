@@ -32,7 +32,7 @@ public final class EditService {
     private let signalHandler: SignalHandling
 
     private static var temporaryDirectory: AbsolutePath?
-    
+
     public convenience init() {
         self.init(
             projectEditor: ProjectEditor(),

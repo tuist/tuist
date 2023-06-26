@@ -6,7 +6,7 @@ import TuistSupport
 
 public final class EncryptService {
     private let signingCipher: SigningCiphering
-    
+
     public convenience init() {
         self.init(signingCipher: SigningCipher())
     }

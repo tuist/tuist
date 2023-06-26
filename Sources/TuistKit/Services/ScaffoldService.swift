@@ -17,7 +17,7 @@ public enum ScaffoldServiceError: FatalError, Equatable {
             return .abort
         }
     }
-    
+
     public var description: String {
         switch self {
         case let .templateNotFound(template, searchPaths):
@@ -39,10 +39,10 @@ public final class ScaffoldService {
     private let templateGenerator: TemplateGenerating
     private let configLoader: ConfigLoading
     private let pluginService: PluginServicing
-    
+
     public convenience init() {
         self.init(
-            templateLoader:TemplateLoader(),
+            templateLoader: TemplateLoader(),
             templatesDirectoryLocator: TemplatesDirectoryLocator(),
             templateGenerator: TemplateGenerator(),
             configLoader: ConfigLoader(manifestLoader: ManifestLoader()),

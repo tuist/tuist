@@ -3,8 +3,8 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistLoader
-import TuistSupport
 import TuistPlugin
+import TuistSupport
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting

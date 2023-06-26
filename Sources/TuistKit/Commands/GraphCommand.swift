@@ -13,7 +13,7 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
 
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "graph",
@@ -22,7 +22,7 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     }
 
     // MARK: - Arguments and flags
-    
+
     @Flag(
         name: [.customShort("t"), .long],
         help: "Skip Test targets during graph rendering."
@@ -74,13 +74,13 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
         help: "The path where the graph will be generated."
     )
     var outputPath: String?
-    
+
     // MARK: - Init
-    
+
     public init() {}
 
     // MARK: - AsyncParsableCommand
-    
+
     public func run() async throws {
         GraphCommand.analyticsDelegate?.addParameters(
             [

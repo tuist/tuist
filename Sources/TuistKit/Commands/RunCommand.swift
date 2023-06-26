@@ -5,7 +5,7 @@ import TuistSupport
 
 public struct RunCommand: AsyncParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "run",
@@ -23,7 +23,7 @@ public struct RunCommand: AsyncParsableCommand {
     }
 
     // MARK: - Arguments and Flags
-    
+
     @Flag(help: "Force the generation of the project before running.")
     var generate: Bool = false
 
@@ -62,10 +62,11 @@ public struct RunCommand: AsyncParsableCommand {
     var arguments: [String] = []
 
     // MARK: - Init
-    
+
     public init() {}
-    
+
     // MARK: - AsyncParsableCommand
+
     public func run() async throws {
         try await RunService().run(
             path: path,

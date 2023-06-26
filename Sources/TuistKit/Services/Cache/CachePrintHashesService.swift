@@ -11,7 +11,7 @@ public final class CachePrintHashesService {
     private let cacheGraphContentHasher: CacheGraphContentHashing
     private let clock: Clock
     private let configLoader: ConfigLoading
-    
+
     public convenience init() {
         self.init(contentHasher: CacheContentHasher())
     }

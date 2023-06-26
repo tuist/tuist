@@ -5,7 +5,7 @@ import TuistSupport
 
 public struct MigrationSettingsToXCConfigCommand: ParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "settings-to-xcconfig",
@@ -13,7 +13,7 @@ public struct MigrationSettingsToXCConfigCommand: ParsableCommand {
             abstract: "It extracts the build settings from a project or a target into an xcconfig file."
         )
     }
-    
+
     // MARK: - Arguments & Flags
 
     @Option(
@@ -36,13 +36,13 @@ public struct MigrationSettingsToXCConfigCommand: ParsableCommand {
         completion: .default
     )
     var target: String?
-    
+
     // MARK: - Init
-    
+
     public init() {}
 
     // MARK: - ParsableCommand
-    
+
     public func run() throws {
         try MigrationSettingsToXCConfigService().run(
             xcodeprojPath: xcodeprojPath,

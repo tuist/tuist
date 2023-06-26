@@ -9,7 +9,7 @@ public class MigrationSettingsToXCConfigService {
     private let settingsToXCConfigExtractor: SettingsToXCConfigExtracting
 
     // MARK: - Init
-    
+
     public convenience init() {
         self.init(settingsToXCConfigExtractor: SettingsToXCConfigExtractor())
     }

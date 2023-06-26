@@ -4,7 +4,7 @@ import TSCBasic
 
 public struct SigningCommand: ParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "signing",
@@ -15,8 +15,8 @@ public struct SigningCommand: ParsableCommand {
             ]
         )
     }
-    
+
     // MARK: - Init
-    
+
     public init() {}
 }

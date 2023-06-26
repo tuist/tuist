@@ -9,7 +9,7 @@ public class MigrationCheckEmptyBuildSettingsService {
     private let emptyBuildSettingsChecker: EmptyBuildSettingsChecking
 
     // MARK: - Init
-    
+
     public convenience init() {
         self.init(emptyBuildSettingsChecker: EmptyBuildSettingsChecker())
     }

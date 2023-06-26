@@ -4,7 +4,7 @@ import TSCBasic
 
 public struct EncryptCommand: ParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "encrypt",
@@ -12,7 +12,7 @@ public struct EncryptCommand: ParsableCommand {
             abstract: "Encrypts all files in Tuist/Signing directory"
         )
     }
-    
+
     // MARK: - Arguments and Flags
 
     @Option(
@@ -21,13 +21,13 @@ public struct EncryptCommand: ParsableCommand {
         completion: .directory
     )
     var path: String?
-    
+
     // MARK: - Init
-    
+
     public init() {}
 
     // MARK: - ParsableCommand
-    
+
     public func run() throws {
         try EncryptService().run(path: path)
     }

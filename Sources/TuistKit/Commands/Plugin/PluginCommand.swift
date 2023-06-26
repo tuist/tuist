@@ -4,7 +4,7 @@ import TSCBasic
 
 public struct PluginCommand: ParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "plugin",
@@ -21,7 +21,7 @@ public struct PluginCommand: ParsableCommand {
     public enum PackageConfiguration: String, ExpressibleByArgument, RawRepresentable {
         case debug, release
     }
-    
+
     // MARK: - Arguments and flags
 
     public struct PluginOptions: ParsableArguments {
@@ -37,11 +37,11 @@ public struct PluginCommand: ParsableCommand {
             completion: .directory
         )
         var path: String?
-        
+
         public init() {}
     }
-    
+
     // MARK: - Init
-    
+
     public init() {}
 }

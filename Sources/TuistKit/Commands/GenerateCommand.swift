@@ -6,7 +6,7 @@ import TuistCore
 
 public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
-    
+
     // MARK: - Configuration
 
     public static var configuration: CommandConfiguration {
@@ -16,7 +16,7 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
             subcommands: []
         )
     }
-    
+
     // MARK: - Arguments and flags
 
     @Option(
@@ -69,12 +69,13 @@ public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
             throw ValidationError.invalidXCFrameworkOptions
         }
     }
+
     // MARK: - Init
-    
+
     public init() {}
 
     // MARK: - AsyncParsableCommand
-    
+
     public func run() async throws {
         try await GenerateService().run(
             path: path,

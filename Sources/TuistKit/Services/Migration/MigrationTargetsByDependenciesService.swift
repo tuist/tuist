@@ -9,7 +9,7 @@ public final class MigrationTargetsByDependenciesService {
     private let targetsExtractor: TargetsExtracting
 
     // MARK: - Init
-    
+
     public convenience init() {
         self.init(targetsExtractor: TargetsExtractor())
     }

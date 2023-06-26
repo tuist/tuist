@@ -23,11 +23,11 @@ public struct DumpCommand: AsyncParsableCommand {
 
     @Argument(help: "The manifest to be dumped")
     public var manifest: DumpableManifest = .project
-    
+
     // MARK: - Init
-    
+
     public init() {}
-    
+
     // MARK: - AsyncParsableCommand
 
     public func run() async throws {

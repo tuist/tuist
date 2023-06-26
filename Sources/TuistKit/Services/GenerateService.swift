@@ -28,7 +28,7 @@ public final class GenerateService {
             pluginService: PluginService()
         )
     }
-    
+
     init(
         clock: Clock,
         timeTakenLoggerFormatter: TimeTakenLoggerFormatting,

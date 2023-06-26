@@ -4,7 +4,7 @@ import TSCBasic
 
 public struct CloudCommand: ParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "cloud",
@@ -18,8 +18,8 @@ public struct CloudCommand: ParsableCommand {
             ]
         )
     }
-    
+
     // MARK: - Init
-    
+
     public init() {}
 }

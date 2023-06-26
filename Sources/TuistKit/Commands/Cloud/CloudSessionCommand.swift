@@ -4,7 +4,7 @@ import TSCBasic
 
 public struct CloudSessionCommand: ParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "session",
@@ -14,11 +14,11 @@ public struct CloudSessionCommand: ParsableCommand {
     }
 
     // MARK: - Init
-    
+
     public init() {}
-    
+
     // MARK: - ParseableCommand
-    
+
     public func run() throws {
         try CloudSessionService().printSession()
     }

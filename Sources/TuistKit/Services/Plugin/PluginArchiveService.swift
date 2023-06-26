@@ -9,11 +9,12 @@ public final class PluginArchiveService {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let manifestLoader: ManifestLoading
     private let fileArchiverFactory: FileArchivingFactorying
-    
+
     public convenience init() {
-        self.init(swiftPackageManagerController: SwiftPackageManagerController(),
-                  manifestLoader: ManifestLoader(),
-                  fileArchiverFactory: FileArchivingFactory()
+        self.init(
+            swiftPackageManagerController: SwiftPackageManagerController(),
+            manifestLoader: ManifestLoader(),
+            fileArchiverFactory: FileArchivingFactory()
         )
     }
 

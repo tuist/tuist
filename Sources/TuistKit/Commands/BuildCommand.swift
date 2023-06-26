@@ -6,14 +6,14 @@ import TuistSupport
 /// Command that builds a target from the project in the current directory.
 public struct BuildCommand: AsyncParsableCommand {
     // MARK: - Configuration
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build",
             abstract: "Builds a project"
         )
     }
-    
+
     // MARK: - Arguments and flags
 
     @Argument(
@@ -61,11 +61,11 @@ public struct BuildCommand: AsyncParsableCommand {
         completion: .directory
     )
     public var buildOutputPath: String?
-    
+
     // MARK: - Init
-    
+
     public init() {}
-    
+
     // MARK: - AsyncParsableCommand
 
     public func run() async throws {

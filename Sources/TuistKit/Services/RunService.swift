@@ -44,7 +44,7 @@ public final class RunService {
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding
     private let targetRunner: TargetRunning
-    
+
     public convenience init() {
         self.init(
             generatorFactory: GeneratorFactory(),
