@@ -17,14 +17,14 @@ final class StringExtrasTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, "frameworkIOSResources")
     }
-    
+
     func test_camelized_edge_cases() {
         // Given
         let subject = "_1Flow"
-        
+
         // When
         let got = subject.camelized
-        
+
         // Then
         XCTAssertEqual(got, "_1Flow")
     }
