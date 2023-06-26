@@ -4,14 +4,18 @@ import TuistCore
 import TuistSigning
 import TuistSupport
 
-final class DecryptService {
+public final class DecryptService {
     private let signingCipher: SigningCiphering
+    
+    public convenience init() {
+        self.init(signingCipher: SigningCipher())
+    }
 
-    init(signingCipher: SigningCiphering = SigningCipher()) {
+    init(signingCipher: SigningCiphering) {
         self.signingCipher = signingCipher
     }
 
-    func run(path: String?) throws {
+    public func run(path: String?) throws {
         let path = try self.path(path)
         try signingCipher.decryptSigning(at: path, keepFiles: false)
         logger.notice("Successfully decrypted all signing files", metadata: .success)

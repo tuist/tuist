@@ -2,6 +2,7 @@ import TSCBasic
 import TuistGraph
 import TuistGraphTesting
 import TuistPluginTesting
+import TuistLoader
 import XCTest
 
 @testable import TuistCore
@@ -22,6 +23,7 @@ final class ListServiceTests: TuistUnitTestCase {
         templateLoader = MockTemplateLoader()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         subject = ListService(
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
             pluginService: pluginService,
             templatesDirectoryLocator: templatesDirectoryLocator,
             templateLoader: templateLoader

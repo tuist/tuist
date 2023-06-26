@@ -3,14 +3,18 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-struct MigrationCheckEmptyBuildSettingsCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct MigrationCheckEmptyBuildSettingsCommand: ParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "check-empty-settings",
             _superCommandName: "migration",
             abstract: "It checks if the build settings of a project or target are empty. Otherwise it exits unsuccessfully."
         )
     }
+    
+    // MARK: - Arguments and Flags
 
     @Option(
         name: [.customShort("p"), .long],
@@ -24,8 +28,14 @@ struct MigrationCheckEmptyBuildSettingsCommand: ParsableCommand {
         help: "The name of the target whose build settings will be checked. When not passed, it checks the build settings of the project."
     )
     var target: String?
-
-    func run() throws {
+    
+    // MARK: - Init
+    
+    public init() {}
+    
+    // MARK: - ParsableCommand
+    
+    public func run() throws {
         try MigrationCheckEmptyBuildSettingsService().run(
             xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: FileHandler.shared.currentPath),
             target: target

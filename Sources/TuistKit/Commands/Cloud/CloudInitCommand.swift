@@ -3,14 +3,19 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-struct CloudInitCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct CloudInitCommand: AsyncParsableCommand {
+    
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "init",
             _superCommandName: "cloud",
             abstract: "Creates a new tuist cloud project."
         )
     }
+    
+    // MARK: - Arguments and flags
 
     @Option(
         help: "Owner of the project. Either your username or a name of the organization."
@@ -33,8 +38,14 @@ struct CloudInitCommand: AsyncParsableCommand {
         completion: .directory
     )
     var path: String?
+    
+    // MARK: - Init
+    
+    public init() {}
 
-    func run() async throws {
+    // MARK: - AsyncParsableCommand
+    
+    public func run() async throws {
         try await CloudInitService().createProject(
             name: name,
             owner: owner,

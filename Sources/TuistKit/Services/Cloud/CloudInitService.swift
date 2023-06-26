@@ -4,7 +4,7 @@ import TuistCloud
 import TuistLoader
 import TuistSupport
 
-protocol CloudInitServicing {
+public protocol CloudInitServicing {
     func createProject(
         name: String,
         owner: String?,
@@ -13,12 +13,12 @@ protocol CloudInitServicing {
     ) async throws
 }
 
-enum CloudInitServiceError: FatalError, Equatable {
+public enum CloudInitServiceError: FatalError, Equatable {
     case invalidCloudURL(String)
     case cloudAlreadySetUp
 
     /// Error description.
-    var description: String {
+    public var description: String {
         switch self {
         case let .invalidCloudURL(url):
             return "The cloud URL \(url) is invalid."
@@ -28,7 +28,7 @@ enum CloudInitServiceError: FatalError, Equatable {
     }
 
     /// Error type.
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .invalidCloudURL, .cloudAlreadySetUp:
             return .abort
@@ -36,22 +36,30 @@ enum CloudInitServiceError: FatalError, Equatable {
     }
 }
 
-final class CloudInitService: CloudInitServicing {
+public final class CloudInitService: CloudInitServicing {
     private let cloudSessionController: CloudSessionControlling
     private let createProjectService: CreateProjectServicing
     private let configLoader: ConfigLoading
+    
+    public convenience init() {
+        self.init(
+            cloudSessionController: CloudSessionController(),
+            createProjectService: CreateProjectService(),
+            configLoader: ConfigLoader()
+        )
+    }
 
     init(
-        cloudSessionController: CloudSessionControlling = CloudSessionController(),
-        createProjectService: CreateProjectServicing = CreateProjectService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        cloudSessionController: CloudSessionControlling,
+        createProjectService: CreateProjectServicing,
+        configLoader: ConfigLoading
     ) {
         self.cloudSessionController = cloudSessionController
         self.createProjectService = createProjectService
         self.configLoader = configLoader
     }
 
-    func createProject(
+    public func createProject(
         name: String,
         owner: String?,
         url: String,

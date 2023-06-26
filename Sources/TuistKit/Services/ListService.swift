@@ -6,10 +6,10 @@ import TuistPlugin
 import TuistScaffold
 import TuistSupport
 
-class ListService {
+public class ListService {
     // MARK: - OutputFormat
 
-    enum OutputFormat {
+    public enum OutputFormat {
         case table
         case json
     }
@@ -18,12 +18,21 @@ class ListService {
     private let pluginService: PluginServicing
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateLoader: TemplateLoading
+    
+    public convenience init() {
+        self.init(
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
+            pluginService: PluginService(),
+            templatesDirectoryLocator: TemplatesDirectoryLocator(),
+            templateLoader: TemplateLoader()
+        )
+    }
 
     init(
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
-        pluginService: PluginServicing = PluginService(),
-        templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-        templateLoader: TemplateLoading = TemplateLoader()
+        configLoader: ConfigLoading,
+        pluginService: PluginServicing,
+        templatesDirectoryLocator: TemplatesDirectoryLocating,
+        templateLoader: TemplateLoading
     ) {
         self.configLoader = configLoader
         self.pluginService = pluginService
@@ -31,7 +40,7 @@ class ListService {
         self.templateLoader = templateLoader
     }
 
-    func run(path: String?, outputFormat format: OutputFormat) async throws {
+    public func run(path: String?, outputFormat format: OutputFormat) async throws {
         let path = try self.path(path)
 
         let plugins = try await loadPlugins(at: path)

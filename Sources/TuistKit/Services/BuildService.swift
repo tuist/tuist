@@ -50,7 +50,7 @@ public final class BuildService {
     }
 
     // swiftlint:disable:next function_body_length
-    func run(
+    public func run(
         schemeName: String?,
         generate: Bool,
         clean: Bool,

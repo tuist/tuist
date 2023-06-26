@@ -4,18 +4,18 @@ import TuistCore
 import TuistLoader
 import TuistSupport
 
-protocol CloudSessionServicing: AnyObject {
+public protocol CloudSessionServicing: AnyObject {
     /// It reads the cloud URL from the project's Config.swift and
     /// prints any existing session in the keychain to authenticate
     /// on a server identified by that URL.
     func printSession() throws
 }
 
-enum CloudSessionServiceError: FatalError, Equatable {
+public enum CloudSessionServiceError: FatalError, Equatable {
     case missingCloudURL
 
     /// Error description.
-    var description: String {
+    public var description: String {
         switch self {
         case .missingCloudURL:
             return "The cloud URL attribute is missing in your project's configuration."
@@ -23,7 +23,7 @@ enum CloudSessionServiceError: FatalError, Equatable {
     }
 
     /// Error type.
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .missingCloudURL:
             return .abort
@@ -31,13 +31,13 @@ enum CloudSessionServiceError: FatalError, Equatable {
     }
 }
 
-final class CloudSessionService: CloudSessionServicing {
+public final class CloudSessionService: CloudSessionServicing {
     let cloudSessionController: CloudSessionControlling
     let configLoader: ConfigLoading
 
     // MARK: - Init
 
-    convenience init() {
+    public convenience init() {
         let manifestLoader = ManifestLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         self.init(
@@ -56,7 +56,7 @@ final class CloudSessionService: CloudSessionServicing {
 
     // MARK: - CloudAuthServicing
 
-    func printSession() throws {
+    public func printSession() throws {
         let path = FileHandler.shared.currentPath
         let config = try configLoader.loadConfig(path: path)
         guard let cloudURL = config.cloud?.url else {

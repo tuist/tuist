@@ -7,8 +7,8 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 
-enum ScaffoldCommandError: FatalError, Equatable {
-    var type: ErrorType {
+public enum ScaffoldCommandError: FatalError, Equatable {
+    public var type: ErrorType {
         switch self {
         case .templateNotProvided:
             return .abort
@@ -17,7 +17,7 @@ enum ScaffoldCommandError: FatalError, Equatable {
 
     case templateNotProvided
 
-    var description: String {
+    public var description: String {
         switch self {
         case .templateNotProvided:
             return "You must provide template name"
@@ -25,14 +25,18 @@ enum ScaffoldCommandError: FatalError, Equatable {
     }
 }
 
-struct ScaffoldCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct ScaffoldCommand: AsyncParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "scaffold",
             abstract: "Generates new project based on a template",
             subcommands: [ListCommand.self]
         )
     }
+    
+    // MARK: - Arguments and Flags
 
     @Flag(
         help: "The output in JSON format"
@@ -54,10 +58,12 @@ struct ScaffoldCommand: AsyncParsableCommand {
     var requiredTemplateOptions: [String: String] = [:]
     var optionalTemplateOptions: [String: String?] = [:]
 
-    init() {}
+    // MARK: - Init
+    
+    public init() {}
 
     // Custom decoding to decode dynamic options
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         template = try container.decode(Argument<String>.self, forKey: .template).wrappedValue
         json = try container.decodeIfPresent(Option<Bool>.self, forKey: .json)?.wrappedValue ?? false
@@ -76,7 +82,9 @@ struct ScaffoldCommand: AsyncParsableCommand {
         }
     }
 
-    func run() async throws {
+    // MARK: - AsyncParsableCommand
+    
+    public func run() async throws {
         // Currently, @Argument and subcommand clashes, so we need to handle that ourselves
         if template == ListCommand.configuration.commandName {
             let format: ListService.OutputFormat = json ? .json : .table
@@ -184,7 +192,7 @@ extension ScaffoldCommand {
 /// ArgumentParser library gets the list of options from a mirror
 /// Since we do not declare template's options in advance, we need to rewrite the mirror implementation and add them ourselves
 extension ScaffoldCommand: CustomReflectable {
-    var customMirror: Mirror {
+    public var customMirror: Mirror {
         let requiredTemplateChildren = ScaffoldCommand.requiredTemplateOptions
             .map { Mirror.Child(label: $0.name, value: $0.option) }
         let optionalTemplateChildren = ScaffoldCommand.optionalTemplateOptions

@@ -6,13 +6,17 @@ import TuistCore
 import TuistLoader
 import TuistSupport
 
-final class CachePrintHashesService {
+public final class CachePrintHashesService {
     private let generatorFactory: GeneratorFactorying
     private let cacheGraphContentHasher: CacheGraphContentHashing
     private let clock: Clock
     private let configLoader: ConfigLoading
+    
+    public convenience init() {
+        self.init(contentHasher: CacheContentHasher())
+    }
 
-    convenience init(contentHasher: ContentHashing = CacheContentHasher()) {
+    convenience init(contentHasher: ContentHashing) {
         self.init(
             generatorFactory: GeneratorFactory(),
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
@@ -41,7 +45,7 @@ final class CachePrintHashesService {
         }
     }
 
-    func run(
+    public func run(
         path: String?,
         xcframeworks: Bool,
         destination: CacheXCFrameworkDestination,

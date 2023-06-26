@@ -2,8 +2,10 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-struct CloudSessionCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct CloudSessionCommand: ParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "session",
             _superCommandName: "cloud",
@@ -11,7 +13,13 @@ struct CloudSessionCommand: ParsableCommand {
         )
     }
 
-    func run() throws {
+    // MARK: - Init
+    
+    public init() {}
+    
+    // MARK: - ParseableCommand
+    
+    public func run() throws {
         try CloudSessionService().printSession()
     }
 }

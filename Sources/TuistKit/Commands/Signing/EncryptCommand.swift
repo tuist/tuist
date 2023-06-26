@@ -2,14 +2,18 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-struct EncryptCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct EncryptCommand: ParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "encrypt",
             _superCommandName: "signing",
             abstract: "Encrypts all files in Tuist/Signing directory"
         )
     }
+    
+    // MARK: - Arguments and Flags
 
     @Option(
         name: .shortAndLong,
@@ -17,8 +21,14 @@ struct EncryptCommand: ParsableCommand {
         completion: .directory
     )
     var path: String?
+    
+    // MARK: - Init
+    
+    public init() {}
 
-    func run() throws {
+    // MARK: - ParsableCommand
+    
+    public func run() throws {
         try EncryptService().run(path: path)
     }
 }

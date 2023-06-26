@@ -2,8 +2,10 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-struct PluginCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct PluginCommand: ParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "plugin",
             abstract: "A set of commands for plugin's management.",
@@ -16,11 +18,13 @@ struct PluginCommand: ParsableCommand {
         )
     }
 
-    enum PackageConfiguration: String, ExpressibleByArgument, RawRepresentable {
+    public enum PackageConfiguration: String, ExpressibleByArgument, RawRepresentable {
         case debug, release
     }
+    
+    // MARK: - Arguments and flags
 
-    struct PluginOptions: ParsableArguments {
+    public struct PluginOptions: ParsableArguments {
         @Option(
             name: .shortAndLong,
             help: "Choose configuration (default: debug)."
@@ -33,5 +37,11 @@ struct PluginCommand: ParsableCommand {
             completion: .directory
         )
         var path: String?
+        
+        public init() {}
     }
+    
+    // MARK: - Init
+    
+    public init() {}
 }

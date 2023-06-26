@@ -2,8 +2,8 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-final class VersionService {
-    func run() throws {
+public final class VersionService {
+    public func run() throws {
         logger.notice("\(Constants.version)")
     }
 }

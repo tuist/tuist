@@ -2,15 +2,23 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-struct VersionCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct VersionCommand: ParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "version",
             abstract: "Outputs the current version of tuist"
         )
     }
+    
+    // MARK: - Init
+    
+    public init() {}
+    
+    // MARK: - ParseableCommand
 
-    func run() throws {
+    public func run() throws {
         try VersionService().run()
     }
 }

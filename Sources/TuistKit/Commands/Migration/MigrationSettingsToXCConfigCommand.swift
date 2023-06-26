@@ -3,14 +3,18 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-struct MigrationSettingsToXCConfigCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct MigrationSettingsToXCConfigCommand: ParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "settings-to-xcconfig",
             _superCommandName: "migration",
             abstract: "It extracts the build settings from a project or a target into an xcconfig file."
         )
     }
+    
+    // MARK: - Arguments & Flags
 
     @Option(
         name: [.customShort("p"), .long],
@@ -32,8 +36,14 @@ struct MigrationSettingsToXCConfigCommand: ParsableCommand {
         completion: .default
     )
     var target: String?
+    
+    // MARK: - Init
+    
+    public init() {}
 
-    func run() throws {
+    // MARK: - ParsableCommand
+    
+    public func run() throws {
         try MigrationSettingsToXCConfigService().run(
             xcodeprojPath: xcodeprojPath,
             xcconfigPath: xcconfigPath,

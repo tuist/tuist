@@ -47,7 +47,7 @@ public final class GenerateService {
         self.pluginService = pluginService
     }
 
-    func run(
+    public func run(
         path: String?,
         sources: Set<String>,
         noOpen: Bool,

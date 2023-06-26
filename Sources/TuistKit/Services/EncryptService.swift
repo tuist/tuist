@@ -4,14 +4,18 @@ import TuistCore
 import TuistSigning
 import TuistSupport
 
-final class EncryptService {
+public final class EncryptService {
     private let signingCipher: SigningCiphering
+    
+    public convenience init() {
+        self.init(signingCipher: SigningCipher())
+    }
 
-    init(signingCipher: SigningCiphering = SigningCipher()) {
+    init(signingCipher: SigningCiphering) {
         self.signingCipher = signingCipher
     }
 
-    func run(path: String?) throws {
+    public func run(path: String?) throws {
         let path = try self.path(path)
         try signingCipher.encryptSigning(at: path, keepFiles: false)
 

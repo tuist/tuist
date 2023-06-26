@@ -8,12 +8,12 @@ import TuistGraph
 import TuistLoader
 import TuistSupport
 
-enum TestServiceError: FatalError {
+public enum TestServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
     case schemeWithoutTestableTargets(scheme: String)
 
     // Error description
-    var description: String {
+    public var description: String {
         switch self {
         case let .schemeNotFound(scheme, existing):
             return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
@@ -23,7 +23,7 @@ enum TestServiceError: FatalError {
     }
 
     // Error type
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .schemeNotFound, .schemeWithoutTestableTargets:
             return .abort
@@ -31,7 +31,7 @@ enum TestServiceError: FatalError {
     }
 }
 
-final class TestService {
+public final class TestService {
     private let generatorFactory: GeneratorFactorying
     private let xcodebuildController: XcodeBuildControlling
     private let buildGraphInspector: BuildGraphInspecting
@@ -41,7 +41,7 @@ final class TestService {
     private let testsCacheTemporaryDirectory: TemporaryDirectory
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
 
-    convenience init() throws {
+    public convenience init() throws {
         let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         self.init(
             testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
@@ -68,7 +68,7 @@ final class TestService {
     }
 
     // swiftlint:disable:next function_body_length
-    func run(
+    public func run(
         schemeName: String?,
         clean: Bool,
         configuration: String?,

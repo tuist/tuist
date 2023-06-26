@@ -4,17 +4,17 @@ import TuistCloud
 import TuistLoader
 import TuistSupport
 
-protocol CloudCleanServicing {
+public protocol CloudCleanServicing {
     func clean(
         path: String?
     ) async throws
 }
 
-enum CloudCleanServiceError: FatalError, Equatable {
+public enum CloudCleanServiceError: FatalError, Equatable {
     case invalidCloudURL(String)
 
     /// Error description.
-    var description: String {
+    public var description: String {
         switch self {
         case let .invalidCloudURL(url):
             return "The cloud URL \(url) is invalid."
@@ -22,7 +22,7 @@ enum CloudCleanServiceError: FatalError, Equatable {
     }
 
     /// Error type.
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .invalidCloudURL:
             return .abort
@@ -30,22 +30,32 @@ enum CloudCleanServiceError: FatalError, Equatable {
     }
 }
 
-final class CloudCleanService: CloudCleanServicing {
+public final class CloudCleanService: CloudCleanServicing {
     private let cloudSessionController: CloudSessionControlling
     private let cleanRemoteCacheStorageService: CleanRemoteCacheStorageServicing
     private let configLoader: ConfigLoading
 
+    public convenience init() {
+        self.init(
+            cloudSessionController: CloudSessionController(),
+            cleanRemoteCacheStorageService: CleanRemoteCacheStorageService(),
+            configLoader: ConfigLoader()
+        )
+    }
+    
     init(
-        cloudSessionController: CloudSessionControlling = CloudSessionController(),
-        cleanRemoteCacheStorageService: CleanRemoteCacheStorageServicing = CleanRemoteCacheStorageService(),
+        cloudSessionController: CloudSessionControlling,
+        cleanRemoteCacheStorageService: CleanRemoteCacheStorageServicing,
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.cloudSessionController = cloudSessionController
         self.cleanRemoteCacheStorageService = cleanRemoteCacheStorageService
         self.configLoader = configLoader
     }
+    
+    // MARK: - CloudCleanServicing
 
-    func clean(path: String?) async throws {
+    public func clean(path: String?) async throws {
         let path: AbsolutePath = try self.path(path)
         let config = try configLoader.loadConfig(path: path)
 

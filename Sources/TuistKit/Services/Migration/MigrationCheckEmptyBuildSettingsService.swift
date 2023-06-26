@@ -3,20 +3,24 @@ import TSCBasic
 import TuistMigration
 import TuistSupport
 
-class MigrationCheckEmptyBuildSettingsService {
+public class MigrationCheckEmptyBuildSettingsService {
     // MARK: - Attributes
 
     private let emptyBuildSettingsChecker: EmptyBuildSettingsChecking
 
     // MARK: - Init
+    
+    public convenience init() {
+        self.init(emptyBuildSettingsChecker: EmptyBuildSettingsChecker())
+    }
 
-    init(emptyBuildSettingsChecker: EmptyBuildSettingsChecking = EmptyBuildSettingsChecker()) {
+    init(emptyBuildSettingsChecker: EmptyBuildSettingsChecking) {
         self.emptyBuildSettingsChecker = emptyBuildSettingsChecker
     }
 
     // MARK: - Internal
 
-    func run(xcodeprojPath: AbsolutePath, target: String?) throws {
+    public func run(xcodeprojPath: AbsolutePath, target: String?) throws {
         try emptyBuildSettingsChecker.check(xcodeprojPath: xcodeprojPath, targetName: target)
     }
 }

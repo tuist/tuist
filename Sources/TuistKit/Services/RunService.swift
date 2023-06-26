@@ -8,13 +8,13 @@ import TuistGraph
 import TuistLoader
 import TuistSupport
 
-enum RunServiceError: FatalError {
+public enum RunServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
     case schemeWithoutRunnableTarget(scheme: String)
     case invalidVersion(String)
     case workspaceNotFound(path: String)
 
-    var description: String {
+    public var description: String {
         switch self {
         case let .schemeNotFound(scheme, existing):
             return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
@@ -27,7 +27,7 @@ enum RunServiceError: FatalError {
         }
     }
 
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .schemeNotFound,
              .schemeWithoutRunnableTarget,
@@ -39,17 +39,26 @@ enum RunServiceError: FatalError {
     }
 }
 
-final class RunService {
+public final class RunService {
     private let generatorFactory: GeneratorFactorying
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding
     private let targetRunner: TargetRunning
+    
+    public convenience init() {
+        self.init(
+            generatorFactory: GeneratorFactory(),
+            buildGraphInspector: BuildGraphInspector(),
+            targetBuilder: TargetBuilder(),
+            targetRunner: TargetRunner()
+        )
+    }
 
     init(
-        generatorFactory: GeneratorFactorying = GeneratorFactory(),
-        buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
-        targetBuilder: TargetBuilding = TargetBuilder(),
-        targetRunner: TargetRunning = TargetRunner()
+        generatorFactory: GeneratorFactorying,
+        buildGraphInspector: BuildGraphInspecting,
+        targetBuilder: TargetBuilding,
+        targetRunner: TargetRunning
     ) {
         self.generatorFactory = generatorFactory
         self.buildGraphInspector = buildGraphInspector
@@ -58,7 +67,7 @@ final class RunService {
     }
 
     // swiftlint:disable:next function_body_length
-    func run(
+    public func run(
         path: String?,
         schemeName: String,
         generate: Bool,

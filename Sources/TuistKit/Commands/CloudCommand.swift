@@ -2,8 +2,10 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-struct CloudCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct CloudCommand: ParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "cloud",
             abstract: "A set of commands to interact with the cloud.",
@@ -16,4 +18,8 @@ struct CloudCommand: ParsableCommand {
             ]
         )
     }
+    
+    // MARK: - Init
+    
+    public init() {}
 }

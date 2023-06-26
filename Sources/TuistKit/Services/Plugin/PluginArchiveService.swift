@@ -5,22 +5,29 @@ import TuistDependencies
 import TuistLoader
 import TuistSupport
 
-final class PluginArchiveService {
+public final class PluginArchiveService {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let manifestLoader: ManifestLoading
     private let fileArchiverFactory: FileArchivingFactorying
+    
+    public convenience init() {
+        self.init(swiftPackageManagerController: SwiftPackageManagerController(),
+                  manifestLoader: ManifestLoader(),
+                  fileArchiverFactory: FileArchivingFactory()
+        )
+    }
 
     init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
-        manifestLoader: ManifestLoading = ManifestLoader(),
-        fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory()
+        swiftPackageManagerController: SwiftPackageManagerControlling,
+        manifestLoader: ManifestLoading,
+        fileArchiverFactory: FileArchivingFactorying
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.manifestLoader = manifestLoader
         self.fileArchiverFactory = fileArchiverFactory
     }
 
-    func run(path: String?) throws {
+    public func run(path: String?) throws {
         let path = try self.path(path)
 
         let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: path)

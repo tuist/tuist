@@ -6,19 +6,19 @@ import TuistPlugin
 import TuistScaffold
 import TuistSupport
 
-enum ScaffoldServiceError: FatalError, Equatable {
-    var type: ErrorType {
+public enum ScaffoldServiceError: FatalError, Equatable {
+    case templateNotFound(String, searchPaths: [AbsolutePath])
+    case nonEmptyDirectory(AbsolutePath)
+    case attributeNotProvided(String)
+
+    public var type: ErrorType {
         switch self {
         case .templateNotFound, .nonEmptyDirectory, .attributeNotProvided:
             return .abort
         }
     }
-
-    case templateNotFound(String, searchPaths: [AbsolutePath])
-    case nonEmptyDirectory(AbsolutePath)
-    case attributeNotProvided(String)
-
-    var description: String {
+    
+    public var description: String {
         switch self {
         case let .templateNotFound(template, searchPaths):
             let searchDirectories = searchPaths
@@ -33,19 +33,29 @@ enum ScaffoldServiceError: FatalError, Equatable {
     }
 }
 
-final class ScaffoldService {
+public final class ScaffoldService {
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
     private let configLoader: ConfigLoading
     private let pluginService: PluginServicing
+    
+    public convenience init() {
+        self.init(
+            templateLoader:TemplateLoader(),
+            templatesDirectoryLocator: TemplatesDirectoryLocator(),
+            templateGenerator: TemplateGenerator(),
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
+            pluginService: PluginService()
+        )
+    }
 
     init(
-        templateLoader: TemplateLoading = TemplateLoader(),
-        templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-        templateGenerator: TemplateGenerating = TemplateGenerator(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
-        pluginService: PluginServicing = PluginService()
+        templateLoader: TemplateLoading,
+        templatesDirectoryLocator: TemplatesDirectoryLocating,
+        templateGenerator: TemplateGenerating,
+        configLoader: ConfigLoading,
+        pluginService: PluginServicing
     ) {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
@@ -78,7 +88,7 @@ final class ScaffoldService {
         }
     }
 
-    func run(
+    public func run(
         path: String?,
         templateName: String,
         requiredTemplateOptions: [String: String],

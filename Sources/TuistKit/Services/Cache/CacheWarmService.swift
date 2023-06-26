@@ -8,18 +8,18 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 
-final class CacheWarmService {
+public final class CacheWarmService {
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
     private let pluginService: PluginServicing
 
-    init() {
+    public init() {
         configLoader = ConfigLoader(manifestLoader: ManifestLoader())
         manifestLoader = ManifestLoader()
         pluginService = PluginService()
     }
 
-    func run(
+    public func run(
         path: String?,
         profile: String?,
         xcframeworks: Bool,

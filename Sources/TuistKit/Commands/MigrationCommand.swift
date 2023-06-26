@@ -2,8 +2,10 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-struct MigrationCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct MigrationCommand: ParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "migration",
             abstract: "A set of utilities to assist in the migration of Xcode projects to Tuist.",
@@ -14,4 +16,8 @@ struct MigrationCommand: ParsableCommand {
             ]
         )
     }
+    
+    // MARK: - Init
+    
+    public init() {}
 }

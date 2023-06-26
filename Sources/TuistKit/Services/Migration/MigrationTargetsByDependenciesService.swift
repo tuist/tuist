@@ -3,20 +3,24 @@ import TSCBasic
 import TuistMigration
 import TuistSupport
 
-final class MigrationTargetsByDependenciesService {
+public final class MigrationTargetsByDependenciesService {
     // MARK: - Attributes
 
     private let targetsExtractor: TargetsExtracting
 
     // MARK: - Init
+    
+    public convenience init() {
+        self.init(targetsExtractor: TargetsExtractor())
+    }
 
-    init(targetsExtractor: TargetsExtracting = TargetsExtractor()) {
+    init(targetsExtractor: TargetsExtracting) {
         self.targetsExtractor = targetsExtractor
     }
 
     // MARK: - Internal
 
-    func run(xcodeprojPath: AbsolutePath) throws {
+    public func run(xcodeprojPath: AbsolutePath) throws {
         let sortedTargets = try targetsExtractor.targetsSortedByDependencies(xcodeprojPath: xcodeprojPath)
         let sortedTargetsJson = try makeJson(from: sortedTargets)
         logger.info("\(sortedTargetsJson)")

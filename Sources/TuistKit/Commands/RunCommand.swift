@@ -3,8 +3,10 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-struct RunCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct RunCommand: AsyncParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "run",
             abstract: "Runs a scheme or target in the project",
@@ -20,6 +22,8 @@ struct RunCommand: AsyncParsableCommand {
         )
     }
 
+    // MARK: - Arguments and Flags
+    
     @Flag(help: "Force the generation of the project before running.")
     var generate: Bool = false
 
@@ -57,7 +61,12 @@ struct RunCommand: AsyncParsableCommand {
     )
     var arguments: [String] = []
 
-    func run() async throws {
+    // MARK: - Init
+    
+    public init() {}
+    
+    // MARK: - AsyncParsableCommand
+    public func run() async throws {
         try await RunService().run(
             path: path,
             schemeName: scheme,

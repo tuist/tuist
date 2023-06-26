@@ -1,8 +1,10 @@
 import TSCBasic
 import TuistSupport
 
-final class PluginRunService {
-    func run(
+public final class PluginRunService {
+    public init() {}
+    
+    public func run(
         path: String?,
         configuration: PluginCommand.PackageConfiguration,
         buildTests: Bool,

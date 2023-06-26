@@ -11,11 +11,11 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 
-final class GraphService {
+public final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping
     private let manifestGraphLoader: ManifestGraphLoading
 
-    convenience init() {
+    public convenience init() {
         let manifestLoader = ManifestLoaderFactory()
             .createManifestLoader()
         let manifestGraphLoader = ManifestGraphLoader(
@@ -38,7 +38,7 @@ final class GraphService {
         self.manifestGraphLoader = manifestGraphLoader
     }
 
-    func run(
+    public func run(
         format: GraphFormat,
         layoutAlgorithm: GraphViz.LayoutAlgorithm,
         skipTestTargets: Bool,

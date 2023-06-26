@@ -5,14 +5,18 @@ import TuistCore
 import TuistSigning
 import TuistSupport
 
-struct DecryptCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct DecryptCommand: ParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "decrypt",
             _superCommandName: "signing",
             abstract: "Decrypts all files in Tuist/Signing directory"
         )
     }
+    
+    // MARK: - Arguments and Flags
 
     @Option(
         name: .shortAndLong,
@@ -20,8 +24,14 @@ struct DecryptCommand: ParsableCommand {
         completion: .directory
     )
     var path: String?
+    
+    // MARK: - Init
+    
+    public init() {}
 
-    func run() throws {
+    // MARK: - ParsableCommand
+    
+    public func run() throws {
         try DecryptService().run(path: path)
     }
 }

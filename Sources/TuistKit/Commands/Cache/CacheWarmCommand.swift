@@ -6,10 +6,12 @@ import TuistCache
 import TuistSupport
 
 /// Command to cache targets as `.(xc)framework`s and speed up your and your peers' build times.
-struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
-
-    static var configuration: CommandConfiguration {
+    
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "warm",
             _superCommandName: "cache",
@@ -32,13 +34,19 @@ struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var dependenciesOnly: Bool = false
 
-    func validate() throws {
+    public func validate() throws {
         if !options.xcframeworks, options.destination != [.device, .simulator] {
             throw ValidationError.invalidXCFrameworkOptions
         }
     }
+    
+    // MARK: - Init
+    
+    public init() {}
+    
+    // MARK: - AsyncParsableCommand
 
-    func run() async throws {
+    public func run() async throws {
         try await CacheWarmService().run(
             path: options.path,
             profile: options.profile,
@@ -57,11 +65,11 @@ struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
             ]
         )
     }
-
-    enum ValidationError: LocalizedError {
+    
+    public enum ValidationError: LocalizedError {
         case invalidXCFrameworkOptions
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .invalidXCFrameworkOptions:
                 return "--xcframeworks must be enabled when --destination is set"

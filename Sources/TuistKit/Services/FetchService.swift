@@ -41,7 +41,7 @@ public final class FetchService {
         self.converter = converter
     }
 
-    func run(
+    public func run(
         path: String?,
         update: Bool
     ) async throws {

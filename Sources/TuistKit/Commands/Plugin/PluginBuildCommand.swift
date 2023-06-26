@@ -2,14 +2,18 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-struct PluginBuildCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct PluginBuildCommand: ParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build",
             abstract: "Builds a plugin."
         )
     }
 
+    // MARK: - Arguments and Flags
+    
     @OptionGroup()
     var pluginOptions: PluginCommand.PluginOptions
 
@@ -32,8 +36,14 @@ struct PluginBuildCommand: ParsableCommand {
         help: "Build the specified products."
     )
     var products: [String] = []
+    
+    // MARK: - Init
+    
+    public init() {}
 
-    func run() throws {
+    // MARK: - ParsableCommand
+    
+    public func run() throws {
         try PluginBuildService().run(
             path: pluginOptions.path,
             configuration: pluginOptions.configuration,
