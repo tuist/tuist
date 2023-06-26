@@ -39,7 +39,8 @@ final class FetchServiceTests: TuistUnitTestCase {
             configLoader: configLoader,
             manifestLoader: manifestLoader,
             dependenciesController: dependenciesController,
-            dependenciesModelLoader: dependenciesModelLoader
+            dependenciesModelLoader: dependenciesModelLoader,
+            converter:  ManifestModelConverter()
         )
     }
 

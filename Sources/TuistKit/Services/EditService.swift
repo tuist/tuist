@@ -6,17 +6,17 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 
-enum EditServiceError: FatalError {
+public enum EditServiceError: FatalError {
     case xcodeNotSelected
 
-    var description: String {
+    public var description: String {
         switch self {
         case .xcodeNotSelected:
             return "Couldn't determine the Xcode version to open the project. Make sure your Xcode installation is selected with 'xcode-select -s'."
         }
     }
 
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .xcodeNotSelected:
             return .abort
@@ -24,7 +24,7 @@ enum EditServiceError: FatalError {
     }
 }
 
-final class EditService {
+public final class EditService {
     private let projectEditor: ProjectEditing
     private let opener: Opening
     private let configLoader: ConfigLoading
@@ -32,13 +32,23 @@ final class EditService {
     private let signalHandler: SignalHandling
 
     private static var temporaryDirectory: AbsolutePath?
+    
+    public convenience init() {
+        self.init(
+            projectEditor: ProjectEditor(),
+            opener: Opener(),
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
+            pluginService: PluginService(),
+            signalHandler: SignalHandler()
+        )
+    }
 
-    init(
-        projectEditor: ProjectEditing = ProjectEditor(),
-        opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
-        pluginService: PluginServicing = PluginService(),
-        signalHandler: SignalHandling = SignalHandler()
+    private init(
+        projectEditor: ProjectEditing,
+        opener: Opening,
+        configLoader: ConfigLoading,
+        pluginService: PluginServicing,
+        signalHandler: SignalHandling
     ) {
         self.projectEditor = projectEditor
         self.opener = opener
@@ -47,7 +57,7 @@ final class EditService {
         self.signalHandler = signalHandler
     }
 
-    func run(
+    public func run(
         path: String?,
         permanent: Bool,
         onlyCurrentDirectory: Bool

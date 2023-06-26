@@ -4,61 +4,71 @@ import TSCBasic
 import TuistSupport
 
 /// Command that builds a target from the project in the current directory.
-struct BuildCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct BuildCommand: AsyncParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build",
             abstract: "Builds a project"
         )
     }
+    
+    // MARK: - Arguments and flags
 
     @Argument(
         help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory."
     )
-    var scheme: String?
+    public var scheme: String?
 
     @Flag(
         help: "Force the generation of the project before building."
     )
-    var generate: Bool = false
+    public var generate: Bool = false
 
     @Flag(
         help: "When passed, it cleans the project before building it"
     )
-    var clean: Bool = false
+    public var clean: Bool = false
 
     @Option(
         name: .shortAndLong,
         help: "The path to the directory that contains the project to be built.",
         completion: .directory
     )
-    var path: String?
+    public var path: String?
 
     @Option(
         name: .shortAndLong,
         help: "Build on a specific device."
     )
-    var device: String?
+    public var device: String?
 
     @Option(
         name: .shortAndLong,
         help: "Build with a specific version of the OS."
     )
-    var os: String?
+    public var os: String?
 
     @Option(
         name: [.long, .customShort("C")],
         help: "The configuration to be used when building the scheme."
     )
-    var configuration: String?
+    public var configuration: String?
 
     @Option(
         help: "The directory where build products will be copied to when the project is built.",
         completion: .directory
     )
-    var buildOutputPath: String?
+    public var buildOutputPath: String?
+    
+    // MARK: - Init
+    
+    public init() {}
+    
+    // MARK: - AsyncParsableCommand
 
-    func run() async throws {
+    public func run() async throws {
         let absolutePath: AbsolutePath
         if let path = path {
             absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)

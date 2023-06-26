@@ -7,12 +7,12 @@ import TuistGraph
 import TuistLoader
 import TuistSupport
 
-enum BuildServiceError: FatalError {
+public enum BuildServiceError: FatalError {
     case workspaceNotFound(path: String)
     case schemeWithoutBuildableTargets(scheme: String)
     case schemeNotFound(scheme: String, existing: [String])
 
-    var description: String {
+    public var description: String {
         switch self {
         case let .schemeWithoutBuildableTargets(scheme):
             return "The scheme \(scheme) cannot be built because it contains no buildable targets."
@@ -23,7 +23,7 @@ enum BuildServiceError: FatalError {
         }
     }
 
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .workspaceNotFound:
             return .bug
@@ -34,7 +34,7 @@ enum BuildServiceError: FatalError {
     }
 }
 
-final class BuildService {
+public final class BuildService {
     private let generatorFactory: GeneratorFactorying
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding

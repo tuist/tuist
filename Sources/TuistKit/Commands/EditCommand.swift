@@ -4,13 +4,17 @@ import TSCBasic
 import TuistGenerator
 import TuistSupport
 
-struct EditCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct EditCommand: AsyncParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "edit",
             abstract: "Generates a temporary project to edit the project in the current directory"
         )
     }
+    
+    // MARK: - Arguments and flags
 
     @Option(
         name: .shortAndLong,
@@ -30,8 +34,14 @@ struct EditCommand: AsyncParsableCommand {
         help: "It only includes the manifest in the current directory."
     )
     var onlyCurrentDirectory: Bool = false
+    
+    // MARK: - Init
+    
+    public init() {}
 
-    func run() async throws {
+    // MARK: - AsyncParsableCommand
+    
+    public func run() async throws {
         try await EditService().run(
             path: path,
             permanent: permanent,

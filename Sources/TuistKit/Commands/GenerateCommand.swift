@@ -4,16 +4,20 @@ import Foundation
 import TuistCache
 import TuistCore
 
-struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
+public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
+    
+    // MARK: - Configuration
 
-    static var configuration: CommandConfiguration {
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "generate",
             abstract: "Generates an Xcode workspace to start working on the project.",
             subcommands: []
         )
     }
+    
+    // MARK: - Arguments and flags
 
     @Option(
         name: .shortAndLong,
@@ -60,13 +64,18 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var ignoreCache: Bool = false
 
-    func validate() throws {
+    public func validate() throws {
         if !xcframeworks, destination != [.device, .simulator] {
             throw ValidationError.invalidXCFrameworkOptions
         }
     }
+    // MARK: - Init
+    
+    public init() {}
 
-    func run() async throws {
+    // MARK: - AsyncParsableCommand
+    
+    public func run() async throws {
         try await GenerateService().run(
             path: path,
             sources: Set(sources),
@@ -89,10 +98,10 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
         )
     }
 
-    enum ValidationError: LocalizedError {
+    public enum ValidationError: LocalizedError {
         case invalidXCFrameworkOptions
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .invalidXCFrameworkOptions:
                 return "--xcframeworks must be enabled when --destination is set"

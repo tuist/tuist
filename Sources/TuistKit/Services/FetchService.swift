@@ -7,7 +7,7 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 
-final class FetchService {
+public final class FetchService {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
@@ -15,13 +15,23 @@ final class FetchService {
     private let dependenciesModelLoader: DependenciesModelLoading
     private let converter: ManifestModelConverting
 
+    public convenience init() {
+        self.init(
+            pluginService: PluginService(),
+            configLoader: ConfigLoader(manifestLoader: CachedManifestLoader()),
+            manifestLoader: ManifestLoader(),
+            dependenciesController: DependenciesController(),
+            dependenciesModelLoader: DependenciesModelLoader(),
+            converter: ManifestModelConverter())
+    }
+    
     init(
-        pluginService: PluginServicing = PluginService(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader()),
-        manifestLoader: ManifestLoading = ManifestLoader(),
-        dependenciesController: DependenciesControlling = DependenciesController(),
-        dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader(),
-        converter: ManifestModelConverting = ManifestModelConverter()
+        pluginService: PluginServicing,
+        configLoader: ConfigLoading,
+        manifestLoader: ManifestLoading,
+        dependenciesController: DependenciesControlling,
+        dependenciesModelLoader: DependenciesModelLoading,
+        converter: ManifestModelConverting
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader

@@ -5,15 +5,16 @@ import TuistGraph
 import TuistLoader
 import TuistSupport
 
-final class CleanService {
+public final class CleanService {
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
-    init(
+    
+    public init(
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
     ) {
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
     }
 
-    func run(
+    public func run(
         categories: [CleanCategory],
         path: String?
     ) throws {

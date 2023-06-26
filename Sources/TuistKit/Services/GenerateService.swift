@@ -8,7 +8,7 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 
-final class GenerateService {
+public final class GenerateService {
     private let opener: Opening
     private let clock: Clock
     private let timeTakenLoggerFormatter: TimeTakenLoggerFormatting
@@ -17,14 +17,26 @@ final class GenerateService {
     private let manifestLoader: ManifestLoading
     private let pluginService: PluginServicing
 
+    public convenience init() {
+        self.init(
+            clock: WallClock(),
+            timeTakenLoggerFormatter: TimeTakenLoggerFormatter(),
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
+            manifestLoader: ManifestLoader(),
+            opener: Opener(),
+            generatorFactory: GeneratorFactory(),
+            pluginService: PluginService()
+        )
+    }
+    
     init(
-        clock: Clock = WallClock(),
-        timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
-        manifestLoader: ManifestLoading = ManifestLoader(),
-        opener: Opening = Opener(),
-        generatorFactory: GeneratorFactorying = GeneratorFactory(),
-        pluginService: PluginServicing = PluginService()
+        clock: Clock,
+        timeTakenLoggerFormatter: TimeTakenLoggerFormatting,
+        configLoader: ConfigLoading,
+        manifestLoader: ManifestLoading,
+        opener: Opening,
+        generatorFactory: GeneratorFactorying,
+        pluginService: PluginServicing
     ) {
         self.clock = clock
         self.timeTakenLoggerFormatter = timeTakenLoggerFormatter

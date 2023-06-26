@@ -3,6 +3,8 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistLoader
+import TuistSupport
+import TuistPlugin
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting
@@ -31,7 +33,15 @@ final class GenerateServiceTests: TuistUnitTestCase {
         generatorFactory = MockGeneratorFactory()
         generatorFactory.stubbedFocusResult = generator
         clock = StubClock()
-        subject = GenerateService(clock: clock, opener: opener, generatorFactory: generatorFactory)
+        subject = GenerateService(
+            clock: clock,
+            timeTakenLoggerFormatter: TimeTakenLoggerFormatter(),
+            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
+            manifestLoader: ManifestLoader(),
+            opener: opener,
+            generatorFactory: generatorFactory,
+            pluginService: PluginService()
+        )
     }
 
     override func tearDown() {

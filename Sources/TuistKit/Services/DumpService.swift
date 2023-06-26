@@ -5,14 +5,14 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 
-final class DumpService {
+public final class DumpService {
     private let manifestLoader: ManifestLoading
 
-    init(manifestLoader: ManifestLoading = ManifestLoader()) {
+    public init(manifestLoader: ManifestLoading = ManifestLoader()) {
         self.manifestLoader = manifestLoader
     }
 
-    func run(path: String?, manifest: DumpableManifest) async throws {
+    public func run(path: String?, manifest: DumpableManifest) async throws {
         let projectPath: AbsolutePath
         if let path = path {
             projectPath = try AbsolutePath(validating: path, relativeTo: AbsolutePath.current)
@@ -48,7 +48,7 @@ final class DumpService {
     }
 }
 
-enum DumpableManifest: String, CaseIterable {
+public enum DumpableManifest: String, CaseIterable {
     case project
     case workspace
     case config

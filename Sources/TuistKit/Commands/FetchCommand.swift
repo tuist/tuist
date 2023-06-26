@@ -8,13 +8,17 @@ enum FetchCategory: String, CaseIterable, RawRepresentable, ExpressibleByArgumen
 }
 
 /// A command to fetch any remote content necessary to interact with the project.
-struct FetchCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct FetchCommand: AsyncParsableCommand {
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "fetch",
             abstract: "Fetches any remote content necessary to interact with the project."
         )
     }
+    
+    // MARK: - Aarguments and flags
 
     @Option(
         name: .shortAndLong,
@@ -28,8 +32,14 @@ struct FetchCommand: AsyncParsableCommand {
         help: "Instead of simple fetch, update external content when available."
     )
     var update: Bool = false
+    
+    // MARK: - Init
+    
+    public init() {}
 
-    func run() async throws {
+    // MARK: - AsyncParsableCommand
+    
+    public func run() async throws {
         try await FetchService().run(
             path: path,
             update: update

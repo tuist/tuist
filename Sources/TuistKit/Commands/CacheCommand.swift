@@ -2,8 +2,11 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-struct CacheCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct CacheCommand: ParsableCommand {
+    
+    // MARK: - Configuration
+    
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "cache",
             abstract: "A set of utilities related to the caching of targets.",
@@ -13,4 +16,8 @@ struct CacheCommand: ParsableCommand {
             ]
         )
     }
+    
+    // MARK: - Init
+    
+    public init() {}
 }
