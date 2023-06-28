@@ -75,7 +75,7 @@ struct TestCommand: AsyncParsableCommand {
     @Option(
         name: .long,
         parsing: .upToNextOption,
-        help: "The list of test identifiers you want to test. Takes precedence over --skip-testing",
+        help: "The list of test identifiers you want to test. Expected format is TestTarget[/TestClass[/TestMethod]]. It is applied before --skip-testing",
         transform: TestIdentifier.init(string:)
     )
     var testTargets: [TestIdentifier] = []
@@ -83,7 +83,7 @@ struct TestCommand: AsyncParsableCommand {
     @Option(
         name: .long,
         parsing: .upToNextOption,
-        help: "The list of test identifiers you want to skip testing.",
+        help: "The list of test identifiers you want to skip testing. Expected format is TestTarget[/TestClass[/TestMethod]].",
         transform: TestIdentifier.init(string:)
     )
     var skipTestTargets: [TestIdentifier] = []
@@ -91,7 +91,7 @@ struct TestCommand: AsyncParsableCommand {
     @Option(
         name: .long,
         parsing: .upToNextOption,
-        help: "The list of configurations you want to test. Takes precedence over --skip-test-configuration"
+        help: "The list of configurations you want to test. It is applied before --skip-test-configuration"
     )
     var testConfigurations: [String] = []
 
