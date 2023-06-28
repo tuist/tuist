@@ -12,8 +12,8 @@ public enum DeploymentTarget: Codable, Hashable {
     case watchOS(targetVersion: String)
     /// The minimum tvOS version your product will support.
     case tvOS(targetVersion: String)
-    /// The minimum visionOS version and the list of devices your product will support.
-    case visionOS(targetVersion: String, devices: DeploymentDevice)
+    /// The minimum visionOS version your product will support.
+    case visionOS(targetVersion: String)
 
     private enum Kind: String, Codable {
         case iOS
@@ -27,7 +27,7 @@ public enum DeploymentTarget: Codable, Hashable {
     public var targetVersion: String {
         switch self {
         case let .iOS(targetVersion, _, _), let .macOS(targetVersion), let .watchOS(targetVersion),
-             let .tvOS(targetVersion), let .visionOS(targetVersion, _):
+             let .tvOS(targetVersion), let .visionOS(targetVersion):
             return targetVersion
         }
     }

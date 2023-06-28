@@ -284,7 +284,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             case .watchOS:
                 acc[.watchOS] = .watchOS(targetVersion: next.value)
             case .visionOS:
-                acc[.visionOS] = .visionOS(targetVersion: next.value, devices: [.ipad, .iphone, .vision])
+                acc[.visionOS] = .visionOS(targetVersion: next.value)
             }
         }
 
@@ -577,7 +577,7 @@ extension ProjectDescription.DeploymentTarget {
             case .tvOS:
                 return .tvOS(targetVersion: targetVersion)
             case .visionOS:
-                return .visionOS(targetVersion: targetVersion, devices: [.iphone, .ipad, .vision])
+                return .visionOS(targetVersion: targetVersion)
             }
         } else {
             return minDeploymentTargets[platform]!
@@ -1170,8 +1170,8 @@ extension ProjectDescription.DeploymentTarget {
             return .tvOS(targetVersion: version)
         case let .watchOS(version):
             return .watchOS(targetVersion: version)
-        case let .visionOS(version, devices):
-            return .visionOS(targetVersion: version, devices: .from(devices: devices))
+        case let .visionOS(version):
+            return .visionOS(targetVersion: version)
         }
     }
 }

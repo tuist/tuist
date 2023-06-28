@@ -22,8 +22,8 @@ extension TuistGraph.DeploymentTarget {
             return .watchOS(version)
         case let .tvOS(version):
             return .tvOS(version)
-        case let .visionOS(version, devices):
-            return .visionOS(version, DeploymentDevice(rawValue: devices.rawValue))
+        case let .visionOS(version):
+            return .visionOS(version)
         }
     }
 }

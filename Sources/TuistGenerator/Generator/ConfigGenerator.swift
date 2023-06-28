@@ -313,11 +313,8 @@ final class ConfigGenerator: ConfigGenerating {
             settings["WATCHOS_DEPLOYMENT_TARGET"] = .string(version)
         case let .tvOS(version):
             settings["TVOS_DEPLOYMENT_TARGET"] = .string(version)
-        case let .visionOS(version, devices):
-            var deviceFamilyValues: [Int] = []
-            if devices.contains(.iphone) { deviceFamilyValues.append(1) }
-            if devices.contains(.ipad) { deviceFamilyValues.append(2) }
-            if devices.contains(.vision) { deviceFamilyValues.append(7) }
+        case let .visionOS(version):
+            let deviceFamilyValues = [1, 2, 7]
 
             settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
 
