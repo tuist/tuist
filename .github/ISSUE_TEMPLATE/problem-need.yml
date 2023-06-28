@@ -1,5 +1,5 @@
 name: Problem or need
-description: Please report any problems or needs that you have encountered which Tuist currently does not address or inadequately solves. Your feedback is valuable in helping us identify areas for improvement and enhance the functionality of Tuist. Thank you for your contribution!
+description: Please report any problems or needs that you have encountered which Tuist currently does not address or inadequately solves.
 title: "Insert title here"
 labels: ["type:need/problem"]
 body:
