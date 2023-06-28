@@ -23,8 +23,8 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
 
     @Option(
-        help: "The platform (ios, tvos, realityos, watchos or macos) the product will be for (Default: ios)",
-        completion: .list(["ios", "tvos", "macos", "realityos", "watchos"])
+        help: "The platform (ios, tvos, visionos, watchos or macos) the product will be for (Default: ios)",
+        completion: .list(["ios", "tvos", "macos", "visionos", "watchos"])
     )
     var platform: String?
 
