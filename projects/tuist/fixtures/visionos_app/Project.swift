@@ -2,9 +2,6 @@ import ProjectDescription
 
 let project = Project(
     name: "App",
-    packages: [
-        .package(url: "https://github.com/ReactiveX/RxSwift", .upToNextMajor(from: "5.0.0")),
-    ],
     targets: [
         Target(
             name: "App",
@@ -16,10 +13,6 @@ let project = Project(
             resources: [
                 /* Path to resources can be defined here */
                 // "Resources/**"
-            ],
-            dependencies: [
-                .package(product: "RxSwift"),
-                .package(product: "RxBlocking"),
             ]
         ),
         Target(
