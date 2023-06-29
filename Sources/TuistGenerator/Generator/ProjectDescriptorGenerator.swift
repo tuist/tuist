@@ -14,6 +14,7 @@ protocol ProjectDescriptorGenerating: AnyObject {
     func generate(project: Project, graphTraverser: GraphTraversing) throws -> ProjectDescriptor
 }
 
+// swiftlint:disable:next type_body_length
 final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     // MARK: - ProjectConstants
 
@@ -120,6 +121,12 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             graphTraverser: graphTraverser
         )
 
+        try generateAggregateTargets(
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject
+        )
+
         generateTestTargetIdentity(
             project: project,
             pbxproj: pbxproj,
@@ -196,7 +203,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         graphTraverser: GraphTraversing
     ) throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
-        try project.targets.forEach { target in
+        try project.targets.filter { $0.product != .aggregateTarget }.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(
                 target: target,
                 project: project,
@@ -218,6 +225,21 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             graphTraverser: graphTraverser
         )
         return nativeTargets
+    }
+
+    private func generateAggregateTargets(
+        project: Project,
+        pbxproj: PBXProj,
+        pbxProject: PBXProject
+    ) throws {
+        try project.targets.filter { $0.product == .aggregateTarget }.forEach { target in
+            _ = try targetGenerator.generateAggregateTarget(
+                target: target,
+                project: project,
+                pbxproj: pbxproj,
+                pbxProject: pbxProject
+            )
+        }
     }
 
     private func generateTestTargetIdentity(

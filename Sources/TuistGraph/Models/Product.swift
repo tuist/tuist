@@ -24,6 +24,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
     case xpc
     case systemExtension = "system_extension"
     case extensionKitExtension = "extension_kit_extension"
+    case aggregateTarget
 
     public var caseValue: String {
         switch self {
@@ -73,6 +74,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             return "systemExtension"
         case .extensionKitExtension:
             return "extensionKitExtension"
+        case .aggregateTarget:
+            return "aggregateTarget"
         }
     }
 
@@ -124,6 +127,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             return "system extension"
         case .extensionKitExtension:
             return "extensionKit extension"
+        case .aggregateTarget:
+            return "aggregate target"
         }
     }
 
@@ -151,7 +156,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             .staticLibrary,
             .unitTests,
             .uiTests,
-            .xpc:
+            .xpc,
+            .aggregateTarget:
             return false
         }
     }

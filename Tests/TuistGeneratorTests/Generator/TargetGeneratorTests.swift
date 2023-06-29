@@ -205,6 +205,54 @@ final class TargetGeneratorTests: XCTestCase {
         XCTAssertEqual(postBuildPhase?.shellScript, "\"$SRCROOT\"/script.sh arg")
     }
 
+    func test_generateAggregateTarget_actions() throws {
+        // Given
+        let target = Target.test(
+            product: .aggregateTarget,
+            scripts: [
+                TargetScript(
+                    name: "post",
+                    order: .post,
+                    script: .scriptPath(path: path.appending(component: "script.sh"), args: ["arg"])
+                ),
+                TargetScript(
+                    name: "pre",
+                    order: .pre,
+                    script: .scriptPath(path: path.appending(component: "script.sh"), args: ["arg"])
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            targets: [target]
+        )
+        _ = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+
+        // When
+        let pbxTarget = try subject.generateAggregateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject
+        )
+
+        // Then
+        let preBuildPhase = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
+        XCTAssertEqual(preBuildPhase?.name, "pre")
+        XCTAssertEqual(preBuildPhase?.shellPath, "/bin/sh")
+        XCTAssertEqual(preBuildPhase?.shellScript, "\"$SRCROOT\"/script.sh arg")
+
+        let postBuildPhase = pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase
+        XCTAssertEqual(postBuildPhase?.name, "post")
+        XCTAssertEqual(postBuildPhase?.shellPath, "/bin/sh")
+        XCTAssertEqual(postBuildPhase?.shellScript, "\"$SRCROOT\"/script.sh arg")
+    }
+
     // MARK: - Helpers
 
     private func createNativeTarget(for target: Target) -> PBXNativeTarget {

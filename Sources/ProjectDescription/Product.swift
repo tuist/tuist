@@ -44,4 +44,6 @@ public enum Product: String, Codable, Equatable {
     case systemExtension
     /// An ExtensionKit extension.
     case extensionKitExtension = "extension_kit_extension"
+    /// Aggregate target
+    case aggregateTarget
 }

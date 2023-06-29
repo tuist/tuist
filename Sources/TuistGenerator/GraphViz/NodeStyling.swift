@@ -51,7 +51,7 @@ extension GraphTarget {
             return .init(fillColorName: .coral1, shape: .cylinder)
         case .dynamicLibrary:
             return .init(fillColorName: .darkgoldenrod3)
-        case .bundle:
+        case .bundle, .aggregateTarget:
             return .init(fillColorName: .grey90, shape: .rectangle)
         case .uiTests, .unitTests:
             return .init(fillColorName: .limegreen, shape: .octagon)

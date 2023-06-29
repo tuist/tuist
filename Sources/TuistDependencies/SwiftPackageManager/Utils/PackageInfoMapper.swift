@@ -1041,6 +1041,7 @@ extension PackageInfo.Platform {
 }
 
 extension ProjectDescription.Product {
+    // swiftlint:disable:next function_body_length
     fileprivate static func from(product: TuistGraph.Product) -> Self {
         switch product {
         case .app:
@@ -1081,6 +1082,8 @@ extension ProjectDescription.Product {
             return .systemExtension
         case .extensionKitExtension:
             return .extensionKitExtension
+        case .aggregateTarget:
+            return .aggregateTarget
         }
     }
 }

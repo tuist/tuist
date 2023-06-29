@@ -23,7 +23,7 @@ extension Target {
         switch product {
         case .staticLibrary, .dynamicLibrary:
             return "lib\(productName).\(product.xcodeValue.fileExtension!)"
-        case .commandLineTool:
+        case .commandLineTool, .aggregateTarget:
             return productName
         case _:
             return "\(productName).\(product.xcodeValue.fileExtension!)"

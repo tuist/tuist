@@ -121,6 +121,8 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             packageType = nil
         case .systemExtension:
             packageType = "SYSX"
+        case .aggregateTarget:
+            packageType = nil
         }
 
         if let packageType = packageType {

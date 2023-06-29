@@ -24,6 +24,15 @@ class MockTargetGenerator: TargetGenerating {
         generateTargetStub?() ?? PBXNativeTarget(name: target.name)
     }
 
+    func generateAggregateTarget(
+        target: Target,
+        project _: Project,
+        pbxproj _: PBXProj,
+        pbxProject _: PBXProject
+    ) throws -> PBXAggregateTarget {
+        PBXAggregateTarget(name: target.name)
+    }
+
     func generateTargetDependencies(
         path _: AbsolutePath,
         targets _: [Target],

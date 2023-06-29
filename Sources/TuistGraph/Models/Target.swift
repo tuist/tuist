@@ -177,7 +177,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
              .dynamicLibrary,
              .staticLibrary,
              .staticFramework,
-             .xpc:
+             .xpc,
+             .aggregateTarget:
             return false
         }
     }

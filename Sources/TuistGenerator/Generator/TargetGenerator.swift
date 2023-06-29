@@ -17,6 +17,13 @@ protocol TargetGenerating: AnyObject {
         graphTraverser: GraphTraversing
     ) throws -> PBXNativeTarget
 
+    func generateAggregateTarget(
+        target: Target,
+        project: Project,
+        pbxproj: PBXProj,
+        pbxProject: PBXProject
+    ) throws -> PBXAggregateTarget
+
     func generateTargetDependencies(
         path: AbsolutePath,
         targets: [Target],
@@ -134,6 +141,39 @@ final class TargetGenerator: TargetGenerating {
             target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj
+        )
+
+        return pbxTarget
+    }
+
+    func generateAggregateTarget(
+        target: Target,
+        project: Project,
+        pbxproj: PBXProj,
+        pbxProject: PBXProject
+    ) throws -> PBXAggregateTarget {
+        /// Target
+        let pbxTarget = PBXAggregateTarget(
+            name: target.name
+        )
+
+        pbxproj.add(object: pbxTarget)
+        pbxProject.targets.append(pbxTarget)
+
+        /// Pre actions
+        try buildPhaseGenerator.generateScripts(
+            target.scripts.preScripts,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            sourceRootPath: project.sourceRootPath
+        )
+
+        /// Post actions
+        try buildPhaseGenerator.generateScripts(
+            target.scripts.postScripts,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            sourceRootPath: project.sourceRootPath
         )
 
         return pbxTarget

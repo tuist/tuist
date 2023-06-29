@@ -51,6 +51,8 @@ extension Product {
             return .systemExtension
         case .extensionKitExtension:
             return .extensionKitExtension
+        case .aggregateTarget:
+            return .none
         }
     }
 }

@@ -121,7 +121,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         if fileHandler.exists(sharedPath) { try fileHandler.delete(sharedPath) }
     }
 
-    /// Generate schemes for a project or workspace.
+    /// Generate schemes for a project orr workspace.
     ///
     /// - Parameters:
     ///     - scheme: Project scheme.
@@ -779,7 +779,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         guard let target = graphTraverser.target(path: graphTarget.project.path, name: graphTarget.target.name)
         else { return nil }
         guard let generatedProject = generatedProjects[projectPath] else { return nil }
-        guard let pbxTarget = generatedProject.targets[graphTarget.target.name] else { return nil }
+        let pbxTarget = generatedProject.targets[graphTarget.target.name]
+        if pbxTarget == nil, graphTarget.target.product != .aggregateTarget {
+            return nil
+        }
         let relativeXcodeProjectPath = resolveRelativeProjectPath(
             graphTarget: graphTarget,
             generatedProject: generatedProject,
@@ -872,7 +875,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     /// - Returns: Buildable reference.
     private func targetBuildableReference(
         target: Target,
-        pbxTarget: PBXNativeTarget,
+        pbxTarget: PBXNativeTarget?,
         projectPath: String
     ) -> XCScheme.BuildableReference {
         XCScheme.BuildableReference(

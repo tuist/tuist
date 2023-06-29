@@ -18,6 +18,16 @@ Scenario: The project is an iOS application with target actions
     Then I should be able to build for iOS the scheme App
     Then I should be able to build for iOS the scheme AppWithSpace
 
+Scenario: The project is an iOS application with target actions on aggregate target
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_aggregate_target into the working directory
+    Then tuist generates the project
+    Then in project App the target App should have the build phase Tuist in the first position
+    Then in project App the target App should have the build phase Rocks in the last position
+    Then in project App the target App should have the build phase PhaseWithDependency with a dependency file named $TEMP_DIR/dependencies.d
+    Then I should be able to build for macOS the scheme App
+
 Scenario: The project is an iOS application with target actions with build variable
     Given that tuist is available
     And I have a working directory
