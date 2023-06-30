@@ -1,0 +1,53 @@
+name: Problem or need
+description: Please report any problems or needs that you have encountered which Tuist currently does not address or inadequately solves.
+title: "Insert title here"
+labels: ["type:need/problem"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to help improve Tuist!
+        
+  - type: textarea
+    id: need
+    attributes:
+      label: What problem or need do you have?
+      description: Please provide precise details and relevant context about any problems or needs you have with Tuist. Focus on describing the issues rather than proposing solutions. Your input will help us understand and address the situation effectively.
+      placeholder: Describe the problem or need that you have encountered.
+    validations:
+      required: true
+
+  - type: textarea
+    id: potential-solution
+    attributes:
+      label: Potential solution
+      description: If you have any ideas for solving the problem, please feel free to share them here. While the final solution may not necessarily align with your suggestions, they provide valuable references for us to explore potential ideal solutions. Your input is greatly appreciated in our quest for continuous improvement.
+      placeholder: Please provide a detailed explanation of how you would approach solving the problem or fulfilling the identified need. Feel free to include any alternative solutions you may have considered. This information will greatly assist us in understanding your perspective and exploring various avenues to address the issue effectively.
+    validations:
+      required: false
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      description: In which macOS version are you running Tuist?
+      placeholder: "12.0"
+    validations:
+      required: true
+
+  - type: input
+    id: tuist-version
+    attributes:
+      label: Tuist version
+      description: Which version of Tuist are you using?
+      placeholder: "3.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: xcode-version
+    attributes:
+      label: Xcode version
+      description: Which version of Xcode are you using?
+      placeholder: "14.0.0"
+    validations:
+      required: true
