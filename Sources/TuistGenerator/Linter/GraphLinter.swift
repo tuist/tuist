@@ -594,11 +594,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .visionOS, product: .staticFramework),
             LintableTarget(platform: .visionOS, product: .bundle),
             LintableTarget(platform: .visionOS, product: .appExtension),
-            LintableTarget(platform: .visionOS, product: .messagesExtension),
-            LintableTarget(platform: .visionOS, product: .stickerPackExtension),
-            LintableTarget(platform: .watchOS, product: .watch2App),
             LintableTarget(platform: .watchOS, product: .app),
-            LintableTarget(platform: .visionOS, product: .appClip),
 //            LintableTarget(platform: .watchOS, product: .watchApp),
             LintableTarget(platform: .visionOS, product: .extensionKitExtension),
         ],
@@ -631,7 +627,6 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .visionOS, product: .framework),
             LintableTarget(platform: .visionOS, product: .staticFramework),
             LintableTarget(platform: .visionOS, product: .bundle),
-            LintableTarget(platform: .visionOS, product: .appClip),
         ],
         LintableTarget(platform: .visionOS, product: .uiTests): [
             LintableTarget(platform: .visionOS, product: .app),
@@ -640,7 +635,6 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .visionOS, product: .framework),
             LintableTarget(platform: .visionOS, product: .staticFramework),
             LintableTarget(platform: .visionOS, product: .bundle),
-            LintableTarget(platform: .visionOS, product: .appClip),
         ],
         LintableTarget(platform: .visionOS, product: .appExtension): [
             LintableTarget(platform: .visionOS, product: .staticLibrary),
@@ -648,28 +642,11 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .visionOS, product: .staticFramework),
             LintableTarget(platform: .visionOS, product: .framework),
         ],
-        LintableTarget(platform: .visionOS, product: .appClip): [
-            LintableTarget(platform: .visionOS, product: .staticLibrary),
-            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
-            LintableTarget(platform: .visionOS, product: .framework),
-            LintableTarget(platform: .visionOS, product: .staticFramework),
-        ],
         LintableTarget(platform: .visionOS, product: .extensionKitExtension): [
             LintableTarget(platform: .visionOS, product: .staticLibrary),
             LintableTarget(platform: .visionOS, product: .dynamicLibrary),
             LintableTarget(platform: .visionOS, product: .framework),
             LintableTarget(platform: .visionOS, product: .staticFramework),
-        ],
-        LintableTarget(platform: .visionOS, product: .messagesExtension): [
-            LintableTarget(platform: .visionOS, product: .staticFramework),
-            LintableTarget(platform: .visionOS, product: .staticLibrary),
-            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
-            LintableTarget(platform: .visionOS, product: .framework),
-        ],
-        LintableTarget(platform: .visionOS, product: .stickerPackExtension): [
-            LintableTarget(platform: .visionOS, product: .staticLibrary),
-            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
-            LintableTarget(platform: .visionOS, product: .framework),
         ],
     ]
 }
