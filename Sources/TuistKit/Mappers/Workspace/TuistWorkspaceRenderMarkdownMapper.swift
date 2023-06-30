@@ -16,7 +16,7 @@ final class TuistWorkspaceRenderMarkdownReadmeMapper: WorkspaceMapping {
                     component: ".xcodesamplecode.plist"
                 ),
             contents: try PropertyListEncoder().encode([String]()),
-            state: workspace.workspace.generationOptions.renderMarkdownReadme ? .present : .absent // bugfix: #5196
+            state: workspace.workspace.generationOptions.renderMarkdownReadme ? .present : .absent 
         )
 
         return (workspace, [
