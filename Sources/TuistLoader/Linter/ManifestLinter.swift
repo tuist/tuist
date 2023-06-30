@@ -35,6 +35,7 @@ public class ManifestLinter: ManifestLinting {
 
         issues.append(contentsOf: lintDuplicates(project: project))
         issues.append(contentsOf: project.targets.flatMap(lint))
+        issues.append(contentsOf: project.aggregateTargets.flatMap(lint))
 
         return issues
     }
@@ -58,6 +59,16 @@ public class ManifestLinter: ManifestLinting {
         }
 
         issues.append(contentsOf: lint(coredataModels: target.coreDataModels, declarationLocation: target.name))
+
+        return issues
+    }
+
+    private func lint(target: ProjectDescription.AggregateTarget) -> [LintingIssue] {
+        var issues = [LintingIssue]()
+
+        if let settings = target.settings {
+            issues.append(contentsOf: lint(settings: settings, declarationLocation: target.name))
+        }
 
         return issues
     }

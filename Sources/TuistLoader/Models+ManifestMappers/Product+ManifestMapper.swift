@@ -3,8 +3,6 @@ import ProjectDescription
 import TuistGraph
 
 extension TuistGraph.Product {
-    // swiftlint:disable function_body_length
-
     /// Maps a ProjectDescription.Product instance into a TuistGraph.Product instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of product model.
@@ -49,10 +47,6 @@ extension TuistGraph.Product {
             return .systemExtension
         case .extensionKitExtension:
             return .extensionKitExtension
-        case .aggregateTarget:
-            return .aggregateTarget
         }
     }
-
-    // swiftlint:enable function_body_length
 }

@@ -2,12 +2,10 @@ import ProjectDescription
 
 let project = Project(
     name: "App",
-    targets: [
-        Target(
+    aggregateTargets: [
+        AggregateTarget(
             name: "App",
             platform: .macOS,
-            product: .aggregateTarget,
-            bundleId: "aggregate.bundle.id",
             scripts: [
                 // Note there are acceptance tests verifying the first `pre` and last `post` action
                 // additions not part of the acceptance test should be added in-between

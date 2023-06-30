@@ -44,6 +44,9 @@ final class DumpServiceTests: TuistTestCase {
           "additionalFiles": [
 
           ],
+          "aggregateTargets": [
+
+          ],
           "name": "tuist",
           "options": {
             "automaticSchemesOptions": {
