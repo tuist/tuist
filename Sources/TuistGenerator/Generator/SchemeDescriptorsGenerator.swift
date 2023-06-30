@@ -121,7 +121,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         if fileHandler.exists(sharedPath) { try fileHandler.delete(sharedPath) }
     }
 
-    /// Generate schemes for a project orr workspace.
+    /// Generate schemes for a project or workspace.
     ///
     /// - Parameters:
     ///     - scheme: Project scheme.
