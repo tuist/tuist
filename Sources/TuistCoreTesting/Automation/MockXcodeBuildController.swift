@@ -41,11 +41,9 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             AbsolutePath?,
             [XcodeBuildArgument],
             Int,
-            String?,
             [TestIdentifier],
             [TestIdentifier],
-            [String],
-            [String]
+            TestPlanConfiguration?
         )
             -> [SystemEvent<XcodeBuildOutput>]
     )?
@@ -59,11 +57,9 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument],
         retryCount: Int,
-        testPlan: String?,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testConfigurations: [String],
-        skipTestConfigurations: [String]
+        testPlanConfiguration: TestPlanConfiguration?
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let testStub = testStub {
             let results = testStub(
@@ -75,11 +71,9 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                 resultBundlePath,
                 arguments,
                 retryCount,
-                testPlan,
                 testTargets,
                 skipTestTargets,
-                testConfigurations,
-                skipTestConfigurations
+                testPlanConfiguration
             )
             if let testErrorStub = testErrorStub {
                 return AsyncThrowingStream {

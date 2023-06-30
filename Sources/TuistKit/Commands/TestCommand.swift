@@ -152,11 +152,15 @@ struct TestCommand: AsyncParsableCommand {
                 )
             },
             retryCount: retryCount,
-            testPlan: testPlan,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
-            testConfigurations: testConfigurations,
-            skipTestConfigurations: skipTestConfigurations
+            testPlanConfiguration: testPlan.map { testPlan in
+                TestPlanConfiguration(
+                    testPlan: testPlan,
+                    testConfigurations: testConfigurations,
+                    skipTestConfigurations: skipTestConfigurations
+                )
+            }
         )
     }
 

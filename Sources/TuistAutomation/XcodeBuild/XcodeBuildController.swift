@@ -80,11 +80,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
         resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument],
         retryCount: Int,
-        testPlan: String?,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testConfigurations: [String],
-        skipTestConfigurations: [String]
+        testPlanConfiguration: TestPlanConfiguration?
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -126,10 +124,6 @@ public final class XcodeBuildController: XcodeBuildControlling {
             command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
         }
 
-        if let testPlan = testPlan {
-            command.append(contentsOf: ["-testPlan", testPlan])
-        }
-
         for test in testTargets {
             command.append(contentsOf: ["-only-testing", test.description])
         }
@@ -138,12 +132,15 @@ public final class XcodeBuildController: XcodeBuildControlling {
             command.append(contentsOf: ["-skip-testing", test.description])
         }
 
-        for configuration in testConfigurations {
-            command.append(contentsOf: ["-only-test-configuration", configuration])
-        }
+        if let testPlanConfiguration {
+            command.append(contentsOf: ["-testPlan", testPlanConfiguration.testPlan])
+            for configuration in testPlanConfiguration.testConfigurations {
+                command.append(contentsOf: ["-only-test-configuration", configuration])
+            }
 
-        for configuration in skipTestConfigurations {
-            command.append(contentsOf: ["-skip-test-configuration", configuration])
+            for configuration in testPlanConfiguration.skipTestConfigurations {
+                command.append(contentsOf: ["-skip-test-configuration", configuration])
+            }
         }
 
         return run(command: command, isVerbose: environment.isVerbose)

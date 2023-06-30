@@ -33,7 +33,9 @@ public protocol XcodeBuildControlling {
     ///   - derivedDataPath: Custom location for derived data. Use `xcodebuild`'s default if `nil`
     ///   - resultBundlePath: Path where test result bundle will be saved.
     ///   - arguments: Extra xcodebuild arguments.
-    ///   - retryCount: Number of times to retry the test on failure
+    ///   - testTargets: A list of test identifiers indicating which tests to run
+    ///   - skipTestTargets: A list of test identifiers indicating which tests to skip
+    ///   - testPlanConfiguration: A configuration object indicating which test plan to use and its configurations
     func test(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -43,11 +45,9 @@ public protocol XcodeBuildControlling {
         resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument],
         retryCount: Int,
-        testPlan: String?,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testConfigurations: [String],
-        skipTestConfigurations: [String]
+        testPlanConfiguration: TestPlanConfiguration?
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable that archives the given project using xcodebuild.

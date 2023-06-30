@@ -96,11 +96,9 @@ final class TestService {
         skipUITests: Bool,
         resultBundlePath: AbsolutePath?,
         retryCount: Int,
-        testPlan: String?,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testConfigurations: [String],
-        skipTestConfigurations: [String]
+        testPlanConfiguration: TestPlanConfiguration?
     ) async throws {
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
@@ -119,7 +117,7 @@ final class TestService {
             config: config,
             automationPath: Environment.shared.automationPath ?? projectDirectory,
             testsCacheDirectory: testsCacheTemporaryDirectory.path,
-            testPlan: testPlan,
+            testPlan: testPlanConfiguration?.testPlan,
             includedTargets: Set(testTargets.map(\.target)),
             excludedTargets: Set(skipTestTargets.map(\.target)),
             skipUITests: skipUITests
@@ -146,7 +144,7 @@ final class TestService {
                 )
             }
 
-            switch (testPlan, scheme.testAction?.targets.isEmpty, scheme.testAction?.testPlans?.isEmpty) {
+            switch (testPlanConfiguration?.testPlan, scheme.testAction?.targets.isEmpty, scheme.testAction?.testPlans?.isEmpty) {
             case (nil, true, _), (nil, nil, _):
                 logger.log(level: .info, "There are no tests to run, finishing early")
                 return
@@ -169,11 +167,9 @@ final class TestService {
                     deviceName: deviceName,
                     resultBundlePath: resultBundlePath,
                     retryCount: retryCount,
-                    testPlan: testPlan,
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
-                    testConfigurations: testConfigurations,
-                    skipTestConfigurations: skipTestConfigurations
+                    testPlanConfiguration: testPlanConfiguration
                 )
             }
         } else {
@@ -197,11 +193,9 @@ final class TestService {
                     deviceName: deviceName,
                     resultBundlePath: resultBundlePath,
                     retryCount: retryCount,
-                    testPlan: testPlan,
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
-                    testConfigurations: testConfigurations,
-                    skipTestConfigurations: skipTestConfigurations
+                    testPlanConfiguration: testPlanConfiguration
                 )
             }
         }
@@ -239,14 +233,12 @@ final class TestService {
         deviceName: String?,
         resultBundlePath: AbsolutePath?,
         retryCount: Int,
-        testPlan: String?,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testConfigurations: [String],
-        skipTestConfigurations: [String]
+        testPlanConfiguration: TestPlanConfiguration?
     ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
-        if let testPlan = testPlan, let testPlans = scheme.testAction?.testPlans,
+        if let testPlan = testPlanConfiguration?.testPlan, let testPlans = scheme.testAction?.testPlans,
            !testPlans.contains(where: { $0.name == testPlan })
         {
             throw TestServiceError.testPlanNotFound(
@@ -257,12 +249,12 @@ final class TestService {
         }
         guard let buildableTarget = buildGraphInspector.testableTarget(
             scheme: scheme,
-            testPlan: testPlan,
+            testPlan: testPlanConfiguration?.testPlan,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
             graphTraverser: graphTraverser
         ) else {
-            throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name, testPlan: testPlan)
+            throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name, testPlan: testPlanConfiguration?.testPlan)
         }
 
         let destination = try await XcodeBuildDestination.find(
@@ -288,11 +280,9 @@ final class TestService {
                 skipSigning: false
             ),
             retryCount: retryCount,
-            testPlan: testPlan,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
-            testConfigurations: testConfigurations,
-            skipTestConfigurations: skipTestConfigurations
+            testPlanConfiguration: testPlanConfiguration
         )
         .printFormattedOutput()
     }
