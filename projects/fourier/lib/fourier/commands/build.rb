@@ -15,11 +15,6 @@ module Fourier
       def fixture
         Services::Build::Fixture.call
       end
-
-      desc "docs", "Build the documentation website"
-      def docs
-        Services::Build::Docs.call
-      end
     end
   end
 end
