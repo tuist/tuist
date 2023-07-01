@@ -78,6 +78,30 @@ extension TuistTestCase {
         }
     }
 
+    func XCTAssertAggregateTargetMatchesManifest(
+        target: TuistGraph.Target,
+        matches manifest: ProjectDescription.AggregateTarget,
+        at path: AbsolutePath,
+        generatorPaths: GeneratorPaths,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
+        XCTAssertEqual(target.name, manifest.name, file: file, line: line)
+        XCTAssertEqual(target.bundleId, "", file: file, line: line)
+        XCTAssertTrue(target.platform == manifest.platform, file: file, line: line)
+        XCTAssertTrue(target.product == .aggregateTarget, file: file, line: line)
+        try optionalAssert(target.settings, manifest.settings, file: file, line: line) {
+            XCTAssertSettingsMatchesManifest(
+                settings: $0,
+                matches: $1,
+                at: path,
+                generatorPaths: generatorPaths,
+                file: file,
+                line: line
+            )
+        }
+    }
+
     func XCTAssertBuildConfigurationMatchesManifest(
         configuration: (TuistGraph.BuildConfiguration, TuistGraph.Configuration?),
         matches manifest: ProjectDescription.Configuration,

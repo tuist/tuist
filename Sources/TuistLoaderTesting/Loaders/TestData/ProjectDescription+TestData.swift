@@ -46,6 +46,7 @@ extension Project {
         organizationName: String? = nil,
         settings: Settings? = nil,
         targets: [Target] = [],
+        aggregateTargets: [AggregateTarget] = [],
         additionalFiles: [FileElement] = []
     ) -> Project {
         Project(
@@ -53,6 +54,7 @@ extension Project {
             organizationName: organizationName,
             settings: settings,
             targets: targets,
+            aggregateTargets: aggregateTargets,
             additionalFiles: additionalFiles
         )
     }
@@ -92,6 +94,22 @@ extension Target {
             settings: settings,
             coreDataModels: coreDataModels,
             environment: environment
+        )
+    }
+}
+
+extension AggregateTarget {
+    public static func test(
+        name: String = "AggregateTarget",
+        platform: Platform = .iOS,
+        scripts: [TargetScript] = [],
+        settings: Settings? = nil
+    ) -> AggregateTarget {
+        AggregateTarget(
+            name: name,
+            platform: platform,
+            scripts: scripts,
+            settings: settings
         )
     }
 }

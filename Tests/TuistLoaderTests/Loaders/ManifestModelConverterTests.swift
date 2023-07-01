@@ -13,6 +13,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
     typealias WorkspaceManifest = ProjectDescription.Workspace
     typealias ProjectManifest = ProjectDescription.Project
     typealias TargetManifest = ProjectDescription.Target
+    typealias AggregateTargetManifest = ProjectDescription.AggregateTarget
     typealias SettingsManifest = ProjectDescription.Settings
     typealias ConfigurationManifest = ProjectDescription.Configuration
     typealias HeadersManifest = ProjectDescription.Headers
@@ -92,6 +93,49 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             generatorPaths: generatorPaths
         )
         try XCTAssertTargetMatchesManifest(
+            target: model.targets[1],
+            matches: targetB,
+            at: temporaryPath,
+            generatorPaths: generatorPaths
+        )
+    }
+
+    func test_loadProject_withAggregateTargets() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let targetA = AggregateTargetManifest.test(name: "A")
+        let targetB = AggregateTargetManifest.test(name: "B")
+        let manifest = ProjectManifest.test(
+            name: "Project",
+            aggregateTargets: [
+                targetA,
+                targetB,
+            ]
+        )
+        let manifestLoader = makeManifestLoader(with: [
+            temporaryPath: manifest,
+        ])
+        let subject = makeSubject(with: manifestLoader)
+
+        // When
+        let model = try subject.convert(
+            manifest: manifest,
+            path: temporaryPath,
+            plugins: .none,
+            externalDependencies: [:],
+            isExternal: false
+        )
+
+        // Then
+        XCTAssertEqual(model.targets.count, 2)
+        try XCTAssertAggregateTargetMatchesManifest(
+            target: model.targets[0],
+            matches: targetA,
+            at: temporaryPath,
+            generatorPaths: generatorPaths
+        )
+        try XCTAssertAggregateTargetMatchesManifest(
             target: model.targets[1],
             matches: targetB,
             at: temporaryPath,
