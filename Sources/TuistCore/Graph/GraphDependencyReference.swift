@@ -26,7 +26,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         product: Product
     )
     case bundle(path: AbsolutePath)
-    case product(target: String, productName: String, platformFilter: BuildFilePlatformFilter? = nil)
+    case product(target: String, productName: String, platformFilter: PlatformFilter? = nil)
     case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource)
 
     init(_ dependency: GraphDependency) {
@@ -89,7 +89,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     private enum Synthesized: Comparable, Hashable {
         case sdk(path: AbsolutePath)
         case product(target: String, productName: String)
-        case productWithPlatformFilter(target: String, productName: String, platformFilter: BuildFilePlatformFilter)
+        case productWithPlatformFilter(target: String, productName: String, platformFilter: PlatformFilter)
         case library(path: AbsolutePath)
         case framework(path: AbsolutePath)
         case xcframework(path: AbsolutePath)

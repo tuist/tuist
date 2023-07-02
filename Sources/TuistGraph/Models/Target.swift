@@ -260,7 +260,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// in the generated build files of the target dependency products to
     /// indicate the build system that the dependency should be compiled
     /// with Catalyst compatibility.
-    public var targetDependencyBuildFilesPlatformFilter: BuildFilePlatformFilter? {
+    public var targetDependencyBuildFilesPlatformFilter: PlatformFilter? {
         switch deploymentTarget {
         case let .iOS(_, devices, _) where devices.contains(.all):
             return nil
