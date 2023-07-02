@@ -70,12 +70,12 @@ extension GraphDependencyReference {
     public static func testProduct(
         target: String = "Target",
         productName: String = "Target.framework",
-        platformFilter: PlatformFilter = .ios
+        platformFilters: PlatformFilters = [.ios]
     ) -> GraphDependencyReference {
         GraphDependencyReference.product(
             target: target,
             productName: productName,
-            platformFilter: platformFilter
+            platformFilters: platformFilters
         )
     }
 }

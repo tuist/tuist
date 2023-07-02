@@ -297,25 +297,25 @@ final class TargetTests: TuistUnitTestCase {
         ])
     }
 
-    func test_targetDependencyBuildFilesPlatformFilter_when_iOS_targets_mac() {
+    func test_dependencyPlatformFilters_when_iOS_targets_mac() {
         // Given
         let target = Target.test(deploymentTarget: .iOS("14.0", [.mac], supportsMacDesignedForIOS: false))
 
         // When
-        let got = target.targetDependencyBuildFilesPlatformFilter
+        let got = target.dependencyPlatformFilters
 
         // Then
-        XCTAssertEqual(got, .catalyst)
+        XCTAssertEqual(got, [PlatformFilter.catalyst])
     }
 
-    func test_targetDependencyBuildFilesPlatformFilter_when_iOS_and_doesnt_target_mac() {
+    func test_dependencyPlatformFilters_when_iOS_and_doesnt_target_mac() {
         // Given
         let target = Target.test(deploymentTarget: .iOS("14.0", [.iphone], supportsMacDesignedForIOS: false))
 
         // When
-        let got = target.targetDependencyBuildFilesPlatformFilter
+        let got = target.dependencyPlatformFilters
 
         // Then
-        XCTAssertEqual(got, .ios)
+        XCTAssertEqual(got, [PlatformFilter.ios])
     }
 }

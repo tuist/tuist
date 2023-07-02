@@ -89,12 +89,12 @@ private enum KnownGraphDependencyReference: CaseIterable {
             return [.testLibrary(path: try! AbsolutePath(validating: "/dependencies/lib\(name).a"))]
         case .product:
             return [
-                .product(target: name, productName: "\(name).framework", platformFilter: nil),
-                .product(target: name, productName: "\(name).framework", platformFilter: .ios),
-                .product(target: name, productName: "\(name).framework", platformFilter: .catalyst),
-                .product(target: name, productName: "lib\(name).a", platformFilter: nil),
-                .product(target: name, productName: "lib\(name).a", platformFilter: .ios),
-                .product(target: name, productName: "lib\(name).a", platformFilter: .catalyst),
+                .product(target: name, productName: "\(name).framework", platformFilters: []),
+                .product(target: name, productName: "\(name).framework", platformFilters: [.ios]),
+                .product(target: name, productName: "\(name).framework", platformFilters: [.catalyst]),
+                .product(target: name, productName: "lib\(name).a", platformFilters: []),
+                .product(target: name, productName: "lib\(name).a", platformFilters: [.ios]),
+                .product(target: name, productName: "lib\(name).a", platformFilters: [.catalyst]),
             ]
         case .sdk:
             return [

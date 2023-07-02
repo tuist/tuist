@@ -1,8 +1,13 @@
 import Foundation
 
-
+/// Convenience typealias to be used to ensure unique filters are applied
 public typealias PlatformFilters = Set<PlatformFilter>
 
+extension PlatformFilters: Comparable {
+    public static func < (lhs: Set<Element>, rhs: Set<Element>) -> Bool {
+        return lhs.count < rhs.count
+    }
+}
 /// Defines a set of platforms that can be used to limit where things
 /// like build files, resources, and dependencies are used.
 /// Context: https://github.com/tuist/tuist/pull/3152
