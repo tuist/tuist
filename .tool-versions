@@ -1,2 +1,3 @@
-ruby 3.0.3
-yarn 1.22.17
+ruby   3.0.3
+yarn   1.22.17
+flyctl 0.1.45
