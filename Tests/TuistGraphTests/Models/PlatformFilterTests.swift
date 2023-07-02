@@ -14,4 +14,13 @@ final class BuildFilePlatformFilterTests: TuistUnitTestCase {
         XCTAssertEqual(PlatformFilter.watchos.xcodeprojValue, "watchos")
     }
     
+    func test_platformfilters_xcodeprojValue() {
+        func xcodeProjValueFor(_ filters: PlatformFilters) -> [String] {
+            filters.xcodeprojValue
+        }
+
+        XCTAssertEqual(xcodeProjValueFor([.ios, .macos]), ["iphoneos", "macos"])
+        XCTAssertEqual(xcodeProjValueFor([.macos, .ios]), ["iphoneos", "macos"])
+        XCTAssertEqual(xcodeProjValueFor([.tvos, .macos, .ios]), ["iphoneos", "macos", "tvos"])
+    }
 }
