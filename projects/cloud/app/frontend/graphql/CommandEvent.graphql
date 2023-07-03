@@ -1,7 +1,0 @@
-fragment CommandEvent on CommandEvent {
-  id
-  commandArguments
-  duration
-  createdAt
-  cacheHitRate
-}

@@ -1,5 +1,0 @@
-query CommandEvent($commandEventId: ID!) {
-  commandEvent(commandEventId: $commandEventId) {
-    ...CommandEventDetail
-  }
-}
