@@ -1,4 +1,4 @@
-name: 'Close stale PRs'
+name: 'Close stale issues and PRs'
 on:
   schedule:
     - cron: '30 1 * * *'
@@ -7,10 +7,46 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v3
+      - uses: actions/stale@v8
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          stale-pr-message: "This PR has been marked as stale because it's been opened for more than 30 days. If no action is taken, it'll be closed in 5 days."
-          stale-pr-label: 'no-pr-activity'
+          stale-issue-message: |
+            Hola 👋,
+
+            We want to inform you that the issue has been marked as stale. This means that there hasn't been any activity or updates on it for quite some time, and it's possible that it may no longer be relevant or actionable.
+            If you still believe that this issue is valid and requires attention, please provide an update or any additional information that can help us address it. Otherwise, we may consider closing it in the near future.
+            Thank you for your understanding.
+
+          stale-pr-message: |
+            Hola 👋,
+
+            We want to let you know that your pull request has been marked as stale. It seems that there hasn't been any activity or updates on it for a while.
+
+            If you're still interested in having this pull request merged or reviewed, please provide any necessary updates or address any feedback that may have been given. We would be happy to continue the review process and consider merging it into the `main` branch.
+
+            However, if this pull request is no longer a priority or if you've decided to take a different approach, please let us know so we can close it accordingly.
+
+            Thank you for your understanding and contribution.
+          close-issue-message: |
+            Hola 👋,
+
+            We want to inform you that we have decided to close this stale issue as there hasn't been any activity or response regarding it after marking it as stale.
+
+            We understand that circumstances may have changed or priorities may have shifted, and that's completely understandable. If you still believe that this issue needs to be addressed, please feel free to reopen it and provide any necessary updates or additional information.
+
+            We appreciate your understanding and look forward to your continued contributions to the project.
+
+            Thank you.
+          close-pr-message: |
+            Hola 👋,
+
+            We want to let you know that we have decided to close your pull request #456 due to prolonged inactivity. Despite the initial interest and efforts put into the pull request, we haven't seen any updates or responses for a considerable period of time.
+
+            We understand that circumstances change and priorities shift, which may have led to this inactivity. If you still wish to contribute or have further discussions on this feature or bug fix, please don't hesitate to reopen the pull request and engage with the community.
+
+            We appreciate your understanding and the time you invested in submitting the pull request. Your contributions are valuable, and we hope to collaborate with you on future endeavors.
+
+            Thank you.
+          stale-issue-label: 'stale'
+          stale-pr-label: 'stale'
           days-before-stale: 30
           days-before-close: 5
