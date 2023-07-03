@@ -22,9 +22,6 @@ module Fourier
     desc "build", "Build projects"
     subcommand "build", Commands::Build
 
-    desc "serve", "Serve projects"
-    subcommand "serve", Commands::Serve
-
     desc "github", "Utilities to manage the repository and the organization on GitHub"
     subcommand "github", Commands::GitHub
 

@@ -116,6 +116,7 @@ extension String {
         }
 
         let parts = components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .map { $0.isEmpty ? "_" : $0 }
 
         let first = String(describing: parts.first!).lowercasingFirst
         let rest = parts.dropFirst().map { String($0).uppercasingFirst }

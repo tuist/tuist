@@ -18,6 +18,17 @@ final class StringExtrasTests: TuistUnitTestCase {
         XCTAssertEqual(got, "frameworkIOSResources")
     }
 
+    func test_camelized_edge_cases() {
+        // Given
+        let subject = "_1Flow"
+
+        // When
+        let got = subject.camelized
+
+        // Then
+        XCTAssertEqual(got, "_1Flow")
+    }
+
     func test_string_doesnt_match_GitURL_regex() {
         // Given
         let stringToEvaluate = "not a url string"

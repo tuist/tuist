@@ -173,7 +173,6 @@ If you are interested in contributing to the project, our documentation has a se
     <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a><br /></td>
     <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/danyf90"><img src="https://avatars.githubusercontent.com/u/2794031?v=4" width="100px;" alt=""/><br /><sub><b>Daniele Formichelli</b></sub></a><br /></td>
-    <td align="center"><a href="https://github.com/adellibovi"><img src="https://avatars3.githubusercontent.com/u/67916?v=4" width="100px;" alt=""/><br /><sub><b>Alfredo Delli Bovi</b></sub></a><br /></td>
   </tr>
 </table>
 
@@ -189,6 +188,7 @@ The following people were once core contributors helping steer the project in th
     <td align="center"><a href="https://github.com/RomainBoulay"><img src="https://avatars1.githubusercontent.com/u/169323?v=4" width="100px;" alt=""/><br /><sub><b>Romain Boulay</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars1.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a><br /></td>
     <td align="center"><a href="http://www.luispadron.com"><img src="https://avatars3.githubusercontent.com/u/13840545?v=4" width="100px;" alt=""/><br /><sub><b>Luis Padron</b></sub></a></td>
+    <td align="center"><a href="https://github.com/adellibovi"><img src="https://avatars3.githubusercontent.com/u/67916?v=4" width="100px;" alt=""/><br /><sub><b>Alfredo Delli Bovi</b></sub></a><br /></td>
   </tr>
 </table>
 
@@ -351,6 +351,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/serejahh"><img src="https://avatars.githubusercontent.com/u/2575555?v=4" width="100px;" alt=""/><br /><sub><b>Serhii Butenko</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/petrukha-ivan"><img src="https://avatars.githubusercontent.com/u/93926277?v=4" width="100px;" alt=""/><br /><sub><b>Petrukha Ivan</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/lo1tuma"><img src="https://avatars.githubusercontent.com/u/169170?v=4" width="100px;" alt=""/><br /><sub><b>Mathias Schreck</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Buju77"><img src="https://avatars.githubusercontent.com/u/266349?v=4" width="100px;" alt=""/><br /><sub><b>Yen-Chia Lin</b></sub></a></td>
     </tr>
   </tbody>
 </table>
