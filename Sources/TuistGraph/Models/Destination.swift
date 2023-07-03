@@ -2,6 +2,13 @@ import Foundation
 
 public typealias Destinations = Set<Destination>
 
+extension Destinations {
+    public static var watchOS: Destinations = [.appleWatch]
+    public static var iOS: Destinations = [.iPhone, .iPad, .macWithiPadDesign]
+    public static var macOS: Destinations = [.mac]
+    public static var tvOS: Destinations = [.appleTv]
+}
+
 /// A supported platform representation.
 public enum Destination: String, Codable, Equatable, CaseIterable {
     case iPhone
@@ -14,9 +21,9 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
     
     var platform: Platform {
         switch self {
-        case .iPad, .iPhone, .macWithiPadDesign:
+        case .iPad, .iPhone, .macCatalyst, .macWithiPadDesign:
             return .iOS
-        case .mac, .macCatalyst:
+        case .mac:
             return .macOS
         case .appleTv:
             return .tvOS

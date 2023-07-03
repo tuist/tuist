@@ -40,26 +40,23 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
         extend(&content, with: bundleExecutable(target))
 
         // iOS app
-        if target.product == .app, target.platform == .iOS {
-            if case let .iOS(_, devices, _) = target.deploymentTarget, !devices.contains(.ipad) {
-                extend(&content, with: iosApp(iPadSupport: false))
-            } else {
-                extend(&content, with: iosApp(iPadSupport: true))
-            }
+        if target.product == .app, target.supports(.iOS) {
+            let supportsIpad = target.destinations.contains(.iPad)
+            extend(&content, with: iosApp(iPadSupport: supportsIpad))
         }
 
         // macOS app
-        if target.product == .app, target.platform == .macOS {
+        if target.product == .app, target.supports(.macOS) {
             extend(&content, with: macosApp())
         }
 
         // macOS
-        if target.platform == .macOS {
+        if target.supports(.macOS) {
             extend(&content, with: macos())
         }
 
         // watchOS app
-        if target.product == .watch2App, target.platform == .watchOS {
+        if target.product == .watch2App {
             let host = hostTarget(for: target, in: project)
             extend(&content, with: watchosApp(
                 name: target.name,
@@ -68,7 +65,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
         }
 
         // watchOS app extension
-        if target.product == .watch2Extension, target.platform == .watchOS {
+        if target.product == .watch2Extension {
             let host = hostTarget(for: target, in: project)
             extend(&content, with: watchosAppExtension(
                 name: target.name,

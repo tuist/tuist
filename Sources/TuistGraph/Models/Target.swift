@@ -108,6 +108,11 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public func isExclusiveTo(_ platform: Platform) -> Bool {
         return destinations.map(\.platform).allSatisfy { $0 == platform }
     }
+    
+    /// Returns whether a target supports a platform
+    public func supports(_ platform: Platform) -> Bool {
+        return destinations.map(\.platform).allSatisfy { $0 == platform }
+    }
 
     /// Returns target's pre scripts.
     public var preScripts: [TargetScript] {

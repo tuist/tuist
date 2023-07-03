@@ -22,9 +22,9 @@ final class InfoPlistContentProviderTests: XCTestCase {
     func test_content_wheniOSApp_withiPadSupport() {
         // Given
         let target = Target.test(
-            platform: .iOS,
+            destinations: [.iPhone, .iPad, .macWithiPadDesign],
             product: .app,
-            deploymentTarget: .iOS("16.0", [.iphone, .ipad], supportsMacDesignedForIOS: true)
+            deploymentTarget: .iOS("16.0")
         )
 
         // When
@@ -68,9 +68,9 @@ final class InfoPlistContentProviderTests: XCTestCase {
     func test_content_wheniOSApp_withoutiPadSupport() {
         // Given
         let target = Target.test(
-            platform: .iOS,
+            destinations: [.iPhone, .macWithiPadDesign],
             product: .app,
-            deploymentTarget: .iOS("16.0", .iphone, supportsMacDesignedForIOS: true)
+            deploymentTarget: .iOS("16.0")
         )
 
         // When
@@ -107,7 +107,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
     func test_content_whenMacosApp() {
         // Given
-        let target = Target.test(platform: .macOS, product: .app)
+        let target = Target.test(destinations: .macOS, product: .app)
 
         // When
         let got = subject.content(
@@ -137,7 +137,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
     func test_content_whenMacosFramework() {
         // Given
-        let target = Target.test(platform: .macOS, product: .framework)
+        let target = Target.test(destinations: .macOS, product: .framework)
 
         // When
         let got = subject.content(
@@ -163,7 +163,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
     func test_content_whenMacosStaticLibrary() {
         // Given
-        let target = Target.test(platform: .macOS, product: .staticLibrary)
+        let target = Target.test(destinations: .macOS, product: .staticLibrary)
 
         // When
         let got = subject.content(
@@ -178,7 +178,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
     func test_content_whenMacosDynamicLibrary() {
         // Given
-        let target = Target.test(platform: .macOS, product: .dynamicLibrary)
+        let target = Target.test(destinations: .macOS, product: .dynamicLibrary)
 
         // When
         let got = subject.content(
@@ -193,7 +193,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
     func test_content_wheniOSResourceBundle() {
         // Given
-        let target = Target.test(platform: .iOS, product: .bundle)
+        let target = Target.test(destinations: .iOS, product: .bundle)
 
         // When
         let got = subject.content(
@@ -217,7 +217,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
 
     func test_content_whenwatchOSResourceBundle() {
         // Given
-        let target = Target.test(platform: .watchOS, product: .bundle)
+        let target = Target.test(destinations: .watchOS, product: .bundle)
 
         // When
         let got = subject.content(
@@ -262,11 +262,11 @@ final class InfoPlistContentProviderTests: XCTestCase {
         // Given
         let watchApp = Target.test(
             name: "MyWatchApp",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .watch2App
         )
         let app = Target.test(
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.my.app.id",
             dependencies: [
@@ -313,11 +313,11 @@ final class InfoPlistContentProviderTests: XCTestCase {
         // Given
         let watchAppExtension = Target.test(
             name: "MyWatchAppExtension",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .watch2Extension
         )
         let watchApp = Target.test(
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .watch2App,
             bundleId: "io.tuist.my.app.id.mywatchapp",
             dependencies: [
