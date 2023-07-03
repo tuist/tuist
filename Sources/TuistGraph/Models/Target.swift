@@ -205,67 +205,33 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// Determines if the target is an embeddable watch application
     /// i.e. a product that can be bundled with a host iOS application
     public func isEmbeddableWatchApplication() -> Bool {
-        switch (platform, product) {
-        case (.watchOS, .watch2App), (.watchOS, .app):
-            return true
-        default:
-            return false
-        }
+        let isWatchOS = isExclusiveTo(.watchOS)
+        let isApp = (product == .watch2App || product == .app)
+        return isWatchOS && isApp
     }
 
     /// Determines if the target is an embeddable xpc service
     /// i.e. a product that can be bundled with a host macOS application
     public func isEmbeddableXPCService() -> Bool {
-        switch (platform, product) {
-        case (.macOS, .xpc):
-            return true
-        default:
-            return false
-        }
+        return product == .xpc
     }
 
     /// Determines if the target is an embeddable system extension
     /// i.e. a product that can be bundled with a host macOS application
     public func isEmbeddableSystemExtension() -> Bool {
-        switch (platform, product) {
-        case (.macOS, .systemExtension):
-            return true
-        default:
-            return false
-        }
+        return product == .systemExtension
     }
 
     /// Determines if the target is able to embed a watch application
     /// i.e. a product that can be bundled with a watchOS application
     public func canEmbedWatchApplications() -> Bool {
-        switch (platform, product) {
-        case (.iOS, .app):
-            return true
-        default:
-            return false
-        }
-    }
-
-    /// Determines if the target is able to embed an xpc service
-    /// i.e. a product that can be bundled with a macOS application
-    public func canEmbedXPCServices() -> Bool {
-        switch (platform, product) {
-        case (.macOS, .app):
-            return true
-        default:
-            return false
-        }
+        return isExclusiveTo(.iOS) && product == .app
     }
 
     /// Determines if the target is able to embed an system extension
     /// i.e. a product that can be bundled with a macOS application
     public func canEmbedSystemExtensions() -> Bool {
-        switch (platform, product) {
-        case (.macOS, .app):
-            return true
-        default:
-            return false
-        }
+        return isExclusiveTo(.macOS) && product == .app
     }
 
     /// For iOS targets that support macOS (Catalyst), this value is used
@@ -273,18 +239,19 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// indicate the build system that the dependency should be compiled
     /// with Catalyst compatibility.
     public var dependencyPlatformFilters: PlatformFilters {
-        switch deploymentTarget {
-        case let .iOS(_, devices, _) where devices.contains(.all):
-            return []
-        case let .iOS(_, devices, _):
-            if devices.contains(.mac) {
-                return [.catalyst]
-            } else {
-                return [.ios]
-            }
-        default:
-            return []
-        }
+        return []
+//        switch deploymentTarget {
+//        case let .iOS(_, devices, _) where devices.contains(.all):
+//            return []
+//        case let .iOS(_, devices, _):
+//            if devices.contains(.mac) {
+//                return [.catalyst]
+//            } else {
+//                return [.ios]
+//            }
+//        default:
+//            return []
+//        }
     }
 
     // MARK: - Equatable
