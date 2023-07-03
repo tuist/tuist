@@ -19,15 +19,12 @@ final class DeploymentTargetManifestMapperTests: TuistUnitTestCase {
         let got = TuistGraph.DeploymentTarget.from(manifest: manifest)
 
         // Then
-        guard case let .iOS(version, devices, supportsMacDesignedForIOS) = got
+        guard case let .iOS(version) = got
         else {
             XCTFail("Deployment target should be iOS")
             return
         }
 
         XCTAssertEqual(version, "13.1")
-        XCTAssertTrue(devices.contains(.iphone))
-        XCTAssertFalse(devices.contains(.ipad))
-        XCTAssertTrue(supportsMacDesignedForIOS)
     }
 }

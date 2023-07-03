@@ -306,7 +306,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             XCTContainsLintingIssue(
                 got,
                 LintingIssue(
-                    reason: "Found an inconsistency between a platform `\(combinations.0.caseValue)` and deployment target `\(combinations.1.platform)`",
+                    reason: "Found an inconsistency between a platform `\(combinations.0.caseValue)` and deployment target `\(combinations.1.platform.caseValue)`",
                     severity: .error
                 )
             )

@@ -209,7 +209,7 @@ class TargetLinter: TargetLinting {
 
         let platform = target.platform
         let inconsistentPlatformIssue = LintingIssue(
-            reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`",
+            reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform.caseValue)`",
             severity: .error
         )
 

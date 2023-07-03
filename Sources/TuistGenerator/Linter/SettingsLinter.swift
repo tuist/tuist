@@ -62,7 +62,7 @@ final class SettingsLinter: SettingsLinting {
     // TODO_MAJOR_CHANGE: Merge deploymentTarget and platform arguments together.
     private func lint(platform: Platform, isCompatibleWith deploymentTarget: DeploymentTarget) -> [LintingIssue] {
         let issue = LintingIssue(
-            reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`",
+            reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform.caseValue)`",
             severity: .error
         )
 
