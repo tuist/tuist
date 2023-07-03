@@ -31,7 +31,7 @@ extension TuistGraph.Target {
         externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]]
     ) throws -> TuistGraph.Target {
         let name = manifest.name
-        let platform = try TuistGraph.Platform.from(manifest: manifest.platform)
+        let destinations = try TuistGraph.Destination.from(platform: manifest.platform, deploymentTarget: manifest.deploymentTarget)
         let product = TuistGraph.Product.from(manifest: manifest.product)
 
         let bundleId = manifest.bundleId
@@ -99,7 +99,7 @@ extension TuistGraph.Target {
 
         return TuistGraph.Target(
             name: name,
-            platform: platform,
+            destinations: destinations,
             product: product,
             productName: productName,
             bundleId: bundleId,
