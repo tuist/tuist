@@ -38,7 +38,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         if !target.supportsResources {
             let resourcesTarget = Target(
                 name: bundleName,
-                platform: target.platform,
+                destinations: target.destinations,
                 product: .bundle,
                 productName: nil,
                 bundleId: "\(target.bundleId).resources",
