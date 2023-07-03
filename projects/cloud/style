@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-
-bundle exec rubocop -A
-npm run format
-npm run lint --fix

@@ -1,5 +1,0 @@
-mutation RemoveUser($input: RemoveUserInput!) {
-  removeUser(input: $input) {
-    ...UserBasicInfo
-  }
-}
