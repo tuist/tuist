@@ -425,7 +425,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     private func createAppTarget(settings: Settings?) throws -> Target {
         Target(
             name: "AppTarget",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             productName: "AppTarget",
             bundleId: "test.bundle",

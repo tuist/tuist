@@ -135,7 +135,8 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
                 try AbsolutePath(validating: "/test"): [
                     "iOS": Target.test(
                         name: "iOS",
-                        deploymentTarget: .iOS("14.0", [.iphone, .ipad, .mac], supportsMacDesignedForIOS: true)
+                        destinations: [.iPhone, .iPad, .macCatalyst],
+                        deploymentTarget: .iOS("14.0")
                     ),
                 ],
             ]
