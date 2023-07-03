@@ -19,8 +19,8 @@ final class BuildFilePlatformFilterTests: TuistUnitTestCase {
             filters.xcodeprojValue
         }
 
-        XCTAssertEqual(xcodeProjValueFor([.ios, .macos]), ["iphoneos", "macos"])
-        XCTAssertEqual(xcodeProjValueFor([.macos, .ios]), ["iphoneos", "macos"])
-        XCTAssertEqual(xcodeProjValueFor([.tvos, .macos, .ios]), ["iphoneos", "macos", "tvos"])
+        XCTAssertEqual(xcodeProjValueFor([.ios, .macos]), ["ios", "macos"])
+        XCTAssertEqual(xcodeProjValueFor([.macos, .ios]), ["ios", "macos"])
+        XCTAssertEqual(xcodeProjValueFor([.tvos, .macos, .ios]), ["ios", "macos", "tvos"])
     }
 }
