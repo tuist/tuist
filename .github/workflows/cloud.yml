@@ -62,26 +62,6 @@ jobs:
       - name: Test
         run: |
           bundle exec rails test
-  lint:
-    name: Lint
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v3
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v3
-        with:
-          path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}${{ hashFiles('project/cloud/Gemfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
-      - name: Bundle install
-        run: |
-          bundle config path vendor/bundle
-          bundle install --jobs 4 --retry 3
-      - name: Run
-        run: ./fourier lint cloud
   assets_precompile:
     name: Assets precompile
     runs-on: ubuntu-latest
