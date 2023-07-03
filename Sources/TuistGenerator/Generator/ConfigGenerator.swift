@@ -292,7 +292,7 @@ final class ConfigGenerator: ConfigGenerating {
         settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
 
         if target.destinations.contains(.macWithiPadDesign) {
-            settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "YES" "NO"
+            settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
         } else {
             settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "NO"
         }
