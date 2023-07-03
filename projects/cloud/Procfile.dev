@@ -1,2 +1,0 @@
-rails: bin/rails server --port 3000
-vite: BASE_URL=http://127.0.0.1:3000 bin/vite dev

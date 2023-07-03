@@ -1,8 +1,0 @@
-fragment UserBasicInfo on User {
-  id
-  email
-  avatarUrl
-  account {
-    name
-  }
-}

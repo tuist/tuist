@@ -1,5 +1,0 @@
-query S3Buckets($accountName: String!, $projectName: String!) {
-  s3Buckets(accountName: $accountName, projectName: $projectName) {
-    ...S3BucketInfo
-  }
-}

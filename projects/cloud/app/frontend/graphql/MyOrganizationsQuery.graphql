@@ -1,7 +1,0 @@
-query MyOrganizations {
-  organizations {
-    account {
-      name
-    }
-  }
-}

@@ -1,5 +1,0 @@
-mutation UpdateS3Bucket($input: UpdateS3BucketInput!) {
-  updateS3Bucket(input: $input) {
-    ...S3BucketInfo
-  }
-}

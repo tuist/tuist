@@ -1,4 +1,0 @@
-fragment CommandAverage on CommandAverage {
-  date
-  durationAverage
-}
