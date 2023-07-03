@@ -214,6 +214,7 @@ final class ConfigGenerator: ConfigGenerating {
             .merge(testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) {
                 $1
             }
+        settings.merge(destinationsDerivedSettings(target: target)) { $1 }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
         settings
             .merge(watchTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) { $1 }
@@ -280,6 +281,32 @@ final class ConfigGenerator: ConfigGenerating {
         return settings
     }
 
+    private func destinationsDerivedSettings(target: Target) -> SettingsDictionary {
+        var settings: SettingsDictionary = [:]
+
+        var deviceFamilyValues: [Int] = []
+        if target.destinations.contains(.iPhone) { deviceFamilyValues.append(1) }
+        if target.destinations.contains(.iPad) { deviceFamilyValues.append(2) }
+        if target.destinations.contains(.appleTv) { deviceFamilyValues.append(3) }
+        if target.destinations.contains(.appleWatch) { deviceFamilyValues.append(4) }
+        settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
+
+        if target.destinations.contains(.macWithiPadDesign) {
+            settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "YES" "NO"
+        } else {
+            settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "NO"
+        }
+        
+        if target.destinations.contains(.macCatalyst) {
+            settings["SUPPORTS_MACCATALYST"] = "YES"
+            settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
+        } else {
+            settings["SUPPORTS_MACCATALYST"] = "NO"
+        }
+
+        return settings
+    }
+    
     private func deploymentTargetDerivedSettings(target: Target) -> SettingsDictionary {
         guard let deploymentTarget = target.deploymentTarget else {
             return [:]
@@ -288,22 +315,8 @@ final class ConfigGenerator: ConfigGenerating {
         var settings: SettingsDictionary = [:]
 
         switch deploymentTarget {
-        case let .iOS(version, devices, supportsMacDesignedForIOS):
-            var deviceFamilyValues: [Int] = []
-            if devices.contains(.iphone) { deviceFamilyValues.append(1) }
-            if devices.contains(.ipad) { deviceFamilyValues.append(2) }
-
-            settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
+        case let .iOS(version):
             settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
-            settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = supportsMacDesignedForIOS ? "YES" : "NO"
-
-            if devices.contains(.ipad), devices.contains(.mac) {
-                settings["SUPPORTS_MACCATALYST"] = "YES"
-                settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
-            } else {
-                // Unless explicitly specified, when the platform the Product is a framework, these default to YES.
-                settings["SUPPORTS_MACCATALYST"] = "NO"
-            }
         case let .macOS(version):
             settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
         case let .watchOS(version):
