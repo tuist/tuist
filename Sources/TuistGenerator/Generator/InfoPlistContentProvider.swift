@@ -5,7 +5,7 @@ import TuistGraph
 /// Defines the interface to obtain the content to generate derived Info.plist files for the targets.
 protocol InfoPlistContentProviding {
     /// It returns the content that should be used to generate an Info.plist file
-    /// for the given target. It uses default values that specific to the target's platform
+    /// for the given target. It uses default values that specific to the target's destinations
     /// and product, and extends them with the values provided by the user.
     ///
     /// - Parameters:
@@ -18,7 +18,7 @@ protocol InfoPlistContentProviding {
 
 final class InfoPlistContentProvider: InfoPlistContentProviding {
     /// It returns the content that should be used to generate an Info.plist file
-    /// for the given target. It uses default values that specific to the target's platform
+    /// for the given target. It uses default values that specific to the target's destinations
     /// and product, and extends them with the values provided by the user.
     ///
     /// - Parameters:
@@ -79,7 +79,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     }
 
     /// Returns a dictionary that contains the base content that all Info.plist
-    /// files should have regardless of the platform or product.
+    /// files should have regardless of the destinations or product.
     ///
     /// - Returns: Base content.
     func base() -> [String: Any] {
@@ -128,16 +128,9 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     }
 
     func bundleExecutable(_ target: Target) -> [String: Any] {
-        let shouldIncludeBundleExecutableKey: (Target) -> Bool = {
-            switch ($0.platform, $0.product) {
-            case (.iOS, .bundle), (.tvOS, .bundle), (.watchOS, .bundle), (.visionOS, .bundle):
-                return false
-            default:
-                return true
-            }
-        }
+        let shouldIncludeBundleExecutableKey = target.isExclusiveTo(.macOS) && target.product == .bundle
 
-        if shouldIncludeBundleExecutableKey(target) {
+        if shouldIncludeBundleExecutableKey {
             return [
                 "CFBundleExecutable": "$(EXECUTABLE_NAME)",
             ]
