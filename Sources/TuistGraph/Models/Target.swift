@@ -18,7 +18,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     // MARK: - Attributes
 
     public var name: String
-    public var platform: Platform
+    public var destinations: Destinations
     public var product: Product
     public var bundleId: String
     public var productName: String
@@ -49,7 +49,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 
     public init(
         name: String,
-        platform: Platform,
+        destinations: Destinations,
         product: Product,
         productName: String?,
         bundleId: String,
@@ -75,7 +75,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     ) {
         self.name = name
         self.product = product
-        self.platform = platform
+        self.destinations = destinations
         self.bundleId = bundleId
         self.productName = productName ?? name.replacingOccurrences(of: "-", with: "_")
         self.deploymentTarget = deploymentTarget
@@ -102,6 +102,11 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// Target can be included in the link phase of other targets
     public func isLinkable() -> Bool {
         [.dynamicLibrary, .staticLibrary, .framework, .staticFramework].contains(product)
+    }
+
+    /// Returns whether a target is exclusive to a single platform
+    public func isExclusiveTo(_ platform: Platform) -> Bool {
+        return destinations.map(\.platform).allSatisfy { $0 == platform }
     }
 
     /// Returns target's pre scripts.
@@ -145,10 +150,12 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 
     /// Returns true if the target supports having sources.
     public var supportsSources: Bool {
-        switch (platform, product) {
-        case (.iOS, .bundle), (.iOS, .stickerPackExtension),
-             (.watchOS, .watch2App), (.tvOS, .bundle), (.visionOS, .bundle):
+        switch product {
+        case .stickerPackExtension, .watch2App:
             return false
+        case .bundle:
+            // Bundles only support source when targetting macOS only
+            return isExclusiveTo(.macOS)
         default:
             return true
         }
@@ -279,7 +286,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 
     public static func == (lhs: Target, rhs: Target) -> Bool {
         lhs.name == rhs.name &&
-            lhs.platform == rhs.platform &&
+            lhs.destinations == rhs.destinations &&
             lhs.product == rhs.product &&
             lhs.bundleId == rhs.bundleId &&
             lhs.productName == rhs.productName &&
@@ -297,7 +304,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(name)
-        hasher.combine(platform)
+        hasher.combine(destinations)
         hasher.combine(product)
         hasher.combine(bundleId)
         hasher.combine(productName)

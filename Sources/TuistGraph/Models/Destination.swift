@@ -1,5 +1,7 @@
 import Foundation
 
+public typealias Destinations = Set<Destination>
+
 /// A supported platform representation.
 public enum Destination: String, Codable, Equatable, CaseIterable {
     case iPhone
@@ -21,5 +23,12 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
         case .appleWatch:
             return .watchOS
         }
+    }
+}
+
+
+extension Collection where Element == Destination {
+    public func supports(_ platform: Platform) -> Bool {
+        return self.contains(where: { $0.platform == platform })
     }
 }
