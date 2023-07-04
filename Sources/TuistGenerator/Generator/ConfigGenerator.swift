@@ -241,7 +241,7 @@ final class ConfigGenerator: ConfigGenerating {
         if let entitlements = target.entitlements {
             settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)")
         }
-        settings["SDKROOT"] = .string(target.platform.xcodeSdkRoot)
+        settings["SDKROOT"] = .string(target.legacyPlatform.xcodeSdkRoot)
 
         if target.product == .staticFramework {
             settings["MACH_O_TYPE"] = "staticlib"

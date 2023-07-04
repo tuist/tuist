@@ -26,7 +26,7 @@ final class SettingsLinter: SettingsLinting {
         }
 
         if let deploymentTarget = target.deploymentTarget {
-            issues.append(contentsOf: lint(platform: target.platform, isCompatibleWith: deploymentTarget))
+            issues.append(contentsOf: lint(platform: target.legacyPlatform, isCompatibleWith: deploymentTarget))
         }
         return issues
     }

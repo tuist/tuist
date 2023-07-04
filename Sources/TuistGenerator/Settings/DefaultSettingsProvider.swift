@@ -184,7 +184,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     }
 
     private func additionalTargetSettings(for target: Target) -> SettingsDictionary {
-        switch (target.platform, target.product) {
+        switch (target.legacyPlatform, target.product) {
         case (.watchOS, .app):
             return [
                 "LD_RUNPATH_SEARCH_PATHS": [

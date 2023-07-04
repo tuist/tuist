@@ -22,7 +22,7 @@ extension XcodeBuildDestination {
         graphTraverser: GraphTraversing,
         simulatorController: SimulatorControlling
     ) async throws -> XcodeBuildDestination {
-        switch target.platform {
+        switch target.legacyPlatform {
         case .iOS, .tvOS, .watchOS, .visionOS:
             let minVersion: Version?
             if let deploymentTarget = target.deploymentTarget {
@@ -41,7 +41,7 @@ extension XcodeBuildDestination {
             }
 
             let deviceAndRuntime = try await simulatorController.findAvailableDevice(
-                platform: target.platform,
+                platform: target.legacyPlatform,
                 version: version,
                 minVersion: minVersion,
                 deviceName: deviceName

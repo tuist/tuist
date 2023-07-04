@@ -193,6 +193,10 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             return false
         }
     }
+    
+    public var legacyPlatform: Platform {
+        return destinations.first?.platform ?? .iOS
+    }
 
     /// Returns true if the target is an AppClip
     public var isAppClip: Bool {
