@@ -24,7 +24,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(
             destinations: [.iPhone, .iPad, .macWithiPadDesign],
             product: .app,
-            deploymentTarget: .iOS("16.0")
+            deploymentTargets: .iOS("16.0")
         )
 
         // When
@@ -70,7 +70,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let target = Target.test(
             destinations: [.iPhone, .macWithiPadDesign],
             product: .app,
-            deploymentTarget: .iOS("16.0")
+            deploymentTargets: .iOS("16.0")
         )
 
         // When

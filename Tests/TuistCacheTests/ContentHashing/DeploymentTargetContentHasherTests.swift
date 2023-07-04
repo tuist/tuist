@@ -10,13 +10,13 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
-    private var subject: DeploymentTargetContentHasher!
+    private var subject: DeploymentTargetsContentHasher!
     private var mockContentHasher: MockContentHasher!
 
     override func setUp() {
         super.setUp()
         mockContentHasher = MockContentHasher()
-        subject = DeploymentTargetContentHasher(contentHasher: mockContentHasher)
+        subject = DeploymentTargetsContentHasher(contentHasher: mockContentHasher)
     }
 
     override func tearDown() {
@@ -28,50 +28,50 @@ final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
     func test_hash_whenIosIphoneV1_callsContentHasherWithExpectedStrings() throws {
         // When
         //, .iphone, supportsMacDesignedForIOS: false
-        let deploymentTarget = DeploymentTarget.iOS("v1")
+        let deploymentTargets = DeploymentTargets.iOS("v1")
 
         // Then
-        let hash = try subject.hash(deploymentTarget: deploymentTarget)
+        let hash = try subject.hash(deploymentTargets: deploymentTargets)
         XCTAssertEqual(hash, "iOS-v1-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
 
     func test_hash_whenIosIpadV2_callsContentHasherWithExpectedStrings() throws {
         // When
-        let deploymentTarget = DeploymentTarget.iOS("v2")
+        let deploymentTargets = DeploymentTargets.iOS("v2")
 
         // Then
-        let hash = try subject.hash(deploymentTarget: deploymentTarget)
+        let hash = try subject.hash(deploymentTargets: deploymentTargets)
         XCTAssertEqual(hash, "iOS-v2-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
 
     func test_hash_whenMacOSV2_callsContentHasherWithExpectedStrings() throws {
         // When
-        let deploymentTarget = DeploymentTarget.macOS("v2")
+        let deploymentTargets = DeploymentTargets.macOS("v2")
 
         // Then
-        let hash = try subject.hash(deploymentTarget: deploymentTarget)
+        let hash = try subject.hash(deploymentTargets: deploymentTargets)
         XCTAssertEqual(hash, "macOS-v2-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
 
     func test_hash_whenWatchOSV2_callsContentHasherWithExpectedStrings() throws {
         // When
-        let deploymentTarget = DeploymentTarget.watchOS("v2")
+        let deploymentTargets = DeploymentTargets.watchOS("v2")
 
         // Then
-        let hash = try subject.hash(deploymentTarget: deploymentTarget)
+        let hash = try subject.hash(deploymentTargets: deploymentTargets)
         XCTAssertEqual(hash, "watchOS-v2-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
 
     func test_hash_whentvOSV2_callsContentHasherWithExpectedStrings() throws {
         // When
-        let deploymentTarget = DeploymentTarget.tvOS("v2")
+        let deploymentTargets = DeploymentTargets.tvOS("v2")
 
         // Then
-        let hash = try subject.hash(deploymentTarget: deploymentTarget)
+        let hash = try subject.hash(deploymentTargets: deploymentTargets)
         XCTAssertEqual(hash, "tvOS-v2-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }

@@ -198,30 +198,27 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintDeploymentTarget(target: Target) -> [LintingIssue] {
-        guard let deploymentTarget = target.deploymentTarget else {
+        return target.deploymentTargets.configuredVersions.flatMap { (platform, version) in
+            let versionFormatIssue = LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)
+            
+            let osVersionRegex = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
+            if !version.matches(pattern: osVersionRegex) { return [versionFormatIssue] }
+            
+            let destinations = target.destinations
+            let inconsistentPlatformIssue = LintingIssue(
+                reason: "Found an inconsistency between target destinations `\(destinations)` and deployment target `\(platform.caseValue)`",
+                severity: .error
+            )
+            
+            switch platform {
+            case .iOS: if !target.supports(.iOS) { return [inconsistentPlatformIssue] }
+            case .macOS: if !target.supports(.macOS) { return [inconsistentPlatformIssue] }
+            case .watchOS: if !target.supports(.watchOS) { return [inconsistentPlatformIssue] }
+            case .tvOS: if !target.supports(.tvOS) { return [inconsistentPlatformIssue] }
+            case .visionOS: if !target.supports(.visionOS) { return [inconsistentPlatformIssue] }
+            }
             return []
         }
-
-        let versionFormatIssue = LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)
-
-        let osVersionRegex = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
-        if !deploymentTarget.version.matches(pattern: osVersionRegex) { return [versionFormatIssue] }
-
-        let destinations = target.destinations
-        let inconsistentPlatformIssue = LintingIssue(
-            reason: "Found an inconsistency between target destinations `\(destinations)` and deployment target `\(deploymentTarget.platform.caseValue)`",
-            severity: .error
-        )
-
-        switch deploymentTarget {
-        case .iOS: if !target.supports(.iOS) { return [inconsistentPlatformIssue] }
-        case .macOS: if !target.supports(.macOS) { return [inconsistentPlatformIssue] }
-        case .watchOS: if !target.supports(.watchOS) { return [inconsistentPlatformIssue] }
-        case .tvOS: if !target.supports(.tvOS) { return [inconsistentPlatformIssue] }
-        case .visionOS: if !target.supports(.visionOS) { return [inconsistentPlatformIssue] }
-        }
-
-        return []
     }
 
     private func lintValidPlatformProductCombinations(target: Target) -> [LintingIssue] {

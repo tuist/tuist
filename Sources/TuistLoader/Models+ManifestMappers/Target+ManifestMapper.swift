@@ -36,7 +36,7 @@ extension TuistGraph.Target {
 
         let bundleId = manifest.bundleId
         let productName = manifest.productName
-        let deploymentTarget = manifest.deploymentTarget.map { TuistGraph.DeploymentTarget.from(manifest: $0) }
+        let deploymentTargets = TuistGraph.DeploymentTargets.from(manifest: manifest.deploymentTarget)
 
         let dependencies = try manifest.dependencies.flatMap {
             try TuistGraph.TargetDependency.from(
@@ -96,14 +96,14 @@ extension TuistGraph.Target {
         let buildRules = manifest.buildRules.map {
             TuistGraph.BuildRule.from(manifest: $0)
         }
-
+        
         return TuistGraph.Target(
             name: name,
             destinations: destinations,
             product: product,
             productName: productName,
             bundleId: bundleId,
-            deploymentTarget: deploymentTarget,
+            deploymentTargets: deploymentTargets,
             infoPlist: infoPlist,
             entitlements: entitlements,
             settings: settings,

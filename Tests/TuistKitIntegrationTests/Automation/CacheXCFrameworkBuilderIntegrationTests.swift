@@ -136,7 +136,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
                     "iOS": Target.test(
                         name: "iOS",
                         destinations: [.iPhone, .iPad, .macCatalyst],
-                        deploymentTarget: .iOS("14.0")
+                        deploymentTargets: .iOS("14.0")
                     ),
                 ],
             ]

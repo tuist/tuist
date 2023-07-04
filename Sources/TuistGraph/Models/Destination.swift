@@ -26,10 +26,12 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
     case macCatalyst
     case appleWatch
     case appleTv
+    case appleVision
+    case appleVisionWithiPadDesign
     
     var platform: Platform {
         switch self {
-        case .iPad, .iPhone, .macCatalyst, .macWithiPadDesign:
+        case .iPad, .iPhone, .macCatalyst, .macWithiPadDesign, .appleVisionWithiPadDesign:
             return .iOS
         case .mac:
             return .macOS
@@ -37,6 +39,8 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
             return .tvOS
         case .appleWatch:
             return .watchOS
+        case .appleVision:
+            return .visionOS
         }
     }
 }

@@ -289,12 +289,19 @@ final class ConfigGenerator: ConfigGenerating {
         if target.destinations.contains(.iPad) { deviceFamilyValues.append(2) }
         if target.destinations.contains(.appleTv) { deviceFamilyValues.append(3) }
         if target.destinations.contains(.appleWatch) { deviceFamilyValues.append(4) }
+        if target.destinations.contains(.appleVision) { deviceFamilyValues.append(7) }
         settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
 
         if target.destinations.contains(.macWithiPadDesign) {
             settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
         } else {
             settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "NO"
+        }
+        
+        if target.destinations.contains(.appleVisionWithiPadDesign) {
+            settings["SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
+        } else {
+            settings["SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD"] = "NO"
         }
         
         if target.destinations.contains(.macCatalyst) {
@@ -308,29 +315,25 @@ final class ConfigGenerator: ConfigGenerating {
     }
     
     private func deploymentTargetDerivedSettings(target: Target) -> SettingsDictionary {
-        guard let deploymentTarget = target.deploymentTarget else {
-            return [:]
-        }
-
+        
         var settings: SettingsDictionary = [:]
-
-        switch deploymentTarget {
-        case let .iOS(version):
-            settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
-        case let .macOS(version):
-            settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
-        case let .watchOS(version):
-            settings["WATCHOS_DEPLOYMENT_TARGET"] = .string(version)
-        case let .tvOS(version):
-            settings["TVOS_DEPLOYMENT_TARGET"] = .string(version)
-        case let .visionOS(version):
-            let deviceFamilyValues = [1, 2, 7]
-
-            settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
-
-            settings["XROS_DEPLOYMENT_TARGET"] = .string(version)
+        
+        if let macOSVersion = target.deploymentTargets.macOS {
+            settings["MACOSX_DEPLOYMENT_TARGET"] = .string(macOSVersion)
         }
-
+        
+        if let watchOSVersion = target.deploymentTargets.watchOS {
+            settings["WATCHOS_DEPLOYMENT_TARGET"] = .string(watchOSVersion)
+        }
+        
+        if let tvOSVersion = target.deploymentTargets.tvOS {
+            settings["TVOS_DEPLOYMENT_TARGET"] = .string(tvOSVersion)
+        }
+        
+        if let visionOSVersion = target.deploymentTargets.visionOS {
+            settings["XROS_DEPLOYMENT_TARGET"] = .string(visionOSVersion)
+        }
+           
         return settings
     }
 

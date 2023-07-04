@@ -22,7 +22,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var product: Product
     public var bundleId: String
     public var productName: String
-    public var deploymentTarget: DeploymentTarget?
+    public var deploymentTargets: DeploymentTargets
 
     // An info.plist file is needed for (dynamic) frameworks, applications and executables
     // however is not needed for other products such as static libraries.
@@ -53,7 +53,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         product: Product,
         productName: String?,
         bundleId: String,
-        deploymentTarget: DeploymentTarget? = nil,
+        deploymentTargets: DeploymentTargets = DeploymentTargets(),
         infoPlist: InfoPlist? = nil,
         entitlements: AbsolutePath? = nil,
         settings: Settings? = nil,
@@ -78,7 +78,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         self.destinations = destinations
         self.bundleId = bundleId
         self.productName = productName ?? name.replacingOccurrences(of: "-", with: "_")
-        self.deploymentTarget = deploymentTarget
+        self.deploymentTargets = deploymentTargets
         self.infoPlist = infoPlist
         self.entitlements = entitlements
         self.settings = settings
@@ -111,7 +111,12 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     
     /// Returns whether a target supports a platform
     public func supports(_ platform: Platform) -> Bool {
-        return destinations.map(\.platform).allSatisfy { $0 == platform }
+        return destinations.map(\.platform).contains(platform)
+    }
+
+    /// List of platforms this target deploys to
+    public var supportedPlatforms: Set<Platform> {
+        return Set(destinations.map(\.platform))
     }
 
     /// Returns target's pre scripts.

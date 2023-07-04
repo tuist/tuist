@@ -235,7 +235,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let project = Project.test()
         let target = Target.test(
             destinations: [.iPhone, .iPad, .macWithiPadDesign],
-            deploymentTarget: .iOS("12.0")
+            deploymentTargets: .iOS("12.0")
         )
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
@@ -272,7 +272,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let project = Project.test()
         let target = Target.test(
             destinations: [.iPhone, .iPad],
-            deploymentTarget: .iOS("12.0")
+            deploymentTargets: .iOS("12.0")
         )
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
@@ -309,7 +309,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let target = Target.test(
             destinations: [.iPhone, .iPad, .macWithiPadDesign],
             product: .framework,
-            deploymentTarget: .iOS("13.0")
+            deploymentTargets: .iOS("13.0")
         )
         let project = Project.test(targets: [target])
         let graph = Graph.test(path: project.path)
@@ -345,7 +345,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenMac() throws {
         // Given
         let project = Project.test()
-        let target = Target.test(deploymentTarget: .macOS("10.14.1"))
+        let target = Target.test(deploymentTargets: .macOS("10.14.1"))
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -379,7 +379,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let project = Project.test()
         let target = Target.test(
             destinations: [.iPhone, .iPad, .macCatalyst],
-            deploymentTarget: .iOS("13.1")
+            deploymentTargets: .iOS("13.1")
         )
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
@@ -416,7 +416,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenWatch() throws {
         // Given
         let project = Project.test()
-        let target = Target.test(deploymentTarget: .watchOS("6.0"))
+        let target = Target.test(deploymentTargets: .watchOS("6.0"))
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -448,7 +448,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenTV() throws {
         // Given
         let project = Project.test()
-        let target = Target.test(deploymentTarget: .tvOS("14.0"))
+        let target = Target.test(deploymentTargets: .tvOS("14.0"))
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
 

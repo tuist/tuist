@@ -25,16 +25,14 @@ extension XcodeBuildDestination {
         switch target.legacyPlatform {
         case .iOS, .tvOS, .watchOS, .visionOS:
             let minVersion: Version?
-            if let deploymentTarget = target.deploymentTarget {
-                minVersion = deploymentTarget.version.version()
+            if let deploymentTargetVersion = target.deploymentTargets[target.legacyPlatform] {
+                minVersion = deploymentTargetVersion.version()
             } else {
                 minVersion = scheme.targetDependencies()
                     .flatMap {
                         graphTraverser
                             .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)
-                            .map(\.target)
-                            .map(\.deploymentTarget)
-                            .compactMap { $0?.version.version() }
+                            .compactMap({ $0.target.deploymentTargets[target.legacyPlatform]?.version() })
                     }
                     .sorted()
                     .first
