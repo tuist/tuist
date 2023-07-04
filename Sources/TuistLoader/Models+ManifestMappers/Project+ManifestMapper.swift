@@ -40,8 +40,7 @@ extension TuistGraph.Project {
         let aggregateTargets = try manifest.aggregateTargets.map {
             try TuistGraph.Target.from(
                 manifest: $0,
-                generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies
+                generatorPaths: generatorPaths
             )
         }
         let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }

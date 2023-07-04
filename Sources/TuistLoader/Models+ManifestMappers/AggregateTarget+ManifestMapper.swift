@@ -10,11 +10,9 @@ extension TuistGraph.Target {
     /// - Parameters:
     ///   - manifest: Manifest representation of the aggregate target.
     ///   - generatorPaths: Generator paths.
-    ///   - externalDependencies: External dependencies graph.
     static func from(
         manifest: ProjectDescription.AggregateTarget,
-        generatorPaths: GeneratorPaths,
-        externalDependencies _: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]]
+        generatorPaths: GeneratorPaths
     ) throws -> TuistGraph.Target {
         let platform = try TuistGraph.Platform.from(manifest: manifest.platform)
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
