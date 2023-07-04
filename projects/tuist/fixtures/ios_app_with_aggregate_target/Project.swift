@@ -14,8 +14,7 @@ let project = Project(
                 .pre(
                     tool: "/bin/echo",
                     arguments: ["\"tuist\""],
-                    name: "Tuist",
-                    inputPaths: ["Sources/**/*.swift"]
+                    name: "Tuist"
                 ),
                 .pre(
                     path: "script-with-dependency.sh",
