@@ -11,7 +11,7 @@ extension Destinations {
 
 
 extension Destinations {
-    var platforms: Set<Platform> {
+    public var platforms: Set<Platform> {
         let platforms = map(\.platform)
         return Set<Platform>(platforms)
     }
