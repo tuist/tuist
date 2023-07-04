@@ -43,7 +43,7 @@ extension TuistGraph.Target {
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies,
-                platform: platform
+                platform: try TuistGraph.Platform.from(manifest: manifest.platform)
             )
         }
 
