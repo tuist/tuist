@@ -9,6 +9,14 @@ extension Destinations {
     public static var tvOS: Destinations = [.appleTv]
 }
 
+
+extension Destinations {
+    var platforms: Set<Platform> {
+        let platforms = map(\.platform)
+        return Set<Platform>(platforms)
+    }
+}
+
 /// A supported platform representation.
 public enum Destination: String, Codable, Equatable, CaseIterable {
     case iPhone

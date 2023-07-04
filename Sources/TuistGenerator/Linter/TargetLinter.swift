@@ -97,7 +97,7 @@ class TargetLinter: TargetLinting {
         let hasNoScripts = target.scripts.isEmpty
 
         // macOS bundle targets can have source code, but it's optional
-        if target.platform == .macOS, target.product == .bundle, hasNoSources {
+        if target.isExclusiveTo(.macOS), target.product == .bundle, hasNoSources {
             return []
         }
 
@@ -105,7 +105,7 @@ class TargetLinter: TargetLinting {
             return [LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)]
         } else if !supportsSources, !sources.isEmpty {
             return [LintingIssue(
-                reason: "Target \(target.name) cannot contain sources. \(target.platform) \(target.product) targets don't support source files",
+                reason: "Target \(target.name) cannot contain sources.  \(target.product) targets in one of these destinations don't support source files: \(target.destinations)",
                 severity: .error
             )]
         }
@@ -207,18 +207,18 @@ class TargetLinter: TargetLinting {
         let osVersionRegex = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
         if !deploymentTarget.version.matches(pattern: osVersionRegex) { return [versionFormatIssue] }
 
-        let platform = target.platform
+        let destinations = target.destinations
         let inconsistentPlatformIssue = LintingIssue(
-            reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform.caseValue)`",
+            reason: "Found an inconsistency between target destinations `\(destinations)` and deployment target `\(deploymentTarget.platform.caseValue)`",
             severity: .error
         )
 
         switch deploymentTarget {
-        case .iOS: if platform != .iOS { return [inconsistentPlatformIssue] }
-        case .macOS: if platform != .macOS { return [inconsistentPlatformIssue] }
-        case .watchOS: if platform != .watchOS { return [inconsistentPlatformIssue] }
-        case .tvOS: if platform != .tvOS { return [inconsistentPlatformIssue] }
-        case .visionOS: if platform != .visionOS { return [inconsistentPlatformIssue] }
+        case .iOS: if !target.supports(.iOS) { return [inconsistentPlatformIssue] }
+        case .macOS: if !target.supports(.macOS) { return [inconsistentPlatformIssue] }
+        case .watchOS: if !target.supports(.watchOS) { return [inconsistentPlatformIssue] }
+        case .tvOS: if !target.supports(.tvOS) { return [inconsistentPlatformIssue] }
+        case .visionOS: if !target.supports(.visionOS) { return [inconsistentPlatformIssue] }
         }
 
         return []
@@ -229,15 +229,17 @@ class TargetLinter: TargetLinting {
             .iOS: [.watch2App, .watch2Extension, .tvTopShelfExtension],
         ]
 
-        if let invalidProducts = invalidProductsForPlatforms[target.platform],
-           invalidProducts.contains(target.product)
-        {
-            return [
-                LintingIssue(
-                    reason: "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",
-                    severity: .error
-                ),
-            ]
+        for platform in target.destinations.platforms {
+            if let invalidProducts = invalidProductsForPlatforms[target.legacyPlatform],
+               invalidProducts.contains(target.product)
+            {
+                return [
+                    LintingIssue(
+                        reason: "'\(target.name)' for platform '\(platform)' can't have a product type '\(target.product)'",
+                        severity: .error
+                    ),
+                ]
+            }
         }
 
         return []
