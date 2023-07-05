@@ -101,13 +101,11 @@ extension Target {
 extension AggregateTarget {
     public static func test(
         name: String = "AggregateTarget",
-        platform: Platform = .iOS,
         scripts: [TargetScript] = [],
         settings: Settings? = nil
     ) -> AggregateTarget {
         AggregateTarget(
             name: name,
-            platform: platform,
             scripts: scripts,
             settings: settings
         )

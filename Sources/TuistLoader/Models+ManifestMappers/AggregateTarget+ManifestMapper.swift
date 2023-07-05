@@ -14,7 +14,6 @@ extension TuistGraph.Target {
         manifest: ProjectDescription.AggregateTarget,
         generatorPaths: GeneratorPaths
     ) throws -> TuistGraph.Target {
-        let platform = try TuistGraph.Platform.from(manifest: manifest.platform)
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
         let scripts = try manifest.scripts.map {
             try TuistGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
@@ -22,7 +21,7 @@ extension TuistGraph.Target {
 
         return TuistGraph.Target(
             name: manifest.name,
-            platform: platform,
+            platform: .macOS,
             product: .aggregateTarget,
             productName: nil,
             bundleId: "",

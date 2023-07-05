@@ -5,7 +5,6 @@ let project = Project(
     aggregateTargets: [
         AggregateTarget(
             name: "App",
-            platform: .macOS,
             scripts: [
                 // Note there are acceptance tests verifying the first `pre` and last `post` action
                 // additions not part of the acceptance test should be added in-between
