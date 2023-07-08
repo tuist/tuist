@@ -218,7 +218,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         XCTContainsLintingIssue(
             result,
             LintingIssue(
-                reason: "Target \(bundle.name) cannot contain sources. iOS bundle targets don't support source files",
+                reason: "Target \(bundle.name) cannot contain sources. bundle targets in one of these destinations doesn't support source files: iPad, iPhone, macWithiPadDesign",
                 severity: .error
             )
         )

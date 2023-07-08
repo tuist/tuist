@@ -105,7 +105,7 @@ class TargetLinter: TargetLinting {
             return [LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)]
         } else if !supportsSources, !sources.isEmpty {
             return [LintingIssue(
-                reason: "Target \(target.name) cannot contain sources.  \(target.product) targets in one of these destinations don't support source files: \(target.destinations)",
+                reason: "Target \(target.name) cannot contain sources. \(target.product) targets in one of these destinations doesn't support source files: \(target.destinations.map(\.rawValue).sorted().joined(separator: ", "))",
                 severity: .error
             )]
         }
