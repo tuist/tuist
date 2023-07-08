@@ -302,11 +302,12 @@ final class TargetLinterTests: TuistUnitTestCase {
             // When
             let got = subject.lint(target: target)
 
+            let expectedPlatform = try XCTUnwrap(combinations.1.configuredVersions.first?.platform.caseValue)
             // Then
             XCTContainsLintingIssue(
                 got,
                 LintingIssue(
-                    reason: "This is a sample string to please the compiler. This linting test and logic needs to be reassessed for multiplatform",
+                    reason: "Found deployment platforms (\(expectedPlatform)) missing corresponding destination",
                     severity: .error
                 )
             )
