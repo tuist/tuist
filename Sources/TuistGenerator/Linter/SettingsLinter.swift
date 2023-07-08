@@ -70,7 +70,7 @@ final class SettingsLinter: SettingsLinting {
 
         if !missingPlatforms.isEmpty {
             return [LintingIssue(
-                reason: "Found deployment platforms (\(missingPlatforms.map { $0.caseValue }.joined(separator: ", ")) missing corresponding destination",
+                reason: "Found deployment platforms (\(missingPlatforms.map { $0.caseValue }.joined(separator: ", "))) missing corresponding destination",
                 severity: .error
             )]
         } else {
