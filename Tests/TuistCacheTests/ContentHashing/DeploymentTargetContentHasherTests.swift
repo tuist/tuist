@@ -27,7 +27,6 @@ final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenIosIphoneV1_callsContentHasherWithExpectedStrings() throws {
         // When
-        //, .iphone, supportsMacDesignedForIOS: false
         let deploymentTargets = DeploymentTargets.iOS("v1")
 
         // Then
