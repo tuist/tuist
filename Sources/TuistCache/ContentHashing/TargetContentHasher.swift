@@ -97,7 +97,6 @@ public final class TargetContentHasher: TargetContentHashing {
         let environmentHash = try contentHasher.hash(graphTarget.target.environment)
         var stringsToHash = [
             graphTarget.target.name,
-            graphTarget.target.legacyPlatform.rawValue,
             graphTarget.target.product.rawValue,
             graphTarget.target.bundleId,
             graphTarget.target.productName,
@@ -109,6 +108,9 @@ public final class TargetContentHasher: TargetContentHashing {
             targetScriptsHash,
             environmentHash,
         ]
+        
+        stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue))
+        
         if let headers = graphTarget.target.headers {
             let headersHash = try headersContentHasher.hash(headers: headers)
             stringsToHash.append(headersHash)
