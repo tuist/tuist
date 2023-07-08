@@ -128,7 +128,8 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     }
 
     func bundleExecutable(_ target: Target) -> [String: Any] {
-        let shouldIncludeBundleExecutableKey = target.isExclusiveTo(.macOS) && target.product == .bundle
+        // Bundles on iOS, tvOS, and watchOS do not support sources so we exclude `CFBundleExecutable`
+        let shouldIncludeBundleExecutableKey =  target.product != .bundle || (target.product == .bundle && target.isExclusiveTo(.macOS))
 
         if shouldIncludeBundleExecutableKey {
             return [
