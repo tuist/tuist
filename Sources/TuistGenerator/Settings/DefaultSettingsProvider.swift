@@ -184,15 +184,14 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     }
 
     private func additionalTargetSettings(for target: Target) -> SettingsDictionary {
-        switch (target.legacyPlatform, target.product) {
-        case (.watchOS, .app):
+        if target.isExclusiveTo(.watchOS) && target.product == .app {
             return [
                 "LD_RUNPATH_SEARCH_PATHS": [
                     "$(inherited)",
                     "@executable_path/Frameworks",
                 ],
             ]
-        default:
+        } else {
             return [:]
         }
     }
