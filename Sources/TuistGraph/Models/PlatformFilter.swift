@@ -5,7 +5,7 @@ public typealias PlatformFilters = Set<PlatformFilter>
 
 extension PlatformFilters: Comparable {
     public static func < (lhs: Set<Element>, rhs: Set<Element>) -> Bool {
-        return lhs.count < rhs.count
+        return lhs.map(\.xcodeprojValue).sorted().joined() < rhs.map(\.xcodeprojValue).sorted().joined()
     }
 }
 /// Defines a set of platforms that can be used to limit where things
