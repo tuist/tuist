@@ -73,6 +73,10 @@ final class TestService {
         clean: Bool,
         configuration: String?,
         path: AbsolutePath,
+        xcframeworks: Bool,
+        destination: CacheXCFrameworkDestination,
+        profile: String?,
+        ignoreCache: Bool,
         deviceName: String?,
         osVersion: String?,
         skipUITests: Bool,
@@ -85,6 +89,8 @@ final class TestService {
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
         let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
+        let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
+        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework(destination) : .framework
 
         let projectDirectory = cacheDirectoriesProvider.cacheDirectory(for: .generatedAutomationProjects)
             .appending(component: "\(try contentHasher.hash(path.pathString))")
@@ -94,6 +100,10 @@ final class TestService {
 
         let generator = generatorFactory.test(
             config: config,
+            sources: Set([]),
+            cacheOutputType: cacheOutputType,
+            cacheProfile: cacheProfile,
+            ignoreCache: ignoreCache,
             automationPath: Environment.shared.automationPath ?? projectDirectory,
             testsCacheDirectory: testsCacheTemporaryDirectory.path,
             skipUITests: skipUITests

@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistSupport
 
 /// Command that tests a target from the project in the current directory.
@@ -48,6 +49,31 @@ struct TestCommand: AsyncParsableCommand {
     var configuration: String?
 
     @Flag(
+        name: [.customShort("x"), .long],
+        help: "When passed it uses xcframeworks (simulator and device) from the cache instead of frameworks (only simulator)."
+    )
+    var xcframeworks: Bool = false
+
+    @Option(
+        name: [.long],
+        help: "Type of cached xcframeworks to use when --xcframeworks is passed (device/simulator)",
+        completion: .list(["device", "simulator"])
+    )
+    var destination: CacheXCFrameworkDestination = [.simulator]
+
+    @Option(
+        name: [.customShort("P"), .long],
+        help: "The name of the cache profile to be used when focusing on the target."
+    )
+    var profile: String?
+
+    @Flag(
+        name: [.customLong("no-cache")],
+        help: "Ignore cached targets, and use their sources instead."
+    )
+    var ignoreCache: Bool = false
+
+    @Flag(
         name: .long,
         help: "When passed, it skips testing UI Tests targets."
     )
@@ -79,6 +105,10 @@ struct TestCommand: AsyncParsableCommand {
             clean: clean,
             configuration: configuration,
             path: absolutePath,
+            xcframeworks: xcframeworks,
+            destination: destination,
+            profile: profile,
+            ignoreCache: ignoreCache,
             deviceName: device,
             osVersion: os,
             skipUITests: skipUITests,

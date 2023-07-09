@@ -12,7 +12,14 @@ import TuistSigning
 protocol GraphMapperFactorying {
     ///  Returns the graph mapper that should be used for automation tasks such as build and test.
     /// - Returns: A graph mapper.
-    func automation(config: Config, testsCacheDirectory: AbsolutePath) -> [GraphMapping]
+    func automation(
+        config: Config,
+        cache: Bool,
+        cacheSources: Set<String>,
+        cacheProfile: TuistGraph.Cache.Profile,
+        cacheOutputType: CacheOutputType,
+        testsCacheDirectory: AbsolutePath
+    ) -> [GraphMapping]
 
     /// Returns the graph mapper for generating focused projects where some targets are pruned from the graph
     /// and others are replaced with their binary counterparts.
@@ -41,27 +48,34 @@ final class GraphMapperFactory: GraphMapperFactorying {
         self.contentHasher = contentHasher
     }
 
-    func automation(config: Config, testsCacheDirectory: AbsolutePath) -> [GraphMapping] {
+    func automation(
+        config: Config,
+        cache: Bool,
+        cacheSources: Set<String>,
+        cacheProfile: TuistGraph.Cache.Profile,
+        cacheOutputType: CacheOutputType,
+        testsCacheDirectory: AbsolutePath
+    ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(
             TestsCacheGraphMapper(hashesCacheDirectory: testsCacheDirectory, config: config)
         )
         mappers.append(FocusTargetsGraphMappers(includedTargets: []))
         mappers.append(contentsOf: self.default())
-        do {
-            let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: nil, from: config)
+        mappers.append(TreeShakePrunedTargetsGraphMapper())
+
+        if cache {
             let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                 config: config,
                 cacheStorageProvider: CacheStorageProvider(config: config),
-                sources: Set([]),
+                sources: cacheSources,
                 cacheProfile: cacheProfile,
-                cacheOutputType: .xcframework(CacheXCFrameworkDestination.simulator)
+                cacheOutputType: cacheOutputType
             )
             mappers.append(focusTargetsGraphMapper)
-        } catch {
-            logger.error("Cache profile resolver failed")
+            mappers.append(TreeShakePrunedTargetsGraphMapper())
         }
-        mappers.append(TreeShakePrunedTargetsGraphMapper())
+
         return mappers
     }
 
