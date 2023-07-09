@@ -58,16 +58,7 @@ extension CarthageVersionFile {
                     container: "Alamofire.xcframework"
                 ),
             ],
-            visionOS: [
-                .init(
-                    name: "Alamofire",
-                    container: "Alamofire.xcframework"
-                ),
-                .init(
-                    name: "Alamofire",
-                    container: "Alamofire.xcframework"
-                ),
-            ]
+            visionOS: nil
         )
     }
 
@@ -209,44 +200,7 @@ extension CarthageVersionFile {
                     container: "RxTest.xcframework"
                 ),
             ],
-            visionOS: [
-                .init(
-                    name: "RxBlocking",
-                    container: "RxBlocking.xcframework"
-                ),
-                .init(
-                    name: "RxBlocking",
-                    container: "RxBlocking.xcframework"
-                ),
-                .init(
-                    name: "RxCocoa",
-                    container: "RxCocoa.xcframework"
-                ),
-                .init(
-                    name: "RxCocoa",
-                    container: "RxCocoa.xcframework"
-                ),
-                .init(
-                    name: "RxRelay",
-                    container: "RxRelay.xcframework"
-                ),
-                .init(
-                    name: "RxRelay",
-                    container: "RxRelay.xcframework"
-                ),
-                .init(
-                    name: "RxSwift",
-                    container: "RxSwift.xcframework"
-                ),
-                .init(
-                    name: "RxSwift",
-                    container: "RxSwift.xcframework"
-                ),
-                .init(
-                    name: "RxTest",
-                    container: "RxTest.xcframework"
-                ),
-            ]
+            visionOS: nil
         )
     }
 
@@ -675,6 +629,9 @@ extension CarthageVersionFile {
               "hash" : "3a9ced64f6f8ccca46dc0038bdbf3efd8cf98f73cbc29ee1b00d98757b7fab33",
               "linking" : "dynamic"
             }
+          ],
+          "visionOS": [
+
           ]
         }
         """
