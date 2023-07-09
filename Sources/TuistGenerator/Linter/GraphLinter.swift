@@ -595,7 +595,6 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .visionOS, product: .bundle),
             LintableTarget(platform: .visionOS, product: .appExtension),
             LintableTarget(platform: .watchOS, product: .app),
-//            LintableTarget(platform: .watchOS, product: .watchApp),
             LintableTarget(platform: .visionOS, product: .extensionKitExtension),
         ],
         LintableTarget(platform: .visionOS, product: .staticLibrary): [
