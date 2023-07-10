@@ -183,6 +183,7 @@ public final class SimulatorController: SimulatorControlling {
         case .iOS: platform = .iOS
         case .watchOS: platform = .watchOS
         case .tvOS: platform = .tvOS
+        case .visionOS: platform = .visionOS
         case .macOS:
             return macOSDestination()
         }

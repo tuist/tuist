@@ -313,6 +313,12 @@ final class ConfigGenerator: ConfigGenerating {
             settings["WATCHOS_DEPLOYMENT_TARGET"] = .string(version)
         case let .tvOS(version):
             settings["TVOS_DEPLOYMENT_TARGET"] = .string(version)
+        case let .visionOS(version):
+            let deviceFamilyValues = [1, 2, 7]
+
+            settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
+
+            settings["XROS_DEPLOYMENT_TARGET"] = .string(version)
         }
 
         return settings

@@ -218,6 +218,7 @@ class TargetLinter: TargetLinting {
         case .macOS: if platform != .macOS { return [inconsistentPlatformIssue] }
         case .watchOS: if platform != .watchOS { return [inconsistentPlatformIssue] }
         case .tvOS: if platform != .tvOS { return [inconsistentPlatformIssue] }
+        case .visionOS: if platform != .visionOS { return [inconsistentPlatformIssue] }
         }
 
         return []

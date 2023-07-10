@@ -585,5 +585,58 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .macOS, product: .staticFramework),
         ],
+
+        // visionOS products
+        LintableTarget(platform: .visionOS, product: .app): [
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .bundle),
+            LintableTarget(platform: .visionOS, product: .appExtension),
+            LintableTarget(platform: .visionOS, product: .extensionKitExtension),
+        ],
+        LintableTarget(platform: .visionOS, product: .staticLibrary): [
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .bundle),
+        ],
+        LintableTarget(platform: .visionOS, product: .staticFramework): [
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .bundle),
+        ],
+        LintableTarget(platform: .visionOS, product: .dynamicLibrary): [
+            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
+            LintableTarget(platform: .visionOS, product: .bundle),
+        ],
+        LintableTarget(platform: .visionOS, product: .framework): [
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .bundle),
+        ],
+        LintableTarget(platform: .visionOS, product: .unitTests): [
+            LintableTarget(platform: .visionOS, product: .app),
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .bundle),
+        ],
+        LintableTarget(platform: .visionOS, product: .appExtension): [
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .framework),
+        ],
+        LintableTarget(platform: .visionOS, product: .extensionKitExtension): [
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+        ],
     ]
 }

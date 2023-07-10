@@ -71,6 +71,7 @@ final class SettingsLinter: SettingsLinting {
         case .macOS: if platform != .macOS { return [issue] }
         case .watchOS: if platform != .watchOS { return [issue] }
         case .tvOS: if platform != .tvOS { return [issue] }
+        case .visionOS: if platform != .visionOS { return [issue] }
         }
         return []
     }
