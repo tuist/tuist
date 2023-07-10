@@ -68,6 +68,15 @@ final class TuistWorkspaceRenderMarkdownReadmeMapperTests: TuistUnitTestCase {
             renderMarkdownReadme: false
         ))
 
+        let tuistGeneratedFileDescriptor = FileDescriptor(
+            path: workspace
+                .xcWorkspacePath
+                .appending(
+                    component: ".xcodesamplecode.plist"
+                ),
+            contents: try PropertyListEncoder().encode([String]()),
+            state: .absent // file should be deleted
+        )
         let workspaceWithProjects = WorkspaceWithProjects(workspace: workspace, projects: [])
         // When
         let (gotWorkspaceWithProjects, sideEffects) = try TuistWorkspaceRenderMarkdownReadmeMapper()
@@ -78,6 +87,11 @@ final class TuistWorkspaceRenderMarkdownReadmeMapperTests: TuistUnitTestCase {
             gotWorkspaceWithProjects.workspace.generationOptions.renderMarkdownReadme
         )
         XCTAssertTrue(gotWorkspaceWithProjects.workspace.projects.isEmpty)
-        XCTAssertEqual(sideEffects, [])
+        XCTAssertEqual(
+            sideEffects,
+            [
+                .file(tuistGeneratedFileDescriptor),
+            ]
+        )
     }
 }
