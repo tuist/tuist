@@ -7,6 +7,7 @@ extension Destinations {
     public static var iOS: Destinations = [.iPhone, .iPad, .macWithiPadDesign]
     public static var macOS: Destinations = [.mac]
     public static var tvOS: Destinations = [.appleTv]
+    public static var visionOS: Destinations = [.appleVision]
 }
 
 
