@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- Added support for visionOS [#5251](https://github.com/tuist/tuist/pull/5251) by [@Mstrodl](https://github.com/Mstrodl).
+
+### Fixed
+
+- Fixed a bug where turning on and off the rendering of markdown files in Workspace config wouldn't turn off rendering properly and would stay in read-only mode [#5261](https://github.com/tuist/tuist/pull/5261) by [@Buju77](https://github.com/Buju77).
+- Fixed code generation when target name starts with non alphanumeric character [#5256](https://github.com/tuist/tuist/pull/5256) by [@dankinsoid](https://github.com/dankinsoid)
+
 ### Changed
 
 - Update Stencil to 0.15.1 [#5250](https://github.com/tuist/tuist/pull/5250) by [@waltflanagan](https://github.com/waltflanagan)
