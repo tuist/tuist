@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.21.0 - 2023-07-11
+
+### Changed
+
+- Set BuildIndependentTargetsInParallel setting to true by default [#5225](https://github.com/tuist/tuist/pull/5225) by [@thedavidharris](https://github.com/thedavidharris)
+
+### Added
+
+- Add support for ExtensionKit extensions [#5005](https://github.com/tuist/tuist/pull/5005) by [@tovkal](https://github.com/tovkal)
+
+### Fixed
+
+- Mark bundle product type doesn't support sources for all platforms [#5229](https://github.com/tuist/tuist/pull/5229) by [@serejahh](https://github.com/serejahh)
+
 ## Unreleased
 
 ### Added
