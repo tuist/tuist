@@ -5,6 +5,7 @@ public enum Platform: String, CaseIterable, Codable {
     case macOS = "macos"
     case tvOS = "tvos"
     case watchOS = "watchos"
+    case visionOS = "visionos"
 
     public var caseValue: String {
         switch self {
@@ -12,6 +13,7 @@ public enum Platform: String, CaseIterable, Codable {
         case .macOS: return "macOS"
         case .tvOS: return "tvOS"
         case .watchOS: return "watchOS"
+        case .visionOS: return "visionOS"
         }
     }
 
@@ -24,6 +26,7 @@ public enum Platform: String, CaseIterable, Codable {
                 .tvOS: "9.0",
                 .macOS: "10.10",
                 .watchOS: "2.0",
+                .visionOS: "1.0",
             ]
         }
 
@@ -33,6 +36,7 @@ public enum Platform: String, CaseIterable, Codable {
             .tvOS: "11.0",
             .macOS: "10.13",
             .watchOS: "4.0",
+            .visionOS: "1.0",
         ]
     }
 }
@@ -48,6 +52,8 @@ extension Platform {
             return "appletvos"
         case .watchOS:
             return "watchos"
+        case .visionOS:
+            return "xros"
         }
     }
 
@@ -75,6 +81,7 @@ extension Platform {
         case .tvOS: return "appletvsimulator"
         case .iOS: return "iphonesimulator"
         case .watchOS: return "watchsimulator"
+        case .visionOS: return "xrsimulator"
         case .macOS: return nil
         }
     }
@@ -90,6 +97,8 @@ extension Platform {
             return "macosx"
         case .watchOS:
             return "watchos"
+        case .visionOS:
+            return "xros"
         }
     }
 
@@ -104,6 +113,8 @@ extension Platform {
             return "Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk"
         case .watchOS:
             return "Platforms/WatchOS.platform/Developer/SDKs/WatchOS.sdk"
+        case .visionOS:
+            return "Platforms/XROS.platform/Developer/SDKs/XROS.sdk"
         }
     }
 
@@ -117,13 +128,15 @@ extension Platform {
             return "Platforms/AppleTVOS.platform/Developer/Library"
         case .watchOS:
             return "Platforms/WatchOS.platform/Developer/Library"
+        case .visionOS:
+            return "Platforms/XROS.platform/Developer/Library"
         }
     }
 
     /// Returns the directory name whose Carthage uses to save frameworks.
     public var carthageDirectory: String {
         switch self {
-        case .iOS, .watchOS, .tvOS:
+        case .iOS, .watchOS, .tvOS, .visionOS:
             return caseValue
         case .macOS:
             return "Mac"

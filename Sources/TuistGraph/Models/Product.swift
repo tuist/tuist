@@ -170,11 +170,13 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
         ]
 
         if platform == .iOS {
-            base.append(.appExtension)
             base.append(.stickerPackExtension)
             //            base.append(.messagesApplication)
             base.append(.messagesExtension)
             base.append(.appClip)
+        }
+        if platform == .iOS || platform == .visionOS {
+            base.append(.appExtension)
         }
 
         if platform == .tvOS {
@@ -184,9 +186,16 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
 
         if platform == .macOS ||
             platform == .tvOS ||
-            platform == .iOS
+            platform == .iOS ||
+            platform == .visionOS
         {
             base.append(.unitTests)
+        }
+
+        if platform == .macOS ||
+            platform == .tvOS ||
+            platform == .iOS
+        {
             base.append(.uiTests)
         }
 

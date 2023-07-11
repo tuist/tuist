@@ -283,6 +283,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 acc[.tvOS] = .tvOS(targetVersion: next.value)
             case .watchOS:
                 acc[.watchOS] = .watchOS(targetVersion: next.value)
+            case .visionOS:
+                acc[.visionOS] = .visionOS(targetVersion: next.value)
             }
         }
 
@@ -574,6 +576,8 @@ extension ProjectDescription.DeploymentTarget {
                 return .watchOS(targetVersion: targetVersion)
             case .tvOS:
                 return .tvOS(targetVersion: targetVersion)
+            case .visionOS:
+                return .visionOS(targetVersion: targetVersion)
             }
         } else {
             return minDeploymentTargets[platform]!
@@ -1019,6 +1023,8 @@ extension TuistGraph.Platform {
             return .tvOS
         case .watchOS:
             return .watchOS
+        case .visionOS:
+            return .visionOS
         }
     }
 }
@@ -1034,6 +1040,8 @@ extension PackageInfo.Platform {
             return .tvOS
         case "watchos":
             return .watchOS
+        case "visionos":
+            return .visionOS
         default:
             throw PackageInfoMapperError.unknownPlatform(platformName)
         }
@@ -1162,6 +1170,8 @@ extension ProjectDescription.DeploymentTarget {
             return .tvOS(targetVersion: version)
         case let .watchOS(version):
             return .watchOS(targetVersion: version)
+        case let .visionOS(version):
+            return .visionOS(targetVersion: version)
         }
     }
 }

@@ -117,8 +117,6 @@ jobs:
             'test',
             'plugin',
           ]
-    env:
-      TUIST_CONFIG_GITHUB_API_TOKEN: ${{ secrets.GH_TOKEN }}
     needs: release_build
     steps:
       - uses: actions/checkout@v3

@@ -24,12 +24,14 @@ final class PlatformTests: XCTestCase {
         XCTAssertEqual(Platform.iOS.xcodeSdkRoot, "iphoneos")
         XCTAssertEqual(Platform.tvOS.xcodeSdkRoot, "appletvos")
         XCTAssertEqual(Platform.watchOS.xcodeSdkRoot, "watchos")
+        XCTAssertEqual(Platform.visionOS.xcodeSdkRoot, "xros")
     }
 
     func test_xcodeSimulatorSDK() {
         XCTAssertEqual(Platform.tvOS.xcodeSimulatorSDK, "appletvsimulator")
         XCTAssertEqual(Platform.iOS.xcodeSimulatorSDK, "iphonesimulator")
         XCTAssertEqual(Platform.watchOS.xcodeSimulatorSDK, "watchsimulator")
+        XCTAssertEqual(Platform.visionOS.xcodeSimulatorSDK, "xrsimulator")
         XCTAssertNil(Platform.macOS.xcodeSimulatorSDK)
     }
 
@@ -38,6 +40,7 @@ final class PlatformTests: XCTestCase {
         XCTAssertEqual(Platform.iOS.xcodeDeviceSDK, "iphoneos")
         XCTAssertEqual(Platform.watchOS.xcodeDeviceSDK, "watchos")
         XCTAssertEqual(Platform.macOS.xcodeDeviceSDK, "macosx")
+        XCTAssertEqual(Platform.visionOS.xcodeDeviceSDK, "xros")
     }
 
     func test_hasSimulators() {
@@ -45,6 +48,7 @@ final class PlatformTests: XCTestCase {
         XCTAssertTrue(Platform.tvOS.hasSimulators)
         XCTAssertTrue(Platform.watchOS.hasSimulators)
         XCTAssertTrue(Platform.tvOS.hasSimulators)
+        XCTAssertTrue(Platform.visionOS.hasSimulators)
     }
 
     func test_carthageDirectory() {
@@ -61,6 +65,7 @@ final class PlatformTests: XCTestCase {
             .macOS,
             .tvOS,
             .watchOS,
+            .visionOS,
         ]
 
         // When
@@ -72,6 +77,7 @@ final class PlatformTests: XCTestCase {
             "Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
             "Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk",
             "Platforms/WatchOS.platform/Developer/SDKs/WatchOS.sdk",
+            "Platforms/XROS.platform/Developer/SDKs/XROS.sdk",
         ])
     }
 }

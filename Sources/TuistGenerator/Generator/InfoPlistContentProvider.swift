@@ -133,7 +133,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     func bundleExecutable(_ target: Target) -> [String: Any] {
         let shouldIncludeBundleExecutableKey: (Target) -> Bool = {
             switch ($0.platform, $0.product) {
-            case (.iOS, .bundle), (.tvOS, .bundle), (.watchOS, .bundle):
+            case (.iOS, .bundle), (.tvOS, .bundle), (.watchOS, .bundle), (.visionOS, .bundle):
                 return false
             default:
                 return true

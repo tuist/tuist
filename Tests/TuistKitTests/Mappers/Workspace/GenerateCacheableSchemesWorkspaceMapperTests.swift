@@ -35,6 +35,8 @@ final class GenerateCacheableSchemesWorkspaceMapperTests: TuistUnitTestCase {
             "ProjectCache-Binaries-tvOS",
             "ProjectCache-Bundles-watchOS",
             "ProjectCache-Binaries-watchOS",
+            "ProjectCache-Bundles-visionOS",
+            "ProjectCache-Binaries-visionOS",
         ])
         XCTAssertEqual(updatedWorkspace.workspace.schemes[1].buildAction?.targets.map(\.name), [
             "A",

@@ -23,7 +23,7 @@ extension XcodeBuildDestination {
         simulatorController: SimulatorControlling
     ) async throws -> XcodeBuildDestination {
         switch target.platform {
-        case .iOS, .tvOS, .watchOS:
+        case .iOS, .tvOS, .watchOS, .visionOS:
             let minVersion: Version?
             if let deploymentTarget = target.deploymentTarget {
                 minVersion = deploymentTarget.version.version()
