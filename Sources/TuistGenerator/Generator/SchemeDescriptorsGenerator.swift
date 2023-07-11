@@ -779,10 +779,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         guard let target = graphTraverser.target(path: graphTarget.project.path, name: graphTarget.target.name)
         else { return nil }
         guard let generatedProject = generatedProjects[projectPath] else { return nil }
-        let pbxTarget = generatedProject.targets[graphTarget.target.name]
-        if pbxTarget == nil, graphTarget.target.product != .aggregateTarget {
-            return nil
-        }
+        guard let pbxTarget: PBXObject = graphTarget.target.product == .aggregateTarget
+            ? generatedProject.aggregateTargets[graphTarget.target.name]
+            : generatedProject.targets[graphTarget.target.name] else { return nil }
         let relativeXcodeProjectPath = resolveRelativeProjectPath(
             graphTarget: graphTarget,
             generatedProject: generatedProject,
@@ -870,12 +869,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///
     /// - Parameters:
     ///   - target: Target manifest.
-    ///   - pbxTarget: Xcode native target.
+    ///   - pbxTarget: Xcode native or aggregate target.
     ///   - projectPath: Project name with the .xcodeproj extension.
     /// - Returns: Buildable reference.
     private func targetBuildableReference(
         target: Target,
-        pbxTarget: PBXNativeTarget?,
+        pbxTarget: PBXObject,
         projectPath: String
     ) -> XCScheme.BuildableReference {
         XCScheme.BuildableReference(

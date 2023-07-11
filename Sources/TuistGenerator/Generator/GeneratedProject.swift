@@ -13,24 +13,31 @@ final class GeneratedProject {
     /// Dictionary whose keys are the target names and the value the Xcode targets.
     let targets: [String: PBXNativeTarget]
 
+    /// Dictionary whose keys are the aggregate target names and the value the Xcode targets.
+    let aggregateTargets: [String: PBXAggregateTarget]
+
     /// Project name with the .xcodeproj extension.
     let name: String
 
     /// Initializes the GeneratedProject with its attributes.
     ///
     /// - Parameters:
+    ///   - pbxproj: Xcode project
     ///   - path: Dictionary whose keys are the target names and the value the Xcode targets.
     ///   - targets: Dictionary whose keys are the target names and the value the Xcode targets.
+    ///   - aggregateTargets: Dictionary whose keys are the aggregate target names and the value the Xcode targets.
     ///   - name: Project name with .xcodeproj extension
     init(
         pbxproj: PBXProj,
         path: AbsolutePath,
         targets: [String: PBXNativeTarget],
+        aggregateTargets: [String: PBXAggregateTarget],
         name: String
     ) {
         self.pbxproj = pbxproj
         self.path = path
         self.targets = targets
+        self.aggregateTargets = aggregateTargets
         self.name = name
     }
 
@@ -43,6 +50,7 @@ final class GeneratedProject {
             pbxproj: pbxproj,
             path: path,
             targets: targets,
+            aggregateTargets: aggregateTargets,
             name: name
         )
     }

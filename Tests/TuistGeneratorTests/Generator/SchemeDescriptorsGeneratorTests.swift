@@ -1879,7 +1879,13 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         var pbxTargets: [String: PBXNativeTarget] = [:]
         targets.forEach { pbxTargets[$0.name] = PBXNativeTarget(name: $0.name) }
         let path = try! AbsolutePath(validating: projectPath)
-        return GeneratedProject(pbxproj: .init(), path: path, targets: pbxTargets, name: path.basename)
+        return GeneratedProject(
+            pbxproj: .init(),
+            path: path,
+            targets: pbxTargets,
+            aggregateTargets: [:],
+            name: path.basename
+        )
     }
 
     private func makeProfileActionScheme(

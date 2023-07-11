@@ -121,7 +121,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             graphTraverser: graphTraverser
         )
 
-        try generateAggregateTargets(
+        let aggregateTargets = try generateAggregateTargets(
             project: project,
             pbxproj: pbxproj,
             pbxProject: pbxProject
@@ -143,6 +143,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             pbxproj: pbxproj,
             path: project.xcodeProjPath,
             targets: nativeTargets,
+            aggregateTargets: aggregateTargets,
             name: project.xcodeProjPath.basename
         )
 
@@ -231,15 +232,18 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         project: Project,
         pbxproj: PBXProj,
         pbxProject: PBXProject
-    ) throws {
+    ) throws -> [String: PBXAggregateTarget] {
+        var aggregateTargets: [String: PBXAggregateTarget] = [:]
         try project.targets.filter { $0.product == .aggregateTarget }.forEach { target in
-            _ = try targetGenerator.generateAggregateTarget(
+            let aggregateTarget = try targetGenerator.generateAggregateTarget(
                 target: target,
                 project: project,
                 pbxproj: pbxproj,
                 pbxProject: pbxProject
             )
+            aggregateTargets[target.name] = aggregateTarget
         }
+        return aggregateTargets
     }
 
     private func generateTestTargetIdentity(

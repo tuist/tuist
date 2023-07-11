@@ -8,8 +8,9 @@ extension GeneratedProject {
         pbxproj: PBXProj = .init(),
         path: AbsolutePath = try! AbsolutePath(validating: "/project.xcodeproj"),
         targets: [String: PBXNativeTarget] = [:],
+        aggregateTargets: [String: PBXAggregateTarget] = [:],
         name: String = "project.xcodeproj"
     ) -> GeneratedProject {
-        GeneratedProject(pbxproj: pbxproj, path: path, targets: targets, name: name)
+        GeneratedProject(pbxproj: pbxproj, path: path, targets: targets, aggregateTargets: aggregateTargets, name: name)
     }
 }
