@@ -130,6 +130,7 @@ open class TuistTestCase: XCTestCase {
 
     override open func tearDown() {
         temporaryDirectory = nil
+        TestingLogHandler.reset()
         super.tearDown()
     }
 
