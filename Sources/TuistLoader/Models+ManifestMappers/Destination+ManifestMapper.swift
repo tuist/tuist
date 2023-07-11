@@ -44,6 +44,8 @@ extension TuistGraph.Destination {
             return .tvOS
         case (.watchOS, _):
             return .watchOS
+        case (.visionOS, _):
+            return .visionOS
         }
     }
 }
