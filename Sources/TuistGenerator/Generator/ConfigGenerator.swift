@@ -270,13 +270,10 @@ final class ConfigGenerator: ConfigGenerating {
         var settings: SettingsDictionary = [:]
         settings["TEST_TARGET_NAME"] = .string("\(app.target.name)")
         if target.product == .unitTests {
-            var testHostPath = "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)"
-
-            if target.platform == .macOS {
-                testHostPath += "/Contents/MacOS"
-            }
-
-            settings["TEST_HOST"] = .string("\(testHostPath)/\(app.target.productName)")
+            settings["TEST_HOST"] =
+                .string(
+                    "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/\(app.target.productName)"
+                )
             settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
         }
 
