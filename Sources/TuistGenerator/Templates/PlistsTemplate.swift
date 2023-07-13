@@ -69,15 +69,11 @@ extension SynthesizedResourceInterfaceTemplates {
     {% endmacro %}
 
     // swiftlint:disable identifier_name line_length number_separator type_body_length
-    {% if files.count > 1 or param.forceFileNameEnum %}
     {% for file in files %}
     {{accessModifier}} enum {{file.name|swiftIdentifier:"pretty"|escapeReservedKeywords}} {
       {% filter indent:2," ",true %}{% call fileBlock file %}{% endfilter %}
     }
     {% endfor %}
-    {% else %}
-    {% call fileBlock files.first %}
-    {% endif %}
     // swiftlint:enable identifier_name line_length number_separator type_body_length
     {% else %}
     // No files found
