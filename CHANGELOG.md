@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.21.1 - 2023-07-13
+
+### Changed
+
+- Update `TEST_HOST` to use BUNDLE_EXECUTABLE_FOLDER_PATH from Xcode 14 [#5289](https://github.com/tuist/tuist/pull/5289) by [@waltflanagan](https://github.com/waltflanagan)
+
 ## Unreleased
 
 ### Fixed
@@ -23,7 +29,6 @@
 - Mark bundle product type doesn't support sources for all platforms [#5229](https://github.com/tuist/tuist/pull/5229) by [@serejahh](https://github.com/serejahh)
 - Fixed a bug where turning on and off the rendering of markdown files in Workspace config wouldn't turn off rendering properly and would stay in read-only mode [#5261](https://github.com/tuist/tuist/pull/5261) by [@Buju77](https://github.com/Buju77).
 - Fixed code generation when target name starts with non alphanumeric character [#5256](https://github.com/tuist/tuist/pull/5256) by [@dankinsoid](https://github.com/dankinsoid)
-
 
 ## 3.20.0 - 2023-05-31
 
