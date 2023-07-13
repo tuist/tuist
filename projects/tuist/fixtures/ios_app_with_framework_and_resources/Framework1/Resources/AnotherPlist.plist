@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>my_bool_key</key>
+	<false/>
+	<key>some_Number</key>
+	<integer>5</integer>
+	<key>this_is_a_date</key>
+	<date>2023-06-30T16:19:51Z</date>
+	<key>my_dictionary</key>
+	<dict>
+		<key>key2</key>
+		<integer>0</integer>
+		<key>key1</key>
+		<string>value1</string>
+	</dict>
+	<key>my_array</key>
+	<array>
+		<string>a string</string>
+	</array>
+	<key>my_key</key>
+	<string>This is my secret key from another Plist!</string>
+</dict>
+</plist>
