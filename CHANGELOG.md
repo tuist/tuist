@@ -6,8 +6,6 @@
 
 - Update `TEST_HOST` to use BUNDLE_EXECUTABLE_FOLDER_PATH from Xcode 14 [#5289](https://github.com/tuist/tuist/pull/5289) by [@waltflanagan](https://github.com/waltflanagan)
 
-## Unreleased
-
 ### Fixed
 
 - Fix plist code generation for single file case [#5292](https://github.com/tuist/tuist/pull/5292) by [@waltflanagan](https://github.com/waltflanagan).
