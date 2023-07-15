@@ -296,7 +296,10 @@ final class ConfigGenerator: ConfigGenerating {
         if target.destinations.contains(.appleTv) { deviceFamilyValues.append(3) }
         if target.destinations.contains(.appleWatch) { deviceFamilyValues.append(4) }
         if target.destinations.contains(.appleVision) { deviceFamilyValues.append(7) }
-        settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
+        
+        if !deviceFamilyValues.isEmpty {
+            settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
+        }
 
         if target.destinations.contains(.macWithiPadDesign) {
             settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
