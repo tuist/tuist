@@ -39,7 +39,7 @@ extension TuistGraph.Destination {
             
             return Set(destinations)
         case (.iOS, _):
-            return .iOS
+            return [.iPhone, .iPad]
         case (.tvOS, _):
             return .tvOS
         case (.watchOS, _):
