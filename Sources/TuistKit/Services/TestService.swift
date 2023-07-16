@@ -11,6 +11,7 @@ import TuistSupport
 enum TestServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
     case schemeWithoutTestableTargets(scheme: String)
+    case cantDeterminePlatform(target: Target)
 
     // Error description
     var description: String {
@@ -19,13 +20,15 @@ enum TestServiceError: FatalError {
             return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
         case let .schemeWithoutTestableTargets(scheme):
             return "The scheme \(scheme) cannot be built because it contains no buildable targets."
+        case let .cantDeterminePlatform(target):
+            return "Only single platform targets supported. The target \(target.name) specifies multiple supported platforms (\(target.supportedPlatforms.map(\.rawValue).joined(separator: ", ")))."
         }
     }
 
     // Error type
     var type: ErrorType {
         switch self {
-        case .schemeNotFound, .schemeWithoutTestableTargets:
+        case .schemeNotFound, .schemeWithoutTestableTargets, .cantDeterminePlatform:
             return .abort
         }
     }
@@ -204,8 +207,13 @@ final class TestService {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
 
+        guard let platform = buildableTarget.target.exclusivePlatform else {
+            throw TestServiceError.cantDeterminePlatform(target: buildableTarget.target)
+        }
+
         let destination = try await XcodeBuildDestination.find(
             for: buildableTarget.target,
+            on: platform,
             scheme: scheme,
             version: version,
             deviceName: deviceName,

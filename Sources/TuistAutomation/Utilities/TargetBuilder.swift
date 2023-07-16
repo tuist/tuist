@@ -33,6 +33,7 @@ public protocol TargetBuilding {
 public enum TargetBuilderError: FatalError {
     case schemeWithoutBuildableTargets(scheme: String)
     case buildProductsNotFound(path: String)
+    case cantDeterminePlatform(target: Target)
 
     public var type: ErrorType {
         switch self {
@@ -40,6 +41,8 @@ public enum TargetBuilderError: FatalError {
             return .abort
         case .buildProductsNotFound:
             return .bug
+        case .cantDeterminePlatform:
+            return .abort
         }
     }
 
@@ -49,6 +52,8 @@ public enum TargetBuilderError: FatalError {
             return "The scheme \(scheme) cannot be built because it contains no buildable targets."
         case let .buildProductsNotFound(path):
             return "The expected build products at \(path) were not found."
+        case let .cantDeterminePlatform(target):
+            return "Only single platform targets supported. The target \(target.name) specifies multiple supported platforms (\(target.supportedPlatforms.map(\.rawValue).joined(separator: ", ")))."
         }
     }
 }
@@ -84,6 +89,10 @@ public final class TargetBuilder: TargetBuilding {
     ) async throws {
         logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
 
+        guard let platform = target.target.exclusivePlatform else {
+            throw TargetBuilderError.cantDeterminePlatform(target: target.target)
+        }
+
         let buildArguments = buildGraphInspector.buildArguments(
             project: target.project,
             target: target.target,
@@ -93,6 +102,7 @@ public final class TargetBuilder: TargetBuilding {
 
         let destination = try await XcodeBuildDestination.find(
             for: target.target,
+            on: platform,
             scheme: scheme,
             version: osVersion,
             deviceName: device,
@@ -116,7 +126,7 @@ public final class TargetBuilder: TargetBuilding {
             try copyBuildProducts(
                 to: buildOutputPath,
                 projectPath: workspacePath,
-                platform: target.target.legacyPlatform,
+                platform: platform,
                 configuration: configuration
             )
         }

@@ -203,6 +203,14 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         destinations.first?.platform ?? .iOS
     }
 
+    /// Platform for use with commands which assume single platform targets
+    public var exclusivePlatform: Platform? {
+        guard destinations.platforms.count == 1 else {
+            return nil
+        }
+        return destinations.first?.platform
+    }
+
     /// Returns true if the target is an AppClip
     public var isAppClip: Bool {
         if case .appClip = product {
