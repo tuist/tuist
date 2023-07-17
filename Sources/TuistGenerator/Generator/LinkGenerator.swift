@@ -601,16 +601,16 @@ extension PBXTarget {
         let productDependency = XCSwiftPackageProductDependency(productName: productName, isPlugin: isPlugin)
         pbxproj.add(object: productDependency)
 
-        // Build file
-        let buildFile = PBXBuildFile(product: productDependency)
-        pbxproj.add(object: buildFile)
-
         if isPlugin {
             let pluginDependency = PBXTargetDependency(product: productDependency)
             pbxproj.add(object: pluginDependency)
 
             dependencies.append(pluginDependency)
         } else {
+            // Build file
+            let buildFile = PBXBuildFile(product: productDependency)
+            pbxproj.add(object: buildFile)
+            
             packageProductDependencies.append(productDependency)
 
             // Link the product
