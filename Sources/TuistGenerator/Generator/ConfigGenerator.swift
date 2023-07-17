@@ -321,6 +321,10 @@ final class ConfigGenerator: ConfigGenerating {
         
         var settings: SettingsDictionary = [:]
         
+        if let iOSVersion = target.deploymentTargets.iOS {
+            settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(iOSVersion)
+        }
+        
         if let macOSVersion = target.deploymentTargets.macOS {
             settings["MACOSX_DEPLOYMENT_TARGET"] = .string(macOSVersion)
         }
