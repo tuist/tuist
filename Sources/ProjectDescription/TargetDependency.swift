@@ -53,7 +53,8 @@ public enum TargetDependency: Codable, Hashable {
     /// - Parameters:
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
     ///              e.g. RxSwift
-    case package(product: String)
+    ///   - isPlugin: Must be explicitly set to `true` if this is a plugin to generate the Xcode project correctly.
+    case package(product: String, isPlugin: Bool = false)
 
     /// Dependency on system library or framework
     ///

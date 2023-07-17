@@ -11,7 +11,7 @@ public enum TargetDependency: Equatable, Hashable, Codable {
     case framework(path: String)
     case xcframework(path: String)
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
-    case package(product: String)
+    case package(product: String, isPlugin: Bool)
     case sdk(name: String, status: SDKStatus)
     case xctest
 }

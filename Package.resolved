@@ -245,10 +245,10 @@
     {
       "identity" : "xcodeproj",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeProj.git",
+      "location" : "https://github.com/BarredEwe/XcodeProj.git",
       "state" : {
-        "revision" : "59c7f8d4201a7bd37ef509edebd5777811c7de78",
-        "version" : "8.11.0"
+        "branch" : "feature/build-tool-plugin",
+        "revision" : "371857a81153371abdb9e398b912cc4d173c4a48"
       }
     },
     {

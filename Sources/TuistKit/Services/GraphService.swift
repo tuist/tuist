@@ -238,8 +238,8 @@ extension ProjectAutomation.Target {
                 publicHeaders: publicHeaders.pathString,
                 swiftModuleMap: swiftModuleMap?.pathString
             )
-        case let .package(product):
-            return .package(product: product)
+        case let .package(product, isPlugin):
+            return .package(product: product, isPlugin: isPlugin)
         case let .sdk(name, status):
             let projectAutomationStatus: ProjectAutomation.SDKStatus
             switch status {

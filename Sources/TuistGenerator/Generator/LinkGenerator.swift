@@ -179,8 +179,8 @@ final class LinkGenerator: LinkGenerating {
     ) throws {
         for dependency in target.dependencies {
             switch dependency {
-            case let .package(product: product):
-                try pbxTarget.addSwiftPackageProduct(productName: product, pbxproj: pbxproj)
+            case let .package(product: product, isPlugin):
+                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: isPlugin, pbxproj: pbxproj)
             default:
                 break
             }
@@ -597,20 +597,28 @@ extension XCBuildConfiguration {
 }
 
 extension PBXTarget {
-    func addSwiftPackageProduct(productName: String, pbxproj: PBXProj) throws {
-        let productDependency = XCSwiftPackageProductDependency(productName: productName)
+    func addSwiftPackageProduct(productName: String, isPlugin: Bool, pbxproj: PBXProj) throws {
+        let productDependency = XCSwiftPackageProductDependency(productName: productName, isPlugin: isPlugin)
         pbxproj.add(object: productDependency)
-        packageProductDependencies.append(productDependency)
 
         // Build file
         let buildFile = PBXBuildFile(product: productDependency)
         pbxproj.add(object: buildFile)
 
-        // Link the product
-        guard let frameworksBuildPhase = try frameworksBuildPhase() else {
-            throw "No frameworks build phase"
-        }
+        if isPlugin {
+            let pluginDependency = PBXTargetDependency(product: productDependency)
+            pbxproj.add(object: pluginDependency)
 
-        frameworksBuildPhase.files?.append(buildFile)
+            dependencies.append(pluginDependency)
+        } else {
+            packageProductDependencies.append(productDependency)
+
+            // Link the product
+            guard let frameworksBuildPhase = try frameworksBuildPhase() else {
+                throw "No frameworks build phase"
+            }
+
+            frameworksBuildPhase.files?.append(buildFile)
+        }
     }
 }

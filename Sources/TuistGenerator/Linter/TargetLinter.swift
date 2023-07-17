@@ -307,7 +307,7 @@ extension TargetDependency {
             return path.basename
         case let .library(path, _, _):
             return path.basename
-        case let .package(product):
+        case let .package(product, _):
             return product
         case let .sdk(name, _):
             return name
