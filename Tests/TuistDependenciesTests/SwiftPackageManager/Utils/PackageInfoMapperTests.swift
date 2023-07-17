@@ -378,7 +378,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, deploymentTarget: .iOS(targetVersion: "9.0", devices: [.iphone, .ipad])),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        deploymentTarget: .iOS(targetVersion: "9.0", devices: [.iphone, .ipad, .mac])
+                    ),
                 ]
             )
         )
@@ -1557,7 +1561,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         platform: .iOS,
-                        deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad])
+                        deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac])
                     ),
                 ]
             )
@@ -3179,7 +3183,7 @@ extension ProjectDescription.Target {
         product: ProjectDescription.Product = .staticFramework,
         customProductName: String? = nil,
         customBundleID: String? = nil,
-        deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "11.0", devices: [.iphone, .ipad]),
+        deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "11.0", devices: [.iphone, .ipad, .mac]),
         customSources: SourceFilesListType = .default,
         resources: [ProjectDescription.ResourceFileElement] = [],
         headers: ProjectDescription.Headers? = nil,

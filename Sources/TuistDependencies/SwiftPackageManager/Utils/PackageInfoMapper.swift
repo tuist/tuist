@@ -276,7 +276,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         ) { acc, next in
             switch next.key {
             case .iOS:
-                acc[.iOS] = .iOS(targetVersion: next.value, devices: [.ipad, .iphone])
+                acc[.iOS] = .iOS(targetVersion: next.value, devices: [.ipad, .iphone, .mac])
             case .macOS:
                 acc[.macOS] = .macOS(targetVersion: next.value)
             case .tvOS:
@@ -565,10 +565,9 @@ extension ProjectDescription.DeploymentTarget {
 
             switch platform {
             case .iOS:
-                let hasMacCatalyst = package.contains(where: { $0.platformName == "maccatalyst" })
                 return .iOS(
                     targetVersion: targetVersion,
-                    devices: hasMacCatalyst ? [.iphone, .ipad, .mac] : [.iphone, .ipad]
+                    devices: [.iphone, .ipad, .mac]
                 )
             case .macOS:
                 return .macOS(targetVersion: targetVersion)
