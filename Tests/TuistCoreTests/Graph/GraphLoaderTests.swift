@@ -526,7 +526,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([
                 .packageProduct(path: "/A", product: "PackagePlugin", isPlugin: true),
-            ])
+            ]),
         ])
     }
 

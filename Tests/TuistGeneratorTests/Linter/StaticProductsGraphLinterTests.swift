@@ -71,7 +71,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([frameworkDependency, plugin]),
             frameworkDependency: Set([plugin]),
-            plugin : Set(),
+            plugin: Set(),
         ]
         let graph = Graph.test(
             path: path,

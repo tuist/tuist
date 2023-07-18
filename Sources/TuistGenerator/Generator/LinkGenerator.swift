@@ -610,7 +610,7 @@ extension PBXTarget {
             // Build file
             let buildFile = PBXBuildFile(product: productDependency)
             pbxproj.add(object: buildFile)
-            
+
             packageProductDependencies.append(productDependency)
 
             // Link the product
