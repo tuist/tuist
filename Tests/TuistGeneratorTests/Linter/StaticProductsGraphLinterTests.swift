@@ -57,6 +57,41 @@ class StaticProductsGraphLinterTests: XCTestCase {
         ])
     }
 
+    func test_lint_whenPackagePluginDependencyLinkedTwice() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let framework = Target.test(name: "Framework", product: .framework)
+        let project = Project.test(path: "/tmp/app", name: "AppProject")
+        let package = Package.remote(url: "https://test.tuist.io", requirement: .branch("main"))
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
+
+        let plugin = GraphDependency.packageProduct(path: path, product: "Package", isPlugin: true)
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            appDependency: Set([frameworkDependency, plugin]),
+            frameworkDependency: Set([plugin]),
+            plugin : Set(),
+        ]
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            packages: [path: ["Package": package]],
+            targets: [path: [
+                app.name: app,
+                framework.name: framework,
+            ]],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(results.isEmpty)
+    }
+
     func test_lint_whenPrecompiledStaticLibraryLinkedTwice() throws {
         // Given
         let path: AbsolutePath = "/project"
