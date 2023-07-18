@@ -497,6 +497,39 @@ final class GraphLoaderTests: TuistUnitTestCase {
         ])
     }
 
+    func test_loadWorkspace_package_plugin() throws {
+        // Given
+        let targetA = Target.test(name: "A", dependencies: [
+            .package(product: "PackagePlugin", isPlugin: true),
+        ])
+
+        let projectA = Project.test(path: "/A", name: "A", targets: [targetA], packages: [
+            .local(path: "/Packages/PackagePlugin"),
+        ])
+
+        let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
+
+        let subject = makeSubject()
+
+        // When
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+            ]
+        )
+
+        // Then
+        XCTAssertEqual(graph.packages, [
+            "/A": ["/Packages/PackagePlugin": .local(path: "/Packages/PackagePlugin")],
+        ])
+        XCTAssertEqual(graph.dependencies, [
+            .target(name: "A", path: "/A"): Set([
+                .packageProduct(path: "/A", product: "PackagePlugin", isPlugin: true),
+            ])
+        ])
+    }
+
     // MARK: - Error Cases
 
     func test_loadWorkspace_missingProjectReferenceInWorkspace() throws {
