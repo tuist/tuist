@@ -54,7 +54,7 @@ extension TuistGraph.RunAction {
                 name: $0.targetName
             )
         }
-        
+
         return TuistGraph.RunAction(
             configurationName: configurationName,
             attachDebugger: manifest.attachDebugger,
@@ -70,4 +70,3 @@ extension TuistGraph.RunAction {
         )
     }
 }
-

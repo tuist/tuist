@@ -490,7 +490,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let projectPath = try AbsolutePath(validating: "/Project")
         let app = Target.test(name: "App", product: .app)
         let framework = Target.test(name: "Framework", product: .framework)
-        
+
         let runAction = RunAction.test(
             executable: TargetReference(projectPath: projectPath, name: "App"),
             filePath: projectPath,
@@ -504,17 +504,17 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [
                 project.path: [
                     app.name: app,
-                    framework.name: framework
+                    framework.name: framework,
                 ],
             ],
             dependencies: [
                 .target(name: app.name, path: projectPath): [
                     .target(name: framework.name, path: projectPath),
-                ]
+                ],
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
-        
+
         // When
         let got = try subject.schemeLaunchAction(
             scheme: scheme,
@@ -525,7 +525,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let result = try XCTUnwrap(got)
-        
+
         XCTAssertEqual(result.buildConfiguration, "Debug")
         XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
         XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
@@ -534,8 +534,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.macroExpansion?.blueprintName, "Framework")
         XCTAssertEqual(result.macroExpansion?.referencedContainer, "container:Project.xcodeproj")
         XCTAssertEqual(result.macroExpansion?.buildableIdentifier, "primary")
-     }
-    
+    }
+
     func test_schemeTestAction_with_codeCoverageTargets() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")

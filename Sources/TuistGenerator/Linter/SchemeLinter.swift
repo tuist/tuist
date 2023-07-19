@@ -86,13 +86,15 @@ extension SchemeLinter {
 
         for scheme in schemes {
             if let testAction = scheme.testAction,
-               let target = testAction.expandVariableFromTarget {
+               let target = testAction.expandVariableFromTarget
+            {
                 if !targetNames.contains(target.name) {
                     issues.append(missingExpandVariablesTargetIssue(missingTargetName: target.name, schemaName: scheme.name))
                 }
             }
             if let runAction = scheme.runAction,
-               let target = runAction.expandVariableFromTarget {
+               let target = runAction.expandVariableFromTarget
+            {
                 if !targetNames.contains(target.name) {
                     issues.append(missingExpandVariablesTargetIssue(missingTargetName: target.name, schemaName: scheme.name))
                 }
@@ -147,4 +149,3 @@ extension SchemeLinter {
         return issues
     }
 }
-

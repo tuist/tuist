@@ -30,7 +30,7 @@ public struct RunAction: Equatable, Codable {
 
     /// List of diagnostics options to set to the action.
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
-    
+
     /// A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT)
     public let expandVariableFromTarget: TargetReference?
 
@@ -96,4 +96,3 @@ public struct RunAction: Equatable, Codable {
         )
     }
 }
-
