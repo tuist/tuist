@@ -30,6 +30,9 @@ public struct RunAction: Equatable, Codable {
 
     /// List of diagnostics options to set to the action.
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
+    
+    /// A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT)
+    public let expandVariableFromTarget: TargetReference?
 
     init(
         configuration: ConfigurationName,
@@ -40,7 +43,8 @@ public struct RunAction: Equatable, Codable {
         executable: TargetReference? = nil,
         arguments: Arguments? = nil,
         options: RunActionOptions = .options(),
-        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker, .performanceAntipatternChecker]
+        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker, .performanceAntipatternChecker],
+        expandVariableFromTarget: TargetReference? = nil
     ) {
         self.configuration = configuration
         self.attachDebugger = attachDebugger
@@ -51,6 +55,7 @@ public struct RunAction: Equatable, Codable {
         self.arguments = arguments
         self.options = options
         self.diagnosticsOptions = diagnosticsOptions
+        self.expandVariableFromTarget = expandVariableFromTarget
     }
 
     /// Returns a run action.
@@ -63,6 +68,7 @@ public struct RunAction: Equatable, Codable {
     ///   - arguments: Command line arguments passed on launch and environment variables.
     ///   - options: List of options to set to the action.
     ///   - diagnosticsOptions: List of diagnostics options to set to the action.
+    ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT)
     /// - Returns: Run action.
     public static func runAction(
         configuration: ConfigurationName = .debug,
@@ -73,7 +79,8 @@ public struct RunAction: Equatable, Codable {
         executable: TargetReference? = nil,
         arguments: Arguments? = nil,
         options: RunActionOptions = .options(),
-        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]
+        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
+        expandVariableFromTarget: TargetReference? = nil
     ) -> RunAction {
         RunAction(
             configuration: configuration,
@@ -84,7 +91,9 @@ public struct RunAction: Equatable, Codable {
             executable: executable,
             arguments: arguments,
             options: options,
-            diagnosticsOptions: diagnosticsOptions
+            diagnosticsOptions: diagnosticsOptions,
+            expandVariableFromTarget: expandVariableFromTarget
         )
     }
 }
+
