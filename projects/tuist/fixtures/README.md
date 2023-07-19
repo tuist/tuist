@@ -313,3 +313,8 @@ A project that contains logs to verify that the logs are forwarded by Tuist.
 ## macos_app_with_extensions
 
 The project contains a macOS app with various types of extensions.
+
+## app_with_objc_packages
+
+The project is an iOS app that depends on Swift Packages that contain Objective-C code.
+As [reported by users](https://github.com/tuist/tuist/issues/4688), when Tuist integrated those packages it led to compilation errors.

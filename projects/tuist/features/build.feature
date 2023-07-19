@@ -47,3 +47,10 @@ Feature: Build projects using Tuist build
     Then a directory Builds/release-iphonesimulator/App.swiftmodule exists
     Then a directory Builds/release-iphonesimulator/FrameworkA.framework exists
     Then a directory Builds/release-iphonesimulator/FrameworkA.framework.dSYM exists
+
+  Scenario: The project is an iOS application with Objective-C Swift Packages (app_with_objc_packages)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture app_with_objc_packages into the working directory
+    Then tuist generates the project
+    Then tuist builds the project
