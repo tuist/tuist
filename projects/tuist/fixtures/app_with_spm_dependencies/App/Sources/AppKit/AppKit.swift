@@ -20,16 +20,16 @@ public enum AppKit {
         Settings.shared.isAdvertiserTrackingEnabled = true
 
         // Use FirebaseAnalytics to make sure it links fine
-//        Analytics.logEvent("Event", parameters: [:])
+        Analytics.logEvent("Event", parameters: [:])
 
         // Use FirebaseDatabase to make sure it links fine
-//        Database.database(app: FirebaseApp.app()!).reference().setValue("value")
+        Database.database(app: FirebaseApp.app()!).reference().setValue("value")
 
         // Use FirebaseCrashlytics to make sure it links fine
         _ = Crashlytics.crashlytics()
 
         // Use FirebaseFirestore to make sure it links fine
-//        _ = Firestore.firestore()
+        _ = Firestore.firestore()
 
         // Use Stripe to make sure it links fine
         _ = STPAPIClient.shared
