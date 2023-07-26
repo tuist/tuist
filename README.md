@@ -48,7 +48,7 @@ You can use our [contribution docs](https://docs.tuist.io/contributors/get-start
 
 The financial sustainability of the project is possible thanks to the ongoing contributions from our [GitHub Sponsors](https://github.com/sponsors/tuist) and [Open Collective Backers](https://opencollective.com/tuistapp). From them, we'd like to give a special mention to the following sponsors:
 
-### Silver sponsor: [stream](https://getstream.io/chat/sdk/ios/?utm_source=github&utm_medium=github_repo_content_ad&utm_content=Developer&utm_campaign=Github_Nov2021_iOSChatSDK)
+### Silver sponsors: [stream](https://getstream.io/chat/sdk/ios/?utm_source=github&utm_medium=github_repo_content_ad&utm_content=Developer&utm_campaign=Github_Nov2021_iOSChatSDK), [Bitrise](https://bitrise.io), and [Runway](https://runway.team)
 
 [Stream](https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist) helps build scalable in-app chat or activity feeds in days. Product teams trust Stream to launch faster, iterate more often, and ship a better user experience.
 
@@ -59,6 +59,34 @@ The financial sustainability of the project is possible thanks to the ongoing co
       srcset="assets/companies/stream-white.png" 
       media="(prefers-color-scheme: dark)">
       <img src="assets/companies/stream.png"/>
+    </picture>
+  </a>
+</div>
+
+<br/>
+
+[Bitrise](https://bitrise.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist) is a mobile DevOps platform built to adress mobile's challenges, empowering mobile teams to deliver their best work.
+
+<div >
+  <a href="https://bitrise.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
+    <picture>
+      <source 
+      srcset="https://assets-global.website-files.com/5db35de024bb983af1b4e151/5e6f9ccda4e7ff12841abe18_Bitrise%20Logo%20-%20White%20Bg.png" 
+      media="(prefers-color-scheme: dark)">
+      <img width="170" src="https://assets-global.website-files.com/5db35de024bb983af1b4e151/5e6f9ccda4e7ff12841abe18_Bitrise%20Logo%20-%20White%20Bg.png"/>
+    </picture>
+  </a>
+</div>
+
+[Runway](https://www.runway.team) streamlines collaboration and automation for mobile app releases, from kickoff to rollout.
+
+<div >
+  <a href="https://runway.team?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
+    <picture>
+      <source 
+      srcset="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" 
+      media="(prefers-color-scheme: dark)">
+      <img width="170" src="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg"/>
     </picture>
   </a>
 </div>

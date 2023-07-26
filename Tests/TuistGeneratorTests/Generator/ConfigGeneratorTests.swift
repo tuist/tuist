@@ -149,7 +149,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let testHostSettings = [
-            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/App",
+            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/App",
             "BUNDLE_LOADER": "$(TEST_HOST)",
         ]
 
@@ -166,7 +166,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let testHostSettings = [
-            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/Contents/MacOS/App",
+            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/App",
             "BUNDLE_LOADER": "$(TEST_HOST)",
         ]
 
@@ -186,7 +186,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let testHostSettings = [
-            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App_dash.app/App_dash",
+            "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App_dash.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/App_dash",
             "BUNDLE_LOADER": "$(TEST_HOST)",
         ]
 
