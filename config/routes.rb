@@ -27,5 +27,10 @@ Rails.application.routes.draw do
 
   post "/api/analytics", to: "analytics#analytics"
 
+  namespace :api do
+    resources :projects, :projects, only: [:index, :create, :destroy]
+  end
+
+
   get "/(*all)", to: "application#app"
 end

@@ -10,6 +10,10 @@ class ProjectCreateService < ApplicationService
         @account_name = account_name
       end
 
+      def status_code
+        :bad_request
+      end
+
       def message
         "Project #{account_name}/#{name} already exists"
       end
