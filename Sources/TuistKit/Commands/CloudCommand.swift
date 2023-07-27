@@ -13,6 +13,9 @@ struct CloudCommand: ParsableCommand {
                 CloudLogoutCommand.self,
                 CloudInitCommand.self,
                 CloudCleanCommand.self,
+                // Cloud Next is not ready, yet
+                // Uncomment this during development
+                CloudNextCommand.self,
             ]
         )
     }

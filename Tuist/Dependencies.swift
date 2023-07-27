@@ -19,6 +19,8 @@ let dependencies = Dependencies(
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .exact("2.10.1")),
         .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.5.1")),
         .package(url: "https://github.com/tuist/XcodeProj.git", .exact("8.11.0")),
+        .package(url: "https://github.com/apple/swift-openapi-runtime", .upToNextMinor(from: "0.1.0")),
+        .package(url: "https://github.com/apple/swift-openapi-urlsession", .upToNextMinor(from: "0.1.0")),
     ],
     platforms: [.macOS]
 )

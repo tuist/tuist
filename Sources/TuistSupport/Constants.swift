@@ -27,6 +27,7 @@ public enum Constants {
     public static let joinSlackURL: String = "https://slack.tuist.io/"
     public static let tuistGeneratedFileName = ".tuist-generated"
     public static let tuistCloudURL: String = "https://cloud.tuist.io/"
+    public static let tuistCloudNextURL: String = "https://cloud-next.tuist.io/"
 
     /// The cache version.
     /// This should change only when it changes the logic to map a `TuistGraph.Target` to a cached build artifact.

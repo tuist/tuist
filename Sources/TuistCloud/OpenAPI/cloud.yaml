@@ -1,0 +1,37 @@
+openapi: "3.0.3"
+info:
+  title: Tuist Cloud API
+  version: 0.1.0
+servers:
+  - url: http://127.0.0.1:3000/api
+    description: Localhost deployment.
+paths:
+  /api/projects:
+    post:
+      operationId: createProject
+      parameters:
+        - name: name
+          required: true
+          in: query
+          description: The name of the project that should be created.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A success response with the created project.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+components:
+  schemas:
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required:
+        - message
+        - name
