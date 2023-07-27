@@ -320,8 +320,6 @@ GEM
     ruby-progressbar (1.13.0)
     ruby2_keywords (0.0.5)
     rubyzip (2.3.2)
-    sass-rails (6.0.0)
-      sassc-rails (~> 2.1, >= 2.1.1)
     sassc (2.4.0)
       ffi (~> 1.9)
     sassc-rails (2.1.2)
@@ -355,6 +353,8 @@ GEM
       rails (>= 5.1)
       responders
       stripe (>= 3.15.0)
+    tailwindcss-rails (2.0.30)
+      railties (>= 6.0.0)
     thor (1.2.2)
     tilt (2.2.0)
     timeout (0.4.0)
@@ -431,11 +431,12 @@ DEPENDENCIES
   rubocop-rails (~> 2.11)
   rubocop-rails_config (~> 1.7)
   rubocop-shopify (~> 2.2)
-  sass-rails (>= 6)
+  sassc-rails (~> 2.1)
   selenium-webdriver
   sidekiq (~> 6.2)
   spring
   stripe-rails (~> 2.4)
+  tailwindcss-rails (~> 2.0)
   tzinfo-data
   vite_rails (~> 3.0.3)
   web-console (>= 4.1.0)
