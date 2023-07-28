@@ -51,7 +51,7 @@ struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         name: [.customShort("a"), .customLong("algorithm")],
-        help: "Available formats: dot, neato, twopi, circo, fdp, sfddp, patchwork"
+        help: "Available formats: dot, neato, twopi, circo, fdp, sfdp, patchwork"
     )
     var layoutAlgorithm: GraphViz.LayoutAlgorithm = .dot
 
