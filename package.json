@@ -46,7 +46,7 @@
     "@babel/preset-typescript": "^7.22.5",
     "@juggle/resize-observer": "^3.4.0",
     "@rails/ujs": "^6.1.7",
-    "@rails/webpacker": "5.4.3",
+    "@rails/webpacker": "5.4.4",
     "@shopify/polaris": "^10.50.1",
     "@shopify/polaris-viz": "^7.16.1",
     "apollo-link": "^1.2.14",
