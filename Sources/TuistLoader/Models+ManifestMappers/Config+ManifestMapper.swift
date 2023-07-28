@@ -32,13 +32,6 @@ extension TuistGraph.Config {
         if let manifestCache = manifest.cache {
             cache = try TuistGraph.Cache.from(manifest: manifestCache, generatorPaths: generatorPaths)
         }
-        
-        let beta: [BetaFeature] = manifest.beta.map {
-            switch $0 {
-            case .cloudNext:
-                return .cloudNext
-            }
-        }
 
         return TuistGraph.Config(
             compatibleXcodeVersions: compatibleXcodeVersions,
@@ -47,7 +40,6 @@ extension TuistGraph.Config {
             swiftVersion: swiftVersion,
             plugins: plugins,
             generationOptions: generationOptions,
-            beta: beta,
             path: path
         )
     }
