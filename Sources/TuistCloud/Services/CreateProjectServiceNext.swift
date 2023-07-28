@@ -10,6 +10,29 @@ public protocol CreateProjectNextServicing {
     ) async throws
 }
 
+enum CreateProjectNextServiceError: FatalError {
+    case unknownError(Int)
+    case badRequest(String)
+
+    var type: ErrorType {
+        switch self {
+        case .unknownError:
+            return .bug
+        case .badRequest:
+            return .abort
+        }
+    }
+
+    var description: String {
+        switch self {
+        case let .unknownError(statusCode):
+            return "The project could not be created due to an unknown cloud response of \(statusCode)."
+        case let .badRequest(message):
+            return message
+        }
+    }
+}
+
 public final class CreateProjectNextService: CreateProjectNextServicing {
     public init() {}
 
@@ -37,9 +60,13 @@ public final class CreateProjectNextService: CreateProjectNextServicing {
             case let .json(project):
                 print(project.name)
             }
+        case let .badRequest(badRequestResponse):
+            switch badRequestResponse.body {
+            case let .json(error):
+                throw CreateProjectNextServiceError.badRequest(error.message)
+            }
         case let .undocumented(statusCode: statusCode, _):
-            print("Error", statusCode)
-            fatalError()
+            throw CreateProjectNextServiceError.unknownError(statusCode)
         }
     }
 }

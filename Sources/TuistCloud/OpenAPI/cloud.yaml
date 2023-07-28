@@ -23,6 +23,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Project"
+        "400":
+          description: The project could not be created because of a validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   schemas:
     Project:
@@ -35,3 +41,10 @@ components:
       required:
         - message
         - name
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message

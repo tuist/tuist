@@ -52,6 +52,17 @@ public enum Components {
                 case message
             }
         }
+        /// - Remark: Generated from `#/components/schemas/Error`.
+        public struct _Error: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Error/message`.
+            public var message: Swift.String
+            /// Creates a new `_Error`.
+            ///
+            /// - Parameters:
+            ///   - message:
+            public init(message: Swift.String) { self.message = message }
+            public enum CodingKeys: String, CodingKey { case message }
+        }
     }
     /// Types generated from the `#/components/parameters` section of the OpenAPI document.
     public enum Parameters {}
@@ -149,6 +160,37 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.createProject.Output.Ok)
+            public struct BadRequest: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProject.Output.BadRequest.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createProject.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createProject.Output.BadRequest.Headers = .init(),
+                    body: Operations.createProject.Output.BadRequest.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project could not be created because of a validation error.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/post(createProject)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createProject.Output.BadRequest)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
