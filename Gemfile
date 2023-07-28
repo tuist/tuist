@@ -8,7 +8,7 @@ ruby "3.0.3"
 gem "bcrypt", "~> 3.1.7"
 gem "bootsnap", ">= 1.4.4", require: false
 gem "jbuilder", "~> 2.7"
-gem "pg", "~> 1.3.1"
+gem "pg", "~> 1.5.0"
 gem "puma", "~> 5.0"
 gem "rails", "~> 7.0.0"
 gem "redis", "~> 4.0"
