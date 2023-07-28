@@ -52,30 +52,32 @@ public final class TemplateGenerator: TemplateGenerating {
         template: Template,
         attributes: [String: String]
     ) throws -> [Template.Item] {
-        try attributes.reduce(template.items) { items, attribute in
+        let environment = stencilSwiftEnvironment()
+        return try attributes.reduce(template.items) { items, attribute in
             try items.map {
-                let path = RelativePath(
-                    $0.path.pathString
-                        .replacingOccurrences(of: "{{ \(attribute.key) }}", with: attribute.value)
+                let renderedPathString = try environment.renderTemplate(
+                    string: $0.path.pathString,
+                    context: attributes
                 )
+                let path = RelativePath(renderedPathString)
 
                 var contents = $0.contents
                 if case let Template.Contents.file(path) = contents {
+                    let renderedPathString = try environment.renderTemplate(
+                        string: path.pathString,
+                        context: attributes
+                    )
                     contents = .file(
-                        try AbsolutePath(
-                            validating: path.pathString.replacingOccurrences(
-                                of: "{{ \(attribute.key) }}", with: attribute.value
-                            )
-                        )
+                        try AbsolutePath(validating: renderedPathString)
                     )
                 }
                 if case let Template.Contents.directory(path) = contents {
+                    let renderedPathString = try environment.renderTemplate(
+                        string: path.pathString,
+                        context: attributes
+                    )
                     contents = .directory(
-                        try AbsolutePath(
-                            validating: path.pathString.replacingOccurrences(
-                                of: "{{ \(attribute.key) }}", with: attribute.value
-                            )
-                        )
+                        try AbsolutePath(validating: renderedPathString)
                     )
                 }
 
