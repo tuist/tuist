@@ -26,6 +26,12 @@
 /// )
 /// ```
 public struct Config: Codable, Equatable {
+    /// Enum containing all beta feature flags.
+    public enum BetaFeature: Codable, Equatable {
+        /// Use this feature flag to opt-in into the new Tuist Cloud implementation.
+        case cloudNext
+    }
+    
     /// Generation options.
     public let generationOptions: GenerationOptions
 
@@ -46,6 +52,10 @@ public struct Config: Codable, Equatable {
     /// - Note: This **does not** control the `SWIFT_VERSION` build setting in regular generated projects, for this please use `Project.settings`
     /// or `Target.settings` as needed.
     public let swiftVersion: Version?
+    
+    /// List of beta features you want to enable.
+    /// These features are not yet production-ready, so use at your risk.
+    public let beta: [BetaFeature]
 
     /// Creates a tuist configuration.
     ///
@@ -56,13 +66,15 @@ public struct Config: Codable, Equatable {
     ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
+    ///   - beta: List of beta features you want to opt-in to.
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
         cache: Cache? = nil,
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
-        generationOptions: GenerationOptions = .options()
+        generationOptions: GenerationOptions = .options(),
+        beta: [BetaFeature] = []
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.plugins = plugins
@@ -70,6 +82,7 @@ public struct Config: Codable, Equatable {
         self.cloud = cloud
         self.cache = cache
         self.swiftVersion = swiftVersion
+        self.beta = beta
         dumpIfNeeded(self)
     }
 }

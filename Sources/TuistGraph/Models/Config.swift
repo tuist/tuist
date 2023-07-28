@@ -4,11 +4,20 @@ import TSCUtility
 
 /// This model allows to configure Tuist.
 public struct Config: Equatable, Hashable {
+    public enum BetaFeature: Equatable, Hashable {
+        /// Use this feature flag to opt-in into the new Tuist Cloud implementation.
+        case cloudNext
+    }
+    
     /// List of `Plugin`s used to extend Tuist.
     public let plugins: [PluginLocation]
 
     /// Generation options.
     public let generationOptions: GenerationOptions
+    
+    /// List of beta features.
+    /// These features are not yet production-ready, so use at your risk.
+    public let beta: [BetaFeature]
 
     /// List of Xcode versions the project or set of projects is compatible with.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
@@ -38,6 +47,7 @@ public struct Config: Equatable, Hashable {
                 resolveDependenciesWithSystemScm: false,
                 disablePackageVersionLocking: false
             ),
+            beta: [],
             path: nil
         )
     }
@@ -59,6 +69,7 @@ public struct Config: Equatable, Hashable {
         swiftVersion: Version?,
         plugins: [PluginLocation],
         generationOptions: GenerationOptions,
+        beta: [BetaFeature],
         path: AbsolutePath?
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
@@ -67,6 +78,7 @@ public struct Config: Equatable, Hashable {
         self.swiftVersion = swiftVersion
         self.plugins = plugins
         self.generationOptions = generationOptions
+        self.beta = beta
         self.path = path
     }
 
@@ -78,5 +90,6 @@ public struct Config: Equatable, Hashable {
         hasher.combine(cache)
         hasher.combine(swiftVersion)
         hasher.combine(compatibleXcodeVersions)
+        hasher.combine(beta)
     }
 }
