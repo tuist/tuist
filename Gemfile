@@ -17,6 +17,11 @@ gem "sidekiq", "~> 6.2"
 gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 gem "vite_rails", "~> 3.0.3"
 gem "faker", "~> 2.19"
+gem "appsignal", "~> 3.4"
+gem "aws-sdk-s3", "~> 1.112"
+gem "react-rails", "~> 2.6"
+gem "webpacker", "~> 5.4"
+gem "groupdate", "~> 6.1"
 
 # GraphQL
 gem "graphql", "~> 2.0.5"
@@ -30,6 +35,7 @@ gem "pundit", "~> 2.1"
 gem "omniauth", "~> 2.0"
 gem "omniauth-github", "~> 2.0"
 gem "omniauth-rails_csrf_protection", "~> 1.0"
+gem "rubocop-rails_config", "~> 1.7"
 
 group :development, :test do
   gem "foreman", "~> 0.87.2"
@@ -54,13 +60,3 @@ group :test do
   gem "webdrivers"
   gem "mocha", "~> 2.1.0"
 end
-
-gem "rubocop-rails_config", "~> 1.7"
-
-gem "aws-sdk-s3", "~> 1.112"
-
-gem "react-rails", "~> 2.6"
-
-gem "webpacker", "~> 5.4"
-
-gem "groupdate", "~> 6.1"
