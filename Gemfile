@@ -15,7 +15,6 @@ gem "redis", "~> 4.0"
 gem "sass-rails", ">= 6"
 gem "sidekiq", "~> 6.2"
 gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
-gem "bugsnag", "~> 6.21"
 gem "vite_rails", "~> 3.0.3"
 gem "faker", "~> 2.19"
 
