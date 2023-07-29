@@ -8,11 +8,13 @@ module API
     end
 
     def create
-      ProjectCreateService.call(
+      project = ProjectCreateService.call(
         creator: current_user,
         name: params[:name],
-        organization_name: params[:organization_name]
+        organization_name: params[:organization]
       )
+
+      render(json: project)
     end
   end
 end
