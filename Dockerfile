@@ -17,7 +17,7 @@
 # We recommend using the highest patch level for better security and
 # performance.
 
-ARG RUBY_VERSION=3.0.3
+ARG RUBY_VERSION=3.2.2
 ARG VARIANT=jemalloc-bullseye-slim
 FROM quay.io/evl.ms/fullstaq-ruby:${RUBY_VERSION}-${VARIANT} as base
 
