@@ -6,7 +6,7 @@ module API
     def index
       projects = UserProjectsFetchService.call(user: current_user)
 
-      render(json: projects)
+      render(json: { projects: projects })
     end
 
     def create
