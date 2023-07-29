@@ -7,38 +7,36 @@ import TuistLoader
 protocol CloudProjectCreateServicing {
     func run(
         name: String,
+        organization: String?,
         serverURL: String?
     ) async throws
 }
 
 final class CloudProjectCreateService: CloudProjectCreateServicing {
     private let createProjectService: CreateProjectNextServicing
-    private let configLoader: ConfigLoading
+    private let cloudURLService: CloudURLServicing
     
     init(
         createProjectService: CreateProjectNextServicing = CreateProjectNextService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        cloudURLService: CloudURLServicing = CloudURLService()
     ) {
         self.createProjectService = createProjectService
-        self.configLoader = configLoader
+        self.cloudURLService = cloudURLService
     }
     
     func run(
         name: String,
+        organization: String?,
         serverURL: String?
     ) async throws {
-        if try !configLoader.loadConfig(path: FileHandler.shared.currentPath).beta.contains(.cloudNext) {
-            logger.warning("Enable this feature by adding cloudNext in your Config.swift")
-            return
-        }
-        try await createProjectService.createProject(
+        let cloudURL = try cloudURLService.url(serverURL: serverURL)
+        
+        let project = try await createProjectService.createProject(
             name: name,
-            // TODO: Allow specifying org name
-            organizationName: nil,
-            // TODO: Handle invalid URL
-            serverURL: URL(string: serverURL ?? Constants.tuistCloudNextURL)!
+            organization: organization,
+            serverURL: cloudURL
         )
         
-        logger.info("Project was successfully created.")
+        logger.info("Cloud project \(project.slug) was successfully created 🎉")
     }
 }

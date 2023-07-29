@@ -50,6 +50,11 @@ public struct Client: APIProtocol {
                     name: "name",
                     value: input.query.name
                 )
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "organization",
+                    value: input.query.organization
+                )
                 try converter.setHeaderFieldAsText(
                     in: &request.headerFields,
                     name: "accept",

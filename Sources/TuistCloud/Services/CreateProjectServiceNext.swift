@@ -5,9 +5,9 @@ import TuistSupport
 public protocol CreateProjectNextServicing {
     func createProject(
         name: String,
-        organizationName: String?,
+        organization: String?,
         serverURL: URL
-    ) async throws
+    ) async throws -> CloudProject
 }
 
 enum CreateProjectNextServiceError: FatalError {
@@ -38,9 +38,9 @@ public final class CreateProjectNextService: CreateProjectNextServicing {
 
     public func createProject(
         name: String,
-        organizationName: String?,
+        organization: String?,
         serverURL: URL
-    ) async throws {
+    ) async throws -> CloudProject {
         let client = Client(
             serverURL: serverURL,
             transport: URLSessionTransport(),
@@ -51,14 +51,17 @@ public final class CreateProjectNextService: CreateProjectNextServicing {
         
         let response = try await client.createProject(
             .init(
-                query: .init(name: name)
+                query: .init(
+                    name: name,
+                    organization: organization
+                )
             )
         )
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(project):
-                print(project.name)
+                return CloudProject(project)
             }
         case let .badRequest(badRequestResponse):
             switch badRequestResponse.body {

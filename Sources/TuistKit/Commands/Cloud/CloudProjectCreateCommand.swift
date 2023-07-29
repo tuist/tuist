@@ -19,6 +19,12 @@ struct CloudProjectCreateCommand: AsyncParsableCommand {
     var name: String
     
     @Option(
+        name: .shortAndLong,
+        help: "Organization to create the project with. If not specified, the project is created with your personal cloud account."
+    )
+    var organization: String?
+    
+    @Option(
         name: .long,
         help: "URL to the cloud server."
     )
@@ -27,6 +33,7 @@ struct CloudProjectCreateCommand: AsyncParsableCommand {
     func run() async throws {
         try await CloudProjectCreateService().run(
             name: name,
+            organization: organization,
             serverURL: serverURL
         )
     }

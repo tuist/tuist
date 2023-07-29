@@ -16,6 +16,12 @@ paths:
           description: The name of the project that should be created.
           schema:
             type: string
+        - name: organization
+          required: false
+          in: query
+          description: Organization to create the project with. If nil, the project will be created with the current user's personal account.
+          schema:
+            type: string
       responses:
         "200":
           description: A success response with the created project.
@@ -35,12 +41,12 @@ components:
       type: object
       properties:
         id:
-          type: string
-        name:
+          type: number
+        slug:
           type: string
       required:
-        - message
-        - name
+        - id
+        - slug
     Error:
       type: object
       properties:

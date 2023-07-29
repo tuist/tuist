@@ -2,6 +2,24 @@ import OpenAPIRuntime
 import Foundation
 import TuistSupport
 
+enum AuthenticationError: FatalError {
+    case notAuthenticated
+    
+    var type: ErrorType {
+        switch self {
+        case .notAuthenticated:
+            return .abort
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .notAuthenticated:
+            return "No cloud authentication token found. Authenticate by running `tuist cloud auth`."
+        }
+    }
+}
+
 /// Injects an authorization header to every request.
 struct AuthenticationMiddleware: ClientMiddleware {
     func intercept(
@@ -13,21 +31,15 @@ struct AuthenticationMiddleware: ClientMiddleware {
         var request = request
         let environment = ProcessInfo.processInfo.environment
         let tokenFromEnvironment = environment[Constants.EnvironmentVariables.cloudToken]
-        let token: String?
-        if CIChecker().isCI() {
-            token = tokenFromEnvironment
-        } else {
-            token = try? tokenFromEnvironment ?? CredentialsStore().read(serverURL: baseURL)?.token
+        guard
+            let token = try CloudAuthenticationController().authenticationToken(serverURL: baseURL)
+        else {
+            throw AuthenticationError.notAuthenticated
         }
 
-        if let token = token {
-            request.headerFields.append(.init(
-                name: "Authorization", value: "Bearer \(token)"
-            ))
-        } else {
-            try CloudSessionController().authenticate(serverURL: baseURL)
-            // TODO: Fix
-        }
+        request.headerFields.append(.init(
+            name: "Authorization", value: "Bearer \(token)"
+        ))
         return try await next(request, baseURL)
     }
 }

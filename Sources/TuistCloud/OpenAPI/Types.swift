@@ -26,30 +26,21 @@ public enum Components {
         /// - Remark: Generated from `#/components/schemas/Project`.
         public struct Project: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Project/id`.
-            public var id: Swift.String?
-            /// - Remark: Generated from `#/components/schemas/Project/name`.
-            public var name: Swift.String
-            /// - Remark: Generated from `#/components/schemas/Project/message`.
-            public var message: OpenAPIRuntime.OpenAPIValueContainer
+            public var id: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/Project/slug`.
+            public var slug: Swift.String
             /// Creates a new `Project`.
             ///
             /// - Parameters:
             ///   - id:
-            ///   - name:
-            ///   - message:
-            public init(
-                id: Swift.String? = nil,
-                name: Swift.String,
-                message: OpenAPIRuntime.OpenAPIValueContainer
-            ) {
+            ///   - slug:
+            public init(id: Swift.Double, slug: Swift.String) {
                 self.id = id
-                self.name = name
-                self.message = message
+                self.slug = slug
             }
             public enum CodingKeys: String, CodingKey {
                 case id
-                case name
-                case message
+                case slug
             }
         }
         /// - Remark: Generated from `#/components/schemas/Error`.
@@ -87,11 +78,16 @@ public enum Operations {
             public var path: Operations.createProject.Input.Path
             public struct Query: Sendable, Equatable, Hashable {
                 public var name: Swift.String
+                public var organization: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - name:
-                public init(name: Swift.String) { self.name = name }
+                ///   - organization:
+                public init(name: Swift.String, organization: Swift.String? = nil) {
+                    self.name = name
+                    self.organization = organization
+                }
             }
             public var query: Operations.createProject.Input.Query
             public struct Headers: Sendable, Equatable, Hashable {
