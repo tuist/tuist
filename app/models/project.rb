@@ -15,6 +15,10 @@ class Project < ApplicationRecord
   # Validations
   validates :name, exclusion: Defaults.fetch(:blocklisted_slug_keywords)
 
+  def slug
+    "#{account.name}/#{name}"
+  end
+
   def remote_cache_storage
     remote_cache_storage_id = self["remote_cache_storage_id"]
     if remote_cache_storage_id.nil?
@@ -22,6 +26,10 @@ class Project < ApplicationRecord
     else
       S3Bucket.find(remote_cache_storage_id)
     end
+  end
+
+  def as_json(options = {})
+    super(options.merge(only: [:id])).merge({ slug: slug })
   end
 end
 

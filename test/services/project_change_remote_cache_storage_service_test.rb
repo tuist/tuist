@@ -87,7 +87,7 @@ class ProjectChangeRemoteCacheStorageServiceTest < ActiveSupport::TestCase
     got = ProjectChangeRemoteCacheStorageService.call(project_id: project.id, user: user)
 
     # Then
-    assert_equal nil, got
+    assert_nil got
     assert_equal "tuist-debug", Project.find(project.id).remote_cache_storage.name
   end
 end

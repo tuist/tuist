@@ -21,7 +21,8 @@ class APIController < ApplicationController
 
   rescue_from(CloudError) do |error, obj, args, ctx, field|
     render(
-      json: { errors: [{ message: error.message, code: :bad_request }], status: :bad_request },
-      status: :bad_request)
+      json: { message: error.message },
+      status: error.status_code
+    )
   end
 end
