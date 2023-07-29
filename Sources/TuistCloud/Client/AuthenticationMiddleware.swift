@@ -29,8 +29,6 @@ struct AuthenticationMiddleware: ClientMiddleware {
         next: (Request, URL) async throws -> Response
     ) async throws -> Response {
         var request = request
-        let environment = ProcessInfo.processInfo.environment
-        let tokenFromEnvironment = environment[Constants.EnvironmentVariables.cloudToken]
         guard let token = try CloudAuthenticationController().authenticationToken(serverURL: baseURL)
         else {
             throw AuthenticationError.notAuthenticated
