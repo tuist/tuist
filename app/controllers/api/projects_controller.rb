@@ -4,7 +4,9 @@ module API
   # Controller for managing projects
   class ProjectsController < APIController
     def index
-      UserProjectsFetchService.call(user: current_user)
+      projects = UserProjectsFetchService.call(user: current_user)
+
+      render(json: projects)
     end
 
     def create
