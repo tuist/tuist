@@ -35,7 +35,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis:4.0.6
+        image: redis:4.0.14
     steps:
       - uses: actions/checkout@v3
       - name: Set up Ruby
