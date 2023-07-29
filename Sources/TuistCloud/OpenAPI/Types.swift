@@ -7,6 +7,10 @@ import Foundation
 #endif
 /// A type that performs HTTP operations defined by the OpenAPI document.
 public protocol APIProtocol: Sendable {
+    /// - Remark: HTTP `GET /api/projects`.
+    /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
+    func listProjects(_ input: Operations.listProjects.Input) async throws
+        -> Operations.listProjects.Output
     /// - Remark: HTTP `POST /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
     func createProject(_ input: Operations.createProject.Input) async throws
@@ -23,24 +27,35 @@ public enum Servers {
 public enum Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
+        /// - Remark: Generated from `#/components/schemas/Projects`.
+        public struct Projects: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Projects/projects`.
+            public var projects: [Components.Schemas.Project]
+            /// Creates a new `Projects`.
+            ///
+            /// - Parameters:
+            ///   - projects:
+            public init(projects: [Components.Schemas.Project]) { self.projects = projects }
+            public enum CodingKeys: String, CodingKey { case projects }
+        }
         /// - Remark: Generated from `#/components/schemas/Project`.
         public struct Project: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Project/id`.
             public var id: Swift.Double
-            /// - Remark: Generated from `#/components/schemas/Project/slug`.
-            public var slug: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Project/full_name`.
+            public var full_name: Swift.String
             /// Creates a new `Project`.
             ///
             /// - Parameters:
             ///   - id:
-            ///   - slug:
-            public init(id: Swift.Double, slug: Swift.String) {
+            ///   - full_name:
+            public init(id: Swift.Double, full_name: Swift.String) {
                 self.id = id
-                self.slug = slug
+                self.full_name = full_name
             }
             public enum CodingKeys: String, CodingKey {
                 case id
-                case slug
+                case full_name
             }
         }
         /// - Remark: Generated from `#/components/schemas/Error`.
@@ -66,6 +81,93 @@ public enum Components {
 }
 /// API operations, with input and output types, generated from `#/paths` in the OpenAPI document.
 public enum Operations {
+    /// - Remark: HTTP `GET /api/projects`.
+    /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
+    public enum listProjects {
+        public static let id: String = "listProjects"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.listProjects.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.listProjects.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.listProjects.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.listProjects.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.listProjects.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.listProjects.Input.Path = .init(),
+                query: Operations.listProjects.Input.Query = .init(),
+                headers: Operations.listProjects.Input.Headers = .init(),
+                cookies: Operations.listProjects.Input.Cookies = .init(),
+                body: Operations.listProjects.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listProjects.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.Projects)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listProjects.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listProjects.Output.Ok.Headers = .init(),
+                    body: Operations.listProjects.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// A success response with all available cloud projects.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/get(listProjects)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listProjects.Output.Ok)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
     /// - Remark: HTTP `POST /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
     public enum createProject {

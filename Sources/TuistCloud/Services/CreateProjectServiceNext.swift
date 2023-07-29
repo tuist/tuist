@@ -41,13 +41,7 @@ public final class CreateProjectNextService: CreateProjectNextServicing {
         organization: String?,
         serverURL: URL
     ) async throws -> CloudProject {
-        let client = Client(
-            serverURL: serverURL,
-            transport: URLSessionTransport(),
-            middlewares: [
-                AuthenticationMiddleware(),
-            ]
-        )
+        let client = Client.cloud(serverURL: serverURL)
 
         let response = try await client.createProject(
             .init(

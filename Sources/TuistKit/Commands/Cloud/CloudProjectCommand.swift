@@ -7,9 +7,10 @@ struct CloudProjectCommand: ParsableCommand {
         CommandConfiguration(
             commandName: "project",
             _superCommandName: "cloud",
-            abstract: "A set of commands to manage your cloud projects (cloudNext beta flag required in Config.swift).",
+            abstract: "A set of commands to manage your cloud projects.",
             subcommands: [
                 CloudProjectCreateCommand.self,
+                CloudProjectListCommand.self,
             ]
         )
     }
