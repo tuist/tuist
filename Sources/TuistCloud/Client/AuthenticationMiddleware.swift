@@ -1,17 +1,17 @@
-import OpenAPIRuntime
 import Foundation
+import OpenAPIRuntime
 import TuistSupport
 
 enum AuthenticationError: FatalError {
     case notAuthenticated
-    
+
     var type: ErrorType {
         switch self {
         case .notAuthenticated:
             return .abort
         }
     }
-    
+
     var description: String {
         switch self {
         case .notAuthenticated:
@@ -25,14 +25,13 @@ struct AuthenticationMiddleware: ClientMiddleware {
     func intercept(
         _ request: Request,
         baseURL: URL,
-        operationID: String,
+        operationID _: String,
         next: (Request, URL) async throws -> Response
     ) async throws -> Response {
         var request = request
         let environment = ProcessInfo.processInfo.environment
         let tokenFromEnvironment = environment[Constants.EnvironmentVariables.cloudToken]
-        guard
-            let token = try CloudAuthenticationController().authenticationToken(serverURL: baseURL)
+        guard let token = try CloudAuthenticationController().authenticationToken(serverURL: baseURL)
         else {
             throw AuthenticationError.notAuthenticated
         }

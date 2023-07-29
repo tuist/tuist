@@ -3,7 +3,7 @@ import TuistSupport
 
 enum CloudURLServiceError: FatalError {
     case invalidCloudURL(String)
-    
+
     /// Error description.
     var description: String {
         switch self {
@@ -27,15 +27,14 @@ public protocol CloudURLServicing {
 
 public final class CloudURLService: CloudURLServicing {
     public init() {}
-    
+
     public func url(serverURL: String?) throws -> URL {
         let cloudURL = serverURL ?? Constants.tuistCloudURL
-        guard
-            let url = URL(string: cloudURL)
+        guard let url = URL(string: cloudURL)
         else {
             throw CloudURLServiceError.invalidCloudURL(cloudURL)
         }
-        
+
         return url
     }
 }

@@ -8,7 +8,7 @@ public struct CloudProject {
 
 extension CloudProject {
     init(_ project: Components.Schemas.Project) {
-        self.id = Int(project.id)
-        self.slug = project.slug
+        id = Int(project.id)
+        slug = project.slug
     }
 }

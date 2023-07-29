@@ -45,10 +45,10 @@ public final class CreateProjectNextService: CreateProjectNextServicing {
             serverURL: serverURL,
             transport: URLSessionTransport(),
             middlewares: [
-                AuthenticationMiddleware()
+                AuthenticationMiddleware(),
             ]
         )
-        
+
         let response = try await client.createProject(
             .init(
                 query: .init(
