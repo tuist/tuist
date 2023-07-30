@@ -48,7 +48,7 @@
     "@rails/ujs": "^6.1.7",
     "@rails/webpacker": "5.4.4",
     "@shopify/polaris": "^10.50.1",
-    "@shopify/polaris-viz": "^7.16.1",
+    "@shopify/polaris-viz": "^9.0.0",
     "apollo-link": "^1.2.14",
     "apollo-link-http": "^1.5.17",
     "babel-plugin-transform-react-remove-prop-types": "^0.4.24",
