@@ -45,6 +45,16 @@ public struct Client: APIProtocol {
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
                 suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "account_name",
+                    value: input.query.account_name
+                )
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "project_name",
+                    value: input.query.project_name
+                )
                 try converter.setHeaderFieldAsText(
                     in: &request.headerFields,
                     name: "accept",
@@ -234,6 +244,132 @@ public struct Client: APIProtocol {
                             transforming: { value in .json(value) }
                         )
                     return .badRequest(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// - Remark: HTTP `DELETE /api/projects/{id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)`.
+    public func deleteProject(_ input: Operations.deleteProject.Input) async throws
+        -> Operations.deleteProject.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.deleteProject.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/projects/{}",
+                    parameters: [input.path.id]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .delete)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 204:
+                    let headers: Operations.deleteProject.Output.NoContent.Headers = .init()
+                    return .noContent(.init(headers: headers, body: nil))
+                case 404:
+                    let headers: Operations.deleteProject.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.deleteProject.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.deleteProject.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.deleteProject.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// - Remark: HTTP `GET /api/projects/{account_name}/{project_name}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(getProject)`.
+    public func getProject(_ input: Operations.getProject.Input) async throws
+        -> Operations.getProject.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.getProject.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/projects/{}/{}",
+                    parameters: [input.path.account_name, input.path.project_name]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.getProject.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.getProject.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.Project.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.getProject.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.getProject.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 404:
+                    let headers: Operations.getProject.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.getProject.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }

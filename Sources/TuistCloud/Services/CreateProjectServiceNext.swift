@@ -26,7 +26,7 @@ enum CreateProjectNextServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The project could not be created due to an unknown cloud response of \(statusCode)."
+            return "The project could not be created due to an unknown Cloud response of \(statusCode)."
         case let .badRequest(message):
             return message
         }

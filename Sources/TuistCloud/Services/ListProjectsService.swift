@@ -6,6 +6,12 @@ public protocol ListProjectsServicing {
     func listProjects(
         serverURL: URL
     ) async throws -> [CloudProject]
+
+    func listProjects(
+        serverURL: URL,
+        accountName: String?,
+        projectName: String?
+    ) async throws -> [CloudProject]
 }
 
 enum ListProjectsServiceError: FatalError {
@@ -32,11 +38,26 @@ public final class ListProjectsService: ListProjectsServicing {
     public func listProjects(
         serverURL: URL
     ) async throws -> [CloudProject] {
+        try await listProjects(
+            serverURL: serverURL,
+            accountName: nil,
+            projectName: nil
+        )
+    }
+
+    public func listProjects(
+        serverURL: URL,
+        accountName: String?,
+        projectName: String?
+    ) async throws -> [CloudProject] {
         let client = Client.cloud(serverURL: serverURL)
 
         let response = try await client.listProjects(
             .init(
-                query: .init()
+                query: .init(
+                    account_name: accountName,
+                    project_name: projectName
+                )
             )
         )
         switch response {
@@ -46,7 +67,7 @@ public final class ListProjectsService: ListProjectsServicing {
                 return json.projects.map(CloudProject.init)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw CreateProjectNextServiceError.unknownError(statusCode)
+            throw ListProjectsServiceError.unknownError(statusCode)
         }
     }
 }

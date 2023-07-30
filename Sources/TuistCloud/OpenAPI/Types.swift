@@ -23,6 +23,14 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
     func createOrganization(_ input: Operations.createOrganization.Input) async throws
         -> Operations.createOrganization.Output
+    /// - Remark: HTTP `DELETE /api/projects/{id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)`.
+    func deleteProject(_ input: Operations.deleteProject.Input) async throws
+        -> Operations.deleteProject.Output
+    /// - Remark: HTTP `GET /api/projects/{account_name}/{project_name}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(getProject)`.
+    func getProject(_ input: Operations.getProject.Input) async throws
+        -> Operations.getProject.Output
 }
 /// Server URLs defined in the OpenAPI document.
 public enum Servers {
@@ -133,8 +141,17 @@ public enum Operations {
             }
             public var path: Operations.listProjects.Input.Path
             public struct Query: Sendable, Equatable, Hashable {
+                public var account_name: Swift.String?
+                public var project_name: Swift.String?
                 /// Creates a new `Query`.
-                public init() {}
+                ///
+                /// - Parameters:
+                ///   - account_name:
+                ///   - project_name:
+                public init(account_name: Swift.String? = nil, project_name: Swift.String? = nil) {
+                    self.account_name = account_name
+                    self.project_name = project_name
+                }
             }
             public var query: Operations.listProjects.Input.Query
             public struct Headers: Sendable, Equatable, Hashable {
@@ -533,12 +550,321 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The project could not be created because of a validation error.
+            /// The organization could not be created because of a validation error.
             ///
             /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)/responses/400`.
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.createOrganization.Output.BadRequest)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `DELETE /api/projects/{id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)`.
+    public enum deleteProject {
+        public static let id: String = "deleteProject"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var id: Swift.Int
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - id:
+                public init(id: Swift.Int) { self.id = id }
+            }
+            public var path: Operations.deleteProject.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.deleteProject.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.deleteProject.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.deleteProject.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.deleteProject.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.deleteProject.Input.Path,
+                query: Operations.deleteProject.Input.Query = .init(),
+                headers: Operations.deleteProject.Input.Headers = .init(),
+                cookies: Operations.deleteProject.Input.Cookies = .init(),
+                body: Operations.deleteProject.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteProject.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.deleteProject.Output.NoContent.Body?
+                /// Creates a new `NoContent`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteProject.Output.NoContent.Headers = .init(),
+                    body: Operations.deleteProject.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// A project was successfully deleted.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.deleteProject.Output.NoContent)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteProject.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteProject.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteProject.Output.NotFound.Headers = .init(),
+                    body: Operations.deleteProject.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project could not be deleted because it was not found.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.deleteProject.Output.NotFound)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteProject.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteProject.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteProject.Output.Unauthorized.Headers = .init(),
+                    body: Operations.deleteProject.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project could not be created because the user is not authorized to do the action.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.deleteProject.Output.Unauthorized)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `GET /api/projects/{account_name}/{project_name}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(getProject)`.
+    public enum getProject {
+        public static let id: String = "getProject"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var account_name: Swift.String
+                public var project_name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_name:
+                ///   - project_name:
+                public init(account_name: Swift.String, project_name: Swift.String) {
+                    self.account_name = account_name
+                    self.project_name = project_name
+                }
+            }
+            public var path: Operations.getProject.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.getProject.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.getProject.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.getProject.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.getProject.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.getProject.Input.Path,
+                query: Operations.getProject.Input.Query = .init(),
+                headers: Operations.getProject.Input.Headers = .init(),
+                cookies: Operations.getProject.Input.Cookies = .init(),
+                body: Operations.getProject.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getProject.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.Project)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getProject.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getProject.Output.Ok.Headers = .init(),
+                    body: Operations.getProject.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// A success response with the project.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(getProject)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getProject.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getProject.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getProject.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getProject.Output.Unauthorized.Headers = .init(),
+                    body: Operations.getProject.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You don't have the permission to view the project.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(getProject)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getProject.Output.Unauthorized)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getProject.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getProject.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getProject.Output.NotFound.Headers = .init(),
+                    body: Operations.getProject.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project was not found.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(getProject)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getProject.Output.NotFound)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
