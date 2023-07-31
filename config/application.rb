@@ -28,6 +28,6 @@ module TuistCloud
 
     # Stripe
     config.stripe.secret_key = Rails.application.credentials.stripe[:secret_key]
-    config.stripe.publishable_key = Rails.application.credentials.stripe[:config.stripe.publishable_key]
+    config.stripe.publishable_key = Rails.application.credentials.stripe[:publishable_key]
   end
 end
