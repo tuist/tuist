@@ -68,6 +68,8 @@ GEM
       tzinfo (~> 2.0)
     addressable (2.8.4)
       public_suffix (>= 2.0.2, < 6.0)
+    appsignal (3.4.9)
+      rack
     ast (2.4.2)
     aws-eventstream (1.2.0)
     aws-partitions (1.793.0)
@@ -93,8 +95,6 @@ GEM
     bindex (0.8.1)
     bootsnap (1.16.0)
       msgpack (~> 1.2)
-    bugsnag (6.26.0)
-      concurrent-ruby (~> 1.0)
     builder (3.2.4)
     bullet (7.0.7)
       activesupport (>= 3.0.0)
@@ -393,10 +393,10 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  appsignal (~> 3.4)
   aws-sdk-s3 (~> 1.112)
   bcrypt (~> 3.1.7)
   bootsnap (>= 1.4.4)
-  bugsnag (~> 6.21)
   bullet (~> 7.0)
   byebug
   capybara (>= 3.26)

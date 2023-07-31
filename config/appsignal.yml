@@ -1,0 +1,40 @@
+default: &defaults
+  # Your push api key, it is possible to set this dynamically using ERB:
+  # push_api_key: "<%= ENV['APPSIGNAL_PUSH_API_KEY'] %>"
+  push_api_key: "6a8e48b7-0688-44b3-9df9-f19b5a095edf"
+
+  # Your app's name
+  name: "Tuist Cloud Backend"
+
+  # Actions that should not be monitored by AppSignal
+  # ignore_actions:
+  #   - ApplicationController#isup
+
+  # Errors that should not be recorded by AppSignal
+  # For more information see our docs:
+  # https://docs.appsignal.com/ruby/configuration/ignore-errors.html
+  # ignore_errors:
+  #   - Exception
+  #   - NoMemoryError
+  #   - ScriptError
+  #   - LoadError
+  #   - NotImplementedError
+  #   - SyntaxError
+  #   - SecurityError
+  #   - SignalException
+  #   - Interrupt
+  #   - SystemExit
+  #   - SystemStackError
+
+  # See https://docs.appsignal.com/ruby/configuration/options.html for
+  # all configuration options.
+
+# Configuration per environment, leave out an environment or set active
+# to false to not push metrics for that environment.
+development:
+  <<: *defaults
+  active: true
+
+production:
+  <<: *defaults
+  active: true
