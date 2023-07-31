@@ -16,7 +16,7 @@ gem "sass-rails", ">= 6"
 gem "sidekiq", "~> 6.2"
 gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 gem "vite_rails", "~> 3.0.3"
-gem "faker", "~> 2.19"
+gem "faker", "~> 3.0"
 gem "appsignal", "~> 3.4"
 gem "aws-sdk-s3", "~> 1.112"
 gem "react-rails", "~> 2.6"
