@@ -60,3 +60,5 @@ group :test do
   gem "webdrivers"
   gem "mocha", "~> 2.1.0"
 end
+
+gem "stripe-rails", "~> 2.4"

@@ -350,6 +350,11 @@ GEM
       actionpack (>= 5.2)
       activesupport (>= 5.2)
       sprockets (>= 3.0.0)
+    stripe (8.6.0)
+    stripe-rails (2.4.0)
+      rails (>= 5.1)
+      responders
+      stripe (>= 3.15.0)
     thor (1.2.2)
     tilt (2.2.0)
     timeout (0.4.0)
@@ -430,6 +435,7 @@ DEPENDENCIES
   selenium-webdriver
   sidekiq (~> 6.2)
   spring
+  stripe-rails (~> 2.4)
   tzinfo-data
   vite_rails (~> 3.0.3)
   web-console (>= 4.1.0)
