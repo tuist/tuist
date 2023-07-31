@@ -25,5 +25,9 @@ module TuistCloud
     config.action_mailer.default_url_options = { host: config.defaults[:urls][:app] }
 
     config.react.server_renderer_extensions = ["jsx", "js", "tsx", "ts"]
+
+    # Stripe
+    config.stripe.secret_key = Rails.application.credentials.stripe[:secret_key]
+    config.stripe.publishable_key = Rails.application.credentials.stripe[:config.stripe.publishable_key]
   end
 end
