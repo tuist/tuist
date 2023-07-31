@@ -29,5 +29,8 @@ module TuistCloud
     # Stripe
     config.stripe.secret_key = Rails.application.credentials.stripe[:secret_key]
     config.stripe.publishable_key = Rails.application.credentials.stripe[:publishable_key]
+    if Rails.application.credentials.stripe.key?(:webhook_signing_secret)
+      config.stripe.signing_secrets = Rails.application.credentials.stripe[:webhook_signing_secret]
+    end
   end
 end
