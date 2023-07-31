@@ -280,7 +280,7 @@ GEM
       railties (>= 5.2)
     rexml (3.2.6)
     rolify (6.0.1)
-    rubocop (1.55.0)
+    rubocop (1.55.1)
       json (~> 2.3)
       language_server-protocol (>= 3.17.0)
       parallel (~> 1.10)
