@@ -23,6 +23,10 @@ class ProjectFetchService < ApplicationService
         @name = name
       end
 
+      def status_code
+        :not_found
+      end
+
       def message
         "Project with name #{name} and account id #{account_id} was not found."
       end
@@ -33,6 +37,10 @@ class ProjectFetchService < ApplicationService
 
       def initialize(id)
         @id = id
+      end
+
+      def status_code
+        :not_found
       end
 
       def message
