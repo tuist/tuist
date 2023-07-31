@@ -9,12 +9,6 @@ if (!environment || environment === '') {
   environment = 'development';
 }
 
-// const isDistEnv = environment === 'production';
-
-// const bugsnagOptions = {
-//   appVersion: process.env.APP_VERSION,
-// };
-
 export default defineConfig({
   plugins: [
     RubyPlugin(),
@@ -26,10 +20,5 @@ export default defineConfig({
       delay: 200,
     }),
     ReactRefreshPlugin(),
-    // isDistEnv &&
-    //   BugsnagSourceMapUploaderPlugin({
-    //     ...bugsnagOptions,
-    //     overwrite: true,
-    //   }),
   ],
 });
