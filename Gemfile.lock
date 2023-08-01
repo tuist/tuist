@@ -68,7 +68,7 @@ GEM
       tzinfo (~> 2.0)
     addressable (2.8.4)
       public_suffix (>= 2.0.2, < 6.0)
-    appsignal (3.4.9)
+    appsignal (3.4.10)
       rack
     ast (2.4.2)
     aws-eventstream (1.2.0)
@@ -224,7 +224,7 @@ GEM
     pundit (2.3.0)
       activesupport (>= 3.0.0)
     racc (1.7.1)
-    rack (2.2.7)
+    rack (2.2.8)
     rack-mini-profiler (2.3.4)
       rack (>= 1.2.0)
     rack-protection (3.0.6)
