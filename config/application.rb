@@ -27,9 +27,9 @@ module TuistCloud
     config.react.server_renderer_extensions = ["jsx", "js", "tsx", "ts"]
 
     # Stripe
-    config.stripe.secret_key = Rails.application.credentials.stripe[:secret_key]
-    config.stripe.publishable_key = Rails.application.credentials.stripe[:publishable_key]
-    if Rails.application.credentials.stripe.key?(:webhook_signing_secret)
+    if Rails.env.production? || Rails.env.development?
+      config.stripe.secret_key = Rails.application.credentials.stripe[:secret_key]
+      config.stripe.publishable_key = Rails.application.credentials.stripe[:publishable_key]
       config.stripe.signing_secrets = Rails.application.credentials.stripe[:webhook_signing_secret]
     end
   end
