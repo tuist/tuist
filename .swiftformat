@@ -1,7 +1,7 @@
 # file options
 
 --symlinks ignore
---exclude Tests/XCTestManifests.swift,projects/tuist/features,Sources/TuistSupport/Vendored,projects/tuist/fixtures/Targets/SlothCreator
+--exclude Tests/XCTestManifests.swift,projects/tuist/features,Sources/TuistSupport/Vendored,projects/tuist/fixtures/Targets/SlothCreator,Sources/TuistCloud/OpenAPI
 
 # format options
 

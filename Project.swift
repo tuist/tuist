@@ -215,6 +215,8 @@ func targets() -> [Target] {
                     .target(name: "TuistSupport"),
                     .target(name: "TuistCloudSchema"),
                     .external(name: "Apollo"),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "OpenAPIURLSession"),
                 ],
                 testDependencies: [
                     .target(name: "TuistSupportTesting"),

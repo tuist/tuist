@@ -14,14 +14,11 @@ protocol CloudInitServicing {
 }
 
 enum CloudInitServiceError: FatalError, Equatable {
-    case invalidCloudURL(String)
     case cloudAlreadySetUp
 
     /// Error description.
     var description: String {
         switch self {
-        case let .invalidCloudURL(url):
-            return "The cloud URL \(url) is invalid."
         case .cloudAlreadySetUp:
             return "The project is already set up with Tuist Cloud."
         }
@@ -30,7 +27,7 @@ enum CloudInitServiceError: FatalError, Equatable {
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .invalidCloudURL, .cloudAlreadySetUp:
+        case .cloudAlreadySetUp:
             return .abort
         }
     }
@@ -40,15 +37,18 @@ final class CloudInitService: CloudInitServicing {
     private let cloudSessionController: CloudSessionControlling
     private let createProjectService: CreateProjectServicing
     private let configLoader: ConfigLoading
+    private let cloudURLService: CloudURLServicing
 
     init(
         cloudSessionController: CloudSessionControlling = CloudSessionController(),
         createProjectService: CreateProjectServicing = CreateProjectService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(),
+        cloudURLService: CloudURLServicing = CloudURLService()
     ) {
         self.cloudSessionController = cloudSessionController
         self.createProjectService = createProjectService
         self.configLoader = configLoader
+        self.cloudURLService = cloudURLService
     }
 
     func createProject(
@@ -57,10 +57,7 @@ final class CloudInitService: CloudInitServicing {
         url: String,
         path: String?
     ) async throws {
-        guard let serverURL = URL(string: url)
-        else {
-            throw CloudInitServiceError.invalidCloudURL(url)
-        }
+        let serverURL = try cloudURLService.url(serverURL: url)
 
         let path = try self.path(path)
         let config = try configLoader.loadConfig(path: path)
