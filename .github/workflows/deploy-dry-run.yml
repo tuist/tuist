@@ -8,12 +8,12 @@ on:
   merge_group: {}
 
 concurrency:
-  group: deploy-${{ github.head_ref }}
+  group: deploy-dry-run-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
   deploy:
-    name: Deploy app
+    name: Deploy dry run
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       DOCKER_BUILDKIT: 1
