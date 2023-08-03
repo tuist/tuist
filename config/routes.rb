@@ -29,6 +29,7 @@ Rails.application.routes.draw do
 
   namespace :api do
     resources :projects, :projects, only: [:create, :index]
+    resources :organizations, :organizations, only: [:create]
   end
 
 

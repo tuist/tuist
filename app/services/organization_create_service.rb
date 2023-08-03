@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+# Service for creating an organization
 class OrganizationCreateService < ApplicationService
   attr_reader :creator, :name
 
@@ -14,7 +15,7 @@ class OrganizationCreateService < ApplicationService
       organization = Organization.create!
       AccountCreateService.call(
         name: name,
-        owner: organization,
+        owner: organization
       )
       creator.add_role(:admin, organization)
       organization
