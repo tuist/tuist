@@ -22,4 +22,8 @@ class Organization < ApplicationRecord
   def pending_invitations
     invitations.where(accepted: false)
   end
+
+  def as_json(options = {})
+    super(options.merge(only: [:id])).merge({ name: name })
+  end
 end

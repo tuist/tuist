@@ -19,23 +19,22 @@ class OrganizationCreateServiceTest < ActiveSupport::TestCase
     assert user.has_role?(:admin, got)
   end
 
-  test "the organization name is suffixed if an organization with the same name already exists" do
+  test "creating organization fails when the organization already exists" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
     organization_name = "Tuist"
 
-    # When
     OrganizationCreateService.call(
       creator: user,
       name: organization_name,
     )
-    got = OrganizationCreateService.call(
-      creator: user,
-      name: organization_name,
-    )
 
-    # Then
-    assert_equal organization_name + "1", got.name
-    assert user.has_role?(:admin, got)
+    # When / Then
+    assert_raises(AccountCreateService::Error::AccountAlreadyExists) do
+      OrganizationCreateService.call(
+        creator: user,
+        name: organization_name,
+      )
+    end
   end
 end
