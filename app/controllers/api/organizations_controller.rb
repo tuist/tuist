@@ -11,5 +11,10 @@ module API
 
       render(json: organization)
     end
+
+    def index
+      organizations = UserOrganizationsFetchService.call(user: current_user)
+      render(json: { organizations: organizations })
+    end
   end
 end
