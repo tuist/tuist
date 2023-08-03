@@ -15,7 +15,7 @@ class Project < ApplicationRecord
   # Validations
   validates :name, exclusion: Defaults.fetch(:blocklisted_slug_keywords)
 
-  def slug
+  def full_name
     "#{account.name}/#{name}"
   end
 
@@ -29,7 +29,7 @@ class Project < ApplicationRecord
   end
 
   def as_json(options = {})
-    super(options.merge(only: [:id])).merge({ slug: slug })
+    super(options.merge(only: [:id])).merge({ full_name: full_name })
   end
 end
 
