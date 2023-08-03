@@ -137,6 +137,48 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// - Remark: HTTP `GET /api/organizations`.
+    /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)`.
+    public func listOrganizations(_ input: Operations.listOrganizations.Input) async throws
+        -> Operations.listOrganizations.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.listOrganizations.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/organizations",
+                    parameters: []
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.listOrganizations.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.listOrganizations.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.Organizations.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
     /// - Remark: HTTP `POST /api/organizations`.
     /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
     public func createOrganization(_ input: Operations.createOrganization.Input) async throws

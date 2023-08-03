@@ -2,13 +2,13 @@ import Foundation
 import OpenAPIURLSession
 import TuistSupport
 
-public protocol ListProjectsServicing {
-    func listProjects(
+public protocol ListOrganizationsServicing {
+    func listOrganizations(
         serverURL: URL
-    ) async throws -> [CloudProject]
+    ) async throws -> [CloudOrganization]
 }
 
-enum ListProjectsServiceError: FatalError {
+enum ListOrganizationsServiceError: FatalError {
     case unknownError(Int)
 
     var type: ErrorType {
@@ -21,20 +21,20 @@ enum ListProjectsServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "The project could not be listed due to an unknown cloud response of \(statusCode)."
+            return "The organizations could not be listed due to an unknown cloud response of \(statusCode)."
         }
     }
 }
 
-public final class ListProjectsService: ListProjectsServicing {
+public final class ListOrganizationsService: ListOrganizationsServicing {
     public init() {}
 
-    public func listProjects(
+    public func listOrganizations(
         serverURL: URL
-    ) async throws -> [CloudProject] {
+    ) async throws -> [CloudOrganization] {
         let client = Client.cloud(serverURL: serverURL)
 
-        let response = try await client.listProjects(
+        let response = try await client.listOrganizations(
             .init(
                 query: .init()
             )
@@ -43,10 +43,10 @@ public final class ListProjectsService: ListProjectsServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(json):
-                return json.projects.map(CloudProject.init)
+                return json.organizations.map(CloudOrganization.init)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw CreateProjectNextServiceError.unknownError(statusCode)
+            throw ListOrganizationsServiceError.unknownError(statusCode)
         }
     }
 }

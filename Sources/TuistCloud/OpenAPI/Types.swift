@@ -15,6 +15,10 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
     func createProject(_ input: Operations.createProject.Input) async throws
         -> Operations.createProject.Output
+    /// - Remark: HTTP `GET /api/organizations`.
+    /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)`.
+    func listOrganizations(_ input: Operations.listOrganizations.Input) async throws
+        -> Operations.listOrganizations.Output
     /// - Remark: HTTP `POST /api/organizations`.
     /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
     func createOrganization(_ input: Operations.createOrganization.Input) async throws
@@ -61,6 +65,19 @@ public enum Components {
                 case id
                 case full_name
             }
+        }
+        /// - Remark: Generated from `#/components/schemas/Organizations`.
+        public struct Organizations: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Organizations/organizations`.
+            public var organizations: [Components.Schemas.Organization]
+            /// Creates a new `Organizations`.
+            ///
+            /// - Parameters:
+            ///   - organizations:
+            public init(organizations: [Components.Schemas.Organization]) {
+                self.organizations = organizations
+            }
+            public enum CodingKeys: String, CodingKey { case organizations }
         }
         /// - Remark: Generated from `#/components/schemas/Organization`.
         public struct Organization: Codable, Equatable, Hashable, Sendable {
@@ -313,6 +330,93 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.createProject.Output.BadRequest)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `GET /api/organizations`.
+    /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)`.
+    public enum listOrganizations {
+        public static let id: String = "listOrganizations"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.listOrganizations.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.listOrganizations.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.listOrganizations.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.listOrganizations.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.listOrganizations.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.listOrganizations.Input.Path = .init(),
+                query: Operations.listOrganizations.Input.Query = .init(),
+                headers: Operations.listOrganizations.Input.Headers = .init(),
+                cookies: Operations.listOrganizations.Input.Cookies = .init(),
+                body: Operations.listOrganizations.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listOrganizations.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.Organizations)
+                }
+                /// Received HTTP response body
+                public var body: Operations.listOrganizations.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.listOrganizations.Output.Ok.Headers = .init(),
+                    body: Operations.listOrganizations.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// A success response with all available cloud organizations.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listOrganizations.Output.Ok)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
