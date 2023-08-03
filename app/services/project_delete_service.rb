@@ -3,6 +3,10 @@
 class ProjectDeleteService < ApplicationService
   module Error
     class Unauthorized < CloudError
+      def status_code
+        :unauthorized
+      end
+
       def message
         "You do not have a permission to delete this project."
       end
@@ -13,6 +17,10 @@ class ProjectDeleteService < ApplicationService
 
       def initialize(id)
         @id = id
+      end
+
+      def status_code
+        :not_found
       end
 
       def message
