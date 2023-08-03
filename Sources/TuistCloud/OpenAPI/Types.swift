@@ -15,6 +15,10 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
     func createProject(_ input: Operations.createProject.Input) async throws
         -> Operations.createProject.Output
+    /// - Remark: HTTP `POST /api/organizations`.
+    /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
+    func createOrganization(_ input: Operations.createOrganization.Input) async throws
+        -> Operations.createOrganization.Output
 }
 /// Server URLs defined in the OpenAPI document.
 public enum Servers {
@@ -56,6 +60,26 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case id
                 case full_name
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/Organization`.
+        public struct Organization: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Organization/id`.
+            public var id: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/Organization/name`.
+            public var name: Swift.String
+            /// Creates a new `Organization`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - name:
+            public init(id: Swift.Double, name: Swift.String) {
+                self.id = id
+                self.name = name
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case name
             }
         }
         /// - Remark: Generated from `#/components/schemas/Error`.
@@ -289,6 +313,128 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.createProject.Output.BadRequest)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `POST /api/organizations`.
+    /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
+    public enum createOrganization {
+        public static let id: String = "createOrganization"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.createOrganization.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                public var name: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - name:
+                public init(name: Swift.String) { self.name = name }
+            }
+            public var query: Operations.createOrganization.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.createOrganization.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.createOrganization.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.createOrganization.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.createOrganization.Input.Path = .init(),
+                query: Operations.createOrganization.Input.Query,
+                headers: Operations.createOrganization.Input.Headers = .init(),
+                cookies: Operations.createOrganization.Input.Cookies = .init(),
+                body: Operations.createOrganization.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createOrganization.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.Organization)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganization.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createOrganization.Output.Ok.Headers = .init(),
+                    body: Operations.createOrganization.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// A success response with the created organization.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createOrganization.Output.Ok)
+            public struct BadRequest: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createOrganization.Output.BadRequest.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganization.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createOrganization.Output.BadRequest.Headers = .init(),
+                    body: Operations.createOrganization.Output.BadRequest.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project could not be created because of a validation error.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createOrganization.Output.BadRequest)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
