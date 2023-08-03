@@ -1,4 +1,4 @@
-name: Deploy dry run
+name: 'Deploy dry run'
 
 on:
   push:
