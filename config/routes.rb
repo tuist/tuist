@@ -29,7 +29,7 @@ Rails.application.routes.draw do
 
   namespace :api do
     resources :projects, :projects, only: [:create, :index, :destroy]
-    resources :organizations, :organizations, only: [:create]
+    resources :organizations, :organizations, only: [:create, :index]
   end
 
 
