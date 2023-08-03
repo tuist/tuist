@@ -14,6 +14,7 @@ struct CloudCommand: ParsableCommand {
                 CloudInitCommand.self,
                 CloudCleanCommand.self,
                 CloudProjectCommand.self,
+                CloudOrganizationCommand.self,
             ]
         )
     }

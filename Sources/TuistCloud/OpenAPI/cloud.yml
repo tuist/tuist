@@ -44,6 +44,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/organizations:
+    post:
+      operationId: createOrganization
+      parameters:
+        - name: name
+          required: true
+          in: query
+          description: The name of the organization that should be created.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A success response with the created organization.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "400":
+          description: The project could not be created because of a validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   schemas:
     Projects:
@@ -65,6 +88,16 @@ components:
       required:
         - id
         - full_name
+    Organization:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+      required:
+        - id
+        - name
     Error:
       type: object
       properties:
