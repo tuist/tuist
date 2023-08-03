@@ -30,6 +30,48 @@ public struct Client: APIProtocol {
         )
     }
     private var converter: Converter { client.converter }
+    /// - Remark: HTTP `GET /api/projects`.
+    /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
+    public func listProjects(_ input: Operations.listProjects.Input) async throws
+        -> Operations.listProjects.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.listProjects.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/projects",
+                    parameters: []
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.listProjects.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.listProjects.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.Projects.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
     /// - Remark: HTTP `POST /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
     public func createProject(_ input: Operations.createProject.Input) async throws

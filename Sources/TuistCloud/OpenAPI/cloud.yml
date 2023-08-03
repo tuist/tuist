@@ -7,6 +7,15 @@ servers:
     description: Localhost deployment.
 paths:
   /api/projects:
+    get:
+      operationId: listProjects
+      responses:
+        "200":
+          description: A success response with all available cloud projects.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Projects"
     post:
       operationId: createProject
       parameters:
@@ -37,16 +46,25 @@ paths:
                 $ref: "#/components/schemas/Error"
 components:
   schemas:
+    Projects:
+      type: object
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/Project"
+      required:
+        - projects
     Project:
       type: object
       properties:
         id:
           type: number
-        slug:
+        full_name:
           type: string
       required:
         - id
-        - slug
+        - full_name
     Error:
       type: object
       properties:
