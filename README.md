@@ -198,7 +198,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
     <img src="assets/companies/qnips.svg" style="width: 90px;" hspace="8"/>
   </a>
   <a href="https://telepass.com/" target="_blank">
-    <img src="assets/companies/telepass.svg" style="width: 96px;" hspace="8"/>
+    <img src="assets/companies/telepass.svg" style="width: 112px;" hspace="8"/>
   </a>
 </div>
 
