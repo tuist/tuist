@@ -11,13 +11,13 @@ extension TestPlan {
         try self.init(
             path: path,
             testTargets: xcTestPlan.testTargets.map { testTarget in
-                try TestTarget(
+                try TestableTarget(
                     target: TargetReference(
                         projectPath: generatorPaths.resolve(path: .relativeToRoot(testTarget.target.projectPath))
                             .removingLastComponent(),
                         name: testTarget.target.name
                     ),
-                    isEnabled: testTarget.enabled
+                    skipped: !testTarget.enabled
                 )
             },
             isDefault: isDefault

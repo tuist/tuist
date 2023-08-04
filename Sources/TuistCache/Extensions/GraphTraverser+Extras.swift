@@ -12,7 +12,7 @@ extension GraphTraversing {
     ) -> Set<GraphTarget> where GraphTargets.Element == GraphTarget {
         let allTestPlansTargetNames: Set<String>?
         if includedTargets.isEmpty, let testPlanName = testPlan, let testPlan = self.testPlan(name: testPlanName) {
-            allTestPlansTargetNames = Set(testPlan.testTargets.filter(\.isEnabled).map(\.target.name))
+            allTestPlansTargetNames = Set(testPlan.testTargets.filter { !$0.isSkipped }.map(\.target.name))
         } else {
             allTestPlansTargetNames = nil
         }

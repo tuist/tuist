@@ -34,14 +34,14 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let testPlan1 = TestPlan(
             path: path.appending(component: "Test1.testplan"),
             testTargets: [
-                TestPlan.TestTarget(target: targetReference1, isEnabled: false),
+                TestableTarget(target: targetReference1, skipped: true),
             ],
             isDefault: true
         )
         let testPlan2 = TestPlan(
             path: path.appending(component: "Test2.testplan"),
             testTargets: [
-                TestPlan.TestTarget(target: targetReference2, isEnabled: true),
+                TestableTarget(target: targetReference2, skipped: false),
             ],
             isDefault: false
         )
@@ -219,8 +219,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let testPlan = TestPlan(
             path: path.appending(component: "Test.testplan"),
             testTargets: [
-                TestPlan.TestTarget(target: targetReference1, isEnabled: false),
-                TestPlan.TestTarget(target: targetReference2, isEnabled: true),
+                TestableTarget(target: targetReference1, skipped: true),
+                TestableTarget(target: targetReference2, skipped: false),
             ],
             isDefault: true
         )
@@ -265,8 +265,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let testPlan = TestPlan(
             path: path.appending(component: "Test.testplan"),
             testTargets: [
-                TestPlan.TestTarget(target: targetReference1, isEnabled: true),
-                TestPlan.TestTarget(target: targetReference2, isEnabled: true),
+                TestableTarget(target: targetReference1, skipped: false),
+                TestableTarget(target: targetReference2, skipped: false),
             ],
             isDefault: true
         )
@@ -311,8 +311,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let testPlan = TestPlan(
             path: path.appending(component: "Test.testplan"),
             testTargets: [
-                TestPlan.TestTarget(target: targetReference1, isEnabled: true),
-                TestPlan.TestTarget(target: targetReference2, isEnabled: true),
+                TestableTarget(target: targetReference1, skipped: false),
+                TestableTarget(target: targetReference2, skipped: false),
             ],
             isDefault: true
         )
@@ -357,8 +357,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let testPlan = TestPlan(
             path: path.appending(component: "Test.testplan"),
             testTargets: [
-                TestPlan.TestTarget(target: targetReference1, isEnabled: false),
-                TestPlan.TestTarget(target: targetReference2, isEnabled: true),
+                TestableTarget(target: targetReference1, skipped: true),
+                TestableTarget(target: targetReference2, skipped: false),
             ],
             isDefault: true
         )
@@ -551,7 +551,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let coreTarget = Target.test(name: "Core")
         let coreTestPlan = TestPlan(
             path: projectPath,
-            testTargets: [TestPlan.TestTarget(target: TargetReference(projectPath: projectPath, name: coreTarget.name), isEnabled: true)],
+            testTargets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: coreTarget.name), skipped: false)],
             isDefault: true
         )
         let coreTestPlanScheme = Scheme.test(

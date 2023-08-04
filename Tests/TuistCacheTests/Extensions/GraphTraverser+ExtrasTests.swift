@@ -58,7 +58,7 @@ class GraphTraverserExtrasTests: XCTestCase {
             path: "/path/test.xctestplan",
             testTargets: [
                 .init(target: tests1, projectPath: projectPath),
-                .init(target: tests3, projectPath: projectPath, isEnabled: false),
+                .init(target: tests3, projectPath: projectPath, skipped: true),
                 .init(target: tests4, projectPath: projectPath),
             ],
             isDefault: true
@@ -191,11 +191,11 @@ class GraphTraverserExtrasTests: XCTestCase {
     }
 }
 
-extension TestPlan.TestTarget {
-    fileprivate init(target: Target, projectPath: AbsolutePath, isEnabled: Bool = true) {
+extension TestableTarget {
+    fileprivate init(target: Target, projectPath: AbsolutePath, skipped: Bool = false) {
         self.init(
             target: TargetReference(projectPath: projectPath, name: target.name),
-            isEnabled: isEnabled
+            skipped: skipped
         )
     }
 }
