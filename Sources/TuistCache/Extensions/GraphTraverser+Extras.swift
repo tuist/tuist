@@ -20,14 +20,14 @@ extension GraphTraversing {
         lazy var allInternalTargets = allInternalTargets().map(\.target.name)
         return Set(
             targets.filter { target in
+                if let allTestPlansTargetNames, !allTestPlansTargetNames.contains(target.target.name) {
+                    return false
+                }
                 if !includedTargets.isEmpty {
                     return includedTargets.contains(target.target.name)
                 }
                 if excludedTargets.contains(target.target.name) {
                     return false
-                }
-                if let allTestPlansTargetNames = allTestPlansTargetNames {
-                    return allTestPlansTargetNames.contains(target.target.name)
                 }
                 return excludingExternalTargets ? allInternalTargets.contains(target.target.name) : true
             }
