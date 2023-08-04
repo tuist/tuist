@@ -55,7 +55,7 @@ enum TestServiceError: FatalError, Equatable {
     }
 }
 
-final class TestService {
+final class TestService { // swiftlint:disable:this type_body_length
     private let generatorFactory: GeneratorFactorying
     private let xcodebuildController: XcodeBuildControlling
     private let buildGraphInspector: BuildGraphInspecting
