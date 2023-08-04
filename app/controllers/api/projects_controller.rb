@@ -27,5 +27,15 @@ module API
       ProjectDeleteService.call(id: params[:id], deleter: current_user)
       head :no_content
     end
+
+    def show
+      project = ProjectFetchService.new.fetch_by_name(
+        name: params[:project_name],
+        account_name: params[:account_name],
+        user: current_user
+      )
+
+      render(json: project)
+    end
   end
 end

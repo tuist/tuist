@@ -16,10 +16,10 @@ class ProjectFetchService < ApplicationService
     end
 
     class ProjectNotFoundByName < CloudError
-      attr_reader :account_id, :name
+      attr_reader :account_name, :name
 
-      def initialize(account_id, name)
-        @account_id = account_id
+      def initialize(account_name, name)
+        @account_name = account_name
         @name = name
       end
 
@@ -28,7 +28,7 @@ class ProjectFetchService < ApplicationService
       end
 
       def message
-        "Project with name #{name} and account id #{account_id} was not found."
+        "Project #{account_name}/#{name} was not found."
       end
     end
 
@@ -54,7 +54,7 @@ class ProjectFetchService < ApplicationService
     begin
       project = Project.find_by!(account_id: account.id, name: name)
     rescue ActiveRecord::RecordNotFound
-      raise Error::ProjectNotFoundByName.new(account.id, name)
+      raise Error::ProjectNotFoundByName.new(account.name, name)
     end
     raise Error::Unauthorized.new(account_name, name) unless ProjectPolicy.new(user, project).show?
 
