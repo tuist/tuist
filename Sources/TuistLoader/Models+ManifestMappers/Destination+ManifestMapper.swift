@@ -1,10 +1,3 @@
-//
-//  Destination+ManifestMapper.swift
-//  
-//
-//  Created by Michael Simons on 7/3/23.
-//
-
 import Foundation
 import TuistGraph
 import ProjectDescription
