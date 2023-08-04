@@ -30,6 +30,7 @@ Rails.application.routes.draw do
   namespace :api do
     resources :projects, :projects, only: [:create, :index, :destroy]
     resources :organizations, :organizations, only: [:create, :index]
+    get "/projects/:account_name/:project_name", to: "projects#show"
   end
 
 
