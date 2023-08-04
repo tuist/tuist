@@ -1,3 +1,5 @@
+import Foundation
+
 struct XCTestPlan: Decodable {
     struct Target: Decodable {
         let projectPath: String
