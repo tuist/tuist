@@ -42,17 +42,33 @@ final class CloudOrganizationShowService: CloudOrganizationShowServicing {
             return
         }
 
-        let headers = ["username", "email", "role"]
-        let tableString = formatDataToTable(
-            [headers] + organization.members.map { [$0.name, $0.email, $0.role.rawValue] }
+        let membersHeaders = ["username", "email", "role"]
+        let membersTable = formatDataToTable(
+            [membersHeaders] + organization.members.map { [$0.name, $0.email, $0.role.rawValue] }
         )
+
+        let invitationsString: String
+        if organization.invitations.isEmpty {
+            invitationsString = "There are currently no invited users."
+        } else {
+            let invitationsHeaders = ["inviter", "invitee email"]
+            let invitationsTable = formatDataToTable(
+                [invitationsHeaders] + organization.invitations.map { [$0.inviter.name, $0.inviteeEmail] }
+            )
+            invitationsString = """
+            \("Invitations".bold()) (total number: \(organization.invitations.count))
+            \(invitationsTable)
+            """
+        }
 
         logger.info("""
         \("Organization".bold())
         Name: \(organization.name)
 
         \("Organization members".bold()) (total number: \(organization.members.count))
-        \(tableString)
+        \(membersTable)
+
+        \(invitationsString)
         """)
     }
 

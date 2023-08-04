@@ -13,8 +13,7 @@ struct CloudOrganizationShowCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The name of the organization to show.",
-        completion: .directory
+        help: "The name of the organization to show."
     )
     var organizationName: String
 

@@ -42,6 +42,12 @@ final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
                         email: "name-two@email.io",
                         role: .admin
                     ),
+                ],
+                invitations: [
+                    .test(
+                        inviteeEmail: "invitee@email.io",
+                        inviter: .test(name: "some-inviter")
+                    ),
                 ]
             )
         }
@@ -62,6 +68,10 @@ final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
         username  email              role
         name-one  name-one@email.io  user
         name-two  name-two@email.io  admin
+
+        \(TerminalStyle.bold.open)Invitations\(TerminalStyle.reset.open) (total number: 1)
+        inviter       invitee email
+        some-inviter  invitee@email.io
         """)
     }
 }
