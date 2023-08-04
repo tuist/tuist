@@ -10,6 +10,7 @@ struct CloudOrganizationCommand: ParsableCommand {
             abstract: "A set of commands to manage your Cloud organizations.",
             subcommands: [
                 CloudOrganizationCreateCommand.self,
+                CloudOrganizationListCommand.self,
             ]
         )
     }

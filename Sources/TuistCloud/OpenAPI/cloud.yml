@@ -45,6 +45,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /api/organizations:
+    get:
+      operationId: listOrganizations
+      responses:
+        "200":
+          description: A success response with all available cloud organizations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organizations"
     post:
       operationId: createOrganization
       parameters:
@@ -88,6 +97,15 @@ components:
       required:
         - id
         - full_name
+    Organizations:
+      type: object
+      properties:
+        organizations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Organization"
+      required:
+        - organizations
     Organization:
       type: object
       properties:
