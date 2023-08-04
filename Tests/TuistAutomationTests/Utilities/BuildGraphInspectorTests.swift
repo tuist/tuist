@@ -286,7 +286,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.testableTarget(
+        let got = try subject.testableTarget(
             scheme: scheme,
             testPlan: testPlan.name,
             testTargets: [TestIdentifier(target: targetReference2.name)],
@@ -332,7 +332,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.testableTarget(
+        let got = try subject.testableTarget(
             scheme: scheme,
             testPlan: testPlan.name,
             testTargets: [],
@@ -378,7 +378,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.testableTarget(
+        let got = try subject.testableTarget(
             scheme: scheme,
             testPlan: testPlan.name,
             testTargets: [TestIdentifier(target: targetReference1.name)],

@@ -102,19 +102,19 @@ final class TestService {
         }
         if !testTargets.isEmpty {
             // --test-targets Test --skip-test-targets AnotherTest
-            let skipTestTargetsOnly = Set(skipTestTargets.map { TestIdentifier(target: $0.target) })
-            let testTargetsOnly = testTargets.map { TestIdentifier(target: $0.target) }
+            let skipTestTargetsOnly = try Set(skipTestTargets.map { try TestIdentifier(target: $0.target) })
+            let testTargetsOnly = try testTargets.map { try TestIdentifier(target: $0.target) }
             let targetsOnlyIntersection = skipTestTargetsOnly.intersection(testTargetsOnly)
             if targetsOnlyIntersection.isEmpty {
-                throw TestServiceError.nothingToSkip(skipped: skipTestTargets.filter { skipTarget in !testTargetsOnly.contains(TestIdentifier(target: skipTarget.target)) }, included: testTargets)
+                throw TestServiceError.nothingToSkip(skipped: try skipTestTargets.filter { skipTarget in try !testTargetsOnly.contains(TestIdentifier(target: skipTarget.target)) }, included: testTargets)
             }
 
             // --test-targets Test/MyClass --skip-test-targets Test/AnotherClass
-            let skipTestTargetsClasses = Set(skipTestTargets.map { TestIdentifier(target: $0.target, class: $0.class) })
-            let testTargetsClasses = testTargets.lazy.filter { $0.class != nil }.map { TestIdentifier(target: $0.target, class: $0.class) }
+            let skipTestTargetsClasses = try Set(skipTestTargets.map { try TestIdentifier(target: $0.target, class: $0.class) })
+            let testTargetsClasses = try testTargets.lazy.filter { $0.class != nil }.map { try TestIdentifier(target: $0.target, class: $0.class) }
             let targetsClassesIntersection = skipTestTargetsClasses.intersection(testTargetsClasses)
             if !testTargetsClasses.isEmpty && targetsClassesIntersection.isEmpty {
-                throw TestServiceError.nothingToSkip(skipped: skipTestTargets.filter { skipTarget in !testTargetsClasses.contains { $0 == TestIdentifier(target: skipTarget.target, class: skipTarget.class) } }, included: testTargets)
+                throw TestServiceError.nothingToSkip(skipped: try skipTestTargets.filter { skipTarget in try !testTargetsClasses.contains { try $0 == TestIdentifier(target: skipTarget.target, class: skipTarget.class) } }, included: testTargets)
             }
 
             // --test-targets Test/MyClass/MyMethod --skip-test-targets Test/MyClass/AnotherMethod

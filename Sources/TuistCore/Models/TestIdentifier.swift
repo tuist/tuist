@@ -26,6 +26,44 @@ public struct TestIdentifier: CustomStringConvertible, Hashable {
     public let method: String?
 
     public var description: String {
+        Self.description(target: target, class: `class`, method: method)
+    }
+
+    public init(target: String, class: String? = nil) throws {
+        try self.init(
+            target: target,
+            class: `class`,
+            method: nil
+        )
+    }
+
+    public init(target: String, class: String?, method: String?) throws {
+        if target.isEmpty || `class`.isEmptyButNotNil || method.isEmptyButNotNil {
+            throw Error.invalidTestIdentifier(value: Self.description(target: target, class: `class`, method: method))
+        }
+
+        self.target = target
+        self.class = `class`
+        self.method = method
+    }
+
+    public init(string: String) throws {
+        let testInfo = string.split(separator: "/", omittingEmptySubsequences: false)
+        func getSafely(_ index: Int) -> String? {
+            testInfo.indices.contains(index) ? String(testInfo[index]) : nil
+        }
+
+        guard let target = getSafely(0), testInfo.count <= 3 else {
+            throw Error.invalidTestIdentifier(value: string)
+        }
+        try self.init(
+            target: target,
+            class: getSafely(1),
+            method: getSafely(2)
+        )
+    }
+
+    private static func description(target: String, class: String?, method: String?) -> String {
         var description = target
         if let `class` = `class` {
             description += "/\(`class`)"
@@ -35,24 +73,13 @@ public struct TestIdentifier: CustomStringConvertible, Hashable {
         }
         return description
     }
+}
 
-    public init(target: String, class: String? = nil, method: String? = nil) {
-        self.target = target
-        self.class = `class`
-        self.method = method
-    }
-
-    public init(string: String) throws {
-        let testInfo = string.split(separator: "/")
-        func getSafely(_ index: Int) -> String? {
-            testInfo.indices.contains(index) ? String(testInfo[index]) : nil
+extension Optional where Wrapped == String {
+    fileprivate var isEmptyButNotNil: Bool {
+        if let self = self, self.isEmpty {
+            return true
         }
-
-        guard let target = getSafely(0), testInfo.count <= 3 else {
-            throw Error.invalidTestIdentifier(value: string)
-        }
-        self.target = target
-        `class` = getSafely(1)
-        method = getSafely(2)
+        return false
     }
 }
