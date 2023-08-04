@@ -299,7 +299,7 @@ final class TargetTests: TuistUnitTestCase {
 
     func test_dependencyPlatformFilters_when_iOS_targets_mac() {
         // Given
-        let target = Target.test(destinations:[.macCatalyst], deploymentTargets: .iOS("14.0"))
+        let target = Target.test(destinations: [.macCatalyst], deploymentTargets: .iOS("14.0"))
 
         // When
         let got = target.dependencyPlatformFilters

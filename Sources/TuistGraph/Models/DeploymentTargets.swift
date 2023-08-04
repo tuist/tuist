@@ -3,25 +3,20 @@ import Foundation
 // MARK: - DeploymentTargets
 
 public struct DeploymentTargets: Hashable, Codable {
-    
     public let iOS: String?
     public let macOS: String?
     public let watchOS: String?
     public let tvOS: String?
     public let visionOS: String?
-    
-    public init(iOS: String? = nil,
-                macOS: String? = nil,
-                watchOS: String? = nil,
-                tvOS: String? = nil,
-                visionOS: String? = nil) {
+
+    public init(iOS: String? = nil, macOS: String? = nil, watchOS: String? = nil, tvOS: String? = nil, visionOS: String? = nil) {
         self.iOS = iOS
         self.macOS = macOS
         self.watchOS = watchOS
         self.tvOS = tvOS
         self.visionOS = visionOS
     }
-    
+
     public subscript(platform: Platform) -> String? {
         switch platform {
         case .iOS:
@@ -39,11 +34,11 @@ public struct DeploymentTargets: Hashable, Codable {
 
     public var configuredVersions: [(platform: Platform, versionString: String)] {
         var versions = [(Platform, String)]()
-        
+
         if let iOS {
             versions.append((.iOS, iOS))
         }
-        
+
         if let macOS {
             versions.append((.macOS, macOS))
         }
@@ -55,35 +50,35 @@ public struct DeploymentTargets: Hashable, Codable {
         if let tvOS {
             versions.append((.tvOS, tvOS))
         }
-        
+
         if let visionOS {
             versions.append((.visionOS, visionOS))
         }
-        
+
         return versions
     }
 
     public static func iOS(_ version: String) -> DeploymentTargets {
-        return DeploymentTargets(iOS: version)
+        DeploymentTargets(iOS: version)
     }
-    
+
     public static func macOS(_ version: String) -> DeploymentTargets {
-        return DeploymentTargets(macOS: version)
+        DeploymentTargets(macOS: version)
     }
-    
+
     public static func watchOS(_ version: String) -> DeploymentTargets {
-        return DeploymentTargets(watchOS: version)
+        DeploymentTargets(watchOS: version)
     }
-    
+
     public static func tvOS(_ version: String) -> DeploymentTargets {
-        return DeploymentTargets(tvOS: version)
+        DeploymentTargets(tvOS: version)
     }
-    
+
     public static func visionOS(_ version: String) -> DeploymentTargets {
-        return DeploymentTargets(visionOS: version)
+        DeploymentTargets(visionOS: version)
     }
-    
+
     public static func empty() -> DeploymentTargets {
-        return DeploymentTargets()
+        DeploymentTargets()
     }
 }

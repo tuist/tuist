@@ -59,7 +59,7 @@ extension Target {
 
     /// Creates a Target with test data
     /// Note: Referenced paths may not exist
-  //
+    //
     public static func test(
         name: String = "Target",
         platform: Platform,
@@ -85,7 +85,6 @@ extension Target {
         additionalFiles: [FileElement] = [],
         prune: Bool = false
     ) -> Target {
-        
         Target(
             name: name,
             destinations: destinationsFrom(platform),
@@ -157,9 +156,9 @@ extension Target {
             rawScriptBuildPhases: rawScriptBuildPhases
         )
     }
-    
+
     /// Creates a bare bones Target with as little data as possible
-  //  @available(*, deprecated, renamed: "empty(name:destinations:...)", message: "Please use the `destinations:` factory method")
+    //  @available(*, deprecated, renamed: "empty(name:destinations:...)", message: "Please use the `destinations:` factory method")
     public static func empty(
         name: String = "Target",
         platform: Platform,
@@ -203,7 +202,7 @@ extension Target {
             rawScriptBuildPhases: rawScriptBuildPhases
         )
     }
-    
+
     // Maps a platform to a set of Destinations.  For migration purposes
     private static func destinationsFrom(_ platform: Platform) -> Destinations {
         switch platform {

@@ -184,7 +184,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     }
 
     private func additionalTargetSettings(for target: Target) -> SettingsDictionary {
-        if target.isExclusiveTo(.watchOS) && target.product == .app {
+        if target.isExclusiveTo(.watchOS), target.product == .app {
             return [
                 "LD_RUNPATH_SEARCH_PATHS": [
                     "$(inherited)",

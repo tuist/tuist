@@ -198,18 +198,18 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintDeploymentTarget(target: Target) -> [LintingIssue] {
-        return target.deploymentTargets.configuredVersions.flatMap { (platform, version) in
+        target.deploymentTargets.configuredVersions.flatMap { platform, version in
             let versionFormatIssue = LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)
-            
+
             let osVersionRegex = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
             if !version.matches(pattern: osVersionRegex) { return [versionFormatIssue] }
-            
+
             let destinations = target.destinations
             let inconsistentPlatformIssue = LintingIssue(
                 reason: "Found an inconsistency between target destinations `\(destinations)` and deployment target `\(platform.caseValue)`",
                 severity: .error
             )
-            
+
             switch platform {
             case .iOS: if !target.supports(.iOS) { return [inconsistentPlatformIssue] }
             case .macOS: if !target.supports(.macOS) { return [inconsistentPlatformIssue] }

@@ -20,10 +20,10 @@ public final class DeploymentTargetsContentHasher: DeploymentTargetsContentHashi
     // MARK: - DeploymentTargetsContentHashing
 
     public func hash(deploymentTargets: DeploymentTargets) throws -> String {
-        let stringToHash: String = deploymentTargets.configuredVersions.map { (platform, version) in
+        let stringToHash: String = deploymentTargets.configuredVersions.map { platform, version in
             "\(platform.caseValue)-\(version)"
         }.joined(separator: ",")
-        
+
         return try contentHasher.hash(stringToHash)
     }
 }

@@ -275,6 +275,6 @@ extension CacheOutputType {
 
 extension Target {
     fileprivate var supportsCatalyst: Bool {
-        return destinations.contains(.macCatalyst)
+        destinations.contains(.macCatalyst)
     }
 }

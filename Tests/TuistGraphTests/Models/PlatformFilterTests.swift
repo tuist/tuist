@@ -13,7 +13,7 @@ final class BuildFilePlatformFilterTests: TuistUnitTestCase {
         XCTAssertEqual(PlatformFilter.tvos.xcodeprojValue, "tvos")
         XCTAssertEqual(PlatformFilter.watchos.xcodeprojValue, "watchos")
     }
-    
+
     func test_platformfilters_xcodeprojValue() {
         func xcodeProjValueFor(_ filters: PlatformFilters) -> [String] {
             filters.xcodeprojValue

@@ -60,7 +60,7 @@ final class SettingsLinter: SettingsLinting {
 
     private func lintDesinations(for targetPlatforms: Set<Platform>, and deploymentTargets: DeploymentTargets) -> [LintingIssue] {
         var missingPlatforms: [Platform] = []
-        
+
         for deploymentTarget in deploymentTargets.configuredVersions {
             let platform = deploymentTarget.0
             if !targetPlatforms.contains(platform) {
@@ -70,7 +70,7 @@ final class SettingsLinter: SettingsLinting {
 
         if !missingPlatforms.isEmpty {
             return [LintingIssue(
-                reason: "Found deployment platforms (\(missingPlatforms.map { $0.caseValue }.joined(separator: ", "))) missing corresponding destination",
+                reason: "Found deployment platforms (\(missingPlatforms.map(\.caseValue).joined(separator: ", "))) missing corresponding destination",
                 severity: .error
             )]
         } else {

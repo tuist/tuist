@@ -106,17 +106,17 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 
     /// Returns whether a target is exclusive to a single platform
     public func isExclusiveTo(_ platform: Platform) -> Bool {
-        return destinations.map(\.platform).allSatisfy { $0 == platform }
+        destinations.map(\.platform).allSatisfy { $0 == platform }
     }
-    
+
     /// Returns whether a target supports a platform
     public func supports(_ platform: Platform) -> Bool {
-        return destinations.map(\.platform).contains(platform)
+        destinations.map(\.platform).contains(platform)
     }
 
     /// List of platforms this target deploys to
     public var supportedPlatforms: Set<Platform> {
-        return Set(destinations.map(\.platform))
+        Set(destinations.map(\.platform))
     }
 
     /// Returns target's pre scripts.
@@ -198,9 +198,9 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             return false
         }
     }
-    
+
     public var legacyPlatform: Platform {
-        return destinations.first?.platform ?? .iOS
+        destinations.first?.platform ?? .iOS
     }
 
     /// Returns true if the target is an AppClip
@@ -222,25 +222,25 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// Determines if the target is an embeddable xpc service
     /// i.e. a product that can be bundled with a host macOS application
     public func isEmbeddableXPCService() -> Bool {
-        return product == .xpc
+        product == .xpc
     }
 
     /// Determines if the target is an embeddable system extension
     /// i.e. a product that can be bundled with a host macOS application
     public func isEmbeddableSystemExtension() -> Bool {
-        return product == .systemExtension
+        product == .systemExtension
     }
 
     /// Determines if the target is able to embed a watch application
     /// i.e. a product that can be bundled with a watchOS application
     public func canEmbedWatchApplications() -> Bool {
-        return isExclusiveTo(.iOS) && product == .app
+        isExclusiveTo(.iOS) && product == .app
     }
 
     /// Determines if the target is able to embed an system extension
     /// i.e. a product that can be bundled with a macOS application
     public func canEmbedSystemExtensions() -> Bool {
-        return isExclusiveTo(.macOS) && product == .app
+        isExclusiveTo(.macOS) && product == .app
     }
 
     /// For iOS targets that support macOS (Catalyst), this value is used

@@ -28,11 +28,10 @@ extension PBXFileElement {
 }
 
 extension PBXBuildFile {
-    
     /// Apply platform filters either `platformFilter` or `platformFilters` depending on count
     public func applyPlatformFilters(_ filters: PlatformFilters) {
         guard !filters.isEmpty else { return }
-        
+
         if filters.count == 1, let filter = filters.first {
             platformFilter = filter.xcodeprojValue
         } else {

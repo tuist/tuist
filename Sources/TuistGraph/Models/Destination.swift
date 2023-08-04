@@ -28,7 +28,7 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
     case appleTv
     case appleVision
     case appleVisionWithiPadDesign
-    
+
     var platform: Platform {
         switch self {
         case .iPad, .iPhone, .macCatalyst, .macWithiPadDesign, .appleVisionWithiPadDesign:
@@ -47,6 +47,6 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
 
 extension Collection where Element == Destination {
     public func supports(_ platform: Platform) -> Bool {
-        return self.contains(where: { $0.platform == platform })
+        contains(where: { $0.platform == platform })
     }
 }

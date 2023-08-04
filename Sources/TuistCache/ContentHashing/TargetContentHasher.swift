@@ -108,17 +108,17 @@ public final class TargetContentHasher: TargetContentHashing {
             targetScriptsHash,
             environmentHash,
         ]
-        
+
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue))
-        
+
         if let headers = graphTarget.target.headers {
             let headersHash = try headersContentHasher.hash(headers: headers)
             stringsToHash.append(headersHash)
         }
-        
+
         let deploymentTargetHash = try deploymentTargetContentHasher.hash(deploymentTargets: graphTarget.target.deploymentTargets)
         stringsToHash.append(deploymentTargetHash)
-        
+
         if let infoPlist = graphTarget.target.infoPlist {
             let infoPlistHash = try infoPlistContentHasher.hash(plist: infoPlist)
             stringsToHash.append(infoPlistHash)
@@ -132,11 +132,11 @@ public final class TargetContentHasher: TargetContentHashing {
             stringsToHash.append(settingsHash)
         }
         stringsToHash += additionalStrings
-        
+
         if graphTarget.target.deploymentTargets.macOS != nil {
             stringsToHash.append(DeveloperEnvironment.shared.architecture.rawValue)
         }
-        
+
         return try contentHasher.hash(stringsToHash)
     }
 }

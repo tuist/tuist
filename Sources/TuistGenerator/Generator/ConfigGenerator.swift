@@ -241,7 +241,7 @@ final class ConfigGenerator: ConfigGenerating {
         if let entitlements = target.entitlements {
             settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)")
         }
-        
+
         if target.supportedPlatforms.count == 1, let platform = target.supportedPlatforms.first {
             settings["SDKROOT"] = .string(platform.xcodeSdkRoot)
         } else {
@@ -295,7 +295,7 @@ final class ConfigGenerator: ConfigGenerating {
         if target.destinations.contains(.appleTv) { deviceFamilyValues.append(3) }
         if target.destinations.contains(.appleWatch) { deviceFamilyValues.append(4) }
         if target.destinations.contains(.appleVision) { deviceFamilyValues.append(7) }
-        
+
         if !deviceFamilyValues.isEmpty {
             settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
         }
@@ -303,11 +303,11 @@ final class ConfigGenerator: ConfigGenerating {
         if target.destinations.contains(.macWithiPadDesign) {
             settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
         }
-        
+
         if target.destinations.contains(.appleVisionWithiPadDesign) {
             settings["SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
         }
-        
+
         if target.destinations.contains(.macCatalyst) {
             settings["SUPPORTS_MACCATALYST"] = "YES"
             settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
@@ -315,31 +315,30 @@ final class ConfigGenerator: ConfigGenerating {
 
         return settings
     }
-    
+
     private func deploymentTargetDerivedSettings(target: Target) -> SettingsDictionary {
-        
         var settings: SettingsDictionary = [:]
-        
+
         if let iOSVersion = target.deploymentTargets.iOS {
             settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(iOSVersion)
         }
-        
+
         if let macOSVersion = target.deploymentTargets.macOS {
             settings["MACOSX_DEPLOYMENT_TARGET"] = .string(macOSVersion)
         }
-        
+
         if let watchOSVersion = target.deploymentTargets.watchOS {
             settings["WATCHOS_DEPLOYMENT_TARGET"] = .string(watchOSVersion)
         }
-        
+
         if let tvOSVersion = target.deploymentTargets.tvOS {
             settings["TVOS_DEPLOYMENT_TARGET"] = .string(tvOSVersion)
         }
-        
+
         if let visionOSVersion = target.deploymentTargets.visionOS {
             settings["XROS_DEPLOYMENT_TARGET"] = .string(visionOSVersion)
         }
-           
+
         return settings
     }
 

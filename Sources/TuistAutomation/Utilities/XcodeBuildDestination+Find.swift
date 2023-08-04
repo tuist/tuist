@@ -32,7 +32,7 @@ extension XcodeBuildDestination {
                     .flatMap {
                         graphTraverser
                             .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)
-                            .compactMap({ $0.target.deploymentTargets[target.legacyPlatform]?.version() })
+                            .compactMap { $0.target.deploymentTargets[target.legacyPlatform]?.version() }
                     }
                     .sorted()
                     .first
