@@ -147,6 +147,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/organizations/{organization_name}:
+    delete:
+      operationId: deleteOrganization
+      parameters:
+        - in: path
+          name: organization_name
+          required: true
+          description: The name of the organization that should be deleted.
+          schema:
+            type: string
+      responses:
+        "204":
+          description: An organization was successfully deleted.
+        "404":
+          description: The organization could not be deleted because it was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: The organization could not be deleted because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   schemas:
     Projects:
