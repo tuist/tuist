@@ -16,5 +16,11 @@ module API
       organizations = UserOrganizationsFetchService.call(user: current_user)
       render(json: { organizations: organizations })
     end
+
+    def destroy
+      # The API route permits both organization name and ID. We currently handle the organization name only.
+      OrganizationDeleteService.call(name: params[:id], deleter: current_user)
+      head :no_content
+    end
   end
 end
