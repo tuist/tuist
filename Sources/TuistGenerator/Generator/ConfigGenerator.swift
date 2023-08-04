@@ -313,6 +313,8 @@ final class ConfigGenerator: ConfigGenerating {
         if target.destinations.contains(.macCatalyst) {
             settings["SUPPORTS_MACCATALYST"] = "YES"
             settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
+        } else {
+            settings["SUPPORTS_MACCATALYST"] = "NO"
         }
 
         return settings
