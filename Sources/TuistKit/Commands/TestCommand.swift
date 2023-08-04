@@ -103,29 +103,10 @@ struct TestCommand: AsyncParsableCommand {
     var skipConfigurations: [String] = []
 
     func validate() throws {
-        let targetsIntersection = Set(testTargets)
-            .intersection(skipTestTargets)
-        if !targetsIntersection.isEmpty {
-            throw ValidationError.duplicatedTestTargets(targetsIntersection)
-        }
-        if !testTargets.isEmpty {
-            // --test-targets Test --skip-test-targets AnotherTest
-            let skipTestTargetsOnly = Set(skipTestTargets.map { TestIdentifier(target: $0.target) })
-            let testTargetsOnly = testTargets.map { TestIdentifier(target: $0.target) }
-            let targetsOnlyIntersection = skipTestTargetsOnly.intersection(testTargetsOnly)
-            if targetsOnlyIntersection.isEmpty {
-                throw ValidationError.nothingToSkip(skipped: skipTestTargets.filter { skipTarget in !testTargetsOnly.contains(TestIdentifier(target: skipTarget.target)) }, included: testTargets)
-            }
-
-            // --test-targets Test/MyTest --skip-test-targets Test/AnotherTest
-            let skipTestTargetsClasses = Set(skipTestTargets.map { TestIdentifier(target: $0.target, class: $0.class) })
-            let testTargetsClasses = testTargets.map { TestIdentifier(target: $0.target, class: $0.class) }
-            let targetsClassesIntersection = skipTestTargetsClasses.intersection(testTargetsClasses)
-                .intersection(testTargetsClasses.map { TestIdentifier(target: $0.target, class: $0.class) })
-            if targetsClassesIntersection.isEmpty {
-                throw ValidationError.nothingToSkip(skipped: skipTestTargets.filter { skipTarget in !testTargetsClasses.contains { $0 == TestIdentifier(target: skipTarget.target, class: skipTarget.class) } }, included: testTargets)
-            }
-        }
+        try TestService().validateParameters(
+            testTargets: testTargets,
+            skipTestTargets: skipTestTargets
+        )
     }
 
     func run() async throws {
@@ -160,21 +141,8 @@ struct TestCommand: AsyncParsableCommand {
                     configurations: configurations,
                     skipConfigurations: skipConfigurations
                 )
-            }
+            },
+            validateTestTargetsParameters: false
         )
-    }
-
-    enum ValidationError: LocalizedError {
-        case duplicatedTestTargets(Set<TestIdentifier>)
-        case nothingToSkip(skipped: [TestIdentifier], included: [TestIdentifier])
-
-        var errorDescription: String? {
-            switch self {
-            case .duplicatedTestTargets(let targets):
-                return "The target identifier cannot be specified both in --test-targets and --skip-test-targets (were specified: \(targets.map(\.description).joined(separator: ", ")))"
-            case .nothingToSkip(let skippedTargets, let includedTargets):
-                return "Some of the targets specified in --skip-test-targets (\(skippedTargets.map(\.description).joined(separator: ", "))) will always be skipped as they are not included in the targets specified (\(includedTargets.map(\.description).joined(separator: ", ")))"
-            }
-        }
     }
 }

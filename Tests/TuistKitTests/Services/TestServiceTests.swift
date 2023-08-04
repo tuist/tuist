@@ -63,6 +63,115 @@ final class TestServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
+    func test_validateParameters_noParameters() throws {
+        try subject.validateParameters(testTargets: [], skipTestTargets: [])
+    }
+
+    func test_validateParameters_nonConflictingParameters_target() throws {
+        try subject.validateParameters(
+            testTargets: [TestIdentifier(string: "test1")],
+            skipTestTargets: [TestIdentifier(string: "test1/class1")]
+        )
+    }
+
+    func test_validateParameters_nonConflictingParameters_targetClass() throws {
+        try subject.validateParameters(
+            testTargets: [TestIdentifier(string: "test1/class1")],
+            skipTestTargets: [TestIdentifier(string: "test1/class1/method1")]
+        )
+    }
+
+    func test_validateParameters_conflictingParameters_target() throws {
+        let testTargets = try [TestIdentifier(string: "test1")]
+        let skipTestTargets = try [TestIdentifier(string: "test2")]
+        let error = TestServiceError.nothingToSkip(skipped: skipTestTargets, included: testTargets)
+        XCTAssertThrowsSpecific(
+            try subject.validateParameters(
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets
+            ),
+            error
+        )
+    }
+
+    func test_validateParameters_conflictingParameters_targetClassMethod() throws {
+        let testTargets = try [TestIdentifier(string: "test1/class1/method1")]
+        let skipTestTargets = try [TestIdentifier(string: "test2/class2/method2")]
+        let error = TestServiceError.nothingToSkip(skipped: skipTestTargets, included: testTargets)
+        XCTAssertThrowsSpecific(
+            try subject.validateParameters(
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets
+            ),
+            error
+        )
+    }
+
+    func test_validateParameters_conflictingParameters_targetClass() throws {
+        let testTargets = try [TestIdentifier(string: "test1/class1")]
+        let skipTestTargets = try [TestIdentifier(string: "test1/class2")]
+        let error = TestServiceError.nothingToSkip(skipped: skipTestTargets, included: testTargets)
+        XCTAssertThrowsSpecific(
+            try subject.validateParameters(
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets
+            ),
+            error
+        )
+    }
+
+    func test_validateParameters_conflictingParameters_targetClassMethod() throws {
+        let testTargets = try [TestIdentifier(string: "test1/class1/method1")]
+        let skipTestTargets = try [TestIdentifier(string: "test1/class2/method2")]
+        let error = TestServiceError.nothingToSkip(skipped: skipTestTargets, included: testTargets)
+        XCTAssertThrowsSpecific(
+            try subject.validateParameters(
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets
+            ),
+            error
+        )
+    }
+
+    func test_validateParameters_duplicatedParameters_target() throws {
+        let testTargets = try [TestIdentifier(string: "test1")]
+        let skipTestTargets = try [TestIdentifier(string: "test1")]
+        let error = TestServiceError.duplicatedTestTargets(Set(testTargets))
+        XCTAssertThrowsSpecific(
+            try subject.validateParameters(
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets
+            ),
+            error
+        )
+    }
+
+    func test_validateParameters_duplicatedParameters_targetClass() throws {
+        let testTargets = try [TestIdentifier(string: "test1/class1")]
+        let skipTestTargets = try [TestIdentifier(string: "test1/class1")]
+        let error = TestServiceError.duplicatedTestTargets(Set(testTargets))
+        XCTAssertThrowsSpecific(
+            try subject.validateParameters(
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets
+            ),
+            error
+        )
+    }
+
+    func test_validateParameters_duplicatedParameters_targetClassMethod() throws {
+        let testTargets = try [TestIdentifier(string: "test1/class1/method1")]
+        let skipTestTargets = try [TestIdentifier(string: "test1/class1/method1")]
+        let error = TestServiceError.duplicatedTestTargets(Set(testTargets))
+        XCTAssertThrowsSpecific(
+            try subject.validateParameters(
+                testTargets: testTargets,
+                skipTestTargets: skipTestTargets
+            ),
+            error
+        )
+    }
+
     func test_run_uses_project_directory() async throws {
         // Given
         contentHasher.hashStub = {
