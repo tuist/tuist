@@ -6,94 +6,55 @@ import XCTest
 @testable import TuistCache
 
 class GraphTraverserExtrasTests: XCTestCase {
-    func test_filterIncludedTargets_includeExcluded() throws {
-        // Given
-        let app = Target.test(name: "App", product: .app)
-        let tests1 = Target.test(name: "AppTests1", product: .unitTests)
-        let tests2 = Target.test(name: "AppTests2", product: .unitTests)
-        let tests3 = Target.test(name: "AppTests3", product: .unitTests)
-        let project = Project.test(
-            path: "/path/a"
-        )
+    private var app: Target!
+    private var tests1: Target!
+    private var tests2: Target!
+    private var tests3: Target!
+    private var tests4: Target!
+    private var testPlan: TestPlan!
 
-        // Given: Value Graph
+    private var graphTraverserWithoutTestPlans: GraphTraverser!
+    private var graphTraverserWithTestPlan: GraphTraverser!
+    private var graphTraverserWithExternalTargets: GraphTraverser!
+
+    override func setUp() {
+        super.setUp()
+
+        let projectPath: AbsolutePath = "/path/a"
+
+        app = Target.test(name: "App", product: .app)
+        tests1 = Target.test(name: "AppTests1", product: .unitTests)
+        tests2 = Target.test(name: "AppTests2", product: .unitTests)
+        tests3 = Target.test(name: "AppTests3", product: .unitTests)
+        tests4 = Target.test(name: "AppTests4", product: .unitTests)
+        tests4 = Target.test(name: "AppTests4", product: .unitTests)
+
+        let projectWithoutTestPlans = Project.test(path: projectPath)
+
         let testDependencies: Set<GraphDependency> = [
-            .target(name: app.name, path: project.path)
+            .target(name: app.name, path: projectPath)
         ]
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): [],
-            .target(name: tests1.name, path: project.path): testDependencies,
-            .target(name: tests2.name, path: project.path): testDependencies,
-            .target(name: tests3.name, path: project.path): testDependencies,
+            .target(name: app.name, path: projectPath): [],
+            .target(name: tests1.name, path: projectPath): testDependencies,
+            .target(name: tests2.name, path: projectPath): testDependencies,
+            .target(name: tests3.name, path: projectPath): testDependencies,
+            .target(name: tests4.name, path: projectPath): testDependencies,
         ]
-        let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [project.path: [
+        let graphWithoutTestPlans = Graph.test(
+            projects: [projectPath: projectWithoutTestPlans],
+            targets: [projectPath: [
                 app.name: app,
                 tests1.name: tests1,
                 tests2.name: tests2,
                 tests3.name: tests3,
+                tests4.name: tests4,
             ]],
             dependencies: dependencies
         )
-        let subject = GraphTraverser(graph: graph)
+        graphTraverserWithoutTestPlans = GraphTraverser(graph: graphWithoutTestPlans)
 
-        var filteredTargets: Set<GraphTarget>
-        // When
-        filteredTargets = subject.filterIncludedTargets(
-            basedOn: subject.allTargets(),
-            testPlan: nil,
-            includedTargets: [tests1.name],
-            excludedTargets: []
-        )
-
-        // Then
-        XCTAssertEqual(filteredTargets.map(\.target), [tests1])
-
-        // When
-        filteredTargets = subject.filterIncludedTargets(
-            basedOn: subject.allTargets(),
-            testPlan: nil,
-            includedTargets: [tests1.name],
-            excludedTargets: [tests1.name]
-        )
-
-        // Then
-        XCTAssertEqual(filteredTargets.map(\.target), [tests1])
-
-        // When
-        filteredTargets = subject.filterIncludedTargets(
-            basedOn: subject.allTargets(),
-            testPlan: nil,
-            includedTargets: [],
-            excludedTargets: [tests1.name]
-        )
-
-        // Then
-        XCTAssertEqual(Set(filteredTargets.map(\.target.name)), [app.name, tests2.name, tests3.name])
-
-        // When
-        filteredTargets = subject.filterIncludedTargets(
-            basedOn: subject.allTargets(),
-            testPlan: nil,
-            includedTargets: [tests1.name],
-            excludedTargets: [tests2.name]
-        )
-
-        // Then
-        XCTAssertEqual(Set(filteredTargets.map(\.target)), [tests1])
-    }
-
-    func test_filterIncudedTargets_testPlan() throws {
-        // Given
-        let app = Target.test(name: "App", product: .app)
-        let tests1 = Target.test(name: "AppTests1", product: .unitTests)
-        let tests2 = Target.test(name: "AppTests2", product: .unitTests)
-        let tests3 = Target.test(name: "AppTests3", product: .unitTests)
-        let tests4 = Target.test(name: "AppTests4", product: .unitTests)
-        let projectPath: AbsolutePath = "/path/a"
-
-        let testPlan = TestPlan(
+        testPlan = TestPlan(
             path: "/path/test.xctestplan",
             testTargets: [
                 .init(target: tests1, projectPath: projectPath),
@@ -104,25 +65,14 @@ class GraphTraverserExtrasTests: XCTestCase {
         )
         let testAction = TestAction.test(testPlans: [testPlan])
         let testScheme = Scheme.test(testAction: testAction)
-        let project = Project.test(
+        let projectWithTestPlan = Project.test(
             path: projectPath,
             schemes: [testScheme]
         )
 
-        // Given: Value Graph
-        let testDependencies: Set<GraphDependency> = [
-            .target(name: app.name, path: project.path)
-        ]
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): [],
-            .target(name: tests1.name, path: project.path): testDependencies,
-            .target(name: tests2.name, path: project.path): testDependencies,
-            .target(name: tests3.name, path: project.path): testDependencies,
-            .target(name: tests4.name, path: project.path): testDependencies,
-        ]
-        let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [project.path: [
+        let graphWithTestPlan = Graph.test(
+            projects: [projectPath: projectWithTestPlan],
+            targets: [projectPath: [
                 app.name: app,
                 tests1.name: tests1,
                 tests2.name: tests2,
@@ -131,12 +81,106 @@ class GraphTraverserExtrasTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
-        let subject = GraphTraverser(graph: graph)
+        graphTraverserWithTestPlan = GraphTraverser(graph: graphWithTestPlan)
 
+        let externalProjectPath: AbsolutePath = "/path/b"
+        let externalProject = Project.test(
+            path: externalProjectPath,
+            isExternal: true
+        )
+
+        let graphWithExternalTargets = Graph.test(
+            projects: [
+                projectPath: projectWithoutTestPlans,
+                externalProjectPath: externalProject,
+            ],
+            targets: [
+                projectPath: [
+                    app.name: app,
+                    tests1.name: tests1,
+                    tests2.name: tests2,
+                ],
+                externalProjectPath: [
+                    tests3.name: tests3,
+                    tests4.name: tests4,
+                ]
+            ],
+            dependencies: dependencies
+        )
+        graphTraverserWithExternalTargets = GraphTraverser(graph: graphWithExternalTargets)
+    }
+
+    func test_filterIncludedTargets_when_graphHasNoTestPlans_includeSpecificTarget() throws {
+        // When
+        let filteredTargets = graphTraverserWithoutTestPlans.filterIncludedTargets(
+            basedOn: graphTraverserWithoutTestPlans.allTargets(),
+            testPlan: nil,
+            includedTargets: [tests1.name],
+            excludedTargets: []
+        )
+
+        // Then
+        XCTAssertEqual(filteredTargets.map(\.target), [tests1])
+    }
+
+    func test_filterIncludedTargets_when_graphHasNoTestPlans_includePriorityOverExclude() throws {
+        // When
+        let filteredTargets = graphTraverserWithoutTestPlans.filterIncludedTargets(
+            basedOn: graphTraverserWithoutTestPlans.allTargets(),
+            testPlan: nil,
+            includedTargets: [tests1.name],
+            excludedTargets: [tests1.name]
+        )
+
+        // Then
+        XCTAssertEqual(filteredTargets.map(\.target), [tests1])
+    }
+
+    func test_filterIncludedTargets_when_graphHasNoTestPlans_filtersOnlyExcludedWhenSpecified() throws {
+        // When
+        let filteredTargets = graphTraverserWithoutTestPlans.filterIncludedTargets(
+            basedOn: graphTraverserWithoutTestPlans.allTargets(),
+            testPlan: nil,
+            includedTargets: [],
+            excludedTargets: [tests1.name]
+        )
+
+        // Then
+        XCTAssertEqual(Set(filteredTargets.map(\.target.name)), [app.name, tests2.name, tests3.name, tests4.name])
+    }
+
+    func test_filterIncludedTargets_when_graphHasNoTestPlans_excludedIgnoredWhenIncludedSpecified() throws {
+        // When
+        let filteredTargets = graphTraverserWithoutTestPlans.filterIncludedTargets(
+            basedOn: graphTraverserWithoutTestPlans.allTargets(),
+            testPlan: nil,
+            includedTargets: [tests1.name],
+            excludedTargets: [tests2.name]
+        )
+
+        // Then
+        XCTAssertEqual(Set(filteredTargets.map(\.target)), [tests1])
+    }
+
+    func test_filterIncludedTargets_when_graphHasNoTestPlans_excludeExternalTargets() throws {
+        // When
+        let filteredTargets = graphTraverserWithExternalTargets.filterIncludedTargets(
+            basedOn: graphTraverserWithoutTestPlans.allTargets(),
+            testPlan: nil,
+            includedTargets: [],
+            excludedTargets: [],
+            excludingExternalTargets: true
+        )
+
+        // Then
+        XCTAssertEqual(Set(filteredTargets.map(\.target)), [tests1, tests2])
+    }
+
+    func test_filterIncludedTargets_when_graphHasTestPlan_filtersOnlyTestPlanTargets() throws {
         var filteredTargets: Set<GraphTarget>
         // When
-        filteredTargets = subject.filterIncludedTargets(
-            basedOn: subject.allTargets(),
+        filteredTargets = graphTraverserWithTestPlan.filterIncludedTargets(
+            basedOn: graphTraverserWithTestPlan.allTargets(),
             testPlan: testPlan.name,
             includedTargets: [],
             excludedTargets: []
