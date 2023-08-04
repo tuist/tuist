@@ -31,6 +31,10 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(getProject)`.
     func getProject(_ input: Operations.getProject.Input) async throws
         -> Operations.getProject.Output
+    /// - Remark: HTTP `DELETE /api/organizations/{organization_name}`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)`.
+    func deleteOrganization(_ input: Operations.deleteOrganization.Input) async throws
+        -> Operations.deleteOrganization.Output
 }
 /// Server URLs defined in the OpenAPI document.
 public enum Servers {
@@ -865,6 +869,159 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.getProject.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `DELETE /api/organizations/{organization_name}`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)`.
+    public enum deleteOrganization {
+        public static let id: String = "deleteOrganization"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var organization_name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - organization_name:
+                public init(organization_name: Swift.String) {
+                    self.organization_name = organization_name
+                }
+            }
+            public var path: Operations.deleteOrganization.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.deleteOrganization.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.deleteOrganization.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.deleteOrganization.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.deleteOrganization.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.deleteOrganization.Input.Path,
+                query: Operations.deleteOrganization.Input.Query = .init(),
+                headers: Operations.deleteOrganization.Input.Headers = .init(),
+                cookies: Operations.deleteOrganization.Input.Cookies = .init(),
+                body: Operations.deleteOrganization.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteOrganization.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganization.Output.NoContent.Body?
+                /// Creates a new `NoContent`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteOrganization.Output.NoContent.Headers = .init(),
+                    body: Operations.deleteOrganization.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// An organization was successfully deleted.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.deleteOrganization.Output.NoContent)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteOrganization.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganization.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteOrganization.Output.NotFound.Headers = .init(),
+                    body: Operations.deleteOrganization.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The organization could not be deleted because it was not found.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.deleteOrganization.Output.NotFound)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteOrganization.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganization.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteOrganization.Output.Unauthorized.Headers = .init(),
+                    body: Operations.deleteOrganization.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The organization could not be deleted because the user is not authorized to do the action.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.deleteOrganization.Output.Unauthorized)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
