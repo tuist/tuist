@@ -302,6 +302,8 @@ final class ConfigGenerator: ConfigGenerating {
 
         if target.destinations.contains(.macWithiPadDesign) {
             settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
+        } else {
+            settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "NO"
         }
 
         if target.destinations.contains(.appleVisionWithiPadDesign) {
