@@ -29,8 +29,8 @@ final class CloudOrganizationListServiceTests: TuistUnitTestCase {
         // Given
         listOrganizationsService.listOrganizationsStub = { _ in
             [
-                CloudOrganization(id: 0, name: "test-one"),
-                CloudOrganization(id: 1, name: "test-two"),
+                .test(id: 0, name: "test-one"),
+                .test(id: 1, name: "test-two"),
             ]
         }
 

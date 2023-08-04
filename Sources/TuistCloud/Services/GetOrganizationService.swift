@@ -2,15 +2,14 @@ import Foundation
 import OpenAPIURLSession
 import TuistSupport
 
-public protocol GetProjectServicing {
-    func getProject(
-        accountName: String,
-        projectName: String,
+public protocol GetOrganizationServicing {
+    func getOrganization(
+        organizationName: String,
         serverURL: URL
-    ) async throws -> CloudProject
+    ) async throws -> CloudOrganization
 }
 
-enum GetProjectServiceError: FatalError {
+enum GetOrganizationServiceError: FatalError {
     case unknownError(Int)
     case notFound(String)
     case unauthorized(String)
@@ -27,28 +26,26 @@ enum GetProjectServiceError: FatalError {
     var description: String {
         switch self {
         case let .unknownError(statusCode):
-            return "We could not get the project due to an unknown cloud response of \(statusCode)."
+            return "We could not get the organization due to an unknown cloud response of \(statusCode)."
         case let .unauthorized(message), let .notFound(message):
             return message
         }
     }
 }
 
-public final class GetProjectService: GetProjectServicing {
+public final class GetOrganizationService: GetOrganizationServicing {
     public init() {}
 
-    public func getProject(
-        accountName: String,
-        projectName: String,
+    public func getOrganization(
+        organizationName: String,
         serverURL: URL
-    ) async throws -> CloudProject {
+    ) async throws -> CloudOrganization {
         let client = Client.cloud(serverURL: serverURL)
 
-        let response = try await client.getProject(
+        let response = try await client.getOrganization(
             .init(
                 path: .init(
-                    account_name: accountName,
-                    project_name: projectName
+                    organization_name: organizationName
                 )
             )
         )
@@ -56,20 +53,20 @@ public final class GetProjectService: GetProjectServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(project):
-                return CloudProject(project)
+                return CloudOrganization(project)
             }
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error):
-                throw GetProjectServiceError.notFound(error.message)
+                throw GetOrganizationServiceError.notFound(error.message)
             }
         case let .unauthorized(unauthorized):
             switch unauthorized.body {
             case let .json(error):
-                throw GetProjectServiceError.unauthorized(error.message)
+                throw GetOrganizationServiceError.unauthorized(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw GetProjectServiceError.unknownError(statusCode)
+            throw GetOrganizationServiceError.unknownError(statusCode)
         }
     }
 }
