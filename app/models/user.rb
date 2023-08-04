@@ -44,6 +44,10 @@ class User < ApplicationRecord
     UserAccountsFetchService.call(user: self)
   end
 
+  def as_json(options = {})
+    super(options.merge(only: [:id, :email])).merge({ name: account.name })
+  end
+
   private
     def create_account
       self.account = Account.new(name: account_name)

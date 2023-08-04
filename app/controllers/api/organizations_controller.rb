@@ -22,5 +22,10 @@ module API
       OrganizationDeleteService.call(name: params[:id], deleter: current_user)
       head :no_content
     end
+
+    def show
+      organization = OrganizationFetchService.call(name: params[:id], user: current_user)
+      render(json: organization)
+    end
   end
 end
