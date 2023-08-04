@@ -30,9 +30,9 @@ enum TestServiceError: FatalError {
         case let .testPlanNotFound(scheme, testPlan, existing):
             let existingMessage: String
             if existing.isEmpty {
-                existingMessage = "No test plans are defined for this scheme"
+                existingMessage = "We could not execute the test plan \(testPlan) because the scheme \(scheme) doesn't have test plans defined."
             } else {
-                existingMessage = "The available test plans are: \(existing.joined(separator: ","))"
+                existingMessage = "The test plan \(testPlan) in scheme \(scheme) doesn't exist. The following following test plans are defined: \(existing.joined(separator: ","))"
             }
             return "Couldn't find test plan \(testPlan) in scheme \(scheme). \(existingMessage)."
         case let .testIdentifierInvalid(value):
@@ -146,10 +146,10 @@ final class TestService {
 
             switch (testPlanConfiguration?.testPlan, scheme.testAction?.targets.isEmpty, scheme.testAction?.testPlans?.isEmpty) {
             case (nil, true, _), (nil, nil, _):
-                logger.log(level: .info, "There are no tests to run, finishing early")
+                logger.log(level: .info, "The scheme \(schemeName)'s test action has no tests to run, finishing early.")
                 return
             case (_?, _, true), (_?, _, nil):
-                logger.log(level: .info, "There are no test plans to run, finishing early")
+                logger.log(level: .info, "The scheme \(schemeName)'s test action has no test plans to run, finishing early.")
                 return
             default:
                 break
