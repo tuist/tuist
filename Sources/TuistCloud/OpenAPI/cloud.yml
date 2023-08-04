@@ -148,6 +148,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
   /api/organizations/{organization_name}:
+    get:
+      operationId: getOrganization
+      parameters:
+        - in: path
+          name: organization_name
+          required: true
+          description: The organization to show.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A success response with the organization.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "401":
+          description: You don't have the permission to view the organization.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The organization was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     delete:
       operationId: deleteOrganization
       parameters:
@@ -174,6 +202,25 @@ paths:
                 $ref: "#/components/schemas/Error"
 components:
   schemas:
+    OrganizationMember:
+      type: object
+      properties:
+        id:
+          type: number
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum:
+            - admin
+            - user
+      required:
+        - id
+        - email
+        - name
+        - role
     Projects:
       type: object
       properties:
@@ -209,9 +256,14 @@ components:
           type: number
         name:
           type: string
+        members:
+            type: array
+            items:
+              $ref: "#/components/schemas/OrganizationMember"
       required:
         - id
         - name
+        - members
     Error:
       type: object
       properties:

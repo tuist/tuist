@@ -31,6 +31,10 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(getProject)`.
     func getProject(_ input: Operations.getProject.Input) async throws
         -> Operations.getProject.Output
+    /// - Remark: HTTP `GET /api/organizations/{organization_name}`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/get(getOrganization)`.
+    func getOrganization(_ input: Operations.getOrganization.Input) async throws
+        -> Operations.getOrganization.Output
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)`.
     func deleteOrganization(_ input: Operations.deleteOrganization.Input) async throws
@@ -47,6 +51,66 @@ public enum Servers {
 public enum Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
+        /// - Remark: Generated from `#/components/schemas/OrganizationMember`.
+        public struct OrganizationMember: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/OrganizationMember/id`.
+            public var id: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/OrganizationMember/email`.
+            public var email: Swift.String
+            /// - Remark: Generated from `#/components/schemas/OrganizationMember/name`.
+            public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/OrganizationMember/role`.
+            @frozen
+            public enum rolePayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
+                _AutoLosslessStringConvertible, CaseIterable
+            {
+                case admin
+                case user
+                /// Parsed a raw value that was not defined in the OpenAPI document.
+                case undocumented(String)
+                public init?(rawValue: String) {
+                    switch rawValue {
+                    case "admin": self = .admin
+                    case "user": self = .user
+                    default: self = .undocumented(rawValue)
+                    }
+                }
+                public var rawValue: String {
+                    switch self {
+                    case let .undocumented(string): return string
+                    case .admin: return "admin"
+                    case .user: return "user"
+                    }
+                }
+                public static var allCases: [rolePayload] { [.admin, .user] }
+            }
+            /// - Remark: Generated from `#/components/schemas/OrganizationMember/role`.
+            public var role: Components.Schemas.OrganizationMember.rolePayload
+            /// Creates a new `OrganizationMember`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - email:
+            ///   - name:
+            ///   - role:
+            public init(
+                id: Swift.Double,
+                email: Swift.String,
+                name: Swift.String,
+                role: Components.Schemas.OrganizationMember.rolePayload
+            ) {
+                self.id = id
+                self.email = email
+                self.name = name
+                self.role = role
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case email
+                case name
+                case role
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/Projects`.
         public struct Projects: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Projects/projects`.
@@ -97,18 +161,27 @@ public enum Components {
             public var id: Swift.Double
             /// - Remark: Generated from `#/components/schemas/Organization/name`.
             public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Organization/members`.
+            public var members: [Components.Schemas.OrganizationMember]
             /// Creates a new `Organization`.
             ///
             /// - Parameters:
             ///   - id:
             ///   - name:
-            public init(id: Swift.Double, name: Swift.String) {
+            ///   - members:
+            public init(
+                id: Swift.Double,
+                name: Swift.String,
+                members: [Components.Schemas.OrganizationMember]
+            ) {
                 self.id = id
                 self.name = name
+                self.members = members
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case name
+                case members
             }
         }
         /// - Remark: Generated from `#/components/schemas/Error`.
@@ -869,6 +942,161 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.getProject.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `GET /api/organizations/{organization_name}`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/get(getOrganization)`.
+    public enum getOrganization {
+        public static let id: String = "getOrganization"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var organization_name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - organization_name:
+                public init(organization_name: Swift.String) {
+                    self.organization_name = organization_name
+                }
+            }
+            public var path: Operations.getOrganization.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.getOrganization.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.getOrganization.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.getOrganization.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.getOrganization.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.getOrganization.Input.Path,
+                query: Operations.getOrganization.Input.Query = .init(),
+                headers: Operations.getOrganization.Input.Headers = .init(),
+                cookies: Operations.getOrganization.Input.Cookies = .init(),
+                body: Operations.getOrganization.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getOrganization.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.Organization)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getOrganization.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getOrganization.Output.Ok.Headers = .init(),
+                    body: Operations.getOrganization.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// A success response with the organization.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/get(getOrganization)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getOrganization.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getOrganization.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getOrganization.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getOrganization.Output.Unauthorized.Headers = .init(),
+                    body: Operations.getOrganization.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// You don't have the permission to view the organization.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/get(getOrganization)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getOrganization.Output.Unauthorized)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getOrganization.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getOrganization.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getOrganization.Output.NotFound.Headers = .init(),
+                    body: Operations.getOrganization.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The organization was not found.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/get(getOrganization)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getOrganization.Output.NotFound)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
