@@ -134,11 +134,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
         if let testPlanConfiguration {
             command.append(contentsOf: ["-testPlan", testPlanConfiguration.testPlan])
-            for configuration in testPlanConfiguration.testConfigurations {
+            for configuration in testPlanConfiguration.configurations {
                 command.append(contentsOf: ["-only-test-configuration", configuration])
             }
 
-            for configuration in testPlanConfiguration.skipTestConfigurations {
+            for configuration in testPlanConfiguration.skipConfigurations {
                 command.append(contentsOf: ["-skip-test-configuration", configuration])
             }
         }

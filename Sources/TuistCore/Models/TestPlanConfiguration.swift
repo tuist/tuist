@@ -1,15 +1,15 @@
 public struct TestPlanConfiguration {
     public let testPlan: String
-    public let testConfigurations: [String]
-    public let skipTestConfigurations: [String]
+    public let configurations: [String]
+    public let skipConfigurations: [String]
 
     public init(
         testPlan: String,
-        testConfigurations: [String] = [],
-        skipTestConfigurations: [String] = []
+        configurations: [String] = [],
+        skipConfigurations: [String] = []
     ) {
         self.testPlan = testPlan
-        self.testConfigurations = testConfigurations
-        self.skipTestConfigurations = skipTestConfigurations
+        self.configurations = configurations
+        self.skipConfigurations = skipConfigurations
     }
 }

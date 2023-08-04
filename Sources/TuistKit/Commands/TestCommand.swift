@@ -89,18 +89,18 @@ struct TestCommand: AsyncParsableCommand {
     var skipTestTargets: [TestIdentifier] = []
 
     @Option(
-        name: .long,
+        name: .customLong("filter-configurations"),
         parsing: .upToNextOption,
-        help: "The list of configurations you want to test. It is applied before --skip-test-configuration"
+        help: "The list of configurations you want to test. It is applied before --skip-configuration"
     )
-    var testConfigurations: [String] = []
+    var configurations: [String] = []
 
     @Option(
         name: .long,
         parsing: .upToNextOption,
         help: "The list of configurations you want to skip testing."
     )
-    var skipTestConfigurations: [String] = []
+    var skipConfigurations: [String] = []
 
     func validate() throws {
         let targetsIntersection = Set(testTargets)
@@ -157,8 +157,8 @@ struct TestCommand: AsyncParsableCommand {
             testPlanConfiguration: testPlan.map { testPlan in
                 TestPlanConfiguration(
                     testPlan: testPlan,
-                    testConfigurations: testConfigurations,
-                    skipTestConfigurations: skipTestConfigurations
+                    configurations: configurations,
+                    skipConfigurations: skipConfigurations
                 )
             }
         )
