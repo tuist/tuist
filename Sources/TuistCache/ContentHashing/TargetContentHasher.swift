@@ -109,7 +109,7 @@ public final class TargetContentHasher: TargetContentHashing {
             environmentHash,
         ]
 
-        stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue))
+        stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 
         if let headers = graphTarget.target.headers {
             let headersHash = try headersContentHasher.hash(headers: headers)
