@@ -27,7 +27,7 @@ final class CloudProjectListServiceTests: TuistUnitTestCase {
 
     func test_project_list() async throws {
         // Given
-        listProjectsService.listProjectsStub = { _ in
+        listProjectsService.listProjectsStub = { _, _, _ in
             [
                 CloudProject(id: 0, fullName: "tuist/test-one"),
                 CloudProject(id: 1, fullName: "tuist/test-two"),
@@ -47,7 +47,7 @@ final class CloudProjectListServiceTests: TuistUnitTestCase {
 
     func test_project_list_when_none() async throws {
         // Given
-        listProjectsService.listProjectsStub = { _ in
+        listProjectsService.listProjectsStub = { _, _, _ in
             []
         }
 

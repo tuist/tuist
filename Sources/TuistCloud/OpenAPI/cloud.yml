@@ -9,6 +9,17 @@ paths:
   /api/projects:
     get:
       operationId: listProjects
+      parameters:
+          - name: account_name
+            in: query
+            description: Filter items by account name
+            schema:
+              type: string
+          - name: project_name
+            in: query
+            description: Filter items by project name
+            schema:
+              type: string
       responses:
         "200":
           description: A success response with all available cloud projects.
@@ -71,7 +82,67 @@ paths:
               schema:
                 $ref: "#/components/schemas/Organization"
         "400":
-          description: The project could not be created because of a validation error.
+          description: The organization could not be created because of a validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/projects/{id}:
+    delete:
+      operationId: deleteProject
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: The id of the project that should be deleted.
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: A project was successfully deleted.
+        "404":
+          description: The project could not be deleted because it was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: The project could not be created because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/projects/{account_name}/{project_name}:
+    get:
+      operationId: getProject
+      parameters:
+        - in: path
+          name: account_name
+          required: true
+          description: The account name of the project to show.
+          schema:
+            type: string
+        - in: path
+          name: project_name
+          required: true
+          description: The name of the project to show.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A success response with the project.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "401":
+          description: You don't have the permission to view the project.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The project was not found.
           content:
             application/json:
               schema:
