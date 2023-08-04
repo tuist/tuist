@@ -248,7 +248,6 @@ final class ConfigGenerator: ConfigGenerating {
             settings["SDKROOT"] = "auto"
         }
 
-
         if target.product == .staticFramework {
             settings["MACH_O_TYPE"] = "staticlib"
         }

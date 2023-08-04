@@ -10,7 +10,6 @@ extension Destinations {
     public static var visionOS: Destinations = [.appleVision]
 }
 
-
 extension Destinations {
     public var platforms: Set<Platform> {
         let platforms = map(\.platform)
@@ -45,7 +44,6 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
         }
     }
 }
-
 
 extension Collection where Element == Destination {
     public func supports(_ platform: Platform) -> Bool {

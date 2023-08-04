@@ -8,7 +8,7 @@ public enum DeploymentTarget: Hashable, Codable {
     case watchOS(String)
     case tvOS(String)
     case visionOS(String)
-
+    
     public var platform: Platform {
         switch self {
         case .iOS:
@@ -17,13 +17,13 @@ public enum DeploymentTarget: Hashable, Codable {
             return .macOS
         case .tvOS:
             return .tvOS
-		case .visionOS:
-			return .visionOS
+        case .visionOS:
+            return .visionOS
         case .watchOS:
-
-            return .watchOS        }
+            return .watchOS
+        }
     }
-
+    
     public var version: String {
         switch self {
         case let .iOS(version): return version
