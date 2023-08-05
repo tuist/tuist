@@ -32,7 +32,7 @@ class Organization < ApplicationRecord
     .concat(
       users.map { |user| OrganizationMember.new(id: user.id, name: user.account.name, email: user.email, role: :user) }
     )
-    super(options.merge(only: [:id])).merge({ name: name, members: members })
+    super(options.merge(only: [:id])).merge({ name: name, members: members, invitations: invitations })
   end
 end
 
