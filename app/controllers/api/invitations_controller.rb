@@ -13,5 +13,15 @@ module API
 
       render(json: invitation)
     end
+
+    def destroy
+      OrganizationInviteService.new.cancel_invite_by_email(
+        invitee_email: params[:invitee_email],
+        organization_name: params[:organization_name],
+        remover: current_user
+      )
+
+      head :no_content
+    end
   end
 end
