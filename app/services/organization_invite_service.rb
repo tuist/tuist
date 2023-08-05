@@ -35,16 +35,19 @@ class OrganizationInviteService < ApplicationService
     end
 
     class DuplicateInvitation < CloudError
-      attr_reader :invitee_email, :organization_id
+      attr_reader :invitee_email, :organization_name
 
-      def initialize(invitee_email, organization_id)
+      def status_code
+        :bad_request
+      end
+
+      def initialize(invitee_email, organization_name)
         @invitee_email = invitee_email
-        @organization_id = organization_id
+        @organization_name = organization_name
       end
 
       def message
-        "User with email #{invitee_email} has already been to organization with id #{organization_id}. \
-        Consider resending the invite instead."
+        "User with email #{invitee_email} has already been invited to the #{organization_name} organization."
       end
     end
   end
@@ -85,7 +88,7 @@ class OrganizationInviteService < ApplicationService
         token: token,
       )
     rescue ActiveRecord::RecordNotUnique
-      raise Error::DuplicateInvitation.new(invitee_email, organization.id)
+      raise Error::DuplicateInvitation.new(invitee_email, organization.name)
     end
     InvitationMailer
       .invitation_mail(
