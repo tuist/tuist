@@ -248,7 +248,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// indicate the build system that the dependency should be compiled
     /// with Catalyst compatibility.
     public var dependencyPlatformFilters: PlatformFilters {
-        if isExclusiveTo(.iOS) {
+        // is iOS only and has the equivalent of `.all` devices from `ProjectDescription.DeploymentTarget`
+        if isExclusiveTo(.iOS), destinations != Set([.iPad, .iPhone, .macCatalyst, .appleVisionWithiPadDesign]) {
             if destinations.contains(.macCatalyst) {
                 return [.catalyst]
             } else {
