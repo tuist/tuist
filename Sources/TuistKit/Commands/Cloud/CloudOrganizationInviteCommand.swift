@@ -3,19 +3,24 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-struct CloudOrganizationCreateCommand: AsyncParsableCommand {
+struct CloudOrganizationInviteCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "create",
+            commandName: "invite",
             _superCommandName: "organization",
-            abstract: "Create a new organization."
+            abstract: "Invite a new member to your organization."
         )
     }
 
     @Argument(
-        help: "The name of the organization to create."
+        help: "The name of the organization to invite the user to."
     )
     var organizationName: String
+
+    @Argument(
+        help: "The email of the user to invite."
+    )
+    var email: String
 
     @Option(
         name: .long,
@@ -24,8 +29,9 @@ struct CloudOrganizationCreateCommand: AsyncParsableCommand {
     var serverURL: String?
 
     func run() async throws {
-        try await CloudOrganizationCreateService().run(
+        try await CloudOrganizationInviteService().run(
             organizationName: organizationName,
+            email: email,
             serverURL: serverURL
         )
     }

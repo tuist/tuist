@@ -39,6 +39,10 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)`.
     func deleteOrganization(_ input: Operations.deleteOrganization.Input) async throws
         -> Operations.deleteOrganization.Output
+    /// - Remark: HTTP `POST /api/organizations/{organization_name}/invitations`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/post(createOrganizationInvite)`.
+    func createOrganizationInvite(_ input: Operations.createOrganizationInvite.Input) async throws
+        -> Operations.createOrganizationInvite.Output
 }
 /// Server URLs defined in the OpenAPI document.
 public enum Servers {
@@ -51,6 +55,66 @@ public enum Servers {
 public enum Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
+        /// - Remark: Generated from `#/components/schemas/User`.
+        public struct User: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/User/id`.
+            public var id: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/User/email`.
+            public var email: Swift.String
+            /// - Remark: Generated from `#/components/schemas/User/name`.
+            public var name: Swift.String
+            /// Creates a new `User`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - email:
+            ///   - name:
+            public init(id: Swift.Double, email: Swift.String, name: Swift.String) {
+                self.id = id
+                self.email = email
+                self.name = name
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case email
+                case name
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/Invitation`.
+        public struct Invitation: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/Invitation/id`.
+            public var id: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/Invitation/invitee_email`.
+            public var invitee_email: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Invitation/organization_id`.
+            public var organization_id: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/Invitation/inviter`.
+            public var inviter: Components.Schemas.User
+            /// Creates a new `Invitation`.
+            ///
+            /// - Parameters:
+            ///   - id:
+            ///   - invitee_email:
+            ///   - organization_id:
+            ///   - inviter:
+            public init(
+                id: Swift.Double,
+                invitee_email: Swift.String,
+                organization_id: Swift.Double,
+                inviter: Components.Schemas.User
+            ) {
+                self.id = id
+                self.invitee_email = invitee_email
+                self.organization_id = organization_id
+                self.inviter = inviter
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case invitee_email
+                case organization_id
+                case inviter
+            }
+        }
         /// - Remark: Generated from `#/components/schemas/OrganizationMember`.
         public struct OrganizationMember: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/OrganizationMember/id`.
@@ -163,25 +227,31 @@ public enum Components {
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/Organization/members`.
             public var members: [Components.Schemas.OrganizationMember]
+            /// - Remark: Generated from `#/components/schemas/Organization/invitations`.
+            public var invitations: [Components.Schemas.Invitation]
             /// Creates a new `Organization`.
             ///
             /// - Parameters:
             ///   - id:
             ///   - name:
             ///   - members:
+            ///   - invitations:
             public init(
                 id: Swift.Double,
                 name: Swift.String,
-                members: [Components.Schemas.OrganizationMember]
+                members: [Components.Schemas.OrganizationMember],
+                invitations: [Components.Schemas.Invitation]
             ) {
                 self.id = id
                 self.name = name
                 self.members = members
+                self.invitations = invitations
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case name
                 case members
+                case invitations
             }
         }
         /// - Remark: Generated from `#/components/schemas/Error`.
@@ -1250,6 +1320,209 @@ public enum Operations {
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Operations.deleteOrganization.Output.Unauthorized)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `POST /api/organizations/{organization_name}/invitations`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/post(createOrganizationInvite)`.
+    public enum createOrganizationInvite {
+        public static let id: String = "createOrganizationInvite"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var organization_name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - organization_name:
+                public init(organization_name: Swift.String) {
+                    self.organization_name = organization_name
+                }
+            }
+            public var path: Operations.createOrganizationInvite.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.createOrganizationInvite.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.createOrganizationInvite.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.createOrganizationInvite.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// Email of the user to invite.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/json/invitee_email`.
+                    public var invitee_email: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - invitee_email: Email of the user to invite.
+                    public init(invitee_email: Swift.String) { self.invitee_email = invitee_email }
+                    public enum CodingKeys: String, CodingKey { case invitee_email }
+                }
+                case json(Operations.createOrganizationInvite.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createOrganizationInvite.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.createOrganizationInvite.Input.Path,
+                query: Operations.createOrganizationInvite.Input.Query = .init(),
+                headers: Operations.createOrganizationInvite.Input.Headers = .init(),
+                cookies: Operations.createOrganizationInvite.Input.Cookies = .init(),
+                body: Operations.createOrganizationInvite.Input.Body
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createOrganizationInvite.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.Invitation)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationInvite.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createOrganizationInvite.Output.Ok.Headers = .init(),
+                    body: Operations.createOrganizationInvite.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// A user was successfully invited.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/post(createOrganizationInvite)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createOrganizationInvite.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createOrganizationInvite.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationInvite.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createOrganizationInvite.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.createOrganizationInvite.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The invitation could not be created because the user is not authorized to perform the action.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/post(createOrganizationInvite)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createOrganizationInvite.Output.Unauthorized)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createOrganizationInvite.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationInvite.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createOrganizationInvite.Output.NotFound.Headers = .init(),
+                    body: Operations.createOrganizationInvite.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The invitation could not be created because the relevant organization was not found.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/post(createOrganizationInvite)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createOrganizationInvite.Output.NotFound)
+            public struct BadRequest: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createOrganizationInvite.Output.BadRequest.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.createOrganizationInvite.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.createOrganizationInvite.Output.BadRequest.Headers =
+                        .init(),
+                    body: Operations.createOrganizationInvite.Output.BadRequest.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The invitation could not be created because of a validation error.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/post(createOrganizationInvite)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createOrganizationInvite.Output.BadRequest)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.

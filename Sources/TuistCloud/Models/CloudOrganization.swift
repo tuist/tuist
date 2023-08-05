@@ -48,15 +48,18 @@ public struct CloudOrganization: Codable {
     public let id: Int
     public let name: String
     public let members: [Member]
+    public let invitations: [CloudInvitation]
 
     public init(
         id: Int,
         name: String,
-        members: [Member]
+        members: [Member],
+        invitations: [CloudInvitation]
     ) {
         self.id = id
         self.name = name
         self.members = members
+        self.invitations = invitations
     }
 }
 
@@ -65,6 +68,7 @@ extension CloudOrganization {
         id = Int(organization.id)
         name = organization.name
         members = organization.members.map(Member.init)
+        invitations = organization.invitations.map(CloudInvitation.init)
     }
 }
 

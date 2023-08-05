@@ -4,12 +4,14 @@ extension CloudOrganization {
     public static func test(
         id: Int = 0,
         name: String = "test",
-        members: [Member] = []
+        members: [Member] = [],
+        invitations: [CloudInvitation] = []
     ) -> Self {
         .init(
             id: id,
             name: name,
-            members: members
+            members: members,
+            invitations: invitations
         )
     }
 }

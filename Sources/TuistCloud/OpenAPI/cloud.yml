@@ -200,8 +200,85 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/organizations/{organization_name}/invitations:
+    post:
+      operationId: createOrganizationInvite
+      parameters:
+        - in: path
+          name: organization_name
+          required: true
+          description: The organization to invite the user to.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invitee_email:
+                  type: string
+                  description: Email of the user to invite.
+              required:
+                - invitee_email
+      responses:
+        "200":
+          description: A user was successfully invited.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invitation"
+        "401":
+          description: The invitation could not be created because the user is not authorized to perform the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The invitation could not be created because the relevant organization was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "400":
+          description: The invitation could not be created because of a validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: number
+        email:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - email
+        - name
+    Invitation:
+      type: object
+      properties:
+        id:
+          type: number
+        invitee_email:
+          type: string
+        organization_id:
+          type: number
+        inviter:
+          type: object
+          $ref: "#/components/schemas/User"
+      required:
+        - id
+        - invitee_email
+        - organization_id
+        - inviter
     OrganizationMember:
       type: object
       properties:
@@ -260,10 +337,15 @@ components:
             type: array
             items:
               $ref: "#/components/schemas/OrganizationMember"
+        invitations:
+            type: array
+            items:
+              $ref: "#/components/schemas/Invitation"
       required:
         - id
         - name
         - members
+        - invitations
     Error:
       type: object
       properties:
