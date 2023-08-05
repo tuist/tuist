@@ -29,6 +29,10 @@ extension TuistGraph.Destination {
                 destinations.append(.macCatalyst)
             }
 
+            if devices.contains(.vision) {
+                destinations.append(.appleVisionWithiPadDesign)
+            }
+
             if supportsMacDesignedForIOS {
                 destinations.append(.macWithiPadDesign)
             }
