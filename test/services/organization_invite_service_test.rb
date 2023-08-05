@@ -173,6 +173,30 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     assert_equal got.organization, organization
   end
 
+  test "cancel invitation by invitee email" do
+    # Given
+    invitee_email = "test1@cloud.tuist.io"
+    organization = Organization.create!
+    Account.create!(owner: organization, name: "tuist")
+    remover = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    remover.add_role(:admin, organization)
+    invitation = remover.invitations.create!(
+      invitee_email: invitee_email,
+      organization_id: organization.id,
+      token: "token",
+    )
+
+    # When
+    OrganizationInviteService.new.cancel_invite_by_email(
+      invitee_email: invitee_email,
+      organization_name: "tuist",
+      remover: remover,
+    )
+
+    # Then
+    assert_nil Invitation.find_by(id: invitation.id)
+  end
+
   test "cancel invitation when invitation does not exist" do
     # Given
     organization = Organization.create!

@@ -8,6 +8,10 @@ class OrganizationInviteService < ApplicationService
       def message
         "You do not have a permission to invite users to this organization."
       end
+
+      def status_code
+        :unauthorized
+      end
     end
 
     class OrganizationNotFound < CloudError
@@ -31,6 +35,23 @@ class OrganizationInviteService < ApplicationService
 
       def message
         "Invitation with id #{invitation_id} was not found"
+      end
+    end
+
+    class InvitationByInviteeEmailNotFound < CloudError
+      attr_reader :invitee_email, :organization_name
+
+      def initialize(invitee_email, organization_name)
+        @invitee_email = invitee_email
+        @organization_name = organization_name
+      end
+
+      def message
+        "Invitation for #{invitee_email} to the #{organization_name} organization was not found."
+      end
+
+      def status_code
+        :not_found
       end
     end
 
@@ -66,6 +87,16 @@ class OrganizationInviteService < ApplicationService
       )
       .deliver_now
     invitation
+  end
+
+  def cancel_invite_by_email(invitee_email:, organization_name:, remover:)
+    organization = OrganizationFetchService.call(name: organization_name, user: remover)
+    begin
+      invitation = Invitation.find_by!(invitee_email: invitee_email, organization_id: organization.id)
+    rescue ActiveRecord::RecordNotFound
+      raise Error::InvitationByInviteeEmailNotFound.new(invitee_email, organization_name)
+    end
+    cancel_invite(invitation_id: invitation.id, remover: remover)
   end
 
   def cancel_invite(invitation_id:, remover:)
