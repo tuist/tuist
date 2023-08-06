@@ -7,8 +7,8 @@ import TuistSupport
 protocol CloudInitServicing {
     func createProject(
         name: String,
-        owner: String?,
-        url: String,
+        organization: String?,
+        serverURL: String?,
         path: String?
     ) async throws
 }
@@ -53,11 +53,11 @@ final class CloudInitService: CloudInitServicing {
 
     func createProject(
         name: String,
-        owner: String?,
-        url: String,
+        organization: String?,
+        serverURL: String?,
         path: String?
     ) async throws {
-        let serverURL = try cloudURLService.url(serverURL: url)
+        let cloudURL = try cloudURLService.url(serverURL: serverURL)
 
         let path = try self.path(path)
         let config = try configLoader.loadConfig(path: path)
@@ -66,10 +66,10 @@ final class CloudInitService: CloudInitServicing {
             throw CloudInitServiceError.cloudAlreadySetUp
         }
 
-        let slug = try await createProjectService.createProject(
+        let project = try await createProjectService.createProject(
             name: name,
-            organizationName: owner,
-            serverURL: serverURL
+            organization: organization,
+            serverURL: cloudURL
         )
 
         if configLoader.locateConfig(at: path) == nil {
@@ -82,7 +82,7 @@ final class CloudInitService: CloudInitServicing {
                 import ProjectDescription
 
                 let config = Config(
-                    cloud: .cloud(projectId: "\(slug)", url: "\(url)")
+                    cloud: .cloud(projectId: "\(project.fullName)", url: "\(cloudURL)")
                 )
 
                 """,
@@ -98,7 +98,7 @@ final class CloudInitService: CloudInitServicing {
             logger.info(
                 """
                 Put the following line into your Tuist/Config.swift (see the docs for more: https://docs.tuist.io/manifests/config/):
-                cloud: .cloud(projectId: "\(slug)", url: "\(url)")
+                cloud: .cloud(projectId: "\(project.fullName)", url: "\(cloudURL)")
                 """
             )
         }

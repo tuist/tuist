@@ -1,11 +1,11 @@
 import Foundation
 import TuistCloud
 
-public final class MockCleanRemoteCacheStorageService: CleanRemoteCacheStorageServicing {
+public final class MockCleanCacheService: CleanCacheServicing {
     public init() {}
 
-    public var cleanRemoteCacheStorageStub: ((URL, String) async throws -> Void)?
-    public func cleanRemoteCacheStorage(serverURL: URL, projectSlug: String) async throws {
-        try await cleanRemoteCacheStorageStub?(serverURL, projectSlug)
+    public var cleanCacheStub: ((URL, String) async throws -> Void)?
+    public func cleanCache(serverURL: URL, fullName: String) async throws {
+        try await cleanCacheStub?(serverURL, fullName)
     }
 }

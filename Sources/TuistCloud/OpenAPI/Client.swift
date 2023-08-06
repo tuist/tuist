@@ -386,6 +386,51 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// - Remark: HTTP `PUT /api/projects/{full_name}/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/projects/{full_name}/cache/clean/put(cleanCache)`.
+    public func cleanCache(_ input: Operations.cleanCache.Input) async throws
+        -> Operations.cleanCache.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.cleanCache.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/projects/{}/cache/clean",
+                    parameters: [input.path.full_name]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .put)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 204:
+                    let headers: Operations.cleanCache.Output.NoContent.Headers = .init()
+                    return .noContent(.init(headers: headers, body: nil))
+                case 404:
+                    let headers: Operations.cleanCache.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.cleanCache.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
     /// - Remark: HTTP `GET /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/get(getOrganization)`.
     public func getOrganization(_ input: Operations.getOrganization.Input) async throws

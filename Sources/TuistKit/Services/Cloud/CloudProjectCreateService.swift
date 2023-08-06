@@ -13,11 +13,11 @@ protocol CloudProjectCreateServicing {
 }
 
 final class CloudProjectCreateService: CloudProjectCreateServicing {
-    private let createProjectService: CreateProjectNextServicing
+    private let createProjectService: CreateProjectServicing
     private let cloudURLService: CloudURLServicing
 
     init(
-        createProjectService: CreateProjectNextServicing = CreateProjectNextService(),
+        createProjectService: CreateProjectServicing = CreateProjectService(),
         cloudURLService: CloudURLServicing = CloudURLService()
     ) {
         self.createProjectService = createProjectService

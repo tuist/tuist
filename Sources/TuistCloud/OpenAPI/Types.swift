@@ -31,6 +31,10 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(getProject)`.
     func getProject(_ input: Operations.getProject.Input) async throws
         -> Operations.getProject.Output
+    /// - Remark: HTTP `PUT /api/projects/{full_name}/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/projects/{full_name}/cache/clean/put(cleanCache)`.
+    func cleanCache(_ input: Operations.cleanCache.Input) async throws
+        -> Operations.cleanCache.Output
     /// - Remark: HTTP `GET /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/get(getOrganization)`.
     func getOrganization(_ input: Operations.getOrganization.Input) async throws
@@ -1057,6 +1061,126 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.getProject.Output.NotFound)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `PUT /api/projects/{full_name}/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/projects/{full_name}/cache/clean/put(cleanCache)`.
+    public enum cleanCache {
+        public static let id: String = "cleanCache"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var full_name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - full_name:
+                public init(full_name: Swift.String) { self.full_name = full_name }
+            }
+            public var path: Operations.cleanCache.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.cleanCache.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.cleanCache.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.cleanCache.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.cleanCache.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.cleanCache.Input.Path,
+                query: Operations.cleanCache.Input.Query = .init(),
+                headers: Operations.cleanCache.Input.Headers = .init(),
+                cookies: Operations.cleanCache.Input.Cookies = .init(),
+                body: Operations.cleanCache.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cleanCache.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.cleanCache.Output.NoContent.Body?
+                /// Creates a new `NoContent`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cleanCache.Output.NoContent.Headers = .init(),
+                    body: Operations.cleanCache.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The cache was successfuly cleaned.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{full_name}/cache/clean/put(cleanCache)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.cleanCache.Output.NoContent)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cleanCache.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.cleanCache.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cleanCache.Output.NotFound.Headers = .init(),
+                    body: Operations.cleanCache.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The project was not found.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{full_name}/cache/clean/put(cleanCache)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.cleanCache.Output.NotFound)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
