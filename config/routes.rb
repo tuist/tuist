@@ -20,14 +20,15 @@ Rails.application.routes.draw do
 
   get "/auth", to: "auth#authenticate"
 
-  get "/api/cache", to: "cache#cache"
-  get "/api/cache/exists", to: "cache#exists"
-  post "/api/cache", to: "cache#upload_cache_artifact"
-  post "/api/cache/verify_upload", to: "cache#verify_upload"
-
   post "/api/analytics", to: "analytics#analytics"
 
   namespace :api do
+    get "/cache", to: "cache#cache"
+    get "/cache/exists", to: "cache#exists"
+    post "/cache", to: "cache#upload_cache_artifact"
+    post "/cache/verify_upload", to: "cache#verify_upload"
+    put "/projects/:account_name/:project_name/cache/clean", to: "cache#clean"
+
     resources :projects, :projects, only: [:create, :index, :destroy]
     resources :organizations, :organizations, only: [:create, :index, :destroy, :show]
     get '/projects/:account_name/:project_name', to: 'projects#show'
