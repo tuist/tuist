@@ -29,7 +29,7 @@ class Project < ApplicationRecord
   end
 
   def as_json(options = {})
-    super(options.merge(only: [:id])).merge({ full_name: full_name })
+    super(options.merge(only: [:id, :token])).merge({ full_name: full_name })
   end
 end
 
