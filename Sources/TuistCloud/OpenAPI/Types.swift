@@ -47,6 +47,10 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelOrganizationInvite)`.
     func cancelOrganizationInvite(_ input: Operations.cancelOrganizationInvite.Input) async throws
         -> Operations.cancelOrganizationInvite.Output
+    /// - Remark: HTTP `PUT /api/organizations/{organization_name}/members/{username}`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/put(updateOrganizationMember)`.
+    func updateOrganizationMember(_ input: Operations.updateOrganizationMember.Input) async throws
+        -> Operations.updateOrganizationMember.Output
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/members/{username}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/delete(removeOrganizationMember)`.
     func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input) async throws
@@ -1706,6 +1710,180 @@ public enum Operations {
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
     }
+    /// - Remark: HTTP `PUT /api/organizations/{organization_name}/members/{username}`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/put(updateOrganizationMember)`.
+    public enum updateOrganizationMember {
+        public static let id: String = "updateOrganizationMember"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var organization_name: Swift.String
+                public var username: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - organization_name:
+                ///   - username:
+                public init(organization_name: Swift.String, username: Swift.String) {
+                    self.organization_name = organization_name
+                    self.username = username
+                }
+            }
+            public var path: Operations.updateOrganizationMember.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.updateOrganizationMember.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.updateOrganizationMember.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.updateOrganizationMember.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The new role of the member.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/json/role`.
+                    public var role: OpenAPIRuntime.OpenAPIValueContainer
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - role: The new role of the member.
+                    public init(role: OpenAPIRuntime.OpenAPIValueContainer) { self.role = role }
+                    public enum CodingKeys: String, CodingKey { case role }
+                }
+                case json(Operations.updateOrganizationMember.Input.Body.jsonPayload)
+            }
+            public var body: Operations.updateOrganizationMember.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.updateOrganizationMember.Input.Path,
+                query: Operations.updateOrganizationMember.Input.Query = .init(),
+                headers: Operations.updateOrganizationMember.Input.Headers = .init(),
+                cookies: Operations.updateOrganizationMember.Input.Cookies = .init(),
+                body: Operations.updateOrganizationMember.Input.Body
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateOrganizationMember.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.OrganizationMember)
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationMember.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateOrganizationMember.Output.Ok.Headers = .init(),
+                    body: Operations.updateOrganizationMember.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The member was successfully updated.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/put(updateOrganizationMember)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.updateOrganizationMember.Output.Ok)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateOrganizationMember.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationMember.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateOrganizationMember.Output.NotFound.Headers = .init(),
+                    body: Operations.updateOrganizationMember.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The organization or the member were not found.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/put(updateOrganizationMember)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.updateOrganizationMember.Output.NotFound)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateOrganizationMember.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.updateOrganizationMember.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.updateOrganizationMember.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.updateOrganizationMember.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The member could not be updated because the user is not authorized to do the action.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/put(updateOrganizationMember)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.updateOrganizationMember.Output.Unauthorized)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/members/{username}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/delete(removeOrganizationMember)`.
     public enum removeOrganizationMember {
@@ -1819,7 +1997,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// The organizatino or the member were not found.
+            /// The organization or the member were not found.
             ///
             /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/delete(removeOrganizationMember)/responses/404`.
             ///

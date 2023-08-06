@@ -303,13 +303,61 @@ paths:
         "204":
           description: The member was successfully removed.
         "404":
-          description: The organizatino or the member were not found.
+          description: The organization or the member were not found.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
         "401":
           description: The member could not be removed because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: updateOrganizationMember
+      parameters:
+        - in: path
+          name: organization_name
+          required: true
+          description: The organization of the member to update.
+          schema:
+            type: string
+        - in: path
+          name: username
+          required: true
+          description: The username of the member to update.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  enum:
+                    - admin
+                    - user
+                  description: The new role of the member.
+              required:
+                - role
+      responses:
+        "200":
+          description: The member was successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationMember"
+        "404":
+          description: The organization or the member were not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: The member could not be updated because the user is not authorized to do the action.
           content:
             application/json:
               schema:

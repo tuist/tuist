@@ -672,6 +672,89 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// - Remark: HTTP `PUT /api/organizations/{organization_name}/members/{username}`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/put(updateOrganizationMember)`.
+    public func updateOrganizationMember(_ input: Operations.updateOrganizationMember.Input)
+        async throws -> Operations.updateOrganizationMember.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.updateOrganizationMember.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/organizations/{}/members/{}",
+                    parameters: [input.path.organization_name, input.path.username]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .put)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                request.body = try converter.setRequiredRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.updateOrganizationMember.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.updateOrganizationMember.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.OrganizationMember.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 404:
+                    let headers: Operations.updateOrganizationMember.Output.NotFound.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.updateOrganizationMember.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.updateOrganizationMember.Output.Unauthorized.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.updateOrganizationMember.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/members/{username}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/delete(removeOrganizationMember)`.
     public func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input)
