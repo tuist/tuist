@@ -45,7 +45,6 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/apollographql/apollo-ios.git", exact: "1.0.5"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.2"),
         .package(url: "https://github.com/apple/swift-docc-plugin.git", from: "1.1.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.2"),
@@ -325,12 +324,6 @@ let package = Package(
             ]
         ),
         .target(
-            name: "TuistCloudSchema",
-            dependencies: [
-                .product(name: "Apollo", package: "apollo-ios"),
-            ]
-        ),
-        .target(
             name: "TuistCloud",
             dependencies: [
                 "XcodeProj",
@@ -338,8 +331,6 @@ let package = Package(
                 "TuistCore",
                 "TuistGraph",
                 "TuistSupport",
-                "TuistCloudSchema",
-                .product(name: "Apollo", package: "apollo-ios"),
                 .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
                 .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
             ],

@@ -105,6 +105,3 @@ Tuist/Dependencies/graph.json
 # Release artifacts
 vendor/
 .bundle
-
-# Apollo
-apollo-ios-cli

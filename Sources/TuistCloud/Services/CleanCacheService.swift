@@ -1,5 +1,4 @@
 import Foundation
-import TuistCloudSchema
 import TuistSupport
 
 public protocol CleanCacheServicing {
@@ -32,7 +31,6 @@ enum CleanCacheServiceError: FatalError {
     }
 }
 
-
 public final class CleanCacheService: CleanCacheServicing {
     public init() {}
 
@@ -41,11 +39,11 @@ public final class CleanCacheService: CleanCacheServicing {
         fullName: String
     ) async throws {
         let client = Client.cloud(serverURL: serverURL)
-        
+
         let response = try await client.cleanCache(
             .init(path: .init(full_name: fullName))
         )
-        
+
         switch response {
         case .noContent:
             // noop
