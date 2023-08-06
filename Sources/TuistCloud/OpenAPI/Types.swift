@@ -43,6 +43,10 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/post(createOrganizationInvite)`.
     func createOrganizationInvite(_ input: Operations.createOrganizationInvite.Input) async throws
         -> Operations.createOrganizationInvite.Output
+    /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/invitations`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelOrganizationInvite)`.
+    func cancelOrganizationInvite(_ input: Operations.cancelOrganizationInvite.Input) async throws
+        -> Operations.cancelOrganizationInvite.Output
 }
 /// Server URLs defined in the OpenAPI document.
 public enum Servers {
@@ -1523,6 +1527,175 @@ public enum Operations {
             ///
             /// HTTP response code: `400 badRequest`.
             case badRequest(Operations.createOrganizationInvite.Output.BadRequest)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/invitations`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelOrganizationInvite)`.
+    public enum cancelOrganizationInvite {
+        public static let id: String = "cancelOrganizationInvite"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var organization_name: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - organization_name:
+                public init(organization_name: Swift.String) {
+                    self.organization_name = organization_name
+                }
+            }
+            public var path: Operations.cancelOrganizationInvite.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.cancelOrganizationInvite.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.cancelOrganizationInvite.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.cancelOrganizationInvite.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// Email of the user to cancel the invite for.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/json/invitee_email`.
+                    public var invitee_email: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - invitee_email: Email of the user to cancel the invite for.
+                    public init(invitee_email: Swift.String) { self.invitee_email = invitee_email }
+                    public enum CodingKeys: String, CodingKey { case invitee_email }
+                }
+                case json(Operations.cancelOrganizationInvite.Input.Body.jsonPayload)
+            }
+            public var body: Operations.cancelOrganizationInvite.Input.Body
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.cancelOrganizationInvite.Input.Path,
+                query: Operations.cancelOrganizationInvite.Input.Query = .init(),
+                headers: Operations.cancelOrganizationInvite.Input.Headers = .init(),
+                cookies: Operations.cancelOrganizationInvite.Input.Cookies = .init(),
+                body: Operations.cancelOrganizationInvite.Input.Body
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cancelOrganizationInvite.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.cancelOrganizationInvite.Output.NoContent.Body?
+                /// Creates a new `NoContent`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cancelOrganizationInvite.Output.NoContent.Headers = .init(),
+                    body: Operations.cancelOrganizationInvite.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The invitations was successfully cancelled.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelOrganizationInvite)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.cancelOrganizationInvite.Output.NoContent)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cancelOrganizationInvite.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.cancelOrganizationInvite.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cancelOrganizationInvite.Output.NotFound.Headers = .init(),
+                    body: Operations.cancelOrganizationInvite.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The invitation could not be deleted because it was not found.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelOrganizationInvite)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.cancelOrganizationInvite.Output.NotFound)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cancelOrganizationInvite.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.cancelOrganizationInvite.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cancelOrganizationInvite.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.cancelOrganizationInvite.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The invitation could not be cancelled because the user is not authorized to do the action.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelOrganizationInvite)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cancelOrganizationInvite.Output.Unauthorized)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.

@@ -247,6 +247,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    delete:
+      operationId: cancelOrganizationInvite
+      parameters:
+        - in: path
+          name: organization_name
+          required: true
+          description: The organization to invite the user to.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invitee_email:
+                  type: string
+                  description: Email of the user to cancel the invite for.
+              required:
+                - invitee_email
+      responses:
+        "204":
+          description: The invitations was successfully cancelled.
+        "404":
+          description: The invitation could not be deleted because it was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: The invitation could not be cancelled because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   schemas:
     User:

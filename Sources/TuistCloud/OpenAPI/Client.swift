@@ -598,4 +598,78 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/invitations`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelOrganizationInvite)`.
+    public func cancelOrganizationInvite(_ input: Operations.cancelOrganizationInvite.Input)
+        async throws -> Operations.cancelOrganizationInvite.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.cancelOrganizationInvite.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/organizations/{}/invitations",
+                    parameters: [input.path.organization_name]
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .delete)
+                suppressMutabilityWarning(&request)
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                request.body = try converter.setRequiredRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 204:
+                    let headers: Operations.cancelOrganizationInvite.Output.NoContent.Headers =
+                        .init()
+                    return .noContent(.init(headers: headers, body: nil))
+                case 404:
+                    let headers: Operations.cancelOrganizationInvite.Output.NotFound.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.cancelOrganizationInvite.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.cancelOrganizationInvite.Output.Unauthorized.Headers =
+                        .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.cancelOrganizationInvite.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
 }
