@@ -47,6 +47,10 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelOrganizationInvite)`.
     func cancelOrganizationInvite(_ input: Operations.cancelOrganizationInvite.Input) async throws
         -> Operations.cancelOrganizationInvite.Output
+    /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/members/{username}`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/delete(removeOrganizationMember)`.
+    func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input) async throws
+        -> Operations.removeOrganizationMember.Output
 }
 /// Server URLs defined in the OpenAPI document.
 public enum Servers {
@@ -1696,6 +1700,163 @@ public enum Operations {
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Operations.cancelOrganizationInvite.Output.Unauthorized)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/members/{username}`.
+    /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/delete(removeOrganizationMember)`.
+    public enum removeOrganizationMember {
+        public static let id: String = "removeOrganizationMember"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                public var organization_name: Swift.String
+                public var username: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - organization_name:
+                ///   - username:
+                public init(organization_name: Swift.String, username: Swift.String) {
+                    self.organization_name = organization_name
+                    self.username = username
+                }
+            }
+            public var path: Operations.removeOrganizationMember.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.removeOrganizationMember.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.removeOrganizationMember.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.removeOrganizationMember.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.removeOrganizationMember.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.removeOrganizationMember.Input.Path,
+                query: Operations.removeOrganizationMember.Input.Query = .init(),
+                headers: Operations.removeOrganizationMember.Input.Headers = .init(),
+                cookies: Operations.removeOrganizationMember.Input.Cookies = .init(),
+                body: Operations.removeOrganizationMember.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.removeOrganizationMember.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.removeOrganizationMember.Output.NoContent.Body?
+                /// Creates a new `NoContent`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.removeOrganizationMember.Output.NoContent.Headers = .init(),
+                    body: Operations.removeOrganizationMember.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The member was successfully removed.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/delete(removeOrganizationMember)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.removeOrganizationMember.Output.NoContent)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.removeOrganizationMember.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.removeOrganizationMember.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.removeOrganizationMember.Output.NotFound.Headers = .init(),
+                    body: Operations.removeOrganizationMember.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The organizatino or the member were not found.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/delete(removeOrganizationMember)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.removeOrganizationMember.Output.NotFound)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.removeOrganizationMember.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.removeOrganizationMember.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.removeOrganizationMember.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.removeOrganizationMember.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The member could not be removed because the user is not authorized to do the action.
+            ///
+            /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/delete(removeOrganizationMember)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.removeOrganizationMember.Output.Unauthorized)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.

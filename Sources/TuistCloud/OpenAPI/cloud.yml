@@ -283,6 +283,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/organizations/{organization_name}/members/{username}:
+    delete:
+      operationId: removeOrganizationMember
+      parameters:
+        - in: path
+          name: organization_name
+          required: true
+          description: The organization to remove the member from.
+          schema:
+            type: string
+        - in: path
+          name: username
+          required: true
+          description: The username of the member to remove from the organization.
+          schema:
+            type: string
+      responses:
+        "204":
+          description: The member was successfully removed.
+        "404":
+          description: The organizatino or the member were not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: The member could not be removed because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   schemas:
     User:

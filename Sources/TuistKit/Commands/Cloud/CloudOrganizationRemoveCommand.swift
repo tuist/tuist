@@ -10,6 +10,7 @@ struct CloudOrganizationRemoveCommand: ParsableCommand {
             abstract: "A set of commands to remove members or cancel pending invitations.",
             subcommands: [
                 CloudOrganizationRemoveInviteCommand.self,
+                CloudOrganizationRemoveMemberCommand.self,
             ]
         )
     }
