@@ -37,7 +37,7 @@ final class CloudProjectDeleteServiceTests: TuistUnitTestCase {
     func test_project_delete() async throws {
         // Given
         getProjectService.getProjectStub = { _, _, _ in
-            .init(id: 0, fullName: "tuist/tuist")
+            .test(id: 0, fullName: "tuist/tuist")
         }
         var gotProjectId: Int?
         deleteProjectService.deleteProjectStub = { projectId, _ in

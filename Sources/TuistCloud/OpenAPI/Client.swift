@@ -97,20 +97,23 @@ public struct Client: APIProtocol {
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
                 suppressMutabilityWarning(&request)
-                try converter.setQueryItemAsText(
-                    in: &request,
-                    name: "name",
-                    value: input.query.name
-                )
-                try converter.setQueryItemAsText(
-                    in: &request,
-                    name: "organization",
-                    value: input.query.organization
-                )
                 try converter.setHeaderFieldAsText(
                     in: &request.headerFields,
                     name: "accept",
                     value: "application/json"
+                )
+                request.body = try converter.setRequiredRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
                 )
                 return request
             },
@@ -204,15 +207,23 @@ public struct Client: APIProtocol {
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
                 suppressMutabilityWarning(&request)
-                try converter.setQueryItemAsText(
-                    in: &request,
-                    name: "name",
-                    value: input.query.name
-                )
                 try converter.setHeaderFieldAsText(
                     in: &request.headerFields,
                     name: "accept",
                     value: "application/json"
+                )
+                request.body = try converter.setRequiredRequestBodyAsJSON(
+                    input.body,
+                    headerFields: &request.headerFields,
+                    transforming: { wrapped in
+                        switch wrapped {
+                        case let .json(value):
+                            return .init(
+                                value: value,
+                                contentType: "application/json; charset=utf-8"
+                            )
+                        }
+                    }
                 )
                 return request
             },

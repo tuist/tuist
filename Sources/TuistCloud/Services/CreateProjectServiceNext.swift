@@ -45,9 +45,11 @@ public final class CreateProjectNextService: CreateProjectNextServicing {
 
         let response = try await client.createProject(
             .init(
-                query: .init(
-                    name: name,
-                    organization: organization
+                body: .json(
+                    .init(
+                        name: name,
+                        organization: organization
+                    )
                 )
             )
         )
