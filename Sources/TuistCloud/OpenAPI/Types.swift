@@ -204,18 +204,23 @@ public enum Components {
             public var id: Swift.Double
             /// - Remark: Generated from `#/components/schemas/Project/full_name`.
             public var full_name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Project/token`.
+            public var token: Swift.String
             /// Creates a new `Project`.
             ///
             /// - Parameters:
             ///   - id:
             ///   - full_name:
-            public init(id: Swift.Double, full_name: Swift.String) {
+            ///   - token:
+            public init(id: Swift.Double, full_name: Swift.String, token: Swift.String) {
                 self.id = id
                 self.full_name = full_name
+                self.token = token
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case full_name
+                case token
             }
         }
         /// - Remark: Generated from `#/components/schemas/Organizations`.

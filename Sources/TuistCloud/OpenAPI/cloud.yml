@@ -429,9 +429,12 @@ components:
           type: number
         full_name:
           type: string
+        token:
+          type: string
       required:
         - id
         - full_name
+        - token
     Organizations:
       type: object
       properties:

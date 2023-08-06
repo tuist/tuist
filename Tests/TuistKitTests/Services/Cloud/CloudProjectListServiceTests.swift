@@ -29,8 +29,8 @@ final class CloudProjectListServiceTests: TuistUnitTestCase {
         // Given
         listProjectsService.listProjectsStub = { _, _, _ in
             [
-                CloudProject(id: 0, fullName: "tuist/test-one"),
-                CloudProject(id: 1, fullName: "tuist/test-two"),
+                .test(id: 0, fullName: "tuist/test-one"),
+                .test(id: 1, fullName: "tuist/test-two"),
             ]
         }
 
