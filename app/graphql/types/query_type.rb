@@ -59,7 +59,7 @@ module Types
       argument :name, String, required: true
     end
     def organization(name:)
-      OrganizationFetchService.call(name: name)
+      OrganizationFetchService.call(name: name, user: context[:current_user])
     end
 
     field :invitation,
