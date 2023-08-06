@@ -29,19 +29,21 @@ paths:
                 $ref: "#/components/schemas/Projects"
     post:
       operationId: createProject
-      parameters:
-        - name: name
-          required: true
-          in: query
-          description: The name of the project that should be created.
-          schema:
-            type: string
-        - name: organization
-          required: false
-          in: query
-          description: Organization to create the project with. If nil, the project will be created with the current user's personal account.
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: The name of the project that should be created.
+                organization:
+                  type: string
+                  description: Organization to create the project with. If nil, the project will be created with the current user's personal account.
+              required:
+                - name
       responses:
         "200":
           description: A success response with the created project.
@@ -67,13 +69,18 @@ paths:
                 $ref: "#/components/schemas/Organizations"
     post:
       operationId: createOrganization
-      parameters:
-        - name: name
-          required: true
-          in: query
-          description: The name of the organization that should be created.
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: The name of the organization that should be created.
+              required:
+                - name
       responses:
         "200":
           description: A success response with the created organization.
@@ -429,9 +436,12 @@ components:
           type: number
         full_name:
           type: string
+        token:
+          type: string
       required:
         - id
         - full_name
+        - token
     Organizations:
       type: object
       properties:

@@ -12,6 +12,7 @@ struct CloudProjectCommand: ParsableCommand {
                 CloudProjectCreateCommand.self,
                 CloudProjectListCommand.self,
                 CloudProjectDeleteCommand.self,
+                CloudProjectTokenCommand.self,
             ]
         )
     }

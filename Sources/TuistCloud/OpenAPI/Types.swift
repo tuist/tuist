@@ -204,18 +204,23 @@ public enum Components {
             public var id: Swift.Double
             /// - Remark: Generated from `#/components/schemas/Project/full_name`.
             public var full_name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Project/token`.
+            public var token: Swift.String
             /// Creates a new `Project`.
             ///
             /// - Parameters:
             ///   - id:
             ///   - full_name:
-            public init(id: Swift.Double, full_name: Swift.String) {
+            ///   - token:
+            public init(id: Swift.Double, full_name: Swift.String, token: Swift.String) {
                 self.id = id
                 self.full_name = full_name
+                self.token = token
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case full_name
+                case token
             }
         }
         /// - Remark: Generated from `#/components/schemas/Organizations`.
@@ -396,17 +401,8 @@ public enum Operations {
             }
             public var path: Operations.createProject.Input.Path
             public struct Query: Sendable, Equatable, Hashable {
-                public var name: Swift.String
-                public var organization: Swift.String?
                 /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - name:
-                ///   - organization:
-                public init(name: Swift.String, organization: Swift.String? = nil) {
-                    self.name = name
-                    self.organization = organization
-                }
+                public init() {}
             }
             public var query: Operations.createProject.Input.Query
             public struct Headers: Sendable, Equatable, Hashable {
@@ -419,8 +415,34 @@ public enum Operations {
                 public init() {}
             }
             public var cookies: Operations.createProject.Input.Cookies
-            @frozen public enum Body: Sendable, Equatable, Hashable {}
-            public var body: Operations.createProject.Input.Body?
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The name of the project that should be created.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/POST/json/name`.
+                    public var name: Swift.String
+                    /// Organization to create the project with. If nil, the project will be created with the current user's personal account.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/POST/json/organization`.
+                    public var organization: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - name: The name of the project that should be created.
+                    ///   - organization: Organization to create the project with. If nil, the project will be created with the current user's personal account.
+                    public init(name: Swift.String, organization: Swift.String? = nil) {
+                        self.name = name
+                        self.organization = organization
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case name
+                        case organization
+                    }
+                }
+                case json(Operations.createProject.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createProject.Input.Body
             /// Creates a new `Input`.
             ///
             /// - Parameters:
@@ -431,10 +453,10 @@ public enum Operations {
             ///   - body:
             public init(
                 path: Operations.createProject.Input.Path = .init(),
-                query: Operations.createProject.Input.Query,
+                query: Operations.createProject.Input.Query = .init(),
                 headers: Operations.createProject.Input.Headers = .init(),
                 cookies: Operations.createProject.Input.Cookies = .init(),
-                body: Operations.createProject.Input.Body? = nil
+                body: Operations.createProject.Input.Body
             ) {
                 self.path = path
                 self.query = query
@@ -610,12 +632,8 @@ public enum Operations {
             }
             public var path: Operations.createOrganization.Input.Path
             public struct Query: Sendable, Equatable, Hashable {
-                public var name: Swift.String
                 /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - name:
-                public init(name: Swift.String) { self.name = name }
+                public init() {}
             }
             public var query: Operations.createOrganization.Input.Query
             public struct Headers: Sendable, Equatable, Hashable {
@@ -628,8 +646,23 @@ public enum Operations {
                 public init() {}
             }
             public var cookies: Operations.createOrganization.Input.Cookies
-            @frozen public enum Body: Sendable, Equatable, Hashable {}
-            public var body: Operations.createOrganization.Input.Body?
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                    /// The name of the organization that should be created.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/POST/json/name`.
+                    public var name: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - name: The name of the organization that should be created.
+                    public init(name: Swift.String) { self.name = name }
+                    public enum CodingKeys: String, CodingKey { case name }
+                }
+                case json(Operations.createOrganization.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createOrganization.Input.Body
             /// Creates a new `Input`.
             ///
             /// - Parameters:
@@ -640,10 +673,10 @@ public enum Operations {
             ///   - body:
             public init(
                 path: Operations.createOrganization.Input.Path = .init(),
-                query: Operations.createOrganization.Input.Query,
+                query: Operations.createOrganization.Input.Query = .init(),
                 headers: Operations.createOrganization.Input.Headers = .init(),
                 cookies: Operations.createOrganization.Input.Cookies = .init(),
-                body: Operations.createOrganization.Input.Body? = nil
+                body: Operations.createOrganization.Input.Body
             ) {
                 self.path = path
                 self.query = query

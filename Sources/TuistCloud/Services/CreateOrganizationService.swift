@@ -43,8 +43,10 @@ public final class CreateOrganizationService: CreateOrganizationServicing {
 
         let response = try await client.createOrganization(
             .init(
-                query: .init(
-                    name: name
+                body: .json(
+                    .init(
+                        name: name
+                    )
                 )
             )
         )

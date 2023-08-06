@@ -4,7 +4,7 @@ import TuistCloud
 import TuistLoader
 import TuistSupport
 
-protocol CloudProjectDeleteServicing {
+protocol CloudProjectTokenServicing {
     func run(
         projectName: String,
         organizationName: String?,
@@ -12,19 +12,16 @@ protocol CloudProjectDeleteServicing {
     ) async throws
 }
 
-final class CloudProjectDeleteService: CloudProjectDeleteServicing {
-    private let deleteProjectService: DeleteProjectServicing
+final class CloudProjectTokenService: CloudProjectTokenServicing {
     private let getProjectService: GetProjectServicing
     private let credentialsStore: CredentialsStoring
     private let cloudURLService: CloudURLServicing
 
     init(
-        deleteProjectService: DeleteProjectServicing = DeleteProjectService(),
         getProjectService: GetProjectServicing = GetProjectService(),
         credentialsStore: CredentialsStoring = CredentialsStore(),
         cloudURLService: CloudURLServicing = CloudURLService()
     ) {
-        self.deleteProjectService = deleteProjectService
         self.getProjectService = getProjectService
         self.credentialsStore = credentialsStore
         self.cloudURLService = cloudURLService
@@ -51,11 +48,6 @@ final class CloudProjectDeleteService: CloudProjectDeleteServicing {
             serverURL: cloudURL
         )
 
-        try await deleteProjectService.deleteProject(
-            projectId: project.id,
-            serverURL: cloudURL
-        )
-
-        logger.info("Successfully deleted the \(project.fullName) project.")
+        logger.info(.init(stringLiteral: project.token))
     }
 }

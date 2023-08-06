@@ -15,6 +15,6 @@ public final class MockGetProjectService: GetProjectServicing {
             accountName,
             projectName,
             serverURL
-        ) ?? CloudProject(id: 0, fullName: "test/test")
+        ) ?? .test()
     }
 }
