@@ -41,6 +41,24 @@ class RemoveUserServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "removing user from the organization if a user is not part of the organization fails" do
+    # Given
+    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    organization = Organization.create!
+    Account.create!(owner: organization, name: "tuist")
+    remover = User.create!(email: "test1@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    remover.add_role(:admin, organization)
+
+    # When / Then
+    assert_raises(RemoveUserService::Error::MemberNotFound) do
+      RemoveUserService.call(
+        user_id: user.id,
+        organization_id: organization.id,
+        remover: remover,
+      )
+    end
+  end
+
   test "user not found error is thrown when user with a given id does not exist" do
     # Given
     remover = User.create!(email: "test1@cloud.tuist.io", password: Devise.friendly_token.first(16))

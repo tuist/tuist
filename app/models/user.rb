@@ -44,6 +44,10 @@ class User < ApplicationRecord
     UserAccountsFetchService.call(user: self)
   end
 
+  def name
+    account.name
+  end
+
   def as_json(options = {})
     super(options.merge(only: [:id, :email])).merge({ name: account.name })
   end

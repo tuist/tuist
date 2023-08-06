@@ -8,6 +8,10 @@ class RemoveUserService < ApplicationService
       def message
         "You do not have a permission to remove this user from the organization."
       end
+
+      def status_code
+        :unauthorized
+      end
     end
 
     class UserNotFound < CloudError
@@ -19,6 +23,27 @@ class RemoveUserService < ApplicationService
 
       def message
         "User with id #{user_id} was not found"
+      end
+
+      def status_code
+        :not_found
+      end
+    end
+
+    class MemberNotFound < CloudError
+      attr_reader :username, :organization_name
+
+      def initialize(username, organization_name)
+        @username = username
+        @organization_name = organization_name
+      end
+
+      def message
+        "User #{username} is not a member of the #{organization_name} organization."
+      end
+
+      def status_code
+        :not_found
       end
     end
   end
@@ -36,9 +61,15 @@ class RemoveUserService < ApplicationService
     rescue ActiveRecord::RecordNotFound
       raise Error::UserNotFound.new(user_id)
     end
-    current_role = user.roles.find_by(resource_type: "Organization", resource_id: organization_id)
+
+    organization = Organization.find(organization_id)
+
+    begin
+      current_role = user.roles.find_by!(resource_type: "Organization", resource_id: organization_id)
+    rescue ActiveRecord::RecordNotFound
+      raise Error::MemberNotFound.new(user.name, organization.name)
+    end
     ActiveRecord::Base.transaction do
-      organization = Organization.find(organization_id)
       raise Error::Unauthorized unless OrganizationPolicy.new(remover, organization).update?
 
       user.remove_role(current_role.name, organization)

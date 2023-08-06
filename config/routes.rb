@@ -30,11 +30,11 @@ Rails.application.routes.draw do
   namespace :api do
     resources :projects, :projects, only: [:create, :index, :destroy]
     resources :organizations, :organizations, only: [:create, :index, :destroy, :show]
-    get "/projects/:account_name/:project_name", to: "projects#show"
+    get '/projects/:account_name/:project_name', to: 'projects#show'
     resources :invitations, path: '/organizations/:organization_name/invitations', only: [:create]
-    delete '/organizations/:organization_name/invitations', to: "invitations#destroy"
+    delete '/organizations/:organization_name/invitations', to: 'invitations#destroy'
+    delete '/organizations/:organization_name/members/:username', to: 'members#destroy'
   end
-
 
   get "/(*all)", to: "application#app"
 end
