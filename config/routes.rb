@@ -34,6 +34,7 @@ Rails.application.routes.draw do
     resources :invitations, path: '/organizations/:organization_name/invitations', only: [:create]
     delete '/organizations/:organization_name/invitations', to: 'invitations#destroy'
     delete '/organizations/:organization_name/members/:username', to: 'members#destroy'
+    put '/organizations/:organization_name/members/:username', to: 'members#update'
   end
 
   get "/(*all)", to: "application#app"
