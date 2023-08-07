@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 3.22.0 - 2023-07-31
+
+### Fixed
+
+- Fix GraphViz layout algorithm documentation name typo in https://github.com/tuist/tuist/pull/5309 by [@cristi-lupu](https://github.com/cristi-lupu)
+
 ## 3.21.1 - 2023-07-13
 
 ### Changed

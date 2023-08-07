@@ -8,6 +8,10 @@ public protocol CredentialsStoring {
     ///   - serverURL: Server URL (without path).
     func store(credentials: Credentials, serverURL: URL) throws
 
+    /// Gets the credentials to authenticate the user against the server with the given URL. Throws an error if credentials are not found.
+    /// - Parameter serverURL: Server URL (without path).
+    func get(serverURL: URL) throws -> Credentials
+
     /// Reads the credentials to authenticate the user against the server with the given URL.
     /// - Parameter serverURL: Server URL (without path).
     func read(serverURL: URL) throws -> Credentials?
@@ -15,6 +19,24 @@ public protocol CredentialsStoring {
     /// Deletes the credentials for the server with the given URL.
     /// - Parameter serverURL: Server URL (without path).
     func delete(serverURL: URL) throws
+}
+
+enum CredentialsStoreError: FatalError {
+    case credentialsNotFound
+
+    var description: String {
+        switch self {
+        case .credentialsNotFound:
+            return "You are not authenticated. Authenticate by running `tuist cloud auth`."
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .credentialsNotFound:
+            return .abort
+        }
+    }
 }
 
 public final class CredentialsStore: CredentialsStoring {
@@ -34,6 +56,15 @@ public final class CredentialsStore: CredentialsStoring {
         guard let token = keychain.allKeys().first else { return nil }
         guard let account = try keychain.get(token) else { return nil }
         return Credentials(token: token, account: account)
+    }
+
+    public func get(serverURL: URL) throws -> Credentials {
+        guard let credentials = try read(serverURL: serverURL)
+        else {
+            throw CredentialsStoreError.credentialsNotFound
+        }
+
+        return credentials
     }
 
     public func delete(serverURL: URL) throws {

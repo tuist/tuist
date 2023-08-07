@@ -46,7 +46,7 @@ final class CloudInitServiceTests: TuistUnitTestCase {
             createdProjectOrganization = $1
             createdProjectURL = $2
 
-            return "slug"
+            return .test(fullName: "tuist/test")
         }
         configLoader.loadConfigStub = { _ in Config.test(cloud: nil) }
         configLoader.locateConfigStub = { _ in AbsolutePath("/some-path") }
@@ -54,8 +54,8 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         // When
         try await subject.createProject(
             name: "tuist",
-            owner: "tuist-org",
-            url: Constants.tuistCloudURL,
+            organization: "tuist-org",
+            serverURL: nil,
             path: nil
         )
 
@@ -65,7 +65,7 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         XCTAssertEqual(createdProjectURL, URL(string: Constants.tuistCloudURL))
         XCTAssertPrinterOutputContains("""
         Put the following line into your Tuist/Config.swift (see the docs for more: https://docs.tuist.io/manifests/config/):
-        cloud: .cloud(projectId: "slug", url: "https://cloud.tuist.io/")
+        cloud: .cloud(projectId: "tuist/test", url: "https://cloud.tuist.io/")
         """)
     }
 
@@ -74,13 +74,13 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         var content: String?
         configLoader.locateConfigStub = { _ in nil }
         fileHandler.stubWrite = { stubContent, _, _ in content = stubContent }
-        createProjectService.createProjectStub = { _, _, _ in "slug" }
+        createProjectService.createProjectStub = { _, _, _ in .test(fullName: "tuist/test") }
 
         // When
         try await subject.createProject(
             name: "tuist",
-            owner: "tuist-org",
-            url: Constants.tuistCloudURL,
+            organization: "tuist-org",
+            serverURL: nil,
             path: nil
         )
 
@@ -89,7 +89,7 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         import ProjectDescription
 
         let config = Config(
-            cloud: .cloud(projectId: "slug", url: "https://cloud.tuist.io/")
+            cloud: .cloud(projectId: "tuist/test", url: "https://cloud.tuist.io/")
         )
 
         """, content)
@@ -106,8 +106,8 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         await XCTAssertThrowsSpecific(
             try await subject.createProject(
                 name: "tuist",
-                owner: "tuist-org",
-                url: Constants.tuistCloudURL,
+                organization: "tuist-org",
+                serverURL: Constants.tuistCloudURL,
                 path: nil
             ),
             CloudInitServiceError.cloudAlreadySetUp

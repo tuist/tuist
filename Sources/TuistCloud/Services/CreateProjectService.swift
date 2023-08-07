@@ -1,35 +1,34 @@
-import Apollo
 import Foundation
-import TuistCloudSchema
+import OpenAPIURLSession
 import TuistSupport
 
 public protocol CreateProjectServicing {
     func createProject(
         name: String,
-        organizationName: String?,
+        organization: String?,
         serverURL: URL
-    ) async throws -> String
+    ) async throws -> CloudProject
 }
 
 enum CreateProjectServiceError: FatalError {
-    case graphqlError(String)
-    case projectCouldNotBeCreated
+    case unknownError(Int)
+    case badRequest(String)
 
     var type: ErrorType {
         switch self {
-        case .graphqlError:
-            return .abort
-        case .projectCouldNotBeCreated:
+        case .unknownError:
             return .bug
+        case .badRequest:
+            return .abort
         }
     }
 
     var description: String {
         switch self {
-        case let .graphqlError(description):
-            return description
-        case .projectCouldNotBeCreated:
-            return "The project could not be created."
+        case let .unknownError(statusCode):
+            return "The project could not be created due to an unknown Cloud response of \(statusCode)."
+        case let .badRequest(message):
+            return message
         }
     }
 }
@@ -39,34 +38,34 @@ public final class CreateProjectService: CreateProjectServicing {
 
     public func createProject(
         name: String,
-        organizationName: String?,
+        organization: String?,
         serverURL: URL
-    ) async throws -> String {
-        let client = ApolloClient(cloudURL: serverURL)
+    ) async throws -> CloudProject {
+        let client = Client.cloud(serverURL: serverURL)
 
-        let response = await withCheckedContinuation { continuation in
-            client.perform(
-                mutation: CreateProjectMutation(
-                    input: CreateProjectInput(
+        let response = try await client.createProject(
+            .init(
+                body: .json(
+                    .init(
                         name: name,
-                        organizationName: organizationName
-                            .map { GraphQLNullable(stringLiteral: $0) } ?? GraphQLNullable(nilLiteral: ())
+                        organization: organization
                     )
                 )
-            ) { response in
-                continuation.resume(returning: response)
-            }
-        }
-
-        guard let data = try response.get().data else { throw CreateProjectServiceError.projectCouldNotBeCreated }
-
-        let errors = data.createProject.errors
-        if !errors.isEmpty {
-            throw CreateProjectServiceError.graphqlError(
-                errors.map(\.message).joined(separator: "\n")
             )
+        )
+        switch response {
+        case let .ok(okResponse):
+            switch okResponse.body {
+            case let .json(project):
+                return CloudProject(project)
+            }
+        case let .badRequest(badRequestResponse):
+            switch badRequestResponse.body {
+            case let .json(error):
+                throw CreateProjectServiceError.badRequest(error.message)
+            }
+        case let .undocumented(statusCode: statusCode, _):
+            throw CreateProjectServiceError.unknownError(statusCode)
         }
-
-        return data.createProject.project?.slug ?? ""
     }
 }
