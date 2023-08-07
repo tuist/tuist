@@ -300,21 +300,25 @@ final class ConfigGenerator: ConfigGenerating {
             settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
         }
 
-        if target.destinations.contains(.macWithiPadDesign) {
-            settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
-        } else {
-            settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "NO"
-        }
+        if target.supportedPlatforms.contains(.iOS) {
+            if target.destinations.contains(.macWithiPadDesign) {
+                settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
+            } else {
+                settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "NO"
+            }
 
-        if target.destinations.contains(.appleVisionWithiPadDesign) {
-            settings["SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
-        }
+            if target.destinations.contains(.appleVisionWithiPadDesign) {
+                settings["SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
+            } else {
+                settings["SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD"] = "NO"
+            }
 
-        if target.destinations.contains(.macCatalyst) {
-            settings["SUPPORTS_MACCATALYST"] = "YES"
-            settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
-        } else {
-            settings["SUPPORTS_MACCATALYST"] = "NO"
+            if target.destinations.contains(.macCatalyst) {
+                settings["SUPPORTS_MACCATALYST"] = "YES"
+                settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
+            } else {
+                settings["SUPPORTS_MACCATALYST"] = "NO"
+            }
         }
 
         return settings
