@@ -47,8 +47,10 @@ extension TuistGraph.TargetDependency {
                     swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) }
                 ),
             ]
-        case let .package(product, isPlugin):
-            return [.package(product: product, isPlugin: isPlugin)]
+        case let .package(product):
+            return [.package(product: product, isPlugin: false)]
+        case let .packagePlugin(product):
+            return [.package(product: product, isPlugin: true)]
         case let .sdk(name, type, status):
             return [
                 .sdk(
