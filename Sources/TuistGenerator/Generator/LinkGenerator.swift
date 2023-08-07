@@ -179,8 +179,10 @@ final class LinkGenerator: LinkGenerating {
     ) throws {
         for dependency in target.dependencies {
             switch dependency {
-            case let .package(product: product, isPlugin):
-                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: isPlugin, pbxproj: pbxproj)
+            case let .package(product: product):
+                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: false, pbxproj: pbxproj)
+            case let .packagePlugin(product: product):
+                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: true, pbxproj: pbxproj)
             default:
                 break
             }

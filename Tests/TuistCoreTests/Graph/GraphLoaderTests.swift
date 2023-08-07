@@ -500,7 +500,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
     func test_loadWorkspace_package_plugin() throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [
-            .package(product: "PackagePlugin", isPlugin: true),
+            .packagePlugin(product: "PackagePlugin"),
         ])
 
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA], packages: [

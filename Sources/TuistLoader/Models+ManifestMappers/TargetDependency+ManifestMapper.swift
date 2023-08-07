@@ -48,9 +48,9 @@ extension TuistGraph.TargetDependency {
                 ),
             ]
         case let .package(product):
-            return [.package(product: product, isPlugin: false)]
+            return [.package(product: product)]
         case let .packagePlugin(product):
-            return [.package(product: product, isPlugin: true)]
+            return [.packagePlugin(product: product)]
         case let .sdk(name, type, status):
             return [
                 .sdk(

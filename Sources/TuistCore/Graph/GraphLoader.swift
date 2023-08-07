@@ -161,8 +161,11 @@ public final class GraphLoader: GraphLoading {
         case let .sdk(name, status):
             return try loadSDK(name: name, platform: fromPlatform, status: status, source: .system)
 
-        case let .package(product, isPlugin):
-            return try loadPackage(fromPath: path, productName: product, isPlugin: isPlugin)
+        case let .package(product):
+            return try loadPackage(fromPath: path, productName: product, isPlugin: false)
+
+        case let .packagePlugin(product):
+            return try loadPackage(fromPath: path, productName: product, isPlugin: true)
 
         case .xctest:
             return try loadXCTestSDK(platform: fromPlatform)
