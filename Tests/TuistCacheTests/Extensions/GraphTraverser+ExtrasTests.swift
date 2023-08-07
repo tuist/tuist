@@ -162,6 +162,20 @@ class GraphTraverserExtrasTests: XCTestCase {
         XCTAssertEqual(Set(filteredTargets.map(\.target)), [tests1])
     }
 
+    func test_filterIncludedTargets_when_graphHasNoTestPlans_includeExternalTargets() throws {
+        // When
+        let filteredTargets = graphTraverserWithExternalTargets.filterIncludedTargets(
+            basedOn: graphTraverserWithoutTestPlans.allTargets(),
+            testPlan: nil,
+            includedTargets: [],
+            excludedTargets: [],
+            excludingExternalTargets: false
+        )
+
+        // Then
+        XCTAssertEqual(Set(filteredTargets.map(\.target)), [app, tests1, tests2, tests3, tests4])
+    }
+
     func test_filterIncludedTargets_when_graphHasNoTestPlans_excludeExternalTargets() throws {
         // When
         let filteredTargets = graphTraverserWithExternalTargets.filterIncludedTargets(
