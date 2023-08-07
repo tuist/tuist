@@ -11,20 +11,20 @@ protocol CloudCleanServicing {
 }
 
 enum CloudCleanServiceError: FatalError, Equatable {
-    case invalidCloudURL(String)
+    case cloudNotFound
 
     /// Error description.
     var description: String {
         switch self {
-        case let .invalidCloudURL(url):
-            return "The cloud URL \(url) is invalid."
+        case .cloudNotFound:
+            return "You are missing Cloud configuration in your Config.swift. Run `tuist cloud init` to set up Cloud."
         }
     }
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .invalidCloudURL:
+        case .cloudNotFound:
             return .abort
         }
     }
@@ -32,16 +32,16 @@ enum CloudCleanServiceError: FatalError, Equatable {
 
 final class CloudCleanService: CloudCleanServicing {
     private let cloudSessionController: CloudSessionControlling
-    private let cleanRemoteCacheStorageService: CleanRemoteCacheStorageServicing
+    private let cleanCacheService: CleanCacheServicing
     private let configLoader: ConfigLoading
 
     init(
         cloudSessionController: CloudSessionControlling = CloudSessionController(),
-        cleanRemoteCacheStorageService: CleanRemoteCacheStorageServicing = CleanRemoteCacheStorageService(),
+        cleanCacheService: CleanCacheServicing = CleanCacheService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.cloudSessionController = cloudSessionController
-        self.cleanRemoteCacheStorageService = cleanRemoteCacheStorageService
+        self.cleanCacheService = cleanCacheService
         self.configLoader = configLoader
     }
 
@@ -49,10 +49,10 @@ final class CloudCleanService: CloudCleanServicing {
         let path: AbsolutePath = try self.path(path)
         let config = try configLoader.loadConfig(path: path)
 
-        guard let cloud = config.cloud else { fatalError() }
-        try await cleanRemoteCacheStorageService.cleanRemoteCacheStorage(
+        guard let cloud = config.cloud else { throw CloudCleanServiceError.cloudNotFound }
+        try await cleanCacheService.cleanCache(
             serverURL: cloud.url,
-            projectSlug: cloud.projectId
+            fullName: cloud.projectId
         )
 
         logger.info("Project was successfully cleaned.")

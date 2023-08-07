@@ -62,7 +62,7 @@ public final class DeleteProjectService: DeleteProjectServicing {
                 throw DeleteProjectServiceError.notFound(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw CreateProjectNextServiceError.unknownError(statusCode)
+            throw DeleteProjectServiceError.unknownError(statusCode)
         }
     }
 }

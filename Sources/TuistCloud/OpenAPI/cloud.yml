@@ -154,6 +154,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/projects/{full_name}/cache/clean:
+    put:
+      operationId: cleanCache
+      parameters:
+        - in: path
+          name: full_name
+          required: true
+          description: The organization of the member to update.
+          schema:
+            type: string
+      responses:
+        "204":
+          description: The cache was successfuly cleaned.
+        "404":
+          description: The project was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /api/organizations/{organization_name}:
     get:
       operationId: getOrganization
