@@ -121,7 +121,7 @@ public final class BuildGraphInspector: BuildGraphInspecting {
             } else if testTargets.isEmpty {
                 return !skipTestTargets.contains { $0.target == testTarget.target.name }
             } else {
-              return testTargets.contains { $0.target == testTarget.target.name }
+                return testTargets.contains { $0.target == testTarget.target.name }
             }
         }
 

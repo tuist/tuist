@@ -32,7 +32,7 @@ class GraphTraverserExtrasTests: XCTestCase {
         let projectWithoutTestPlans = Project.test(path: projectPath)
 
         let testDependencies: Set<GraphDependency> = [
-            .target(name: app.name, path: projectPath)
+            .target(name: app.name, path: projectPath),
         ]
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: projectPath): [],
@@ -103,7 +103,7 @@ class GraphTraverserExtrasTests: XCTestCase {
                 externalProjectPath: [
                     tests3.name: tests3,
                     tests4.name: tests4,
-                ]
+                ],
             ],
             dependencies: dependencies
         )

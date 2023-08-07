@@ -551,7 +551,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let coreTarget = Target.test(name: "Core")
         let coreTestPlan = TestPlan(
             path: projectPath,
-            testTargets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: coreTarget.name), skipped: false)],
+            testTargets: [TestableTarget(
+                target: TargetReference(projectPath: projectPath, name: coreTarget.name),
+                skipped: false
+            )],
             isDefault: true
         )
         let coreTestPlanScheme = Scheme.test(
