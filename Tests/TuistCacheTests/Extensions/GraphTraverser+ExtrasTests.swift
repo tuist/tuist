@@ -173,7 +173,7 @@ class GraphTraverserExtrasTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(Set(filteredTargets.map(\.target)), [tests1, tests2])
+        XCTAssertEqual(Set(filteredTargets.map(\.target)), [app, tests1, tests2])
     }
 
     func test_filterIncludedTargets_when_graphHasTestPlan_filtersOnlyTestPlanTargets() throws {
@@ -187,7 +187,7 @@ class GraphTraverserExtrasTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(filteredTargets.map(\.target), [tests1, tests4])
+        XCTAssertEqual(Set(filteredTargets.map(\.target)), [tests1, tests4])
     }
 }
 
