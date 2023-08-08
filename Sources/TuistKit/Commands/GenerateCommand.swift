@@ -60,6 +60,12 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var ignoreCache: Bool = false
 
+    @Option(
+        name: [.customLong("skip-cache")],
+        help: "A list of targets which will not use cached binaries."
+    )
+    var targetsToSkipCache: [String] = []
+
     func validate() throws {
         if !xcframeworks, destination != [.device, .simulator] {
             throw ValidationError.invalidXCFrameworkOptions
@@ -74,7 +80,8 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
             xcframeworks: xcframeworks,
             destination: destination,
             profile: profile,
-            ignoreCache: ignoreCache
+            ignoreCache: ignoreCache,
+            targetsToSkipCache: Set(targetsToSkipCache)
         )
         GenerateCommand.analyticsDelegate?.addParameters(
             [
