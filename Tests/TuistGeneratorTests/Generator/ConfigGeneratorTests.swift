@@ -261,7 +261,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "TARGETED_DEVICE_FAMILY": "1,2",
             "IPHONEOS_DEPLOYMENT_TARGET": "12.0",
             "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "YES",
-            "SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD": "YES"
+            "SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD": "YES",
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
