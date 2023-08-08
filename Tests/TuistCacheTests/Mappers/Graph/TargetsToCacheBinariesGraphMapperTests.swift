@@ -33,7 +33,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             cacheProfile: .test(),
             cacheOutputType: .framework,
             cacheGraphMutator: cacheGraphMutator,
-            excludedTargets: []
+            excludedSources: []
         )
     }
 
@@ -58,7 +58,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             cacheProfile: .test(),
             cacheOutputType: .framework,
             cacheGraphMutator: cacheGraphMutator,
-            excludedTargets: []
+            excludedSources: []
         )
         let projectPath = try temporaryPath()
         let graph = Graph.test(
@@ -262,7 +262,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             cacheProfile: .test(),
             cacheOutputType: .xcframework([.device, .simulator]),
             cacheGraphMutator: cacheGraphMutator,
-            excludedTargets: []
+            excludedSources: []
         )
 
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
@@ -323,7 +323,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             cacheProfile: .test(),
             cacheOutputType: .framework,
             cacheGraphMutator: cacheGraphMutator,
-            excludedTargets: ["B"]
+            excludedSources: ["B"]
         )
 
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)

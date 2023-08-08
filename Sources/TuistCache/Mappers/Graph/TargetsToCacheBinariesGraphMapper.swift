@@ -50,7 +50,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
     private let cacheProfile: TuistGraph.Cache.Profile
 
     /// List of targets that will not use pre-compiled binaries from the cache.
-    private let excludedTargets: Set<String>
+    private let excludedSources: Set<String>
 
     // MARK: - Init
 
@@ -60,7 +60,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         sources: Set<String>,
         cacheProfile: TuistGraph.Cache.Profile,
         cacheOutputType: CacheOutputType,
-        excludedTargets: Set<String>
+        excludedSources: Set<String>
     ) {
         self.init(
             config: config,
@@ -69,7 +69,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
             sources: sources,
             cacheProfile: cacheProfile,
             cacheOutputType: cacheOutputType,
-            excludedTargets: excludedTargets
+            excludedSources: excludedSources
         )
     }
 
@@ -82,7 +82,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         cacheProfile: TuistGraph.Cache.Profile,
         cacheOutputType: CacheOutputType,
         cacheGraphMutator: CacheGraphMutating = CacheGraphMutator(),
-        excludedTargets: Set<String>
+        excludedSources: Set<String>
     ) {
         self.config = config
         self.cacheStorageProvider = cacheStorageProvider
@@ -92,7 +92,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         self.sources = sources
         self.cacheProfile = cacheProfile
         self.cacheOutputType = cacheOutputType
-        self.excludedTargets = excludedTargets
+        self.excludedSources = excludedSources
     }
 
     // MARK: - GraphMapping
@@ -113,7 +113,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
                 availableTargets: availableTargets.sorted()
             )
         }
-        let excludedTargets = excludedTargets.union(sources)
+        let excludedTargets = excludedSources.union(sources)
         let hashes = try cacheGraphContentHasher.contentHashes(
             for: graph,
             cacheProfile: cacheProfile,

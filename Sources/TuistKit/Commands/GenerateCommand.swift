@@ -62,13 +62,16 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         name: [.customLong("skip-cache")],
-        help: "A list of targets which will not use cached binaries."
+        help: "A list of targets which will not use cached binaries when using default `sources` list."
     )
     var targetsToSkipCache: [String] = []
 
     func validate() throws {
         if !xcframeworks, destination != [.device, .simulator] {
             throw ValidationError.invalidXCFrameworkOptions
+        }
+        if !sources.isEmpty, !targetsToSkipCache.isEmpty {
+            throw ValidationError.skipCacheWithFocusedTargets
         }
     }
 
@@ -98,11 +101,14 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
 
     enum ValidationError: LocalizedError {
         case invalidXCFrameworkOptions
+        case skipCacheWithFocusedTargets
 
         var errorDescription: String? {
             switch self {
             case .invalidXCFrameworkOptions:
                 return "--xcframeworks must be enabled when --destination is set"
+            case .skipCacheWithFocusedTargets:
+                return "--skip-cache must not be used when targets to be focused are specified."
             }
         }
     }

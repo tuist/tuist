@@ -71,7 +71,7 @@ final class GraphMapperFactory: GraphMapperFactorying {
                 sources: cacheSources,
                 cacheProfile: cacheProfile,
                 cacheOutputType: cacheOutputType,
-                excludedTargets: targetsToSkipCache
+                excludedSources: targetsToSkipCache
             )
             mappers.append(focusTargetsGraphMapper)
             mappers.append(TreeShakePrunedTargetsGraphMapper())
