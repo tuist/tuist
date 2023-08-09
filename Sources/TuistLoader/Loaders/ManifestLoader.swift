@@ -60,7 +60,7 @@ public protocol ManifestLoading {
 
     /// Loads the Project.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Project.swift.
-    func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project
+    func loadProject(at path: AbsolutePath, rootPath: AbsolutePath?) throws -> ProjectDescription.Project
 
     /// Loads the Workspace.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the Workspace.swift
@@ -149,8 +149,8 @@ public class ManifestLoader: ManifestLoading {
         try loadManifest(.config, at: path)
     }
 
-    public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
-        try loadManifest(.project, at: path)
+    public func loadProject(at path: AbsolutePath, rootPath: AbsolutePath? = nil) throws -> ProjectDescription.Project {
+        try loadManifest(.project, at: path, rootPath: rootPath)
     }
 
     public func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
@@ -179,14 +179,18 @@ public class ManifestLoader: ManifestLoading {
     // swiftlint:disable:next function_body_length
     private func loadManifest<T: Decodable>(
         _ manifest: Manifest,
-        at path: AbsolutePath
+        at path: AbsolutePath,
+        rootPath: AbsolutePath? = nil
     ) throws -> T {
         let manifestPath = try manifestPath(
             manifest,
             at: path
         )
 
-        let data = try loadDataForManifest(manifest, at: manifestPath)
+        // build root manifest file path
+        let rootManifestPath = try rootManifestPath(manifest, at: rootPath)
+
+        let data = try loadDataForManifest(manifest, at: manifestPath, rootPath: rootManifestPath)
 
         do {
             return try decoder.decode(T.self, from: data)
@@ -257,9 +261,18 @@ public class ManifestLoader: ManifestLoading {
         return manifestPath
     }
 
+    private func rootManifestPath(
+        _ manifest: Manifest,
+        at rootPath: AbsolutePath?
+    ) throws -> AbsolutePath? {
+        guard manifest == .project, let rootPath else { return nil }
+        return try manifestPath(.project, at: rootPath)
+    }
+
     private func loadDataForManifest(
         _ manifest: Manifest,
-        at path: AbsolutePath
+        at path: AbsolutePath,
+        rootPath: AbsolutePath? = nil
     ) throws -> Data {
         let arguments = try buildArguments(
             manifest,
@@ -267,7 +280,14 @@ public class ManifestLoader: ManifestLoading {
         ) + ["--tuist-dump"]
 
         do {
-            let string = try System.shared.capture(arguments, verbose: false, environment: environment.manifestLoadingVariables)
+            var envVars = environment.manifestLoadingVariables
+
+            // Pass in the flag to manifest file if it is being loaded as the root manifest or from a subfolder like Pods/ folder
+            if let rootPath, manifest == .project && rootPath == path {
+                envVars["TUIST_IS_ROOT_MANIFEST"] = "true"
+            }
+
+            let string = try System.shared.capture(arguments, verbose: false, environment: envVars)
 
             guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken),
                   let endTokenRange = string.range(of: ManifestLoader.endManifestToken)

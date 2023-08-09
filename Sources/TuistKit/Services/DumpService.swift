@@ -30,7 +30,7 @@ final class DumpService {
         let encoded: Encodable
         switch manifest {
         case .project:
-            encoded = try manifestLoader.loadProject(at: projectPath)
+            encoded = try manifestLoader.loadProject(at: projectPath, rootPath: nil)
         case .workspace:
             encoded = try manifestLoader.loadWorkspace(at: projectPath)
         case .config:

@@ -66,9 +66,9 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadProject(at path: AbsolutePath) throws -> Project {
+    public func loadProject(at path: AbsolutePath, rootPath: AbsolutePath? = nil) throws -> Project {
         try load(manifest: .project, at: path) {
-            try manifestLoader.loadProject(at: path)
+            try manifestLoader.loadProject(at: path, rootPath: rootPath)
         }
     }
 

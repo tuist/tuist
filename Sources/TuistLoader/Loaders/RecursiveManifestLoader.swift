@@ -51,7 +51,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             manifestLoader.manifests(at: $0).contains(.project)
         }
 
-        let projects = try loadProjects(paths: projectPaths)
+        let projects = try loadProjects(rootPath: path, paths: projectPaths)
         let workspace: ProjectDescription.Workspace
         if let loadedWorkspace = loadedWorkspace {
             workspace = loadedWorkspace
@@ -69,14 +69,14 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
     // MARK: - Private
 
-    private func loadProjects(paths: [AbsolutePath]) throws -> LoadedProjects {
+    private func loadProjects(rootPath: AbsolutePath, paths: [AbsolutePath]) throws -> LoadedProjects {
         var cache = [AbsolutePath: ProjectDescription.Project]()
 
         var paths = Set(paths)
         while !paths.isEmpty {
             paths.subtract(cache.keys)
             let projects = try Array(paths).map(context: ExecutionContext.concurrent) {
-                try manifestLoader.loadProject(at: $0)
+                return try manifestLoader.loadProject(at: $0, rootPath: rootPath)
             }
             var newDependenciesPaths = Set<AbsolutePath>()
             try zip(paths, projects).forEach { path, project in
