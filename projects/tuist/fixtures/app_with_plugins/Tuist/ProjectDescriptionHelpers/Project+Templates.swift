@@ -28,6 +28,7 @@ extension Project {
             targets: [mainTarget],
             resourceSynthesizers: [
                 .strings(plugin: "LocalPlugin"),
+                .files(extensions: ["txt"]),
                 .custom(
                     name: "Lottie",
                     parser: .json,
