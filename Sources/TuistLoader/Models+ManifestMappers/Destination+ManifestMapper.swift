@@ -39,7 +39,7 @@ extension TuistGraph.Destination {
 
             return Set(destinations)
         case (.iOS, _): // an iOS platform, but `nil` deployment target.
-            return [.iPhone, .iPad, .macCatalyst, .appleVisionWithiPadDesign]
+            return .iOS
         case (.tvOS, _):
             return .tvOS
         case (.watchOS, _):
