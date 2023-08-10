@@ -281,10 +281,12 @@ public class ManifestLoader: ManifestLoading {
 
         do {
             var envVars = environment.manifestLoadingVariables
+            envVars["TUIST_MANIFEST_PATH"] = "\(path)"
 
             // Pass in the flag to manifest file if it is being loaded as the root manifest or from a subfolder like Pods/ folder
             if let rootPath, manifest == .project && rootPath == path {
                 envVars["TUIST_IS_ROOT_MANIFEST"] = "true"
+                envVars["TUIST_ROOT_MANIFEST_PATH"] = "\(rootPath)"
             }
 
             let string = try System.shared.capture(arguments, verbose: false, environment: envVars)
