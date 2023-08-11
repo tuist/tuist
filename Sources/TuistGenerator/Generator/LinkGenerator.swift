@@ -221,7 +221,7 @@ final class LinkGenerator: LinkGenerating {
                 )
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
-            case let .product(target, _, platformFilter):
+            case let .product(target, _, platformFilters):
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)
                 }
@@ -229,7 +229,7 @@ final class LinkGenerator: LinkGenerating {
                     file: fileRef,
                     settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
                 )
-                buildFile.platformFilter = platformFilter?.xcodeprojValue
+                buildFile.applyPlatformFilters(platformFilters)
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
             case .library, .bundle, .sdk:
@@ -407,12 +407,12 @@ final class LinkGenerator: LinkGenerating {
                     try addBuildFile(path)
                 case .bundle:
                     break
-                case let .product(target, _, platformFilter):
+                case let .product(target, _, platformFilters):
                     guard let fileRef = fileElements.product(target: target) else {
                         throw LinkGeneratorError.missingProduct(name: target)
                     }
                     let buildFile = PBXBuildFile(file: fileRef)
-                    buildFile.platformFilter = platformFilter?.xcodeprojValue
+                    buildFile.applyPlatformFilters(platformFilters)
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
                 case let .sdk(sdkPath, sdkStatus, _):
@@ -490,13 +490,13 @@ final class LinkGenerator: LinkGenerating {
 
         for dependency in dependencies.sorted() {
             switch dependency {
-            case let .product(target: target, _, platformFilter: platformFilter):
+            case let .product(target: target, _, platformFilters: platformFilters):
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)
                 }
 
                 let buildFile = PBXBuildFile(file: fileRef)
-                buildFile.platformFilter = platformFilter?.xcodeprojValue
+                buildFile.applyPlatformFilters(platformFilters)
                 pbxproj.add(object: buildFile)
                 files.append(buildFile)
             case let .framework(path: path, _, _, _, _, _, _, _),

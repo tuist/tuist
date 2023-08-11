@@ -48,7 +48,7 @@ public enum TargetRunnerError: Equatable, FatalError {
     public var description: String {
         switch self {
         case let .runningNotSupported(target):
-            return "Cannot run \(target.name) - the platform \(target.platform.caseValue) and product type \(target.product.caseValue) are not currently supported."
+            return "Cannot run \(target.name) - the platform \(target.legacyPlatform.caseValue) and product type \(target.product.caseValue) are not currently supported."
         case let .runnableNotFound(path):
             return "The runnable product was expected but not found at \(path)."
         }
@@ -85,7 +85,7 @@ public final class TargetRunner: TargetRunning {
         let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration
             .debug.name
         let xcodeBuildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
-            platform: target.target.platform,
+            platform: target.target.legacyPlatform,
             projectPath: workspacePath,
             configuration: configuration
         )
@@ -94,7 +94,7 @@ public final class TargetRunner: TargetRunning {
             throw TargetRunnerError.runnableNotFound(path: runnablePath.pathString)
         }
 
-        switch (target.target.platform, target.target.product) {
+        switch (target.target.legacyPlatform, target.target.product) {
         case (.macOS, .commandLineTool):
             try runExecutable(runnablePath, arguments: arguments)
         case let (platform, .app):
@@ -116,7 +116,7 @@ public final class TargetRunner: TargetRunning {
     }
 
     public func assertCanRunTarget(_ target: Target) throws {
-        switch (target.platform, target.product) {
+        switch (target.legacyPlatform, target.product) {
         case (.macOS, .commandLineTool),
              (.macOS, .xpc),
              (_, .app):

@@ -107,7 +107,7 @@ public final class GraphLoader: GraphLoading {
         let dependencies = try target.dependencies.map {
             try loadDependency(
                 path: path,
-                fromPlatform: target.platform,
+                fromPlatform: target.legacyPlatform,
                 dependency: $0,
                 cache: cache
             )
