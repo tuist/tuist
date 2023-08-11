@@ -176,7 +176,7 @@ class TargetLinter: TargetLinting {
 
         var issues: [LintingIssue] = []
         if let infoPlist = target.entitlements,
-           case let InfoPlist.file(path: path) = infoPlist,
+           case let Entitlements.file(path: path) = infoPlist,
            !FileHandler.shared.exists(path)
         {
             issues

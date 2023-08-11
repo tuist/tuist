@@ -1,7 +1,41 @@
 import Foundation
 
-/// A info plist from a file, a custom dictonary or a extended defaults.
-public enum InfoPlist: Codable, Equatable {
+public protocol PListTypesProtocol {}
+
+public enum Entitlements: PListTypesProtocol, Codable, Equatable {
+    /// The path to an existing Info.plist file.
+    case file(path: Path)
+
+    /// A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time.
+    case dictionary([String: PList.Value])
+
+    // MARK: - Error
+
+    public enum CodingError: Error {
+        case invalidType(String)
+    }
+
+    // MARK: - Internal
+
+    public var path: Path? {
+        switch self {
+        case let .file(path):
+            return path
+        default:
+            return nil
+        }
+    }
+}
+
+// MARK: - InfoPlist - ExpressibleByStringInterpolation
+
+extension Entitlements: ExpressibleByStringInterpolation {
+    public init(stringLiteral value: String) {
+        self = .file(path: Path(value))
+    }
+}
+
+public enum PList {
     /// It represents the values of the InfoPlist file dictionary.
     /// It ensures that the values used to define the content of the dynamically generated Info.plist files are valid
     public indirect enum Value: Codable, Equatable {
@@ -18,15 +52,19 @@ public enum InfoPlist: Codable, Equatable {
         /// It represents an array value.
         case array([Value])
     }
+}
 
+
+/// A info plist from a file, a custom dictonary or a extended defaults.
+public enum InfoPlist: PListTypesProtocol, Codable, Equatable {
     /// The path to an existing Info.plist file.
     case file(path: Path)
 
     /// A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time.
-    case dictionary([String: Value])
+    case dictionary([String: PList.Value])
 
     /// Generate an Info.plist file with the default content for the target product extended with the values in the given dictionary.
-    case extendingDefault(with: [String: Value])
+    case extendingDefault(with: [String: PList.Value])
 
     /// Generate the default content for the target the InfoPlist belongs to.
     public static var `default`: InfoPlist {
@@ -59,50 +97,50 @@ extension InfoPlist: ExpressibleByStringInterpolation {
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByStringInterpolation
+// MARK: - PList.Value - ExpressibleByStringInterpolation
 
-extension InfoPlist.Value: ExpressibleByStringInterpolation {
+extension PList.Value: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self = .string(value)
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByIntegerLiteral
+// MARK: - PList.Value - ExpressibleByIntegerLiteral
 
-extension InfoPlist.Value: ExpressibleByIntegerLiteral {
+extension PList.Value: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: Int) {
         self = .integer(value)
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByFloatLiteral
+// MARK: - PList.Value - ExpressibleByFloatLiteral
 
-extension InfoPlist.Value: ExpressibleByFloatLiteral {
+extension PList.Value: ExpressibleByFloatLiteral {
     public init(floatLiteral value: Double) {
         self = .real(value)
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByBooleanLiteral
+// MARK: - PList.Value - ExpressibleByBooleanLiteral
 
-extension InfoPlist.Value: ExpressibleByBooleanLiteral {
+extension PList.Value: ExpressibleByBooleanLiteral {
     public init(booleanLiteral value: Bool) {
         self = .boolean(value)
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByDictionaryLiteral
+// MARK: - PList.Value - ExpressibleByDictionaryLiteral
 
-extension InfoPlist.Value: ExpressibleByDictionaryLiteral {
-    public init(dictionaryLiteral elements: (String, InfoPlist.Value)...) {
+extension PList.Value: ExpressibleByDictionaryLiteral {
+    public init(dictionaryLiteral elements: (String, PList.Value)...) {
         self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
     }
 }
 
 // MARK: - InfoPlist.Value - ExpressibleByArrayLiteral
 
-extension InfoPlist.Value: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: InfoPlist.Value...) {
+extension PList.Value: ExpressibleByArrayLiteral {
+    public init(arrayLiteral elements: PList.Value...) {
         self = .array(elements)
     }
 }

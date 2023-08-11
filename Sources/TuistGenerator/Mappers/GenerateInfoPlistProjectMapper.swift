@@ -156,13 +156,13 @@ public final class GenerateEntitlementsProjectMapper: ProjectMapping {
             .appending(component: "\(target.name).entitlements")
         let sideEffect = SideEffectDescriptor.file(FileDescriptor(path: entitlementsPath, contents: data))
 
-        let newTarget = target.with(entitlements: InfoPlist.generatedFile(path: entitlementsPath, data: data))
+        let newTarget = target.with(entitlements: Entitlements.generatedFile(path: entitlementsPath, data: data))
 
         return (newTarget, [sideEffect])
     }
 
     private func infoPlistDictionary(
-        infoPlist: InfoPlist,
+        infoPlist: Entitlements,
         project: Project,
         target: Target
     ) -> [String: Any]? {

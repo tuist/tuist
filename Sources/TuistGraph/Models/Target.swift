@@ -27,7 +27,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     // An info.plist file is needed for (dynamic) frameworks, applications and executables
     // however is not needed for other products such as static libraries.
     public var infoPlist: InfoPlist?
-    public var entitlements: InfoPlist?
+    public var entitlements: Entitlements?
     public var settings: Settings?
     public var dependencies: [TargetDependency]
     public var sources: [SourceFile]
@@ -55,7 +55,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         bundleId: String,
         deploymentTarget: DeploymentTarget? = nil,
         infoPlist: InfoPlist? = nil,
-        entitlements: InfoPlist? = nil,
+        entitlements: Entitlements? = nil,
         settings: Settings? = nil,
         sources: [SourceFile] = [],
         resources: [ResourceFileElement] = [],
@@ -314,7 +314,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 
     /// Returns a new copy of the target with the given entitlements set.
     /// - Parameter entitlements: entitlements to be set to the copied instance.
-    public func with(entitlements: InfoPlist) -> Target {
+    public func with(entitlements: Entitlements) -> Target {
         var copy = self
         copy.entitlements = entitlements
         return copy

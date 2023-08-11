@@ -15,12 +15,12 @@ extension TuistGraph.InfoPlist {
             return .file(path: try generatorPaths.resolve(path: infoplistPath))
         case let .dictionary(dictionary):
             return .dictionary(
-                dictionary.mapValues { TuistGraph.InfoPlist.Value.from(manifest: $0) }
+                dictionary.mapValues { TuistGraph.PList.Value.from(manifest: $0) }
             )
         case let .extendingDefault(dictionary):
             return .extendingDefault(
                 with:
-                dictionary.mapValues { TuistGraph.InfoPlist.Value.from(manifest: $0) }
+                dictionary.mapValues { TuistGraph.PList.Value.from(manifest: $0) }
             )
         case .none:
             return .none
@@ -28,12 +28,31 @@ extension TuistGraph.InfoPlist {
     }
 }
 
-extension TuistGraph.InfoPlist.Value {
-    /// Maps a ProjectDescription.InfoPlist.Value instance into a TuistGraph.InfoPlist.Value instance.
+extension TuistGraph.Entitlements {
+    /// Maps a ProjectDescription.Entitlements instance into a TuistGraph.Entitlements instance.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of the entitlements model.
+    ///   - generatorPaths: Generator paths.
+    static func from(manifest: ProjectDescription.Entitlements?, generatorPaths: GeneratorPaths) throws -> TuistGraph.Entitlements? {
+        switch manifest {
+        case let .file(infoplistPath):
+            return .file(path: try generatorPaths.resolve(path: infoplistPath))
+        case let .dictionary(dictionary):
+            return .dictionary(
+                dictionary.mapValues { TuistGraph.PList.Value.from(manifest: $0) }
+            )
+        case .none:
+            return .none
+        }
+    }
+}
+
+extension TuistGraph.PList.Value {
+    /// Maps a ProjectDescription.PList.Value instance into a TuistGraph.PList.Value instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the Info plist value model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.InfoPlist.Value) -> TuistGraph.InfoPlist.Value {
+    static func from(manifest: ProjectDescription.PList.Value) -> TuistGraph.PList.Value {
         switch manifest {
         case let .string(value):
             return .string(value)
@@ -44,9 +63,9 @@ extension TuistGraph.InfoPlist.Value {
         case let .real(value):
             return .real(value)
         case let .array(value):
-            return .array(value.map { TuistGraph.InfoPlist.Value.from(manifest: $0) })
+            return .array(value.map { TuistGraph.PList.Value.from(manifest: $0) })
         case let .dictionary(value):
-            return .dictionary(value.mapValues { TuistGraph.InfoPlist.Value.from(manifest: $0) })
+            return .dictionary(value.mapValues { TuistGraph.PList.Value.from(manifest: $0) })
         }
     }
 }

@@ -1,7 +1,40 @@
 import Foundation
 import TSCBasic
 
-public enum InfoPlist: Equatable, Codable {
+public protocol PListTypesProtocol {}
+
+public enum Entitlements: PListTypesProtocol, Equatable, Codable {
+    // Path to a user defined info.plist file (already exists on disk).
+    case file(path: AbsolutePath)
+
+    // Path to a generated info.plist file (may not exist on disk at the time of project generation).
+    // Data of the generated file
+    case generatedFile(path: AbsolutePath, data: Data)
+
+    // User defined dictionary of keys/values for an info.plist file.
+    case dictionary([String: PList.Value])
+
+    // MARK: - Public
+
+    public var path: AbsolutePath? {
+        switch self {
+        case let .file(path), let .generatedFile(path: path, data: _):
+            return path
+        default:
+            return nil
+        }
+    }
+}
+
+// MARK: - Entitlements - ExpressibleByStringLiteral
+
+extension Entitlements: ExpressibleByStringLiteral {
+    public init(stringLiteral value: String) {
+        self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
+    }
+}
+
+public enum PList {
     public indirect enum Value: Equatable, Codable {
         case string(String)
         case integer(Int)
@@ -27,7 +60,9 @@ public enum InfoPlist: Equatable, Codable {
             }
         }
     }
+}
 
+public enum InfoPlist: PListTypesProtocol, Equatable, Codable {
     // Path to a user defined info.plist file (already exists on disk).
     case file(path: AbsolutePath)
 
@@ -36,11 +71,11 @@ public enum InfoPlist: Equatable, Codable {
     case generatedFile(path: AbsolutePath, data: Data)
 
     // User defined dictionary of keys/values for an info.plist file.
-    case dictionary([String: Value])
+    case dictionary([String: PList.Value])
 
     // User defined dictionary of keys/values for an info.plist file extending the default set of keys/values
     // for the target type.
-    case extendingDefault(with: [String: Value])
+    case extendingDefault(with: [String: PList.Value])
 
     // MARK: - Public
 
@@ -62,57 +97,57 @@ extension InfoPlist: ExpressibleByStringLiteral {
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByStringLiteral
+// MARK: - PList.Value - ExpressibleByStringLiteral
 
-extension InfoPlist.Value: ExpressibleByStringLiteral {
+extension PList.Value: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         self = .string(value)
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByIntegerLiteral
+// MARK: - PList.Value - ExpressibleByIntegerLiteral
 
-extension InfoPlist.Value: ExpressibleByIntegerLiteral {
+extension PList.Value: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: Int) {
         self = .integer(value)
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByIntegerLiteral
+// MARK: - PList.Value - ExpressibleByIntegerLiteral
 
-extension InfoPlist.Value: ExpressibleByFloatLiteral {
+extension PList.Value: ExpressibleByFloatLiteral {
     public init(floatLiteral value: Double) {
         self = .real(value)
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByBooleanLiteral
+// MARK: - PList.Value - ExpressibleByBooleanLiteral
 
-extension InfoPlist.Value: ExpressibleByBooleanLiteral {
+extension PList.Value: ExpressibleByBooleanLiteral {
     public init(booleanLiteral value: Bool) {
         self = .boolean(value)
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByDictionaryLiteral
+// MARK: - PList.Value - ExpressibleByDictionaryLiteral
 
-extension InfoPlist.Value: ExpressibleByDictionaryLiteral {
-    public init(dictionaryLiteral elements: (String, InfoPlist.Value)...) {
+extension PList.Value: ExpressibleByDictionaryLiteral {
+    public init(dictionaryLiteral elements: (String, PList.Value)...) {
         self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByArrayLiteral
+// MARK: - PList.Value - ExpressibleByArrayLiteral
 
-extension InfoPlist.Value: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: InfoPlist.Value...) {
+extension PList.Value: ExpressibleByArrayLiteral {
+    public init(arrayLiteral elements: PList.Value...) {
         self = .array(elements)
     }
 }
 
-// MARK: - Dictionary (InfoPlist.Value)
+// MARK: - Dictionary (PList.Value)
 
-extension Dictionary where Value == InfoPlist.Value {
+extension Dictionary where Value == PList.Value {
     public func unwrappingValues() -> [Key: Any] {
         mapValues { $0.value }
     }
