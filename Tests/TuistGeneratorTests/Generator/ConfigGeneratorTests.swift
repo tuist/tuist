@@ -683,7 +683,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             name: "Test",
             bundleId: "com.test.bundle_id",
             infoPlist: .file(path: try AbsolutePath(validating: "/Info.plist")),
-            entitlements: try AbsolutePath(validating: "/Test.entitlements"),
+            entitlements: .file(path: try AbsolutePath(validating: "/Test.entitlements")),
             settings: Settings(base: ["Base": "Base"], configurations: configurations)
         )
         let project = Project.test(

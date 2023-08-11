@@ -237,8 +237,13 @@ final class ConfigGenerator: ConfigGenerating {
             }
         }
 
-        if let entitlements = target.entitlements {
-            settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)")
+        if let entitlements = target.entitlements, let path = entitlements.path {
+            let relativePath = path.relative(to: sourceRootPath).pathString
+            if project.xcodeProjPath.parentDirectory == sourceRootPath {
+                settings["CODE_SIGN_ENTITLEMENTS"] = .string(relativePath)
+            } else {
+                settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(relativePath)")
+            }
         }
         settings["SDKROOT"] = .string(target.platform.xcodeSdkRoot)
 

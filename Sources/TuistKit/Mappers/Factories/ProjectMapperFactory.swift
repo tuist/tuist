@@ -71,6 +71,8 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         // Info Plist
         mappers.append(GenerateInfoPlistProjectMapper())
 
+        mappers.append(GenerateEntitlementsProjectMapper())
+
         // Template macros
         mappers.append(IDETemplateMacrosMapper())
 

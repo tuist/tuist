@@ -173,11 +173,22 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintEntitlementsExist(target: Target) -> [LintingIssue] {
+
         var issues: [LintingIssue] = []
-        if let path = target.entitlements, !FileHandler.shared.exists(path) {
-            issues.append(LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error))
+        if let infoPlist = target.entitlements,
+           case let InfoPlist.file(path: path) = infoPlist,
+           !FileHandler.shared.exists(path)
+        {
+            issues
+                .append(LintingIssue(reason: "Entitlements file not found at path \(infoPlist.path!.pathString)", severity: .error))
         }
         return issues
+
+//        var issues: [LintingIssue] = []
+//        if let path = target.entitlements, !FileHandler.shared.exists(path) {
+//            issues.append(LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error))
+//        }
+//        return issues
     }
 
     private func lintLibraryHasNoResources(target: Target) -> [LintingIssue] {

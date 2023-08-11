@@ -38,7 +38,7 @@ public struct Target: Codable, Equatable {
     public let headers: Headers?
 
     /// The entitlements file path for the target.
-    public let entitlements: Path?
+    public let entitlements: InfoPlist?
 
     /// The build phase scripts actions for the target.
     public let scripts: [TargetScript]
@@ -76,7 +76,7 @@ public struct Target: Codable, Equatable {
         resources: ResourceFileElements? = nil,
         copyFiles: [CopyFilesAction]? = nil,
         headers: Headers? = nil,
-        entitlements: Path? = nil,
+        entitlements: InfoPlist? = nil,
         scripts: [TargetScript] = [],
         dependencies: [TargetDependency] = [],
         settings: Settings? = nil,

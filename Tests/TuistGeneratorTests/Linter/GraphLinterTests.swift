@@ -1096,7 +1096,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             platform: .iOS,
             product: .appClip,
             bundleId: "com.example.app.clip",
-            entitlements: entitlementsPath
+            entitlements: .file(path: entitlementsPath)
         )
         let project = Project.test(path: temporaryPath, targets: [app, appClip])
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -1140,7 +1140,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             platform: .iOS,
             product: .appClip,
             bundleId: "com.example1.app.clip",
-            entitlements: entitlementsPath
+            entitlements: .file(path: entitlementsPath)
         )
         let project = Project.test(targets: [app, appClip])
 
@@ -1275,7 +1275,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             platform: .iOS,
             product: .appClip,
             bundleId: "com.example.app.clip1",
-            entitlements: entitlementsPath
+            entitlements: .file(path: entitlementsPath)
         )
 
         let appClip2 = Target.test(
@@ -1283,7 +1283,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             platform: .iOS,
             product: .appClip,
             bundleId: "com.example.app.clip2",
-            entitlements: entitlementsPath
+            entitlements: .file(path: entitlementsPath)
         )
 
         let project = Project.test(path: temporaryPath, targets: [app, appClip1, appClip2])
@@ -1343,7 +1343,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             platform: .iOS,
             product: .appClip,
             bundleId: "com.example.app.clip1",
-            entitlements: entitlementsPath
+            entitlements: .file(path: entitlementsPath)
         )
 
         let project = Project.test(path: temporaryPath, targets: [app, appClip, framework])
