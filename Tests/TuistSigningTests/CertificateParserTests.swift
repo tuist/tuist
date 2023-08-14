@@ -23,12 +23,12 @@ final class CertificateParserTests: TuistUnitTestCase {
         let privateKey = try temporaryPath()
         let subjectOutput = "subject= /UID=VD55TKL3V6/OU=QH95ER52SG/O=Name/C=US\n"
         system.succeedCommand(
-            ["openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject"],
+            ["/usr/bin/openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject"],
             output: subjectOutput
         )
         let fingerprintOutput = "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/OU=QH95ER52SG/O=Name/C=US\n"
         system.succeedCommand(
-            ["openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-fingerprint"],
+            ["/usr/bin/openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-fingerprint"],
             output: fingerprintOutput
         )
 
@@ -45,12 +45,12 @@ final class CertificateParserTests: TuistUnitTestCase {
         let privateKey = try temporaryPath()
         let subjectOutput = "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/O=Name/C=US\n"
         system.succeedCommand(
-            ["openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject"],
+            ["/usr/bin/openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject"],
             output: subjectOutput
         )
         let fingerprintOutput = "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/OU=QH95ER52SG/O=Name/C=US\n"
         system.succeedCommand(
-            ["openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-fingerprint"],
+            ["/usr/bin/openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-fingerprint"],
             output: fingerprintOutput
         )
 
@@ -67,12 +67,12 @@ final class CertificateParserTests: TuistUnitTestCase {
         let privateKey = try temporaryPath()
         let subjectOutput = "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/OU=QH95ER52SG/O=Name/C=US\n"
         system.succeedCommand(
-            ["openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject"],
+            ["/usr/bin/openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject"],
             output: subjectOutput
         )
         let fingerprintOutput = "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/OU=QH95ER52SG/O=Name/C=US\n"
         system.succeedCommand(
-            ["openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-fingerprint"],
+            ["/usr/bin/openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-fingerprint"],
             output: fingerprintOutput
         )
         let expectedCertificate = Certificate(
@@ -98,12 +98,12 @@ final class CertificateParserTests: TuistUnitTestCase {
         let subjectOutput =
             "subject=UID = VD55TKL3V6, CN = \"Apple Development: Name (54GSF6G47V)\", OU = QH95ER52SG, O = \"Name\", C = US"
         system.succeedCommand(
-            ["openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject"],
+            ["/usr/bin/openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-subject"],
             output: subjectOutput
         )
         let fingerprintOutput = "subject= /UID=VD55TKL3V6/CN=Apple Development: Name (54GSF6G47V)/OU=QH95ER52SG/O=Name/C=US\n"
         system.succeedCommand(
-            ["openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-fingerprint"],
+            ["/usr/bin/openssl", "x509", "-inform", "der", "-in", publicKey.pathString, "-noout", "-fingerprint"],
             output: fingerprintOutput
         )
         let expectedCertificate = Certificate(
