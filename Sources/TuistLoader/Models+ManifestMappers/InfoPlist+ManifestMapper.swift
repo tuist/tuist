@@ -31,7 +31,7 @@ extension TuistGraph.InfoPlist {
 extension TuistGraph.Entitlements {
     /// Maps a ProjectDescription.Entitlements instance into a TuistGraph.Entitlements instance.
     /// - Parameters:
-    ///   - manifest: Manifest representation of the entitlements model.
+    ///   - manifest: Manifest representation of the Entitlements model.
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.Entitlements?, generatorPaths: GeneratorPaths) throws -> TuistGraph.Entitlements? {
         switch manifest {

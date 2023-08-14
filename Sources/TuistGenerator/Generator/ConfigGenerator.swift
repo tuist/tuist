@@ -237,6 +237,7 @@ final class ConfigGenerator: ConfigGenerating {
             }
         }
 
+        // Entitlements
         if let entitlements = target.entitlements, let path = entitlements.path {
             let relativePath = path.relative(to: sourceRootPath).pathString
             if project.xcodeProjPath.parentDirectory == sourceRootPath {
@@ -245,6 +246,7 @@ final class ConfigGenerator: ConfigGenerating {
                 settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(relativePath)")
             }
         }
+
         settings["SDKROOT"] = .string(target.platform.xcodeSdkRoot)
 
         if target.product == .staticFramework {

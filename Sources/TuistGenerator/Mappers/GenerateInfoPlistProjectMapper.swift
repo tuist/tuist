@@ -101,6 +101,7 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
         }
     }
 }
+
 /// A project mapper that generates derived Info.plist files for targets that define it as a dictonary.
 public final class GenerateEntitlementsProjectMapper: ProjectMapping {
     private let derivedDirectoryName: String
@@ -136,8 +137,8 @@ public final class GenerateEntitlementsProjectMapper: ProjectMapping {
         }
 
         // Get the Info.plist that needs to be generated
-        guard let dictionary = infoPlistDictionary(
-            infoPlist: entitlements,
+        guard let dictionary = entitlementsDictionary(
+            entitlements: entitlements,
             project: project,
             target: target
         )
@@ -161,12 +162,12 @@ public final class GenerateEntitlementsProjectMapper: ProjectMapping {
         return (newTarget, [sideEffect])
     }
 
-    private func infoPlistDictionary(
-        infoPlist: Entitlements,
+    private func entitlementsDictionary(
+        entitlements: Entitlements,
         project: Project,
         target: Target
     ) -> [String: Any]? {
-        switch infoPlist {
+        switch entitlements {
         case let .dictionary(content):
             return content.mapValues { $0.value }
         default:

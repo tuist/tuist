@@ -6,9 +6,9 @@ public protocol PlistContentHashing {
     func hash<T: PListTypesProtocol>(plist: T) throws -> String
 }
 
-/// `InfoPlistContentHasher`
-/// is responsible for computing a hash that uniquely identifies a `InfoPlist`
-public final class InfoPlistContentHasher: PlistContentHashing {
+/// `PListContentHasher`
+/// is responsible for computing a hash that uniquely identifies a property-list file (e.g. `Info.plist` or `.entitlements`)
+public final class PListContentHasher: PlistContentHashing {
     private let contentHasher: ContentHashing
     // MARK: - Init
 
@@ -16,7 +16,7 @@ public final class InfoPlistContentHasher: PlistContentHashing {
         self.contentHasher = contentHasher
     }
 
-    // MARK: - InfoPlistContentHashing
+    // MARK: - PListContentHashing
 
     public func hash<T: PListTypesProtocol>(plist: T) throws -> String {
         // TODO: DRY, improve generalization

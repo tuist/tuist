@@ -36,7 +36,7 @@ extension Entitlements: ExpressibleByStringInterpolation {
 }
 
 public enum PList {
-    /// It represents the values of the InfoPlist file dictionary.
+    /// It represents the values of the PList file dictionary.
     /// It ensures that the values used to define the content of the dynamically generated Info.plist files are valid
     public indirect enum Value: Codable, Equatable {
         /// It represents a string value.

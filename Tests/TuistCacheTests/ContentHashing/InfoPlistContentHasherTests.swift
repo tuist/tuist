@@ -11,14 +11,14 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class InfoPlistContentHasherTests: TuistUnitTestCase {
-    private var subject: InfoPlistContentHasher!
+    private var subject: PListContentHasher!
     private var mockContentHasher: MockContentHasher!
     private let filePath1 = try! AbsolutePath(validating: "/file1")
 
     override func setUp() {
         super.setUp()
         mockContentHasher = MockContentHasher()
-        subject = InfoPlistContentHasher(contentHasher: mockContentHasher)
+        subject = PListContentHasher(contentHasher: mockContentHasher)
     }
 
     override func tearDown() {

@@ -37,7 +37,7 @@ public struct Target: Codable, Equatable {
     /// The headers for the target.
     public let headers: Headers?
 
-    /// The entitlements file path for the target.
+    /// The entitlements representation
     public let entitlements: Entitlements?
 
     /// The build phase scripts actions for the target.
