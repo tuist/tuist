@@ -104,6 +104,12 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         [.dynamicLibrary, .staticLibrary, .framework, .staticFramework].contains(product)
     }
 
+    /// Notifies if the target can group dependencies
+    public func mergesDependencies() -> Bool {
+        let setting = settings?.base["MERGED_BINARY_TYPE"]
+        return setting == .string("manual") || setting == .string("automatic")
+    }
+
     /// Returns whether a target is exclusive to a single platform
     public func isExclusiveTo(_ platform: Platform) -> Bool {
         destinations.map(\.platform).allSatisfy { $0 == platform }

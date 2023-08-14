@@ -68,7 +68,8 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
                 path: $0,
                 infoPlist: infoPlist,
                 primaryBinaryPath: binaryPath,
-                linking: linking
+                linking: linking,
+                mergeable: false
             )
         }
 
@@ -82,7 +83,8 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
                 path: xcframeworkPath,
                 infoPlist: infoPlist,
                 primaryBinaryPath: binaryPath,
-                linking: linking
+                linking: linking,
+                isMergeable: false
             )
         )
     }

@@ -207,11 +207,12 @@ public class GraphTraverser: GraphTraversing {
         guard let target = target(path: path, name: name), canEmbedProducts(target: target.target) else { return Set() }
 
         var references: Set<GraphDependencyReference> = Set([])
+        let mergingDependencies = target.target.mergesDependencies()
 
         /// Precompiled frameworks
         let precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: isDependencyPrecompiledDynamicAndLinkable,
+            test: mergingDependencies ? isDependencyPrecompiledDynamicAndNotMergeable : isDependencyPrecompiledDynamicAndLinkable,
             skip: canDependencyEmbedProducts
         )
         .lazy
@@ -221,7 +222,7 @@ public class GraphTraverser: GraphTraversing {
         /// Other targets' frameworks.
         let otherTargetFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: isDependencyDynamicTarget,
+            test: mergingDependencies ? isDependencyDynamicAndNotMergeableTarget : isDependencyDynamicTarget,
             skip: canDependencyEmbedProducts
         )
         .lazy
@@ -441,7 +442,7 @@ public class GraphTraverser: GraphTraversing {
         .lazy
         .compactMap { (dependency: GraphDependency) -> AbsolutePath? in
             switch dependency {
-            case let .xcframework(path, _, _, _): return path
+            case let .xcframework(path, _, _, _, _): return path
             case let .framework(path, _, _, _, _, _, _): return path
             case .library: return nil
             case .bundle: return nil
@@ -613,7 +614,7 @@ public class GraphTraverser: GraphTraversing {
 
     func isDependencyStatic(dependency: GraphDependency) -> Bool {
         switch dependency {
-        case let .xcframework(_, _, _, linking),
+        case let .xcframework(_, _, _, linking, _),
              let .framework(_, _, _, _, linking, _, _),
              let .library(_, _, linking, _, _):
             return linking == .static
@@ -654,7 +655,7 @@ public class GraphTraverser: GraphTraversing {
 
     func isDependencyPrecompiledDynamicAndLinkable(dependency: GraphDependency) -> Bool {
         switch dependency {
-        case let .xcframework(_, _, _, linking),
+        case let .xcframework(_, _, _, linking, _),
              let .framework(_, _, _, _, linking, _, _),
              let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
             return linking == .dynamic
@@ -663,6 +664,21 @@ public class GraphTraverser: GraphTraversing {
         case .target: return false
         case .sdk: return false
         }
+    }
+
+    func isDependencyDynamicAndNotMergeableTarget(dependency: GraphDependency) -> Bool {
+        guard case let .target(name, path) = dependency, let target = target(path: path, name: name)
+        else {
+            return isDependencyPrecompiledDynamicAndLinkable(dependency: dependency)
+        }
+        return target.target.product.isDynamic && !target.target.mergesDependencies()
+    }
+
+    func isDependencyPrecompiledDynamicAndNotMergeable(dependency: GraphDependency) -> Bool {
+        guard case let .xcframework(_, _, _, linking, mergeable) = dependency else {
+            return isDependencyPrecompiledDynamicAndLinkable(dependency: dependency)
+        }
+        return linking == .dynamic && !mergeable
     }
 
     func canDependencyEmbedProducts(dependency: GraphDependency) -> Bool {
@@ -731,7 +747,7 @@ public class GraphTraverser: GraphTraversing {
                 productName: target.target.productNameWithExtension,
                 platformFilters: target.target.dependencyPlatformFilters
             )
-        case let .xcframework(path, infoPlist, primaryBinaryPath, _):
+        case let .xcframework(path, infoPlist, primaryBinaryPath, _, _):
             return .xcframework(
                 path: path,
                 infoPlist: infoPlist,
@@ -791,7 +807,7 @@ public class GraphTraverser: GraphTraversing {
         let precompiledStatic = graph.dependencies[.target(name: name, path: path), default: []]
             .filter { dependency in
                 switch dependency {
-                case let .xcframework(_, _, _, linking: linking):
+                case let .xcframework(_, _, _, linking: linking, _):
                     return linking == .static
                 case .framework, .library, .bundle, .packageProduct, .target, .sdk:
                     return false

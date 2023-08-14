@@ -224,7 +224,8 @@ public final class GraphLoader: GraphLoading {
             path: metadata.path,
             infoPlist: metadata.infoPlist,
             primaryBinaryPath: metadata.primaryBinaryPath,
-            linking: metadata.linking
+            linking: metadata.linking,
+            isMergeable: metadata.mergeable
         )
         cache.add(xcframework: xcframework, at: path)
         return xcframework
