@@ -84,7 +84,8 @@ extension GraphDependency {
             path: path,
             infoPlist: _,
             primaryBinaryPath: _,
-            linking: _
+            linking: _,
+            isMergeable: _
         ):
             return path.basenameWithoutExt
         case let .library(

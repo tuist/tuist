@@ -73,7 +73,8 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
             path: path,
             infoPlist: infoPlist,
             primaryBinaryPath: primaryBinaryPath,
-            linking: linking
+            linking: linking,
+            mergeable: infoPlist.libraries.allSatisfy(\.mergeableMetadata)
         )
     }
 

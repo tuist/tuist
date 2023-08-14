@@ -52,7 +52,8 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
             path: path,
             infoPlist: metadata.infoPlist,
             primaryBinaryPath: metadata.primaryBinaryPath,
-            linking: metadata.linking
+            linking: metadata.linking,
+            isMergeable: metadata.mergeable
         )
     }
 }

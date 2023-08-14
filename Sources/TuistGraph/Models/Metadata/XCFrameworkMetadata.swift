@@ -7,16 +7,19 @@ public struct XCFrameworkMetadata: Equatable {
     public var infoPlist: XCFrameworkInfoPlist
     public var primaryBinaryPath: AbsolutePath
     public var linking: BinaryLinking
+    public var mergeable: Bool
 
     public init(
         path: AbsolutePath,
         infoPlist: XCFrameworkInfoPlist,
         primaryBinaryPath: AbsolutePath,
-        linking: BinaryLinking
+        linking: BinaryLinking,
+        mergeable: Bool
     ) {
         self.path = path
         self.infoPlist = infoPlist
         self.primaryBinaryPath = primaryBinaryPath
         self.linking = linking
+        self.mergeable = mergeable
     }
 }

@@ -1175,13 +1175,15 @@ final class GraphTraverserTests: TuistUnitTestCase {
             path: "/xcframeworks/c.xcframework",
             infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
             primaryBinaryPath: "/xcframeworks/c.xcframework/c",
-            linking: .dynamic
+            linking: .dynamic,
+            isMergeable: false
         )
         let dDependency = GraphDependency.xcframework(
             path: "/xcframeworks/d.xcframework",
             infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
             primaryBinaryPath: "/xcframeworks/d.xcframework/d",
-            linking: .dynamic
+            linking: .dynamic,
+            isMergeable: false
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency),
