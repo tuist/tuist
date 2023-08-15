@@ -1,4 +1,3 @@
 public/**/*
 node_modules/**/*
 vendor/**/*
-config/tailwind.config.js

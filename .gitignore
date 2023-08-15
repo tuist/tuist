@@ -48,8 +48,3 @@ TODO.md
 /yarn-error.log
 yarn-debug.log*
 .yarn-integrity
-
-vendor/bundle
-
-/app/assets/builds/*
-!/app/assets/builds/.keep

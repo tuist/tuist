@@ -12,6 +12,7 @@ gem "pg", "~> 1.5.0"
 gem "puma", "~> 6.0"
 gem "rails", "~> 7.0.0"
 gem "redis", "~> 4.0"
+gem "sass-rails", ">= 6"
 gem "sidekiq", "~> 6.2"
 gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 gem "vite_rails", "~> 3.0.3"
@@ -21,8 +22,6 @@ gem "aws-sdk-s3", "~> 1.112"
 gem "react-rails", "~> 2.6"
 gem "webpacker", "~> 5.4"
 gem "groupdate", "~> 6.1"
-gem "tailwindcss-rails", "~> 2.0"
-gem "sassc-rails", "~> 2.1"
 
 # GraphQL
 gem "graphql", "~> 2.0.5"
@@ -57,6 +56,8 @@ end
 
 group :test do
   gem "capybara", ">= 3.26"
+  gem "selenium-webdriver"
+  gem "webdrivers"
   gem "mocha", "~> 2.1.0"
 end
 

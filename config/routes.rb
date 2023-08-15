@@ -16,8 +16,6 @@ Rails.application.routes.draw do
 
   root to: "root#app"
 
-  get "/get-started", to: "root#get_started"
-
   get "/invitations/:token/", to: "application#app", as: :invitation
 
   get "/auth", to: "auth#authenticate"

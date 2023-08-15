@@ -1,82 +1,29 @@
-<%= javascript_pack_tag 'application' %>
-<%= stylesheet_link_tag 'tailwind' %>
+<h2>Sign up</h2>
 
-<%- @omniauth_providers = [] %>
-<%- if devise_mapping.omniauthable? %>
-  <%- resource_class.omniauth_providers.each do |provider| %>
-    <%- @omniauth_providers.push({title: OmniAuth::Utils.camelize(provider), link: omniauth_authorize_path(resource_name, provider)}) %>
-  <% end %>
+<%= form_for(resource, as: resource_name, url: registration_path(resource_name)) do |f| %>
+  <%= render "devise/shared/error_messages", resource: resource %>
+
+  <div class="field">
+    <%= f.label :email %><br />
+    <%= f.email_field :email, autofocus: true, autocomplete: "email" %>
+  </div>
+
+  <div class="field">
+    <%= f.label :password %>
+    <% if @minimum_password_length %>
+    <em>(<%= @minimum_password_length %> characters minimum)</em>
+    <% end %><br />
+    <%= f.password_field :password, autocomplete: "new-password" %>
+  </div>
+
+  <div class="field">
+    <%= f.label :password_confirmation %><br />
+    <%= f.password_field :password_confirmation, autocomplete: "new-password" %>
+  </div>
+
+  <div class="actions">
+    <%= f.submit "Sign up" %>
+  </div>
 <% end %>
 
-<section class=" bg-gray-900">
-  <div class="flex flex-col items-center justify-center px-6 py-8 mx-auto md:h-screen lg:py-0">
-    <a
-      href="/"
-      class="flex items-center space-x-4 mb-6 text-2xl font-semibold text-white"
-    >
-      <%# <%= embedded_svg('tuist_cloud_logo', class: "w-8") %> %>
-      <div>Tuist Cloud</div>
-    </a>
-    <div class="w-full rounded-lg shadow border md:mt-0 sm:max-w-md xl:p-0 bg-gray-800 border-gray-700">
-      <div class="p-6 space-y-4 md:space-y-6 sm:p-8">
-        <h1 class="text-xl font-bold leading-tight tracking-tight md:text-2xl text-white">
-          Welcome
-        </h1>
-        <p class="text-gray-300 text-sm">
-          Using Tuist Cloud requires authentication. Use any of the providers below to authenticate.
-        </p>
-        <a
-          href="<%= @omniauth_providers[0][:link] %>"
-          data-method="post"
-          class="btn-primary"
-        >
-          <span>
-            Sign up with GitHub
-          </span>
-          <%# <%= embedded_svg('github_logo', class: "w-5 h-5 object-contain fill-white") %> %>
-        </a>
-
-        <div class="relative">
-          <div class="absolute inset-0 flex items-center">
-            <div class="w-full border-t"></div>
-          </div>
-          <div class="relative flex justify-center text-sm">
-            <span class="px-2 bg-gray-800 text-gray-300 font-medium">
-              or
-            </span>
-          </div>
-        </div>
-        <%= form_for(resource, as: resource_name, url: registration_path(resource_name)) do |f| %>
-          <div class="mb-4">
-            <label for="email" class="block text-sm text-white font-medium mb-2">
-              Email
-            </label>
-            <%= f.text_field :email, class: "form-control input-primary", placeholder: "you@example.com" %>
-          </div>
-          <div class="mb-4">
-            <label for="password" class="block text-sm text-white font-medium mb-2">
-              Password
-            </label>
-            <%= f.password_field :password, class: "form-control input-primary", placeholder: "Enter your password" %>
-          </div>
-          <%= render "devise/shared/error_messages", resource: resource %>
-          <% if alert.present? %>
-            <div class="w-full flex flex-col items-start text-white focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 my-4 text-center bg-red-600" role="alert">
-              <%= alert %>
-            </div>
-          <% end %>
-          <div class="mb-6">
-            <p class="text-gray-300">
-            Have an account? <%= link_to "Sign in", new_user_session_path, class: "text-white" %>
-            </p>
-          </div>
-        <button
-          class="btn-primary"
-          type="submit"
-        >
-          <%= f.submit "Sign up" %>
-        </button>
-      <% end %>
-    </div>
-  </div>
-</section>
+<%= render "devise/shared/links" %>

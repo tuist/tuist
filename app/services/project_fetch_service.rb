@@ -13,10 +13,6 @@ class ProjectFetchService < ApplicationService
       def message
         "You do not have a permission to view a project #{account_name}/#{name}"
       end
-
-      def status_code
-        :unauthorized
-      end
     end
 
     class ProjectNotFoundByName < CloudError
