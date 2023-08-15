@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+
+@layer components {
+  .btn-primary {
+    @apply py-2 px-4 bg-blue-200;
+  }
+}
+
+*/
+
+@layer components {
+  .btn-primary {
+    @apply w-full flex flex-row justify-center space-x-4 text-white focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center bg-primary-600 hover:bg-primary-700 focus:ring-primary-800
+  }
+
+  .input-primary {
+    @apply w-full px-4 py-3 rounded-lg border bg-gray-800 focus:ring caret-gray-300 text-white
+  }
+}
