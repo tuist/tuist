@@ -410,6 +410,7 @@ Thanks goes to these wonderful people:
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/woohyunjin06"><img src="https://avatars.githubusercontent.com/u/30452977?v=4" width="100px;" alt=""/><br /><sub><b>Hyunjin</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kevin58332"><img src="https://avatars.githubusercontent.com/u/47673410?v=4" width="100px;" alt=""/><br /><sub><b>Kevin Aguilar</b></sub></a></td>
     </tr>
   </tbody>
 </table>
