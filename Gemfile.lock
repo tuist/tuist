@@ -319,9 +319,6 @@ GEM
       rubocop (~> 1.51)
     ruby-progressbar (1.13.0)
     ruby2_keywords (0.0.5)
-    rubyzip (2.3.2)
-    sass-rails (6.0.0)
-      sassc-rails (~> 2.1, >= 2.1.1)
     sassc (2.4.0)
       ffi (~> 1.9)
     sassc-rails (2.1.2)
@@ -330,10 +327,6 @@ GEM
       sprockets (> 3.0)
       sprockets-rails
       tilt
-    selenium-webdriver (4.11.0)
-      rexml (~> 3.2, >= 3.2.5)
-      rubyzip (>= 1.2.2, < 3.0)
-      websocket (~> 1.0)
     semantic_range (3.0.0)
     sidekiq (6.5.9)
       connection_pool (>= 2.2.5, < 3)
@@ -355,6 +348,8 @@ GEM
       rails (>= 5.1)
       responders
       stripe (>= 3.15.0)
+    tailwindcss-rails (2.0.30)
+      railties (>= 6.0.0)
     thor (1.2.2)
     tilt (2.2.0)
     timeout (0.4.0)
@@ -377,16 +372,11 @@ GEM
       activemodel (>= 6.0.0)
       bindex (>= 0.4.0)
       railties (>= 6.0.0)
-    webdrivers (5.3.1)
-      nokogiri (~> 1.6)
-      rubyzip (>= 1.3.0)
-      selenium-webdriver (~> 4.0, < 4.11)
     webpacker (5.4.4)
       activesupport (>= 5.2)
       rack-proxy (>= 0.6.1)
       railties (>= 5.2)
       semantic_range (>= 2.3.0)
-    websocket (1.2.9)
     websocket-driver (0.7.6)
       websocket-extensions (>= 0.1.0)
     websocket-extensions (0.1.5)
@@ -431,15 +421,14 @@ DEPENDENCIES
   rubocop-rails (~> 2.11)
   rubocop-rails_config (~> 1.7)
   rubocop-shopify (~> 2.2)
-  sass-rails (>= 6)
-  selenium-webdriver
+  sassc-rails (~> 2.1)
   sidekiq (~> 6.2)
   spring
   stripe-rails (~> 2.4)
+  tailwindcss-rails (~> 2.0)
   tzinfo-data
   vite_rails (~> 3.0.3)
   web-console (>= 4.1.0)
-  webdrivers
   webpacker (~> 5.4)
 
 RUBY VERSION

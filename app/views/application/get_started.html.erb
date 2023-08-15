@@ -1,0 +1,45 @@
+<%= javascript_pack_tag 'application' %>
+<%= stylesheet_link_tag 'tailwind' %>
+<section class=" h-full">
+  <div class="flex flex-col items-center lg:py-0">
+    <div class="my-10">
+      <a
+      href="/"
+      class="flex flex-col items-center space-x-4 mb-6 text-2xl font-semibold text-white"
+    >
+        <%= embedded_svg('tuist_cloud_logo', class: "w-20") %>
+      </a>
+      <h1 class="text-white font-semibold text-4xl mt-6">Welcome to Tuist Cloud!</h1>
+          <div class="w-full items-center flex flex-row justify-center mt-7">
+        <a href="https://docs.tuist.io/tutorial/get-started" class="py-3 bg-gradient-to-r duration-200 focus-visible:outline-black focus-visible:ring-black focus:outline-none font-medium from-primary-600 hover:to-primary-800 px-6 rounded-xl text-center text-white to-primary-700 mr-4">Tuist docs</a>
+        <a href="https://docs.tuist.io/cloud/get-started" class="py-3 bg-gradient-to-r duration-200 focus-visible:outline-black focus-visible:ring-black focus:outline-none font-medium from-primary-600 hover:to-primary-800 px-6 rounded-xl text-center text-white to-primary-700">Tuist Cloud docs</a>
+    </div>
+    </div>
+    <div class="w-1/2 items-start flex-col flex border-white/10 lg:border lg:p-10 lg:rounded-3xl mb-4">
+      <h2 class="text-2xl font-semibold leading-tight text-white mb-2">
+        Set up Tuist Cloud
+      </h2>
+      <p class="text-xl leading-tight text-gray-300 mb-8">
+        The easiest way to set up Tuist Cloud in your existing Tuist project is to run:
+      </p>
+      <div class=" bg-gray-800 border-gray-700 text-white bg-gradient-to-br relative rounded-2xl to-violet-500/5 w-full xl:text-lg">
+        <pre class="relative z-0 flex min-h-full">
+          <code class="md:border-l border-violet-200/10 px-8 py-7"><span class="text-gray-400"># Initialize Tuist Cloud in your project</span><br><span class="text-green-500 select-none">$&nbsp;</span><span class="text-violet-500">tuist&nbsp;</span>cloud auth</code>
+        </pre>
+      </div>
+      </div>
+      <div class="w-1/2 items-start flex-col flex border-white/10 lg:border lg:p-10 lg:rounded-3xl">
+      <h2 class="text-2xl font-semibold leading-tight text-white mb-2">
+        Connect Tuist Cloud
+      </h2>
+      <p class="text-xl leading-tight text-gray-300 mb-8">
+        If you already have a Tuist Cloud project, you can run the following command to start benefiting from Cloud features.
+      </p>
+      <div class=" bg-gray-800 border-gray-700 text-white bg-gradient-to-br relative rounded-2xl to-violet-500/5 w-full xl:text-lg">
+        <pre class="relative z-0 flex min-h-full">
+          <code class="md:border-l border-violet-200/10 px-8 py-7"><span class="text-gray-400"># Authenticate with Tuist Cloud</span><br><span class="text-green-500 select-none">$&nbsp;</span><span class="text-violet-500">tuist&nbsp;</span>cloud auth</code>
+        </pre>
+      </div>
+
+    </div>
+  </section>
