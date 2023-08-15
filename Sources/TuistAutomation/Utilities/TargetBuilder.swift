@@ -116,7 +116,7 @@ public final class TargetBuilder: TargetBuilding {
             try copyBuildProducts(
                 to: buildOutputPath,
                 projectPath: workspacePath,
-                platform: target.target.platform,
+                platform: target.target.legacyPlatform,
                 configuration: configuration
             )
         }

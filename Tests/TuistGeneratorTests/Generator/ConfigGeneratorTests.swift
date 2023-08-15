@@ -159,7 +159,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     func test_generateTestTargetConfiguration_macOS() throws {
         // Given / When
-        try generateTestTargetConfig(appName: "App", platform: .macOS)
+        try generateTestTargetConfig(appName: "App", destinations: .macOS)
 
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
@@ -230,11 +230,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         assert(config: releaseConfig, contains: testHostSettings)
     }
 
-    func test_generateTargetWithDeploymentTarget_whenIOS_withMacForIPhoneSupport() throws {
+    func test_generateTargetWithDeploymentTarget_whenIOS_withMacAndVisionForIPhoneSupport() throws {
         // Given
         let project = Project.test()
         let target = Target.test(
-            deploymentTarget: .iOS("12.0", [.iphone, .ipad], supportsMacDesignedForIOS: true)
+            destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
+            deploymentTargets: .iOS("12.0")
         )
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
@@ -260,17 +261,19 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "TARGETED_DEVICE_FAMILY": "1,2",
             "IPHONEOS_DEPLOYMENT_TARGET": "12.0",
             "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "YES",
+            "SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD": "YES",
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    func test_generateTargetWithDeploymentTarget_whenIOS_withoutMacForIPhoneSupport() throws {
+    func test_generateTargetWithDeploymentTarget_whenIOS_withoutMacAndVisionForIPhoneSupport() throws {
         // Given
         let project = Project.test()
         let target = Target.test(
-            deploymentTarget: .iOS("12.0", [.iphone, .ipad], supportsMacDesignedForIOS: false)
+            destinations: [.iPhone, .iPad],
+            deploymentTargets: .iOS("12.0")
         )
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
@@ -296,6 +299,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "TARGETED_DEVICE_FAMILY": "1,2",
             "IPHONEOS_DEPLOYMENT_TARGET": "12.0",
             "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "NO",
+            "SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD": "NO",
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
@@ -305,8 +309,9 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenIOS_for_framework() throws {
         // Given
         let target = Target.test(
+            destinations: [.iPhone, .iPad, .macWithiPadDesign],
             product: .framework,
-            deploymentTarget: .iOS("13.0", [.iphone, .ipad], supportsMacDesignedForIOS: true)
+            deploymentTargets: .iOS("13.0")
         )
         let project = Project.test(targets: [target])
         let graph = Graph.test(path: project.path)
@@ -342,7 +347,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenMac() throws {
         // Given
         let project = Project.test()
-        let target = Target.test(deploymentTarget: .macOS("10.14.1"))
+        let target = Target.test(destinations: [.mac], deploymentTargets: .macOS("10.14.1"))
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -375,7 +380,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         // Given
         let project = Project.test()
         let target = Target.test(
-            deploymentTarget: .iOS("13.1", [.iphone, .ipad, .mac], supportsMacDesignedForIOS: false)
+            destinations: [.iPhone, .iPad, .macCatalyst],
+            deploymentTargets: .iOS("13.1")
         )
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
@@ -403,6 +409,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "SUPPORTS_MACCATALYST": "YES",
             "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "YES",
             "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "NO",
+            "SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD": "NO",
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
@@ -412,7 +419,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenWatch() throws {
         // Given
         let project = Project.test()
-        let target = Target.test(deploymentTarget: .watchOS("6.0"))
+        let target = Target.test(destinations: [.appleWatch], deploymentTargets: .watchOS("6.0"))
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -434,6 +441,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let expectedSettings = [
+            "TARGETED_DEVICE_FAMILY": "4",
             "WATCHOS_DEPLOYMENT_TARGET": "6.0",
         ]
 
@@ -444,7 +452,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
     func test_generateTargetWithDeploymentTarget_whenTV() throws {
         // Given
         let project = Project.test()
-        let target = Target.test(deploymentTarget: .tvOS("14.0"))
+        let target = Target.test(destinations: [.appleTv], deploymentTargets: .tvOS("14.0"))
         let graph = Graph.test(path: project.path)
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -466,7 +474,41 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let expectedSettings = [
+            "TARGETED_DEVICE_FAMILY": "3",
             "TVOS_DEPLOYMENT_TARGET": "14.0",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
+    func test_generateTargetWithDeploymentTarget_whenVision() throws {
+        // Given
+        let project = Project.test()
+        let target = Target.test(destinations: [.appleVision], deploymentTargets: .visionOS("1.0"))
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings = [
+            "TARGETED_DEVICE_FAMILY": "7",
+            "XROS_DEPLOYMENT_TARGET": "1.0",
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
@@ -719,7 +761,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     private func generateTestTargetConfig(
         appName: String = "App",
-        platform: Platform = .iOS,
+        destinations: Destinations = .iOS,
         productName: String? = nil,
         uiTest: Bool = false
     ) throws {
@@ -727,12 +769,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
         let appTarget = Target.test(
             name: appName,
-            platform: platform,
+            destinations: destinations,
             product: .app,
             productName: productName
         )
 
-        let target = Target.test(name: "Test", platform: platform, product: uiTest ? .uiTests : .unitTests)
+        let target = Target.test(name: "Test", destinations: destinations, product: uiTest ? .uiTests : .unitTests)
         let project = Project.test(path: dir, name: "Project", targets: [target])
 
         let graph = Graph.test(

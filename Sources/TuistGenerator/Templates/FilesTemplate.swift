@@ -25,8 +25,8 @@ extension SynthesizedResourceInterfaceTemplates {
       {% endfor %}
     {% endmacro %}
     {% macro fileBlock file %}
-      /// {% if file.path and param.preservePath %}{{file.path}}/{% endif %}{{file.name}}{% if file.ext %}.{{file.ext}}{% endif %}
-      {% set identifier %}{{ file.name }}{% if useExt %}.{{ file.ext }}{% endif %}{% endset %}
+      /// {%+ if file.path and param.preservePath %}{{file.path}}/{% endif %}{{file.name}}{% if file.ext %}.{{file.ext}}{% endif %}
+      {% set identifier %}{{ file.name }}{% if useExt %}.{{ file.ext }}{% endif %}{% endset +%}
       {{accessModifier}} static let {{identifier|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}} = {{resourceType}}(name: "{{file.name}}", ext: {% if file.ext %}"{{file.ext}}"{% else %}nil{% endif %}, relativePath: "{{file.path if param.preservePath}}", mimeType: "{{file.mimeType}}")
     {% endmacro %}
     {% macro dirBlock directory parent %}

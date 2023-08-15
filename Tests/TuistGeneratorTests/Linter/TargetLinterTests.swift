@@ -218,7 +218,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         XCTContainsLintingIssue(
             result,
             LintingIssue(
-                reason: "Target \(bundle.name) cannot contain sources. iOS bundle targets don't support source files",
+                reason: "Target \(bundle.name) cannot contain sources. bundle targets in one of these destinations doesn't support source files: iPad, iPhone, macWithiPadDesign",
                 severity: .error
             )
         )
@@ -289,7 +289,7 @@ final class TargetLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_when_target_platform_and_deployment_target_property_mismatch() throws {
-        let invalidCombinations: [(Platform, DeploymentTarget)] = [
+        let invalidCombinations: [(Platform, DeploymentTargets)] = [
             (.iOS, .macOS("10.0.0")),
             (.watchOS, .macOS("10.0.0")),
             (.macOS, .watchOS("10.0.0")),
@@ -302,11 +302,12 @@ final class TargetLinterTests: TuistUnitTestCase {
             // When
             let got = subject.lint(target: target)
 
+            let expectedPlatform = try XCTUnwrap(combinations.1.configuredVersions.first?.platform.caseValue)
             // Then
             XCTContainsLintingIssue(
                 got,
                 LintingIssue(
-                    reason: "Found an inconsistency between a platform `\(combinations.0.caseValue)` and deployment target `\(combinations.1.platform)`",
+                    reason: "Found deployment platforms (\(expectedPlatform)) missing corresponding destination",
                     severity: .error
                 )
             )

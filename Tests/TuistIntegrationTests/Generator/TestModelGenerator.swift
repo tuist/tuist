@@ -177,7 +177,7 @@ final class TestModelGenerator {
     ) -> Target {
         Target(
             name: name,
-            platform: .iOS,
+            destinations: .iOS,
             product: product,
             productName: name,
             bundleId: "test.bundle",
@@ -260,7 +260,7 @@ final class TestModelGenerator {
     ) throws -> Target {
         Target(
             name: name,
-            platform: .iOS,
+            destinations: .iOS,
             product: product,
             productName: nil,
             bundleId: "test.bundle.\(name)",

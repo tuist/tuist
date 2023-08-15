@@ -408,6 +408,10 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Buju77"><img src="https://avatars.githubusercontent.com/u/266349?v=4" width="100px;" alt=""/><br /><sub><b>Yen-Chia Lin</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://coolmathgames.tech"><img src="https://avatars.githubusercontent.com/u/6877780?v=4" width="100px;" alt=""/><br /><sub><b>Mary </b></sub></a></td>
     </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/woohyunjin06"><img src="https://avatars.githubusercontent.com/u/30452977?v=4" width="100px;" alt=""/><br /><sub><b>Hyunjin</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kevin58332"><img src="https://avatars.githubusercontent.com/u/47673410?v=4" width="100px;" alt=""/><br /><sub><b>Kevin Aguilar</b></sub></a></td>
+    </tr>
   </tbody>
 </table>
 
