@@ -13,4 +13,8 @@ class RootController < ApplicationController
     authenticate_user!
     render(layout: "app")
   end
+
+  def get_started
+    render "get_started"
+  end
 end
