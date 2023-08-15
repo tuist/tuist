@@ -10,19 +10,11 @@ class CacheService < ApplicationService
       def message
         "Ensure your secret access key is set correctly, following the instructions here: https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html."
       end
-
-      def status_code
-        :bad_request
-      end
     end
 
     class Unauthorized < CloudError
       def message
         "You do not have a permission to clear this S3 bucket."
-      end
-
-      def status_code
-        :unauthorized
       end
     end
   end
