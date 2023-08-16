@@ -30,11 +30,18 @@ extension PBXFileElement {
 extension PBXBuildFile {
     /// Apply platform filters either `platformFilter` or `platformFilters` depending on count
     public func applyPlatformFilters(_ filters: PlatformFilters, applicableTo target: Target) {
-        // If the dependency fewer platforms, apply filters.
         let dependingTargetPlatformFilters = target.dependencyPlatformFilters
-        if filters.isSubset(of: dependingTargetPlatformFilters) {
+
+        if dependingTargetPlatformFilters.isDisjoint(with: filters) {
+            // if no platforms in common, apply all filters to exclude from target
+            applyPlatformFilters(filters)
+        } else {
             let applicableFilters = dependingTargetPlatformFilters.intersection(filters)
-            applyPlatformFilters(applicableFilters)
+
+            // Only apply filters if our intersection is a subset of the targets platforms
+            if applicableFilters.isStrictSubset(of: dependingTargetPlatformFilters) {
+                applyPlatformFilters(applicableFilters)
+            }
         }
     }
 
