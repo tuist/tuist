@@ -29,26 +29,48 @@ final class StringExtrasTests: TuistUnitTestCase {
         XCTAssertEqual(got, "_1Flow")
     }
 
-    func test_to_valid_swift_identifier() {
-        // Test Case 1: String starting with lowercase letter
-        let str1 = "classname"
-        XCTAssertEqual(str1.toValidSwiftIdentifier(), "Classname", "Expected 'Classname'")
+    func test_to_valid_swift_identifier_starting_with_lowercase_letter() {
+        // Given
+        let subject = "classname"
 
-        // Test Case 2: String starting with numbers
-        let str2 = "123invalidName"
-        XCTAssertEqual(str2.toValidSwiftIdentifier(), "_123invalidName", "Expected '_123invalidName'")
+        // When
+        let got = subject.toValidSwiftIdentifier()
 
-        // Test Case 3: String is a Swift reserved word
-        let str3 = "class"
-        XCTAssertEqual(str3.toValidSwiftIdentifier(), "Class", "Expected 'Class'")
+        // Then
+        XCTAssertEqual(got, "Classname")
+    }
 
-        // Test Case 4: String with special characters
-        let str4 = "class$name"
-        XCTAssertEqual(str4.toValidSwiftIdentifier(), "ClassName", "Expected 'ClassName'")
+    func test_to_valid_swift_identifier_string_starting_with_numbers() {
+        // Given
+        let subject = "123invalidName"
 
-        // Test Case 5: String is already a valid Swift Identifier
-        let str5 = "ValidClassName"
-        XCTAssertEqual(str5.toValidSwiftIdentifier(), "ValidClassName", "Expected 'ValidClassName'")
+        // When
+        let got = subject.toValidSwiftIdentifier()
+
+        // Then
+        XCTAssertEqual(got, "_123invalidName")
+    }
+
+    func test_to_valid_swift_identifier_string_with_special_characters() {
+        // Given
+        let subject = "class$name"
+
+        // When
+        let got = subject.toValidSwiftIdentifier()
+
+        // Then
+        XCTAssertEqual(got, "ClassName")
+    }
+
+    func test_to_valid_swift_identifier_string_is_already_a_valid_swift_identifier() {
+        // Given
+        let subject = "ValidClassName"
+
+        // When
+        let got = subject.toValidSwiftIdentifier()
+
+        // Then
+        XCTAssertEqual(got, "ValidClassName")
     }
 
     func test_string_doesnt_match_GitURL_regex() {
