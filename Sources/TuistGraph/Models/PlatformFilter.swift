@@ -19,6 +19,7 @@ public enum PlatformFilter: Comparable, Hashable, Codable {
     case catalyst
     case driverkit
     case watchos
+    case visionos
 
     public var xcodeprojValue: String {
         switch self {
@@ -34,6 +35,8 @@ public enum PlatformFilter: Comparable, Hashable, Codable {
             return "driverkit"
         case .watchos:
             return "watchos"
+        case .visionos:
+            return "xros"
         }
     }
 }
