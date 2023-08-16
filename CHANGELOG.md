@@ -1,5 +1,33 @@
 # Changelog
 
+## 3.23.0 - 2023-08-16
+
+### Changed
+
+- Multi-Platform support - Phase 1: Introduce `TuistGraph.Destination` and migrate `TuistGraph.Target` to use it [#5132](https://github.com/tuist/tuist/pull/5132) by [@waltflanagan](https://github.com/waltflanagan)
+
+### Added
+
+- Add tuist cloud project create command [#5312](https://github.com/tuist/tuist/pull/5312) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud project list command [#5316](https://github.com/tuist/tuist/pull/5316) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization create command [#5326](https://github.com/tuist/tuist/pull/5326) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud organization list command [#5328](https://github.com/tuist/tuist/pull/5328) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud project delete command [#5321](https://github.com/tuist/tuist/pull/5321) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud organization delete command [#5330](https://github.com/tuist/tuist/pull/5330) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud organization show command [#5331](https://github.com/tuist/tuist/pull/5331) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization invite command [#5333](https://github.com/tuist/tuist/pull/5333) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization remove invite command [#5334](https://github.com/tuist/tuist/pull/5334) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization remove member command [#5335](https://github.com/tuist/tuist/pull/5335) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization update member command [#5336](https://github.com/tuist/tuist/pull/5336) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud project token command [#5337](https://github.com/tuist/tuist/pull/5337) by [@fortmarek](https://github.com/fortmarek)
+- Support for stencil modifiers in scaffold filenames [#5315](https://github.com/tuist/tuist/pull/5315) by [@tejassharma96](https://github.com/tejassharma96)
+- Add `--skip-cache` argument to `tuist generate` [#5342](https://github.com/tuist/tuist/pull/5342) by [@woohyunjin06](https://github.com/woohyunjin06)
+- Allow mlpackage files to be included into source files [#5352](https://github.com/tuist/tuist/pull/5352) by [@kevin58332](https://github.com/kevin58332)
+
+### Fixed
+
+- Fix tuist cache warm --xcframeworks of SPM frameworks due to missing macCatalyst availability [#5302](https://github.com/tuist/tuist/pull/5302) by [@MontakOleg](https://github.com/MontakOleg)
+
 ## Unreleased
 
 ## 3.22.0 - 2023-07-31
