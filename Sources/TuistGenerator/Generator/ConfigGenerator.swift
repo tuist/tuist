@@ -276,11 +276,21 @@ final class ConfigGenerator: ConfigGenerating {
         var settings: SettingsDictionary = [:]
         settings["TEST_TARGET_NAME"] = .string("\(app.target.name)")
         if target.product == .unitTests {
-            settings["TEST_HOST"] =
-                .string(
-                    "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/$(BUNDLE_EXECUTABLE_FOLDER_PATH)\(app.target.productName)"
+            do {
+                let path = try AbsolutePath(validating: "$(BUILT_PRODUCTS_DIR)")
+
+                settings["TEST_HOST"] = .string(
+                    path
+                        .appending(component: "$(BUNDLE_EXECUTABLE_FOLDER_PATH)")
+                        .appending(component: app.target.productNameWithExtension)
+                        .appending(component: app.target.productName)
+                        .pathString
                 )
-            settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
+
+                settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
+            } catch {
+                return [:]
+            }
         }
 
         return settings
