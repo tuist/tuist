@@ -7,6 +7,10 @@ module Users
     def after_sign_up_path_for(resource)
       if session["is_cli_authenticating"]
         CliAuthService.call(user: current_user)
+<<<<<<< HEAD
+=======
+        session["is_cli_authenticating"] = false
+>>>>>>> 9231fe0 (Reset cli_authenticating variable after successful authentication)
         '/auth/cli/success'
       else
         root_path + "get-started"
@@ -16,6 +20,7 @@ module Users
     def after_inactive_sign_up_path_for(resource)
       if session["is_cli_authenticating"]
         CliAuthService.call(user: current_user)
+        session["is_cli_authenticating"] = false
         '/auth/cli/success'
       else
         root_path + "get-started"
