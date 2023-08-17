@@ -21,7 +21,8 @@ module Users
     def find_or_create_and_redirect_user
       @user = UserCreateService.call(email: auth_email, skip_confirmation: true)
       if @user.persisted?
-        sign_in_and_redirect(@user, event: :authentication)
+        sign_in(@user, event: :authentication)
+        redirect_to(after_sign_in_path_for(@user), allow_other_host: true)
       else
         data = auth_data.except("extra")
         session["devise.oauth.data"] = data
