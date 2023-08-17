@@ -142,7 +142,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     func test_generateTestTargetConfiguration_iOS() throws {
         // Given / When
-        try generateTestTargetConfig(appName: "App")
+        try generateTestTargetConfig(appName: "App", destinations: .iOS)
 
         let configurationList = pbxTarget.buildConfigurationList
         let debugConfig = configurationList?.configuration(name: "Debug")
