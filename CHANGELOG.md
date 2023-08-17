@@ -36,6 +36,13 @@
 
 ## Unreleased
 
+### Breaking
+
+- Multi-platform / Multi-destination prep work will cause the following build settings to no longer be overridable in xcconfigs. This is to ensure the upcoming feature can be more predictable and reliable. The `.deploymentTarget()` API can be used to control those settings in the interim, please report any issues you may encounter related to this.
+  - `SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD`
+  - `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD`
+  - `SUPPORTS_MACCATALYST`
+
 ## 3.22.0 - 2023-07-31
 
 ### Fixed
