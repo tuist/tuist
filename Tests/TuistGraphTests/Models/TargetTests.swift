@@ -300,7 +300,7 @@ final class TargetTests: TuistUnitTestCase {
 
     func test_dependencyPlatformFilters_when_iOS_targets_mac() {
         // Given
-        let target = Target.test(destinations: [.macCatalyst], deploymentTargets: .iOS("14.0"))
+        let target = Target.test(destinations: [.macCatalyst])
 
         // When
         let got = target.dependencyPlatformFilters
@@ -311,12 +311,34 @@ final class TargetTests: TuistUnitTestCase {
 
     func test_dependencyPlatformFilters_when_iOS_and_doesnt_target_mac() {
         // Given
-        let target = Target.test(deploymentTargets: .iOS("14.0"))
+        let target = Target.test(destinations: .iOS)
 
         // When
         let got = target.dependencyPlatformFilters
 
         // Then
         XCTAssertEqual(got, [PlatformFilter.ios])
+    }
+
+    func test_dependencyPlatformFilters_when_iOS_and_catalyst() {
+        // Given
+        let target = Target.test(destinations: [.iPhone, .iPad, .macCatalyst])
+
+        // When
+        let got = target.dependencyPlatformFilters
+
+        // Then
+        XCTAssertEqual(got, [PlatformFilter.ios, PlatformFilter.catalyst])
+    }
+
+    func test_dependencyPlatformFilters_when_using_many_destinations() {
+        // Given
+        let target = Target.test(destinations: [.iPhone, .iPad, .macCatalyst, .mac, .appleVision])
+
+        // When
+        let got = target.dependencyPlatformFilters
+
+        // Then
+        XCTAssertEqual(got, [PlatformFilter.ios, PlatformFilter.catalyst, PlatformFilter.macos, PlatformFilter.visionos])
     }
 }
