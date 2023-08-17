@@ -1,4 +1,5 @@
 import Foundation
+import TuistSupportTesting
 @testable import TuistCache
 
 extension CloudCacheResponse {
