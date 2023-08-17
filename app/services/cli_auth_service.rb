@@ -10,6 +10,7 @@ class CliAuthService < ApplicationService
   end
 
   def call
+    puts "Do an auth request to the CLI"
     url = URI.parse("http://127.0.0.1:4545/auth?token=#{user.token}&account=#{user.account.name}")
 
     http = Net::HTTP.new(url.host, url.port)
