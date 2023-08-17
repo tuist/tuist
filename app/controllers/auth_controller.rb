@@ -9,9 +9,12 @@ class AuthController < ApplicationController
       authenticate_user!
     end
 
-    redirect_to(
-      "http://127.0.0.1:4545/auth?token=#{current_user.token}&account=#{current_user.account.name}",
-      allow_other_host: true,
-    )
+    CliAuthService.call(user: current_user)
+
+    redirect_to("/auth/cli/success")
+  end
+
+  def cli_success
+    render "auth/cli/success"
   end
 end

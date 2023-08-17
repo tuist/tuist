@@ -20,6 +20,7 @@ Rails.application.routes.draw do
 
   get "/invitations/:token/", to: "application#app", as: :invitation
 
+  get "/auth/cli/success", to: "auth#cli_success"
   get "/auth", to: "auth#authenticate"
 
   post "/api/analytics", to: "analytics#analytics"

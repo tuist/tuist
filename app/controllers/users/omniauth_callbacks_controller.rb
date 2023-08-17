@@ -12,7 +12,8 @@ module Users
 
     def after_sign_in_path_for(resource)
       if session["is_cli_authenticating"]
-        "http://127.0.0.1:4545/auth?token=#{current_user.token}&account=#{current_user.account.name}"
+        CliAuthService.call(user: current_user)
+        '/auth/cli/success'
       else
         root_path
       end
@@ -21,8 +22,7 @@ module Users
     def find_or_create_and_redirect_user
       @user = UserCreateService.call(email: auth_email, skip_confirmation: true)
       if @user.persisted?
-        sign_in(@user, event: :authentication)
-        redirect_to(after_sign_in_path_for(@user), allow_other_host: true)
+        sign_in_and_redirect(@user, event: :authentication)
       else
         data = auth_data.except("extra")
         session["devise.oauth.data"] = data

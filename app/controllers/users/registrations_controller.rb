@@ -6,7 +6,8 @@ module Users
 
     def after_sign_up_path_for(resource)
       if session["is_cli_authenticating"]
-        "http://127.0.0.1:4545/auth?token=#{current_user.token}&account=#{current_user.account.name}"
+        CliAuthService.call(user: current_user)
+        '/auth/cli/success'
       else
         root_path + "get-started"
       end
@@ -14,7 +15,8 @@ module Users
 
     def after_inactive_sign_up_path_for(resource)
       if session["is_cli_authenticating"]
-        "http://127.0.0.1:4545/auth?token=#{current_user.token}&account=#{current_user.account.name}"
+        CliAuthService.call(user: current_user)
+        '/auth/cli/success'
       else
         root_path + "get-started"
       end
