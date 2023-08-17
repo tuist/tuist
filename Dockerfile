@@ -23,7 +23,7 @@ FROM quay.io/evl.ms/fullstaq-ruby:${RUBY_VERSION}-${VARIANT} as base
 
 LABEL fly_launch_runtime="rails"
 
-ARG NODE_VERSION=16.17.0
+ARG NODE_VERSION=20.5.1
 ARG BUNDLER_VERSION=2.2.33
 ARG YARN_VERSION=1.22.17
 
@@ -32,6 +32,8 @@ ENV RAILS_ENV=${RAILS_ENV}
 
 ENV RAILS_SERVE_STATIC_FILES true
 ENV RAILS_LOG_TO_STDOUT true
+
+ENV NODE_OPTIONS=--openssl-legacy-provider
 
 ARG BUNDLE_WITHOUT=development:test
 ARG BUNDLE_PATH=vendor/bundle
