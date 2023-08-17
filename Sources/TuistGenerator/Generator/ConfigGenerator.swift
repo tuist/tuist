@@ -278,7 +278,7 @@ final class ConfigGenerator: ConfigGenerating {
         if target.product == .unitTests {
             settings["TEST_HOST"] =
                 .string(
-                    "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/\(app.target.productName)"
+                    "$(BUILT_PRODUCTS_DIR)/\(app.target.productNameWithExtension)/$(BUNDLE_EXECUTABLE_FOLDER_PATH)\(app.target.productName)"
                 )
             settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
         }
