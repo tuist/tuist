@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.23.1 - 2023-08-17
+
+### Fixed
+
+- Derive platform filters based on the specified destinations [#5357](https://github.com/tuist/tuist/pull/5357) by [@waltflanagan](https://github.com/waltflanagan)
+
 ## 3.23.0 - 2023-08-16
 
 ### Changed
