@@ -313,6 +313,5 @@ extension SynthesizedResourceInterfaceTemplates {
     {% endif %}
     // swiftlint:enable all
     // swiftformat:enable all
-
     """
 }
