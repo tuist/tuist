@@ -12,10 +12,7 @@ module Users
 
     def after_sign_in_path_for(resource)
       if session["is_cli_authenticating"]
-        redirect_to(
-          "http://127.0.0.1:4545/auth?token=#{current_user.token}&account=#{current_user.account.name}",
-          allow_other_host: true
-        )
+        "http://127.0.0.1:4545/auth?token=#{current_user.token}&account=#{current_user.account.name}"
       else
         root_path
       end
