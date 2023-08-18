@@ -94,7 +94,7 @@ Rails.application.configure do
   config.active_record.dump_schema_after_migration = false
 
   # Active Job
-  config.active_job.queue_adapter = :sidekiq
+  config.active_job.queue_adapter = :que
 
   # Action Mailer
   config.action_mailer.delivery_method = :smtp

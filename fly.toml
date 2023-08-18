@@ -19,7 +19,7 @@ kill_timeout = "5s"
 
 [processes]
   app = "bin/rails fly:server"
-  worker = "bundle exec sidekiq -C config/sidekiq.yml"
+  worker = "bundle exec que"
 
 [[services]]
   protocol = "tcp"

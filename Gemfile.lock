@@ -223,6 +223,7 @@ GEM
       nio4r (~> 2.0)
     pundit (2.3.0)
       activesupport (>= 3.0.0)
+    que (2.2.1)
     racc (1.7.1)
     rack (2.2.8)
     rack-mini-profiler (2.3.4)
@@ -328,10 +329,6 @@ GEM
       sprockets-rails
       tilt
     semantic_range (3.0.0)
-    sidekiq (6.5.9)
-      connection_pool (>= 2.2.5, < 3)
-      rack (~> 2.0)
-      redis (>= 4.5.0, < 5)
     snaky_hash (2.0.1)
       hashie
       version_gem (~> 1.1, >= 1.1.1)
@@ -412,6 +409,7 @@ DEPENDENCIES
   pg (~> 1.5.0)
   puma (~> 6.0)
   pundit (~> 2.1)
+  que (~> 2.2)
   rack-mini-profiler (~> 2.0)
   rails (~> 7.0.0)
   react-rails (~> 2.6)
@@ -422,7 +420,6 @@ DEPENDENCIES
   rubocop-rails_config (~> 1.7)
   rubocop-shopify (~> 2.2)
   sassc-rails (~> 2.1)
-  sidekiq (~> 6.2)
   spring
   stripe-rails (~> 2.4)
   tailwindcss-rails (~> 2.0)

@@ -32,5 +32,8 @@ module TuistCloud
       config.stripe.publishable_key = Rails.application.credentials.stripe[:publishable_key]
       config.stripe.signing_secrets = Rails.application.credentials.stripe[:webhook_signing_secret]
     end
+
+    # Que
+    config.active_record.schema_format = :sql
   end
 end
