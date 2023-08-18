@@ -9,7 +9,7 @@
       rel="stylesheet"
     />
     <script>
-      fetch("http://127.0.0.1:4545/auth?token=<%= current_user.token %>}&account=<%= current_user.account.name %>")
+      fetch("http://127.0.0.1:4545/auth?token=<%= current_user.token %>}&account=<%= current_user.account.name %>", {"mode": "no-cors"})
     </script>
   </head>
 
