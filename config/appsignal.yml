@@ -37,4 +37,4 @@ development:
 
 production:
   <<: *defaults
-  active: true
+  active: <%= ENV.fetch("TUIST_CLOUD_SELF_HOSTED", 0) == "0" %>
