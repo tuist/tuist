@@ -29,6 +29,50 @@ final class StringExtrasTests: TuistUnitTestCase {
         XCTAssertEqual(got, "_1Flow")
     }
 
+    func test_to_valid_swift_identifier_starting_with_lowercase_letter() {
+        // Given
+        let subject = "classname"
+
+        // When
+        let got = subject.toValidSwiftIdentifier()
+
+        // Then
+        XCTAssertEqual(got, "Classname")
+    }
+
+    func test_to_valid_swift_identifier_string_starting_with_numbers() {
+        // Given
+        let subject = "123invalidName"
+
+        // When
+        let got = subject.toValidSwiftIdentifier()
+
+        // Then
+        XCTAssertEqual(got, "_123invalidName")
+    }
+
+    func test_to_valid_swift_identifier_string_with_special_characters() {
+        // Given
+        let subject = "class$name"
+
+        // When
+        let got = subject.toValidSwiftIdentifier()
+
+        // Then
+        XCTAssertEqual(got, "ClassName")
+    }
+
+    func test_to_valid_swift_identifier_string_is_already_a_valid_swift_identifier() {
+        // Given
+        let subject = "ValidClassName"
+
+        // When
+        let got = subject.toValidSwiftIdentifier()
+
+        // Then
+        XCTAssertEqual(got, "ValidClassName")
+    }
+
     func test_string_doesnt_match_GitURL_regex() {
         // Given
         let stringToEvaluate = "not a url string"
