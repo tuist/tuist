@@ -9,14 +9,13 @@ class AuthController < ApplicationController
       authenticate_user!
     end
 
-    CliAuthService.call(user: current_user)
-
     session["is_cli_authenticating"] = false
 
     redirect_to("/auth/cli/success")
   end
 
   def cli_success
+    session["is_cli_authenticating"] = false
     render "auth/cli/success"
   end
 end
