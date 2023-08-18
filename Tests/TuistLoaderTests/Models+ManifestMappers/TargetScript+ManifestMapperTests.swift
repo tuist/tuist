@@ -40,9 +40,9 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             "foo/bar/bTests.swift",
             "foo/bar/kTests.kt",
             "foo/bar/c/c.swift",
-            "foo/bar/c/cTests.swift"
+            "foo/bar/c/cTests.swift",
         ])
-        
+
         let manifest = ProjectDescription.TargetScript.test(
             name: "MyScript",
             tool: "my_tool",
@@ -55,7 +55,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         )
         // When
         let model = try TuistGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
-        
+
         // Then
         let relativeSources = model.inputPaths.map { $0.relative(to: temporaryPath).pathString }
 
@@ -65,9 +65,9 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             "foo/bar/aTests.swift",
             "foo/bar/bTests.swift",
             "foo/bar/c/c.swift",
-            "foo/bar/c/cTests.swift"
+            "foo/bar/c/cTests.swift",
         ]))
-        
+
         // Then
         XCTAssertEqual(model.name, "MyScript")
         XCTAssertEqual(model.script, .tool(path: "my_tool", args: ["arg1", "arg2"]))
@@ -76,7 +76,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.outputPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
         XCTAssertEqual(model.outputFileListPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
     }
-    
+
     func test_glob_whenExcluding() throws {
         // Given
         let temporaryPath = try temporaryPath()
@@ -88,9 +88,9 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             "foo/bar/bTests.swift",
             "foo/bar/kTests.kt",
             "foo/bar/c/c.swift",
-            "foo/bar/c/cTests.swift"
+            "foo/bar/c/cTests.swift",
         ])
-        
+
         let manifest = ProjectDescription.TargetScript.test(
             name: "MyScript",
             tool: "my_tool",
@@ -101,9 +101,9 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
                     "foo/bar/**/*.swift",
                     excluding: [
                         "foo/bar/**/*Tests.swift",
-                        "foo/bar/**/*b.swift"
+                        "foo/bar/**/*b.swift",
                     ]
-                )
+                ),
             ],
             inputFileListPaths: ["$(SRCROOT)/foo/bar/**/*.swift"],
             outputPaths: ["$(SRCROOT)/foo/bar/**/*.swift"],
@@ -111,15 +111,15 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         )
         // When
         let model = try TuistGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
-        
+
         // Then
         let relativeSources = model.inputPaths.map { $0.relative(to: temporaryPath).pathString }
 
         XCTAssertEqual(Set(relativeSources), Set([
             "foo/bar/a.swift",
-            "foo/bar/c/c.swift"
+            "foo/bar/c/c.swift",
         ]))
-        
+
         // Then
         XCTAssertEqual(model.name, "MyScript")
         XCTAssertEqual(model.script, .tool(path: "my_tool", args: ["arg1", "arg2"]))
