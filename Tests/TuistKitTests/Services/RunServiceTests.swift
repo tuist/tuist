@@ -83,7 +83,7 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector.runnableTargetStub = { _, _ in .test() }
 
         try await subject.run(generate: true)
-        await fulfillment(of: [expectation])
+        await fulfillment(of: [expectation], timeout: 1)
     }
 
     func test_run_generates_when_workspaceNotFound() async throws {
@@ -102,7 +102,7 @@ final class RunServiceTests: TuistUnitTestCase {
 
         // When
         try await subject.run()
-        await fulfillment(of: [expectation])
+        await fulfillment(of: [expectation], timeout: 1)
     }
 
     func test_run_buildsTarget() async throws {
@@ -132,7 +132,7 @@ final class RunServiceTests: TuistUnitTestCase {
             clean: clean,
             configuration: configuration
         )
-        await fulfillment(of: [expectation])
+        await fulfillment(of: [expectation], timeout: 1)
     }
 
     func test_run_runsTarget() async throws {
@@ -172,7 +172,7 @@ final class RunServiceTests: TuistUnitTestCase {
             arguments: arguments
         )
 
-        await fulfillment(of: [expectation])
+        await fulfillment(of: [expectation], timeout: 1)
     }
 
     func test_run_throws_beforeBuilding_if_cantRunTarget() async throws {
@@ -193,7 +193,7 @@ final class RunServiceTests: TuistUnitTestCase {
             try await subject.run(),
             TestError()
         )
-        await fulfillment(of: [expectation])
+        await fulfillment(of: [expectation], timeout: 1)
     }
 }
 
