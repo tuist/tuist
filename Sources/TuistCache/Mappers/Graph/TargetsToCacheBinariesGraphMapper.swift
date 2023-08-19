@@ -123,13 +123,21 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
     // MARK: - Helpers
 
     private func fetch(hashes: [GraphTarget: String]) async throws -> [GraphTarget: AbsolutePath] {
+        logger.debug(">>> Call fetch")
+        print(">>> TargetsToCacheBinariesGraphMapper.fetch")
         let storages = try cacheStorageProvider.storages()
         let cache = cacheFactory.cache(storages: storages)
         return try await hashes.concurrentMap { target, hash -> (GraphTarget, AbsolutePath?) in
+            print(">>> TargetsToCacheBinariesGraphMapper.fetch: Target: \(target.target.name)")
             if try await cache.exists(name: target.target.name, hash: hash) {
+                print(">>> TargetsToCacheBinariesGraphMapper.fetch: cache exists for target: \(target.target.name), call fetch async")
                 let path = try await cache.fetch(name: target.target.name, hash: hash)
+                logger.debug(">> Path for target: \(target.target.name): \(path) with hash: \(hash)")
+                print(">>> TargetsToCacheBinariesGraphMapper.fetch: Path for target: \(target.target.name)")
                 return (target, path)
             } else {
+                logger.debug(">> No cache found for target: \(target.target.name)")
+                print(">>> TargetsToCacheBinariesGraphMapper.fetch: No cache found for target: \(target.target.name)")
                 return (target, nil)
             }
         }.reduce(into: [GraphTarget: AbsolutePath]()) { acc, next in
