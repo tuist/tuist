@@ -50,6 +50,19 @@ final class MockGeneratorFactory: GeneratorFactorying {
         [(config: Config, automationPath: AbsolutePath, testsCacheDirectory: AbsolutePath, skipUITests: Bool)]()
     var stubbedTestResult: Generating!
 
+//    func test(config: TuistGraph.Config,
+//              automationPath: TSCBasic.AbsolutePath,
+//              testsCacheDirectory: TSCBasic.AbsolutePath,
+//              skipUITests: Bool,
+//              cacheProfile: TuistGraph.Cache.Profile,
+//              ignoreCache: Bool) -> Generating {
+//        invokedTest = true
+//        invokedTestCount += 1
+//        invokedTestParameters = (config, automationPath, testsCacheDirectory, skipUITests)
+//        invokedTestParametersList.append((config, automationPath, testsCacheDirectory, skipUITests))
+//        return stubbedTestResult
+//    }
+
     func test(
         config: Config,
         automationPath: AbsolutePath,
