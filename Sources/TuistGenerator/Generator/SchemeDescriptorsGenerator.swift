@@ -472,7 +472,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 generatedProjects: generatedProjects
             ) else { return nil }
 
-            macroExpansion = buildableReference
+            // Xcode assigns the runnable target to the expand variables target by default.
+            // Assigning the runnable target to macro expansion can lead to an unstable .xcscheme.
+            // Initially, macroExpansion is added, but when the edit scheme editor is opened and closed, macroExpansion gets removed.
+            if buildableProductRunnable?.buildableReference != buildableReference {
+                macroExpansion = buildableReference
+            }
         }
 
         var commandlineArguments: XCScheme.CommandLineArguments?
