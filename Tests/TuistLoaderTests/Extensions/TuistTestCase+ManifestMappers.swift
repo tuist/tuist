@@ -43,7 +43,8 @@ extension TuistTestCase {
     ) throws {
         XCTAssertEqual(target.name, manifest.name, file: file, line: line)
         XCTAssertEqual(target.bundleId, manifest.bundleId, file: file, line: line)
-        XCTAssertTrue(target.legacyPlatform == manifest.platform, file: file, line: line)
+        let exclusivePlatform = try XCTUnwrap(target.exclusivePlatform)
+        XCTAssertTrue(exclusivePlatform == manifest.platform, file: file, line: line)
         XCTAssertTrue(target.product == manifest.product, file: file, line: line)
         XCTAssertEqual(
             target.infoPlist?.path,
