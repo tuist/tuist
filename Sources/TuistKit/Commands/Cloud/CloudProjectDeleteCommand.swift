@@ -7,7 +7,7 @@ struct CloudProjectDeleteCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "delete",
             _superCommandName: "project",
-            abstract: "Create a new project."
+            abstract: "Delete a Cloud project."
         )
     }
 
