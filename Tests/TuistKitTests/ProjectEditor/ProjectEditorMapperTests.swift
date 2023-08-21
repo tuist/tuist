@@ -77,7 +77,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let manifestsTarget = try XCTUnwrap(project.targets.first(where: { $0.name == sourceRootPath.basename + projectName }))
         XCTAssertEqual(targets.last, manifestsTarget)
 
-        XCTAssertEqual(manifestsTarget.platform, .macOS)
+        XCTAssertEqual(manifestsTarget.destinations, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
         XCTAssertEqual(
             manifestsTarget.settings,
@@ -96,7 +96,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertTrue(targets.contains(helpersTarget))
 
         XCTAssertEqual(helpersTarget.name, "ProjectDescriptionHelpers")
-        XCTAssertEqual(helpersTarget.platform, .macOS)
+        XCTAssertEqual(helpersTarget.destinations, .macOS)
         XCTAssertEqual(helpersTarget.product, .staticFramework)
         XCTAssertEqual(
             helpersTarget.settings,
@@ -115,7 +115,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertTrue(targets.contains(templatesTarget))
 
         XCTAssertEqual(templatesTarget.name, "Templates")
-        XCTAssertEqual(templatesTarget.platform, .macOS)
+        XCTAssertEqual(templatesTarget.destinations, .macOS)
         XCTAssertEqual(templatesTarget.product, .staticFramework)
         XCTAssertEqual(
             templatesTarget.settings,
@@ -132,7 +132,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertTrue(targets.contains(resourceSynthesizersTarget))
 
         XCTAssertEqual(resourceSynthesizersTarget.name, "ResourceSynthesizers")
-        XCTAssertEqual(resourceSynthesizersTarget.platform, .macOS)
+        XCTAssertEqual(resourceSynthesizersTarget.destinations, .macOS)
         XCTAssertEqual(resourceSynthesizersTarget.product, .staticFramework)
         XCTAssertEqual(
             resourceSynthesizersTarget.settings,
@@ -149,7 +149,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertTrue(targets.contains(stencilsTarget))
 
         XCTAssertEqual(stencilsTarget.name, "Stencils")
-        XCTAssertEqual(stencilsTarget.platform, .macOS)
+        XCTAssertEqual(stencilsTarget.destinations, .macOS)
         XCTAssertEqual(stencilsTarget.product, .staticFramework)
         XCTAssertEqual(
             stencilsTarget.settings,
@@ -166,7 +166,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertTrue(targets.contains(configTarget))
 
         XCTAssertEqual(configTarget.name, "Config")
-        XCTAssertEqual(configTarget.platform, .macOS)
+        XCTAssertEqual(configTarget.destinations, .macOS)
         XCTAssertEqual(configTarget.product, .staticFramework)
         XCTAssertEqual(
             configTarget.settings,
@@ -181,7 +181,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertTrue(targets.contains(dependenciesTarget))
 
         XCTAssertEqual(dependenciesTarget.name, "Dependencies")
-        XCTAssertEqual(dependenciesTarget.platform, .macOS)
+        XCTAssertEqual(dependenciesTarget.destinations, .macOS)
         XCTAssertEqual(dependenciesTarget.product, .staticFramework)
         XCTAssertEqual(
             dependenciesTarget.settings,
@@ -263,7 +263,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Manifests target
         let manifestsTarget = try XCTUnwrap(project.targets.last(where: { $0.name == sourceRootPath.basename + projectName }))
 
-        XCTAssertEqual(manifestsTarget.platform, .macOS)
+        XCTAssertEqual(manifestsTarget.destinations, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
         XCTAssertEqual(
             manifestsTarget.settings,
@@ -348,7 +348,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let manifestOneTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ModuleManifests" }))
 
         XCTAssertEqual(manifestOneTarget.name, "ModuleManifests")
-        XCTAssertEqual(manifestOneTarget.platform, .macOS)
+        XCTAssertEqual(manifestOneTarget.destinations, .macOS)
         XCTAssertEqual(manifestOneTarget.product, .staticFramework)
         XCTAssertEqual(
             manifestOneTarget.settings,
@@ -361,7 +361,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Manifests target
         let manifestTwoTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "\(sourceRootPath.basename)Manifests" }))
 
-        XCTAssertEqual(manifestTwoTarget.platform, .macOS)
+        XCTAssertEqual(manifestTwoTarget.destinations, .macOS)
         XCTAssertEqual(manifestTwoTarget.product, .staticFramework)
         XCTAssertEqual(
             manifestTwoTarget.settings,
@@ -375,7 +375,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let configTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Config" }))
 
         XCTAssertEqual(configTarget.name, "Config")
-        XCTAssertEqual(configTarget.platform, .macOS)
+        XCTAssertEqual(configTarget.destinations, .macOS)
         XCTAssertEqual(configTarget.product, .staticFramework)
         XCTAssertEqual(
             configTarget.settings,
@@ -455,7 +455,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Plugin target
         let pluginTarget = try XCTUnwrap(project.targets.last(where: { $0.name == sourceRootPath.basename }))
 
-        XCTAssertEqual(pluginTarget.platform, .macOS)
+        XCTAssertEqual(pluginTarget.destinations, .macOS)
         XCTAssertEqual(pluginTarget.product, .staticFramework)
         XCTAssertEqual(
             pluginTarget.settings,
@@ -536,7 +536,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated first plugin target
         let firstPluginTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "A" }))
 
-        XCTAssertEqual(firstPluginTarget.platform, .macOS)
+        XCTAssertEqual(firstPluginTarget.destinations, .macOS)
         XCTAssertEqual(firstPluginTarget.product, .staticFramework)
         XCTAssertEqual(
             firstPluginTarget.settings,
@@ -549,7 +549,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated second plugin target
         let secondPluginTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "B" }))
 
-        XCTAssertEqual(secondPluginTarget.platform, .macOS)
+        XCTAssertEqual(secondPluginTarget.destinations, .macOS)
         XCTAssertEqual(secondPluginTarget.product, .staticFramework)
         XCTAssertEqual(
             secondPluginTarget.settings,
@@ -697,7 +697,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(targets.count, 3)
 
         // Local plugin target
-        XCTAssertEqual(localPluginTarget.platform, .macOS)
+        XCTAssertEqual(localPluginTarget.destinations, .macOS)
         XCTAssertEqual(localPluginTarget.product, .staticFramework)
         XCTAssertEqual(localPluginTarget.sources.map(\.path).first?.parentDirectory, localPlugin.path)
         XCTAssertEqual(localPluginTarget.filesGroup, pluginsGroup)
@@ -711,7 +711,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
 
         // ProjectDescriptionHelpers target
-        XCTAssertEqual(helpersTarget.platform, .macOS)
+        XCTAssertEqual(helpersTarget.destinations, .macOS)
         XCTAssertEqual(helpersTarget.product, .staticFramework)
         XCTAssertEqual(helpersTarget.sources.map(\.path).first, helperPaths.first)
         XCTAssertEqual(helpersTarget.filesGroup, projectsGroup)
@@ -730,7 +730,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
 
         // Generated Manifests target
-        XCTAssertEqual(manifestsTarget.platform, .macOS)
+        XCTAssertEqual(manifestsTarget.destinations, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
         XCTAssertEqual(manifestsTarget.sources.map(\.path), projectManifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)

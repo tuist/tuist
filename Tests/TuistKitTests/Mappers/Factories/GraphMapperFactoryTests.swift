@@ -69,7 +69,8 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             cache: true,
             cacheSources: cacheSources,
             cacheProfile: cacheProfile,
-            cacheOutputType: cacheOutputType
+            cacheOutputType: cacheOutputType,
+            targetsToSkipCache: []
         )
 
         // Then
@@ -90,7 +91,8 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             cache: true,
             cacheSources: cacheSources,
             cacheProfile: cacheProfile,
-            cacheOutputType: cacheOutputType
+            cacheOutputType: cacheOutputType,
+            targetsToSkipCache: []
         )
 
         // Then
@@ -111,7 +113,8 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             cache: true,
             cacheSources: cacheSources,
             cacheProfile: cacheProfile,
-            cacheOutputType: cacheOutputType
+            cacheOutputType: cacheOutputType,
+            targetsToSkipCache: []
         )
 
         // Then

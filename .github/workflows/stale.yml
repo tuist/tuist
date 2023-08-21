@@ -49,4 +49,5 @@ jobs:
           stale-issue-label: 'stale'
           stale-pr-label: 'stale'
           days-before-stale: 30
-          days-before-close: 5
+          days-before-close: 15
+          only-labels: needs-response,needs-reproduction

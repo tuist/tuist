@@ -22,7 +22,8 @@ protocol GraphMapperFactorying {
         cache: Bool,
         cacheSources: Set<String>,
         cacheProfile: TuistGraph.Cache.Profile,
-        cacheOutputType: CacheOutputType
+        cacheOutputType: CacheOutputType,
+        targetsToSkipCache: Set<String>
     ) -> [GraphMapping]
 
     /// Returns the graph mapper whose output project is a cacheable graph.
@@ -57,7 +58,8 @@ final class GraphMapperFactory: GraphMapperFactorying {
         cache: Bool,
         cacheSources: Set<String>,
         cacheProfile: TuistGraph.Cache.Profile,
-        cacheOutputType: CacheOutputType
+        cacheOutputType: CacheOutputType,
+        targetsToSkipCache: Set<String>
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(FocusTargetsGraphMappers(includedTargets: cacheSources))
@@ -68,7 +70,8 @@ final class GraphMapperFactory: GraphMapperFactorying {
                 cacheStorageProvider: CacheStorageProvider(config: config),
                 sources: cacheSources,
                 cacheProfile: cacheProfile,
-                cacheOutputType: cacheOutputType
+                cacheOutputType: cacheOutputType,
+                excludedSources: targetsToSkipCache
             )
             mappers.append(focusTargetsGraphMapper)
             mappers.append(TreeShakePrunedTargetsGraphMapper())

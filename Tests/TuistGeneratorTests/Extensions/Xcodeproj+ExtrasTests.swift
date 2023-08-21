@@ -1,3 +1,5 @@
+import TuistGraph
+import TuistGraphTesting
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
@@ -29,5 +31,75 @@ class XcodeprojExtrasTests: XCTestCase {
             "E",
             "Z",
         ])
+    }
+
+    func test_platform_filter_application_when_matching() {
+        // Given
+        let target = Target.test(destinations: [.iPhone, .iPad, .mac])
+        let buildFile = PBXBuildFile()
+        let dependencyFilters: PlatformFilters = [.ios, .macos]
+
+        // When
+        buildFile.applyPlatformFilters(dependencyFilters, applicableTo: target)
+
+        // Then
+        XCTAssertNil(buildFile.platformFilter)
+        XCTAssertNil(buildFile.platformFilters)
+    }
+
+    func test_platform_filter_application_when_target_has_less_than_dependency() {
+        // Given
+        let target = Target.test(destinations: [.mac])
+        let buildFile = PBXBuildFile()
+        let dependencyFilters: PlatformFilters = [.ios, .macos]
+
+        // When
+        buildFile.applyPlatformFilters(dependencyFilters, applicableTo: target)
+
+        // Then
+        XCTAssertNil(buildFile.platformFilter)
+        XCTAssertNil(buildFile.platformFilters)
+    }
+
+    func test_platform_filter_application_when_target_has_more_than_dependency() {
+        // Given
+        let target = Target.test(destinations: [.iPhone, .iPad, .mac, .appleVision])
+        let buildFile = PBXBuildFile()
+        let dependencyFilters: PlatformFilters = [.ios, .macos]
+
+        // When
+        buildFile.applyPlatformFilters(dependencyFilters, applicableTo: target)
+
+        // Then
+        XCTAssertNil(buildFile.platformFilter)
+        XCTAssertEqual(buildFile.platformFilters, ["ios", "macos"])
+    }
+
+    func test_platform_filter_application_when_target_has_single_intersection() {
+        // Given
+        let target = Target.test(destinations: [.iPhone, .iPad, .appleVision])
+        let buildFile = PBXBuildFile()
+        let dependencyFilters: PlatformFilters = [.ios, .macos]
+
+        // When
+        buildFile.applyPlatformFilters(dependencyFilters, applicableTo: target)
+
+        // Then
+        XCTAssertEqual(buildFile.platformFilter, "ios")
+        XCTAssertNil(buildFile.platformFilters)
+    }
+
+    func test_platform_filter_application_when_disjoint() {
+        // Given
+        let target = Target.test(destinations: [.appleVision])
+        let buildFile = PBXBuildFile()
+        let dependencyFilters: PlatformFilters = [.macos]
+
+        // When
+        buildFile.applyPlatformFilters(dependencyFilters, applicableTo: target)
+
+        // Then
+        XCTAssertEqual(buildFile.platformFilter, "macos") //
+        XCTAssertNil(buildFile.platformFilters)
     }
 }

@@ -23,7 +23,7 @@ public final class TargetContentHasher: TargetContentHashing {
     private let resourcesContentHasher: ResourcesContentHashing
     private let copyFilesContentHasher: CopyFilesContentHashing
     private let headersContentHasher: HeadersContentHashing
-    private let deploymentTargetContentHasher: DeploymentTargetContentHashing
+    private let deploymentTargetContentHasher: DeploymentTargetsContentHashing
     private let infoPlistContentHasher: InfoPlistContentHashing
     private let settingsContentHasher: SettingsContentHashing
     private let dependenciesContentHasher: DependenciesContentHashing
@@ -39,7 +39,7 @@ public final class TargetContentHasher: TargetContentHashing {
             resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher),
             copyFilesContentHasher: CopyFilesContentHasher(contentHasher: contentHasher),
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
-            deploymentTargetContentHasher: DeploymentTargetContentHasher(contentHasher: contentHasher),
+            deploymentTargetContentHasher: DeploymentTargetsContentHasher(contentHasher: contentHasher),
             infoPlistContentHasher: InfoPlistContentHasher(contentHasher: contentHasher),
             settingsContentHasher: SettingsContentHasher(contentHasher: contentHasher),
             dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher)
@@ -54,7 +54,7 @@ public final class TargetContentHasher: TargetContentHashing {
         resourcesContentHasher: ResourcesContentHashing,
         copyFilesContentHasher: CopyFilesContentHashing,
         headersContentHasher: HeadersContentHashing,
-        deploymentTargetContentHasher: DeploymentTargetContentHashing,
+        deploymentTargetContentHasher: DeploymentTargetsContentHashing,
         infoPlistContentHasher: InfoPlistContentHashing,
         settingsContentHasher: SettingsContentHashing,
         dependenciesContentHasher: DependenciesContentHashing
@@ -97,7 +97,6 @@ public final class TargetContentHasher: TargetContentHashing {
         let environmentHash = try contentHasher.hash(graphTarget.target.environment)
         var stringsToHash = [
             graphTarget.target.name,
-            graphTarget.target.platform.rawValue,
             graphTarget.target.product.rawValue,
             graphTarget.target.bundleId,
             graphTarget.target.productName,
@@ -109,14 +108,17 @@ public final class TargetContentHasher: TargetContentHashing {
             targetScriptsHash,
             environmentHash,
         ]
+
+        stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
+
         if let headers = graphTarget.target.headers {
             let headersHash = try headersContentHasher.hash(headers: headers)
             stringsToHash.append(headersHash)
         }
-        if let deploymentTarget = graphTarget.target.deploymentTarget {
-            let deploymentTargetHash = try deploymentTargetContentHasher.hash(deploymentTarget: deploymentTarget)
-            stringsToHash.append(deploymentTargetHash)
-        }
+
+        let deploymentTargetHash = try deploymentTargetContentHasher.hash(deploymentTargets: graphTarget.target.deploymentTargets)
+        stringsToHash.append(deploymentTargetHash)
+
         if let infoPlist = graphTarget.target.infoPlist {
             let infoPlistHash = try infoPlistContentHasher.hash(plist: infoPlist)
             stringsToHash.append(infoPlistHash)
@@ -130,11 +132,9 @@ public final class TargetContentHasher: TargetContentHashing {
             stringsToHash.append(settingsHash)
         }
         stringsToHash += additionalStrings
-        switch graphTarget.target.deploymentTarget {
-        case .macOS, .none:
+
+        if graphTarget.target.deploymentTargets.macOS != nil {
             stringsToHash.append(DeveloperEnvironment.shared.architecture.rawValue)
-        case .iOS, .watchOS, .tvOS, .visionOS:
-            break
         }
 
         return try contentHasher.hash(stringsToHash)

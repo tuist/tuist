@@ -12,20 +12,23 @@ struct CloudInitCommand: AsyncParsableCommand {
         )
     }
 
-    @Option(
-        help: "Owner of the project. Either your username or a name of the organization."
-    )
-    var owner: String?
-
-    @Option(
-        help: "Name of the project. The allowed characters are a-z and the dash symbol '-' (for example project-name)."
+    @Argument(
+        help: "The name of the project to create.",
+        completion: .directory
     )
     var name: String
 
     @Option(
-        help: "URL to the cloud server. Default is tuist cloud hosted by tuist itself – https://cloud.tuist.io/"
+        name: .shortAndLong,
+        help: "Organization to initialize the Cloud project with. If not specified, the project is created with your personal Cloud account."
     )
-    var url: String = Constants.tuistCloudURL
+    var organization: String?
+
+    @Option(
+        name: .long,
+        help: "URL to the cloud server."
+    )
+    var serverURL: String?
 
     @Option(
         name: .shortAndLong,
@@ -37,8 +40,8 @@ struct CloudInitCommand: AsyncParsableCommand {
     func run() async throws {
         try await CloudInitService().createProject(
             name: name,
-            owner: owner,
-            url: url,
+            organization: organization,
+            serverURL: serverURL,
             path: path
         )
     }

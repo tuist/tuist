@@ -124,6 +124,22 @@ extension String {
         return ([first] + rest).joined(separator: "")
     }
 
+    /// Make the string a valid Swift identifier (class name)
+    public func toValidSwiftIdentifier() -> String {
+        // Step 1: Start with a capital letter
+        let capitalized = camelized.uppercasingFirst
+
+        // Step 2: Remove invalid characters
+        let sanitized = capitalized.replacingOccurrences(of: "[^A-Za-z0-9_]", with: "", options: .regularExpression)
+
+        // Step 3: Add underscore prefix if the string starts with a number
+        if sanitized.first?.isNumber == true {
+            return "_" + sanitized
+        }
+
+        return sanitized
+    }
+
     public func camelCaseToKebabCase() -> String {
         convertCamelCase(separator: "-")
     }

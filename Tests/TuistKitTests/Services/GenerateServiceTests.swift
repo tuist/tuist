@@ -58,7 +58,8 @@ final class GenerateServiceTests: TuistUnitTestCase {
                     xcframeworks: false,
                     destination: [],
                     profile: nil,
-                    ignoreCache: false
+                    ignoreCache: false,
+                    targetsToSkipCache: []
                 )
             XCTFail("Must throw")
         } catch {
@@ -80,7 +81,8 @@ final class GenerateServiceTests: TuistUnitTestCase {
             xcframeworks: false,
             destination: [],
             profile: nil,
-            ignoreCache: false
+            ignoreCache: false,
+            targetsToSkipCache: []
         )
 
         XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
@@ -106,7 +108,8 @@ final class GenerateServiceTests: TuistUnitTestCase {
             xcframeworks: false,
             destination: [],
             profile: nil,
-            ignoreCache: false
+            ignoreCache: false,
+            targetsToSkipCache: []
         )
 
         // Then
