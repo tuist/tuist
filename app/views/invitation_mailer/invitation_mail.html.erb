@@ -1,6 +1,64 @@
-<h1><%= @inviter.account.name %> has invited you to join <%= @organization.name %> Tuist Cloud</h1>
+<!DOCTYPE html>
+<html lang="en">
 
-<p>
-  <%# <%= link_to 'Accept the invitation', invitation_path(@token) %>
-  <%= link_to 'Accept the invitation', invitation_url(@token) %>
-</p>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light only">
+  <title>Tuist Cloud invitation</title>
+  <style>
+    body {
+      font-family: Inter, sans-serif;
+      background-color: #1a1a1a;
+      margin: 0;
+      padding: 0;
+      color: #f2f2f2;
+      margin-top: 5rem;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #2b2b2b;
+      border-radius: 8px;
+      box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      color: #f2f2f2;
+    }
+
+    p {
+      color: #ccc;
+      margin-bottom: 20px;
+      font-size: 15px;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #4f46e5;
+      color: #ffffff;
+      font-size: 16px;
+      border-radius: 4px;
+      text-decoration: none;
+      transition: background-color 0.3s ease-in-out;
+    }
+
+    .button:hover {
+      background-color: #4338ca;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Tuist Cloud invitation ☁️</h1>
+    <p>Hello 👋 <%= @inviter.account.name %> invited you to join the <%= @organization.name %> Tuist Cloud organization</p>
+    <p><%= link_to 'Accept invitation', root_url + "auth/invitations/#{@token}", class: 'button' %></p>
+  </div>
+</body>
+
+</html>

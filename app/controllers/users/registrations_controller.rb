@@ -5,19 +5,11 @@ module Users
     protected
 
     def after_sign_up_path_for(resource)
-      if session["is_cli_authenticating"]
-        '/auth/cli/success'
-      else
-        root_path + "get-started"
-      end
+      AuthController.new.after_auth_path(session, resource, root_path)
     end
 
     def after_inactive_sign_up_path_for(resource)
-      if session["is_cli_authenticating"]
-        '/auth/cli/success'
-      else
-        root_path + "get-started"
-      end
+      AuthController.new.after_auth_path(session, resource, root_path)
     end
   end
 end

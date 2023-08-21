@@ -9,8 +9,12 @@
     >
         <%= svg('tuist_cloud_logo', class: "w-20") %>
       </a>
-      <h1 class="text-white font-semibold text-4xl mt-6">Welcome to Tuist Cloud!</h1>
-          <div class="w-full items-center flex flex-row justify-center mt-7">
+      <%- if @invitation.nil? %>
+        <h1 class="text-white font-semibold text-4xl mt-6">Welcome to Tuist Cloud!</h1>
+      <% else %>
+        <h1 class="text-white font-semibold text-4xl mt-6">Welcome to the <%= @invitation.organization.name %> Tuist Cloud organization!</h1>
+      <% end %>
+      <div class="w-full items-center flex flex-row justify-center mt-7">
         <a href="https://docs.tuist.io/tutorial/get-started" class="py-3 bg-gradient-to-r duration-200 focus-visible:outline-black focus-visible:ring-black focus:outline-none font-medium from-primary-600 hover:to-primary-800 px-6 rounded-xl text-center text-white to-primary-700 mr-4">Tuist docs</a>
         <a href="https://docs.tuist.io/cloud/get-started" class="py-3 bg-gradient-to-r duration-200 focus-visible:outline-black focus-visible:ring-black focus:outline-none font-medium from-primary-600 hover:to-primary-800 px-6 rounded-xl text-center text-white to-primary-700">Tuist Cloud docs</a>
     </div>
@@ -24,7 +28,7 @@
       </p>
       <div class=" bg-gray-800 border-gray-700 text-white bg-gradient-to-br relative rounded-2xl to-violet-500/5 w-full xl:text-lg">
         <pre class="relative z-0 flex min-h-full">
-          <code class="md:border-l border-violet-200/10 px-8 py-7"><span class="text-gray-400"># Initialize Tuist Cloud in your project</span><br><span class="text-green-500 select-none">$&nbsp;</span><span class="text-violet-500">tuist&nbsp;</span>cloud auth</code>
+          <code class="md:border-l border-violet-200/10 px-8 py-7"><span class="text-gray-400"># Initialize Tuist Cloud in your project</span><br><span class="text-green-500 select-none">$&nbsp;</span><span class="text-violet-500">tuist&nbsp;</span>cloud init</code>
         </pre>
       </div>
       </div>

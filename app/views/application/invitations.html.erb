@@ -1,0 +1,18 @@
+<%= javascript_pack_tag 'application' %>
+<%= stylesheet_link_tag 'tailwind' %>
+<section class="justify-center">
+  <div class="flex flex-col items-center lg:py-0 mt-10">
+    <div class="my-10">
+      <a
+      href="/"
+      class="flex flex-col items-center space-x-4 mb-6 text-2xl font-semibold text-white"
+    >
+        <%= svg('tuist_cloud_logo', class: "w-20") %>
+      </a>
+      <h1 class="text-white font-semibold text-4xl mt-6"><%= @invitation.inviter.name %> invited you to join the <%= @invitation.organization.name %> Cloud organization</h1>
+      <div class="w-full items-center flex flex-row justify-center mt-7">
+        <a href="<%= accept_invitation_url(token: @invitation_token) %>" class="py-3 bg-gradient-to-r duration-200 focus-visible:outline-black focus-visible:ring-black focus:outline-none font-medium from-primary-600 hover:to-primary-800 px-6 rounded-xl text-center text-white to-primary-700 mr-4">Accept the invitation</a>
+      </div>
+    </div>
+  </div>
+</section>

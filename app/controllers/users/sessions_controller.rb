@@ -3,11 +3,7 @@
 module Users
   class SessionsController < Devise::SessionsController
     def after_sign_in_path_for(resource)
-      if session["is_cli_authenticating"]
-        '/auth/cli/success'
-      else
-        root_path
-      end
+      AuthController.new.after_auth_path(session, resource, root_path)
     end
 
     protected

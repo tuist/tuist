@@ -6,6 +6,6 @@ class Invitation < ApplicationRecord
   belongs_to :organization, optional: false
 
   def as_json(options = {})
-    super(options.merge(only: [:id, :invitee_email, :organization_id])).merge({inviter: inviter})
+    super(options.merge(only: [:id, :invitee_email, :organization_id, :token])).merge({inviter: inviter})
   end
 end

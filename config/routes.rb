@@ -18,8 +18,8 @@ Rails.application.routes.draw do
 
   get "/get-started", to: "root#get_started"
 
-  get "/invitations/:token/", to: "application#app", as: :invitation
 
+  get "/auth/invitations/:token", to: "auth#accept_invitation"
   get "/auth/cli/success", to: "auth#cli_success"
   get "/auth", to: "auth#authenticate"
 

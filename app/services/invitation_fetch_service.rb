@@ -12,6 +12,10 @@ class InvitationFetchService < ApplicationService
       def message
         "Invitation with the token #{token} could not be found."
       end
+
+      def status_code
+        :not_found
+      end
     end
   end
 

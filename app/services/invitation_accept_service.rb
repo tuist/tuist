@@ -6,6 +6,10 @@ class InvitationAcceptService < ApplicationService
       def message
         "You are not allowed to accept this invitation."
       end
+
+      def status_code
+        :not_authorized
+      end
     end
   end
 

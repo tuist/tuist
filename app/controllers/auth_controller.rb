@@ -3,6 +3,18 @@
 class AuthController < ApplicationController
   skip_before_action :authenticate_user!
 
+  def after_auth_path(session, user, root_path)
+    if session["is_cli_authenticating"]
+      '/auth/cli/success'
+    elsif session["invitation_token"]
+      InvitationAcceptService.call(token: session["invitation_token"], user: user)
+      session["invitation_token"] = nil
+      '/get-started'
+    else
+      root_path
+    end
+  end
+
   def authenticate
     if current_user.nil?
       session["is_cli_authenticating"] = true
@@ -12,6 +24,17 @@ class AuthController < ApplicationController
     session["is_cli_authenticating"] = false
 
     redirect_to("/auth/cli/success")
+  end
+
+  def accept_invitation
+    if current_user.nil?
+      session["invitation_token"] = params[:token]
+      authenticate_user!
+    end
+
+    @invitation = InvitationFetchService.call(token: params[:token])
+    InvitationAcceptService.call(token: params[:token], user: current_user)
+    render 'get_started'
   end
 
   def cli_success
