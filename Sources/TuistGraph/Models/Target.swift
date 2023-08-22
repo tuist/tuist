@@ -9,7 +9,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     //       in order to compile the documentation archive (including Tutorials, Articles, etc.)
     public static let validSourceExtensions: [String] = [
         "m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel", "docc",
-        "playground", "rcproject",
+        "playground", "rcproject", "mlpackage",
     ]
     public static let validFolderExtensions: [String] = [
         "framework", "bundle", "app", "xcassets", "appiconset", "scnassets",
@@ -243,21 +243,11 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         isExclusiveTo(.macOS) && product == .app
     }
 
-    /// For iOS targets that support macOS (Catalyst), this value is used
-    /// in the generated build files of the target dependency products to
-    /// indicate the build system that the dependency should be compiled
-    /// with Catalyst compatibility.
+    /// Return the a set of PlatformFilters to control linking based on what platform is being compiled
+    /// This allows a target to link against a dependency conditionally when it is being compiled for a compatible platform
+    /// E.g. An app linking against CarPlay only when built for iOS.
     public var dependencyPlatformFilters: PlatformFilters {
-        // is iOS only and has the equivalent of `.all` devices from `ProjectDescription.DeploymentTarget`
-        if isExclusiveTo(.iOS), destinations != .iOS {
-            if destinations.contains(.macCatalyst) {
-                return [.catalyst]
-            } else {
-                return [.ios]
-            }
-        } else {
-            return []
-        }
+        Set(destinations.map(\.platformFilter))
     }
 
     // MARK: - Equatable
