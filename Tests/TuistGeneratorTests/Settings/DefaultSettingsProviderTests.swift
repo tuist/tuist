@@ -211,6 +211,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -233,6 +234,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -255,6 +257,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -361,6 +364,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -378,6 +382,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: .debug
         )
 
@@ -401,6 +406,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -424,6 +430,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -446,6 +453,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -474,6 +482,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -496,6 +505,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -518,6 +528,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -541,6 +552,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -564,6 +576,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -587,6 +600,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -610,6 +624,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -632,6 +647,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -654,6 +670,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -676,6 +693,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -698,6 +716,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -720,6 +739,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
+            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 

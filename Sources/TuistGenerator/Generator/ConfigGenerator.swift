@@ -165,11 +165,21 @@ final class ConfigGenerator: ConfigGenerating {
         sourceRootPath: AbsolutePath
     ) throws {
         let settingsHelper = SettingsHelper()
-        var settings = try defaultSettingsProvider.targetSettings(
-            target: target,
-            project: project,
-            buildConfiguration: buildConfiguration
-        )
+
+        var settings: SettingsDictionary = [:]
+
+        for platform in target.supportedPlatforms {
+            let platformSetting = try defaultSettingsProvider.targetSettings(
+                target: target,
+                project: project,
+                platform: platform,
+                buildConfiguration: buildConfiguration
+            )
+
+            let helper = SettingsHelper()
+            helper.overlay(settings: &settings, with: platformSetting, for: platform)
+        }
+
         updateTargetDerived(
             buildSettings: &settings,
             target: target,

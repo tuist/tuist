@@ -14,6 +14,7 @@ public protocol DefaultSettingsProviding {
     func targetSettings(
         target: Target,
         project: Project,
+        platform: Platform,
         buildConfiguration: BuildConfiguration
     ) throws -> SettingsDictionary
 }
@@ -114,23 +115,24 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     public func targetSettings(
         target: Target,
         project: Project,
+        platform: Platform,
         buildConfiguration: BuildConfiguration
     ) throws -> SettingsDictionary {
         let settingsHelper = SettingsHelper()
         let defaultSettings = target.settings?.defaultSettings ?? project.settings.defaultSettings
         let product = settingsHelper.settingsProviderProduct(target)
-        let platform = settingsHelper.settingsProviderPlatform(target)
+        let settingsPlatform = settingsHelper.settingsProviderPlatform(platform)
         let variant = settingsHelper.variant(buildConfiguration)
         let targetDefaultAll = try BuildSettingsProvider.targetDefault(
             variant: .all,
-            platform: platform,
+            platform: settingsPlatform,
             product: product,
             swift: true
         ).toSettings()
         let additionalTargetDefaults = additionalTargetSettings(for: target)
         let targetDefaultVariant = try BuildSettingsProvider.targetDefault(
             variant: variant,
-            platform: platform,
+            platform: settingsPlatform,
             product: product,
             swift: true
         ).toSettings()
