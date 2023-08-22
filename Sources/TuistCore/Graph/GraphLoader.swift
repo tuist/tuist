@@ -104,13 +104,15 @@ public final class GraphLoader: GraphLoading {
         }
 
         cache.add(target: target, path: path)
-        let dependencies = try target.dependencies.map {
-            try loadDependency(
-                path: path,
-                fromPlatform: target.legacyPlatform,
-                dependency: $0,
-                cache: cache
-            )
+        let dependencies = try target.dependencies.compactMap { dependency in
+            try target.supportedPlatforms.map { platform in
+                try loadDependency(
+                    path: path,
+                    fromPlatform: platform,
+                    dependency: dependency,
+                    cache: cache
+                )
+            }.first
         }
 
         if !dependencies.isEmpty {
