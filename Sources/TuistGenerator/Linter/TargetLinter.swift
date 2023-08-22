@@ -227,7 +227,7 @@ class TargetLinter: TargetLinting {
         ]
 
         for platform in target.destinations.platforms {
-            if let invalidProducts = invalidProductsForPlatforms[target.legacyPlatform],
+            if let invalidProducts = invalidProductsForPlatforms[platform],
                invalidProducts.contains(target.product)
             {
                 return [
