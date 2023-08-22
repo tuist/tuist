@@ -37,6 +37,10 @@ final class CloudOrganizationInviteService: CloudOrganizationInviteServicing {
             serverURL: cloudURL
         )
 
-        logger.info("\(invitation.inviteeEmail) was successfully invited to the \(organizationName) organization 🎉")
+        logger.info("""
+        \(invitation.inviteeEmail) was successfully invited to the \(organizationName) organization 🎉
+
+        You can also share with them the invite link directly: \(cloudURL)/invitations/\(invitation.token)
+        """)
     }
 }
