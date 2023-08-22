@@ -116,16 +116,15 @@ final class RunService {
         )
 
         let minVersion: Version?
-        if let deploymentTarget = graphTarget.target.deploymentTarget {
-            minVersion = deploymentTarget.version.version()
+        if let deploymentTargetVersion = graphTarget.target.deploymentTargets.configuredVersions.first?.1 {
+            minVersion = deploymentTargetVersion.version()
         } else {
             minVersion = scheme.targetDependencies()
                 .flatMap {
                     graphTraverser
                         .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)
-                        .map(\.target)
-                        .map(\.deploymentTarget)
-                        .compactMap { $0?.version.version() }
+                        .flatMap(\.target.deploymentTargets.configuredVersions)
+                        .compactMap { $0.1.version() }
                 }
                 .sorted()
                 .first

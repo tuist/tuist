@@ -116,11 +116,28 @@ extension String {
         }
 
         let parts = components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .map { $0.isEmpty ? "_" : $0 }
 
         let first = String(describing: parts.first!).lowercasingFirst
         let rest = parts.dropFirst().map { String($0).uppercasingFirst }
 
         return ([first] + rest).joined(separator: "")
+    }
+
+    /// Make the string a valid Swift identifier (class name)
+    public func toValidSwiftIdentifier() -> String {
+        // Step 1: Start with a capital letter
+        let capitalized = camelized.uppercasingFirst
+
+        // Step 2: Remove invalid characters
+        let sanitized = capitalized.replacingOccurrences(of: "[^A-Za-z0-9_]", with: "", options: .regularExpression)
+
+        // Step 3: Add underscore prefix if the string starts with a number
+        if sanitized.first?.isNumber == true {
+            return "_" + sanitized
+        }
+
+        return sanitized
     }
 
     public func camelCaseToKebabCase() -> String {

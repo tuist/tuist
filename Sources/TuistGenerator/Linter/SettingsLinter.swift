@@ -25,9 +25,8 @@ final class SettingsLinter: SettingsLinting {
             issues.append(contentsOf: lintConfigFilesExist(settings: settings))
         }
 
-        if let deploymentTarget = target.deploymentTarget {
-            issues.append(contentsOf: lint(platform: target.platform, isCompatibleWith: deploymentTarget))
-        }
+        issues.append(contentsOf: lintDesinations(for: target.supportedPlatforms, and: target.deploymentTargets))
+
         return issues
     }
 
@@ -59,19 +58,23 @@ final class SettingsLinter: SettingsLinting {
         return []
     }
 
-    // TODO_MAJOR_CHANGE: Merge deploymentTarget and platform arguments together.
-    private func lint(platform: Platform, isCompatibleWith deploymentTarget: DeploymentTarget) -> [LintingIssue] {
-        let issue = LintingIssue(
-            reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`",
-            severity: .error
-        )
+    private func lintDesinations(for targetPlatforms: Set<Platform>, and deploymentTargets: DeploymentTargets) -> [LintingIssue] {
+        var missingPlatforms: [Platform] = []
 
-        switch deploymentTarget {
-        case .iOS: if platform != .iOS { return [issue] }
-        case .macOS: if platform != .macOS { return [issue] }
-        case .watchOS: if platform != .watchOS { return [issue] }
-        case .tvOS: if platform != .tvOS { return [issue] }
+        for deploymentTarget in deploymentTargets.configuredVersions {
+            let platform = deploymentTarget.0
+            if !targetPlatforms.contains(platform) {
+                missingPlatforms.append(platform)
+            }
         }
-        return []
+
+        if !missingPlatforms.isEmpty {
+            return [LintingIssue(
+                reason: "Found deployment platforms (\(missingPlatforms.map(\.caseValue).joined(separator: ", "))) missing corresponding destination",
+                severity: .error
+            )]
+        } else {
+            return []
+        }
     }
 }

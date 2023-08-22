@@ -1,4 +1,4 @@
-// swift-tools-version:5.6.0
+// swift-tools-version:5.7.0
 
 import PackageDescription
 
@@ -45,7 +45,6 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/apollographql/apollo-ios.git", exact: "1.0.5"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.2"),
         .package(url: "https://github.com/apple/swift-docc-plugin.git", from: "1.1.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.2"),
@@ -58,11 +57,13 @@ let package = Package(
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", from: "4.2.2"),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", from: "1.6.0"),
         .package(url: "https://github.com/rnine/Checksum.git", from: "1.0.2"),
-        .package(url: "https://github.com/stencilproject/Stencil.git", exact: "0.14.2"),
+        .package(url: "https://github.com/stencilproject/Stencil.git", exact: "0.15.1"),
         .package(url: "https://github.com/SwiftDocOrg/GraphViz.git", exact: "0.2.0"),
-        .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", exact: "2.9.0"),
+        .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.5.1"),
-        .package(url: "https://github.com/tuist/XcodeProj.git", exact: "8.10.0"),
+        .package(url: "https://github.com/tuist/XcodeProj.git", exact: "8.11.0"),
+        .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
+        .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
     ],
     targets: [
         .target(
@@ -323,12 +324,6 @@ let package = Package(
             ]
         ),
         .target(
-            name: "TuistCloudSchema",
-            dependencies: [
-                .product(name: "Apollo", package: "apollo-ios"),
-            ]
-        ),
-        .target(
             name: "TuistCloud",
             dependencies: [
                 "XcodeProj",
@@ -336,8 +331,8 @@ let package = Package(
                 "TuistCore",
                 "TuistGraph",
                 "TuistSupport",
-                "TuistCloudSchema",
-                .product(name: "Apollo", package: "apollo-ios"),
+                .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+                .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
             ],
             exclude: [
                 "graphql/CreateProject.graphql",

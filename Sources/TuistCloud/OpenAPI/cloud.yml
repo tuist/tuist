@@ -1,0 +1,502 @@
+openapi: "3.0.3"
+info:
+  title: Tuist Cloud API
+  version: 0.1.0
+servers:
+  - url: http://127.0.0.1:3000/api
+    description: Localhost deployment.
+paths:
+  /api/projects:
+    get:
+      operationId: listProjects
+      parameters:
+          - name: account_name
+            in: query
+            description: Filter items by account name
+            schema:
+              type: string
+          - name: project_name
+            in: query
+            description: Filter items by project name
+            schema:
+              type: string
+      responses:
+        "200":
+          description: A success response with all available cloud projects.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Projects"
+    post:
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: The name of the project that should be created.
+                organization:
+                  type: string
+                  description: Organization to create the project with. If nil, the project will be created with the current user's personal account.
+              required:
+                - name
+      responses:
+        "200":
+          description: A success response with the created project.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          description: The project could not be created because of a validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/organizations:
+    get:
+      operationId: listOrganizations
+      responses:
+        "200":
+          description: A success response with all available cloud organizations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organizations"
+    post:
+      operationId: createOrganization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: The name of the organization that should be created.
+              required:
+                - name
+      responses:
+        "200":
+          description: A success response with the created organization.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "400":
+          description: The organization could not be created because of a validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/projects/{id}:
+    delete:
+      operationId: deleteProject
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: The id of the project that should be deleted.
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: A project was successfully deleted.
+        "404":
+          description: The project could not be deleted because it was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: The project could not be created because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/projects/{account_name}/{project_name}:
+    get:
+      operationId: getProject
+      parameters:
+        - in: path
+          name: account_name
+          required: true
+          description: The account name of the project to show.
+          schema:
+            type: string
+        - in: path
+          name: project_name
+          required: true
+          description: The name of the project to show.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A success response with the project.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "401":
+          description: You don't have the permission to view the project.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The project was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/projects/{full_name}/cache/clean:
+    put:
+      operationId: cleanCache
+      parameters:
+        - in: path
+          name: full_name
+          required: true
+          description: The organization of the member to update.
+          schema:
+            type: string
+      responses:
+        "204":
+          description: The cache was successfuly cleaned.
+        "404":
+          description: The project was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/organizations/{organization_name}:
+    get:
+      operationId: getOrganization
+      parameters:
+        - in: path
+          name: organization_name
+          required: true
+          description: The organization to show.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A success response with the organization.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "401":
+          description: You don't have the permission to view the organization.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The organization was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteOrganization
+      parameters:
+        - in: path
+          name: organization_name
+          required: true
+          description: The name of the organization that should be deleted.
+          schema:
+            type: string
+      responses:
+        "204":
+          description: An organization was successfully deleted.
+        "404":
+          description: The organization could not be deleted because it was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: The organization could not be deleted because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/organizations/{organization_name}/invitations:
+    post:
+      operationId: createOrganizationInvite
+      parameters:
+        - in: path
+          name: organization_name
+          required: true
+          description: The organization to invite the user to.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invitee_email:
+                  type: string
+                  description: Email of the user to invite.
+              required:
+                - invitee_email
+      responses:
+        "200":
+          description: A user was successfully invited.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invitation"
+        "401":
+          description: The invitation could not be created because the user is not authorized to perform the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The invitation could not be created because the relevant organization was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "400":
+          description: The invitation could not be created because of a validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: cancelOrganizationInvite
+      parameters:
+        - in: path
+          name: organization_name
+          required: true
+          description: The organization to invite the user to.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invitee_email:
+                  type: string
+                  description: Email of the user to cancel the invite for.
+              required:
+                - invitee_email
+      responses:
+        "204":
+          description: The invitations was successfully cancelled.
+        "404":
+          description: The invitation could not be deleted because it was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: The invitation could not be cancelled because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/organizations/{organization_name}/members/{username}:
+    delete:
+      operationId: removeOrganizationMember
+      parameters:
+        - in: path
+          name: organization_name
+          required: true
+          description: The organization to remove the member from.
+          schema:
+            type: string
+        - in: path
+          name: username
+          required: true
+          description: The username of the member to remove from the organization.
+          schema:
+            type: string
+      responses:
+        "204":
+          description: The member was successfully removed.
+        "404":
+          description: The organization or the member were not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: The member could not be removed because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: updateOrganizationMember
+      parameters:
+        - in: path
+          name: organization_name
+          required: true
+          description: The organization of the member to update.
+          schema:
+            type: string
+        - in: path
+          name: username
+          required: true
+          description: The username of the member to update.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  enum:
+                    - admin
+                    - user
+                  description: The new role of the member.
+              required:
+                - role
+      responses:
+        "200":
+          description: The member was successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationMember"
+        "404":
+          description: The organization or the member were not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: The member could not be updated because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: number
+        email:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - email
+        - name
+    Invitation:
+      type: object
+      properties:
+        id:
+          type: number
+        invitee_email:
+          type: string
+        organization_id:
+          type: number
+        token:
+          type: string
+        inviter:
+          type: object
+          $ref: "#/components/schemas/User"
+      required:
+        - id
+        - invitee_email
+        - organization_id
+        - inviter
+        - token
+    OrganizationMember:
+      type: object
+      properties:
+        id:
+          type: number
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum:
+            - admin
+            - user
+      required:
+        - id
+        - email
+        - name
+        - role
+    Projects:
+      type: object
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/Project"
+      required:
+        - projects
+    Project:
+      type: object
+      properties:
+        id:
+          type: number
+        full_name:
+          type: string
+        token:
+          type: string
+      required:
+        - id
+        - full_name
+        - token
+    Organizations:
+      type: object
+      properties:
+        organizations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Organization"
+      required:
+        - organizations
+    Organization:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        members:
+            type: array
+            items:
+              $ref: "#/components/schemas/OrganizationMember"
+        invitations:
+            type: array
+            items:
+              $ref: "#/components/schemas/Invitation"
+      required:
+        - id
+        - name
+        - members
+        - invitations
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message

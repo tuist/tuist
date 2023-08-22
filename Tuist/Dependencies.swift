@@ -2,7 +2,6 @@ import ProjectDescription
 
 let dependencies = Dependencies(
     swiftPackageManager: [
-        .package(url: "https://github.com/apollographql/apollo-ios.git", .exact("1.0.5")),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.2"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.2"),
         .package(url: "https://github.com/apple/swift-tools-support-core.git", from: "0.5.1"),
@@ -14,11 +13,13 @@ let dependencies = Dependencies(
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", from: "4.2.2"),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", from: "1.6.0"),
         .package(url: "https://github.com/rnine/Checksum.git", from: "1.0.2"),
-        .package(url: "https://github.com/stencilproject/Stencil.git", .exact("0.14.2")),
+        .package(url: "https://github.com/stencilproject/Stencil.git", .exact("0.15.1")),
         .package(url: "https://github.com/SwiftDocOrg/GraphViz.git", .exact("0.2.0")),
-        .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .exact("2.9.0")),
+        .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .exact("2.10.1")),
         .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.5.1")),
-        .package(url: "https://github.com/tuist/XcodeProj.git", .exact("8.10.0")),
+        .package(url: "https://github.com/tuist/XcodeProj.git", .exact("8.11.0")),
+        .package(url: "https://github.com/tuist/swift-openapi-runtime", .branch("swift-tools-version")),
+        .package(url: "https://github.com/tuist/swift-openapi-urlsession", .branch("swift-tools-version")),
     ],
     platforms: [.macOS]
 )

@@ -1,5 +1,0 @@
-mutation UpdateLastVisitedProject($input: UpdateLastVisitedProjectInput!) {
-  updateLastVisitedProject(input: $input) {
-    ...UserBasicInfo
-  }
-}

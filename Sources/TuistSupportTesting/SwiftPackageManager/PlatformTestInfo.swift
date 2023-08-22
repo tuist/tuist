@@ -7,4 +7,5 @@ public var PLATFORM_TEST_VERSION: [Platform: String] = [ // swiftlint:disable:th
     .macOS: "10.15",
     .watchOS: "8.5",
     .tvOS: "11.0",
+    .visionOS: "1.0",
 ]

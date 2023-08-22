@@ -8,13 +8,15 @@ extension CarthageVersionFile {
         iOS: [Product] = [],
         macOS: [Product] = [],
         watchOS: [Product] = [],
-        tvOS: [Product] = []
+        tvOS: [Product] = [],
+        visionOS: [Product] = []
     ) -> Self {
         .init(
             iOS: iOS,
             macOS: macOS,
             watchOS: watchOS,
-            tvOS: tvOS
+            tvOS: tvOS,
+            visionOS: visionOS
         )
     }
 
@@ -55,7 +57,8 @@ extension CarthageVersionFile {
                     name: "Alamofire",
                     container: "Alamofire.xcframework"
                 ),
-            ]
+            ],
+            visionOS: nil
         )
     }
 
@@ -196,7 +199,8 @@ extension CarthageVersionFile {
                     name: "RxTest",
                     container: "RxTest.xcframework"
                 ),
-            ]
+            ],
+            visionOS: nil
         )
     }
 
@@ -222,7 +226,8 @@ extension CarthageVersionFile {
             ],
             macOS: nil,
             watchOS: nil,
-            tvOS: nil
+            tvOS: nil,
+            visionOS: nil
         )
     }
 
@@ -240,7 +245,8 @@ extension CarthageVersionFile {
             ],
             macOS: [],
             watchOS: [],
-            tvOS: []
+            tvOS: [],
+            visionOS: []
         )
     }
 }
@@ -623,6 +629,9 @@ extension CarthageVersionFile {
               "hash" : "3a9ced64f6f8ccca46dc0038bdbf3efd8cf98f73cbc29ee1b00d98757b7fab33",
               "linking" : "dynamic"
             }
+          ],
+          "visionOS": [
+
           ]
         }
         """

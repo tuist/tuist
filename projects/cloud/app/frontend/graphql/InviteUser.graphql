@@ -1,5 +1,0 @@
-mutation InviteUser($input: InviteUserInput!) {
-  inviteUser(input: $input) {
-    ...PendingInvitation
-  }
-}

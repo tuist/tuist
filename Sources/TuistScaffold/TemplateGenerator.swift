@@ -52,35 +52,35 @@ public final class TemplateGenerator: TemplateGenerating {
         template: Template,
         attributes: [String: String]
     ) throws -> [Template.Item] {
-        try attributes.reduce(template.items) { items, attribute in
-            try items.map {
-                let path = RelativePath(
-                    $0.path.pathString
-                        .replacingOccurrences(of: "{{ \(attribute.key) }}", with: attribute.value)
+        let environment = stencilSwiftEnvironment()
+        return try template.items.map {
+            let renderedPathString = try environment.renderTemplate(
+                string: $0.path.pathString,
+                context: attributes
+            )
+            let path = RelativePath(renderedPathString)
+
+            var contents = $0.contents
+            if case let Template.Contents.file(path) = contents {
+                let renderedPathString = try environment.renderTemplate(
+                    string: path.pathString,
+                    context: attributes
                 )
-
-                var contents = $0.contents
-                if case let Template.Contents.file(path) = contents {
-                    contents = .file(
-                        try AbsolutePath(
-                            validating: path.pathString.replacingOccurrences(
-                                of: "{{ \(attribute.key) }}", with: attribute.value
-                            )
-                        )
-                    )
-                }
-                if case let Template.Contents.directory(path) = contents {
-                    contents = .directory(
-                        try AbsolutePath(
-                            validating: path.pathString.replacingOccurrences(
-                                of: "{{ \(attribute.key) }}", with: attribute.value
-                            )
-                        )
-                    )
-                }
-
-                return Template.Item(path: path, contents: contents)
+                contents = .file(
+                    try AbsolutePath(validating: renderedPathString)
+                )
             }
+            if case let Template.Contents.directory(path) = contents {
+                let renderedPathString = try environment.renderTemplate(
+                    string: path.pathString,
+                    context: attributes
+                )
+                contents = .directory(
+                    try AbsolutePath(validating: renderedPathString)
+                )
+            }
+
+            return Template.Item(path: path, contents: contents)
         }
     }
 

@@ -1,4 +1,0 @@
-fragment CacheHitRateAverage on CacheHitRateAverage {
-  date
-  cacheHitRateAverage
-}

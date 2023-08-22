@@ -72,6 +72,7 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
                     "RxBlocking": [.xcframework(path: .relativeToManifest("Tuist/Dependencies/Carthage/Build/RxBlocking.xcframework"))],
                     "Alamofire": [.xcframework(path: .relativeToManifest("Tuist/Dependencies/Carthage/Build/Alamofire.xcframework"))],
                 ],
+                .visionOS: [:],
             ],
             externalProjects: [:]
         )

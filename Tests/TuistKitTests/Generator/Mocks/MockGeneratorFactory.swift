@@ -12,7 +12,8 @@ final class MockGeneratorFactory: GeneratorFactorying {
         sources: Set<String>,
         cacheOutputType: CacheOutputType,
         cacheProfile: TuistGraph.Cache.Profile,
-        ignoreCache: Bool
+        ignoreCache: Bool,
+        targetsToSkipCache: Set<String>
     )?
     var invokedFocusParametersList =
         [(
@@ -29,11 +30,12 @@ final class MockGeneratorFactory: GeneratorFactorying {
         sources: Set<String>,
         cacheOutputType: CacheOutputType,
         cacheProfile: TuistGraph.Cache.Profile,
-        ignoreCache: Bool
+        ignoreCache: Bool,
+        targetsToSkipCache: Set<String>
     ) -> Generating {
         invokedFocus = true
         invokedFocusCount += 1
-        invokedFocusParameters = (config, sources, cacheOutputType, cacheProfile, ignoreCache)
+        invokedFocusParameters = (config, sources, cacheOutputType, cacheProfile, ignoreCache, targetsToSkipCache)
         invokedFocusParametersList.append((config, sources, cacheOutputType, cacheProfile, ignoreCache))
         return stubbedFocusResult
     }

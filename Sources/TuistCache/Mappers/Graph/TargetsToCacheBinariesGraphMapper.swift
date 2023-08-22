@@ -49,6 +49,9 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
     /// The caching profile.
     private let cacheProfile: TuistGraph.Cache.Profile
 
+    /// List of targets that will not use pre-compiled binaries from the cache.
+    private let excludedSources: Set<String>
+
     // MARK: - Init
 
     public convenience init(
@@ -56,7 +59,8 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         cacheStorageProvider: CacheStorageProviding,
         sources: Set<String>,
         cacheProfile: TuistGraph.Cache.Profile,
-        cacheOutputType: CacheOutputType
+        cacheOutputType: CacheOutputType,
+        excludedSources: Set<String>
     ) {
         self.init(
             config: config,
@@ -64,7 +68,8 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
             cacheGraphContentHasher: CacheGraphContentHasher(),
             sources: sources,
             cacheProfile: cacheProfile,
-            cacheOutputType: cacheOutputType
+            cacheOutputType: cacheOutputType,
+            excludedSources: excludedSources
         )
     }
 
@@ -76,7 +81,8 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         sources: Set<String>,
         cacheProfile: TuistGraph.Cache.Profile,
         cacheOutputType: CacheOutputType,
-        cacheGraphMutator: CacheGraphMutating = CacheGraphMutator()
+        cacheGraphMutator: CacheGraphMutating = CacheGraphMutator(),
+        excludedSources: Set<String>
     ) {
         self.config = config
         self.cacheStorageProvider = cacheStorageProvider
@@ -86,6 +92,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         self.sources = sources
         self.cacheProfile = cacheProfile
         self.cacheOutputType = cacheOutputType
+        self.excludedSources = excludedSources
     }
 
     // MARK: - GraphMapping
@@ -106,11 +113,12 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
                 availableTargets: availableTargets.sorted()
             )
         }
+        let excludedTargets = excludedSources.union(sources)
         let hashes = try cacheGraphContentHasher.contentHashes(
             for: graph,
             cacheProfile: cacheProfile,
             cacheOutputType: cacheOutputType,
-            excludedTargets: sources
+            excludedTargets: excludedTargets
         )
         let result = try cacheGraphMutator.map(
             graph: graph,

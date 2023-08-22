@@ -1,5 +1,82 @@
 # Changelog
 
+## 3.23.1 - 2023-08-17
+
+### Fixed
+
+- Derive platform filters based on the specified destinations [#5357](https://github.com/tuist/tuist/pull/5357) by [@waltflanagan](https://github.com/waltflanagan)
+
+## 3.23.0 - 2023-08-16
+
+### Changed
+
+- Multi-Platform support - Phase 1: Introduce `TuistGraph.Destination` and migrate `TuistGraph.Target` to use it [#5132](https://github.com/tuist/tuist/pull/5132) by [@waltflanagan](https://github.com/waltflanagan)
+
+### Added
+
+- Add tuist cloud project create command [#5312](https://github.com/tuist/tuist/pull/5312) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud project list command [#5316](https://github.com/tuist/tuist/pull/5316) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization create command [#5326](https://github.com/tuist/tuist/pull/5326) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud organization list command [#5328](https://github.com/tuist/tuist/pull/5328) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud project delete command [#5321](https://github.com/tuist/tuist/pull/5321) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud organization delete command [#5330](https://github.com/tuist/tuist/pull/5330) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud organization show command [#5331](https://github.com/tuist/tuist/pull/5331) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization invite command [#5333](https://github.com/tuist/tuist/pull/5333) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization remove invite command [#5334](https://github.com/tuist/tuist/pull/5334) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization remove member command [#5335](https://github.com/tuist/tuist/pull/5335) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization update member command [#5336](https://github.com/tuist/tuist/pull/5336) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud project token command [#5337](https://github.com/tuist/tuist/pull/5337) by [@fortmarek](https://github.com/fortmarek)
+- Support for stencil modifiers in scaffold filenames [#5315](https://github.com/tuist/tuist/pull/5315) by [@tejassharma96](https://github.com/tejassharma96)
+- Add `--skip-cache` argument to `tuist generate` [#5342](https://github.com/tuist/tuist/pull/5342) by [@woohyunjin06](https://github.com/woohyunjin06)
+- Allow mlpackage files to be included into source files [#5352](https://github.com/tuist/tuist/pull/5352) by [@kevin58332](https://github.com/kevin58332)
+
+### Fixed
+
+- Fix tuist cache warm --xcframeworks of SPM frameworks due to missing macCatalyst availability [#5302](https://github.com/tuist/tuist/pull/5302) by [@MontakOleg](https://github.com/MontakOleg)
+
+## Unreleased
+
+### Breaking
+
+- Multi-platform / Multi-destination prep work will cause the following build settings to no longer be overridable in xcconfigs. This is to ensure the upcoming feature can be more predictable and reliable. The `.deploymentTarget()` API can be used to control those settings in the interim, please report any issues you may encounter related to this.
+  - `SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD`
+  - `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD`
+  - `SUPPORTS_MACCATALYST`
+
+## 3.22.0 - 2023-07-31
+
+### Fixed
+
+- Fix GraphViz layout algorithm documentation name typo in https://github.com/tuist/tuist/pull/5309 by [@cristi-lupu](https://github.com/cristi-lupu)
+
+## 3.21.1 - 2023-07-13
+
+### Changed
+
+- Update `TEST_HOST` to use BUNDLE_EXECUTABLE_FOLDER_PATH from Xcode 14 [#5289](https://github.com/tuist/tuist/pull/5289) by [@waltflanagan](https://github.com/waltflanagan)
+
+### Fixed
+
+- Fix plist code generation for single file case [#5292](https://github.com/tuist/tuist/pull/5292) by [@waltflanagan](https://github.com/waltflanagan).
+
+## 3.21.0 - 2023-07-11
+
+### Changed
+
+- Set BuildIndependentTargetsInParallel setting to true by default [#5225](https://github.com/tuist/tuist/pull/5225) by [@thedavidharris](https://github.com/thedavidharris)
+- Update Stencil to 0.15.1 [#5250](https://github.com/tuist/tuist/pull/5250) by [@waltflanagan](https://github.com/waltflanagan)
+
+### Added
+
+- Add support for ExtensionKit extensions [#5005](https://github.com/tuist/tuist/pull/5005) by [@tovkal](https://github.com/tovkal)
+- Added support for visionOS [#5251](https://github.com/tuist/tuist/pull/5251) by [@Mstrodl](https://github.com/Mstrodl).
+
+### Fixed
+
+- Mark bundle product type doesn't support sources for all platforms [#5229](https://github.com/tuist/tuist/pull/5229) by [@serejahh](https://github.com/serejahh)
+- Fixed a bug where turning on and off the rendering of markdown files in Workspace config wouldn't turn off rendering properly and would stay in read-only mode [#5261](https://github.com/tuist/tuist/pull/5261) by [@Buju77](https://github.com/Buju77).
+- Fixed code generation when target name starts with non alphanumeric character [#5256](https://github.com/tuist/tuist/pull/5256) by [@dankinsoid](https://github.com/dankinsoid)
+
 ## 3.20.0 - 2023-05-31
 
 ### Changed

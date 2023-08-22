@@ -1,9 +1,0 @@
-fragment S3BucketInfo on S3Bucket {
-  id
-  name
-  accessKeyId
-  secretAccessKey
-  accountId
-  region
-  isDefault
-}

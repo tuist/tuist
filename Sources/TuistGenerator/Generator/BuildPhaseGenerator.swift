@@ -126,16 +126,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             )
         }
 
-        if target.canEmbedXPCServices() {
-            try generateEmbedXPCServicesBuildPhase(
-                path: path,
-                target: target,
-                graphTraverser: graphTraverser,
-                pbxTarget: pbxTarget,
-                fileElements: fileElements,
-                pbxproj: pbxproj
-            )
-        }
+        try generateEmbedXPCServicesBuildPhase(
+            path: path,
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
 
         if target.canEmbedSystemExtensions() {
             try generateEmbedSystemExtensionBuildPhase(
@@ -616,6 +614,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
+            if !target.isExclusiveTo(.macOS) {
+                pbxBuildFile.applyPlatformFilters([.macos])
+            }
             pbxBuildFiles.append(pbxBuildFile)
         }
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }

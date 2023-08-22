@@ -449,7 +449,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     ) -> Target {
         Target(
             name: name,
-            platform: .macOS,
+            destinations: .macOS,
             product: .staticFramework,
             productName: name,
             bundleId: "io.tuist.${PRODUCT_NAME:rfc1034identifier}",

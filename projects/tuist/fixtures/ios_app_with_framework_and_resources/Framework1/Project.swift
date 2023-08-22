@@ -6,6 +6,7 @@ import ProjectDescription
 let resourcesDirectory = "Resources"
 let resources: [ResourceFileElement] = [
     "\(resourcesDirectory)/framework_resource.txt",
+    "\(resourcesDirectory)/AnotherPlist.plist",
 ]
 
 let project = Project(

@@ -32,7 +32,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             sources: [],
             cacheProfile: .test(),
             cacheOutputType: .framework,
-            cacheGraphMutator: cacheGraphMutator
+            cacheGraphMutator: cacheGraphMutator,
+            excludedSources: []
         )
     }
 
@@ -56,7 +57,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             sources: ["B", "C", "D"],
             cacheProfile: .test(),
             cacheOutputType: .framework,
-            cacheGraphMutator: cacheGraphMutator
+            cacheGraphMutator: cacheGraphMutator,
+            excludedSources: []
         )
         let projectPath = try temporaryPath()
         let graph = Graph.test(
@@ -259,7 +261,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             sources: [],
             cacheProfile: .test(),
             cacheOutputType: .xcframework([.device, .simulator]),
-            cacheGraphMutator: cacheGraphMutator
+            cacheGraphMutator: cacheGraphMutator,
+            excludedSources: []
         )
 
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
@@ -304,5 +307,64 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(invokedCacheProfile, .test())
         XCTAssertEqual(invokedCacheOutputType, .xcframework([.device, .simulator]))
+    }
+
+    func test_map_when_excluded_targets_are_passed() async throws {
+        let path = try temporaryPath()
+        let project = Project.test(path: path)
+
+        // Given
+        subject = TargetsToCacheBinariesGraphMapper(
+            config: config,
+            cacheStorageProvider: cacheStorageProvider,
+            cacheFactory: cacheFactory,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            sources: [],
+            cacheProfile: .test(),
+            cacheOutputType: .framework,
+            cacheGraphMutator: cacheGraphMutator,
+            excludedSources: ["B"]
+        )
+
+        let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
+        let bGraphTarget = GraphTarget.test(path: path, target: bFramework)
+
+        let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
+        let cGraphTarget = GraphTarget.test(path: path, target: cFramework)
+
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+
+        let inputGraph = Graph.test(
+            name: "input",
+            projects: [path: project],
+            targets: [
+                path: [
+                    app.name: app,
+                ],
+            ],
+            dependencies: [
+                .target(name: bFramework.name, path: bGraphTarget.path): [],
+                .target(name: cFramework.name, path: cGraphTarget.path): [],
+            ]
+        )
+        let outputGraph = Graph.test(
+            name: "output",
+            projects: inputGraph.projects,
+            targets: inputGraph.targets,
+            dependencies: inputGraph.dependencies
+        )
+        cacheGraphMutator.stubbedMapResult = outputGraph
+
+        var invokedExcludedTargets: Set<String>?
+        cacheGraphContentHasher.contentHashesStub = { _, _, _, excludedTargets in
+            invokedExcludedTargets = excludedTargets
+            return [:]
+        }
+
+        // When
+        _ = try await subject.map(graph: inputGraph)
+
+        // Then
+        XCTAssertEqual(invokedExcludedTargets, ["App", "B"])
     }
 }

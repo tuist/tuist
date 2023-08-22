@@ -11,6 +11,8 @@ extension Platform {
             return "watchOS"
         case .tvOS:
             return "tvOS"
+        case .visionOS:
+            return "visionOS"
         }
     }
 }

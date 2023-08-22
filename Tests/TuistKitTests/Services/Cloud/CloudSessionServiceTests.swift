@@ -13,73 +13,29 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class CloudSessionServiceErrorTests: TuistUnitTestCase {
-    func test_description_when_missingCloudURL() {
-        // Given
-        let subject = CloudSessionServiceError.missingCloudURL
-
-        // When
-        let got = subject.description
-
-        // Then
-        XCTAssertEqual(got, "The cloud URL attribute is missing in your project's configuration.")
-    }
-
-    func test_type_when_missingCloudURL() {
-        // Given
-        let subject = CloudSessionServiceError.missingCloudURL
-
-        // When
-        let got = subject.type
-
-        // Then
-        XCTAssertEqual(got, .abort)
-    }
-}
-
 final class CloudSessionServiceTests: TuistUnitTestCase {
-    var cloudSessionController: MockCloudSessionController!
-    var configLoader: MockConfigLoader!
-    var subject: CloudSessionService!
+    private var cloudSessionController: MockCloudSessionController!
+    private var subject: CloudSessionService!
 
     override func setUp() {
         super.setUp()
         cloudSessionController = MockCloudSessionController()
-        configLoader = MockConfigLoader()
         subject = CloudSessionService(
-            cloudSessionController: cloudSessionController,
-            configLoader: configLoader
+            cloudSessionController: cloudSessionController
         )
     }
 
     override func tearDown() {
         cloudSessionController = nil
-        configLoader = nil
         subject = nil
         super.tearDown()
     }
 
-    func test_printSession_when_cloudURL_is_missing() {
-        // Given
-        configLoader.loadConfigStub = { _ in
-            Config.test(cloud: nil)
-        }
-
-        // Then
-        XCTAssertThrowsSpecific(try subject.printSession(), CloudSessionServiceError.missingCloudURL)
-    }
-
     func test_printSession() throws {
-        // Given
-        let cloudURL = URL.test()
-        configLoader.loadConfigStub = { _ in
-            Config.test(cloud: Cloud(url: cloudURL, projectId: "123", options: []))
-        }
-
         // When
-        try subject.printSession()
+        try subject.printSession(serverURL: nil)
 
         // Then
-        XCTAssertTrue(cloudSessionController.printSessionArgs.contains(cloudURL))
+        XCTAssertTrue(cloudSessionController.printSessionArgs.contains(URL(string: Constants.tuistCloudURL)!))
     }
 }

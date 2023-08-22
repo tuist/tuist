@@ -5,63 +5,29 @@ import TuistLoader
 import TuistSupport
 
 protocol CloudLogoutServicing: AnyObject {
-    /// It reads the cloud URL from the project's Config.swift and
-    /// and it removes any session associated to that domain from
+    /// It removes any session associated to that domain from
     /// the keychain
-    func logout() throws
-}
-
-enum CloudLogoutServiceError: FatalError, Equatable {
-    case missingCloudURL
-
-    /// Error description.
-    var description: String {
-        switch self {
-        case .missingCloudURL:
-            return "The cloud URL attribute is missing in your project's configuration."
-        }
-    }
-
-    /// Error type.
-    var type: ErrorType {
-        switch self {
-        case .missingCloudURL:
-            return .abort
-        }
-    }
+    func logout(
+        serverURL: String?
+    ) throws
 }
 
 final class CloudLogoutService: CloudLogoutServicing {
-    let cloudSessionController: CloudSessionControlling
-    let configLoader: ConfigLoading
-
-    // MARK: - Init
-
-    convenience init() {
-        let manifestLoader = ManifestLoader()
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
-        self.init(
-            cloudSessionController: CloudSessionController(),
-            configLoader: configLoader
-        )
-    }
+    private let cloudSessionController: CloudSessionControlling
+    private let cloudURLService: CloudURLServicing
 
     init(
-        cloudSessionController: CloudSessionControlling,
-        configLoader: ConfigLoading
+        cloudSessionController: CloudSessionControlling = CloudSessionController(),
+        cloudURLService: CloudURLServicing = CloudURLService()
     ) {
         self.cloudSessionController = cloudSessionController
-        self.configLoader = configLoader
+        self.cloudURLService = cloudURLService
     }
 
-    // MARK: - CloudAuthServicing
-
-    func logout() throws {
-        let path = FileHandler.shared.currentPath
-        let config = try configLoader.loadConfig(path: path)
-        guard let cloudURL = config.cloud?.url else {
-            throw CloudLogoutServiceError.missingCloudURL
-        }
+    func logout(
+        serverURL: String?
+    ) throws {
+        let cloudURL = try cloudURLService.url(serverURL: serverURL)
         try cloudSessionController.logout(serverURL: cloudURL)
     }
 }

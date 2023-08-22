@@ -36,6 +36,12 @@ public struct TestingLogHandler: LogHandler {
         get { metadata[key] }
         set { metadata[key] = newValue }
     }
+
+    public static func reset() {
+        TestingLogHandler.collectionQueue.async {
+            TestingLogHandler.collectedLogs = [:]
+        }
+    }
 }
 
 extension Dictionary where Key == Logger.Level, Value == [String] {

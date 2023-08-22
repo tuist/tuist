@@ -13,6 +13,10 @@ public final class MockCredentialsStore: CredentialsStoring {
         credentials[serverURL]
     }
 
+    public func get(serverURL: URL) throws -> Credentials {
+        credentials[serverURL]!
+    }
+
     public func delete(serverURL: URL) throws {
         credentials.removeValue(forKey: serverURL)
     }

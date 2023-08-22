@@ -17,6 +17,8 @@ extension TuistGraph.Platform {
             return .tvOS
         case .watchOS:
             return .watchOS
+        case .visionOS:
+            return .visionOS
         }
     }
 }

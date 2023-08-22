@@ -46,7 +46,11 @@ final class TemplateGeneratorTests: TuistTestCase {
 
     func test_directories_with_attributes() throws {
         // Given
-        let directories = [RelativePath("{{ name }}"), RelativePath("{{ aName }}"), RelativePath("{{ name }}/{{ bName }}")]
+        let directories = [
+            RelativePath("{{ name|lowercase }}"),
+            RelativePath("{{ aName }}"),
+            RelativePath("{{ name }}/{{ bName }}"),
+        ]
         let items = directories.map {
             Template.Item.test(path: RelativePath($0.pathString + "/file.swift"))
         }
@@ -63,7 +67,7 @@ final class TemplateGeneratorTests: TuistTestCase {
             template: template,
             to: destinationPath,
             attributes: [
-                "name": "test_name",
+                "name": "Test_Name",
                 "aName": "test",
                 "bName": "nested_dir",
             ]

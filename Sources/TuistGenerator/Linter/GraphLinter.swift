@@ -110,23 +110,23 @@ public class GraphLinter: GraphLinting {
 
     private func lintDependency(from: GraphTarget, to: GraphTarget) -> [LintingIssue] {
         let fromTarget = LintableTarget(
-            platform: from.target.platform,
+            platform: from.target.legacyPlatform,
             product: from.target.product
         )
         let toTarget = LintableTarget(
-            platform: to.target.platform,
+            platform: to.target.legacyPlatform,
             product: to.target.product
         )
 
         guard let supportedTargets = GraphLinter.validLinks[fromTarget] else {
             let reason =
-                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' which is an invalid or not supported yet combination."
+                "Target \(from.target.name) has platform '\(from.target.legacyPlatform)' and product '\(from.target.product)' which is an invalid or not supported yet combination."
             return [LintingIssue(reason: reason, severity: .error)]
         }
 
         guard supportedTargets.contains(toTarget) else {
             let reason =
-                "Target \(from.target.name) has platform '\(from.target.platform)' and product '\(from.target.product)' and depends on target \(to.target.name) of type \(to.target.product) and platform '\(to.target.platform)' which is an invalid or not supported yet combination."
+                "Target \(from.target.name) has platform '\(from.target.legacyPlatform)' and product '\(from.target.product)' and depends on target \(to.target.name) of type \(to.target.product) and platform '\(to.target.legacyPlatform)' which is an invalid or not supported yet combination."
             return [LintingIssue(reason: reason, severity: .error)]
         }
 
@@ -584,6 +584,59 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .macOS, product: .staticFramework),
+        ],
+
+        // visionOS products
+        LintableTarget(platform: .visionOS, product: .app): [
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .bundle),
+            LintableTarget(platform: .visionOS, product: .appExtension),
+            LintableTarget(platform: .visionOS, product: .extensionKitExtension),
+        ],
+        LintableTarget(platform: .visionOS, product: .staticLibrary): [
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .bundle),
+        ],
+        LintableTarget(platform: .visionOS, product: .staticFramework): [
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .bundle),
+        ],
+        LintableTarget(platform: .visionOS, product: .dynamicLibrary): [
+            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
+            LintableTarget(platform: .visionOS, product: .bundle),
+        ],
+        LintableTarget(platform: .visionOS, product: .framework): [
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .bundle),
+        ],
+        LintableTarget(platform: .visionOS, product: .unitTests): [
+            LintableTarget(platform: .visionOS, product: .app),
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .bundle),
+        ],
+        LintableTarget(platform: .visionOS, product: .appExtension): [
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .visionOS, product: .framework),
+        ],
+        LintableTarget(platform: .visionOS, product: .extensionKitExtension): [
+            LintableTarget(platform: .visionOS, product: .staticLibrary),
+            LintableTarget(platform: .visionOS, product: .dynamicLibrary),
+            LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .visionOS, product: .staticFramework),
         ],
     ]
 }

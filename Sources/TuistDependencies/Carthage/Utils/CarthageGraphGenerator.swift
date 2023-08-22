@@ -29,12 +29,14 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
         let watchOSProducts = products.flatMap { $0.watchOS ?? [] }
         let macOSProducts = products.flatMap { $0.macOS ?? [] }
         let tvOSProducts = products.flatMap { $0.tvOS ?? [] }
+        let visionOSProducts = products.flatMap { $0.visionOS ?? [] }
 
         let externalDependencies: [ProjectDescription.Platform: [String: [TargetDependency]]] = [
             .iOS: groupDependencies(products: iOSProducts),
             .watchOS: groupDependencies(products: watchOSProducts),
             .macOS: groupDependencies(products: macOSProducts),
             .tvOS: groupDependencies(products: tvOSProducts),
+            .visionOS: groupDependencies(products: visionOSProducts),
         ]
 
         return DependenciesGraph(externalDependencies: externalDependencies, externalProjects: [:])

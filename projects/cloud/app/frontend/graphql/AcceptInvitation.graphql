@@ -1,9 +1,0 @@
-mutation AcceptInvitation($input: AcceptInvitationInput!) {
-  acceptInvitation(input: $input) {
-    account {
-      projects {
-        slug
-      }
-    }
-  }
-}

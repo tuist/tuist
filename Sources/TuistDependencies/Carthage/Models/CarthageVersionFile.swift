@@ -9,16 +9,18 @@ struct CarthageVersionFile: Decodable, Equatable {
         case macOS = "Mac"
         case watchOS
         case tvOS
+        case visionOS
     }
 
     let iOS: [Product]?
     let macOS: [Product]?
     let watchOS: [Product]?
     let tvOS: [Product]?
+    let visionOS: [Product]?
 
     /// Returns all products.
     var allProducts: [Product] {
-        [iOS, macOS, watchOS, tvOS]
+        [iOS, macOS, watchOS, tvOS, visionOS]
             .compactMap { $0 }
             .flatMap { $0 }
     }
