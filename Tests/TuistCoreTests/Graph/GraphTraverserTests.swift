@@ -1106,19 +1106,22 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_embeddableFrameworks_when_dependencyIsATarget() throws {
         // Given
+        let mergeableSettings = Settings.test(base: ["MERGEABLE_LIBRARY": "YES"])
         let target = Target.test(name: "Main")
-        let dependency = Target.test(name: "Dependency", product: .framework)
+        let dependencyA = Target.test(name: "DependencyA", product: .framework)
+        let dependencyB = Target.test(name: "DependencyB", product: .framework, settings: mergeableSettings)
         let project = Project.test(targets: [target])
 
         // Given: Value Graph
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [dependency.name: dependency, target.name: target]],
+            targets: [project.path: [dependencyA.name: dependencyA, dependencyB.name: dependencyB, target.name: target]],
             dependencies: [
                 .target(
                     name: target.name,
                     path: project.path
-                ): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
+                ): Set(arrayLiteral: .target(name: dependencyA.name, path: project.path),
+                                     .target(name: dependencyB.name, path: project.path)),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -1128,9 +1131,39 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            got.first,
-            GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework", platformFilters: [.ios])
+            got, [
+            .product(target: "DependencyA", productName: "DependencyA.framework", platformFilters: [.ios]),
+            .product(target: "DependencyB", productName: "DependencyB.framework", platformFilters: [.ios]),
+        ])
+    }
+
+    func test_embeddableFrameworks_when_appIsMergeableAndDependencyIsATarget() throws {
+        // Given
+        let mergeableSettings = Settings.test(base: ["MERGEABLE_LIBRARY": "YES"])
+        let target = Target.test(name: "Main", settings: .test(base: ["MERGED_BINARY_TYPE": "manual"]))
+        let dependencyA = Target.test(name: "DependencyA", product: .framework)
+        let dependencyB = Target.test(name: "DependencyB", product: .framework, settings: mergeableSettings)
+        let project = Project.test(targets: [target])
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [dependencyA.name: dependencyA, dependencyB.name: dependencyB, target.name: target]],
+            dependencies: [
+                .target(
+                    name: target.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: dependencyA.name, path: project.path),
+                                     .target(name: dependencyB.name, path: project.path)),
+            ]
         )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [.product(target: "DependencyA", productName: "DependencyA.framework", platformFilters: [.ios])])
     }
 
     func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
@@ -1185,10 +1218,21 @@ final class GraphTraverserTests: TuistUnitTestCase {
             linking: .dynamic,
             isMergeable: false
         )
+        let eDependency = GraphDependency.xcframework(
+            path: "/xcframeworks/e.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id",
+                                               path: RelativePath("path"),
+                                               mergeableMetadata: true,
+                                               architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/e.xcframework/e",
+            linking: .dynamic,
+            isMergeable: true
+        )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency),
+            .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency, eDependency),
             cDependency: Set(arrayLiteral: dDependency),
             dDependency: Set(),
+            eDependency: Set(),
         ]
         let graph = Graph.test(
             projects: [project.path: project],
@@ -1204,7 +1248,60 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, [
             GraphDependencyReference(cDependency),
             GraphDependencyReference(dDependency),
+            GraphDependencyReference(eDependency), // E should be present in the list as it is mergeable but app is not mergeable
         ])
+    }
+
+    func test_embeddableFrameworks_when_appMergesDependencies() throws {
+        // Given
+        let settings = Settings.test(base: ["MERGED_BINARY_TYPE": "manual"])
+        let app = Target.test(name: "App", platform: .iOS, product: .app, settings: settings)
+        let project = Project.test(targets: [app])
+
+        // Given: Value Graph
+        let cDependency = GraphDependency.xcframework(
+            path: "/xcframeworks/c.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/c.xcframework/c",
+            linking: .dynamic,
+            isMergeable: false
+        )
+        let dDependency = GraphDependency.xcframework(
+            path: "/xcframeworks/d.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/d.xcframework/d",
+            linking: .dynamic,
+            isMergeable: false
+        )
+        let eDependency = GraphDependency.xcframework(
+            path: "/xcframeworks/e.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id",
+                                               path: RelativePath("path"),
+                                               mergeableMetadata: true,
+                                               architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/e.xcframework/e",
+            linking: .dynamic,
+            isMergeable: true
+        )
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency, eDependency),
+            cDependency: Set(arrayLiteral: dDependency),
+            dDependency: Set(),
+            eDependency: Set(),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [GraphDependencyReference(cDependency), GraphDependencyReference(dDependency)])
+        // E should not be present in the list as it is mergeable and app is mergeable
     }
 
     func test_embeddableFrameworks_when_dependencyIsATransitiveFramework() throws {

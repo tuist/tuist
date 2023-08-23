@@ -132,6 +132,39 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         ))
     }
 
+    func test_loadMetadata_mergeableDynamicLibrary() throws {
+        // Given
+        let frameworkPath = fixturePath(path: RelativePath("MyMergeableFramework.xcframework"))
+
+        // When
+        let metadata = try subject.loadMetadata(at: frameworkPath)
+
+        // Then
+        let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
+            .init(
+                identifier: "ios-x86_64-simulator",
+                path: RelativePath("MyMergeableFramework.framework"),
+                mergeableMetadata: true,
+                architectures: [.x8664]
+            ),
+            .init(
+                identifier: "ios-arm64",
+                path: RelativePath("MyMergeableFramework.framework"),
+                mergeableMetadata: true,
+                architectures: [.arm64]
+            ),
+        ])
+        let relativePath = RelativePath("ios-x86_64-simulator/MyMergeableFramework.framework/MyMergeableFramework")
+        let expectedBinaryPath = frameworkPath.appending(relativePath)
+        XCTAssertEqual(metadata, XCFrameworkMetadata(
+            path: frameworkPath,
+            infoPlist: expectedInfoPlist,
+            primaryBinaryPath: expectedBinaryPath,
+            linking: .dynamic,
+            mergeable: true
+        ))
+    }
+
     func test_loadMetadata_staticLibrary() throws {
         // Given
         let frameworkPath = fixturePath(path: RelativePath("MyStaticLibrary.xcframework"))
