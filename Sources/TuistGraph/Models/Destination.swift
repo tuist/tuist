@@ -43,6 +43,23 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
             return .visionOS
         }
     }
+
+    var platformFilter: PlatformFilter {
+        switch self {
+        case .iPad, .iPhone, .macWithiPadDesign, .appleVisionWithiPadDesign:
+            return .ios
+        case .macCatalyst:
+            return .catalyst
+        case .mac:
+            return .macos
+        case .appleTv:
+            return .tvos
+        case .appleWatch:
+            return .watchos
+        case .appleVision:
+            return .visionos
+        }
+    }
 }
 
 extension Collection where Element == Destination {

@@ -78,7 +78,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         let filePath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
-            .appending(component: "TuistBundle+\(target.name.camelized.uppercasingFirst).swift")
+            .appending(component: "TuistBundle+\(target.name.toValidSwiftIdentifier()).swift")
 
         let content: String = ResourcesProjectMapper.fileContent(
             targetName: target.name,
@@ -126,7 +126,7 @@ public class ResourcesProjectMapper: ProjectMapping {
             // MARK: - Objective-C Bundle Accessor
 
             @objc
-            public class \(target.productName.camelized.uppercasingFirst)Resources: NSObject {
+            public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
                 @objc public class var bundle: Bundle {
                     return .module
                 }
@@ -155,7 +155,7 @@ public class ResourcesProjectMapper: ProjectMapping {
             // MARK: - Objective-C Bundle Accessor
 
             @objc
-            public class \(target.productName.camelized.uppercasingFirst)Resources: NSObject {
+            public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
                 @objc public class var bundle: Bundle {
                     return .module
                 }
