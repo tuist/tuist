@@ -137,7 +137,7 @@ extension Plist.Value: ExpressibleByDictionaryLiteral {
     }
 }
 
-// MARK: - InfoPlist.Value - ExpressibleByArrayLiteral
+// MARK: - Plist.Value - ExpressibleByArrayLiteral
 
 extension Plist.Value: ExpressibleByArrayLiteral {
     public init(arrayLiteral elements: Plist.Value...) {
