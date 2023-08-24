@@ -1,6 +1,6 @@
-# Tuist Benchmark
+# Benchmarking
 
-A tool to time & benchmark tuist's commands against a set of fixtures
+The Tuist project includes an executable, `tuistbench`, that you can use to benchmark the execution of Tuist.
 
 ## Usage
 
