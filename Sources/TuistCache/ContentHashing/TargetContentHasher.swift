@@ -40,7 +40,7 @@ public final class TargetContentHasher: TargetContentHashing {
             copyFilesContentHasher: CopyFilesContentHasher(contentHasher: contentHasher),
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
             deploymentTargetContentHasher: DeploymentTargetContentHasher(contentHasher: contentHasher),
-            plistContentHasher: PListContentHasher(contentHasher: contentHasher),
+            plistContentHasher: PlistContentHasher(contentHasher: contentHasher),
             settingsContentHasher: SettingsContentHasher(contentHasher: contentHasher),
             dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher)
         )

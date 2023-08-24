@@ -1,9 +1,9 @@
 import Foundation
 import TSCBasic
 
-public protocol PListTypesProtocol {}
+public protocol PlistTypesProtocol {}
 
-public enum Entitlements: PListTypesProtocol, Equatable, Codable {
+public enum Entitlements: PlistTypesProtocol, Equatable, Codable {
     // Path to a user defined info.plist file (already exists on disk).
     case file(path: AbsolutePath)
 
@@ -12,7 +12,7 @@ public enum Entitlements: PListTypesProtocol, Equatable, Codable {
     case generatedFile(path: AbsolutePath, data: Data)
 
     // User defined dictionary of keys/values for an info.plist file.
-    case dictionary([String: PList.Value])
+    case dictionary([String: Plist.Value])
 
     // MARK: - Public
 
@@ -34,7 +34,7 @@ extension Entitlements: ExpressibleByStringLiteral {
     }
 }
 
-public enum PList {
+public enum Plist {
     public indirect enum Value: Equatable, Codable {
         case string(String)
         case integer(Int)
@@ -62,7 +62,7 @@ public enum PList {
     }
 }
 
-public enum InfoPlist: PListTypesProtocol, Equatable, Codable {
+public enum InfoPlist: PlistTypesProtocol, Equatable, Codable {
     // Path to a user defined info.plist file (already exists on disk).
     case file(path: AbsolutePath)
 
@@ -71,11 +71,11 @@ public enum InfoPlist: PListTypesProtocol, Equatable, Codable {
     case generatedFile(path: AbsolutePath, data: Data)
 
     // User defined dictionary of keys/values for an info.plist file.
-    case dictionary([String: PList.Value])
+    case dictionary([String: Plist.Value])
 
     // User defined dictionary of keys/values for an info.plist file extending the default set of keys/values
     // for the target type.
-    case extendingDefault(with: [String: PList.Value])
+    case extendingDefault(with: [String: Plist.Value])
 
     // MARK: - Public
 
@@ -97,57 +97,57 @@ extension InfoPlist: ExpressibleByStringLiteral {
     }
 }
 
-// MARK: - PList.Value - ExpressibleByStringLiteral
+// MARK: - Plist.Value - ExpressibleByStringLiteral
 
-extension PList.Value: ExpressibleByStringLiteral {
+extension Plist.Value: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         self = .string(value)
     }
 }
 
-// MARK: - PList.Value - ExpressibleByIntegerLiteral
+// MARK: - Plist.Value - ExpressibleByIntegerLiteral
 
-extension PList.Value: ExpressibleByIntegerLiteral {
+extension Plist.Value: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: Int) {
         self = .integer(value)
     }
 }
 
-// MARK: - PList.Value - ExpressibleByIntegerLiteral
+// MARK: - Plist.Value - ExpressibleByIntegerLiteral
 
-extension PList.Value: ExpressibleByFloatLiteral {
+extension Plist.Value: ExpressibleByFloatLiteral {
     public init(floatLiteral value: Double) {
         self = .real(value)
     }
 }
 
-// MARK: - PList.Value - ExpressibleByBooleanLiteral
+// MARK: - Plist.Value - ExpressibleByBooleanLiteral
 
-extension PList.Value: ExpressibleByBooleanLiteral {
+extension Plist.Value: ExpressibleByBooleanLiteral {
     public init(booleanLiteral value: Bool) {
         self = .boolean(value)
     }
 }
 
-// MARK: - PList.Value - ExpressibleByDictionaryLiteral
+// MARK: - Plist.Value - ExpressibleByDictionaryLiteral
 
-extension PList.Value: ExpressibleByDictionaryLiteral {
-    public init(dictionaryLiteral elements: (String, PList.Value)...) {
+extension Plist.Value: ExpressibleByDictionaryLiteral {
+    public init(dictionaryLiteral elements: (String, Plist.Value)...) {
         self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
     }
 }
 
-// MARK: - PList.Value - ExpressibleByArrayLiteral
+// MARK: - Plist.Value - ExpressibleByArrayLiteral
 
-extension PList.Value: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: PList.Value...) {
+extension Plist.Value: ExpressibleByArrayLiteral {
+    public init(arrayLiteral elements: Plist.Value...) {
         self = .array(elements)
     }
 }
 
-// MARK: - Dictionary (PList.Value)
+// MARK: - Dictionary (Plist.Value)
 
-extension Dictionary where Value == PList.Value {
+extension Dictionary where Value == Plist.Value {
     public func unwrappingValues() -> [Key: Any] {
         mapValues { $0.value }
     }

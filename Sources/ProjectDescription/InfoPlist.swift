@@ -1,13 +1,13 @@
 import Foundation
 
-public protocol PListTypesProtocol {}
+public protocol PlistTypesProtocol {}
 
-public enum Entitlements: PListTypesProtocol, Codable, Equatable {
+public enum Entitlements: PlistTypesProtocol, Codable, Equatable {
     /// The path to an existing Info.plist file.
     case file(path: Path)
 
     /// A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time.
-    case dictionary([String: PList.Value])
+    case dictionary([String: Plist.Value])
 
     // MARK: - Error
 
@@ -35,8 +35,8 @@ extension Entitlements: ExpressibleByStringInterpolation {
     }
 }
 
-public enum PList {
-    /// It represents the values of the PList file dictionary.
+public enum Plist {
+    /// It represents the values of the Plist file dictionary.
     /// It ensures that the values used to define the content of the dynamically generated Info.plist files are valid
     public indirect enum Value: Codable, Equatable {
         /// It represents a string value.
@@ -56,15 +56,15 @@ public enum PList {
 
 
 /// A info plist from a file, a custom dictonary or a extended defaults.
-public enum InfoPlist: PListTypesProtocol, Codable, Equatable {
+public enum InfoPlist: PlistTypesProtocol, Codable, Equatable {
     /// The path to an existing Info.plist file.
     case file(path: Path)
 
     /// A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time.
-    case dictionary([String: PList.Value])
+    case dictionary([String: Plist.Value])
 
     /// Generate an Info.plist file with the default content for the target product extended with the values in the given dictionary.
-    case extendingDefault(with: [String: PList.Value])
+    case extendingDefault(with: [String: Plist.Value])
 
     /// Generate the default content for the target the InfoPlist belongs to.
     public static var `default`: InfoPlist {
@@ -97,50 +97,50 @@ extension InfoPlist: ExpressibleByStringInterpolation {
     }
 }
 
-// MARK: - PList.Value - ExpressibleByStringInterpolation
+// MARK: - Plist.Value - ExpressibleByStringInterpolation
 
-extension PList.Value: ExpressibleByStringInterpolation {
+extension Plist.Value: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self = .string(value)
     }
 }
 
-// MARK: - PList.Value - ExpressibleByIntegerLiteral
+// MARK: - Plist.Value - ExpressibleByIntegerLiteral
 
-extension PList.Value: ExpressibleByIntegerLiteral {
+extension Plist.Value: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: Int) {
         self = .integer(value)
     }
 }
 
-// MARK: - PList.Value - ExpressibleByFloatLiteral
+// MARK: - Plist.Value - ExpressibleByFloatLiteral
 
-extension PList.Value: ExpressibleByFloatLiteral {
+extension Plist.Value: ExpressibleByFloatLiteral {
     public init(floatLiteral value: Double) {
         self = .real(value)
     }
 }
 
-// MARK: - PList.Value - ExpressibleByBooleanLiteral
+// MARK: - Plist.Value - ExpressibleByBooleanLiteral
 
-extension PList.Value: ExpressibleByBooleanLiteral {
+extension Plist.Value: ExpressibleByBooleanLiteral {
     public init(booleanLiteral value: Bool) {
         self = .boolean(value)
     }
 }
 
-// MARK: - PList.Value - ExpressibleByDictionaryLiteral
+// MARK: - Plist.Value - ExpressibleByDictionaryLiteral
 
-extension PList.Value: ExpressibleByDictionaryLiteral {
-    public init(dictionaryLiteral elements: (String, PList.Value)...) {
+extension Plist.Value: ExpressibleByDictionaryLiteral {
+    public init(dictionaryLiteral elements: (String, Plist.Value)...) {
         self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
     }
 }
 
 // MARK: - InfoPlist.Value - ExpressibleByArrayLiteral
 
-extension PList.Value: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: PList.Value...) {
+extension Plist.Value: ExpressibleByArrayLiteral {
+    public init(arrayLiteral elements: Plist.Value...) {
         self = .array(elements)
     }
 }

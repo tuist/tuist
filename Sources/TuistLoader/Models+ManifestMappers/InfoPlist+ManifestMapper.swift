@@ -15,12 +15,12 @@ extension TuistGraph.InfoPlist {
             return .file(path: try generatorPaths.resolve(path: infoplistPath))
         case let .dictionary(dictionary):
             return .dictionary(
-                dictionary.mapValues { TuistGraph.PList.Value.from(manifest: $0) }
+                dictionary.mapValues { TuistGraph.Plist.Value.from(manifest: $0) }
             )
         case let .extendingDefault(dictionary):
             return .extendingDefault(
                 with:
-                dictionary.mapValues { TuistGraph.PList.Value.from(manifest: $0) }
+                dictionary.mapValues { TuistGraph.Plist.Value.from(manifest: $0) }
             )
         case .none:
             return .none
@@ -39,7 +39,7 @@ extension TuistGraph.Entitlements {
             return .file(path: try generatorPaths.resolve(path: infoplistPath))
         case let .dictionary(dictionary):
             return .dictionary(
-                dictionary.mapValues { TuistGraph.PList.Value.from(manifest: $0) }
+                dictionary.mapValues { TuistGraph.Plist.Value.from(manifest: $0) }
             )
         case .none:
             return .none
@@ -47,12 +47,12 @@ extension TuistGraph.Entitlements {
     }
 }
 
-extension TuistGraph.PList.Value {
-    /// Maps a ProjectDescription.PList.Value instance into a TuistGraph.PList.Value instance.
+extension TuistGraph.Plist.Value {
+    /// Maps a ProjectDescription.Plist.Value instance into a TuistGraph.Plist.Value instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the Info plist value model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.PList.Value) -> TuistGraph.PList.Value {
+    static func from(manifest: ProjectDescription.Plist.Value) -> TuistGraph.Plist.Value {
         switch manifest {
         case let .string(value):
             return .string(value)
@@ -63,9 +63,9 @@ extension TuistGraph.PList.Value {
         case let .real(value):
             return .real(value)
         case let .array(value):
-            return .array(value.map { TuistGraph.PList.Value.from(manifest: $0) })
+            return .array(value.map { TuistGraph.Plist.Value.from(manifest: $0) })
         case let .dictionary(value):
-            return .dictionary(value.mapValues { TuistGraph.PList.Value.from(manifest: $0) })
+            return .dictionary(value.mapValues { TuistGraph.Plist.Value.from(manifest: $0) })
         }
     }
 }

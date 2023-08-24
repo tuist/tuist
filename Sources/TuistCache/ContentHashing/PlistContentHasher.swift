@@ -3,12 +3,12 @@ import TuistCore
 import TuistGraph
 
 public protocol PlistContentHashing {
-    func hash<T: PListTypesProtocol>(plist: T) throws -> String
+    func hash<T: PlistTypesProtocol>(plist: T) throws -> String
 }
 
-/// `PListContentHasher`
+/// `PlistContentHasher`
 /// is responsible for computing a hash that uniquely identifies a property-list file (e.g. `Info.plist` or `.entitlements`)
-public final class PListContentHasher: PlistContentHashing {
+public final class PlistContentHasher: PlistContentHashing {
     private let contentHasher: ContentHashing
     // MARK: - Init
 
@@ -16,9 +16,9 @@ public final class PListContentHasher: PlistContentHashing {
         self.contentHasher = contentHasher
     }
 
-    // MARK: - PListContentHashing
+    // MARK: - PlistContentHashing
 
-    public func hash<T: PListTypesProtocol>(plist: T) throws -> String {
+    public func hash<T: PlistTypesProtocol>(plist: T) throws -> String {
         // TODO: DRY, improve generalization
         if let plist = plist as? InfoPlist {
             switch plist {
