@@ -12,6 +12,11 @@ module Environment
       truthy?(env["TUIST_CLOUD_ENV_VARIABLES"])
     end
 
+    def fetch(*args, env: ENV)
+      key = "TUIST_#{args.join("_").upcase}"
+      env.to_h.fetch(key, nil)
+    end
+
     def truthy?(value)
       return false if value.blank?
 

@@ -4,7 +4,21 @@
 <%- @omniauth_providers = [] %>
 <%- if devise_mapping.omniauthable? %>
   <%- resource_class.omniauth_providers.each do |provider| %>
-    <%- @omniauth_providers.push({title: OmniAuth::Utils.camelize(provider), link: omniauth_authorize_path(resource_name, provider)}) %>
+    <%-
+    case provider
+    when :github
+      logo = "github_logo"
+    else
+      puts "Unrecognized omniauth provider #{provider}"
+    end
+    @omniauth_providers.push(
+        {
+          title: OmniAuth::Utils.camelize(provider),
+          link: omniauth_authorize_path(resource_name, provider),
+          logo: "github_logo"
+        }
+    )
+    %>
   <% end %>
 <% end %>
 
@@ -25,17 +39,20 @@
         <p class="text-gray-300 text-sm">
           Using Tuist Cloud requires authentication. Use any of the providers below to authenticate.
         </p>
+        <% @omniauth_providers.each do |omniauth_provider| %>
         <a
-          href="<%= @omniauth_providers[0][:link] %>"
+          href="<%= omniauth_provider[:link] %>"
           data-method="post"
           class="btn-primary"
         >
           <span>
-            Sign in with GitHub
+            <%= "Sign in with #{omniauth_provider[:title]}" %>
           </span>
-          <%= svg('github_logo', class: "w-5 h-5 object-contain fill-white") %>
+          <%= svg(omniauth_provider[:logo], class: "w-5 h-5 object-contain fill-white") %>
         </a>
+        <% end %>
 
+        <% if !@self_hosted %>
           <div class="relative">
             <div class="absolute inset-0 flex items-center">
               <div class="w-full border-t" />
@@ -77,6 +94,7 @@
         >
           <%= f.submit "Sign in" %>
         </button>
+      <% end %>
       <% end %>
     </div>
   </div>

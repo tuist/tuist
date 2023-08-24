@@ -17,6 +17,7 @@ module TuistCloud
     # Autoloading
     config.autoload_once_paths << "#{root}/app/lib/defaults"
     config.autoload_once_paths << "#{root}/app/lib/secrets"
+    config.autoload_once_paths << "#{root}/app/lib/environment"
     Rails.autoloaders.main.ignore("#{root}/app/frontend")
 
     # URLs
@@ -25,13 +26,6 @@ module TuistCloud
     config.action_mailer.default_url_options = { host: config.defaults[:urls][:app] }
 
     config.react.server_renderer_extensions = ["jsx", "js", "tsx", "ts"]
-
-    # Stripe
-    if Rails.env.production? || Rails.env.development?
-      config.stripe.secret_key = Rails.application.credentials.stripe[:secret_key]
-      config.stripe.publishable_key = Rails.application.credentials.stripe[:publishable_key]
-      config.stripe.signing_secrets = Rails.application.credentials.stripe[:webhook_signing_secret]
-    end
 
     # Que
     config.active_record.schema_format = :sql

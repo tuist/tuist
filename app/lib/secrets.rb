@@ -6,9 +6,9 @@ module Secrets
 
   class << self
     def fetch(*args, env: ENV, app_credentials: Rails.application.credentials)
-      if Environment.use_env_variables?
+      if Environment.self_hosted? || Environment.use_env_variables?
         key = "TUIST_#{args.join("_").upcase}"
-        env.to_h.fetch(key)
+        env.to_h.fetch(key, nil)
       else
         value = app_credentials.dig(*args)
         if value.blank?

@@ -14,9 +14,7 @@ module Types
     end
 
     def remote_cache_storage
-      puts "Get remote_cache_storage for #{object.remote_cache_storage}"
       if object.remote_cache_storage.is_a?(DefaultS3Bucket)
-        puts "Return nil"
         nil
       else
         object.remote_cache_storage

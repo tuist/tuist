@@ -17,7 +17,7 @@ Devise.setup do |config|
   # confirmation, reset password and unlock tokens in the database.
   # Devise will use the `secret_key_base` as its `secret_key`
   # by default. You can change it below and use your own secret key.
-  config.secret_key = Rails.application.credentials.devise[:secret_key]
+  config.secret_key = Secrets.fetch(:devise, :secret_key)
 
   # ==> Controller configuration
   # Configure the parent class to the devise controllers.
@@ -129,7 +129,7 @@ Devise.setup do |config|
   config.stretches = Rails.env.test? ? 1 : 12
 
   # Set up a pepper to generate the hashed password.
-  config.pepper = Rails.application.credentials.devise[:pepper]
+  config.pepper = Secrets.fetch(:devise, :pepper)
 
   # Send a notification to the original email when the user's email is changed.
   # config.send_email_changed_notification = false
@@ -308,16 +308,20 @@ Devise.setup do |config|
 
   # ==> Configuration for :registerable
 
-  OmniAuth.config.full_host = Defaults.fetch(:urls, :app)
+  github_oauth_id = Secrets.fetch(:devise, :omniauth, :github, :oauth_id)
+  github_oauth_secret = Secrets.fetch(:devise, :omniauth, :github, :oauth_secret)
+  if !Environment.self_hosted? || (!github_oauth_id.nil? && !github_oauth_secret.nil?)
+    OmniAuth.config.full_host = Defaults.fetch(:urls, :app)
 
-  # When set to false, does not sign a user in automatically after their password is
-  # changed. Defaults to true, so a user is signed in automatically after changing a password.
-  # config.sign_in_after_change_password = true
-  # OmniAuth: GitHub
-  config.omniauth(
-    :github,
-    Secrets.fetch(:devise, :omniauth, :github, :oauth_id),
-    Secrets.fetch(:devise, :omniauth, :github, :oauth_secret),
-    scope: "read:user,user:email",
-  )
+    # When set to false, does not sign a user in automatically after their password is
+    # changed. Defaults to true, so a user is signed in automatically after changing a password.
+    # config.sign_in_after_change_password = true
+    # OmniAuth: GitHub
+    config.omniauth(
+      :github,
+      github_oauth_id,
+      github_oauth_secret,
+      scope: "read:user,user:email",
+    )
+  end
 end

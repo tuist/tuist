@@ -23,9 +23,7 @@ class SecretsTest < ActiveSupport::TestCase
     Environment.stubs(:use_env_variables?).returns(true)
 
     # When/Then
-    assert_raises(KeyError) do
-      Secrets.fetch(:github, :token, env: env, app_credentials: app_credentials)
-    end
+    assert_nil Secrets.fetch(:github, :token, env: env, app_credentials: app_credentials)
   end
 
   def test_fetch_when_not_env_secrets_and_key_exists

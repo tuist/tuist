@@ -98,12 +98,21 @@ Rails.application.configure do
 
   # Action Mailer
   config.action_mailer.delivery_method = :smtp
-  config.action_mailer.smtp_settings = {
-    authentication: Rails.application.config.defaults[:smpt_settings][:authentication],
-    address: Rails.application.config.defaults[:smpt_settings][:address],
-    port: Rails.application.config.defaults[:smpt_settings][:port],
-    domain: Rails.application.credentials.smpt_settings[:domain],
-    user_name: Rails.application.credentials.smpt_settings[:user_name],
-    password: Rails.application.credentials.smpt_settings[:password],
-  }
+  if ENV['TUIST_CLOUD_SELF_HOSTED'] != 'true'
+    config.action_mailer.smtp_settings = {
+      authentication: Rails.application.config.defaults[:smpt_settings][:authentication],
+      address: Rails.application.config.defaults[:smpt_settings][:address],
+      port: Rails.application.config.defaults[:smpt_settings][:port],
+      domain: Rails.application.credentials.smpt_settings[:domain],
+      user_name: Rails.application.credentials.smpt_settings[:user_name],
+      password: Rails.application.credentials.smpt_settings[:password],
+    }
+  end
+
+  # Stripe
+  if ENV['TUIST_CLOUD_SELF_HOSTED'] != 'true'
+    config.stripe.secret_key = Rails.application.credentials.stripe[:secret_key]
+    config.stripe.publishable_key = Rails.application.credentials.stripe[:publishable_key]
+    config.stripe.signing_secrets = Rails.application.credentials.stripe[:webhook_signing_secret]
+  end
 end

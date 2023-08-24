@@ -19,6 +19,11 @@ class User < ApplicationRecord
   autogenerates_token :token
 
   # Devise
+  if Environment.self_hosted? && !Environment.fetch(:omniauth_provider).nil?
+    omniauth_providers = [Environment.fetch(:omniauth_provider)]
+  else
+    omniauth_providers = [:github]
+  end
   devise :database_authenticatable,
     :registerable,
     :recoverable,
@@ -28,7 +33,7 @@ class User < ApplicationRecord
     :trackable,
     :confirmable,
     :omniauthable,
-    omniauth_providers: [:github]
+    omniauth_providers: omniauth_providers
 
   # Associations
   has_one :account, as: :owner, inverse_of: :owner, dependent: :destroy, required: true, autosave: true

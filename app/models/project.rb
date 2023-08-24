@@ -43,11 +43,11 @@ class DefaultS3Bucket
   end
 
   def access_key_id
-    Rails.application.credentials.aws[:access_key_id]
+    Secrets.fetch(:aws, :access_key_id)
   end
 
   def secret_access_key
-    Rails.application.credentials.aws[:secret_access_key]
+    Secrets.fetch(:aws, :secret_access_key)
   end
 
   def region
