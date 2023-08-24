@@ -10,8 +10,10 @@ class AuthController < ApplicationController
       InvitationAcceptService.call(token: session["invitation_token"], user: user)
       session["invitation_token"] = nil
       '/get-started'
-    else
+    elsif user.legacy?
       root_path
+    else
+      '/get-started'
     end
   end
 

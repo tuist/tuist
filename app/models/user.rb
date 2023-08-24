@@ -62,6 +62,10 @@ class User < ApplicationRecord
     super(options.merge(only: [:id, :email])).merge({ name: account.name })
   end
 
+  def legacy?
+    created_at < Date.new(2023, 8, 25)
+  end
+
   private
     def create_account
       self.account = Account.new(name: account_name)

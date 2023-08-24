@@ -14,10 +14,9 @@ Rails.application.routes.draw do
   end
   post "/graphql", to: "graphql#execute"
 
-  root to: "root#app"
+  root to: "application#app"
 
-  get "/get-started", to: "root#get_started"
-
+  get "/get-started", to: "application#get_started"
 
   get "/auth/invitations/:token", to: "auth#accept_invitation"
   get "/auth/cli/success", to: "auth#cli_success"

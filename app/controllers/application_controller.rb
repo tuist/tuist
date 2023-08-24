@@ -9,7 +9,15 @@ class ApplicationController < ActionController::Base
   protect_from_forgery with: :null_session
 
   def app
-    render(layout: 'app')
+    if current_user.legacy?
+      render(layout: 'app')
+    else
+      render 'get_started'
+    end
+  end
+
+  def get_started
+    render 'get_started'
   end
 
   private

@@ -6,9 +6,8 @@ module Users
       AuthController.new.after_auth_path(session, resource, root_path)
     end
 
-    protected
-      def respond_to_on_destroy
-        head(:no_content)
-      end
+    def after_sign_out_path_for(resource)
+      new_session_path(resource)
+    end
   end
 end
