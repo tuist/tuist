@@ -61,7 +61,7 @@ module Fourier
           Utilities::System.system(File.join(Constants::TUIST_DIRECTORY, ".build/release/tuistenv"), "version")
 
           Utilities::System.system(
-            File.join(Constants::TUISTBENCH_DIRECTORY, ".build/release/tuistbench"),
+            File.join(Constants::ROOT_DIRECTORY, ".build/release/tuistbench"),
             "-b",
             File.join(Constants::TUIST_DIRECTORY, ".build/release/tuist"),
             "-r",
