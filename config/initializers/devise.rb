@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
-require "defaults"
-require "secrets"
+require "environment"
 
 # Assuming you have not yet modified this file, each configuration option below
 # is set to its default value. Note that some are commented out while others
@@ -17,7 +16,7 @@ Devise.setup do |config|
   # confirmation, reset password and unlock tokens in the database.
   # Devise will use the `secret_key_base` as its `secret_key`
   # by default. You can change it below and use your own secret key.
-  config.secret_key = Secrets.fetch(:devise, :secret_key)
+  config.secret_key = Environment.fetch(:devise, :secret_key)
 
   # ==> Controller configuration
   # Configure the parent class to the devise controllers.
@@ -129,7 +128,7 @@ Devise.setup do |config|
   config.stretches = Rails.env.test? ? 1 : 12
 
   # Set up a pepper to generate the hashed password.
-  config.pepper = Secrets.fetch(:devise, :pepper)
+  config.pepper = Environment.fetch(:devise, :pepper)
 
   # Send a notification to the original email when the user's email is changed.
   # config.send_email_changed_notification = false
@@ -308,11 +307,15 @@ Devise.setup do |config|
 
   # ==> Configuration for :registerable
 
-  github_oauth_id = Secrets.fetch(:devise, :omniauth, :github, :oauth_id)
-  github_oauth_secret = Secrets.fetch(:devise, :omniauth, :github, :oauth_secret)
-  if !Environment.self_hosted? || (!github_oauth_id.nil? && !github_oauth_secret.nil?)
-    OmniAuth.config.full_host = Defaults.fetch(:urls, :app)
+  # Omniauth
+  OmniAuth.config.full_host = Environment.fetch(:urls, :app)
 
+  # GitHub Omniauth
+
+  github_oauth_id = Environment.fetch(:devise, :omniauth, :github, :oauth_id)
+  github_oauth_secret = Environment.fetch(:devise, :omniauth, :github, :oauth_secret)
+
+  if !Environment.self_hosted? || (!github_oauth_id.nil? && !github_oauth_secret.nil?)
     # When set to false, does not sign a user in automatically after their password is
     # changed. Defaults to true, so a user is signed in automatically after changing a password.
     # config.sign_in_after_change_password = true
@@ -322,6 +325,41 @@ Devise.setup do |config|
       github_oauth_id,
       github_oauth_secret,
       scope: "read:user,user:email",
+    )
+  end
+
+  # Okta Omniauth
+  okta_site = Environment.fetch(:okta, :site)
+  okta_client_id = Environment.fetch(:okta, :client_id)
+  okta_client_secret = Environment.fetch(:okta, :client_secret)
+  okta_authorize_url = Environment.fetch(:okta, :authorize_url)
+  okta_token_url = Environment.fetch(:okta, :token_url)
+  okta_user_info_url = Environment.fetch(:okta, :user_info_url)
+
+  if [okta_site, okta_client_id, okta_client_secret].all? { |v| !v.blank? }
+    if okta_authorize_url.blank?
+      okta_authorize_url = URI.parse(okta_site).tap { |uri| uri.path = "/oauth2/default/v1/authorize" }.to_s
+    end
+    if okta_token_url.blank?
+      okta_token_url = URI.parse(okta_site).tap { |uri| uri.path = "/oauth2/default/v1/token" }.to_s
+    end
+    if okta_user_info_url.blank?
+      okta_user_info_url = URI.parse(okta_site).tap { |uri| uri.path = "/oauth2/default/v1/userinfo" }.to_s
+    end
+
+    config.omniauth(
+      :okta,
+      okta_client_id,
+      okta_client_secret,
+      scope: 'openid email',
+      fields: ['email'],
+      client_options: {
+        site: okta_site,
+        authorize_url: okta_authorize_url,
+        token_url: okta_token_url,
+        user_info_url: okta_user_info_url,
+      },
+      strategy_class: OmniAuth::Strategies::Okta
     )
   end
 end

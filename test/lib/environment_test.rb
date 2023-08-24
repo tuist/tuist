@@ -3,15 +3,46 @@
 require "test_helper"
 
 class EnvironmentTest < ActiveSupport::TestCase
-  def test_use_env_secrets
+  def test_fetch_defaults_to_env_variables
     # Given
-    values = Environment::TRUTHY_VALUES
+    env = { "TUIST_FOO" => "bar"}
 
-    # When/Then
-    values.each do |value|
-      assert(Environment.use_env_variables?(env: { "TUIST_CLOUD_ENV_VARIABLES" => value }))
+    # When
+    got = Environment.fetch(:foo, env: env)
+
+    # Then
+    assert_equal "bar", got
+  end
+
+  def test_fetch_fallsback_to_secrets_when_env_variable_is_absent
+    # Given
+    secrets = { foo: "bar" }
+
+    # When
+    got = Environment.fetch(:foo, credentials: secrets)
+
+    # Then
+    assert_equal "bar", got
+  end
+
+  def test_fetch_fallsback_to_defaults_when_env_variable_and_secrets_are_absent
+    # Given
+    defaults = { foo: "bar" }
+
+    # When
+    got = Environment.fetch(:foo, defaults: defaults)
+
+    # Then
+    assert_equal "bar", got
+  end
+
+  def test_fetch_with_bang_raises_when_variable_is_missing
+    # Given
+    env = {}
+
+    # When
+    assert_raises(Environment::KeyNotFoundError) do
+      Environment.fetch!(:foo, env: env)
     end
-
-    assert_not(Environment.use_env_variables?(env: { "TUIST_CLOUD_ENV_VARIABLES" => "0" }))
   end
 end

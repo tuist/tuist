@@ -2,6 +2,10 @@
 
 module Users
   class OmniauthCallbacksController < Devise::OmniauthCallbacksController
+    def okta
+      find_or_create_and_redirect_user
+    end
+
     def github
       find_or_create_and_redirect_user
     end

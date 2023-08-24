@@ -24,6 +24,10 @@ class User < ApplicationRecord
   else
     omniauth_providers = [:github]
   end
+  if Environment.self_hosted? && Environment.okta_configured?
+    omniauth_providers << :okta
+  end
+
   devise :database_authenticatable,
     :registerable,
     :recoverable,

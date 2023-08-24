@@ -5,7 +5,7 @@ require "test_helper"
 class ProjectTest < ActiveSupport::TestCase
   test "name's exclusion is validated" do
     # Given
-    subject = Project.new(name: Defaults.fetch(:blocklisted_slug_keywords).first)
+    subject = Project.new(name: Environment.fetch(:blocklisted_slug_keywords).first)
 
     # When
     subject.validate
