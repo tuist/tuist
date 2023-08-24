@@ -19,11 +19,12 @@ class User < ApplicationRecord
   autogenerates_token :token
 
   # Devise
-  if Environment.self_hosted? && !Environment.fetch(:omniauth_provider).nil?
-    omniauth_providers = [Environment.fetch(:omniauth_provider)]
-  else
-    omniauth_providers = [:github]
+  omniauth_providers = []
+
+  if Environment.github_configured?
+    omniauth_providers << :github
   end
+
   if Environment.self_hosted? && Environment.okta_configured?
     omniauth_providers << :okta
   end

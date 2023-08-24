@@ -46,5 +46,11 @@ module Environment
       okta_client_secret = Environment.fetch(:okta, :client_secret)
       return okta_site.present? && okta_client_id.present? && okta_client_secret.present?
     end
+
+    def github_configured?
+      github_oauth_id = Environment.fetch(:devise, :omniauth, :github, :oauth_id)
+      github_oauth_secret = Environment.fetch(:devise, :omniauth, :github, :oauth_secret)
+      return github_oauth_id.present? && github_oauth_secret.present?
+    end
   end
 end
