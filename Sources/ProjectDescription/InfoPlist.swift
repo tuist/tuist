@@ -144,3 +144,9 @@ extension Plist.Value: ExpressibleByArrayLiteral {
         self = .array(elements)
     }
 }
+
+// MARK: - InfoPlist API compatibility
+extension InfoPlist {
+    @available(*, deprecated, message: "InfoPlist.Value was renamed to Plist.Value")
+    public typealias Value = Plist.Value
+}
