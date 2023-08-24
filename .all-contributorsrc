@@ -1102,6 +1102,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "roanutil",
+      "name": "Andrew Roan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/9873566?v=4",
+      "profile": "http://andrewroan.com",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
