@@ -47,7 +47,7 @@ class DefaultS3Bucket
   end
 
   def secret_access_key
-    Environment.fetch(:aws, :secret_access_key)
+    Environment.fetch(:aws, :access_key_secret)
   end
 
   def region
