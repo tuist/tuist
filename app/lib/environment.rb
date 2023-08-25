@@ -23,8 +23,9 @@ module Environment
       TRUTHY_VALUES.any? { |v| v == value.to_s }
     end
 
-    def fetch(*args, env: ENV, credentials: Rails.application.credentials, defaults: Rails.application.config.defaults)
-      env_variable_key = "TUIST_#{args.join('_').upcase}"
+    def fetch(*args, env: ENV, credentials: Rails.application.credentials, defaults: Rails.application.config.defaults, with_prefix: true)
+      env_variable_key = "#{args.join('_').upcase}"
+      env_variable_key = "TUIST_#{env_variable_key}" if with_prefix
       env_variable_value = env.to_h.fetch(env_variable_key, nil)
       credentials_value = credentials.dig(*args)
       defaults_value = defaults.dig(*args)
@@ -46,8 +47,8 @@ module Environment
       fetch(:aws, :access_key_id)
     end
 
-    def aws_access_key_secret
-      fetch(:aws, :access_key_secret)
+    def aws_secret_access_key
+      fetch(:aws, :secret_access_key)
     end
 
     def storage_configured?
@@ -58,16 +59,16 @@ module Environment
       fetch(:blocklisted_slug_keywords)
     end
 
-    def tokens_secret_key
-      fetch(:devise, :secret_key)
+    def secret_key_tokens
+      fetch(:secret_key, :tokens) || secret_key_base
     end
 
-    def password_pepper
-      fetch(:devise, :pepper)
+    def secret_key_password
+      fetch(:secret_key, :password) || secret_key_base
     end
 
-    def secret_key_base
-      fetch(:secret_key_base)
+    def secret_key_base(env: ENV, credentials: Rails.application.credentials, defaults: Rails.application.config.defaults, with_prefix: true)
+      fetch(:secret_key, :base, env: env, credentials: credentials, defaults: defaults, with_prefix: with_prefix)
     end
 
     def app_url
@@ -117,11 +118,19 @@ module Environment
     end
 
     def aws_configured?
-      aws_access_key_id.present? && aws_access_key_secret.present?
+      aws_access_key_id.present? && aws_secret_access_key.present?
     end
 
     def app_url_configured?
       app_url.present?
+    end
+
+    def database_configured?
+      database_url.present?
+    end
+
+    def secret_key_base_configured?
+      secret_key_base.present?
     end
 
     def ensure_configured!
@@ -130,6 +139,8 @@ module Environment
       errors = []
       errors << "Storage is not configured" unless storage_configured?
       errors << "Application URL is not configured" unless app_url_configured?
+      errors << "Database is not configured" unless database_configured?
+      errors << "Secret key base is not configured" unless secret_key_base_configured?
 
       if errors.any?
         raise Error, <<~ERROR

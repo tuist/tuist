@@ -23,3 +23,5 @@ production:
   domain: cloud.tuist.io
 test:
   <<: *development
+  secret_key:
+    base: 34e15f2fbdfa6278e7368d282bdaeb1e3fa6e46896d24e09ebd46243316642686ff1dc2dd3e2fe0033a6224ea02050c9d161ae71f2432887c5ce0515a757a153

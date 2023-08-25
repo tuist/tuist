@@ -46,8 +46,8 @@ class DefaultS3Bucket
     Environment.aws_access_key_id
   end
 
-  def access_key_secret
-    Environment.aws_access_key_secret
+  def secret_access_key
+    Environment.aws_secret_access_key
   end
 
   def region

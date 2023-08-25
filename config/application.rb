@@ -13,7 +13,9 @@ module TuistCloud
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults(7.0)
-    config.defaults = config_for(:defaults)
+    defaults = config_for(:defaults)
+    config.defaults = defaults
+    config.secret_key_base = Environment.secret_key_base(defaults: defaults)
 
     # Autoloading
     config.autoload_once_paths << "#{root}/app/lib/defaults"
