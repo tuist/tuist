@@ -52,5 +52,31 @@ module Environment
       github_oauth_secret = Environment.fetch(:devise, :omniauth, :github, :oauth_secret)
       return github_oauth_id.present? && github_oauth_secret.present?
     end
+
+    def aws_configured?
+      key_id = Environment.fetch(:aws, :access_key_id)
+      key_secret = Environment.fetch(:aws, :access_key_secret)
+      key_id.present? && key_secret.present?
+    end
+
+    def storage_configured?
+      aws_configured?
+    end
+
+    def ensure_configured!
+      return if Rails.env.test? || Rails.env.development?
+
+      errors = []
+      errors << "Storage is not configured" unless storage_configured?
+      if errors.any?
+        raise Error, <<~ERROR
+        Can't start Tuist Cloud due to the following errors:
+        #{errors.map { |error| " - #{error}" }.join("\n")}
+
+        Please, check our documentation to learn how to configure Tuist Cloud: https://github.com/tuist/cloud-enterprise
+        ERROR
+      end
+    end
+
   end
 end

@@ -29,5 +29,11 @@ module TuistCloud
 
     # Que
     config.active_record.schema_format = :sql
+
+    # Initializers
+    config.before_initialize do
+      require_relative "../app/lib/environment"
+      Environment.ensure_configured!
+    end
   end
 end
