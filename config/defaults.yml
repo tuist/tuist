@@ -1,8 +1,5 @@
-base_urls: &base_urls
-  app: http://127.0.0.1:3000
 default: &default
-  urls:
-    <<: *base_urls
+  app_url: http://127.0.0.1:3000
   smpt_settings:
     authentication: plain
     address: smtp.mailgun.org
@@ -18,9 +15,7 @@ development: &development
   <<: *default
 production:
   <<: *default
-  urls:
-    <<: *base_urls
-    app: https://cloud.tuist.io
+  app_url: https://cloud.tuist.io
   smpt_settings:
     authentication: plain
     address: smtp.eu.mailgun.org

@@ -71,7 +71,7 @@ module Environment
     end
 
     def app_url
-      fetch(:urls, :app)
+      fetch(:app_url)
     end
 
     def github_oauth_id
@@ -127,11 +127,17 @@ module Environment
       key_id.present? && key_secret.present?
     end
 
+    def app_url_configured?
+      app_url.present?
+    end
+
     def ensure_configured!
       return if Rails.env.test? || Rails.env.development?
 
       errors = []
       errors << "Storage is not configured" unless storage_configured?
+      errors << "Application URL is not configured" unless app_url_configured?
+
       if errors.any?
         raise Error, <<~ERROR
         Can't start Tuist Cloud due to the following errors:
