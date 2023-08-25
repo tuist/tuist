@@ -214,6 +214,7 @@ final class ConfigGenerator: ConfigGenerating {
             .merge(testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) {
                 $1
             }
+        settings.merge(destinationsDerivedSettings(target: target)) { $1 }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
         settings
             .merge(watchTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) { $1 }
@@ -247,7 +248,11 @@ final class ConfigGenerator: ConfigGenerating {
             }
         }
 
-        settings["SDKROOT"] = .string(target.platform.xcodeSdkRoot)
+        if target.supportedPlatforms.count == 1, let platform = target.supportedPlatforms.first {
+            settings["SDKROOT"] = .string(platform.xcodeSdkRoot)
+        } else {
+            settings["SDKROOT"] = "auto"
+        }
 
         if target.product == .staticFramework {
             settings["MACH_O_TYPE"] = "staticlib"
@@ -287,42 +292,65 @@ final class ConfigGenerator: ConfigGenerating {
         return settings
     }
 
-    private func deploymentTargetDerivedSettings(target: Target) -> SettingsDictionary {
-        guard let deploymentTarget = target.deploymentTarget else {
-            return [:]
-        }
-
+    private func destinationsDerivedSettings(target: Target) -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
 
-        switch deploymentTarget {
-        case let .iOS(version, devices, supportsMacDesignedForIOS):
-            var deviceFamilyValues: [Int] = []
-            if devices.contains(.iphone) { deviceFamilyValues.append(1) }
-            if devices.contains(.ipad) { deviceFamilyValues.append(2) }
+        var deviceFamilyValues: [Int] = []
+        if target.destinations.contains(.iPhone) { deviceFamilyValues.append(1) }
+        if target.destinations.contains(.iPad) { deviceFamilyValues.append(2) }
+        if target.destinations.contains(.appleTv) { deviceFamilyValues.append(3) }
+        if target.destinations.contains(.appleWatch) { deviceFamilyValues.append(4) }
+        if target.destinations.contains(.appleVision) { deviceFamilyValues.append(7) }
 
+        if !deviceFamilyValues.isEmpty {
             settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
-            settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(version)
-            settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = supportsMacDesignedForIOS ? "YES" : "NO"
+        }
 
-            if devices.contains(.ipad), devices.contains(.mac) {
+        if target.supportedPlatforms.contains(.iOS) {
+            if target.destinations.contains(.macWithiPadDesign) {
+                settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
+            } else {
+                settings["SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD"] = "NO"
+            }
+
+            if target.destinations.contains(.appleVisionWithiPadDesign) {
+                settings["SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD"] = "YES"
+            } else {
+                settings["SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD"] = "NO"
+            }
+
+            if target.destinations.contains(.macCatalyst) {
                 settings["SUPPORTS_MACCATALYST"] = "YES"
                 settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
             } else {
-                // Unless explicitly specified, when the platform the Product is a framework, these default to YES.
                 settings["SUPPORTS_MACCATALYST"] = "NO"
             }
-        case let .macOS(version):
-            settings["MACOSX_DEPLOYMENT_TARGET"] = .string(version)
-        case let .watchOS(version):
-            settings["WATCHOS_DEPLOYMENT_TARGET"] = .string(version)
-        case let .tvOS(version):
-            settings["TVOS_DEPLOYMENT_TARGET"] = .string(version)
-        case let .visionOS(version):
-            let deviceFamilyValues = [1, 2, 7]
+        }
 
-            settings["TARGETED_DEVICE_FAMILY"] = .string(deviceFamilyValues.map { "\($0)" }.joined(separator: ","))
+        return settings
+    }
 
-            settings["XROS_DEPLOYMENT_TARGET"] = .string(version)
+    private func deploymentTargetDerivedSettings(target: Target) -> SettingsDictionary {
+        var settings: SettingsDictionary = [:]
+
+        if let iOSVersion = target.deploymentTargets.iOS {
+            settings["IPHONEOS_DEPLOYMENT_TARGET"] = .string(iOSVersion)
+        }
+
+        if let macOSVersion = target.deploymentTargets.macOS {
+            settings["MACOSX_DEPLOYMENT_TARGET"] = .string(macOSVersion)
+        }
+
+        if let watchOSVersion = target.deploymentTargets.watchOS {
+            settings["WATCHOS_DEPLOYMENT_TARGET"] = .string(watchOSVersion)
+        }
+
+        if let tvOSVersion = target.deploymentTargets.tvOS {
+            settings["TVOS_DEPLOYMENT_TARGET"] = .string(tvOSVersion)
+        }
+
+        if let visionOSVersion = target.deploymentTargets.visionOS {
+            settings["XROS_DEPLOYMENT_TARGET"] = .string(visionOSVersion)
         }
 
         return settings

@@ -13,14 +13,14 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class CloudSessionServiceTests: TuistUnitTestCase {
+final class CloudLogoutServiceTests: TuistUnitTestCase {
     private var cloudSessionController: MockCloudSessionController!
-    private var subject: CloudSessionService!
+    private var subject: CloudLogoutService!
 
     override func setUp() {
         super.setUp()
         cloudSessionController = MockCloudSessionController()
-        subject = CloudSessionService(
+        subject = CloudLogoutService(
             cloudSessionController: cloudSessionController
         )
     }
@@ -31,11 +31,11 @@ final class CloudSessionServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_printSession() throws {
+    func test_logout() throws {
         // When
-        try subject.printSession(serverURL: nil)
+        try subject.logout(serverURL: nil)
 
         // Then
-        XCTAssertTrue(cloudSessionController.printSessionArgs.contains(URL(string: Constants.tuistCloudURL)!))
+        XCTAssertTrue(cloudSessionController.logoutArgs.contains(URL(string: Constants.tuistCloudURL)!))
     }
 }

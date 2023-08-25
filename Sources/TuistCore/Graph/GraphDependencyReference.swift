@@ -26,7 +26,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         product: Product
     )
     case bundle(path: AbsolutePath)
-    case product(target: String, productName: String, platformFilter: BuildFilePlatformFilter? = nil)
+    case product(target: String, productName: String, platformFilters: PlatformFilters = [])
     case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource)
 
     init(_ dependency: GraphDependency) {
@@ -89,7 +89,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     private enum Synthesized: Comparable, Hashable {
         case sdk(path: AbsolutePath)
         case product(target: String, productName: String)
-        case productWithPlatformFilter(target: String, productName: String, platformFilter: BuildFilePlatformFilter)
+        case productWithPlatformFilters(target: String, productName: String, platformFilters: PlatformFilters)
         case library(path: AbsolutePath)
         case framework(path: AbsolutePath)
         case xcframework(path: AbsolutePath)
@@ -114,9 +114,9 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 self = .framework(path: path)
             case let .bundle(path: path):
                 self = .bundle(path: path)
-            case let .product(target: target, productName: productName, platformFilter: platformFilter):
-                if let platformFilter = platformFilter {
-                    self = .productWithPlatformFilter(target: target, productName: productName, platformFilter: platformFilter)
+            case let .product(target: target, productName: productName, platformFilters: platformFilters):
+                if !platformFilters.isEmpty {
+                    self = .productWithPlatformFilters(target: target, productName: productName, platformFilters: platformFilters)
                 } else {
                     self = .product(target: target, productName: productName)
                 }

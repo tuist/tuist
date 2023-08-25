@@ -43,7 +43,7 @@ extension TuistTestCase {
     ) throws {
         XCTAssertEqual(target.name, manifest.name, file: file, line: line)
         XCTAssertEqual(target.bundleId, manifest.bundleId, file: file, line: line)
-        XCTAssertTrue(target.platform == manifest.platform, file: file, line: line)
+        XCTAssertTrue(target.legacyPlatform == manifest.platform, file: file, line: line)
         XCTAssertTrue(target.product == manifest.product, file: file, line: line)
         XCTAssertEqual(
             target.infoPlist?.path,

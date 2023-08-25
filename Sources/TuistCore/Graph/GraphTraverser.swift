@@ -196,7 +196,7 @@ public class GraphTraverser: GraphTraversing {
                     .product(
                         target: $0.name,
                         productName: $0.productNameWithExtension,
-                        platformFilter: $0.targetDependencyBuildFilesPlatformFilter
+                        platformFilters: $0.dependencyPlatformFilters
                     )
                 }
                 ?? []
@@ -577,7 +577,7 @@ public class GraphTraverser: GraphTraversing {
         .product(
             target: target.target.name,
             productName: target.target.productNameWithExtension,
-            platformFilter: target.target.targetDependencyBuildFilesPlatformFilter
+            platformFilters: target.target.dependencyPlatformFilters
         )
     }
 
@@ -729,7 +729,7 @@ public class GraphTraverser: GraphTraversing {
             return .product(
                 target: target.target.name,
                 productName: target.target.productNameWithExtension,
-                platformFilter: target.target.targetDependencyBuildFilesPlatformFilter
+                platformFilters: target.target.dependencyPlatformFilters
             )
         case let .xcframework(path, infoPlist, primaryBinaryPath, _):
             return .xcframework(
