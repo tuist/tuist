@@ -139,7 +139,7 @@ module Environment
       errors = []
       errors << "Storage is not configured" unless storage_configured?
       errors << "Application URL is not configured" unless app_url_configured?
-      errors << "Database is not configured" unless database_configured?
+      # errors << "Database is not configured" unless database_configured?
       errors << "Secret key base is not configured" unless secret_key_base_configured?
 
       if errors.any?
