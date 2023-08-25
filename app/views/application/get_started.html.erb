@@ -2,7 +2,7 @@
 <%= stylesheet_link_tag 'tailwind' %>
 <%= stylesheet_link_tag 'get_started' %>
 <section class="h-full">
-  <%= link_to "Sign out", destroy_user_session_path(current_user), :method => :delete, class: "signout-button py-2 bg-gradient-to-r duration-200 focus-visible:outline-black focus-visible:ring-black focus:outline-none font-medium from-primary-600 hover:to-primary-800 px-5 rounded-xl text-center text-white to-primary-700 mr-4" %>
+  <%= link_to "Sign out", destroy_user_session_path(@current_user), :method => :delete, class: "signout-button py-2 bg-gradient-to-r duration-200 focus-visible:outline-black focus-visible:ring-black focus:outline-none font-medium from-primary-600 hover:to-primary-800 px-5 rounded-xl text-center text-white to-primary-700 mr-4" %>
   <div class="flex flex-col items-center lg:py-0">
     <div class="my-10">
       <a

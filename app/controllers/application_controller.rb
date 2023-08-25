@@ -4,7 +4,7 @@ class ApplicationController < ActionController::Base
   include Pundit::Authorization
 
   before_action :authenticate_user!
-  before_action :setup_self_hosting
+  before_action :setup_variables
 
   protect_from_forgery with: :null_session
 
@@ -22,7 +22,8 @@ class ApplicationController < ActionController::Base
 
   private
 
-  def setup_self_hosting
+  def setup_variables
     @self_hosted = Environment.self_hosted?
+    @current_user = current_user
   end
 end
