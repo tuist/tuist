@@ -7,11 +7,19 @@ struct CloudSessionCommand: ParsableCommand {
         CommandConfiguration(
             commandName: "session",
             _superCommandName: "cloud",
-            abstract: "Prints any existing session to authenticate on the server with the URL defined in the Config.swift file"
+            abstract: "Prints the current Cloud session"
         )
     }
 
+    @Option(
+        name: .long,
+        help: "URL to the cloud server."
+    )
+    var serverURL: String?
+
     func run() throws {
-        try CloudSessionService().printSession()
+        try CloudSessionService().printSession(
+            serverURL: serverURL
+        )
     }
 }

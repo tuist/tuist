@@ -104,6 +104,8 @@ public enum Components {
             public var invitee_email: Swift.String
             /// - Remark: Generated from `#/components/schemas/Invitation/organization_id`.
             public var organization_id: Swift.Double
+            /// - Remark: Generated from `#/components/schemas/Invitation/token`.
+            public var token: Swift.String
             /// - Remark: Generated from `#/components/schemas/Invitation/inviter`.
             public var inviter: Components.Schemas.User
             /// Creates a new `Invitation`.
@@ -112,22 +114,26 @@ public enum Components {
             ///   - id:
             ///   - invitee_email:
             ///   - organization_id:
+            ///   - token:
             ///   - inviter:
             public init(
                 id: Swift.Double,
                 invitee_email: Swift.String,
                 organization_id: Swift.Double,
+                token: Swift.String,
                 inviter: Components.Schemas.User
             ) {
                 self.id = id
                 self.invitee_email = invitee_email
                 self.organization_id = organization_id
+                self.token = token
                 self.inviter = inviter
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case invitee_email
                 case organization_id
+                case token
                 case inviter
             }
         }
