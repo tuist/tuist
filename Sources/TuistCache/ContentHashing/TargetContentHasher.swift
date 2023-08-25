@@ -39,8 +39,8 @@ public final class TargetContentHasher: TargetContentHashing {
             resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher),
             copyFilesContentHasher: CopyFilesContentHasher(contentHasher: contentHasher),
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
-            plistContentHasher: PlistContentHasher(contentHasher: contentHasher),
             deploymentTargetContentHasher: DeploymentTargetsContentHasher(contentHasher: contentHasher),
+            plistContentHasher: PlistContentHasher(contentHasher: contentHasher),
             settingsContentHasher: SettingsContentHasher(contentHasher: contentHasher),
             dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher)
         )
@@ -67,6 +67,7 @@ public final class TargetContentHasher: TargetContentHashing {
         self.copyFilesContentHasher = copyFilesContentHasher
         self.headersContentHasher = headersContentHasher
         self.deploymentTargetContentHasher = deploymentTargetContentHasher
+        self.plistContentHasher = plistContentHasher
         self.settingsContentHasher = settingsContentHasher
         self.dependenciesContentHasher = dependenciesContentHasher
     }
