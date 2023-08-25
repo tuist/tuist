@@ -3,36 +3,7 @@ import TSCBasic
 
 public protocol PlistTypesProtocol {}
 
-public enum Entitlements: PlistTypesProtocol, Equatable, Codable {
-    // Path to a user defined info.plist file (already exists on disk).
-    case file(path: AbsolutePath)
-
-    // Path to a generated info.plist file (may not exist on disk at the time of project generation).
-    // Data of the generated file
-    case generatedFile(path: AbsolutePath, data: Data)
-
-    // User defined dictionary of keys/values for an info.plist file.
-    case dictionary([String: Plist.Value])
-
-    // MARK: - Public
-
-    public var path: AbsolutePath? {
-        switch self {
-        case let .file(path), let .generatedFile(path: path, data: _):
-            return path
-        default:
-            return nil
-        }
-    }
-}
-
-// MARK: - Entitlements - ExpressibleByStringLiteral
-
-extension Entitlements: ExpressibleByStringLiteral {
-    public init(stringLiteral value: String) {
-        self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
-    }
-}
+// MARK: - Plist
 
 public enum Plist {
     public indirect enum Value: Equatable, Codable {
@@ -59,41 +30,6 @@ public enum Plist {
                 return double
             }
         }
-    }
-}
-
-public enum InfoPlist: PlistTypesProtocol, Equatable, Codable {
-    // Path to a user defined info.plist file (already exists on disk).
-    case file(path: AbsolutePath)
-
-    // Path to a generated info.plist file (may not exist on disk at the time of project generation).
-    // Data of the generated file
-    case generatedFile(path: AbsolutePath, data: Data)
-
-    // User defined dictionary of keys/values for an info.plist file.
-    case dictionary([String: Plist.Value])
-
-    // User defined dictionary of keys/values for an info.plist file extending the default set of keys/values
-    // for the target type.
-    case extendingDefault(with: [String: Plist.Value])
-
-    // MARK: - Public
-
-    public var path: AbsolutePath? {
-        switch self {
-        case let .file(path), let .generatedFile(path: path, data: _):
-            return path
-        default:
-            return nil
-        }
-    }
-}
-
-// MARK: - InfoPlist - ExpressibleByStringLiteral
-
-extension InfoPlist: ExpressibleByStringLiteral {
-    public init(stringLiteral value: String) {
-        self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
     }
 }
 
@@ -152,3 +88,74 @@ extension Dictionary where Value == Plist.Value {
         mapValues { $0.value }
     }
 }
+
+// MARK: - InfoPlist
+
+public enum InfoPlist: PlistTypesProtocol, Equatable, Codable {
+    // Path to a user defined info.plist file (already exists on disk).
+    case file(path: AbsolutePath)
+
+    // Path to a generated info.plist file (may not exist on disk at the time of project generation).
+    // Data of the generated file
+    case generatedFile(path: AbsolutePath, data: Data)
+
+    // User defined dictionary of keys/values for an info.plist file.
+    case dictionary([String: Plist.Value])
+
+    // User defined dictionary of keys/values for an info.plist file extending the default set of keys/values
+    // for the target type.
+    case extendingDefault(with: [String: Plist.Value])
+
+    // MARK: - Public
+
+    public var path: AbsolutePath? {
+        switch self {
+        case let .file(path), let .generatedFile(path: path, data: _):
+            return path
+        default:
+            return nil
+        }
+    }
+}
+
+// MARK: - InfoPlist - ExpressibleByStringLiteral
+
+extension InfoPlist: ExpressibleByStringLiteral {
+    public init(stringLiteral value: String) {
+        self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
+    }
+}
+
+// MARK: - Entitlements
+
+public enum Entitlements: PlistTypesProtocol, Equatable, Codable {
+    // Path to a user defined info.plist file (already exists on disk).
+    case file(path: AbsolutePath)
+
+    // Path to a generated info.plist file (may not exist on disk at the time of project generation).
+    // Data of the generated file
+    case generatedFile(path: AbsolutePath, data: Data)
+
+    // User defined dictionary of keys/values for an info.plist file.
+    case dictionary([String: Plist.Value])
+
+    // MARK: - Public
+
+    public var path: AbsolutePath? {
+        switch self {
+        case let .file(path), let .generatedFile(path: path, data: _):
+            return path
+        default:
+            return nil
+        }
+    }
+}
+
+// MARK: - Entitlements - ExpressibleByStringLiteral
+
+extension Entitlements: ExpressibleByStringLiteral {
+    public init(stringLiteral value: String) {
+        self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
+    }
+}
+
