@@ -1,3 +1,3 @@
 # frozen_string_literal: true
 
-ViteRuby.env["BASE_URL"] = Rails.application.config.defaults[:urls][:app]
+ViteRuby.env["BASE_URL"] = Environment.app_url

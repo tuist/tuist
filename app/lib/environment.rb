@@ -75,11 +75,11 @@ module Environment
     end
 
     def github_oauth_id
-      fetch(:devise, :omniauth, :github, :oauth_id)
+      fetch(:github, :oauth_id)
     end
 
     def github_oauth_secret
-      fetch(:devise, :omniauth, :github, :oauth_secret)
+      fetch(:github, :oauth_secret)
     end
 
     def okta_site
@@ -109,22 +109,15 @@ module Environment
     # Configuration checkers
 
     def okta_configured?
-      okta_site = fetch(:okta, :site)
-      okta_client_id = fetch(:okta, :client_id)
-      okta_client_secret = fetch(:okta, :client_secret)
       return okta_site.present? && okta_client_id.present? && okta_client_secret.present?
     end
 
     def github_configured?
-      github_oauth_id = fetch(:devise, :omniauth, :github, :oauth_id)
-      github_oauth_secret = fetch(:devise, :omniauth, :github, :oauth_secret)
       return github_oauth_id.present? && github_oauth_secret.present?
     end
 
     def aws_configured?
-      key_id = aws_access_key_id
-      key_secret = aws_access_key_secret
-      key_id.present? && key_secret.present?
+      aws_access_key_id.present? && aws_access_key_secret.present?
     end
 
     def app_url_configured?

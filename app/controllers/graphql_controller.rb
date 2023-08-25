@@ -12,7 +12,7 @@ class GraphqlController < APIController
       begin
         authenticate_user_from_token!
       rescue
-        url = "#{Rails.application.config.defaults[:urls][:app]}#{user_session_path}"
+        url = URI.parse(Environment.app_url).tap { |uri| uri.path = user_session_path }.to_s
         error_message = "Authentication is required to interact with the GraphQL API. Authenticate through #{url}"
         error_extensions = { code: "AUTHENTICATION_ERROR" }
         raise GraphQL::ExecutionError.new(error_message, extensions: error_extensions)

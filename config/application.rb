@@ -3,6 +3,7 @@
 require_relative "boot"
 
 require "rails/all"
+require_relative "../app/lib/environment"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -21,9 +22,9 @@ module TuistCloud
     Rails.autoloaders.main.ignore("#{root}/app/frontend")
 
     # URLs
-    Rails.application.routes.default_url_options[:host] = config.defaults[:urls][:app]
-    config.action_controller.default_url_options = { host: config.defaults[:urls][:app] }
-    config.action_mailer.default_url_options = { host: config.defaults[:urls][:app] }
+    Rails.application.routes.default_url_options[:host] = Environment.app_url
+    config.action_controller.default_url_options = { host: Environment.app_url }
+    config.action_mailer.default_url_options = { host: Environment.app_url }
 
     config.react.server_renderer_extensions = ["jsx", "js", "tsx", "ts"]
 
