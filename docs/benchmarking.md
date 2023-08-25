@@ -1,25 +1,25 @@
 # Benchmarking
 
-The Tuist project includes an executable, `tuistbench`, that you can use to benchmark the execution of Tuist.
+The Tuist project includes an executable, `tuistbenchmark`, that you can use to benchmark the execution of Tuist.
 
 ## Usage
 
 **Measurement (single fixture):**
 
 ```sh
-swift run tuistbench --binary /path/to/local/tuist --fixture /path/to/fixture
+swift run tuistbenchmark --binary /path/to/local/tuist --fixture /path/to/fixture
 ```
 
 **Benchmark (single fixture):**
 
 ```sh
-swift run tuistbench --binary /path/to/local/tuist --reference-binary /path/to/master/tuist --fixture /path/to/fixture
+swift run tuistbenchmark --binary /path/to/local/tuist --reference-binary /path/to/master/tuist --fixture /path/to/fixture
 ```
 
 **Benchmark (multiple fixtures):**
 
 ```sh
-swift run tuistbench --binary /path/to/local/tuist --reference-binary /path/to/master/tuist --fixture-list /path/to/fixtures.json
+swift run tuistbenchmark --binary /path/to/local/tuist --reference-binary /path/to/master/tuist --fixture-list /path/to/fixtures.json
 ```
 
 `fixtures.json` example:
@@ -71,7 +71,7 @@ When `deltaThreshold` is `0.02`
 Console:
 
 ```sh
-$ swift run tuistbench -b $(which tuist) -f /path/to/fixtures/ios_app_with_tests
+$ swift run tuistbenchmark -b $(which tuist) -f /path/to/fixtures/ios_app_with_tests
 
 Fixture       : ios_app_with_tests
 Runs          : 5
@@ -84,7 +84,7 @@ Result
 Markdown:
 
 ```sh
-$ swift run tuistbench -b $(which tuist) -f /path/to/ios_app_with_tests --format markdown
+$ swift run tuistbenchmark -b $(which tuist) -f /path/to/ios_app_with_tests --format markdown
 ```
 
 | Fixture            | Cold  | Warm  |
@@ -107,7 +107,7 @@ $ swift run tuistbench -b $(which tuist) -f /path/to/ios_app_with_tests --format
 Console:
 
 ```sh
-$ swift run tuistbench -b /path/to/tuist/.build/release/tuist -r $(which tuist) -l fixtures.json
+$ swift run tuistbenchmark -b /path/to/tuist/.build/release/tuist -r $(which tuist) -l fixtures.json
 
 Fixture       : ios_app_with_tests
 Runs          : 5
@@ -127,7 +127,7 @@ Result
 Markdown:
 
 ```sh
-$ swift run tuistbench -b /path/to/tuist/.build/release/tuist -r $(which tuist) -l fixtures.json --format markdown
+$ swift run tuistbenchmark -b /path/to/tuist/.build/release/tuist -r $(which tuist) -l fixtures.json --format markdown
 ```
 
 | Fixture                        | New   | Old   | Delta    |
