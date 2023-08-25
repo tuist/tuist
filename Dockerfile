@@ -122,7 +122,7 @@ RUN chmod +x /app/bin/* && \
 # The following enable assets to precompile on the build server.  Adjust
 # as necessary.  If no combination works for you, see:
 # https://fly.io/docs/rails/getting-started/existing/#access-to-environment-variables-at-build-time
-ENV SECRET_KEY_BASE 1
+# ENV SECRET_KEY_BASE 1
 # ENV AWS_ACCESS_KEY_ID=1
 # ENV AWS_SECRET_ACCESS_KEY=1
 
