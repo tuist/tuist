@@ -3,6 +3,7 @@
 require_relative "boot"
 
 require "rails/all"
+require_relative "../app/lib/environment"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -12,7 +13,9 @@ module TuistCloud
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults(7.0)
-    config.defaults = config_for(:defaults)
+    defaults = config_for(:defaults)
+    config.defaults = defaults
+    config.secret_key_base = Environment.secret_key_base(defaults: defaults)
 
     # Autoloading
     config.autoload_once_paths << "#{root}/app/lib/defaults"
@@ -21,13 +24,19 @@ module TuistCloud
     Rails.autoloaders.main.ignore("#{root}/app/frontend")
 
     # URLs
-    Rails.application.routes.default_url_options[:host] = config.defaults[:urls][:app]
-    config.action_controller.default_url_options = { host: config.defaults[:urls][:app] }
-    config.action_mailer.default_url_options = { host: config.defaults[:urls][:app] }
+    Rails.application.routes.default_url_options[:host] = Environment.app_url
+    config.action_controller.default_url_options = { host: Environment.app_url }
+    config.action_mailer.default_url_options = { host: Environment.app_url }
 
     config.react.server_renderer_extensions = ["jsx", "js", "tsx", "ts"]
 
     # Que
     config.active_record.schema_format = :sql
+
+    # Initializers
+    config.before_initialize do
+      require_relative "../app/lib/environment"
+      Environment.ensure_configured!
+    end
   end
 end

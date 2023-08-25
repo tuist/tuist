@@ -7,5 +7,5 @@ class Account < ApplicationRecord
   has_many :s3_buckets, class_name: "S3Bucket", dependent: :destroy
 
   # Validations
-  validates :name, exclusion: Environment.fetch(:blocklisted_slug_keywords)
+  validates :name, exclusion: Environment.blocklisted_slug_keywords
 end

@@ -12,7 +12,7 @@ class DecipherService < ApplicationService
   def call
     decipher = OpenSSL::Cipher::AES.new(256, :CBC)
     decipher.decrypt
-    decipher.key = Digest::MD5.hexdigest(Environment.fetch(:secret_key_base))
+    decipher.key = Digest::MD5.hexdigest(Environment.secret_key_base)
     decipher.iv = iv
     decipher.update(key) + decipher.final
   end

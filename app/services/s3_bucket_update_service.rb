@@ -44,7 +44,7 @@ class S3BucketUpdateService < ApplicationService
     if secret_access_key != bucket.secret_access_key
       cipher = OpenSSL::Cipher::AES.new(256, :CBC)
       cipher.encrypt
-      cipher.key = Digest::MD5.hexdigest(Rails.application.credentials[:secret_key_base])
+      cipher.key = Digest::MD5.hexdigest(Environment.secret_key_base)
       iv = cipher.random_iv
 
       encrypted_secret_access_key = cipher.update(secret_access_key) + cipher.final
