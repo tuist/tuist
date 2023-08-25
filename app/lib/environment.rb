@@ -40,27 +40,91 @@ module Environment
       value
     end
 
-    def okta_configured?
-      okta_site = Environment.fetch(:okta, :site)
-      okta_client_id = Environment.fetch(:okta, :client_id)
-      okta_client_secret = Environment.fetch(:okta, :client_secret)
-      return okta_site.present? && okta_client_id.present? && okta_client_secret.present?
+    # Getters
+
+    def aws_access_key_id
+      fetch(:aws, :access_key_id)
     end
 
-    def github_configured?
-      github_oauth_id = Environment.fetch(:devise, :omniauth, :github, :oauth_id)
-      github_oauth_secret = Environment.fetch(:devise, :omniauth, :github, :oauth_secret)
-      return github_oauth_id.present? && github_oauth_secret.present?
-    end
-
-    def aws_configured?
-      key_id = Environment.fetch(:aws, :access_key_id)
-      key_secret = Environment.fetch(:aws, :access_key_secret)
-      key_id.present? && key_secret.present?
+    def aws_access_key_secret
+      fetch(:aws, :access_key_secret)
     end
 
     def storage_configured?
       aws_configured?
+    end
+
+    def blocklisted_slug_keywords
+      fetch(:blocklisted_slug_keywords)
+    end
+
+    def tokens_secret_key
+      fetch(:devise, :secret_key)
+    end
+
+    def password_pepper
+      fetch(:devise, :pepper)
+    end
+
+    def secret_key_base
+      fetch(:secret_key_base)
+    end
+
+    def app_url
+      fetch(:urls, :app)
+    end
+
+    def github_oauth_id
+      fetch(:devise, :omniauth, :github, :oauth_id)
+    end
+
+    def github_oauth_secret
+      fetch(:devise, :omniauth, :github, :oauth_secret)
+    end
+
+    def okta_site
+      fetch(:okta, :site)
+    end
+
+    def okta_client_id
+      fetch(:okta, :client_id)
+    end
+
+    def okta_client_secret
+      fetch(:okta, :client_secret)
+    end
+
+    def okta_authorize_url
+      fetch(:okta, :authorize_url)
+    end
+
+    def okta_token_url
+      fetch(:okta, :token_url)
+    end
+
+    def okta_user_info_url
+      fetch(:okta, :user_info_url)
+    end
+
+    # Configuration checkers
+
+    def okta_configured?
+      okta_site = fetch(:okta, :site)
+      okta_client_id = fetch(:okta, :client_id)
+      okta_client_secret = fetch(:okta, :client_secret)
+      return okta_site.present? && okta_client_id.present? && okta_client_secret.present?
+    end
+
+    def github_configured?
+      github_oauth_id = fetch(:devise, :omniauth, :github, :oauth_id)
+      github_oauth_secret = fetch(:devise, :omniauth, :github, :oauth_secret)
+      return github_oauth_id.present? && github_oauth_secret.present?
+    end
+
+    def aws_configured?
+      key_id = aws_access_key_id
+      key_secret = aws_access_key_secret
+      key_id.present? && key_secret.present?
     end
 
     def ensure_configured!

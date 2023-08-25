@@ -16,7 +16,7 @@ Devise.setup do |config|
   # confirmation, reset password and unlock tokens in the database.
   # Devise will use the `secret_key_base` as its `secret_key`
   # by default. You can change it below and use your own secret key.
-  config.secret_key = Environment.fetch(:devise, :secret_key)
+  config.secret_key = Environment.tokens_secret_key
 
   # ==> Controller configuration
   # Configure the parent class to the devise controllers.
@@ -128,7 +128,7 @@ Devise.setup do |config|
   config.stretches = Rails.env.test? ? 1 : 12
 
   # Set up a pepper to generate the hashed password.
-  config.pepper = Environment.fetch(:devise, :pepper)
+  config.pepper = Environment.password_pepper
 
   # Send a notification to the original email when the user's email is changed.
   # config.send_email_changed_notification = false
@@ -308,12 +308,12 @@ Devise.setup do |config|
   # ==> Configuration for :registerable
 
   # Omniauth
-  OmniAuth.config.full_host = Environment.fetch(:urls, :app)
+  OmniAuth.config.full_host = Environment.app_url
 
   # GitHub Omniauth
 
-  github_oauth_id = Environment.fetch(:devise, :omniauth, :github, :oauth_id)
-  github_oauth_secret = Environment.fetch(:devise, :omniauth, :github, :oauth_secret)
+  github_oauth_id = Environment.github_oauth_id
+  github_oauth_secret = Environment.github_oauth_secret
 
   if !Environment.self_hosted? || (!github_oauth_id.nil? && !github_oauth_secret.nil?)
     # When set to false, does not sign a user in automatically after their password is
@@ -329,12 +329,12 @@ Devise.setup do |config|
   end
 
   # Okta Omniauth
-  okta_site = Environment.fetch(:okta, :site)
-  okta_client_id = Environment.fetch(:okta, :client_id)
-  okta_client_secret = Environment.fetch(:okta, :client_secret)
-  okta_authorize_url = Environment.fetch(:okta, :authorize_url)
-  okta_token_url = Environment.fetch(:okta, :token_url)
-  okta_user_info_url = Environment.fetch(:okta, :user_info_url)
+  okta_site = Environment.okta_site
+  okta_client_id = Environment.okta_client_id
+  okta_client_secret = Environment.okta_client_secret
+  okta_authorize_url = Environment.okta_authorize_url
+  okta_token_url = Environment.okta_token_url
+  okta_user_info_url = Environment.okta_user_info_url
 
   if [okta_site, okta_client_id, okta_client_secret].all? { |v| !v.blank? }
     if okta_authorize_url.blank?

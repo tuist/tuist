@@ -47,8 +47,8 @@ class ProjectDeleteService < ApplicationService
   def s3_client
     Aws::S3::Client.new(
       region: "eu-west-1",
-      access_key_id: Environment.fetch(:aws, :access_key_id),
-      secret_access_key: Environment.fetch(:aws, :access_key_secret),
+      access_key_id: Environment.aws_access_key_id,
+      secret_access_key: Environment.aws_access_key_secret,
     )
   end
 end

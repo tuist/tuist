@@ -13,7 +13,7 @@ class Project < ApplicationRecord
   belongs_to :remote_cache_storage, polymorphic: true, optional: true
 
   # Validations
-  validates :name, exclusion: Environment.fetch(:blocklisted_slug_keywords)
+  validates :name, exclusion: Environment.blocklisted_slug_keywords
 
   def full_name
     "#{account.name}/#{name}"
@@ -43,11 +43,11 @@ class DefaultS3Bucket
   end
 
   def access_key_id
-    Environment.fetch(:aws, :access_key_id)
+    Environment.aws_access_key_id
   end
 
-  def secret_access_key
-    Environment.fetch(:aws, :access_key_secret)
+  def access_key_secret
+    Environment.aws_access_key_secret
   end
 
   def region
