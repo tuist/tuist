@@ -98,8 +98,13 @@ extension SchemeLinter {
                 if !targetNames.contains(target.name) {
                     issues.append(missingExpandVariablesTargetIssue(missingTargetName: target.name, schemaName: scheme.name))
                 } else if let buildTargetNames = scheme.buildAction?.targets.map(\.name),
-                          !buildTargetNames.contains(target.name) {
-                    issues.append(missingExpandVariablesTargetInBuildActionIssue(missingTargetName: target.name, schemaName: scheme.name))
+                          !buildTargetNames.contains(target.name)
+                {
+                    issues
+                        .append(missingExpandVariablesTargetInBuildActionIssue(
+                            missingTargetName: target.name,
+                            schemaName: scheme.name
+                        ))
                 }
             }
         }
@@ -134,10 +139,11 @@ extension SchemeLinter {
     }
 
     private func missingExpandVariablesTargetInBuildActionIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
-        let reason = "The target '\(missingTargetName)' specified in \(schemaName) expandVariableFromTarget isn't defined in the scheme's build action."
+        let reason =
+            "The target '\(missingTargetName)' specified in \(schemaName) expandVariableFromTarget isn't defined in the scheme's build action."
         return LintingIssue(reason: reason, severity: .error)
     }
-    
+
     private func projectSchemeCantReferenceRemoteTargets(schemes: [Scheme], project: Project) -> [LintingIssue] {
         schemes.flatMap { projectSchemeCantReferenceRemoteTargets(scheme: $0, project: project) }
     }
