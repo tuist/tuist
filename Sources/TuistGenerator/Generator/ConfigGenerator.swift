@@ -153,6 +153,16 @@ final class ConfigGenerator: ConfigGenerating {
         configurationList.buildConfigurations.append(variantBuildConfiguration)
     }
 
+    // These are not needed or are computed elsewhere so we exclude them
+    private let multiplatformExcludedSettingsKeys = Set([
+        "COMBINE_HIDPI_IMAGES",
+        "SDKROOT",
+        "CODE_SIGN_IDENTITY",
+        "APPLICATION_EXTENSION_API_ONLY",
+        "FRAMEWORK_VERSION",
+        "TARGETED_DEVICE_FAMILY",
+    ])
+
     private func generateTargetSettingsFor(
         target: Target,
         project: Project,
@@ -168,16 +178,28 @@ final class ConfigGenerator: ConfigGenerating {
 
         var settings: SettingsDictionary = [:]
 
-        for platform in target.supportedPlatforms {
-            let platformSetting = try defaultSettingsProvider.targetSettings(
+        if target.isMultiplatform {
+            // Loop over platforms in a deterministic order.
+            for platform in Platform.allCases where target.supportedPlatforms.contains(platform) {
+                let platformSetting = try defaultSettingsProvider.targetSettings(
+                    target: target,
+                    project: project,
+                    platform: platform,
+                    buildConfiguration: buildConfiguration
+                )
+
+                let filteredSettings = platformSetting.filter { !multiplatformExcludedSettingsKeys.contains($0.key) }
+
+                let helper = SettingsHelper()
+                helper.overlay(settings: &settings, with: filteredSettings, for: platform)
+            }
+        } else if let platform = target.supportedPlatforms.first {
+            settings = try defaultSettingsProvider.targetSettings(
                 target: target,
                 project: project,
                 platform: platform,
                 buildConfiguration: buildConfiguration
             )
-
-            let helper = SettingsHelper()
-            helper.overlay(settings: &settings, with: platformSetting, for: platform)
         }
 
         updateTargetDerived(
