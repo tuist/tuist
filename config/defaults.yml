@@ -13,6 +13,14 @@ default: &default
     - organization
 development: &development
   <<: *default
+staging:
+  <<: *default
+  app_url: https://tuist-cloud-staging.fly.dev
+  smpt_settings:
+    authentication: plain
+    address: smtp.eu.mailgun.org
+    port: 587
+  domain: tuist-cloud-staging.fly.dev
 production:
   <<: *default
   app_url: https://cloud.tuist.io

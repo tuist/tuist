@@ -25,10 +25,10 @@
 /public/assets
 .byebug_history
 
-# Ignore master key for decrypting credentials and more.
+# Ignore encryption keys for decrypting credentials and more.
 /config/master.key
-
 /config/credentials/production.key
+/config/credentials/staging.key
 
 # Vite Ruby
 /public/vite
