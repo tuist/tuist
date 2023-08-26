@@ -15,7 +15,7 @@ extension TuistGraph.Destination {
         case (.macOS, _):
             return [.mac]
         case let (.iOS, .some(.iOS(_, devices, supportsMacDesignedForIOS: supportsMacDesignedForIOS))):
-            var destinations: [Destination] = []
+            var destinations: [TuistGraph.Destination] = []
 
             if devices.contains(.iphone) {
                 destinations.append(.iPhone)
