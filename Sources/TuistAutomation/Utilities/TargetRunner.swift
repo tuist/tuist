@@ -37,11 +37,10 @@ public enum TargetRunnerError: Equatable, FatalError {
     case runnableNotFound(path: String)
     case runningNotSupported(target: Target)
     case targetNotRunnableOnPlatform(target: Target, platform: Platform)
-    case cantDeterminePlatform(target: Target)
 
     public var type: ErrorType {
         switch self {
-        case .runningNotSupported, .targetNotRunnableOnPlatform, .cantDeterminePlatform:
+        case .runningNotSupported, .targetNotRunnableOnPlatform:
             return .abort
         case .runnableNotFound:
             return .bug
@@ -56,8 +55,6 @@ public enum TargetRunnerError: Equatable, FatalError {
             return "Cannot run \(target.name) - the platform \(platform.rawValue) and product type \(target.product.caseValue) are not currently supported."
         case let .runnableNotFound(path):
             return "The runnable product was expected but not found at \(path)."
-        case let .cantDeterminePlatform(target):
-            return "Only single platform targets supported. The target \(target.name) specifies multiple supported platforms (\(target.supportedPlatforms.map(\.rawValue).joined(separator: ", ")))."
         }
     }
 }

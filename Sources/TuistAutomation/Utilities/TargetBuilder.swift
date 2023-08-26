@@ -34,7 +34,6 @@ public protocol TargetBuilding {
 public enum TargetBuilderError: FatalError {
     case schemeWithoutBuildableTargets(scheme: String)
     case buildProductsNotFound(path: String)
-    case cantDeterminePlatform(target: Target)
 
     public var type: ErrorType {
         switch self {
@@ -42,8 +41,6 @@ public enum TargetBuilderError: FatalError {
             return .abort
         case .buildProductsNotFound:
             return .bug
-        case .cantDeterminePlatform:
-            return .abort
         }
     }
 
@@ -53,8 +50,6 @@ public enum TargetBuilderError: FatalError {
             return "The scheme \(scheme) cannot be built because it contains no buildable targets."
         case let .buildProductsNotFound(path):
             return "The expected build products at \(path) were not found."
-        case let .cantDeterminePlatform(target):
-            return "Only single platform targets supported. The target \(target.name) specifies multiple supported platforms (\(target.supportedPlatforms.map(\.rawValue).joined(separator: ", ")))."
         }
     }
 }

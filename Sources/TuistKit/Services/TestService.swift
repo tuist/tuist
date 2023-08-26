@@ -11,7 +11,6 @@ import TuistSupport
 enum TestServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
     case schemeWithoutTestableTargets(scheme: String)
-    case cantDeterminePlatform(target: Target)
 
     // Error description
     var description: String {
@@ -20,15 +19,13 @@ enum TestServiceError: FatalError {
             return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
         case let .schemeWithoutTestableTargets(scheme):
             return "The scheme \(scheme) cannot be built because it contains no buildable targets."
-        case let .cantDeterminePlatform(target):
-            return "Only single platform targets supported. The target \(target.name) specifies multiple supported platforms (\(target.supportedPlatforms.map(\.rawValue).joined(separator: ", ")))."
         }
     }
 
     // Error type
     var type: ErrorType {
         switch self {
-        case .schemeNotFound, .schemeWithoutTestableTargets, .cantDeterminePlatform:
+        case .schemeNotFound, .schemeWithoutTestableTargets:
             return .abort
         }
     }
