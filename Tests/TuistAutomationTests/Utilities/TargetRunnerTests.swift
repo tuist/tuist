@@ -109,7 +109,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
             arguments: []
         )
 
-        await fulfillment(of: [expectation], timeout: 1.0)
+        await fulfillment(of: [expectation], timeout: 1)
     }
 
     func test_runsExecutable_when_platform_is_macOS_and_product_is_commandLineTool() async throws {
