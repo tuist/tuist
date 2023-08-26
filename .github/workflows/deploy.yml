@@ -10,10 +10,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    name: Deploy app
+  deploy-staging:
+    name: Deploy staging app
     env:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_API_TOKEN: ${{ secrets.FLY_STAGING_API_TOKEN }}
       DOCKER_BUILDKIT: 1
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -23,6 +23,18 @@ jobs:
       # We deploy first to staging to give some window to test the changes
       - name: Deploy staging
         run: flyctl deploy -c fly.staging.toml --build-arg RAILS_ENV=staging --wait-timeout 600
+  deploy:
+    name: Deploy app
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      DOCKER_BUILDKIT: 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # We deploy first to staging to give some window to test the changes
+    needs: deploy-staging
+    steps:
+      - uses: actions/checkout@v3
+      - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Deploy
         run: flyctl deploy --remote-only --wait-timeout 600
   docker:
