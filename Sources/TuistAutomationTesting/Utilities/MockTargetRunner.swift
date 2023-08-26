@@ -12,6 +12,7 @@ public final class MockTargetRunner: TargetRunning {
     )?
     public func runTarget(
         _ target: GraphTarget,
+        platform _: TuistGraph.Platform,
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,

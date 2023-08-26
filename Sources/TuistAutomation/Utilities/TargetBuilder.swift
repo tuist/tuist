@@ -19,6 +19,7 @@ public protocol TargetBuilding {
     ///   - graphTraverser: The Graph traverser.
     func buildTarget(
         _ target: GraphTarget,
+        platform: TuistGraph.Platform,
         workspacePath: AbsolutePath,
         scheme: Scheme,
         clean: Bool,
@@ -78,6 +79,7 @@ public final class TargetBuilder: TargetBuilding {
 
     public func buildTarget(
         _ target: GraphTarget,
+        platform: TuistGraph.Platform,
         workspacePath: AbsolutePath,
         scheme: Scheme,
         clean: Bool,
@@ -88,10 +90,6 @@ public final class TargetBuilder: TargetBuilding {
         graphTraverser: GraphTraversing
     ) async throws {
         logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
-
-        guard let platform = target.target.exclusivePlatform else {
-            throw TargetBuilderError.cantDeterminePlatform(target: target.target)
-        }
 
         let buildArguments = buildGraphInspector.buildArguments(
             project: target.project,

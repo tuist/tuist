@@ -18,6 +18,7 @@ public protocol TargetRunning {
     ///   - arguments: Arguments to forward to the runnable target when running.
     func runTarget(
         _ target: GraphTarget,
+        platform: TuistGraph.Platform,
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,
@@ -78,6 +79,7 @@ public final class TargetRunner: TargetRunning {
 
     public func runTarget(
         _ target: GraphTarget,
+        platform: TuistGraph.Platform,
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,
@@ -87,10 +89,6 @@ public final class TargetRunner: TargetRunning {
         arguments: [String]
     ) async throws {
         try assertCanRunTarget(target.target)
-
-        guard let platform = target.target.exclusivePlatform else {
-            throw TargetRunnerError.cantDeterminePlatform(target: target.target)
-        }
 
         let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration
             .debug.name

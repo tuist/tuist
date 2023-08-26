@@ -68,6 +68,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         await XCTAssertThrowsSpecific(
             try await subject.runTarget(
                 target,
+                platform: .iOS,
                 workspacePath: workspacePath,
                 schemeName: "MyScheme",
                 configuration: nil,
@@ -98,6 +99,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         // WHEN
         try await subject.runTarget(
             .test(target: .test(platform: .macOS, product: .commandLineTool)),
+            platform: .iOS,
             workspacePath: workspacePath,
             schemeName: "MyScheme",
             configuration: nil,
@@ -127,6 +129,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         do {
             try await subject.runTarget(
                 graphTarget,
+                platform: .iOS,
                 workspacePath: workspacePath,
                 schemeName: "MyScheme",
                 configuration: nil,
@@ -181,6 +184,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         do {
             try await subject.runTarget(
                 graphTarget,
+                platform: .iOS,
                 workspacePath: workspacePath,
                 schemeName: "MyScheme",
                 configuration: nil,

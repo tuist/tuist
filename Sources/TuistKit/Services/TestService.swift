@@ -207,9 +207,7 @@ final class TestService {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
 
-        guard let platform = buildableTarget.target.exclusivePlatform else {
-            throw TestServiceError.cantDeterminePlatform(target: buildableTarget.target)
-        }
+        let platform = try buildableTarget.target.servicePlatform
 
         let destination = try await XcodeBuildDestination.find(
             for: buildableTarget.target,
