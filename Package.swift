@@ -13,6 +13,7 @@ let package = Package(
     name: "tuist",
     platforms: [.macOS(.v12)],
     products: [
+        .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
         .executable(name: "tuist", targets: ["tuist"]),
         .executable(name: "tuistenv", targets: ["tuistenv"]),
         .library(
@@ -66,6 +67,12 @@ let package = Package(
         .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
     ],
     targets: [
+        .executableTarget(
+            name: "tuistbenchmark",
+            dependencies: [
+                .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+            ]
+        ),
         .target(
             name: "TuistGraph",
             dependencies: [

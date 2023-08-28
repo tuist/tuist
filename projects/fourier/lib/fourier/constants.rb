@@ -10,7 +10,6 @@ module Fourier
     TUIST_VENDOR_DIRECTORY = File.expand_path("projects/tuist/vendor", ROOT_DIRECTORY)
     FIXTUREGEN_DIRECTORY = File.expand_path("projects/fixturegen", ROOT_DIRECTORY)
     FOURIER_DIRECTORY = File.expand_path("projects/fourier", ROOT_DIRECTORY)
-    TUISTBENCH_DIRECTORY = File.expand_path("projects/tuistbench", ROOT_DIRECTORY)
     VENDOR_DIRECTORY = File.expand_path("../../vendor", __dir__)
     REPOSITORY = "tuist/tuist"
   end

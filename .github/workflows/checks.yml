@@ -13,7 +13,6 @@ on:
       - Sources/**
       - Tests/**
       - projects/fixturegen/**
-      - projects/tuistbench/**
       - projects/fourier/**
       - .github/workflows/checks.yml
 
