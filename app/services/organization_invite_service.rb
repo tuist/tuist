@@ -36,6 +36,10 @@ class OrganizationInviteService < ApplicationService
       def message
         "Invitation with id #{invitation_id} was not found"
       end
+
+      def status_code
+        :not_found
+      end
     end
 
     class InvitationByInviteeEmailNotFound < CloudError
