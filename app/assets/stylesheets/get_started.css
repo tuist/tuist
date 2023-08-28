@@ -3,3 +3,12 @@
   top: 10px;
   right: 0;
 }
+
+.content-container {
+  max-width: 72rem;
+  margin: 0 auto 5rem auto;
+}
+
+code {
+  white-space: pre-wrap;
+}
