@@ -79,7 +79,7 @@ let package = Package(
             dependencies: [
                 .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
             ]
-        )
+        ),
         .target(
             name: "TuistGraph",
             dependencies: [
