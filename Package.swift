@@ -14,6 +14,7 @@ let package = Package(
     platforms: [.macOS(.v12)],
     products: [
         .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
+        .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
         .executable(name: "tuist", targets: ["tuist"]),
         .executable(name: "tuistenv", targets: ["tuistenv"]),
         .library(
@@ -73,6 +74,12 @@ let package = Package(
                 .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
             ]
         ),
+        .executableTarget(
+            name: "tuistfixturegenerator",
+            dependencies: [
+                .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+            ]
+        )
         .target(
             name: "TuistGraph",
             dependencies: [

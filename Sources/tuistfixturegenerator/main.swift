@@ -4,7 +4,7 @@ import TSCUtility
 
 func main() throws {
     let parser = ArgumentParser(
-        commandName: "fixturegen",
+        commandName: "fixturegenerator",
         usage: "<options>",
         overview: "Generates large fixtures for the purposes of stress testing Tuist."
     )

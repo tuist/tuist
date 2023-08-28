@@ -10,8 +10,8 @@ module Fourier
         end
 
         def call
-          Dir.chdir(Constants::FIXTUREGEN_DIRECTORY) do
-            Utilities::System.system("swift", "build", "--configuration", configuration)
+          Dir.chdir(Constants::ROOT_DIRECTORY) do
+            Utilities::System.system("swift", "build", "--configuration", configuration, "--target", "tuistfixturegenerator")
           end
         end
       end

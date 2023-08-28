@@ -32,6 +32,20 @@ func targets() -> [Target] {
             ]
         ),
         Target.target(
+            name: "tuistbenchmark",
+            product: .commandLineTool,
+            dependencies: [
+                .external(name: "SwiftToolsSupport"),
+            ]
+        ),
+        Target.target(
+            name: "tuistfixturegenerator",
+            product: .commandLineTool,
+            dependencies: [
+                .external(name: "SwiftToolsSupport"),
+            ]
+        ),
+        Target.target(
             name: "TuistIntegrationTests",
             product: .unitTests,
             dependencies: [
