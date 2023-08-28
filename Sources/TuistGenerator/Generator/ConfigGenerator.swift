@@ -279,9 +279,17 @@ final class ConfigGenerator: ConfigGenerating {
             do {
                 let path = try AbsolutePath(validating: "$(BUILT_PRODUCTS_DIR)")
 
+                #if os(iOS) || os(tvOS) || os(watchOS)
+                let bundleExecutableFolderPath = "$(BUNDLE_EXECUTABLE_FOLDER_PATH)"
+                #elseif os(macOS)
+                let bundleExecutableFolderPath = "$(BUNDLE_EXECUTABLE_FOLDER_PATH)/"
+                #else
+                let bundleExecutableFolderPath = "$(BUNDLE_EXECUTABLE_FOLDER_PATH)/"
+                #endif
+
                 settings["TEST_HOST"] = .string(
                     path
-                        .appending(component: "$(BUNDLE_EXECUTABLE_FOLDER_PATH)")
+                        .appending(component: bundleExecutableFolderPath)
                         .appending(component: app.target.productNameWithExtension)
                         .appending(component: app.target.productName)
                         .pathString
