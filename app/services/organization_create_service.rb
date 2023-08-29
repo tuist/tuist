@@ -20,5 +20,6 @@ class OrganizationCreateService < ApplicationService
       creator.add_role(:admin, organization)
       organization
     end
+    Analytics.on_organization_creation(name, owner_email: creator.email)
   end
 end

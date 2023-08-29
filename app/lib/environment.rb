@@ -107,7 +107,15 @@ module Environment
       fetch(:okta, :user_info_url)
     end
 
+    def attio_api_key
+      fetch(:attio, :api_key)
+    end
+
     # Configuration checkers
+
+    def attio_configured?
+      attio_api_key.present?
+    end
 
     def okta_configured?
       return okta_site.present? && okta_client_id.present? && okta_client_secret.present?

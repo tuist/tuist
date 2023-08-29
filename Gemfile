@@ -24,6 +24,7 @@ gem "tailwindcss-rails", "~> 2.0"
 gem "sassc-rails", "~> 2.1"
 gem "stripe-rails", "~> 2.4"
 gem "que", "~> 2.2"
+gem "httpx", "~> 0.24.3"
 
 # GraphQL
 gem "graphql", "~> 2.0.5"
