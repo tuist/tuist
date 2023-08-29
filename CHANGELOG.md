@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.24.0 - 2023-08-29
+
+### Changed
+
+- Server URL as option for cloud logout and session commands [#5365](https://github.com/tuist/tuist/pull/5365) by [@fortmarek](https://github.com/fortmarek)
+- Print URL when inviting a user [#5367](https://github.com/tuist/tuist/pull/5367) by [@fortmarek](https://github.com/fortmarek)
+
+### Added
+
+- Add support for TUIST_CLOUD_URL to override the default Cloud URL [#5368](https://github.com/tuist/tuist/pull/5368) by [@fortmarek](https://github.com/fortmarek)
+
+### Fixed
+
+- Fix issue #5237 by adding `toValidSwiftIdentifier()` extension to `String` [#5358](https://github.com/tuist/tuist/pull/5358) by [@dankinsoid](https://github.com/dankinsoid)
+- Fix cloud auth race condition [#5366](https://github.com/tuist/tuist/pull/5366) by [@fortmarek](https://github.com/fortmarek)
+
 ## 3.23.1 - 2023-08-17
 
 ### Fixed
@@ -38,10 +54,11 @@
 
 ### Breaking
 
-- Multi-platform / Multi-destination prep work will cause the following build settings to no longer be overridable in xcconfigs. This is to ensure the upcoming feature can be more predictable and reliable. The `.deploymentTarget()` API can be used to control those settings in the interim, please report any issues you may encounter related to this.
-  - `SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD`
-  - `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD`
-  - `SUPPORTS_MACCATALYST`
+- Multi-platform / Multi-destination prep work will cause the following build settings to no longer be overridable in xcconfigs. This is to ensure the upcoming feature can be more predictable and reliable. The `.deploymentTarget()` API can be used to control those settings in the interim, please report any issues you may encounter related to this.   
+  - `SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD`   
+  - `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD`   
+  - `SUPPORTS_MACCATALYST`   
+  
 
 ## 3.22.0 - 2023-07-31
 
