@@ -15,6 +15,7 @@
 
 - Fix issue #5237 by adding `toValidSwiftIdentifier()` extension to `String` [#5358](https://github.com/tuist/tuist/pull/5358) by [@dankinsoid](https://github.com/dankinsoid)
 - Fix cloud auth race condition [#5366](https://github.com/tuist/tuist/pull/5366) by [@fortmarek](https://github.com/fortmarek)
+- Fix openssl to use system path [#5370](https://github.com/tuist/tuist/pull/5370) by [@roanutil](https://github.com/roanutil)
 
 ## 3.23.1 - 2023-08-17
 
