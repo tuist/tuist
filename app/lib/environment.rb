@@ -111,10 +111,22 @@ module Environment
       fetch(:attio, :api_key)
     end
 
+    def stripe_api_key
+      fetch(:stripe, :secret_key)
+    end
+
+    def stripe_publishable_key
+      fetch(:stripe, :publishable_key)
+    end
+
     # Configuration checkers
 
     def attio_configured?
       attio_api_key.present?
+    end
+
+    def stripe_configured?
+      stripe_api_key.present? && stripe_publishable_key.present?
     end
 
     def okta_configured?
@@ -149,6 +161,9 @@ module Environment
       errors << "Application URL is not configured" unless app_url_configured?
       # errors << "Database is not configured" unless database_configured?
       errors << "Secret key base is not configured" unless secret_key_base_configured?
+      if !Environment.self_hosted?
+        errors << "Stripe is not configured" unless stripe_configured?
+      end
 
       if errors.any?
         raise Error, <<~ERROR

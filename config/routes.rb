@@ -17,6 +17,7 @@ Rails.application.routes.draw do
   root to: "application#app"
 
   get "/get-started", to: "application#get_started"
+  post "/create-customer-portal-session/:account_id", to: "application#create_customer_portal_session"
 
   get "/auth/invitations/:token", to: "auth#accept_invitation"
   get "/auth/cli/success", to: "auth#cli_success"
