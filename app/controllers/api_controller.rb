@@ -1,6 +1,18 @@
 # frozen_string_literal: true
 
 class APIController < ApplicationController
+  module Error
+    class Unauthorized < CloudError
+      def message
+        "No auth token found. Authenticate with the `tuist cloud auth` command or via the `TUIST_CONFIG_CLOUD_TOKEN` environment variable."
+      end
+
+      def status_code
+        :unauthorized
+      end
+    end
+  end
+
   skip_before_action :authenticate_user!
   before_action :authenticate_user_from_token!
 
@@ -10,6 +22,8 @@ class APIController < ApplicationController
         user = User.find_by!(token: token)
       rescue ActiveRecord::RecordNotFound
         @project = Project.find_by!(token: token)
+      rescue ActiveRecord::RecordNotFound
+        raise Error::Unauthorized.new
       end
       if user
         sign_in(user, store: false)
