@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class Organization < ApplicationRecord
+  after_update :update_subscription_after_roles_update, if: :saved_change_to_roles?
   resourcify
 
   # Associations
@@ -33,5 +34,23 @@ class Organization < ApplicationRecord
       users.map { |user| OrganizationMember.new(id: user.id, name: user.account.name, email: user.email, role: :user) }
     )
     super(options.merge(only: [:id])).merge({ name: name, members: members, invitations: invitations })
+  end
+
+  def update_subscription_after_roles_update
+    subscription = Stripe::Subscription.list({
+      limit: 1,
+      customer: invitation.organization.account.customer_id,
+    }).first
+    Stripe::Subscription.update(
+      subscription.id,
+      {
+        items: [
+          {
+            price: subscription.items.data.first.price.id,
+            quantity: admins.count + users.count,
+          },
+        ],
+      },
+    )
   end
 end

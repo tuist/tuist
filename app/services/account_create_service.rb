@@ -41,6 +41,16 @@ class AccountCreateService < ApplicationService
       customer = Stripe::Customer.create({
         name: name,
       })
+      subscription = Stripe::Subscription.create({
+        customer: customer.id,
+        items: [
+          {
+            price: 'price_1NkZ69LWue9IBlPS0P60kMB8',
+            quantity: 1,
+          },
+        ],
+        trial_period_days: 14,
+      })
       account.update(customer_id: customer.id)
     end
 

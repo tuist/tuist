@@ -12,7 +12,7 @@ class ApplicationController < ActionController::Base
     if current_user.legacy?
       render(layout: 'app')
     else
-      render 'get_started'
+      get_started
     end
   end
 
@@ -24,7 +24,7 @@ class ApplicationController < ActionController::Base
   def create_customer_portal_session
     # TODO: This should be moved to a service
     customer_id = Account.find(params[:account_id]).customer_id
-    return_url = URI.parse(Environment.app_url).tap { |uri| uri.path = 'get_started' }.to_s
+    return_url = URI.parse(Environment.app_url).tap { |uri| uri.path = '/get-started' }.to_s
     session = Stripe::BillingPortal::Session.create({
       customer: customer_id,
       return_url: return_url,
