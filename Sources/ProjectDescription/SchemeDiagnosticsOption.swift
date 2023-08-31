@@ -8,7 +8,7 @@ public enum SchemeDiagnosticsOption: String, Equatable, Codable {
     case enableAddressSanitizer
     
     /// Enable the detect use of stack after return of address sanitizer
-    case enableASanStackUseAfterReturn
+    case enableDetectStackUseAfterReturn
     
     /// Enable the thread sanitizer
     case enableThreadSanitizer
