@@ -34,7 +34,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
     case bundle(path: AbsolutePath)
 
     /// A dependency that represents a package product.
-    case packageProduct(path: AbsolutePath, product: String)
+    case packageProduct(path: AbsolutePath, product: String, isPlugin: Bool = false)
 
     /// A dependency that represents a target that is defined in the project at the given path.
     case target(name: String, path: AbsolutePath)
@@ -56,10 +56,11 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case let .bundle(path):
             hasher.combine("bundle")
             hasher.combine(path)
-        case let .packageProduct(path, product):
+        case let .packageProduct(path, product, isPlugin):
             hasher.combine("package")
             hasher.combine(path)
             hasher.combine(product)
+            hasher.combine(isPlugin)
         case let .target(name, path):
             hasher.combine("target")
             hasher.combine(name)
@@ -120,7 +121,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             return "library '\(path.basename)'"
         case let .bundle(path):
             return "bundle '\(path.basename)'"
-        case let .packageProduct(_, product):
+        case let .packageProduct(_, product, _):
             return "package '\(product)'"
         case let .target(name, _):
             return "target '\(name)'"

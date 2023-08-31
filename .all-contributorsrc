@@ -1111,6 +1111,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "navartis",
+      "name": "Dmitriy Kulakov",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7813723?v=4",
+      "profile": "https://github.com/navartis",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "woin2ee",
+      "name": "Jaewon-Yun",
+      "avatar_url": "https://avatars.githubusercontent.com/u/81426024?v=4",
+      "profile": "https://github.com/woin2ee",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

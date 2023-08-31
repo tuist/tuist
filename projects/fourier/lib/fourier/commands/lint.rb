@@ -9,13 +9,7 @@ module Fourier
         lint_tuist(fix: options[:fix])
       end
 
-      desc "fixturegen", "Lint the Swift code of the fixturegen project"
-      option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
-      def fixturegen
-        Services::Lint::Fixturegen.call(fix: options[:fix])
-      end
-
-      desc "fourier", "Lint the Ruby code of the fixturegen project"
+      desc "fourier", "Lint the Ruby code of the Fourier project"
       option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
       def fourier
         Services::Lint::Fourier.call(fix: options[:fix])
@@ -31,7 +25,6 @@ module Fourier
       def all
         Services::Lint::Lockfiles.call
         lint_tuist(fix: options[:fix])
-        Services::Lint::Fixturegen.call(fix: options[:fix])
         Services::Lint::Fourier.call(fix: options[:fix])
       end
 

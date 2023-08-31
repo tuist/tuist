@@ -19,8 +19,7 @@ module Fourier
         end
 
         def fixturegen(*args)
-          Dir.chdir(Constants::FIXTUREGEN_DIRECTORY) do
-            self.system("swift", "build")
+          Dir.chdir(Constants::ROOT_DIRECTORY) do
             self.system("swift", "run", "fixturegen", *args)
           end
         end

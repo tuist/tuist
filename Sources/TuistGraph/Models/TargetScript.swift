@@ -111,7 +111,7 @@ public struct TargetScript: Equatable, Codable {
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     public init(
         name: String,
         order: Order,
