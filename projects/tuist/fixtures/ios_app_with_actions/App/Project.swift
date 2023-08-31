@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "App",
     packages: [
-        .remote(url: "https://github.com/realm/SwiftLint", requirement: .exact("0.52.4"))
+        .remote(url: "https://github.com/realm/SwiftLint", requirement: .exact("0.52.4")),
     ],
     targets: [
         Target(
@@ -41,7 +41,7 @@ let project = Project(
                 .pre(script: "echo 'Hello World'", name: "Embedded script"),
             ],
             dependencies: [
-                .packagePlugin(product: "SwiftLintPlugin")
+                .packagePlugin(product: "SwiftLintPlugin"),
             ]
         ),
     ]
