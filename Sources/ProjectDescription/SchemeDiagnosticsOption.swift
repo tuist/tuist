@@ -6,13 +6,13 @@ import Foundation
 public enum SchemeDiagnosticsOption: String, Equatable, Codable {
     /// Enable the address sanitizer
     case enableAddressSanitizer
-    
+
     /// Enable the detect use of stack after return of address sanitizer
     case enableDetectStackUseAfterReturn
-    
+
     /// Enable the thread sanitizer
     case enableThreadSanitizer
-    
+
     /// Enable the main thread cheker
     case mainThreadChecker
 
