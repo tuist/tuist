@@ -1,0 +1,36 @@
+# Build and deploy DocC to GitHub pages. Based off of Pointfree's work here:
+# https://github.com/pointfreeco/swift-parsing/blob/main/.github/workflows/documentation.yml
+name: Deploy Tuist Docc
+
+on:
+#   release:
+#     types:
+#       - published
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: tuist-docc-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-13
+    steps:
+      - name: Checkout Package
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Build documentation
+        run: make docs/tuist/build
+      - name: Fix permissions
+        run: 'sudo chown -R $USER .build/documentation'
+      - name: Deploy production to Netlify
+        uses: South-Paw/action-netlify-deploy@v1.2.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          netlify-auth-token: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          netlify-site-id: ${{ secrets.NETLIFY_SITE_ID }}
+          build-dir: './build'
+          comment-on-commit: true
