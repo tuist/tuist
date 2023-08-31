@@ -180,7 +180,9 @@ final class LinkGenerator: LinkGenerating {
         for dependency in target.dependencies {
             switch dependency {
             case let .package(product: product):
-                try pbxTarget.addSwiftPackageProduct(productName: product, pbxproj: pbxproj)
+                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: false, pbxproj: pbxproj)
+            case let .packagePlugin(product: product):
+                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: true, pbxproj: pbxproj)
             default:
                 break
             }
@@ -597,20 +599,28 @@ extension XCBuildConfiguration {
 }
 
 extension PBXTarget {
-    func addSwiftPackageProduct(productName: String, pbxproj: PBXProj) throws {
-        let productDependency = XCSwiftPackageProductDependency(productName: productName)
+    func addSwiftPackageProduct(productName: String, isPlugin: Bool, pbxproj: PBXProj) throws {
+        let productDependency = XCSwiftPackageProductDependency(productName: productName, isPlugin: isPlugin)
         pbxproj.add(object: productDependency)
-        packageProductDependencies.append(productDependency)
 
-        // Build file
-        let buildFile = PBXBuildFile(product: productDependency)
-        pbxproj.add(object: buildFile)
+        if isPlugin {
+            let pluginDependency = PBXTargetDependency(product: productDependency)
+            pbxproj.add(object: pluginDependency)
 
-        // Link the product
-        guard let frameworksBuildPhase = try frameworksBuildPhase() else {
-            throw "No frameworks build phase"
+            dependencies.append(pluginDependency)
+        } else {
+            // Build file
+            let buildFile = PBXBuildFile(product: productDependency)
+            pbxproj.add(object: buildFile)
+
+            packageProductDependencies.append(productDependency)
+
+            // Link the product
+            guard let frameworksBuildPhase = try frameworksBuildPhase() else {
+                throw "No frameworks build phase"
+            }
+
+            frameworksBuildPhase.files?.append(buildFile)
         }
-
-        frameworksBuildPhase.files?.append(buildFile)
     }
 }
