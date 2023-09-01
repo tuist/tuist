@@ -1,4 +1,4 @@
-# Tuist Cloud
+# What is Tuist Cloud
 
 Addressing large-scale challenges necessitates persisting state and service integration, for which Tuist Cloud is key. This paid solution is vital for Tuist project integration and its open-source project's longevity.
 
