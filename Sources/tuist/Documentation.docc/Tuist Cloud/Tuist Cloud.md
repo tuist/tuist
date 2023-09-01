@@ -1,6 +1,6 @@
 # Tuist Cloud
 
-If you think of Tuist as the basic superhero, Tuist Cloud is that superhero with a jetpack!
+Addressing large-scale challenges necessitates persisting state and service integration, for which Tuist Cloud is key. This paid solution is vital for Tuist project integration and its open-source project's longevity.
 
 ## Overview
 
