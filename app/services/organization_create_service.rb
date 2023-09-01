@@ -11,7 +11,7 @@ class OrganizationCreateService < ApplicationService
   end
 
   def call
-    ActiveRecord::Base.transaction do
+    organization = ActiveRecord::Base.transaction do
       organization = Organization.create!
       AccountCreateService.call(
         name: name,
@@ -20,5 +20,7 @@ class OrganizationCreateService < ApplicationService
       creator.add_role(:admin, organization)
       organization
     end
+    Analytics.on_organization_creation(name, owner_email: creator.email)
+    organization
   end
 end

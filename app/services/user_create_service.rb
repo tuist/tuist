@@ -23,6 +23,7 @@ class UserCreateService < ApplicationService
         user.skip_confirmation!
       end
       user.save!
+      Analytics.on_user_authentication(email)
       user
     end
   end
