@@ -18,6 +18,12 @@ jobs:
   build:
     runs-on: macos-13
     steps:
+      - name: Start deployment
+        uses: bobheadxi/deployments@v1
+        id: deployment
+        with:
+          env: production
+          step: start
       - name: Checkout Package
         uses: actions/checkout@v3
         with:
@@ -27,12 +33,19 @@ jobs:
       - name: Fix permissions
         run: 'sudo chown -R $USER .build/documentation'
       - name: Deploy production to Netlify
-        uses: jsmrcaga/action-netlify-deploy@v2.0.0
+        uses: South-Paw/action-netlify-cli@1.0.1
+        id: netlify
         with:
+          args: 'deploy --json --prod --dir \"./.build/documentation\" --message \"production [${{ github.sha }}]\"'
+        env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-          NETLIFY_DEPLOY_TO_PROD: true
-          NETLIFY_DEPLOY_MESSAGE: "Deployed from GitHub action"
-          build_directory: './.build/documentation'
-          install_command: "echo Skipping installing the dependencies"
-          build_command: "echo Skipping building the web files"
+      - name: Finish deployment
+        uses: bobheadxi/deployments@v1
+        if: always()
+        with:
+          env: ${{ steps.deployment.outputs.env }}
+          step: finish
+          status: ${{ job.status }}
+          deployment_id: ${{ steps.deployment.outputs.deployment_id }}
+          env_url: ${{ steps.netlify.outputs.NETLIFY_PROD_URL }}

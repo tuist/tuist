@@ -19,3 +19,4 @@ Some organizations choose to bypass the compiler by abstracting the platform usi
 ### Tuist Cloud
 
 - <doc:Tuist-Cloud---Intro>
+- <doc:Tuist-Cloud---Self-host>
