@@ -34,3 +34,5 @@ jobs:
           NETLIFY_DEPLOY_TO_PROD: true
           NETLIFY_DEPLOY_MESSAGE: "Deployed from GitHub action"
           build_directory: './.build/documentation'
+          install_command: "echo Skipping installing the dependencies"
+          build_command: "echo Skipping building the web files"
