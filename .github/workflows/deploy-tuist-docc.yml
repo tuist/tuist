@@ -15,7 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  deploy:
+    name: Deploy Documentation
     runs-on: macos-13
     steps:
       - name: Start deployment
