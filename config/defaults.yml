@@ -18,7 +18,7 @@ staging:
   app_url: https://tuist-cloud-staging.fly.dev
   smpt_settings:
     authentication: plain
-    address: smtp.eu.mailgun.org
+    address: smtp.mailgun.org
     port: 587
   domain: tuist-cloud-staging.fly.dev
 production:

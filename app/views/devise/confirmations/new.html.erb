@@ -14,17 +14,15 @@
     <div class="w-full rounded-lg shadow border md:mt-0 sm:max-w-md xl:p-0 bg-gray-800 border-gray-700">
       <div class="p-6 space-y-4 md:space-y-6 sm:p-8">
         <h1 class="text-xl font-bold leading-tight tracking-tight md:text-2xl text-white">
-          Forgot your password?
+          Resend confirmation email
         </h1>
-        <p class="text-gray-300 text-sm">
-          Fill the email you registered with for Tuist Cloud and we'll send you password reset instructions.
-        </p>
-        <%= form_with model: resource, as: resource_name, url: password_path(resource_name), html: { method: :post } do |f| %>
+        <%= form_with model: resource, as: resource_name, url: confirmation_path(resource_name), html: { method: :post } do |f| %>
+          <%= f.hidden_field :reset_password_token %>
           <div class="mb-4">
-            <label for="email" class="block text-sm text-white font-medium mb-2">
+            <label for="password" class="block text-sm text-white font-medium mb-2">
               Email
             </label>
-            <%= f.text_field :email, class: "form-control input-primary", placeholder: "you@example.com" %>
+            <p><%= f.email_field :email, class: "form-control input-primary", autofocus: true, autocomplete: "email", value: (resource.pending_reconfirmation? ? resource.unconfirmed_email : resource.email) %></p>
           </div>
           <%= render "devise/shared/error_messages", resource: resource %>
           <% if alert.present? %>
@@ -41,7 +39,7 @@
           class="btn-primary"
           type="submit"
         >
-          <%= f.submit "Send me reset password instructions" %>
+          <%= f.submit "Resend" %>
         </button>
       <% end %>
     </div>
