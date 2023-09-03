@@ -39,18 +39,32 @@ class Organization < ApplicationRecord
   def update_subscription_after_roles_update
     subscription = Stripe::Subscription.list({
       limit: 1,
-      customer: invitation.organization.account.customer_id,
+      customer: account.customer_id,
     }).first
-    Stripe::Subscription.update(
-      subscription.id,
-      {
+
+    if subscription.nil?
+      subscription = Stripe::Subscription.create({
+        customer: customer.id,
         items: [
           {
-            price: subscription.items.data.first.price.id,
-            quantity: admins.count + users.count,
+            price: 'price_1NkZ69LWue9IBlPS0P60kMB8',
+            quantity: 1,
           },
         ],
-      },
-    )
+        trial_period_days: 14,
+      })
+    else
+      Stripe::Subscription.update(
+        subscription.id,
+        {
+          items: [
+            {
+              price: subscription.items.data.first.price.id,
+              quantity: admins.count + users.count,
+            },
+          ],
+        },
+      )
+    end
   end
 end

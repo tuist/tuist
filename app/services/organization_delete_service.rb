@@ -25,6 +25,15 @@ class OrganizationDeleteService < ApplicationService
     organization = OrganizationFetchService.call(name: name, user: deleter)
 
     raise Error::Unauthorized.new unless OrganizationPolicy.new(deleter, organization).update?
-    organization.destroy
+    ActiveRecord::Base.transaction do
+      subscription = Stripe::Subscription.list({
+        limit: 1,
+        customer: organization.account.customer_id,
+      }).first
+      if !subscription.nil?
+        Stripe::Subscription.cancel(subscription.id)
+      end
+      organization.destroy
+    end
   end
 end

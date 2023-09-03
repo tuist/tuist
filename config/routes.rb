@@ -41,5 +41,7 @@ Rails.application.routes.draw do
     put '/organizations/:organization_name/members/:username', to: 'members#update'
   end
 
+  post '/webhooks/stripe', to: 'webhooks#stripe'
+
   get "/(*all)", to: "application#app"
 end

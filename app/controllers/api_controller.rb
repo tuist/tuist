@@ -21,9 +21,11 @@ class APIController < ApplicationController
       begin
         user = User.find_by!(token: token)
       rescue ActiveRecord::RecordNotFound
-        @project = Project.find_by!(token: token)
-      rescue ActiveRecord::RecordNotFound
-        raise Error::Unauthorized.new
+        begin
+          @project = Project.find_by!(token: token)
+        rescue ActiveRecord::RecordNotFound
+          raise Error::Unauthorized.new
+        end
       end
       if user
         sign_in(user, store: false)

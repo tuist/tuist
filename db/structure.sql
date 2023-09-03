@@ -232,7 +232,8 @@ CREATE TABLE public.accounts (
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
     legacy boolean DEFAULT true NOT NULL,
-    customer_id character varying
+    customer_id character varying,
+    plan character varying
 );
 
 

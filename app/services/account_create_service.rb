@@ -32,28 +32,32 @@ class AccountCreateService < ApplicationService
       raise Error::AccountAlreadyExists.new(name)
     end
 
-    account = Account.create!(
-      name: name,
-      owner: owner,
-    )
-
-    if Environment.stripe_configured?
-      customer = Stripe::Customer.create({
+    ActiveRecord::Base.transaction do
+      account = Account.create!(
         name: name,
-      })
-      subscription = Stripe::Subscription.create({
-        customer: customer.id,
-        items: [
-          {
-            price: 'price_1NkZ69LWue9IBlPS0P60kMB8',
-            quantity: 1,
-          },
-        ],
-        trial_period_days: 14,
-      })
-      account.update(customer_id: customer.id)
+        owner: owner,
+      )
+
+      if Environment.stripe_configured?
+        customer = Stripe::Customer.create({
+          name: name,
+        })
+        if owner.is_a?(Organization)
+          subscription = Stripe::Subscription.create({
+            customer: customer.id,
+            items: [
+              {
+                price: 'price_1NkZ69LWue9IBlPS0P60kMB8',
+                quantity: 1,
+              },
+            ],
+            trial_period_days: 14,
+          })
+        end
+        account.update(customer_id: customer.id, plan: "team")
+      end
+      account
     end
 
-    account
   end
 end

@@ -119,6 +119,10 @@ module Environment
       fetch(:stripe, :publishable_key)
     end
 
+    def stripe_endpoint_secret
+      fetch(:stripe, :endpoint_secret)
+    end
+
     # Configuration checkers
 
     def attio_configured?
@@ -126,7 +130,7 @@ module Environment
     end
 
     def stripe_configured?
-      stripe_api_key.present? && stripe_publishable_key.present?
+      stripe_api_key.present? && stripe_publishable_key.present? && stripe_endpoint_secret.present?
     end
 
     def okta_configured?
