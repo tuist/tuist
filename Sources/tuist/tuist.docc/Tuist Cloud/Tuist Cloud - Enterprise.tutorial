@@ -1,22 +1,14 @@
 @Tutorials(name: "Tuist Cloud Enterprise") {
     @Intro(title: "Running Tuist Cloud Enterprise") {
+        @Image(source: "Logo.png", alt: "An illustration that shows the logo of Tuist")
         In this tutorial you are going to learn how to self-host Tuist Cloud in your infrastructure.
     }
     
-    @Chapter(name: "Add a chapter title here.") {
-            Add chapter text here.
-            
-            @Image(source: "chapter-image-filename-here.png", alt: "Add an accessible description for your image here.")
-            
-            @TutorialReference(tutorial: "doc:tutorial-page-file-name-here")
-            @TutorialReference(tutorial: "doc:another-tutorial-page-file-name-here")
+    @Chapter(name: "Cloud requirements") {
+            @Image(source: "Tuist Cloud Enterprise Server.png", alt: "An illustration that shows the icon of a server")
+
+            Ensure that your infrastructure is ready to host Tuist Cloud.
+                        
+            @TutorialReference(tutorial: "doc:Tuist-Cloud---Enterprise-Infrastructure-Requirements")
     }
-    
-<!--    @Chapter(name: "<#text#>") {-->
-<!--        <#text#>-->
-<!--        -->
-<!--        @Image(source: <#file#>, alt: "<#accessible description#>")-->
-<!--        -->
-<!--        @TutorialReference(tutorial: "doc:<#tutorial name#>")-->
-<!--    }-->
 }
