@@ -286,6 +286,8 @@ extension TargetDependency {
             return "library"
         case .package:
             return "package"
+        case .packagePlugin:
+            return "packagePlugin"
         case .sdk:
             return "sdk"
         case .xcframework:
@@ -308,6 +310,8 @@ extension TargetDependency {
         case let .library(path, _, _):
             return path.basename
         case let .package(product):
+            return product
+        case let .packagePlugin(product):
             return product
         case let .sdk(name, _):
             return name

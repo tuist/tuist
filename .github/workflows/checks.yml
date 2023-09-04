@@ -12,7 +12,6 @@ on:
       - Package.resolved
       - Sources/**
       - Tests/**
-      - projects/fixturegen/**
       - projects/fourier/**
       - .github/workflows/checks.yml
 
