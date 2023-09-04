@@ -378,6 +378,15 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
         let language = testAction.language
         let region = testAction.region
+        let preferredScreenCaptureFormat: XCScheme.TestAction.ScreenCaptureFormat? =
+            testAction.preferredScreenCaptureFormat.flatMap { format in
+                switch format {
+                case .screenshots:
+                    return .screenshots
+                case .screenRecording:
+                    return .screenRecording
+                }
+            }
 
         return XCScheme.TestAction(
             buildConfiguration: testAction.configurationName,
@@ -399,7 +408,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             commandlineArguments: args,
             environmentVariables: environments,
             language: language,
-            region: region
+            region: region,
+            preferredScreenCaptureFormat: preferredScreenCaptureFormat
         )
     }
 
@@ -955,6 +965,7 @@ extension TestAction {
             diagnosticsOptions: [],
             language: nil,
             region: nil,
+            preferredScreenCaptureFormat: nil,
             testPlans: nil
         )
     }
