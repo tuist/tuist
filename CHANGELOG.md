@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.25.0 - 2023-09-04
+
+### Changed
+
+- Hoist `tuistfixturegen` to the root and rename it to `tuistfixturegenerator` [#5378](https://github.com/tuist/tuist/pull/5378) by [@pepicrft](https://github.com/pepicrft)
+
+### Added
+
+- Add support for SPM `Build Tool Plug-ins` [#5299](https://github.com/tuist/tuist/pull/5299) by [@iteracticman](https://github.com/iteracticman)
+- Add additional scheme diagnostic options [#5382](https://github.com/tuist/tuist/pull/5382) by [@navartis](https://github.com/navartis)
+
 ## 3.24.0 - 2023-08-29
 
 ### Changed
