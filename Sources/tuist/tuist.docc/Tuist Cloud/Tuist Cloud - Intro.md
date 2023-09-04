@@ -14,7 +14,35 @@ Tuist Cloud, a closed-source paid service, enhances Tuist by adding server-requi
 
 ## Features
 
-Tuist Cloud 
+### Available
+
+#### Remote caching
+
+Tuist Cloud offers a robust storage solution for Tuist, enabling the sharing of cache artifacts between local and remote settings, such as continuous integration. This ensures that developers avoid recompiling targets they don't intend to modify, provided they've already been compiled by a teammate or in a CI setting. Leveraging this caching can yield efficiency rates up to 90%, leading to significant time and cost savings for both local development and CI processes.
+
+> Tip: To assist organizations in evaluating their return on investment (ROI), we've developed an [**ROI calculator**](https://tuist.io/cloud). For instance, consider an organization with approximately 20 developers. If their clean builds take 10 minutes and they achieve a 70% cache effectiveness, they could potentially reduce development time by 24,000 hours and recover up to $6.4 million.
+
+### In development
+
+#### Insights
+
+Regressions can easily compromise the health of a project, build, or test suites. This is primarily because CI workflows focus on ensuring successful compilation and test suite outcomes. As a result, developers tend to merge pull requests (PRs) once they're approved and both the compilation and test runs are successful. Yet, such PRs might inadvertently affect other vital aspects that directly influence developer productivity. For instance, they could:
+
+- Introduce instability in the test suite.
+- Modify build settings, causing a target's compilation time to double.
+- Add a new static target to the graph, leading to a substantial increase in the final app size.
+
+In a conventional setup, these issues often go unnoticed until they've become significant problems. By the time they're detected, teams face the daunting task of tracing back to find the root cause before implementing a fix. This becomes especially challenging in dynamic environments where changes are constantly integrated. However, there's a more efficient approach.
+
+We aim to **gather data from builds, including build times, binary sizes, and test outcomes, and integrate this with graph information.** This consolidated data will then be transmitted to our server. From there, developers can **visually track performance trends over time**. Our goal is to not only make this information easily accessible but also **actionable**. By identifying potential deviations that might hinder productivity, we can flag them directly in PRs. This proactive approach ensures that potential regressions are intercepted before merging into the primary repository branch. In essence, Tuist Cloud is designed to serve as a vigilant co-pilot, ensuring a **consistently healthy and efficient development environment**. An optimal development environment is pivotal for maintaining developers' enthusiasm and commitment to the project.
+
+### Planned
+
+#### Previews
+
+In many standard setups, developers might forgo testing feature implementations within a pull request to avoid the compilation cycle. As a result, non-developers often rely on nightly builds to conduct their tests. By the time they identify a bug or regression, the pull request has usually been merged, necessitating an interruption for the original developer to investigate and address the issue. But imagine if testing new features were so swift and seamless that anyone within the organization could experience and provide feedback on enhancements within moments of their creation?
+
+The idea of **"previews" is a familiar one in the web domain**. At Shopify, we introduced a version termed ["tophat."](https://shopify.engineering/mobile-tophatting-at-shopify-1) Its speed and fluidity ensured developers consistently tested changes during the review phase. This fostered such efficient cross-team and cross-role collaboration that it became a regular occurrence. Our goal with Tuist is to emulate this efficiency. With just a couple of commands, developers will obtain a shareable URL. Colleagues can then use this link to effortlessly run the app on a simulator or launch Xcode with the necessary framework/library linked, facilitating hands-on exploration. **It's next-level collaborative efficiency.**
 
 ## Plans
 
