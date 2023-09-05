@@ -3,6 +3,10 @@
 require "test_helper"
 
 class InvitationAcceptServiceTest < ActiveSupport::TestCase
+  setup do
+    StripeAddSeatService.stubs(:call)
+  end
+
   test "user accepts an invitation" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))

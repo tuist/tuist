@@ -6,6 +6,8 @@ class ProjectDeleteServicerviceTest < ActiveSupport::TestCase
   setup do
     client = Aws::S3::Client.new(stub_responses: true)
     Aws::S3::Client.stubs(:new).returns(client)
+    StripeAddSeatService.stubs(:call)
+    StripeRemoveSeatService.stubs(:call)
   end
 
   test "deletes a project" do

@@ -123,6 +123,10 @@ module Environment
       fetch(:stripe, :endpoint_secret)
     end
 
+    def stripe_plan_id
+      fetch(:stripe, :plan_id)
+    end
+
     # Configuration checkers
 
     def attio_configured?
@@ -130,7 +134,7 @@ module Environment
     end
 
     def stripe_configured?
-      stripe_api_key.present? && stripe_publishable_key.present? && stripe_endpoint_secret.present?
+      stripe_api_key.present? && stripe_publishable_key.present? && stripe_endpoint_secret.present? && stripe_plan_id.present?
     end
 
     def okta_configured?
@@ -163,9 +167,9 @@ module Environment
       errors = []
       errors << "Storage is not configured" unless storage_configured?
       errors << "Application URL is not configured" unless app_url_configured?
-      # errors << "Database is not configured" unless database_configured?
+      errors << "Database is not configured" unless database_configured?
       errors << "Secret key base is not configured" unless secret_key_base_configured?
-      if !Environment.self_hosted?
+      if !Environment.self_hosted? && !Rails.env.production?
         errors << "Stripe is not configured" unless stripe_configured?
       end
 

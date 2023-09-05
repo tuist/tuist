@@ -25,6 +25,18 @@ class CacheService < ApplicationService
         :unauthorized
       end
     end
+
+    class PaymentRequired < CloudError
+      def message
+        url = URI.parse(Environment.app_url).tap { |uri| uri.path = '/get-started' }.to_s
+
+        "To use remote cache, you need to upgrade your plan. Please, visit #{url} to manage your subscription."
+      end
+
+      def status_code
+        :payment_required
+      end
+    end
   end
 
   def initialize(project_slug:, hash:, name:, user:, project:)
@@ -101,6 +113,10 @@ class CacheService < ApplicationService
         account_name: account_name,
         user: user,
       )
+    end
+
+    if Environment.stripe_configured? && @project.account.owner.is_a?(Organization) && @project.account.plan.nil?
+      raise Error::PaymentRequired.new
     end
   end
 end

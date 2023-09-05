@@ -3,6 +3,10 @@
 require "test_helper"
 
 class OrganizationFetchServiceTest < ActiveSupport::TestCase
+  setup do
+    StripeAddSeatService.stubs(:call)
+  end
+
   test "fetches an organization with a given name" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))

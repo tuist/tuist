@@ -3,8 +3,8 @@
 class Role < ApplicationRecord
   has_and_belongs_to_many :users, join_table: :users_roles # rubocop:disable Rails/HasAndBelongsToMany
 
-  after_create :add_seat
-  before_destroy :remove_seat
+  after_create :add_seat, if: :stripe_configured?
+  before_destroy :remove_seat, if: :stripe_configured?
 
   belongs_to :resource,
     polymorphic: true,
@@ -17,47 +17,14 @@ class Role < ApplicationRecord
   scopify
 
   def remove_seat
-    organization = resource
-    subscription = Stripe::Subscription.list({
-      limit: 1,
-      customer: organization.account.customer_id,
-    }).first
-
-    plan = subscription.items.data.first
-    Stripe::SubscriptionItem.update(
-      plan.id,
-      {
-        quantity: plan.quantity - 1,
-      },
-    )
+    StripeRemoveSeatService.call(organization: resource)
   end
 
   def add_seat
-    organization = resource
-    subscription = Stripe::Subscription.list({
-      limit: 1,
-      customer: organization.account.customer_id,
-    }).first
+    StripeAddSeatService.call(organization: resource)
+  end
 
-    if subscription.nil?
-      Stripe::Subscription.create({
-        customer: organization.customer.id,
-        items: [
-          {
-            price: 'price_1NkZ69LWue9IBlPS0P60kMB8',
-            quantity: 1,
-          },
-        ],
-        trial_period_days: 14,
-      })
-    else
-      plan = subscription.items.data.first
-      Stripe::SubscriptionItem.update(
-        plan.id,
-        {
-          quantity: plan.quantity + 1,
-        },
-      )
-    end
+  def stripe_configured?
+    Environment.stripe_configured?
   end
 end

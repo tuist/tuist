@@ -150,4 +150,54 @@ class CacheServiceTest < ActiveSupport::TestCase
     # Then
     assert_equal got, 5
   end
+
+  test "fails with payment required if an organization has no plan" do
+    # Given
+    organization = Organization.create!
+    account = Account.create!(owner: organization, name: "tuist")
+    project = Project.create!(
+      name: "my-project",
+      account_id: organization.account.id,
+      token: Devise.friendly_token.first(8),
+      remote_cache_storage: @s3_bucket,
+    )
+
+    # When / Then
+    assert_raises(CacheService::Error::PaymentRequired) do
+      CacheService.new(
+        project_slug: "my-project/tuist",
+        hash: "artifact-hash",
+        name: "MyFramework",
+        user: nil,
+        project: project,
+      )
+        .object_exists?
+    end
+  end
+
+  test "object exists with using passed project when an organization is on the team plan" do
+    # Given
+    organization = Organization.create!
+    account = Account.create!(owner: organization, name: "tuist", plan: "team")
+    project = Project.create!(
+      name: "my-project",
+      account_id: organization.account.id,
+      token: Devise.friendly_token.first(8),
+      remote_cache_storage: @s3_bucket,
+    )
+    Aws::S3::Client.any_instance.stubs(:head_object).returns(true)
+
+    # When
+    got = CacheService.new(
+      project_slug: "my-project/tuist",
+      hash: "artifact-hash",
+      name: "MyFramework",
+      user: nil,
+      project: project,
+    )
+      .object_exists?
+
+    # Then
+    assert_equal true, got
+  end
 end

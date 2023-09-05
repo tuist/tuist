@@ -17,19 +17,13 @@ class ApplicationController < ActionController::Base
   end
 
   def get_started
-    @organizations = UserOrganizationsFetchService.call(user: current_user)
+    @organizations = Environment.stripe_configured? ? UserOrganizationsFetchService.call(user: current_user) : []
     render 'get_started'
   end
 
   def create_customer_portal_session
-    # TODO: This should be moved to a service
-    customer_id = Account.find(params[:account_id]).customer_id
-    return_url = URI.parse(Environment.app_url).tap { |uri| uri.path = '/get-started' }.to_s
-    session = Stripe::BillingPortal::Session.create({
-      customer: customer_id,
-      return_url: return_url,
-    })
-    redirect_to(session.url, allow_other_host: true)
+    session_url = StripeSessionService.call(account_id: params[:account_id])
+    redirect_to(session_url, allow_other_host: true)
   end
 
   private
