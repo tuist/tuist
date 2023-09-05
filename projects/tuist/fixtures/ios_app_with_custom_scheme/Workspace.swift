@@ -23,7 +23,8 @@ let customAppScheme = Scheme(
             ),
         ]
     ),
-    testAction: TestAction.targets([
+    testAction: TestAction.targets(
+        [
             TestableTarget(target: .project(path: "App", target: "AppTests")),
             TestableTarget(target: .project(
                 path: "Frameworks/Framework1",

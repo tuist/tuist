@@ -4,9 +4,9 @@ let project = Project(
     name: "App",
     options: .options(
         automaticSchemesOptions: .enabled(
-            targetSchemesGrouping: .notGrouped, 
-            codeCoverageEnabled: false, 
-            testingOptions: [], 
+            targetSchemesGrouping: .notGrouped,
+            codeCoverageEnabled: false,
+            testingOptions: [],
             testScreenCaptureFormat: .screenshots
         )
     ),
