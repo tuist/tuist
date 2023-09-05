@@ -3,7 +3,12 @@ import ProjectDescription
 let project = Project(
     name: "App",
     options: .options(
-        automaticSchemesOptions: .enabled(targetSchemesGrouping: .notGrouped, codeCoverageEnabled: false, testingOptions: [])
+        automaticSchemesOptions: .enabled(
+            targetSchemesGrouping: .notGrouped, 
+            codeCoverageEnabled: false, 
+            testingOptions: [], 
+            testScreenCaptureFormat: .screenshots
+        )
     ),
     targets: [
         Target(

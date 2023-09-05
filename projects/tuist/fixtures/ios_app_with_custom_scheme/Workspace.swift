@@ -24,16 +24,18 @@ let customAppScheme = Scheme(
         ]
     ),
     testAction: TestAction.targets([
-        TestableTarget(target: .project(path: "App", target: "AppTests")),
-        TestableTarget(target: .project(
-            path: "Frameworks/Framework1",
-            target: "Framework1Tests"
-        )),
-        TestableTarget(target: .project(
-            path: "Frameworks/Framework2",
-            target: "Framework2Tests"
-        )),
-    ]),
+            TestableTarget(target: .project(path: "App", target: "AppTests")),
+            TestableTarget(target: .project(
+                path: "Frameworks/Framework1",
+                target: "Framework1Tests"
+            )),
+            TestableTarget(target: .project(
+                path: "Frameworks/Framework2",
+                target: "Framework2Tests"
+            )),
+        ],
+        options: .options(preferredScreenCaptureFormat: .screenshots)
+    ),
     runAction: .runAction(executable: .project(path: "App", target: "App")),
     archiveAction: .archiveAction(configuration: "Debug", customArchiveName: "Something2")
 )
