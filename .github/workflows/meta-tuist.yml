@@ -74,7 +74,7 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Generate
         run: |
-          ./fourier generate tuist --targets tuist
+          ARGS="--no-open --targets tuist" make generate
   test:
     name: Test with Xcode
     runs-on: macos-13

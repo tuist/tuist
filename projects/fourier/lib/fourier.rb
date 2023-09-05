@@ -25,9 +25,6 @@ module Fourier
     desc "github", "Utilities to manage the repository and the organization on GitHub"
     subcommand "github", Commands::GitHub
 
-    desc "generate", "Generate the Xcode project to work on Tuist, focusing on the target TARGET"
-    subcommand "generate", Commands::Generate
-
     desc "lint", "Lint the project's code"
     subcommand "lint", Commands::Lint
 

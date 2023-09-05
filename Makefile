@@ -6,4 +6,10 @@ docs/tuist/build:
 	cp assets/favicon.ico .build/documentation/favicon.ico
 	cp assets/favicon.svg .build/documentation/favicon.svg
 edit:
-	tuist edit --only-current-directory
+	swift build
+	.build/debug/tuist edit --only-current-directory
+generate:
+	swift build
+	.build/debug/tuist fetch
+	.build/debug/tuist cache warm --dependencies-only --xcframeworks
+	.build/debug/tuist generate --xcframeworks $(ARGS)
