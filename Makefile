@@ -13,3 +13,6 @@ generate:
 	.build/debug/tuist fetch
 	.build/debug/tuist cache warm --dependencies-only --xcframeworks
 	.build/debug/tuist generate --xcframeworks $(ARGS)
+run:
+	swift build
+	.build/debug/tuist $(ARGS)

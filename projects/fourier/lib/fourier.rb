@@ -37,11 +37,6 @@ module Fourier
     desc "encrypt", "Encrypt content in the repository"
     subcommand "encrypt", Commands::Encrypt
 
-    desc "tuist", "Runs Tuist"
-    def tuist(*arguments)
-      Services::Tuist.call(*arguments)
-    end
-
     desc "fixture", "Generate a fixture"
     option(
       :path,
