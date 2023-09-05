@@ -5,3 +5,5 @@ docs/tuist/build:
 	echo "/index.html	/documentation/tuist" > ".build/documentation/_redirects"
 	cp assets/favicon.ico .build/documentation/favicon.ico
 	cp assets/favicon.svg .build/documentation/favicon.svg
+edit:
+	tuist edit --only-current-directory

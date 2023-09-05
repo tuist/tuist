@@ -28,9 +28,6 @@ module Fourier
     desc "generate", "Generate the Xcode project to work on Tuist, focusing on the target TARGET"
     subcommand "generate", Commands::Generate
 
-    desc "edit", "Edit Tuist's project manifest in Xcode"
-    subcommand "edit", Commands::Edit
-
     desc "lint", "Lint the project's code"
     subcommand "lint", Commands::Lint
 
