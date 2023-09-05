@@ -37,6 +37,6 @@ final class CloudProjectCreateService: CloudProjectCreateServicing {
             serverURL: cloudURL
         )
 
-        logger.info("Cloud project \(project.fullName) was successfully created 🎉")
+        logger.info("Tuist Cloud project \(project.fullName) was successfully created 🎉")
     }
 }

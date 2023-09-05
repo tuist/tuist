@@ -63,7 +63,6 @@ final class CacheStorageProvider: CacheStorageProviding {
             if try cloudAuthenticationController.authenticationToken(serverURL: cloudConfig.url)?.isEmpty == false {
                 let remoteStorage = CacheRemoteStorage(
                     cloudConfig: cloudConfig,
-                    cloudClient: CloudClient(),
                     cacheDirectoriesProvider: cacheDirectoriesProvider
                 )
                 let storage = RetryingCacheStorage(cacheStoring: remoteStorage)

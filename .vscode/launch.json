@@ -46,6 +46,54 @@
       ],
       "cwd": "${workspaceFolder:tuist}",
       "preLaunchTask": "swift: Build All"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Debug tuistbenchmark",
+      "program": "${workspaceFolder:tuist}/.build/debug/tuistbenchmark",
+      "args": [],
+      "cwd": "${workspaceFolder:tuist}",
+      "preLaunchTask": "swift: Build Debug tuistbenchmark"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Release tuistbenchmark",
+      "program": "${workspaceFolder:tuist}/.build/release/tuistbenchmark",
+      "args": [],
+      "cwd": "${workspaceFolder:tuist}",
+      "preLaunchTask": "swift: Build Release tuistbenchmark"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Debug tuistfixturegenerator",
+      "program": "${workspaceFolder:tuist}/.build/debug/tuistfixturegenerator",
+      "args": [],
+      "cwd": "${workspaceFolder:tuist}",
+      "preLaunchTask": "swift: Build Debug tuistfixturegenerator"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "name": "Release tuistfixturegenerator",
+      "program": "${workspaceFolder:tuist}/.build/release/tuistfixturegenerator",
+      "args": [],
+      "cwd": "${workspaceFolder:tuist}",
+      "preLaunchTask": "swift: Build Release tuistfixturegenerator"
     }
   ]
 }

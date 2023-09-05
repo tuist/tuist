@@ -259,6 +259,7 @@ func targets() -> [Target] {
                     .target(name: "TuistCoreTesting"),
                     .target(name: "TuistGraphTesting"),
                     .target(name: "TuistSupportTesting"),
+                    .target(name: "TuistCloudTesting"),
                 ],
                 integrationTestsDependencies: [
                     .target(name: "TuistCore"),

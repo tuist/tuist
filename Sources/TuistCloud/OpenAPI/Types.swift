@@ -59,6 +59,21 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/delete(removeOrganizationMember)`.
     func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input) async throws
         -> Operations.removeOrganizationMember.Output
+    /// - Remark: HTTP `GET /api/cache/exists`.
+    /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheExists)`.
+    func cacheExists(_ input: Operations.cacheExists.Input) async throws
+        -> Operations.cacheExists.Output
+    /// - Remark: HTTP `GET /api/cache`.
+    /// - Remark: Generated from `#/paths//api/cache/get(getCache)`.
+    func getCache(_ input: Operations.getCache.Input) async throws -> Operations.getCache.Output
+    /// - Remark: HTTP `POST /api/cache`.
+    /// - Remark: Generated from `#/paths//api/cache/post(uploadCache)`.
+    func uploadCache(_ input: Operations.uploadCache.Input) async throws
+        -> Operations.uploadCache.Output
+    /// - Remark: HTTP `POST /api/cache/verify_upload`.
+    /// - Remark: Generated from `#/paths//api/cache/verify_upload/post(verifyCacheUpload)`.
+    func verifyCacheUpload(_ input: Operations.verifyCacheUpload.Input) async throws
+        -> Operations.verifyCacheUpload.Output
 }
 /// Server URLs defined in the OpenAPI document.
 public enum Servers {
@@ -71,6 +86,61 @@ public enum Servers {
 public enum Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
+        /// - Remark: Generated from `#/components/schemas/CacheArtifactUploadVerification`.
+        public struct CacheArtifactUploadVerification: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactUploadVerification/data`.
+            public struct dataPayload: Codable, Equatable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CacheArtifactUploadVerification/data/uploaded_size`.
+                public var uploaded_size: Swift.Double
+                /// Creates a new `dataPayload`.
+                ///
+                /// - Parameters:
+                ///   - uploaded_size:
+                public init(uploaded_size: Swift.Double) { self.uploaded_size = uploaded_size }
+                public enum CodingKeys: String, CodingKey { case uploaded_size }
+            }
+            /// - Remark: Generated from `#/components/schemas/CacheArtifactUploadVerification/data`.
+            public var data: Components.Schemas.CacheArtifactUploadVerification.dataPayload
+            /// Creates a new `CacheArtifactUploadVerification`.
+            ///
+            /// - Parameters:
+            ///   - data:
+            public init(data: Components.Schemas.CacheArtifactUploadVerification.dataPayload) {
+                self.data = data
+            }
+            public enum CodingKeys: String, CodingKey { case data }
+        }
+        /// - Remark: Generated from `#/components/schemas/CacheArtifact`.
+        public struct CacheArtifact: Codable, Equatable, Hashable, Sendable {
+            /// - Remark: Generated from `#/components/schemas/CacheArtifact/data`.
+            public struct dataPayload: Codable, Equatable, Hashable, Sendable {
+                /// - Remark: Generated from `#/components/schemas/CacheArtifact/data/url`.
+                public var url: Swift.String
+                /// - Remark: Generated from `#/components/schemas/CacheArtifact/data/expires_at`.
+                public var expires_at: Swift.Double
+                /// Creates a new `dataPayload`.
+                ///
+                /// - Parameters:
+                ///   - url:
+                ///   - expires_at:
+                public init(url: Swift.String, expires_at: Swift.Double) {
+                    self.url = url
+                    self.expires_at = expires_at
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case url
+                    case expires_at
+                }
+            }
+            /// - Remark: Generated from `#/components/schemas/CacheArtifact/data`.
+            public var data: Components.Schemas.CacheArtifact.dataPayload
+            /// Creates a new `CacheArtifact`.
+            ///
+            /// - Parameters:
+            ///   - data:
+            public init(data: Components.Schemas.CacheArtifact.dataPayload) { self.data = data }
+            public enum CodingKeys: String, CodingKey { case data }
+        }
         /// - Remark: Generated from `#/components/schemas/User`.
         public struct User: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/User/id`.
@@ -2198,6 +2268,644 @@ public enum Operations {
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Operations.removeOrganizationMember.Output.Unauthorized)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `GET /api/cache/exists`.
+    /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheExists)`.
+    public enum cacheExists {
+        public static let id: String = "cacheExists"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.cacheExists.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                public var project_id: Swift.String
+                public var hash: Swift.String
+                public var name: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - project_id:
+                ///   - hash:
+                ///   - name:
+                public init(project_id: Swift.String, hash: Swift.String, name: Swift.String) {
+                    self.project_id = project_id
+                    self.hash = hash
+                    self.name = name
+                }
+            }
+            public var query: Operations.cacheExists.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.cacheExists.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.cacheExists.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.cacheExists.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.cacheExists.Input.Path = .init(),
+                query: Operations.cacheExists.Input.Query,
+                headers: Operations.cacheExists.Input.Headers = .init(),
+                cookies: Operations.cacheExists.Input.Cookies = .init(),
+                body: Operations.cacheExists.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cacheExists.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.cacheExists.Output.Ok.Body?
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cacheExists.Output.Ok.Headers = .init(),
+                    body: Operations.cacheExists.Output.Ok.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The module is present in the cache.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheExists)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.cacheExists.Output.Ok)
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cacheExists.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/json`.
+                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/json/errors`.
+                        public var errors: [Components.Schemas._Error]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - errors:
+                        public init(errors: [Components.Schemas._Error]) { self.errors = errors }
+                        public enum CodingKeys: String, CodingKey { case errors }
+                    }
+                    case json(Operations.cacheExists.Output.NotFound.Body.jsonPayload)
+                }
+                /// Received HTTP response body
+                public var body: Operations.cacheExists.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cacheExists.Output.NotFound.Headers = .init(),
+                    body: Operations.cacheExists.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The module is not present in the cache.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheExists)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.cacheExists.Output.NotFound)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cacheExists.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.cacheExists.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cacheExists.Output.Unauthorized.Headers = .init(),
+                    body: Operations.cacheExists.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The cache could not be checked because the user is not authorized to do the action.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheExists)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cacheExists.Output.Unauthorized)
+            public struct PaymentRequired: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cacheExists.Output.PaymentRequired.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.cacheExists.Output.PaymentRequired.Body
+                /// Creates a new `PaymentRequired`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cacheExists.Output.PaymentRequired.Headers = .init(),
+                    body: Operations.cacheExists.Output.PaymentRequired.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The cache could not be checked because the account's plan doesn't include remote cache functionality.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheExists)/responses/402`.
+            ///
+            /// HTTP response code: `402 paymentRequired`.
+            case paymentRequired(Operations.cacheExists.Output.PaymentRequired)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `GET /api/cache`.
+    /// - Remark: Generated from `#/paths//api/cache/get(getCache)`.
+    public enum getCache {
+        public static let id: String = "getCache"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.getCache.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                public var project_id: Swift.String
+                public var hash: Swift.String
+                public var name: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - project_id:
+                ///   - hash:
+                ///   - name:
+                public init(project_id: Swift.String, hash: Swift.String, name: Swift.String) {
+                    self.project_id = project_id
+                    self.hash = hash
+                    self.name = name
+                }
+            }
+            public var query: Operations.getCache.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.getCache.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.getCache.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.getCache.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.getCache.Input.Path = .init(),
+                query: Operations.getCache.Input.Query,
+                headers: Operations.getCache.Input.Headers = .init(),
+                cookies: Operations.getCache.Input.Cookies = .init(),
+                body: Operations.getCache.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCache.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.CacheArtifact)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCache.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getCache.Output.Ok.Headers = .init(),
+                    body: Operations.getCache.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The module is present in the cache.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/get(getCache)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getCache.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCache.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCache.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getCache.Output.Unauthorized.Headers = .init(),
+                    body: Operations.getCache.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The cache could not be fetched because the user is not authorized to do the action.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/get(getCache)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getCache.Output.Unauthorized)
+            public struct PaymentRequired: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCache.Output.PaymentRequired.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCache.Output.PaymentRequired.Body
+                /// Creates a new `PaymentRequired`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.getCache.Output.PaymentRequired.Headers = .init(),
+                    body: Operations.getCache.Output.PaymentRequired.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The cache could not be fetched because the account's plan doesn't include remote cache functionality.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/get(getCache)/responses/402`.
+            ///
+            /// HTTP response code: `402 paymentRequired`.
+            case paymentRequired(Operations.getCache.Output.PaymentRequired)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `POST /api/cache`.
+    /// - Remark: Generated from `#/paths//api/cache/post(uploadCache)`.
+    public enum uploadCache {
+        public static let id: String = "uploadCache"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.uploadCache.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                public var project_id: Swift.String
+                public var hash: Swift.String
+                public var name: Swift.String
+                public var content_md5: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - project_id:
+                ///   - hash:
+                ///   - name:
+                ///   - content_md5:
+                public init(
+                    project_id: Swift.String,
+                    hash: Swift.String,
+                    name: Swift.String,
+                    content_md5: Swift.String
+                ) {
+                    self.project_id = project_id
+                    self.hash = hash
+                    self.name = name
+                    self.content_md5 = content_md5
+                }
+            }
+            public var query: Operations.uploadCache.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.uploadCache.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.uploadCache.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.uploadCache.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.uploadCache.Input.Path = .init(),
+                query: Operations.uploadCache.Input.Query,
+                headers: Operations.uploadCache.Input.Headers = .init(),
+                cookies: Operations.uploadCache.Input.Cookies = .init(),
+                body: Operations.uploadCache.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCache.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.CacheArtifact)
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCache.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.uploadCache.Output.Ok.Headers = .init(),
+                    body: Operations.uploadCache.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The uploaded module artifact.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/post(uploadCache)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.uploadCache.Output.Ok)
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCache.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCache.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.uploadCache.Output.Unauthorized.Headers = .init(),
+                    body: Operations.uploadCache.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The cache could not be fetched because the user is not authorized to do the action.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/post(uploadCache)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.uploadCache.Output.Unauthorized)
+            public struct PaymentRequired: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCache.Output.PaymentRequired.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas._Error)
+                }
+                /// Received HTTP response body
+                public var body: Operations.uploadCache.Output.PaymentRequired.Body
+                /// Creates a new `PaymentRequired`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.uploadCache.Output.PaymentRequired.Headers = .init(),
+                    body: Operations.uploadCache.Output.PaymentRequired.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The cache could not be fetched because the account's plan doesn't include remote cache functionality.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/post(uploadCache)/responses/402`.
+            ///
+            /// HTTP response code: `402 paymentRequired`.
+            case paymentRequired(Operations.uploadCache.Output.PaymentRequired)
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+    }
+    /// - Remark: HTTP `POST /api/cache/verify_upload`.
+    /// - Remark: Generated from `#/paths//api/cache/verify_upload/post(verifyCacheUpload)`.
+    public enum verifyCacheUpload {
+        public static let id: String = "verifyCacheUpload"
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.verifyCacheUpload.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                public var project_id: Swift.String
+                public var hash: Swift.String
+                public var name: Swift.String
+                public var content_md5: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - project_id:
+                ///   - hash:
+                ///   - name:
+                ///   - content_md5:
+                public init(
+                    project_id: Swift.String,
+                    hash: Swift.String,
+                    name: Swift.String,
+                    content_md5: Swift.String
+                ) {
+                    self.project_id = project_id
+                    self.hash = hash
+                    self.name = name
+                    self.content_md5 = content_md5
+                }
+            }
+            public var query: Operations.verifyCacheUpload.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
+                /// Creates a new `Headers`.
+                public init() {}
+            }
+            public var headers: Operations.verifyCacheUpload.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.verifyCacheUpload.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.verifyCacheUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.verifyCacheUpload.Input.Path = .init(),
+                query: Operations.verifyCacheUpload.Input.Query,
+                headers: Operations.verifyCacheUpload.Input.Headers = .init(),
+                cookies: Operations.verifyCacheUpload.Input.Cookies = .init(),
+                body: Operations.verifyCacheUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.verifyCacheUpload.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    case json(Components.Schemas.CacheArtifactUploadVerification)
+                }
+                /// Received HTTP response body
+                public var body: Operations.verifyCacheUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.verifyCacheUpload.Output.Ok.Headers = .init(),
+                    body: Operations.verifyCacheUpload.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
+            }
+            /// The verification of the module artifact upload.
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/verify_upload/post(verifyCacheUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.verifyCacheUpload.Output.Ok)
             /// Undocumented response.
             ///
             /// A response with a code that is not documented in the OpenAPI document.
