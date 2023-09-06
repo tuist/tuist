@@ -13,13 +13,13 @@ extension XCFrameworkInfoPlist.Library {
     public static func test(
         identifier: String = "test",
         path: RelativePath = RelativePath("relative/to/library"),
-        mergeableMetadata: Bool = false,
+        mergeable: Bool = false,
         architectures: [BinaryArchitecture] = [.i386]
     ) -> XCFrameworkInfoPlist.Library {
         XCFrameworkInfoPlist.Library(
             identifier: identifier,
             path: path,
-            mergeableMetadata: mergeableMetadata,
+            mergeable: mergeable,
             architectures: architectures
         )
     }

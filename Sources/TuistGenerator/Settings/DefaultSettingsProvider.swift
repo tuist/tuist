@@ -154,13 +154,16 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     private func mergeableSettings(for target: Target, configuration: BuildConfiguration) -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
         if target.mergeable {
-            settings["MAKE_MERGEABLE"] = .string("YES")
-            settings["MERGEABLE_LIBRARY"] = .string("YES")
+            if target.product != .dynamicLibrary {
+                fatalError("Only products that are dynamic libraries can be marked as mergeable")
+            }
+            settings["MAKE_MERGEABLE"] = "YES"
+            settings["MERGEABLE_LIBRARY"] = "YES"
         }
         if target.mergedBinaryType == .automatic {
-            settings["MERGED_BINARY_TYPE"] = .string("automatic")
+            settings["MERGED_BINARY_TYPE"] = "automatic"
         } else if case let .manual(mergeableDependencies) = target.mergedBinaryType {
-            settings["MERGED_BINARY_TYPE"] = .string("manual")
+            settings["MERGED_BINARY_TYPE"] = "manual"
             let frameworkLinkage = configuration.variant == .release ? "-merge_framework" : "-reexport_framework"
             settings["OTHER_LDFLAGS"] = .array(mergeableDependencies.map { "-Wl,\(frameworkLinkage),\($0)" })
         }

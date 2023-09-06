@@ -84,7 +84,7 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
                 infoPlist: infoPlist,
                 primaryBinaryPath: binaryPath,
                 linking: linking,
-                isMergeable: false
+                mergeable: false
             )
         )
     }

@@ -952,7 +952,7 @@ final class LinkGeneratorTests: XCTestCase {
         let projectFileElements = ProjectFileElements()
         dependencies.forEach { dependency in
             switch dependency {
-            case .xcframework(path: let path, infoPlist: _, primaryBinaryPath: _, linking: _, isMergeable: _):
+            case .xcframework(path: let path, infoPlist: _, primaryBinaryPath: _, linking: _, mergeable: _):
                 projectFileElements.elements[path] = PBXFileReference(
                     path: path.relative(to: projectPath).pathString
                 )

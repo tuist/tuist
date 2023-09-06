@@ -138,37 +138,6 @@ final class SettingsTests: XCTestCase {
         ])
     }
 
-    func test_settingsDictionary_mergeableLibrary() {
-        /// Given/When
-        let settings = SettingsDictionary()
-            .mergeableLibrary()
-
-        /// Then
-        XCTAssertEqual(settings, ["MAKE_MERGEABLE": "YES", "MERGEABLE_LIBRARY": "YES"])
-    }
-
-    func test_settingsDictionary_otherMergeFrameworkLinkerFlag() {
-        /// Given/When
-        let settings = SettingsDictionary()
-            .otherLinkerFlags(["$(inherited)", "-my-linker-flag"])
-            .otherMergeFrameworkLinkerFlag(["MyMergeableLibrary"])
-
-        /// Then
-        XCTAssertEqual(settings, [
-            "OTHER_LDFLAGS": ["$(inherited)", "-my-linker-flag", "-Wl,-merge_framework,MyMergeableLibrary"],
-        ])
-    }
-
-    func test_settingsDictionary_mergedBinaryType() {
-        /// Given/When
-        let settingsManual = SettingsDictionary().mergedBinaryType("manual")
-        let settingsAutomatic = SettingsDictionary().mergedBinaryType("automatic")
-
-        /// Then
-        XCTAssertEqual(settingsManual, ["MERGED_BINARY_TYPE": "manual"])
-        XCTAssertEqual(settingsAutomatic, ["MERGED_BINARY_TYPE": "automatic"])
-    }
-
     func test_settingsDictionary_swiftActiveCompilationConditions() {
         /// Given/When
         let settings = SettingsDictionary()

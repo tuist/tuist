@@ -383,7 +383,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     infoPlist: .test(),
                     primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
                     linking: .dynamic,
-                    isMergeable: false
+                    mergeable: false
                 ),
             ]),
         ])
@@ -423,7 +423,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     infoPlist: .test(),
                     primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
                     linking: .dynamic,
-                    isMergeable: true
+                    mergeable: true
                 ),
             ]),
         ])

@@ -1213,26 +1213,26 @@ final class GraphTraverserTests: TuistUnitTestCase {
             infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
             primaryBinaryPath: "/xcframeworks/c.xcframework/c",
             linking: .dynamic,
-            isMergeable: false
+            mergeable: false
         )
         let dDependency = GraphDependency.xcframework(
             path: "/xcframeworks/d.xcframework",
             infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
             primaryBinaryPath: "/xcframeworks/d.xcframework/d",
             linking: .dynamic,
-            isMergeable: false
+            mergeable: false
         )
         let eDependency = GraphDependency.xcframework(
             path: "/xcframeworks/e.xcframework",
             infoPlist: .test(libraries: [.test(
                 identifier: "id",
                 path: RelativePath("path"),
-                mergeableMetadata: true,
+                mergeable: true,
                 architectures: [.arm64]
             )]),
             primaryBinaryPath: "/xcframeworks/e.xcframework/e",
             linking: .dynamic,
-            isMergeable: true
+            mergeable: true
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency, eDependency),
@@ -1278,7 +1278,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )]),
             primaryBinaryPath: "/xcframeworks/c.xcframework/c",
             linking: .dynamic,
-            isMergeable: false
+            mergeable: false
         )
         let dDependency = GraphDependency.xcframework(
             path: "/xcframeworks/d.xcframework",
@@ -1289,19 +1289,19 @@ final class GraphTraverserTests: TuistUnitTestCase {
             )]),
             primaryBinaryPath: "/xcframeworks/d.xcframework/d",
             linking: .dynamic,
-            isMergeable: false
+            mergeable: false
         )
         let eDependency = GraphDependency.xcframework(
             path: "/xcframeworks/e.xcframework",
             infoPlist: .test(libraries: [.test(
                 identifier: "id",
                 path: RelativePath("e.framework"),
-                mergeableMetadata: true,
+                mergeable: true,
                 architectures: [.arm64]
             )]),
             primaryBinaryPath: "/xcframeworks/e.xcframework/e",
             linking: .dynamic,
-            isMergeable: true
+            mergeable: true
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency, eDependency),

@@ -27,13 +27,13 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             .init(
                 identifier: "ios-x86_64-simulator",
                 path: RelativePath("MyFramework.framework"),
-                mergeableMetadata: false,
+                mergeable: false,
                 architectures: [.x8664]
             ),
             .init(
                 identifier: "ios-arm64",
                 path: RelativePath("MyFramework.framework"),
-                mergeableMetadata: false,
+                mergeable: false,
                 architectures: [.arm64]
             ),
         ])
@@ -78,13 +78,13 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             .init(
                 identifier: "ios-x86_64-simulator",
                 path: RelativePath("libMyStaticLibrary.a"),
-                mergeableMetadata: false,
+                mergeable: false,
                 architectures: [.x8664]
             ),
             .init(
                 identifier: "ios-arm64",
                 path: RelativePath("libMyStaticLibrary.a"),
-                mergeableMetadata: false,
+                mergeable: false,
                 architectures: [.arm64]
             ),
         ])
@@ -116,13 +116,13 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             .init(
                 identifier: "ios-x86_64-simulator",
                 path: RelativePath("MyFramework.framework"),
-                mergeableMetadata: false,
+                mergeable: false,
                 architectures: [.x8664]
             ),
             .init(
                 identifier: "ios-arm64",
                 path: RelativePath("MyFramework.framework"),
-                mergeableMetadata: false,
+                mergeable: false,
                 architectures: [.arm64]
             ),
         ])
@@ -149,13 +149,13 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             .init(
                 identifier: "ios-x86_64-simulator",
                 path: RelativePath("MyMergeableFramework.framework"),
-                mergeableMetadata: true,
+                mergeable: true,
                 architectures: [.x8664]
             ),
             .init(
                 identifier: "ios-arm64",
                 path: RelativePath("MyMergeableFramework.framework"),
-                mergeableMetadata: true,
+                mergeable: true,
                 architectures: [.arm64]
             ),
         ])
@@ -182,13 +182,13 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             .init(
                 identifier: "ios-x86_64-simulator",
                 path: RelativePath("libMyStaticLibrary.a"),
-                mergeableMetadata: false,
+                mergeable: false,
                 architectures: [.x8664]
             ),
             .init(
                 identifier: "ios-arm64",
                 path: RelativePath("libMyStaticLibrary.a"),
-                mergeableMetadata: false,
+                mergeable: false,
                 architectures: [.arm64]
             ),
         ])
@@ -214,13 +214,13 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             .init(
                 identifier: "ios-x86_64-simulator", // Not present on disk
                 path: RelativePath("MyFrameworkMissingArch.framework"),
-                mergeableMetadata: false,
+                mergeable: false,
                 architectures: [.x8664]
             ),
             .init(
                 identifier: "ios-arm64",
                 path: RelativePath("MyFrameworkMissingArch.framework"),
-                mergeableMetadata: false,
+                mergeable: false,
                 architectures: [.arm64]
             ),
         ])

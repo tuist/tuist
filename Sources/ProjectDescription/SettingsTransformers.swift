@@ -169,30 +169,6 @@ extension SettingsDictionary {
     public func debugInformationFormat(_ format: DebugInformationFormat) -> SettingsDictionary {
         merging(["DEBUG_INFORMATION_FORMAT": SettingValue(format)])
     }
-
-    // MARK: - Mergeable libraries
-
-    /// Sets `"MAKE_MERGEABLE"` and `"MERGEABLE_LIBRARY"` to true
-    public func mergeableLibrary() -> SettingsDictionary {
-        merging(["MAKE_MERGEABLE": true, "MERGEABLE_LIBRARY": true])
-    }
-
-    /// Sets `"MERGED_BINARY_TYPE"` to `"automatic"` or `"manual"`
-    public func mergedBinaryType(_ type: String) -> SettingsDictionary {
-        merging(["MERGED_BINARY_TYPE": .string(type)])
-    }
-
-    /// Sets `"OTHER_LDFLAGS"` with `"-Wl,-merge_framework,{libraryName}"` to be able to merge the precompiled framework
-    public func otherMergeFrameworkLinkerFlag(_ libraries: [String]) -> SettingsDictionary {
-        merging(["OTHER_LDFLAGS": .array(libraries.map { "-Wl,-merge_framework,\($0)" })]) {
-            guard case let .array(current) = $0,
-                  case let .array(new) = $1
-            else {
-                return $0
-            }
-            return .array(current + new)
-        }
-    }
 }
 
 extension SettingsDictionary {

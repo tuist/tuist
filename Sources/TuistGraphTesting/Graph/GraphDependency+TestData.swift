@@ -36,7 +36,7 @@ extension GraphDependency {
             infoPlist: infoPlist,
             primaryBinaryPath: primaryBinaryPath,
             linking: linking,
-            isMergeable: false
+            mergeable: false
         )
     }
 

@@ -196,7 +196,25 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got, projectEssentialReleaseSettings)
     }
 
-    func testTargetSettings_whenAppDoesNotMergeDependencies() throws {
+    func testTargetSettings_whenBinaryAllowsToBeMerged() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let project = Project.test()
+        let target = Target.test(product: .dynamicLibrary, mergeable: true)
+
+        // When
+        let got = try subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+
+        // Then
+        XCTAssertEqual(got["MAKE_MERGEABLE"], "YES")
+        XCTAssertEqual(got["MERGEABLE_LIBRARY"], "YES")
+    }
+
+    func testTargetSettings_whenBinaryDoesNotMergeDependencies() throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug
         let project = Project.test()

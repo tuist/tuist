@@ -8,7 +8,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         infoPlist: XCFrameworkInfoPlist,
         primaryBinaryPath: AbsolutePath,
         linking: BinaryLinking,
-        isMergeable: Bool
+        mergeable: Bool
     )
 
     /// A dependency that represents a pre-compiled framework.
