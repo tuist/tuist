@@ -196,6 +196,76 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got, projectEssentialReleaseSettings)
     }
 
+    func testTargetSettings_whenAppDoesNotMergeDependencies() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let project = Project.test()
+        let target = Target.test(product: .app)
+
+        // When
+        let got = try subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+
+        // Then
+        XCTAssertNil(got["MERGED_BINARY_TYPE"])
+    }
+
+    func testTargetSettings_whenAppMergesDependencies_automatic() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let project = Project.test()
+        let target = Target.test(product: .app, mergedBinaryType: .automatic)
+
+        // When
+        let got = try subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+
+        // Then
+        XCTAssertEqual(got["MERGED_BINARY_TYPE"], "automatic")
+    }
+
+    func testTargetSettings_whenAppMergesDependencies_manualDebug() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let project = Project.test()
+        let target = Target.test(product: .app, mergedBinaryType: .manual(mergeableDependencies: Set(["Sample"])))
+
+        // When
+        let got = try subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+
+        // Then
+        XCTAssertEqual(got["MERGED_BINARY_TYPE"], "manual")
+        XCTAssertEqual(got["OTHER_LDFLAGS"], "-Wl,-reexport_framework,Sample")
+    }
+
+    func testTargetSettings_whenAppMergesDependencies_manualRelease() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let project = Project.test()
+        let target = Target.test(product: .app, mergedBinaryType: .manual(mergeableDependencies: Set(["Sample"])))
+
+        // When
+        let got = try subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+
+        // Then
+        XCTAssertEqual(got["MERGED_BINARY_TYPE"], "manual")
+        XCTAssertEqual(got["OTHER_LDFLAGS"], "-Wl,-merge_framework,Sample")
+    }
+
     func testTargetSettings_whenEssentialDebug_App() throws {
         // Given
         let buildConfiguration: BuildConfiguration = .debug

@@ -64,6 +64,12 @@ public struct Target: Codable, Equatable {
     /// The build rules used for transformation of source files during compilation.
     public let buildRules: [BuildRule]
 
+    /// Specifies whether if the target can merge or not the dynamic dependencies as part of its binary
+    public let mergedBinaryType: MergedBinaryType
+
+    /// Specifies whether if the target can be merged as part of another binary or not
+    public let mergeable: Bool
+
     public init(
         name: String,
         platform: Platform,
@@ -84,7 +90,9 @@ public struct Target: Codable, Equatable {
         environment: [String: String] = [:],
         launchArguments: [LaunchArgument] = [],
         additionalFiles: [FileElement] = [],
-        buildRules: [BuildRule] = []
+        buildRules: [BuildRule] = [],
+        mergedBinaryType: MergedBinaryType = .disabled,
+        mergeable: Bool = false
     ) {
         self.name = name
         self.platform = platform
@@ -106,5 +114,7 @@ public struct Target: Codable, Equatable {
         self.deploymentTarget = deploymentTarget
         self.additionalFiles = additionalFiles
         self.buildRules = buildRules
+        self.mergedBinaryType = mergedBinaryType
+        self.mergeable = mergeable
     }
 }

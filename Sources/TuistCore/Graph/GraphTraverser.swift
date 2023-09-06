@@ -207,27 +207,31 @@ public class GraphTraverser: GraphTraversing {
         guard let target = target(path: path, name: name), canEmbedProducts(target: target.target) else { return Set() }
 
         var references: Set<GraphDependencyReference> = Set([])
-        let mergingDependencies = target.target.mergesDependencies()
 
         /// Precompiled frameworks
-        let precompiledFrameworks = filterDependencies(
+        var precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: mergingDependencies ? isDependencyPrecompiledDynamicButNotMergeable : isDependencyPrecompiledDynamicAndLinkable,
+            test: isDependencyPrecompiledDynamicAndLinkable,
             skip: canDependencyEmbedProducts
         )
-        .lazy
-        .compactMap(dependencyReference)
-        references.formUnion(precompiledFrameworks)
+        // Skip merged precompiled libraries from merging into the runnable binary
+        if case let .manual(dependenciesToMerge) = target.target.mergedBinaryType {
+            precompiledFrameworks = precompiledFrameworks
+                .filter { !isXCFrameworkMerged(dependency: $0, expectedMergedBinaries: dependenciesToMerge) }
+        }
+        references.formUnion(precompiledFrameworks.lazy.compactMap(dependencyReference))
 
         /// Other targets' frameworks.
-        let otherTargetFrameworks = filterDependencies(
+        var otherTargetFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: mergingDependencies ? isDependencyDynamicButNotMergeableTarget : isDependencyDynamicTarget,
+            test: isDependencyDynamicTarget,
             skip: canDependencyEmbedProducts
         )
-        .lazy
-        .compactMap(dependencyReference)
-        references.formUnion(otherTargetFrameworks)
+
+        if target.target.mergedBinaryType != .disabled {
+            otherTargetFrameworks = otherTargetFrameworks.filter(isDependencyDynamicNonMergeableTarget)
+        }
+        references.formUnion(otherTargetFrameworks.lazy.compactMap(dependencyReference))
 
         // Exclude any products embed in unit test host apps
         if target.target.product == .unitTests {
@@ -606,6 +610,25 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
+    func isXCFrameworkMerged(dependency: GraphDependency, expectedMergedBinaries: Set<String>) -> Bool {
+        guard case let .xcframework(_, infoPlist, _, _, mergeable) = dependency,
+              let binaryName = infoPlist.libraries.first?.binaryName,
+              expectedMergedBinaries.contains(binaryName)
+        else {
+            return false
+        }
+        if !mergeable {
+            fatalError("XCFramework \(binaryName) must be compiled with  -make_mergeable option enabled")
+        }
+        return mergeable
+    }
+
+    func isDependencyDynamicNonMergeableTarget(dependency: GraphDependency) -> Bool {
+        guard case let GraphDependency.target(name, path) = dependency,
+              let target = target(path: path, name: name) else { return false }
+        return !target.target.mergeable
+    }
+
     func isDependencyStaticTarget(dependency: GraphDependency) -> Bool {
         guard case let GraphDependency.target(name, path) = dependency,
               let target = target(path: path, name: name) else { return false }
@@ -664,21 +687,6 @@ public class GraphTraverser: GraphTraversing {
         case .target: return false
         case .sdk: return false
         }
-    }
-
-    func isDependencyDynamicButNotMergeableTarget(dependency: GraphDependency) -> Bool {
-        guard case let .target(name, path) = dependency, let target = target(path: path, name: name)
-        else {
-            return isDependencyDynamicTarget(dependency: dependency)
-        }
-        return target.target.product.isDynamic && !target.target.isMergeable()
-    }
-
-    func isDependencyPrecompiledDynamicButNotMergeable(dependency: GraphDependency) -> Bool {
-        guard case let .xcframework(_, _, _, linking, mergeable) = dependency else {
-            return isDependencyPrecompiledDynamicAndLinkable(dependency: dependency)
-        }
-        return linking == .dynamic && !mergeable
     }
 
     func canDependencyEmbedProducts(dependency: GraphDependency) -> Bool {

@@ -139,15 +139,33 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             essentialKeys: DefaultSettingsProvider.essentialTargetSettings,
             newXcodeKeys: DefaultSettingsProvider.xcodeVersionSpecificSettings
         )
+        let mergeableSettings = mergeableSettings(for: target, configuration: buildConfiguration)
         var settings: SettingsDictionary = [:]
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultAll)
         settingsHelper.extend(buildSettings: &settings, with: additionalTargetDefaults)
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant)
+        settingsHelper.extend(buildSettings: &settings, with: mergeableSettings)
         settingsHelper.extend(buildSettings: &settings, with: projectOverridableTargetDefaultSettings(for: project))
         return settings.filter(filter)
     }
 
     // MARK: - Private
+
+    private func mergeableSettings(for target: Target, configuration: BuildConfiguration) -> SettingsDictionary {
+        var settings: SettingsDictionary = [:]
+        if target.mergeable {
+            settings["MAKE_MERGEABLE"] = .string("YES")
+            settings["MERGEABLE_LIBRARY"] = .string("YES")
+        }
+        if target.mergedBinaryType == .automatic {
+            settings["MERGED_BINARY_TYPE"] = .string("automatic")
+        } else if case let .manual(mergeableDependencies) = target.mergedBinaryType {
+            settings["MERGED_BINARY_TYPE"] = .string("manual")
+            let frameworkLinkage = configuration.variant == .release ? "-merge_framework" : "-reexport_framework"
+            settings["OTHER_LDFLAGS"] = .array(mergeableDependencies.map { "-Wl,\(frameworkLinkage),\($0)" })
+        }
+        return settings
+    }
 
     private func createFilter(
         defaultSettings: DefaultSettings,

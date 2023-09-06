@@ -44,6 +44,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public let additionalFiles: [FileElement]
     public var buildRules: [BuildRule]
     public var prune: Bool
+    public let mergedBinaryType: MergedBinaryType
+    public let mergeable: Bool
 
     // MARK: - Init
 
@@ -71,7 +73,9 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         playgrounds: [AbsolutePath] = [],
         additionalFiles: [FileElement] = [],
         buildRules: [BuildRule] = [],
-        prune: Bool = false
+        prune: Bool = false,
+        mergedBinaryType: MergedBinaryType = .disabled,
+        mergeable: Bool = false
     ) {
         self.name = name
         self.product = product
@@ -97,23 +101,13 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         self.additionalFiles = additionalFiles
         self.buildRules = buildRules
         self.prune = prune
+        self.mergedBinaryType = mergedBinaryType
+        self.mergeable = mergeable
     }
 
     /// Target can be included in the link phase of other targets
     public func isLinkable() -> Bool {
         [.dynamicLibrary, .staticLibrary, .framework, .staticFramework].contains(product)
-    }
-
-    /// Notifies if the target can group dependencies
-    public func mergesDependencies() -> Bool {
-        let setting = settings?.base["MERGED_BINARY_TYPE"]
-        return setting == .string("manual") || setting == .string("automatic")
-    }
-
-    /// Notifies if the target can be grouped as part of another target
-    public func isMergeable() -> Bool {
-        let setting = settings?.base["MERGEABLE_LIBRARY"]
-        return setting == .string("YES")
     }
 
     /// Returns whether a target is exclusive to a single platform
@@ -279,7 +273,9 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             lhs.coreDataModels == rhs.coreDataModels &&
             lhs.scripts == rhs.scripts &&
             lhs.dependencies == rhs.dependencies &&
-            lhs.environment == rhs.environment
+            lhs.environment == rhs.environment &&
+            lhs.mergedBinaryType == rhs.mergedBinaryType &&
+            lhs.mergeable == rhs.mergeable
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -334,7 +330,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     }
 }
 
-extension Sequence where Element == Target {
+extension Sequence<Target> {
     /// Filters and returns only the targets that are test bundles.
     var testBundles: [Target] {
         filter(\.product.testsBundle)

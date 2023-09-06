@@ -37,6 +37,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
                 architectures: [.arm64]
             ),
         ])
+        infoPlist.libraries.forEach { XCTAssertEqual($0.binaryName, "MyFramework") }
     }
 
     func test_binaryPath_when_frameworkIsPresent() throws {
@@ -63,6 +64,8 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             binaryPath,
             frameworkPath.appending(RelativePath("ios-x86_64-simulator/MyFramework.framework/MyFramework"))
         )
+
+        infoPlist.libraries.forEach { XCTAssertEqual($0.binaryName, "MyFramework") }
     }
 
     func test_libraries_when_staticLibraryIsPresent() throws {
@@ -85,6 +88,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
                 architectures: [.arm64]
             ),
         ])
+        infoPlist.libraries.forEach { XCTAssertEqual($0.binaryName, "libMyStaticLibrary") }
     }
 
     func test_binaryPath_when_staticLibraryIsPresent() throws {
@@ -122,6 +126,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
                 architectures: [.arm64]
             ),
         ])
+
         let expectedBinaryPath = frameworkPath.appending(RelativePath("ios-x86_64-simulator/MyFramework.framework/MyFramework"))
         XCTAssertEqual(metadata, XCFrameworkMetadata(
             path: frameworkPath,

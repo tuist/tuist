@@ -28,7 +28,9 @@ extension Target {
         launchArguments: [LaunchArgument] = [],
         playgrounds: [AbsolutePath] = [],
         additionalFiles: [FileElement] = [],
-        prune: Bool = false
+        prune: Bool = false,
+        mergedBinaryType: MergedBinaryType = .disabled,
+        mergeable: Bool = false
     ) -> Target {
         Target(
             name: name,
@@ -53,7 +55,9 @@ extension Target {
             rawScriptBuildPhases: rawScriptBuildPhases,
             playgrounds: playgrounds,
             additionalFiles: additionalFiles,
-            prune: prune
+            prune: prune,
+            mergedBinaryType: mergedBinaryType,
+            mergeable: mergeable
         )
     }
 
@@ -83,7 +87,9 @@ extension Target {
         launchArguments: [LaunchArgument] = [],
         playgrounds: [AbsolutePath] = [],
         additionalFiles: [FileElement] = [],
-        prune: Bool = false
+        prune: Bool = false,
+        mergedBinaryType: MergedBinaryType = .disabled,
+        mergeable: Bool = false
     ) -> Target {
         Target(
             name: name,
@@ -108,7 +114,9 @@ extension Target {
             rawScriptBuildPhases: rawScriptBuildPhases,
             playgrounds: playgrounds,
             additionalFiles: additionalFiles,
-            prune: prune
+            prune: prune,
+            mergedBinaryType: mergedBinaryType,
+            mergeable: mergeable
         )
     }
 
@@ -158,7 +166,8 @@ extension Target {
     }
 
     /// Creates a bare bones Target with as little data as possible
-    //  @available(*, deprecated, renamed: "empty(name:destinations:...)", message: "Please use the `destinations:` factory method")
+    //  @available(*, deprecated, renamed: "empty(name:destinations:...)", message: "Please use the `destinations:` factory
+    //  method")
     public static func empty(
         name: String = "Target",
         platform: Platform,

@@ -10,6 +10,7 @@ public struct XCFrameworkInfoPlist: Codable, Equatable {
     /// It represents a library inside an .xcframework
     public struct Library: Codable, Equatable {
         private enum CodingKeys: String, CodingKey {
+            case binaryPath = "BinaryPath"
             case identifier = "LibraryIdentifier"
             case path = "LibraryPath"
             case architectures = "SupportedArchitectures"
@@ -19,6 +20,11 @@ public struct XCFrameworkInfoPlist: Codable, Equatable {
         /// It represents the library's platform.
         public enum Platform: String, Codable {
             case ios
+        }
+
+        /// Binary name used to import the library
+        public var binaryName: String {
+            path.basenameWithoutExt
         }
 
         /// Library identifier.
@@ -41,7 +47,12 @@ public struct XCFrameworkInfoPlist: Codable, Equatable {
             try container.encode(architectures, forKey: .architectures)
         }
 
-        public init(identifier: String, path: RelativePath, mergeableMetadata: Bool, architectures: [BinaryArchitecture]) {
+        public init(
+            identifier: String,
+            path: RelativePath,
+            mergeableMetadata: Bool,
+            architectures: [BinaryArchitecture]
+        ) {
             self.identifier = identifier
             self.path = path
             self.mergeableMetadata = mergeableMetadata
