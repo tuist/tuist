@@ -91,6 +91,14 @@ public protocol GraphTraversing {
     ///   - name: Name of the target.
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
 
+    /// It returns true if the given target can be compiled for Mac Catalyst. To be able to compile it for Catalyst, itself and all its
+    /// dependencies need to support Mac Catalyst. Otherwise it'll yield a "X not found" error.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    /// - Returns: True if a given target can be compiled for Mac Catalyst.
+    func buildsForMacCatalyst(path: AbsolutePath, name: String) -> Bool
+
     /// Returns all non-transitive target static dependencies for the given target.
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.

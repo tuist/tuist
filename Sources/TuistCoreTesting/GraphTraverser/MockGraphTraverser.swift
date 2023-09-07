@@ -169,6 +169,20 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedTargetsProductResult
     }
 
+    var invokedBuildsForMacCatalyst = false
+    var invokedBuildsForMacCatalystCount = 0
+    var invokedBuildsForMacCatalystParameters: (path: AbsolutePath, name: String)?
+    var invokedBuildsForMacCatalystParametersList = [(path: AbsolutePath, name: String)]()
+    var stubbedBuildsForMacCatalystResult: Bool!
+
+    func buildsForMacCatalyst(path: TSCBasic.AbsolutePath, name: String) -> Bool {
+        invokedBuildsForMacCatalyst = true
+        invokedBuildsForMacCatalystCount += 1
+        invokedBuildsForMacCatalystParameters = (path, name)
+        invokedBuildsForMacCatalystParametersList.append((path, name))
+        return stubbedBuildsForMacCatalystResult
+    }
+
     var invokedTarget = false
     var invokedTargetCount = 0
     var invokedTargetParameters: (path: AbsolutePath, name: String)?

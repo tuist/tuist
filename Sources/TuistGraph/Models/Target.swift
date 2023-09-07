@@ -129,6 +129,11 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         scripts.filter { $0.order == .post }
     }
 
+    /// Returns true if the target supports Mac Catalyst
+    public var supportsCatalyst: Bool {
+        destinations.contains(.macCatalyst)
+    }
+
     /// Target can link static products (e.g. an app can link a staticLibrary)
     public func canLinkStaticProducts() -> Bool {
         [
