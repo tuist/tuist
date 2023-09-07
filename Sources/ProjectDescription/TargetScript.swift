@@ -70,7 +70,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     init(
         name: String,
         script: Script = .embedded(""),
@@ -112,7 +112,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func pre(
         path: Path,
@@ -155,7 +155,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func pre(
         path: Path,
@@ -198,7 +198,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func post(
         path: Path,
@@ -241,7 +241,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func post(
         path: Path,
@@ -286,7 +286,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func pre(
         tool: String,
@@ -329,7 +329,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func pre(
         tool: String,
@@ -372,7 +372,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func post(
         tool: String,
@@ -415,7 +415,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func post(
         tool: String,
@@ -460,7 +460,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func pre(
         script: String,
@@ -501,7 +501,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func post(
         script: String,

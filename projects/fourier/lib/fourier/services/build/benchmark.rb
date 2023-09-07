@@ -10,8 +10,8 @@ module Fourier
         end
 
         def call
-          Dir.chdir(Constants::TUISTBENCH_DIRECTORY) do
-            Utilities::System.system("swift", "build", "--configuration", configuration)
+          Dir.chdir(Constants::ROOT_DIRECTORY) do
+            Utilities::System.system("swift", "build", "--configuration", configuration, "--target", "tuistbenchmark")
           end
         end
       end

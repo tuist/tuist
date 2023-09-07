@@ -1,0 +1,34 @@
+@Tutorial(time: 5) {
+    @Intro(title: "Infrastructure") {
+        In this chapter you'll learn about what you'll need at the infrastructure level to be able to host Tuist Cloud.        
+    }
+    
+    @Section(title: "Docker") {
+        @ContentAndMedia(layout: "horizontal") {}
+        
+        We distribute Tuist Cloud as a **Docker image** via [GitHub's Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry). We utilize GitHub's Container Registry to synchronize the authorization for registry access with access to this repository. In essence, if you have access to this repository, you can download the Tuist Cloud Enterprise images.
+        
+        To run it, **your infrastructure must support running Docker images**. Note that most infrastructure providers support it because it's become the standard container for distributing and running software in production environments.
+    }
+    
+    @Section(title: "Postgres Database") {
+        @ContentAndMedia(layout: "horizontal") {}
+        
+        In addition to running the Docker images, you'll need a [**Postgres database**](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Posgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
+        
+        > Note: The Docker image includes a workflow to automate the migration of schemas.
+
+    }
+    
+    @Section(title: "Storage") {
+        @ContentAndMedia(layout: "horizontal") {}
+        
+        You'll also need a solution to **store large files** (e.g. framework and library binaries). The following solutions are supported:
+        
+        - [AWS S3](https://aws.amazon.com/s3/)
+        
+        If you need support for additional storage solutions let us know at [cloud@tuist.io](mailto:cloud@tuist.io).
+    }
+    
+
+}
