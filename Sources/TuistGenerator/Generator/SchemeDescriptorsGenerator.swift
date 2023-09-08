@@ -500,11 +500,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             customLLDBInitFilePath = nil
         }
 
-        if let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath,
-           let graphTarget = graphTarget
-        {
+        if let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath {
             // the identifier is the relative path between the storekit file, and the xcode project
-            let fileRelativePath = storeKitFilePath.relative(to: graphTarget.project.xcodeProjPath)
+            let fileRelativePath = storeKitFilePath.relative(to: graphTraverser.workspace.xcWorkspacePath)
             storeKitConfigurationFileReference = .init(identifier: fileRelativePath.pathString)
         }
 
