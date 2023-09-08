@@ -1,0 +1,80 @@
+@Tutorial(time: 5) {
+    @Intro(title: "Creating your First Project") {
+        Learn how to create a new tuist project from scratch.
+        
+        @Image(source: "Logo-Blurred.png", alt: "Blurred Tuist Logo.")
+    }
+    
+    @Section(title: "Creating the project") {
+        @ContentAndMedia {
+            Creating a new project using Tuist is very simple as it provides us with templates which makes everything quite smooth.
+        }
+            
+        @Steps {
+            @Step {
+                Create a new directory for your project. 
+                @Code(name: "console", file: "01-02-01-01.txt", reset: true)
+                
+                > Note: The folder name would be used to name your project automatically.
+            }
+            
+            @Step {
+                Now, you can create a new project by running the `tuist init` command. The init command will bootstrap an iOS application, which includes the Info.plist files, an AppDelegate.swift, a tests file, and a Project.swift that contains the definition of the project.
+                @Code(name: "console", file: "01-02-01-02.txt")
+                
+                > Note: If you have used the Swift Package Manager before, the Project.swift file is the equivalent to the Package.swift.
+            }
+            
+            @Step {
+                To create a SwiftUI project, you can specify the SwiftUI template. 
+                @Code(name: "console", file: "01-02-01-03.txt", previousFile: "01-02-01-01.txt")
+            }
+        }
+    }
+        
+    @Section(title: "Exploring project files") {
+        @ContentAndMedia {
+            Take a moment to check out the files generated and whether anything needs to be changed to suit your needs.
+        }
+            
+        @Steps {
+            @Step {
+                If you open the `Project.swift` file, you can see something like this. By default, tuist provides you a template with which you can have a modular app.
+                @Code(name: "Project.swift", file: "01-02-01-04.swift", reset: true)
+                
+                > Tip: You can run `tuist edit` to generate a temporary Xcode project with all the project manifests and the project description helpers, so you will be able to edit the whole project configuration. 
+            }
+            
+            @Step {
+                If you are curious, you can explore the generated files. The `Project+Templates.swift` file looks very much like the options you usually see in an Xcodeproj file. Many of these properties might be familiar to you, feel free to change things and if you would like to add something that's missing, you can check the reference for `ProjectDescription`. 
+                @Code(name: "Project.swift", file: "01-02-01-05.swift", reset: true)
+                
+                > Tip: You can build the manifest project before ending your edits, to make sure you have not done any mistakes in project setup. Once you are happy with the project settings, you can close this window and press `^+C` to terminate the edit command.
+            }
+        }
+    }
+        
+    @Section(title: "Generating the Xcode project") {
+        @ContentAndMedia {
+            If you noticed from the previous section, we were missing one crucial file, the Xcode project. Without which Xcode cannot open our project, so let's see what we can do to fix that.
+        }
+            
+        @Steps {
+            @Step {
+                 Tuist comes with a command to generate projects and workspaces from your manifest files. We can run this command in terminal and we'll get our MyApp.xcodeproj and MyApp.xcworkspace files.
+                @Code(name: "console", file: "01-02-01-06.txt", reset: true)
+            }
+            
+            @Step {
+                Once, the project files have been generated, it would open Xcode automatically, and you should be able to run your project in the simulator successfully. You would get success messages like this in the console.
+                @Code(name: "console", file: "01-02-01-07.txt", reset: true)
+            }
+            
+            @Step {
+                Last but not least, you might want to include a badge in your project's README to indicate that the project is defined using Tuist.
+                @Code(name: "README.md", file: "01-02-01-09.txt", previousFile: "01-02-01-08.txt")
+            }
+        }
+    }
+}
+
