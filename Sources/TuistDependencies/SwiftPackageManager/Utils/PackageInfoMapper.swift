@@ -276,7 +276,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         ) { acc, next in
             switch next.key {
             case .iOS:
-                acc[.iOS] = .iOS(targetVersion: next.value, devices: [.ipad, .iphone])
+                acc[.iOS] = .iOS(targetVersion: next.value, devices: [.ipad, .iphone, .mac])
             case .macOS:
                 acc[.macOS] = .macOS(targetVersion: next.value)
             case .tvOS:
@@ -565,10 +565,9 @@ extension ProjectDescription.DeploymentTarget {
 
             switch platform {
             case .iOS:
-                let hasMacCatalyst = package.contains(where: { $0.platformName == "maccatalyst" })
                 return .iOS(
                     targetVersion: targetVersion,
-                    devices: hasMacCatalyst ? [.iphone, .ipad, .mac] : [.iphone, .ipad]
+                    devices: [.iphone, .ipad, .mac]
                 )
             case .macOS:
                 return .macOS(targetVersion: targetVersion)
@@ -1151,27 +1150,6 @@ extension ProjectDescription.DefaultSettings {
             return .essential(excluding: excluding)
         case .none:
             return .none
-        }
-    }
-}
-
-extension ProjectDescription.DeploymentTarget {
-    fileprivate static func from(deploymentTarget: TuistGraph.DeploymentTarget) -> Self {
-        switch deploymentTarget {
-        case let .iOS(version, devices, supportsMacDesignedForIOS):
-            return .iOS(
-                targetVersion: version,
-                devices: .from(devices: devices),
-                supportsMacDesignedForIOS: supportsMacDesignedForIOS
-            )
-        case let .macOS(version):
-            return .macOS(targetVersion: version)
-        case let .tvOS(version):
-            return .tvOS(targetVersion: version)
-        case let .watchOS(version):
-            return .watchOS(targetVersion: version)
-        case let .visionOS(version):
-            return .visionOS(targetVersion: version)
         }
     }
 }

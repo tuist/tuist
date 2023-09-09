@@ -83,7 +83,7 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector.runnableTargetStub = { _, _ in .test() }
 
         try await subject.run(generate: true)
-        await waitForExpectations(timeout: 1)
+        await fulfillment(of: [expectation], timeout: 1)
     }
 
     func test_run_generates_when_workspaceNotFound() async throws {
@@ -102,7 +102,7 @@ final class RunServiceTests: TuistUnitTestCase {
 
         // When
         try await subject.run()
-        await waitForExpectations(timeout: 1)
+        await fulfillment(of: [expectation], timeout: 1)
     }
 
     func test_run_buildsTarget() async throws {
@@ -132,7 +132,7 @@ final class RunServiceTests: TuistUnitTestCase {
             clean: clean,
             configuration: configuration
         )
-        await waitForExpectations(timeout: 1)
+        await fulfillment(of: [expectation], timeout: 1)
     }
 
     func test_run_runsTarget() async throws {
@@ -141,7 +141,7 @@ final class RunServiceTests: TuistUnitTestCase {
         let expectation = self.expectation(description: "runs target")
         let schemeName = "AScheme"
         let configuration = "Test"
-        let minVersion = Target.test().deploymentTarget?.version.version()
+        let minVersion = Target.test().deploymentTargets.configuredVersions.first?.versionString.version()
         let version = Version("15.0.0")
         let deviceName = "iPhone 11"
         let arguments = ["-arg1", "--arg2", "SomeArgument"]
@@ -171,7 +171,8 @@ final class RunServiceTests: TuistUnitTestCase {
             version: version.description,
             arguments: arguments
         )
-        await waitForExpectations(timeout: 1)
+
+        await fulfillment(of: [expectation], timeout: 1)
     }
 
     func test_run_throws_beforeBuilding_if_cantRunTarget() async throws {
@@ -192,7 +193,7 @@ final class RunServiceTests: TuistUnitTestCase {
             try await subject.run(),
             TestError()
         )
-        await waitForExpectations(timeout: 1)
+        await fulfillment(of: [expectation], timeout: 1)
     }
 }
 

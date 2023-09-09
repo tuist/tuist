@@ -7,11 +7,19 @@ struct CloudAuthCommand: ParsableCommand {
         CommandConfiguration(
             commandName: "auth",
             _superCommandName: "cloud",
-            abstract: "Authenticates the user on the server with the URL defined in the Config.swift file"
+            abstract: "Authenticates the user for using Cloud"
         )
     }
 
+    @Option(
+        name: .long,
+        help: "URL to the cloud server."
+    )
+    var serverURL: String?
+
     func run() throws {
-        try CloudAuthService().authenticate()
+        try CloudAuthService().authenticate(
+            serverURL: serverURL
+        )
     }
 }

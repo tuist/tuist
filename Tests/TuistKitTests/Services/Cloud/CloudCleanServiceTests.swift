@@ -10,25 +10,25 @@ import XCTest
 
 final class CloudCleanServiceTests: TuistUnitTestCase {
     private var cloudSessionController: MockCloudSessionController!
-    private var cleanRemoteCacheStorageService: MockCleanRemoteCacheStorageService!
+    private var cleanCacheService: MockCleanCacheService!
     private var configLoader: MockConfigLoader!
     private var subject: CloudCleanService!
 
     override func setUp() {
         super.setUp()
         cloudSessionController = MockCloudSessionController()
-        cleanRemoteCacheStorageService = MockCleanRemoteCacheStorageService()
+        cleanCacheService = MockCleanCacheService()
         configLoader = MockConfigLoader()
         subject = CloudCleanService(
             cloudSessionController: cloudSessionController,
-            cleanRemoteCacheStorageService: cleanRemoteCacheStorageService,
+            cleanCacheService: cleanCacheService,
             configLoader: configLoader
         )
     }
 
     override func tearDown() {
         cloudSessionController = nil
-        cleanRemoteCacheStorageService = nil
+        cleanCacheService = nil
         configLoader = nil
         subject = nil
         super.tearDown()
@@ -37,10 +37,10 @@ final class CloudCleanServiceTests: TuistUnitTestCase {
     func test_cloud_clean() async throws {
         // Given
         var cleanedProjectURL: URL?
-        var cleanedProjectSlug: String?
-        cleanRemoteCacheStorageService.cleanRemoteCacheStorageStub = {
+        var cleanedFullName: String?
+        cleanCacheService.cleanCacheStub = {
             cleanedProjectURL = $0
-            cleanedProjectSlug = $1
+            cleanedFullName = $1
         }
         let url = URL(string: "https://cloud.com")!
 
@@ -58,7 +58,7 @@ final class CloudCleanServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(cleanedProjectURL?.absoluteString, url.absoluteString)
-        XCTAssertEqual(cleanedProjectSlug, "project/slug")
+        XCTAssertEqual(cleanedFullName, "project/slug")
         XCTAssertPrinterOutputContains("Project was successfully cleaned.")
     }
 }

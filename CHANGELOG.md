@@ -1,6 +1,82 @@
 # Changelog
 
+## 3.25.0 - 2023-09-04
+
+### Changed
+
+- Hoist `tuistfixturegen` to the root and rename it to `tuistfixturegenerator` [#5378](https://github.com/tuist/tuist/pull/5378) by [@pepicrft](https://github.com/pepicrft)
+
+### Added
+
+- Add support for SPM `Build Tool Plug-ins` [#5299](https://github.com/tuist/tuist/pull/5299) by [@iteracticman](https://github.com/iteracticman)
+- Add additional scheme diagnostic options [#5382](https://github.com/tuist/tuist/pull/5382) by [@navartis](https://github.com/navartis)
+
+## 3.24.0 - 2023-08-29
+
+### Changed
+
+- Server URL as option for cloud logout and session commands [#5365](https://github.com/tuist/tuist/pull/5365) by [@fortmarek](https://github.com/fortmarek)
+- Print URL when inviting a user [#5367](https://github.com/tuist/tuist/pull/5367) by [@fortmarek](https://github.com/fortmarek)
+
+### Added
+
+- Add support for TUIST_CLOUD_URL to override the default Cloud URL [#5368](https://github.com/tuist/tuist/pull/5368) by [@fortmarek](https://github.com/fortmarek)
+
+### Fixed
+
+- Fix issue #5237 by adding `toValidSwiftIdentifier()` extension to `String` [#5358](https://github.com/tuist/tuist/pull/5358) by [@dankinsoid](https://github.com/dankinsoid)
+- Fix cloud auth race condition [#5366](https://github.com/tuist/tuist/pull/5366) by [@fortmarek](https://github.com/fortmarek)
+- Fix openssl to use system path [#5370](https://github.com/tuist/tuist/pull/5370) by [@roanutil](https://github.com/roanutil)
+
+## 3.23.1 - 2023-08-17
+
+### Fixed
+
+- Derive platform filters based on the specified destinations [#5357](https://github.com/tuist/tuist/pull/5357) by [@waltflanagan](https://github.com/waltflanagan)
+
+## 3.23.0 - 2023-08-16
+
+### Changed
+
+- Multi-Platform support - Phase 1: Introduce `TuistGraph.Destination` and migrate `TuistGraph.Target` to use it [#5132](https://github.com/tuist/tuist/pull/5132) by [@waltflanagan](https://github.com/waltflanagan)
+
+### Added
+
+- Add tuist cloud project create command [#5312](https://github.com/tuist/tuist/pull/5312) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud project list command [#5316](https://github.com/tuist/tuist/pull/5316) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization create command [#5326](https://github.com/tuist/tuist/pull/5326) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud organization list command [#5328](https://github.com/tuist/tuist/pull/5328) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud project delete command [#5321](https://github.com/tuist/tuist/pull/5321) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud organization delete command [#5330](https://github.com/tuist/tuist/pull/5330) by [@fortmarek](https://github.com/fortmarek)
+- Add tuist cloud organization show command [#5331](https://github.com/tuist/tuist/pull/5331) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization invite command [#5333](https://github.com/tuist/tuist/pull/5333) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization remove invite command [#5334](https://github.com/tuist/tuist/pull/5334) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization remove member command [#5335](https://github.com/tuist/tuist/pull/5335) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud organization update member command [#5336](https://github.com/tuist/tuist/pull/5336) by [@fortmarek](https://github.com/fortmarek)
+- Add cloud project token command [#5337](https://github.com/tuist/tuist/pull/5337) by [@fortmarek](https://github.com/fortmarek)
+- Support for stencil modifiers in scaffold filenames [#5315](https://github.com/tuist/tuist/pull/5315) by [@tejassharma96](https://github.com/tejassharma96)
+- Add `--skip-cache` argument to `tuist generate` [#5342](https://github.com/tuist/tuist/pull/5342) by [@woohyunjin06](https://github.com/woohyunjin06)
+- Allow mlpackage files to be included into source files [#5352](https://github.com/tuist/tuist/pull/5352) by [@kevin58332](https://github.com/kevin58332)
+
+### Fixed
+
+- Fix tuist cache warm --xcframeworks of SPM frameworks due to missing macCatalyst availability [#5302](https://github.com/tuist/tuist/pull/5302) by [@MontakOleg](https://github.com/MontakOleg)
+
 ## Unreleased
+
+### Breaking
+
+- Multi-platform / Multi-destination prep work will cause the following build settings to no longer be overridable in xcconfigs. This is to ensure the upcoming feature can be more predictable and reliable. The `.deploymentTarget()` API can be used to control those settings in the interim, please report any issues you may encounter related to this.   
+  - `SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD`   
+  - `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD`   
+  - `SUPPORTS_MACCATALYST`   
+  
+
+## 3.22.0 - 2023-07-31
+
+### Fixed
+
+- Fix GraphViz layout algorithm documentation name typo in https://github.com/tuist/tuist/pull/5309 by [@cristi-lupu](https://github.com/cristi-lupu)
 
 ## 3.21.1 - 2023-07-13
 

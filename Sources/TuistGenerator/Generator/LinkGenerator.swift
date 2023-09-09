@@ -180,7 +180,9 @@ final class LinkGenerator: LinkGenerating {
         for dependency in target.dependencies {
             switch dependency {
             case let .package(product: product):
-                try pbxTarget.addSwiftPackageProduct(productName: product, pbxproj: pbxproj)
+                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: false, pbxproj: pbxproj)
+            case let .packagePlugin(product: product):
+                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: true, pbxproj: pbxproj)
             default:
                 break
             }
@@ -221,15 +223,15 @@ final class LinkGenerator: LinkGenerating {
                 )
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
-            case let .product(target, _, platformFilter):
-                guard let fileRef = fileElements.product(target: target) else {
-                    throw LinkGeneratorError.missingProduct(name: target)
+            case let .product(dependencyTarget, _, platformFilters):
+                guard let fileRef = fileElements.product(target: dependencyTarget) else {
+                    throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
                 let buildFile = PBXBuildFile(
                     file: fileRef,
                     settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
                 )
-                buildFile.platformFilter = platformFilter?.xcodeprojValue
+                buildFile.applyPlatformFilters(platformFilters, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
             case .library, .bundle, .sdk:
@@ -407,12 +409,12 @@ final class LinkGenerator: LinkGenerating {
                     try addBuildFile(path)
                 case .bundle:
                     break
-                case let .product(target, _, platformFilter):
-                    guard let fileRef = fileElements.product(target: target) else {
-                        throw LinkGeneratorError.missingProduct(name: target)
+                case let .product(dependencyTarget, _, platformFilters):
+                    guard let fileRef = fileElements.product(target: dependencyTarget) else {
+                        throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                     }
                     let buildFile = PBXBuildFile(file: fileRef)
-                    buildFile.platformFilter = platformFilter?.xcodeprojValue
+                    buildFile.applyPlatformFilters(platformFilters, applicableTo: target)
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
                 case let .sdk(sdkPath, sdkStatus, _):
@@ -452,6 +454,7 @@ final class LinkGenerator: LinkGenerating {
         // "Copy Bundle Resources" phase.
         try generateDependenciesBuildPhase(
             dependencies: dependencies,
+            target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
             fileElements: fileElements
@@ -482,6 +485,7 @@ final class LinkGenerator: LinkGenerating {
 
     private func generateDependenciesBuildPhase(
         dependencies: [GraphDependencyReference],
+        target: Target,
         pbxTarget: PBXTarget,
         pbxproj: PBXProj,
         fileElements: ProjectFileElements
@@ -490,13 +494,13 @@ final class LinkGenerator: LinkGenerating {
 
         for dependency in dependencies.sorted() {
             switch dependency {
-            case let .product(target: target, _, platformFilter: platformFilter):
-                guard let fileRef = fileElements.product(target: target) else {
-                    throw LinkGeneratorError.missingProduct(name: target)
+            case let .product(target: dependencyTarget, _, platformFilters: platformFilters):
+                guard let fileRef = fileElements.product(target: dependencyTarget) else {
+                    throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
 
                 let buildFile = PBXBuildFile(file: fileRef)
-                buildFile.platformFilter = platformFilter?.xcodeprojValue
+                buildFile.applyPlatformFilters(platformFilters, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 files.append(buildFile)
             case let .framework(path: path, _, _, _, _, _, _, _),
@@ -595,20 +599,28 @@ extension XCBuildConfiguration {
 }
 
 extension PBXTarget {
-    func addSwiftPackageProduct(productName: String, pbxproj: PBXProj) throws {
-        let productDependency = XCSwiftPackageProductDependency(productName: productName)
+    func addSwiftPackageProduct(productName: String, isPlugin: Bool, pbxproj: PBXProj) throws {
+        let productDependency = XCSwiftPackageProductDependency(productName: productName, isPlugin: isPlugin)
         pbxproj.add(object: productDependency)
-        packageProductDependencies.append(productDependency)
 
-        // Build file
-        let buildFile = PBXBuildFile(product: productDependency)
-        pbxproj.add(object: buildFile)
+        if isPlugin {
+            let pluginDependency = PBXTargetDependency(product: productDependency)
+            pbxproj.add(object: pluginDependency)
 
-        // Link the product
-        guard let frameworksBuildPhase = try frameworksBuildPhase() else {
-            throw "No frameworks build phase"
+            dependencies.append(pluginDependency)
+        } else {
+            // Build file
+            let buildFile = PBXBuildFile(product: productDependency)
+            pbxproj.add(object: buildFile)
+
+            packageProductDependencies.append(productDependency)
+
+            // Link the product
+            guard let frameworksBuildPhase = try frameworksBuildPhase() else {
+                throw "No frameworks build phase"
+            }
+
+            frameworksBuildPhase.files?.append(buildFile)
         }
-
-        frameworksBuildPhase.files?.append(buildFile)
     }
 }

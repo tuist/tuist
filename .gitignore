@@ -95,6 +95,7 @@ generated_fixtures
 **/Derived/
 Tuist.xcworkspace
 node_modules
+Fixture
 
 Tuist/Dependencies/SwiftPackageManager
 Tuist/Dependencies/graph.json
@@ -105,6 +106,3 @@ Tuist/Dependencies/graph.json
 # Release artifacts
 vendor/
 .bundle
-
-# Apollo
-apollo-ios-cli

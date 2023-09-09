@@ -275,11 +275,6 @@ extension CacheOutputType {
 
 extension Target {
     fileprivate var supportsCatalyst: Bool {
-        switch self.deploymentTarget {
-        case let .iOS(_, devices, _) where devices.contains(.mac):
-            return true
-        default:
-            return false
-        }
+        destinations.contains(.macCatalyst)
     }
 }

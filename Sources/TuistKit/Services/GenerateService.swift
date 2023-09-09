@@ -42,7 +42,8 @@ final class GenerateService {
         xcframeworks: Bool,
         destination: CacheXCFrameworkDestination,
         profile: String?,
-        ignoreCache: Bool
+        ignoreCache: Bool,
+        targetsToSkipCache: Set<String>
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)
@@ -54,7 +55,8 @@ final class GenerateService {
             sources: sources,
             cacheOutputType: cacheOutputType,
             cacheProfile: cacheProfile,
-            ignoreCache: ignoreCache
+            ignoreCache: ignoreCache,
+            targetsToSkipCache: targetsToSkipCache
         )
         let workspacePath = try await generator.generate(path: path)
         if !noOpen {

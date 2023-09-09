@@ -7,11 +7,19 @@ struct CloudLogoutCommand: ParsableCommand {
         CommandConfiguration(
             commandName: "logout",
             _superCommandName: "cloud",
-            abstract: "Removes any existing session to authenticate on the server with the URL defined in the Config.swift file"
+            abstract: "Removes an existing Cloud session."
         )
     }
 
+    @Option(
+        name: .long,
+        help: "URL to the cloud server."
+    )
+    var serverURL: String?
+
     func run() throws {
-        try CloudLogoutService().logout()
+        try CloudLogoutService().logout(
+            serverURL: serverURL
+        )
     }
 }

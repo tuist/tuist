@@ -7,21 +7,18 @@ import TuistSupport
 protocol CloudInitServicing {
     func createProject(
         name: String,
-        owner: String?,
-        url: String,
+        organization: String?,
+        serverURL: String?,
         path: String?
     ) async throws
 }
 
 enum CloudInitServiceError: FatalError, Equatable {
-    case invalidCloudURL(String)
     case cloudAlreadySetUp
 
     /// Error description.
     var description: String {
         switch self {
-        case let .invalidCloudURL(url):
-            return "The cloud URL \(url) is invalid."
         case .cloudAlreadySetUp:
             return "The project is already set up with Tuist Cloud."
         }
@@ -30,7 +27,7 @@ enum CloudInitServiceError: FatalError, Equatable {
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .invalidCloudURL, .cloudAlreadySetUp:
+        case .cloudAlreadySetUp:
             return .abort
         }
     }
@@ -40,27 +37,27 @@ final class CloudInitService: CloudInitServicing {
     private let cloudSessionController: CloudSessionControlling
     private let createProjectService: CreateProjectServicing
     private let configLoader: ConfigLoading
+    private let cloudURLService: CloudURLServicing
 
     init(
         cloudSessionController: CloudSessionControlling = CloudSessionController(),
         createProjectService: CreateProjectServicing = CreateProjectService(),
-        configLoader: ConfigLoading = ConfigLoader()
+        configLoader: ConfigLoading = ConfigLoader(),
+        cloudURLService: CloudURLServicing = CloudURLService()
     ) {
         self.cloudSessionController = cloudSessionController
         self.createProjectService = createProjectService
         self.configLoader = configLoader
+        self.cloudURLService = cloudURLService
     }
 
     func createProject(
         name: String,
-        owner: String?,
-        url: String,
+        organization: String?,
+        serverURL: String?,
         path: String?
     ) async throws {
-        guard let serverURL = URL(string: url)
-        else {
-            throw CloudInitServiceError.invalidCloudURL(url)
-        }
+        let cloudURL = try cloudURLService.url(serverURL: serverURL)
 
         let path = try self.path(path)
         let config = try configLoader.loadConfig(path: path)
@@ -69,10 +66,10 @@ final class CloudInitService: CloudInitServicing {
             throw CloudInitServiceError.cloudAlreadySetUp
         }
 
-        let slug = try await createProjectService.createProject(
+        let project = try await createProjectService.createProject(
             name: name,
-            organizationName: owner,
-            serverURL: serverURL
+            organization: organization,
+            serverURL: cloudURL
         )
 
         if configLoader.locateConfig(at: path) == nil {
@@ -85,7 +82,7 @@ final class CloudInitService: CloudInitServicing {
                 import ProjectDescription
 
                 let config = Config(
-                    cloud: .cloud(projectId: "\(slug)", url: "\(url)")
+                    cloud: .cloud(projectId: "\(project.fullName)", url: "\(cloudURL)")
                 )
 
                 """,
@@ -101,7 +98,7 @@ final class CloudInitService: CloudInitServicing {
             logger.info(
                 """
                 Put the following line into your Tuist/Config.swift (see the docs for more: https://docs.tuist.io/manifests/config/):
-                cloud: .cloud(projectId: "\(slug)", url: "\(url)")
+                cloud: .cloud(projectId: "\(project.fullName)", url: "\(cloudURL)")
                 """
             )
         }

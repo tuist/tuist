@@ -121,7 +121,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
         XCTAssertEqual(
             got,
             [LintingIssue(
-                reason: "Found an inconsistency between a platform `iOS` and deployment target `macOS`",
+                reason: "Found deployment platforms (macOS) missing corresponding destination",
                 severity: .error
             )]
         )

@@ -105,7 +105,7 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
             } else {
                 return try contentHasher.hash("library-\(libraryHash)-\(publicHeadersHash)")
             }
-        case let .package(product):
+        case let .package(product), let .packagePlugin(product):
             return try contentHasher.hash("package-\(product)")
         case let .sdk(name, status):
             return try contentHasher.hash("sdk-\(name)-\(status)")

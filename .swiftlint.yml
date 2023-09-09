@@ -25,3 +25,4 @@ type_name:
 excluded:
   - Sources/TuistCloud/graphql
   - Sources/TuistCloudSchema
+  - Sources/TuistCloud/OpenAPI

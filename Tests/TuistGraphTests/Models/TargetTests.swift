@@ -51,6 +51,7 @@ final class TargetTests: TuistUnitTestCase {
                 "docc",
                 "playground",
                 "rcproject",
+                "mlpackage",
             ]
         )
     }
@@ -297,25 +298,47 @@ final class TargetTests: TuistUnitTestCase {
         ])
     }
 
-    func test_targetDependencyBuildFilesPlatformFilter_when_iOS_targets_mac() {
+    func test_dependencyPlatformFilters_when_iOS_targets_mac() {
         // Given
-        let target = Target.test(deploymentTarget: .iOS("14.0", [.mac], supportsMacDesignedForIOS: false))
+        let target = Target.test(destinations: [.macCatalyst])
 
         // When
-        let got = target.targetDependencyBuildFilesPlatformFilter
+        let got = target.dependencyPlatformFilters
 
         // Then
-        XCTAssertEqual(got, .catalyst)
+        XCTAssertEqual(got, [PlatformFilter.catalyst])
     }
 
-    func test_targetDependencyBuildFilesPlatformFilter_when_iOS_and_doesnt_target_mac() {
+    func test_dependencyPlatformFilters_when_iOS_and_doesnt_target_mac() {
         // Given
-        let target = Target.test(deploymentTarget: .iOS("14.0", [.iphone], supportsMacDesignedForIOS: false))
+        let target = Target.test(destinations: .iOS)
 
         // When
-        let got = target.targetDependencyBuildFilesPlatformFilter
+        let got = target.dependencyPlatformFilters
 
         // Then
-        XCTAssertEqual(got, .ios)
+        XCTAssertEqual(got, [PlatformFilter.ios])
+    }
+
+    func test_dependencyPlatformFilters_when_iOS_and_catalyst() {
+        // Given
+        let target = Target.test(destinations: [.iPhone, .iPad, .macCatalyst])
+
+        // When
+        let got = target.dependencyPlatformFilters
+
+        // Then
+        XCTAssertEqual(got, [PlatformFilter.ios, PlatformFilter.catalyst])
+    }
+
+    func test_dependencyPlatformFilters_when_using_many_destinations() {
+        // Given
+        let target = Target.test(destinations: [.iPhone, .iPad, .macCatalyst, .mac, .appleVision])
+
+        // When
+        let got = target.dependencyPlatformFilters
+
+        // Then
+        XCTAssertEqual(got, [PlatformFilter.ios, PlatformFilter.catalyst, PlatformFilter.macos, PlatformFilter.visionos])
     }
 }

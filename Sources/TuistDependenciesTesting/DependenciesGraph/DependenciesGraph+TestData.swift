@@ -823,7 +823,7 @@ extension DependenciesGraph {
     fileprivate static func resolveDeploymentTarget(for platform: Platform) -> DeploymentTarget {
         switch platform {
         case .iOS:
-            return .iOS(targetVersion: PLATFORM_TEST_VERSION[.iOS]!, devices: [.iphone, .ipad])
+            return .iOS(targetVersion: PLATFORM_TEST_VERSION[.iOS]!, devices: [.iphone, .ipad, .mac])
         case .watchOS:
             return .watchOS(targetVersion: PLATFORM_TEST_VERSION[.watchOS]!)
         case .macOS:
