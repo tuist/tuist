@@ -4,11 +4,13 @@
         In this tutorial you are going to learn how to self-host Tuist Cloud in your infrastructure.
     }
     
-    @Chapter(name: "Cloud requirements") {
+    @Chapter(name: "Self-hosting") {
             @Image(source: "Tuist Cloud Enterprise Server.png", alt: "An illustration that shows the icon of a server")
 
-            Ensure that your infrastructure is ready to host Tuist Cloud.
+            Discover how to set up your infrastructure for deploying and continuously updating Tuist Cloud.
                         
             @TutorialReference(tutorial: "doc:Tuist-Cloud---Enterprise-Infrastructure-Requirements")
+            @TutorialReference(tutorial: "doc:Tuist-Cloud---Enterprise-Environment")
+            @TutorialReference(tutorial: "doc:Tuist-Cloud---Enterprise-Deployment")
     }
 }

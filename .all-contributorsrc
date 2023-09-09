@@ -1138,6 +1138,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "tatagrigory",
+      "name": "tatagrigory",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5187973?v=4",
+      "profile": "https://github.com/tatagrigory",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
