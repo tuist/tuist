@@ -223,7 +223,7 @@ GEM
     parser (3.2.2.3)
       ast (~> 2.4.1)
       racc
-    pg (1.5.3)
+    pg (1.5.4)
     public_suffix (5.0.1)
     puma (6.3.1)
       nio4r (~> 2.0)
