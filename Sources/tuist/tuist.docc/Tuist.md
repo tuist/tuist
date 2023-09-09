@@ -16,7 +16,11 @@ Some organizations choose to bypass the compiler by abstracting the platform usi
 
 ## Topics
 
-### Tuist Cloud
+### Articles
 
 - <doc:Tuist-Cloud---Intro>
-- <doc:Tuist-Cloud---Enterprise>
+
+### Tutorials
+
+- <doc:Tuist-Tutorials>
+
