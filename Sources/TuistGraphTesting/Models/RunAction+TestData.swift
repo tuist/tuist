@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistSupport
 @testable import TuistGraph
 
 extension RunAction {
