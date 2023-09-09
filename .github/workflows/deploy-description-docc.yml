@@ -1,6 +1,6 @@
 # Build and deploy DocC to GitHub pages. Based off of Pointfree's work here:
 # https://github.com/pointfreeco/swift-parsing/blob/main/.github/workflows/documentation.yml
-name: Docc
+name: Deploy Desscription Docc
 
 on:
   release:
@@ -11,7 +11,7 @@ on:
       - main
 
 concurrency:
-  group: docc-${{ github.head_ref }}
+  group: description-docc-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:

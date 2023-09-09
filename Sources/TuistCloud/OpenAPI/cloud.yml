@@ -412,6 +412,8 @@ components:
           type: string
         organization_id:
           type: number
+        token:
+          type: string
         inviter:
           type: object
           $ref: "#/components/schemas/User"
@@ -420,6 +422,7 @@ components:
         - invitee_email
         - organization_id
         - inviter
+        - token
     OrganizationMember:
       type: object
       properties:

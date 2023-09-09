@@ -411,6 +411,11 @@ Thanks goes to these wonderful people:
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/woohyunjin06"><img src="https://avatars.githubusercontent.com/u/30452977?v=4" width="100px;" alt=""/><br /><sub><b>Hyunjin</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/kevin58332"><img src="https://avatars.githubusercontent.com/u/47673410?v=4" width="100px;" alt=""/><br /><sub><b>Kevin Aguilar</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://andrewroan.com"><img src="https://avatars.githubusercontent.com/u/9873566?v=4" width="100px;" alt=""/><br /><sub><b>Andrew Roan</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/ibrahim-oktay-518b4939/"><img src="https://avatars.githubusercontent.com/u/36792481?v=4" width="100px;" alt=""/><br /><sub><b>ibrahim oktay</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/navartis"><img src="https://avatars.githubusercontent.com/u/7813723?v=4" width="100px;" alt=""/><br /><sub><b>Dmitriy Kulakov</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/woin2ee"><img src="https://avatars.githubusercontent.com/u/81426024?v=4" width="100px;" alt=""/><br /><sub><b>Jaewon-Yun</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/tatagrigory"><img src="https://avatars.githubusercontent.com/u/5187973?v=4" width="100px;" alt=""/><br /><sub><b>tatagrigory</b></sub></a></td>
     </tr>
   </tbody>
 </table>

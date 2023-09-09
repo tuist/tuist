@@ -4,7 +4,7 @@ import TSCUtility
 
 func main() throws {
     let parser = ArgumentParser(
-        commandName: "tuistbench",
+        commandName: "tuistbenchmark",
         usage: "<options>",
         overview: "A utility to benchmark running tuist against a set of fixtures."
     )

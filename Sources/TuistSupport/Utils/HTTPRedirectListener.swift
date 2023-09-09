@@ -61,12 +61,14 @@ public final class HTTPRedirectListener: HTTPRedirectListening {
         runningSemaphore = DispatchSemaphore(value: 0)
         httpServer[path] = { request in
             result = .success(request.queryParams.reduce(into: [String: String]()) { $0[$1.0] = $1.1 })
-            DispatchQueue.global().async { runningSemaphore.signal() }
+            DispatchQueue.global().async { runningSemaphore?.signal() }
             return HttpResponse.ok(.html(self.html(logoURL: logoURL, redirectMessage: redirectMessage)))
         }
 
         // Stop the server if the user sends an interruption signal by pressing CTRL+C
-        signalHandler.trap { _ in runningSemaphore.signal() }
+        signalHandler.trap { _ in
+            runningSemaphore.signal()
+        }
 
         do {
             logger.pretty("Press \(.keystroke("CTRL + C")) once to cancel the process.")

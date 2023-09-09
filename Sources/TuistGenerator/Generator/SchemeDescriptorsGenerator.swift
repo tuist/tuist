@@ -368,6 +368,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let onlyGenerateCoverageForSpecifiedTargets = codeCoverageTargets.count > 0 ? true : nil
 
+        let enableAddressSanitizer = testAction.diagnosticsOptions.contains(.enableAddressSanitizer)
+        var enableASanStackUseAfterReturn = false
+        if enableAddressSanitizer {
+            enableASanStackUseAfterReturn = testAction.diagnosticsOptions.contains(.enableASanStackUseAfterReturn)
+        }
+        let enableThreadSanitizer = testAction.diagnosticsOptions.contains(.enableThreadSanitizer)
         let disableMainThreadChecker = !testAction.diagnosticsOptions.contains(.mainThreadChecker)
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
         let language = testAction.language
@@ -386,6 +392,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             codeCoverageEnabled: testAction.coverage,
             codeCoverageTargets: codeCoverageTargets,
             onlyGenerateCoverageForSpecifiedTargets: onlyGenerateCoverageForSpecifiedTargets,
+            enableAddressSanitizer: enableAddressSanitizer,
+            enableASanStackUseAfterReturn: enableASanStackUseAfterReturn,
+            enableThreadSanitizer: enableThreadSanitizer,
             disableMainThreadChecker: disableMainThreadChecker,
             commandlineArguments: args,
             environmentVariables: environments,
@@ -451,6 +460,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
 
         let buildConfiguration = scheme.runAction?.configurationName ?? defaultBuildConfiguration
+        let enableAddressSanitizer = scheme.runAction?.diagnosticsOptions.contains(.enableAddressSanitizer) ?? false
+        var enableASanStackUseAfterReturn = false
+        if enableAddressSanitizer == true {
+            enableASanStackUseAfterReturn = scheme.runAction?.diagnosticsOptions.contains(.enableASanStackUseAfterReturn) ?? false
+        }
+        let enableThreadSanitizer = scheme.runAction?.diagnosticsOptions.contains(.enableThreadSanitizer) ?? false
         let disableMainThreadChecker = scheme.runAction?.diagnosticsOptions.contains(.mainThreadChecker) == false
         let disablePerformanceAntipatternChecker = scheme.runAction?.diagnosticsOptions
             .contains(.performanceAntipatternChecker) == false
@@ -553,6 +568,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             pathRunnable: pathRunnable,
             locationScenarioReference: locationScenarioReference,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode,
+            enableAddressSanitizer: enableAddressSanitizer,
+            enableASanStackUseAfterReturn: enableASanStackUseAfterReturn,
+            enableThreadSanitizer: enableThreadSanitizer,
             disableMainThreadChecker: disableMainThreadChecker,
             disablePerformanceAntipatternChecker: disablePerformanceAntipatternChecker,
             commandlineArguments: commandlineArguments,
