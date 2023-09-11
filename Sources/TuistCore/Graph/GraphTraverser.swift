@@ -182,7 +182,10 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func buildsForMacCatalyst(path: AbsolutePath, name: String) -> Bool {
-        let dependenciesSupportMacCatalyst = allDependenciesSatisfy(from: .target(name: name, path: path)) { dependency in
+        guard (target(path: path, name: name)?.target.supportsCatalyst) != nil else {
+            return false
+        }
+        return allDependenciesSatisfy(from: .target(name: name, path: path)) { dependency in
             if let target = self.target(from: dependency) {
                 return target.target.supportsCatalyst
             } else {
@@ -191,7 +194,6 @@ public class GraphTraverser: GraphTraversing {
                 return false
             }
         }
-        return dependenciesSupportMacCatalyst && (target(path: path, name: name)?.target.supportsCatalyst ?? false)
     }
 
     public func directStaticDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
@@ -582,11 +584,12 @@ public class GraphTraverser: GraphTraversing {
         var allSatisfy = true
         _ = filterDependencies(from: rootDependency, test: { dependency in
             if !meets(dependency) {
-               allSatisfy = false
+                allSatisfy = false
             }
             return true
         })
         return allSatisfy
+    }
 
     func transitiveStaticDependencies(from dependency: GraphDependency) -> Set<GraphDependency> {
         filterDependencies(
