@@ -579,17 +579,14 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func allDependenciesSatisfy(from rootDependency: GraphDependency, meets: (GraphDependency) -> Bool) -> Bool {
-        var traversedDependencies: UInt = 0
-        var traversedDependenciesThatMeetCriteria: UInt = 0
+        var allSatisfy = true
         _ = filterDependencies(from: rootDependency, test: { dependency in
-            traversedDependencies += 1
-            if meets(dependency) {
-                traversedDependenciesThatMeetCriteria += 1
+            if !meets(dependency) {
+               allSatisfy = false
             }
             return true
         })
-        return traversedDependencies == traversedDependenciesThatMeetCriteria
-    }
+        return allSatisfy
 
     func transitiveStaticDependencies(from dependency: GraphDependency) -> Set<GraphDependency> {
         filterDependencies(
