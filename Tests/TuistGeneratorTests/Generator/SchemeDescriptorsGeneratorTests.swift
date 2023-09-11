@@ -568,7 +568,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let project = Project.test()
         let planPath = try AbsolutePath(validating: "folder/Plan.xctestplan", relativeTo: project.path)
-        let planList = [TestPlan(path: planPath, isDefault: true)]
+        let planList = [TestPlan(path: planPath, testTargets: [], isDefault: true)]
         let scheme = Scheme.test(testAction: TestAction.test(testPlans: planList))
         let generatedProject = GeneratedProject.test()
         let graph = Graph.test(
@@ -596,7 +596,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let project = Project.test()
         let planPath = try AbsolutePath(validating: "folder/Plan.xctestplan", relativeTo: project.path)
-        let planList = [TestPlan(path: planPath, isDefault: true)]
+        let planList = [TestPlan(path: planPath, testTargets: [], isDefault: true)]
         let scheme = Scheme.test(testAction: TestAction.test(attachDebugger: false, testPlans: planList))
         let generatedProject = GeneratedProject.test()
         let graph = Graph.test(

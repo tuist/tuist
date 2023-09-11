@@ -9,6 +9,9 @@ import TuistSupport
 public final class TestsCacheGraphMapper: GraphMapping {
     let hashesCacheDirectory: AbsolutePath
     let config: Config
+    let testPlan: String?
+    let includedTargets: Set<String>
+    let excludedTargets: Set<String>
     private let graphContentHasher: GraphContentHashing
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
 
@@ -18,11 +21,17 @@ public final class TestsCacheGraphMapper: GraphMapping {
     /// This is useful when you want to save the hashes of tests only after the tests have run successfully.
     public convenience init(
         hashesCacheDirectory: AbsolutePath,
-        config: Config
+        config: Config,
+        testPlan: String?,
+        includedTargets: Set<String>,
+        excludedTargets: Set<String>
     ) {
         self.init(
             hashesCacheDirectory: hashesCacheDirectory,
             config: config,
+            testPlan: testPlan,
+            includedTargets: includedTargets,
+            excludedTargets: excludedTargets,
             graphContentHasher: GraphContentHasher(contentHasher: ContentHasher()),
             cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory()
         )
@@ -31,11 +40,17 @@ public final class TestsCacheGraphMapper: GraphMapping {
     init(
         hashesCacheDirectory: AbsolutePath,
         config: Config,
+        testPlan: String?,
+        includedTargets: Set<String>,
+        excludedTargets: Set<String>,
         graphContentHasher: GraphContentHashing,
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     ) {
         self.hashesCacheDirectory = hashesCacheDirectory
         self.config = config
+        self.testPlan = testPlan
+        self.includedTargets = includedTargets
+        self.excludedTargets = excludedTargets
         self.graphContentHasher = graphContentHasher
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
     }
@@ -58,7 +73,13 @@ public final class TestsCacheGraphMapper: GraphMapping {
                 )
             }
         let schemes = mappedSchemes.map(\.0)
-        let cachedTestableTargets = mappedSchemes.flatMap(\.1)
+        let cachedTestableTargets = graphTraverser.filterIncludedTargets(
+            basedOn: mappedSchemes.flatMap(\.1),
+            testPlan: testPlan,
+            includedTargets: includedTargets,
+            excludedTargets: excludedTargets
+        )
+
         Set(cachedTestableTargets).forEach {
             logger.notice("\($0.target.name) has not changed from last successful run, skipping...")
         }
@@ -145,11 +166,11 @@ public final class TestsCacheGraphMapper: GraphMapping {
     ) throws -> (Scheme, [GraphTarget]) {
         var scheme = scheme
         guard let testAction = scheme.testAction else { return (scheme, []) }
-        let cachedTestableTargets = testableTargets(
+
+        let possibleCachedTestableTargets = testableTargets(
             scheme: scheme,
             graphTraverser: graphTraverser
-        )
-        .filter { testableTarget in
+        ).filter { testableTarget in
             isCached(
                 testableTarget,
                 graphTraverser: graphTraverser,
@@ -158,6 +179,13 @@ public final class TestsCacheGraphMapper: GraphMapping {
                 testsCacheDirectory: testsCacheDirectory
             )
         }
+        let cachedTestableTargets = graphTraverser.filterIncludedTargets(
+            basedOn: possibleCachedTestableTargets,
+            testPlan: testPlan,
+            includedTargets: includedTargets,
+            excludedTargets: excludedTargets,
+            excludingExternalTargets: false
+        )
 
         scheme.testAction?.targets = testAction.targets.filter { testTarget in
             !cachedTestableTargets.contains(where: { $0.target.name == testTarget.target.name })
@@ -169,7 +197,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
             }
         }
 
-        return (scheme, cachedTestableTargets)
+        return (scheme, Array(cachedTestableTargets))
     }
 
     private func isCached(

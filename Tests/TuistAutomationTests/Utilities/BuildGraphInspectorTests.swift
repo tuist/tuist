@@ -22,6 +22,57 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
+    func test_allTestPlans() throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project.xcodeproj")
+        let target1 = Target.test(name: "Test1")
+        let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
+        let target2 = Target.test(name: "Test2")
+        let targetReference2 = TargetReference(projectPath: projectPath, name: target2.name)
+
+        let testPlan1 = TestPlan(
+            path: path.appending(component: "Test1.testplan"),
+            testTargets: [
+                TestableTarget(target: targetReference1, skipped: true),
+            ],
+            isDefault: true
+        )
+        let testPlan2 = TestPlan(
+            path: path.appending(component: "Test2.testplan"),
+            testTargets: [
+                TestableTarget(target: targetReference2, skipped: false),
+            ],
+            isDefault: false
+        )
+        let scheme1 = Scheme.test(
+            testAction: .test(
+                testPlans: [testPlan1]
+            )
+        )
+        let scheme2 = Scheme.test(
+            testAction: .test(
+                testPlans: [testPlan2]
+            )
+        )
+
+        let project = Project.test(path: projectPath, schemes: [scheme1, scheme2])
+        let graph = Graph.test(
+            projects: [projectPath: project],
+            targets: [projectPath: [
+                target1.name: target1,
+                target2.name: target2,
+            ]]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let testPlans = graphTraverser.allTestPlans()
+
+        // Then
+        XCTAssertEqual(testPlans, Set([testPlan1, testPlan2]))
+    }
+
     func test_buildArguments_when_skipSigning() throws {
         // Given
         let target = Target.test(platform: .iOS)
@@ -98,6 +149,245 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got?.project, project)
         XCTAssertEqual(got?.target, target)
+    }
+
+    func test_testableTarget_whenNoTestActions_returnsNil() throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project.xcodeproj")
+
+        let scheme = Scheme.test()
+        let project = Project.test(path: projectPath)
+        let graph = Graph.test(projects: [projectPath: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.testableTarget(
+            scheme: scheme,
+            testPlan: nil,
+            testTargets: [],
+            skipTestTargets: [],
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertNil(got)
+    }
+
+    func test_testableTarget_whenNoTestPlan_returnsFirstTarget() throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project.xcodeproj")
+        let target = Target.test(name: "Test")
+        let targetReference = TargetReference(projectPath: projectPath, name: target.name)
+
+        let scheme = Scheme.test(
+            testAction: .test(
+                targets: [TestableTarget(target: targetReference)]
+            )
+        )
+        let project = Project.test(path: projectPath)
+        let graph = Graph.test(
+            projects: [projectPath: project],
+            targets: [projectPath: [target.name: target]]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.testableTarget(
+            scheme: scheme,
+            testPlan: nil,
+            testTargets: [],
+            skipTestTargets: [],
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertEqual(got?.project, project)
+        XCTAssertEqual(got?.target, target)
+    }
+
+    func test_testableTarget_withTestPlan_noFilters_returnsFirstEnabledTarget() throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project.xcodeproj")
+        let target1 = Target.test(name: "Test1")
+        let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
+        let target2 = Target.test(name: "Test2")
+        let targetReference2 = TargetReference(projectPath: projectPath, name: target2.name)
+
+        let testPlan = TestPlan(
+            path: path.appending(component: "Test.testplan"),
+            testTargets: [
+                TestableTarget(target: targetReference1, skipped: true),
+                TestableTarget(target: targetReference2, skipped: false),
+            ],
+            isDefault: true
+        )
+        let scheme = Scheme.test(
+            testAction: .test(
+                testPlans: [testPlan]
+            )
+        )
+        let project = Project.test(path: projectPath)
+        let graph = Graph.test(
+            projects: [projectPath: project],
+            targets: [projectPath: [
+                target1.name: target1,
+                target2.name: target2,
+            ]]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.testableTarget(
+            scheme: scheme,
+            testPlan: testPlan.name,
+            testTargets: [],
+            skipTestTargets: [],
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertEqual(got?.project, project)
+        XCTAssertEqual(got?.target, target2)
+    }
+
+    func test_testableTarget_withTestPlan_filtersIncluded_returnsMachingTarget() throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project.xcodeproj")
+        let target1 = Target.test(name: "Test1")
+        let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
+        let target2 = Target.test(name: "Test2")
+        let targetReference2 = TargetReference(projectPath: projectPath, name: target2.name)
+
+        let testPlan = TestPlan(
+            path: path.appending(component: "Test.testplan"),
+            testTargets: [
+                TestableTarget(target: targetReference1, skipped: false),
+                TestableTarget(target: targetReference2, skipped: false),
+            ],
+            isDefault: true
+        )
+        let scheme = Scheme.test(
+            testAction: .test(
+                testPlans: [testPlan]
+            )
+        )
+        let project = Project.test(path: projectPath)
+        let graph = Graph.test(
+            projects: [projectPath: project],
+            targets: [projectPath: [
+                target1.name: target1,
+                target2.name: target2,
+            ]]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.testableTarget(
+            scheme: scheme,
+            testPlan: testPlan.name,
+            testTargets: [TestIdentifier(target: targetReference2.name)],
+            skipTestTargets: [],
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertEqual(got?.project, project)
+        XCTAssertEqual(got?.target, target2)
+    }
+
+    func test_testableTarget_withTestPlan_filtersExcluded_returnsMachingTarget() throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project.xcodeproj")
+        let target1 = Target.test(name: "Test1")
+        let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
+        let target2 = Target.test(name: "Test2")
+        let targetReference2 = TargetReference(projectPath: projectPath, name: target2.name)
+
+        let testPlan = TestPlan(
+            path: path.appending(component: "Test.testplan"),
+            testTargets: [
+                TestableTarget(target: targetReference1, skipped: false),
+                TestableTarget(target: targetReference2, skipped: false),
+            ],
+            isDefault: true
+        )
+        let scheme = Scheme.test(
+            testAction: .test(
+                testPlans: [testPlan]
+            )
+        )
+        let project = Project.test(path: projectPath)
+        let graph = Graph.test(
+            projects: [projectPath: project],
+            targets: [projectPath: [
+                target1.name: target1,
+                target2.name: target2,
+            ]]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.testableTarget(
+            scheme: scheme,
+            testPlan: testPlan.name,
+            testTargets: [],
+            skipTestTargets: [TestIdentifier(target: targetReference1.name)],
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertEqual(got?.project, project)
+        XCTAssertEqual(got?.target, target2)
+    }
+
+    func test_testableTarget_withTestPlan_filtersIncludedDisabledTarget_returnsNil() throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project.xcodeproj")
+        let target1 = Target.test(name: "Test1")
+        let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
+        let target2 = Target.test(name: "Test2")
+        let targetReference2 = TargetReference(projectPath: projectPath, name: target2.name)
+
+        let testPlan = TestPlan(
+            path: path.appending(component: "Test.testplan"),
+            testTargets: [
+                TestableTarget(target: targetReference1, skipped: true),
+                TestableTarget(target: targetReference2, skipped: false),
+            ],
+            isDefault: true
+        )
+        let scheme = Scheme.test(
+            testAction: .test(
+                testPlans: [testPlan]
+            )
+        )
+        let project = Project.test(path: projectPath)
+        let graph = Graph.test(
+            projects: [projectPath: project],
+            targets: [projectPath: [
+                target1.name: target1,
+                target2.name: target2,
+            ]]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.testableTarget(
+            scheme: scheme,
+            testPlan: testPlan.name,
+            testTargets: [TestIdentifier(target: targetReference1.name)],
+            skipTestTargets: [],
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertNil(got)
     }
 
     func test_buildableSchemes() throws {
@@ -259,9 +549,29 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             )
         )
         let coreTarget = Target.test(name: "Core")
+        let coreTestPlan = TestPlan(
+            path: projectPath,
+            testTargets: [TestableTarget(
+                target: TargetReference(projectPath: projectPath, name: coreTarget.name),
+                skipped: false
+            )],
+            isDefault: true
+        )
+        let coreTestPlanScheme = Scheme.test(
+            name: "TestPlan",
+            testAction: .test(
+                testPlans: [coreTestPlan]
+            )
+        )
+        let coreTestPlanTestsScheme = Scheme(
+            name: "TestPlanTests",
+            testAction: .test(
+                testPlans: [coreTestPlan]
+            )
+        )
         let coreProject = Project.test(
             path: coreProjectPath,
-            schemes: [coreScheme, coreTestsScheme]
+            schemes: [coreScheme, coreTestsScheme, coreTestPlanScheme, coreTestPlanTestsScheme]
         )
         let coreGraphTarget = GraphTarget.test(
             target: coreTarget,
@@ -288,6 +598,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
             [
                 coreScheme,
                 coreTestsScheme,
+                coreTestPlanScheme,
+                coreTestPlanTestsScheme,
             ]
         )
     }

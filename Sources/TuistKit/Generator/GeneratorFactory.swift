@@ -37,6 +37,9 @@ protocol GeneratorFactorying {
         config: Config,
         automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
+        testPlan: String?,
+        includedTargets: Set<String>,
+        excludedTargets: Set<String>,
         skipUITests: Bool
     ) -> Generating
 
@@ -105,6 +108,9 @@ class GeneratorFactory: GeneratorFactorying {
         config: Config,
         automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
+        testPlan: String?,
+        includedTargets: Set<String>,
+        excludedTargets: Set<String>,
         skipUITests: Bool
     ) -> Generating {
         let contentHasher = ContentHasher()
@@ -113,7 +119,13 @@ class GeneratorFactory: GeneratorFactorying {
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
         let graphMapperFactory = GraphMapperFactory(contentHasher: contentHasher)
 
-        let graphMappers = graphMapperFactory.automation(config: config, testsCacheDirectory: testsCacheDirectory)
+        let graphMappers = graphMapperFactory.automation(
+            config: config,
+            testsCacheDirectory: testsCacheDirectory,
+            testPlan: testPlan,
+            includedTargets: includedTargets,
+            excludedTargets: excludedTargets
+        )
         let workspaceMappers = workspaceMapperFactory.automation(
             workspaceDirectory: try! FileHandler.shared.resolveSymlinks(automationPath) // swiftlint:disable:this force_try
         )
