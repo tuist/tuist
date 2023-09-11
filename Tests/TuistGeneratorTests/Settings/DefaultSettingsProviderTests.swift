@@ -123,6 +123,24 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "SWIFT_VERSION": "5.0",
     ]
 
+    private let multiplatformFrameworkTargetEssentialDebugSettings: [String: SettingValue] = [
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG",
+        "SKIP_INSTALL": "YES",
+        "VERSIONING_SYSTEM": "apple-generic",
+        "DYLIB_CURRENT_VERSION": "1",
+        "DYLIB_INSTALL_NAME_BASE": "@rpath",
+        "PRODUCT_NAME": "$(TARGET_NAME:c99extidentifier)",
+        "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
+        "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"],
+        "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": ["$(inherited)", "@executable_path/../Frameworks", "@loader_path/../Frameworks"],
+        "DEFINES_MODULE": "YES",
+        "VERSION_INFO_PREFIX": "",
+        "CURRENT_PROJECT_VERSION": "1",
+        "INSTALL_PATH": "$(LOCAL_LIBRARY_DIR)/Frameworks",
+        "DYLIB_COMPATIBILITY_VERSION": "1",
+        "SWIFT_VERSION": "5.0",
+    ]
+
     override func setUp() {
         super.setUp()
         subject = DefaultSettingsProvider(
@@ -211,7 +229,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -234,7 +251,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -257,7 +273,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -364,7 +379,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -382,7 +396,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: .debug
         )
 
@@ -406,7 +419,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -430,7 +442,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -453,7 +464,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -482,7 +492,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -505,7 +514,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -528,7 +536,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -552,7 +559,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -576,7 +582,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -600,7 +605,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -624,7 +628,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -647,7 +650,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -670,7 +672,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -693,7 +694,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -716,7 +716,6 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
@@ -739,12 +738,37 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let got = try subject.targetSettings(
             target: target,
             project: project,
-            platform: .iOS,
             buildConfiguration: buildConfiguration
         )
 
         // Then
         XCTAssertEqual(got, testTargetEssentialDebugSettings)
+    }
+
+    func testTargetSettings_whenEssentialDebug_MultiplatformFramework() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let settings = Settings(
+            base: [:],
+            configurations: [buildConfiguration: nil],
+            defaultSettings: .essential
+        )
+        let project = Project.test()
+        let target = Target.test(
+            destinations: [.iPhone, .mac],
+            product: .framework,
+            settings: settings
+        )
+
+        // When
+        let got = try subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+
+        // Then
+        XCTAssertEqual(got, multiplatformFrameworkTargetEssentialDebugSettings)
     }
 }
 

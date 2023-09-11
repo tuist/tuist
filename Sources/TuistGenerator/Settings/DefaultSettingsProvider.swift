@@ -14,7 +14,6 @@ public protocol DefaultSettingsProviding {
     func targetSettings(
         target: Target,
         project: Project,
-        platform: Platform,
         buildConfiguration: BuildConfiguration
     ) throws -> SettingsDictionary
 }
@@ -69,6 +68,16 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "SWIFT_VERSION",
     ]
 
+    // These are not needed or are computed elsewhere so we exclude them
+    private static let multiplatformExcludedSettingsKeys = Set([
+        "COMBINE_HIDPI_IMAGES",
+        "SDKROOT",
+        "CODE_SIGN_IDENTITY",
+        "APPLICATION_EXTENSION_API_ONLY",
+        "FRAMEWORK_VERSION",
+        "TARGETED_DEVICE_FAMILY",
+    ])
+
     /// Key is `Version` which describes from which version of Xcode are values available for
     private static let xcodeVersionSpecificSettings: [Version: Set<String>] = [
         Version(11, 0, 0): [
@@ -113,6 +122,40 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     }
 
     public func targetSettings(
+        target: Target,
+        project: Project,
+        buildConfiguration: BuildConfiguration
+    ) throws -> SettingsDictionary {
+        var settings: SettingsDictionary = [:]
+        if target.isMultiplatform {
+            // Loop over platforms in a deterministic order.
+            for platform in Platform.allCases where target.supports(platform) {
+                let platformSetting = try targetSettings(
+                    target: target,
+                    project: project,
+                    platform: platform,
+                    buildConfiguration: buildConfiguration
+                )
+
+                let filteredSettings = platformSetting
+                    .filter { !DefaultSettingsProvider.multiplatformExcludedSettingsKeys.contains($0.key) }
+
+                let settingsHelper = SettingsHelper()
+                settingsHelper.overlay(settings: &settings, with: filteredSettings, for: platform)
+            }
+        } else if let platform = target.supportedPlatforms.first {
+            settings = try targetSettings(
+                target: target,
+                project: project,
+                platform: platform,
+                buildConfiguration: buildConfiguration
+            )
+        }
+
+        return settings
+    }
+
+    private func targetSettings(
         target: Target,
         project: Project,
         platform: Platform,
