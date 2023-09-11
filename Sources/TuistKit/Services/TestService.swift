@@ -204,8 +204,11 @@ final class TestService {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
 
+        let platform = try buildableTarget.target.servicePlatform
+
         let destination = try await XcodeBuildDestination.find(
             for: buildableTarget.target,
+            on: platform,
             scheme: scheme,
             version: version,
             deviceName: deviceName,

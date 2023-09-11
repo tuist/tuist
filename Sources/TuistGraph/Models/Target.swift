@@ -171,6 +171,11 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         }
     }
 
+    /// Returns true if the target deploys to more then one platform
+    public var isMultiplatform: Bool {
+        supportedPlatforms.count > 1
+    }
+
     /// Returns true if the target supports hosting resources
     public var supportsResources: Bool {
         switch product {
