@@ -34,7 +34,12 @@ let customAppScheme = Scheme(
             target: "Framework2Tests"
         )),
     ]),
-    runAction: .runAction(executable: .project(path: "App", target: "App")),
+    runAction: .runAction(
+        executable: .project(path: "App", target: "App"),
+        options: .options(
+            storeKitConfigurationPath: "App/Config/ProjectStoreKitConfig.storekit"
+        )
+    ),
     archiveAction: .archiveAction(configuration: "Debug", customArchiveName: "Something2")
 )
 
