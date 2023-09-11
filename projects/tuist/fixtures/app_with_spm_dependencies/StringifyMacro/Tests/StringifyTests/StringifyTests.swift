@@ -1,7 +1,7 @@
+import StringifyMacros
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
-import StringifyMacros
 
 let testMacros: [String: Macro.Type] = [
     "stringify": StringifyMacro.self,
