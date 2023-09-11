@@ -128,11 +128,12 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(
             name: "iOS",
-            buildAction: .test(targets: [TargetReference(projectPath: "/Project", name: "iOS")])
+            buildAction: .test(targets: [TargetReference(projectPath: projectPath.parentDirectory, name: "iOS")])
         )
         let graph = Graph.test(
+            projects: [projectPath.parentDirectory: Project.test(path: projectPath.parentDirectory, name: "Frameworks")],
             targets: [
-                try AbsolutePath(validating: "/test"): [
+                projectPath.parentDirectory: [
                     "iOS": Target.test(
                         name: "iOS",
                         destinations: [.iPhone, .iPad, .macCatalyst],
@@ -200,8 +201,20 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
-        let scheme = Scheme.test(name: "tvOS")
-        let graph = Graph.test()
+        let scheme = Scheme.test(
+            name: "tvOS",
+            buildAction: .test(targets: [TargetReference(projectPath: projectPath.parentDirectory, name: "tvOS")])
+        )
+        let graph = Graph.test(
+            projects: [projectPath.parentDirectory: Project.test(path: projectPath.parentDirectory)],
+            targets: [
+                projectPath
+                    .parentDirectory: [
+                        "tvOS": Target
+                            .test(name: "tvOS", destinations: [.appleTv], product: .framework, deploymentTargets: .tvOS("16.0")),
+                    ],
+            ]
+        )
 
         // When
         try await subject.build(
