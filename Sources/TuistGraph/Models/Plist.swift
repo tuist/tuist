@@ -1,11 +1,13 @@
 import Foundation
 import TSCBasic
 
-public protocol PlistTypesProtocol {}
-
 // MARK: - Plist
 
 public enum Plist {
+
+    case infoPlist(InfoPlist)
+    case entitlements(Entitlements)
+
     public indirect enum Value: Equatable, Codable {
         case string(String)
         case integer(Int)
@@ -91,7 +93,7 @@ extension Dictionary where Value == Plist.Value {
 
 // MARK: - InfoPlist
 
-public enum InfoPlist: PlistTypesProtocol, Equatable, Codable {
+public enum InfoPlist: Equatable, Codable {
     // Path to a user defined info.plist file (already exists on disk).
     case file(path: AbsolutePath)
 
@@ -128,7 +130,7 @@ extension InfoPlist: ExpressibleByStringLiteral {
 
 // MARK: - Entitlements
 
-public enum Entitlements: PlistTypesProtocol, Equatable, Codable {
+public enum Entitlements: Equatable, Codable {
     // Path to a user defined info.plist file (already exists on disk).
     case file(path: AbsolutePath)
 

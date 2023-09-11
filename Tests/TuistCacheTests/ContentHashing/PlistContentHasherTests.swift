@@ -33,7 +33,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath1] = "stubHash"
 
         // When
-        let hash = try subject.hash(plist: infoPlist)
+        let hash = try subject.hash(plist: .infoPlist(infoPlist))
 
         // Then
         XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
@@ -48,7 +48,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        let hash = try subject.hash(plist: infoPlist)
+        let hash = try subject.hash(plist: .infoPlist(infoPlist))
 
         // Then
         XCTAssertEqual(mockContentHasher.hashDataCallCount, 1)
@@ -66,7 +66,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
             "6": ["6a": "6value"],
         ])
         // When
-        let hash = try subject.hash(plist: infoPlist)
+        let hash = try subject.hash(plist: .infoPlist(infoPlist))
 
         // Then
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
@@ -88,7 +88,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         ])
 
         // When
-        let hash = try subject.hash(plist: infoPlist)
+        let hash = try subject.hash(plist: .infoPlist(infoPlist))
 
         // Then
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)

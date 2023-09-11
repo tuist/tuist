@@ -120,11 +120,11 @@ public final class TargetContentHasher: TargetContentHashing {
         stringsToHash.append(deploymentTargetHash)
 
         if let infoPlist = graphTarget.target.infoPlist {
-            let infoPlistHash = try plistContentHasher.hash(plist: infoPlist)
+            let infoPlistHash = try plistContentHasher.hash(plist: .infoPlist(infoPlist))
             stringsToHash.append(infoPlistHash)
         }
         if let entitlements = graphTarget.target.entitlements {
-            let entitlementsHash = try plistContentHasher.hash(plist: entitlements)
+            let entitlementsHash = try plistContentHasher.hash(plist: .entitlements(entitlements))
             stringsToHash.append(entitlementsHash)
         }
         if let settings = graphTarget.target.settings {

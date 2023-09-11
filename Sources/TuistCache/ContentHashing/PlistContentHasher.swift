@@ -3,7 +3,7 @@ import TuistCore
 import TuistGraph
 
 public protocol PlistContentHashing {
-    func hash<T: PlistTypesProtocol>(plist: T) throws -> String
+    func hash(plist: Plist) throws -> String
 }
 
 /// `PlistContentHasher`
@@ -18,10 +18,10 @@ public final class PlistContentHasher: PlistContentHashing {
 
     // MARK: - PlistContentHashing
 
-    public func hash<T: PlistTypesProtocol>(plist: T) throws -> String {
-        // TODO: DRY, improve generalization
-        if let plist = plist as? InfoPlist {
-            switch plist {
+    public func hash(plist: Plist) throws -> String {
+        switch plist {
+        case .infoPlist(let infoPlist):
+            switch infoPlist {
             case let .file(path):
                 return try contentHasher.hash(path: path)
             case let .dictionary(dictionary), let .extendingDefault(dictionary):
@@ -34,8 +34,8 @@ public final class PlistContentHasher: PlistContentHashing {
             case let .generatedFile(_, data):
                 return try contentHasher.hash(data)
             }
-        } else if let plist = plist as? Entitlements {
-            switch plist {
+        case .entitlements(let entitlements):
+            switch entitlements {
             case let .file(path):
                 return try contentHasher.hash(path: path)
             case let .dictionary(dictionary):
@@ -48,10 +48,6 @@ public final class PlistContentHasher: PlistContentHashing {
             case let .generatedFile(_, data):
                 return try contentHasher.hash(data)
             }
-        } else {
-            throw ""
         }
     }
 }
-
-
