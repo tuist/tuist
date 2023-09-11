@@ -279,11 +279,12 @@ public class GraphLinter: GraphLinting {
             )
         }
 
+
         if let entitlements = appClip.target.entitlements {
-            if let path = entitlements.path, !FileHandler.shared.exists(path) {
+            if case let .file(path: path) = entitlements, !FileHandler.shared.exists(path) {
                 foundIssues
                     .append(LintingIssue(
-                        reason: "The entitlements at path '\(entitlements)' referenced by target does not exist",
+                        reason: "The entitlements at path '\(path.pathString)' referenced by target does not exist",
                         severity: .error
                     ))
             }
