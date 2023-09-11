@@ -45,6 +45,9 @@ public protocol GraphTraversing {
     /// Returns all the internal targets, that is, excluding `Dependencies`.
     func allInternalTargets() -> Set<GraphTarget>
 
+    /// - Returns: All the test plans of the graph
+    func allTestPlans() -> Set<TestPlan>
+
     /// Returns the project from which the graph has been loaded.
     func rootProjects() -> Set<Project>
 
@@ -64,6 +67,9 @@ public protocol GraphTraversing {
     /// It returns the targets of the project defined in the directory at the given path.
     /// - Parameter path: Path to the directory that contains the definition of the project.
     func targets(at path: AbsolutePath) -> Set<GraphTarget>
+
+    /// - Returns: The test plans with the given name.
+    func testPlan(name: String) -> TestPlan?
 
     /// Given a project directory and target name, it returns **all**l its direct target dependencies present in the same project.
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies` instead

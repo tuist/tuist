@@ -52,6 +52,10 @@ public class GraphTraverser: GraphTraversing {
         allTargets(excludingExternalTargets: true)
     }
 
+    public func allTestPlans() -> Set<TestPlan> {
+        Set(schemes().flatMap { $0.testAction?.testPlans ?? [] })
+    }
+
     public func rootProjects() -> Set<Project> {
         Set(graph.workspace.projects.compactMap {
             projects[$0]
@@ -94,6 +98,10 @@ public class GraphTraverser: GraphTraversing {
         guard let project = graph.projects[path] else { return Set() }
         guard let targets = graph.targets[path] else { return [] }
         return Set(targets.values.map { GraphTarget(path: path, target: $0, project: project) })
+    }
+
+    public func testPlan(name: String) -> TestPlan? {
+        allTestPlans().first { $0.name == name }
     }
 
     public func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {

@@ -105,6 +105,7 @@ final class RunService {
 
         try await targetBuilder.buildTarget(
             graphTarget,
+            platform: try graphTarget.target.servicePlatform,
             workspacePath: workspacePath,
             scheme: scheme,
             clean: clean,
@@ -139,6 +140,7 @@ final class RunService {
 
         try await targetRunner.runTarget(
             graphTarget,
+            platform: try graphTarget.target.servicePlatform,
             workspacePath: workspacePath,
             schemeName: scheme.name,
             configuration: configuration,

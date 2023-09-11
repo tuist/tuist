@@ -91,6 +91,7 @@ final class BuildService {
 
             try await targetBuilder.buildTarget(
                 graphTarget,
+                platform: try graphTarget.target.servicePlatform,
                 workspacePath: workspacePath,
                 scheme: scheme,
                 clean: clean,
@@ -111,6 +112,7 @@ final class BuildService {
 
                 try await targetBuilder.buildTarget(
                     graphTarget,
+                    platform: try graphTarget.target.servicePlatform,
                     workspacePath: workspacePath,
                     scheme: scheme,
                     clean: !cleaned && clean,

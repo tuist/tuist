@@ -29,7 +29,7 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
     case appleVision
     case appleVisionWithiPadDesign
 
-    var platform: Platform {
+    public var platform: Platform {
         switch self {
         case .iPad, .iPhone, .macCatalyst, .macWithiPadDesign, .appleVisionWithiPadDesign:
             return .iOS
@@ -44,7 +44,7 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
         }
     }
 
-    var platformFilter: PlatformFilter {
+    public var platformFilter: PlatformFilter {
         switch self {
         case .iPad, .iPhone, .macWithiPadDesign, .appleVisionWithiPadDesign:
             return .ios

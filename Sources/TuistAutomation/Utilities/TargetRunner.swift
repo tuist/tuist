@@ -18,6 +18,7 @@ public protocol TargetRunning {
     ///   - arguments: Arguments to forward to the runnable target when running.
     func runTarget(
         _ target: GraphTarget,
+        platform: TuistGraph.Platform,
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,
@@ -35,10 +36,11 @@ public protocol TargetRunning {
 public enum TargetRunnerError: Equatable, FatalError {
     case runnableNotFound(path: String)
     case runningNotSupported(target: Target)
+    case targetNotRunnableOnPlatform(target: Target, platform: Platform)
 
     public var type: ErrorType {
         switch self {
-        case .runningNotSupported:
+        case .runningNotSupported, .targetNotRunnableOnPlatform:
             return .abort
         case .runnableNotFound:
             return .bug
@@ -48,7 +50,9 @@ public enum TargetRunnerError: Equatable, FatalError {
     public var description: String {
         switch self {
         case let .runningNotSupported(target):
-            return "Cannot run \(target.name) - the platform \(target.legacyPlatform.caseValue) and product type \(target.product.caseValue) are not currently supported."
+            return "Product type \(target.product.caseValue) of \(target.name) is not runnable"
+        case let .targetNotRunnableOnPlatform(target, platform):
+            return "Cannot run \(target.name) - the platform \(platform.rawValue) and product type \(target.product.caseValue) are not currently supported."
         case let .runnableNotFound(path):
             return "The runnable product was expected but not found at \(path)."
         }
@@ -72,6 +76,7 @@ public final class TargetRunner: TargetRunning {
 
     public func runTarget(
         _ target: GraphTarget,
+        platform: TuistGraph.Platform,
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,
@@ -85,7 +90,7 @@ public final class TargetRunner: TargetRunning {
         let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration
             .debug.name
         let xcodeBuildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
-            platform: target.target.legacyPlatform,
+            platform: platform,
             projectPath: workspacePath,
             configuration: configuration
         )
@@ -94,7 +99,7 @@ public final class TargetRunner: TargetRunning {
             throw TargetRunnerError.runnableNotFound(path: runnablePath.pathString)
         }
 
-        switch (target.target.legacyPlatform, target.target.product) {
+        switch (platform, target.target.product) {
         case (.macOS, .commandLineTool):
             try runExecutable(runnablePath, arguments: arguments)
         case let (platform, .app):
@@ -111,15 +116,15 @@ public final class TargetRunner: TargetRunning {
                 arguments: arguments
             )
         default:
-            throw TargetRunnerError.runningNotSupported(target: target.target)
+            throw TargetRunnerError.targetNotRunnableOnPlatform(target: target.target, platform: platform)
         }
     }
 
     public func assertCanRunTarget(_ target: Target) throws {
-        switch (target.legacyPlatform, target.product) {
-        case (.macOS, .commandLineTool),
-             (.macOS, .xpc),
-             (_, .app):
+        switch target.product {
+        case .commandLineTool,
+             .xpc,
+             .app:
             break
         default:
             throw TargetRunnerError.runningNotSupported(target: target)

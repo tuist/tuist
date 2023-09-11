@@ -568,7 +568,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let project = Project.test()
         let planPath = try AbsolutePath(validating: "folder/Plan.xctestplan", relativeTo: project.path)
-        let planList = [TestPlan(path: planPath, isDefault: true)]
+        let planList = [TestPlan(path: planPath, testTargets: [], isDefault: true)]
         let scheme = Scheme.test(testAction: TestAction.test(testPlans: planList))
         let generatedProject = GeneratedProject.test()
         let graph = Graph.test(
@@ -596,7 +596,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let project = Project.test()
         let planPath = try AbsolutePath(validating: "folder/Plan.xctestplan", relativeTo: project.path)
-        let planList = [TestPlan(path: planPath, isDefault: true)]
+        let planList = [TestPlan(path: planPath, testTargets: [], isDefault: true)]
         let scheme = Scheme.test(testAction: TestAction.test(attachDebugger: false, testPlans: planList))
         let generatedProject = GeneratedProject.test()
         let graph = Graph.test(
@@ -902,7 +902,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
     func test_schemeLaunchAction() throws {
         // Given
-        let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
+        let workspacePath = try AbsolutePath(validating: "/somepath/Workspace")
+        let projectPath = workspacePath.appending(RelativePath("Projects/Project"))
         let environment = ["env1": "1", "env2": "2", "env3": "3", "env4": "4"]
         let launchArguments = [
             LaunchArgument(name: "arg1", isEnabled: true),
@@ -914,12 +915,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
         let runAction = RunAction.test(
             configurationName: "Release",
-            customLLDBInitFile: "/somepath/Workspace/Projects/etc/path/to/lldbinit",
+            customLLDBInitFile: workspacePath.appending(RelativePath("Projects/etc/path/to/lldbinit")),
             executable: TargetReference(projectPath: projectPath, name: "App"),
             arguments: Arguments(environment: environment, launchArguments: launchArguments),
             options: .init(
                 language: "pl",
-                storeKitConfigurationPath: "/somepath/Workspace/Projects/Project/nested/configuration/configuration.storekit",
+                storeKitConfigurationPath: projectPath.appending(
+                    RelativePath("nested/configuration/configuration.storekit")
+                ),
                 simulatedLocation: .reference("New York, NY, USA"),
                 enableGPUFrameCaptureMode: .metal
             )
@@ -935,6 +938,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [app]
         )
         let graph = Graph.test(
+            path: workspacePath,
+            workspace: .test(
+                path: workspacePath,
+                xcWorkspacePath: workspacePath.appending(component: "Workspace.xcworkspace")
+            ),
             projects: [project.path: project],
             targets: [
                 project.path: [
@@ -948,7 +956,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let got = try subject.schemeLaunchAction(
             scheme: scheme,
             graphTraverser: graphTraverser,
-            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            rootPath: workspacePath,
             generatedProjects: createGeneratedProjects(projects: [project])
         )
 
@@ -984,7 +992,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
         XCTAssertEqual(
             result.storeKitConfigurationFileReference,
-            .init(identifier: "../nested/configuration/configuration.storekit")
+            .init(identifier: "../Projects/Project/nested/configuration/configuration.storekit")
         )
         XCTAssertEqual(result.locationScenarioReference?.referenceType, "1")
         XCTAssertEqual(result.locationScenarioReference?.identifier, "New York, NY, USA")

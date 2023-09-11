@@ -25,7 +25,7 @@ extension TuistGraph.TestAction {
 
         if let plans = manifest.testPlans {
             testPlans = try plans.enumerated().map { index, path in
-                try TestPlan(path: generatorPaths.resolve(path: path), isDefault: index == 0)
+                try TestPlan(path: generatorPaths.resolve(path: path), isDefault: index == 0, generatorPaths: generatorPaths)
             }
 
             // not used when using test plans

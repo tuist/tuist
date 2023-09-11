@@ -61,7 +61,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     func test_generateTargetConfig() throws {
         // Given
-        let commonSettings = [
+        let commonSettings: SettingsDictionary = [
             "Base": "Base",
             "INFOPLIST_FILE": "$(SRCROOT)/Info.plist",
             "PRODUCT_BUNDLE_IDENTIFIER": "com.test.bundle_id",
@@ -69,11 +69,11 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             "SWIFT_VERSION": "5.0",
         ]
 
-        let debugSettings = [
+        let debugSettings: SettingsDictionary = [
             "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         ]
 
-        let releaseSettings = [
+        let releaseSettings: SettingsDictionary = [
             "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
         ]
 
@@ -132,7 +132,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let expectedSettings = [
+        let expectedSettings: SettingsDictionary = [
             "INFOPLIST_FILE": "Info.plist",
         ]
 
@@ -148,7 +148,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let testHostSettings = [
+        let testHostSettings: SettingsDictionary = [
             "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/App",
             "BUNDLE_LOADER": "$(TEST_HOST)",
         ]
@@ -165,7 +165,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let testHostSettings = [
+        let testHostSettings: SettingsDictionary = [
             "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/App",
             "BUNDLE_LOADER": "$(TEST_HOST)",
         ]
@@ -185,7 +185,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let testHostSettings = [
+        let testHostSettings: SettingsDictionary = [
             "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App_dash.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/App_dash",
             "BUNDLE_LOADER": "$(TEST_HOST)",
         ]
@@ -202,7 +202,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let testHostSettings = [
+        let testHostSettings: SettingsDictionary = [
             "TEST_TARGET_NAME": "App",
         ]
 
@@ -222,7 +222,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let testHostSettings = [
+        let testHostSettings: SettingsDictionary = [
             "TEST_TARGET_NAME": "App-dash", // `TEST_TARGET_NAME` should reference the target name as opposed to `productName`
         ]
 
@@ -257,7 +257,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let expectedSettings = [
+        let expectedSettings: SettingsDictionary = [
             "TARGETED_DEVICE_FAMILY": "1,2",
             "IPHONEOS_DEPLOYMENT_TARGET": "12.0",
             "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "YES",
@@ -295,7 +295,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let expectedSettings = [
+        let expectedSettings: SettingsDictionary = [
             "TARGETED_DEVICE_FAMILY": "1,2",
             "IPHONEOS_DEPLOYMENT_TARGET": "12.0",
             "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "NO",
@@ -334,7 +334,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let expectedSettings = [
+        let expectedSettings: SettingsDictionary = [
             "TARGETED_DEVICE_FAMILY": "1,2",
             "IPHONEOS_DEPLOYMENT_TARGET": "13.0",
             "SUPPORTS_MACCATALYST": "NO",
@@ -368,7 +368,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let expectedSettings = [
+        let expectedSettings: SettingsDictionary = [
             "MACOSX_DEPLOYMENT_TARGET": "10.14.1",
         ]
 
@@ -403,7 +403,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let expectedSettings = [
+        let expectedSettings: SettingsDictionary = [
             "TARGETED_DEVICE_FAMILY": "1,2",
             "IPHONEOS_DEPLOYMENT_TARGET": "13.1",
             "SUPPORTS_MACCATALYST": "YES",
@@ -440,7 +440,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let expectedSettings = [
+        let expectedSettings: SettingsDictionary = [
             "TARGETED_DEVICE_FAMILY": "4",
             "WATCHOS_DEPLOYMENT_TARGET": "6.0",
         ]
@@ -473,7 +473,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let expectedSettings = [
+        let expectedSettings: SettingsDictionary = [
             "TARGETED_DEVICE_FAMILY": "3",
             "TVOS_DEPLOYMENT_TARGET": "14.0",
         ]
@@ -506,9 +506,44 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let debugConfig = configurationList?.configuration(name: "Debug")
         let releaseConfig = configurationList?.configuration(name: "Release")
 
-        let expectedSettings = [
+        let expectedSettings: SettingsDictionary = [
             "TARGETED_DEVICE_FAMILY": "7",
             "XROS_DEPLOYMENT_TARGET": "1.0",
+        ]
+
+        assert(config: debugConfig, contains: expectedSettings)
+        assert(config: releaseConfig, contains: expectedSettings)
+    }
+
+    func test_generateTargetWithMultiplePlatforms() throws {
+        // Given
+        let project = Project.test()
+        let target = Target.test(destinations: [.mac, .iPad, .iPhone])
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let expectedSettings: SettingsDictionary = [
+            "SDKROOT": "auto",
+            "TARGETED_DEVICE_FAMILY": "1,2",
+            "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": ["$(inherited)", "@executable_path/../Frameworks"],
+            "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks"],
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
@@ -803,12 +838,18 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
 
     func assert(
         config: XCBuildConfiguration?,
-        contains settings: [String: String],
+        contains settings: [String: SettingValue],
         file: StaticString = #file,
         line: UInt = #line
     ) {
         let matches = settings.filter {
-            config?.buildSettings[$0.key] as? String == $0.value
+            if let stringValue = config?.buildSettings[$0.key] as? String {
+                return $0.value == .string(stringValue)
+            } else if let arrayValue = config?.buildSettings[$0.key] as? [String] {
+                return $0.value == .array(arrayValue)
+            } else {
+                return false
+            }
         }
 
         XCTAssertEqual(
