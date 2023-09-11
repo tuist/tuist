@@ -21,6 +21,7 @@ public final class MockTargetBuilder: TargetBuilding {
 
     public func buildTarget(
         _ target: GraphTarget,
+        platform _: TuistGraph.Platform,
         workspacePath: AbsolutePath,
         scheme: Scheme,
         clean: Bool,

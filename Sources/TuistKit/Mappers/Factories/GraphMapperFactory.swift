@@ -12,7 +12,13 @@ import TuistSigning
 protocol GraphMapperFactorying {
     ///  Returns the graph mapper that should be used for automation tasks such as build and test.
     /// - Returns: A graph mapper.
-    func automation(config: Config, testsCacheDirectory: AbsolutePath) -> [GraphMapping]
+    func automation(
+        config: Config,
+        testsCacheDirectory: AbsolutePath,
+        testPlan: String?,
+        includedTargets: Set<String>,
+        excludedTargets: Set<String>
+    ) -> [GraphMapping]
 
     /// Returns the graph mapper for generating focused projects where some targets are pruned from the graph
     /// and others are replaced with their binary counterparts.
@@ -42,12 +48,30 @@ final class GraphMapperFactory: GraphMapperFactorying {
         self.contentHasher = contentHasher
     }
 
-    func automation(config: Config, testsCacheDirectory: AbsolutePath) -> [GraphMapping] {
+    func automation(
+        config: Config,
+        testsCacheDirectory: AbsolutePath,
+        testPlan: String?,
+        includedTargets: Set<String>,
+        excludedTargets: Set<String>
+    ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(
-            TestsCacheGraphMapper(hashesCacheDirectory: testsCacheDirectory, config: config)
+            TestsCacheGraphMapper(
+                hashesCacheDirectory: testsCacheDirectory,
+                config: config,
+                testPlan: testPlan,
+                includedTargets: includedTargets,
+                excludedTargets: excludedTargets
+            )
         )
-        mappers.append(FocusTargetsGraphMappers(includedTargets: []))
+        mappers.append(
+            FocusTargetsGraphMappers(
+                testPlan: testPlan,
+                includedTargets: includedTargets,
+                excludedTargets: excludedTargets
+            )
+        )
         mappers.append(TreeShakePrunedTargetsGraphMapper())
         mappers.append(contentsOf: self.default())
         return mappers
