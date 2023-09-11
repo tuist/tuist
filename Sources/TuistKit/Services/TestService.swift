@@ -288,6 +288,7 @@ final class TestService { // swiftlint:disable:this type_body_length
 
     // MARK: - Helpers
 
+    // swiftlint:disable:next function_body_length
     private func testScheme(
         scheme: Scheme,
         graphTraverser: GraphTraversing,
