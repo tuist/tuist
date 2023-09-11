@@ -93,6 +93,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         // When
         try await subject.buildTarget(
             .test(),
+            platform: .iOS,
             workspacePath: workspacePath,
             scheme: scheme,
             clean: clean,
@@ -126,6 +127,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         // When
         try await subject.buildTarget(
             .test(),
+            platform: .iOS,
             workspacePath: workspacePath,
             scheme: scheme,
             clean: false,
@@ -174,6 +176,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         // When
         try await subject.buildTarget(
             .test(),
+            platform: .iOS,
             workspacePath: workspacePath,
             scheme: scheme,
             clean: false,

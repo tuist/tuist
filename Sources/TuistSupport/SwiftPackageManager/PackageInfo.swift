@@ -313,6 +313,7 @@ extension PackageInfo.Target {
         case system
         case binary
         case plugin
+        case macro
     }
 }
 
@@ -510,7 +511,7 @@ extension PackageInfo.Target.TargetType {
         switch self {
         case .regular, .executable, .test:
             return true
-        case .system, .binary, .plugin:
+        case .system, .binary, .plugin, .macro:
             return false
         }
     }
@@ -519,7 +520,7 @@ extension PackageInfo.Target.TargetType {
     /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
     public var supportsSources: Bool {
         switch self {
-        case .regular, .executable, .test, .plugin:
+        case .regular, .executable, .test, .plugin, .macro:
             return true
         case .system, .binary:
             return false
@@ -532,7 +533,7 @@ extension PackageInfo.Target.TargetType {
         switch self {
         case .regular, .executable, .test:
             return true
-        case .system, .binary, .plugin:
+        case .system, .binary, .plugin, .macro:
             return false
         }
     }
@@ -541,7 +542,7 @@ extension PackageInfo.Target.TargetType {
     /// Based on preconditions in https://github.com/apple/swift-package-manager/blob/main/Sources/PackageDescription/Target.swift
     public var supportsDependencies: Bool {
         switch self {
-        case .regular, .executable, .test, .plugin:
+        case .regular, .executable, .test, .plugin, .macro:
             return true
         case .system, .binary:
             return false
@@ -554,7 +555,7 @@ extension PackageInfo.Target.TargetType {
         switch self {
         case .regular, .executable, .test:
             return true
-        case .system, .binary, .plugin:
+        case .system, .binary, .plugin, .macro:
             return false
         }
     }

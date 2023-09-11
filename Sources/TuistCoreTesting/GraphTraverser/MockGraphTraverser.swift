@@ -145,6 +145,30 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedAllInternalTargetsResult
     }
 
+    var invokedAllTestPlans = false
+    var invokedAllTestPlansCount = 0
+    var stubbedAllTestPlansResult: Set<TestPlan>! = []
+
+    func allTestPlans() -> Set<TestPlan> {
+        invokedAllTestPlans = true
+        invokedAllTestPlansCount += 1
+        return stubbedAllTestPlansResult
+    }
+
+    var invokedTestPlan = false
+    var invokedTestPlanCount = 0
+    var invokedTestPlanParameters: (String)?
+    var invokedTestPlanParametersList = [String]()
+    var stubbedTestPlanResult: TestPlan?
+
+    func testPlan(name: String) -> TestPlan? {
+        invokedTestPlan = true
+        invokedTestPlanCount += 1
+        invokedTestPlanParameters = name
+        invokedTestPlanParametersList.append(name)
+        return stubbedTestPlanResult
+    }
+
     var invokedPrecompiledFrameworksPaths = false
     var invokedPrecompiledFrameworksPathsCount = 0
     var stubbedPrecompiledFrameworksPathsResult: Set<AbsolutePath>! = []

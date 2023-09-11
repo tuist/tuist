@@ -8,7 +8,8 @@ final class ConfigTests: XCTestCase {
             cloud: Cloud(url: "https://cloud.tuist.io", projectId: "123", options: []),
             generationOptions: .options(
                 resolveDependenciesWithSystemScm: false,
-                disablePackageVersionLocking: true
+                disablePackageVersionLocking: true,
+                clonedSourcePackagesDirPath: .relativeToRoot("SourcePackages")
             )
         )
 
