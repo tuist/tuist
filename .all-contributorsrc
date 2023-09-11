@@ -1156,6 +1156,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "victor-sarda",
+      "name": "Victor Sarda",
+      "avatar_url": "https://avatars.githubusercontent.com/u/6460866?v=4",
+      "profile": "https://www.linkedin.com/in/victor-sarda/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
