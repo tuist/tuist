@@ -34,9 +34,6 @@ module Fourier
     desc "bundle", "Bundle tuist and tuistenv"
     subcommand "bundle", Commands::Bundle
 
-    desc "encrypt", "Encrypt content in the repository"
-    subcommand "encrypt", Commands::Encrypt
-
     desc "fixture", "Generate a fixture"
     option(
       :path,
