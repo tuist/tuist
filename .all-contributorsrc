@@ -1147,6 +1147,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "denil-ct",
+      "name": "Denil Chungath",
+      "avatar_url": "https://avatars.githubusercontent.com/u/95201442?v=4",
+      "profile": "http://linkedin.com/in/denilchungath",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
