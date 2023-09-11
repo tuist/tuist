@@ -245,10 +245,10 @@
     {
       "identity" : "xcodeproj",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tatagrigory/XcodeProj",
+      "location" : "https://github.com/tuist/XcodeProj.git",
       "state" : {
-        "branch" : "tg/add-preferredScreenCaptureFormat",
-        "revision" : "30055719138bc4ae17f3ba61470efe55c08a2317"
+        "revision" : "3797181813ee963fe305d939232bc576d23ddbb0",
+        "version" : "8.15.0"
       }
     },
     {
