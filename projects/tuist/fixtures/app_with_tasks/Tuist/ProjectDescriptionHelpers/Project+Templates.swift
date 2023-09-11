@@ -51,11 +51,15 @@ extension Project {
     /// Helper function to create the application target and the unit test target.
     private static func makeAppTargets(name: String, platform: Platform, dependencies: [TargetDependency]) -> [Target] {
         let platform: Platform = platform
-        let infoPlist: [String: InfoPlist.Value] = [
+        let infoPlist: [String: Plist.Value] = [
             "CFBundleShortVersionString": "1.0",
             "CFBundleVersion": "1",
             "UIMainStoryboardFile": "",
             "UILaunchStoryboardName": "LaunchScreen",
+        ]
+
+        let entitlements: [String: Plist.Value] = [
+            "aps-environment": "development",
         ]
 
         let mainTarget = Target(
@@ -66,6 +70,7 @@ extension Project {
             infoPlist: .extendingDefault(with: infoPlist),
             sources: ["Targets/\(name)/Sources/**"],
             resources: ["Targets/\(name)/Resources/**"],
+            entitlements: .dictionary(entitlements),
             dependencies: dependencies
         )
 
