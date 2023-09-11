@@ -190,7 +190,7 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func buildsForMacCatalyst(path: AbsolutePath, name: String) -> Bool {
-        guard (target(path: path, name: name)?.target.supportsCatalyst ?? false) else {
+        guard target(path: path, name: name)?.target.supportsCatalyst ?? false else {
             return false
         }
         return allDependenciesSatisfy(from: .target(name: name, path: path)) { dependency in
