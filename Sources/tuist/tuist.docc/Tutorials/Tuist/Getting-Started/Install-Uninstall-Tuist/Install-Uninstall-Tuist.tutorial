@@ -13,19 +13,19 @@
         @Steps {
             @Step {
                 Install the tool by runnning this script in your terminal.
-                @Code(name: "console", file: "01-01-01-01.txt", reset: true)
+                @Code(name: "console", file: "tuist-install-curl.txt", reset: true)
                 
                 > Note: The process is relatively fast because we are actually not installing the tool. We are installing tuistenv (which gets renamed to tuist) when you install it.
             }
             
             @Step {
                 You can check if tuist has been installed correctly by getting its version.
-                @Code(name: "console", file: "01-01-01-02.txt")
+                @Code(name: "console", file: "tuist-version.txt")
             }
             
             @Step {
                 You can also see the list of available commands, if you are curious.
-                @Code(name: "console", file: "01-01-01-03.txt")
+                @Code(name: "console", file: "tuist-help.txt")
             }
         }
     }
@@ -38,7 +38,7 @@
         @Steps {
             @Step {
                 Uninstall the tool by runnning this script in your terminal.
-                @Code(name: "console", file: "01-01-02-01.txt", reset: true)
+                @Code(name: "console", file: "tuist-uninstall-curl.txt", reset: true)
             }
         }
     }

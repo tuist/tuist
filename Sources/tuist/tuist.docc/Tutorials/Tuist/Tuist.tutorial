@@ -1,4 +1,4 @@
-@Tutorials(name: "Tuist Tutorials") {
+@Tutorials(name: "Tuist") {
     @Intro(title: "Meet Tuist") {
         Tuist is a command line tool (CLI) that aims to facilitate the generation, maintenance, and interaction with Xcode projects. These tutorials are written to walk you through from the basics to advanced concepts of tuist right from setting up a simple project to building at massive scales.
     }
@@ -10,15 +10,5 @@
         
         @TutorialReference(tutorial: "doc:Install-Uninstall-Tuist")
         @TutorialReference(tutorial: "doc:Create-Project")
-    }
-    
-    @Chapter(name: "Meet Tuist Cloud Enterprise") {
-        Discover how to set up your infrastructure for deploying and continuously updating Tuist Cloud.
-        
-        @Image(source: "Tuist Cloud Enterprise Server.png", alt: "An illustration that shows the icon of a server")
-        
-        @TutorialReference(tutorial: "doc:Tuist-Cloud---Enterprise-Infrastructure-Requirements")
-        @TutorialReference(tutorial: "doc:Tuist-Cloud---Enterprise-Environment")
-        @TutorialReference(tutorial: "doc:Tuist-Cloud---Enterprise-Deployment")
     }
 }
