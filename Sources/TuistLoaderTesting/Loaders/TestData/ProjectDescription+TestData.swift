@@ -102,7 +102,7 @@ extension TargetScript {
         tool: String = "",
         order: Order = .pre,
         arguments: [String] = [],
-        inputPaths: [Path] = [],
+        inputPaths: [FileListGlob] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
         outputFileListPaths: [Path] = [],
