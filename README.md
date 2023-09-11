@@ -419,6 +419,7 @@ Thanks goes to these wonderful people:
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="http://linkedin.com/in/denilchungath"><img src="https://avatars.githubusercontent.com/u/95201442?v=4" width="100px;" alt=""/><br /><sub><b>Denil Chungath</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/victor-sarda/"><img src="https://avatars.githubusercontent.com/u/6460866?v=4" width="100px;" alt=""/><br /><sub><b>Victor Sarda</b></sub></a></td>
     </tr>
   </tbody>
 </table>
