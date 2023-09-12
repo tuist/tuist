@@ -35,8 +35,7 @@ public struct CloudCacheArtifact: Codable {
 
 extension CloudCacheArtifact {
     init(_ cacheArtifact: Components.Schemas.CacheArtifact) throws {
-        guard
-            let url = URL(string: cacheArtifact.data.url)
+        guard let url = URL(string: cacheArtifact.data.url)
         else { throw CloudCacheArtifactError.invalidURL(cacheArtifact.data.url) }
         self.url = url
         expiresAt = Int(cacheArtifact.data.expires_at)

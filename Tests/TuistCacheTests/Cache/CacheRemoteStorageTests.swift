@@ -99,13 +99,13 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(result)
     }
-    
+
     func test_exists_whenArtifactDoesNotExist() async throws {
         // Given
         cacheExistsService.cacheExistsStub = { _, _, _, _ in
             throw CacheExistsServiceError.notFound("Artifact not found")
         }
-        
+
         // When
         let result = try await subject.exists(name: "targetName", hash: "acho tio")
 
@@ -120,7 +120,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         getCacheService.getCacheStub = { _, _, _, _ in
             throw GetCacheServiceError.paymentRequired("Payment required")
         }
-        
+
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.fetch(name: "targetName", hash: "acho tio"),
@@ -199,7 +199,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         uploadCacheService.uploadCacheStub = { _, _, _, _, _ in
             throw UploadCacheServiceError.unknownError(500)
         }
-        
+
         // When / Then
         await XCTAssertThrowsSpecific(
             try await subject.store(name: "targetName", hash: "acho tio", paths: [.root]),
@@ -217,7 +217,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
             )
         }
         fileArchiver.stubbedZipResult = zipPath
-        
+
         // When
         _ = try await subject.store(name: "targetName", hash: "foo_bar", paths: [.root])
 

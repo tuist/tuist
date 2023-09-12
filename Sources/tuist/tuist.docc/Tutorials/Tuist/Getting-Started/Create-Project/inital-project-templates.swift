@@ -13,9 +13,9 @@ extension Project {
             platform: platform,
             dependencies: additionalTargets.map { TargetDependency.target(name: $0) }
         )
-        targets += additionalTargets.flatMap({
+        targets += additionalTargets.flatMap {
             makeFrameworkTargets(name: $0, platform: platform)
-        })
+        }
         return Project(
             name: name,
             organizationName: "tuist.io",
@@ -45,7 +45,8 @@ extension Project {
             infoPlist: .default,
             sources: ["Targets/\(name)/Tests/**"],
             resources: [],
-            dependencies: [.target(name: name)])
+            dependencies: [.target(name: name)]
+        )
         return [sources, tests]
     }
 

@@ -47,11 +47,11 @@ public final class VerifyCacheUploadService: VerifyCacheUploadServicing {
         contentMD5: String
     ) async throws {
         let client = Client.cloud(serverURL: serverURL)
-        
+
         let response = try await client.verifyCacheUpload(
             .init(query: .init(project_id: projectId, hash: hash, name: name, content_md5: contentMD5))
         )
-        
+
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {

@@ -1,7 +1,7 @@
 import Foundation
 import TuistCloud
 
-public final class MockVerifyCacheUploadService: VerifyCacheUploadServicing {    
+public final class MockVerifyCacheUploadService: VerifyCacheUploadServicing {
     public init() {}
 
     // swiftlint:disable:next large_tuple

@@ -1,9 +1,9 @@
 import Foundation
 import TSCBasic
+import TuistCloud
 import TuistCore
 import TuistGraph
 import TuistSupport
-import TuistCloud
 
 enum CacheRemoteStorageError: FatalError, Equatable {
     case artifactNotFound(hash: String)
@@ -75,7 +75,7 @@ public final class CacheRemoteStorage: CacheStoring {
                 throw error
             }
         }
-        
+
         return true
     }
 
