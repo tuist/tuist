@@ -1,0 +1,6 @@
+% curl -Ls https://install.tuist.io | bash
+
+% tuist version
+3.25.0
+
+# You should get a semantic version like shown above.

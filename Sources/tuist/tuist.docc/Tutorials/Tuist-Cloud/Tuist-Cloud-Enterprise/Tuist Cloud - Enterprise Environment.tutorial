@@ -1,6 +1,7 @@
 @Tutorial(time: 15) {
     @Intro(title: "Environment configuration") {
         In this chapter you'll learn how to configure Tuist Cloud through environment variables.       
+        @Image(source: "Logo-Blurred.png", alt: "Blurred Tuist Logo.")
     }
     
     @Section(title: "Environment variables") {
