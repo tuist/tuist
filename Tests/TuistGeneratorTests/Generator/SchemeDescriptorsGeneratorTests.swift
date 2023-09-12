@@ -902,7 +902,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
     func test_schemeLaunchAction() throws {
         // Given
-        let projectPath = try AbsolutePath(validating: "/somepath/Workspace")
+        let workspacePath = try AbsolutePath(validating: "/somepath/Workspace")
         let projectPath = workspacePath.appending(RelativePath("Projects/Project"))
         let environmentVariables = [
             "env1": EnvironmentVariable(value: "1", isEnabled: true),

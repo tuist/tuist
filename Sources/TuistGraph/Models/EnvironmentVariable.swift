@@ -1,7 +1,7 @@
 import Foundation
 
 /// It represents an environment variable that is passed when running a scheme's action
-public struct EnvironmentVariable: Equatable, Codable, Hashable {
+public struct EnvironmentVariable: Equatable, Codable, Hashable, ExpressibleByStringLiteral {
     // MARK: - Attributes
 
     /// The value of the environment variable
@@ -14,5 +14,10 @@ public struct EnvironmentVariable: Equatable, Codable, Hashable {
     public init(value: String, isEnabled: Bool) {
         self.value = value
         self.isEnabled = isEnabled
+    }
+
+    public init(stringLiteral value: StringLiteralType) {
+        self.value = value
+        isEnabled = true
     }
 }
