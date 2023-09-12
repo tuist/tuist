@@ -388,8 +388,207 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/cache/exists:
+    get:
+      operationId: cacheExists
+      parameters:
+        - in: query
+          name: project_id
+          required: true
+          description: The id of the project.
+          schema:
+            type: string
+        - in: query
+          name: hash
+          required: true
+          description: The hash of the cache.
+          schema:
+            type: string
+        - in: query
+          name: name
+          required: true
+          description: The name of the module.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The module is present in the cache.
+        "404":
+          description: The module is not present in the cache.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Error"
+                required:
+                  - errors
+        "401":
+          description: The cache could not be checked because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "402":
+          description: The cache could not be checked because the account's plan doesn't include remote cache functionality.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/cache:
+    get:
+      operationId: getCache
+      parameters:
+        - in: query
+          name: project_id
+          required: true
+          description: The id of the project.
+          schema:
+            type: string
+        - in: query
+          name: hash
+          required: true
+          description: The hash of the cache.
+          schema:
+            type: string
+        - in: query
+          name: name
+          required: true
+          description: The name of the module.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The module is present in the cache.
+          content:
+            application/json:
+              schema: 
+                $ref: "#/components/schemas/CacheArtifact"
+        "401":
+          description: The cache could not be fetched because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "402":
+          description: The cache could not be fetched because the account's plan doesn't include remote cache functionality.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: uploadCache
+      parameters:
+        - in: query
+          name: project_id
+          required: true
+          description: The id of the project.
+          schema:
+            type: string
+        - in: query
+          name: hash
+          required: true
+          description: The hash of the cache.
+          schema:
+            type: string
+        - in: query
+          name: name
+          required: true
+          description: The name of the module.
+          schema:
+            type: string
+        - in: query
+          name: content_md5
+          required: true
+          description: The hash of the content.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The uploaded module artifact.
+          content:
+            application/json:
+              schema: 
+                $ref: "#/components/schemas/CacheArtifact"
+        "401":
+          description: The cache could not be fetched because the user is not authorized to do the action.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "402":
+          description: The cache could not be fetched because the account's plan doesn't include remote cache functionality.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/cache/verify_upload:
+    post:
+      operationId: verifyCacheUpload
+      parameters:
+        - in: query
+          name: project_id
+          required: true
+          description: The id of the project.
+          schema:
+            type: string
+        - in: query
+          name: hash
+          required: true
+          description: The hash of the cache.
+          schema:
+            type: string
+        - in: query
+          name: name
+          required: true
+          description: The name of the module.
+          schema:
+            type: string
+        - in: query
+          name: content_md5
+          required: true
+          description: The hash of the content.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The verification of the module artifact upload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CacheArtifactUploadVerification"
 components:
   schemas:
+    CacheArtifactUploadVerification:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            uploaded_size:
+              type: number
+          required:
+            - uploaded_size
+      required:
+        - data
+    CacheArtifact:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            url:
+              type: string
+            expires_at:
+              type: number
+          required:
+            - url
+            - expires_at
+      required:
+        - data
     User:
       type: object
       properties:
