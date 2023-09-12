@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.26.0 - 2023-09-12
+
+### Added
+
+- Add glob support for `inputPaths` in `TargetScript` [#5364](https://github.com/tuist/tuist/pull/5364) by [@ibrahimoktay](https://github.com/ibrahimoktay)
+- Add test plan support within Tuist test [#5135](https://github.com/tuist/tuist/pull/5135) by [@stephanecopin](https://github.com/stephanecopin)
+- Support preferredScreenCaptureFormat in test options [#5391](https://github.com/tuist/tuist/pull/5391) by [@tatagrigory](https://github.com/tatagrigory)
+
+### Fixed
+
+- Fix StoreKit Configuration file paths [#5402](https://github.com/tuist/tuist/pull/5402) by [@kwridan](https://github.com/kwridan)
+- Fix parsing of SwiftPackageManager dependencies including `macro` targets [#5308](https://github.com/tuist/tuist/pull/5308) by [@jimmy-li-houzz](https://github.com/jimmy-li-houzz)
+
 ## 3.25.0 - 2023-09-04
 
 ### Changed
