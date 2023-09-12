@@ -189,6 +189,21 @@ public class GraphTraverser: GraphTraversing {
             .first { $0.target.product == .appClip }
     }
 
+    public func buildsForMacCatalyst(path: AbsolutePath, name: String) -> Bool {
+        guard target(path: path, name: name)?.target.supportsCatalyst ?? false else {
+            return false
+        }
+        return allDependenciesSatisfy(from: .target(name: name, path: path)) { dependency in
+            if let target = self.target(from: dependency) {
+                return target.target.supportsCatalyst
+            } else {
+                // TODO: - Obtain this information from pre-compiled binaries
+                // lipo -info should include "macabi" in the list of architectures
+                return false
+            }
+        }
+    }
+
     public func directStaticDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         Set(
             graph.dependencies[.target(name: name, path: path)]?
@@ -571,6 +586,17 @@ public class GraphTraverser: GraphTraversing {
         }
 
         return references
+    }
+
+    func allDependenciesSatisfy(from rootDependency: GraphDependency, meets: (GraphDependency) -> Bool) -> Bool {
+        var allSatisfy = true
+        _ = filterDependencies(from: rootDependency, test: { dependency in
+            if !meets(dependency) {
+                allSatisfy = false
+            }
+            return true
+        })
+        return allSatisfy
     }
 
     func transitiveStaticDependencies(from dependency: GraphDependency) -> Set<GraphDependency> {
