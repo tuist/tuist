@@ -49,6 +49,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
         guard let buildTargets = scheme.buildAction?.targets else { return }
         let platform = self.platform(scheme: scheme)
         let macCatalystSupportedTargets = getMacCatalystTargets(graph: graph, scheme: scheme)
+        let buildsForMacCatalyst = self.buildsForMacCatalyst(graph: graph, scheme: scheme)
 
         // Create temporary directories
         return try await FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
@@ -68,7 +69,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
             // Build for the macCatalyst
             var macCatalystArchivePath: AbsolutePath?
-            if platform == .iOS, !macCatalystSupportedTargets.isEmpty {
+            if platform == .iOS, !macCatalystSupportedTargets.isEmpty, buildsForMacCatalyst {
                 macCatalystArchivePath = temporaryDirectory.appending(component: "macCatalyst.xcarchive")
                 try await self.macCatalystBuild(
                     projectTarget: projectTarget,
@@ -103,6 +104,18 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     }
 
     // MARK: - Fileprivate
+
+    fileprivate func buildsForMacCatalyst(
+        graph: Graph,
+        scheme: Scheme
+    ) -> Bool {
+        guard let buildTargets = scheme.buildAction?.targets else { return false }
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        return buildTargets.allSatisfy { target in
+            graphTraverser.buildsForMacCatalyst(path: target.projectPath, name: target.name)
+        }
+    }
 
     fileprivate func createXCFramework(
         buildTargets: [TargetReference],
@@ -270,11 +283,5 @@ extension CacheOutputType {
         case let .xcframework(destination):
             return destination.contains(.device)
         }
-    }
-}
-
-extension Target {
-    fileprivate var supportsCatalyst: Bool {
-        destinations.contains(.macCatalyst)
     }
 }

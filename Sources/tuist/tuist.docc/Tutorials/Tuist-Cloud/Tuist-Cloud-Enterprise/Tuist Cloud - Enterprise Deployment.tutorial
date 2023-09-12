@@ -7,35 +7,10 @@
     @Section(title: "Pulling the image from GitHub's registry") {
         @ContentAndMedia(layout: "horizontal") {}
         
-            
-        For our enterprise customers, access is provided to the repository at [github.com/tuist/cloud-enterprise](https://github.com/cloud/cloud-enterprise), which includes an associated container registry from which images can be pulled. While it's possible to authenticate using the credentials of the individual who was granted repository access or a token linked to their account, we advise against this. Such an approach is risky, especially if that individual departs your organization, potentially revoking your repository access and disrupting your deployment pipelines. Instead, we recommend creating a [GitHub app](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps). Name it "Your Organization - Tuist Cloud," disable webhooks, select the "read packages" permission for the repository, and designate [https://tuist.io](https://tuist.io) as the callback URL. Make sure the app supports installation in other organizations.
+        For our enterprise clients, we grant access to the repository located at [github.com/tuist/cloud](https://github.com/cloud/cloud). This repository also comes with a linked container registry for pulling images. Currently, the container registry allows authentication only as an individual user. Therefore, users with repository access must generate a **personal access token** within the Tuist organization, ensuring they have the necessary permissions to read packages. After submission, we will promptly approve this token.
         
-        ### Generating an access token
-        
-        Once the app is installed, you can generate a **temporary access token** to send authenticated requests to the registry. Below is a bash snippet for this purpose. You can use it as a reference or adapt it to your preferred scripting language:
-        
-        ```sh
-        # Generate access token
-        
-        APP_ID=your_github_app_id
-        PRIVATE_KEY_PATH=/path/to/private_key.pem
-        # Get the current time in seconds since the Unix epoch.
-        CURRENT_TIME=$(date +%s)
-        # JWT expiration time (10 minutes from now, for example).
-        EXPIRATION=$(($CURRENT_TIME + 600))
-        JWT_HEADER="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9"
-        PAYLOAD=$(printf '{"iat":%d,"exp":%d,"iss":%d}' $CURRENT_TIME $EXPIRATION $APP_ID)
-        JWT_PAYLOAD=$(echo -n $PAYLOAD | openssl base64 -e -A | tr -d '=' | tr '/+' '_-')
-        JWT_SIGNATURE=$(echo -n "$JWT_HEADER.$JWT_PAYLOAD" | openssl dgst -sha256 -binary -sign $PRIVATE_KEY_PATH | openssl base64 -e -A | tr -d '=' | tr '/+' '_-')
-        JWT="$JWT_HEADER.$JWT_PAYLOAD.$JWT_SIGNATURE"
-        INSTALLATION_ID=your_github_app_installation_id
-        TOKEN=$(curl -s -X POST \
-          -H "Authorization: Bearer $JWT" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/app/installations/$INSTALLATION_ID/access_tokens \
-          | jq -r .token)
-        ```
-        
+        > Important: Using a personal access token presents a challenge because it's associated with an individual who might eventually depart from the enterprise organization. GitHub recognizes this limitation and is actively developing a solution to allow GitHub apps to authenticate with app-generated tokens.
+                
         ### Pulling the Docker image
         
         After generating the token, you can retrieve the image by executing the following command:

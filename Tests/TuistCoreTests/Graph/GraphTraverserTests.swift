@@ -1078,6 +1078,99 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, .init(path: project.path, target: appClip, project: project))
     }
 
+    func test_buildsForMacCatalyst_returns_false_when_someDependenciesCantBuildForMacCatalyst() {
+        // Given
+        let project = Project.test()
+        let app = Target.test(name: "app", destinations: [.macCatalyst], product: .app)
+        let library = Target.test(name: "library-a", destinations: [.iPhone], product: .dynamicLibrary)
+        let transitiveLibrary = Target.test(name: "library-b", destinations: [.iPhone], product: .dynamicLibrary)
+
+        // Given: Value graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app, library.name: library, transitiveLibrary.name: transitiveLibrary]],
+            dependencies: [
+                .target(
+                    name: app.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: library.name, path: project.path)),
+                .target(
+                    name: library.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: transitiveLibrary.name, path: project.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.buildsForMacCatalyst(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertFalse(got)
+    }
+
+    func test_buildsForMacCatalyst_returns_false_when_aTargetDoesntSupportCatalystRegardlessOfItsDependencies() {
+        // Given
+        let project = Project.test()
+        let app = Target.test(name: "app", destinations: [.iPhone], product: .app)
+        let library = Target.test(name: "library-a", destinations: [.macCatalyst], product: .dynamicLibrary)
+        let transitiveLibrary = Target.test(name: "library-b", destinations: [.macCatalyst], product: .dynamicLibrary)
+
+        // Given: Value graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app, library.name: library, transitiveLibrary.name: transitiveLibrary]],
+            dependencies: [
+                .target(
+                    name: app.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: library.name, path: project.path)),
+                .target(
+                    name: library.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: transitiveLibrary.name, path: project.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.buildsForMacCatalyst(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertFalse(got)
+    }
+
+    func test_buildsForMacCatalyst_returns_true_when_aTargetAndItsDependenciesSupportCatalyst() {
+        // Given
+        let project = Project.test()
+        let app = Target.test(name: "app", destinations: [.macCatalyst], product: .app)
+        let library = Target.test(name: "library-a", destinations: [.macCatalyst], product: .dynamicLibrary)
+        let transitiveLibrary = Target.test(name: "library-b", destinations: [.macCatalyst], product: .dynamicLibrary)
+
+        // Given: Value graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app, library.name: library, transitiveLibrary.name: transitiveLibrary]],
+            dependencies: [
+                .target(
+                    name: app.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: library.name, path: project.path)),
+                .target(
+                    name: library.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: transitiveLibrary.name, path: project.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.buildsForMacCatalyst(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertTrue(got)
+    }
+
     func test_embeddableFrameworks_when_targetIsNotApp() throws {
         // Given
         let target = Target.test(name: "Main", product: .framework)

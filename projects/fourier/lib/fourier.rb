@@ -22,9 +22,6 @@ module Fourier
     desc "build", "Build projects"
     subcommand "build", Commands::Build
 
-    desc "github", "Utilities to manage the repository and the organization on GitHub"
-    subcommand "github", Commands::GitHub
-
     desc "lint", "Lint the project's code"
     subcommand "lint", Commands::Lint
 
@@ -33,9 +30,6 @@ module Fourier
 
     desc "bundle", "Bundle tuist and tuistenv"
     subcommand "bundle", Commands::Bundle
-
-    desc "encrypt", "Encrypt content in the repository"
-    subcommand "encrypt", Commands::Encrypt
 
     desc "fixture", "Generate a fixture"
     option(
