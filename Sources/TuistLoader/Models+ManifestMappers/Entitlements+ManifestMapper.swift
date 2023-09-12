@@ -9,7 +9,9 @@ extension TuistGraph.Entitlements {
     /// - Parameters:
     ///   - manifest: Manifest representation of the Entitlements model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Entitlements?, generatorPaths: GeneratorPaths) throws -> TuistGraph.Entitlements? {
+    static func from(manifest: ProjectDescription.Entitlements?, generatorPaths: GeneratorPaths) throws -> TuistGraph
+        .Entitlements?
+    {
         switch manifest {
         case let .file(infoplistPath):
             return .file(path: try generatorPaths.resolve(path: infoplistPath))

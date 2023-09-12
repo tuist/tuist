@@ -279,7 +279,6 @@ public class GraphLinter: GraphLinting {
             )
         }
 
-
         if let entitlements = appClip.target.entitlements {
             if case let .file(path: path) = entitlements, !FileHandler.shared.exists(path) {
                 foundIssues

@@ -4,7 +4,6 @@ import TSCBasic
 // MARK: - Plist
 
 public enum Plist {
-
     case infoPlist(InfoPlist)
     case entitlements(Entitlements)
 
@@ -160,4 +159,3 @@ extension Entitlements: ExpressibleByStringLiteral {
         self = .file(path: try! AbsolutePath(validating: value)) // swiftlint:disable:this force_try
     }
 }
-

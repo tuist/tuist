@@ -10,6 +10,7 @@ public protocol PlistContentHashing {
 /// is responsible for computing a hash that uniquely identifies a property-list file (e.g. `Info.plist` or `.entitlements`)
 public final class PlistContentHasher: PlistContentHashing {
     private let contentHasher: ContentHashing
+
     // MARK: - Init
 
     public init(contentHasher: ContentHashing) {
@@ -20,7 +21,7 @@ public final class PlistContentHasher: PlistContentHashing {
 
     public func hash(plist: Plist) throws -> String {
         switch plist {
-        case .infoPlist(let infoPlist):
+        case let .infoPlist(infoPlist):
             switch infoPlist {
             case let .file(path):
                 return try contentHasher.hash(path: path)
@@ -34,7 +35,7 @@ public final class PlistContentHasher: PlistContentHashing {
             case let .generatedFile(_, data):
                 return try contentHasher.hash(data)
             }
-        case .entitlements(let entitlements):
+        case let .entitlements(entitlements):
             switch entitlements {
             case let .file(path):
                 return try contentHasher.hash(path: path)
