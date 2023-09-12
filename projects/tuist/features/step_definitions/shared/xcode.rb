@@ -24,6 +24,8 @@ Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do
   end
 
   args.concat(["-derivedDataPath", @derived_data_path])
+  
+  args << "-skipPackagePluginValidation"
 
   args << "clean"
   args << action

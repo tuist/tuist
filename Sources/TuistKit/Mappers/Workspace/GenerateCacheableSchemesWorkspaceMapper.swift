@@ -33,7 +33,7 @@ final class GenerateCacheableSchemesWorkspaceMapper: WorkspaceMapping {
         let projectsWithTargets = workspace
             .projects
             .flatMap { project in project.targets.map { (project, $0) } }
-            .filter { $0.1.legacyPlatform == platform }
+            .filter { $0.1.supports(platform) }
 
         let allInternalTargets = projectsWithTargets
             .filter { !$0.0.isExternal }

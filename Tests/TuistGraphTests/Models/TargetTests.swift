@@ -341,4 +341,26 @@ final class TargetTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, [PlatformFilter.ios, PlatformFilter.catalyst, PlatformFilter.macos, PlatformFilter.visionos])
     }
+
+    func test_supportsCatalyst_returns_true_when_the_destinations_include_macCatalyst() {
+        // Given
+        let target = Target.test(destinations: [.macCatalyst])
+
+        // When
+        let got = target.supportsCatalyst
+
+        // Then
+        XCTAssertTrue(got)
+    }
+
+    func test_supportsCatalyst_returns_false_when_the_destinations_include_macCatalyst() {
+        // Given
+        let target = Target.test(destinations: [.iPad])
+
+        // When
+        let got = target.supportsCatalyst
+
+        // Then
+        XCTAssertFalse(got)
+    }
 }

@@ -94,7 +94,7 @@ public final class TargetContentHasher: TargetContentHashing {
             hashedTargets: &hashedTargets,
             hashedPaths: &hashedPaths
         )
-        let environmentHash = try contentHasher.hash(graphTarget.target.environment)
+        let environmentHash = try contentHasher.hash(graphTarget.target.environmentVariables.mapValues(\.value))
         var stringsToHash = [
             graphTarget.target.name,
             graphTarget.target.product.rawValue,

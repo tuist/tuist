@@ -165,11 +165,13 @@ final class ConfigGenerator: ConfigGenerating {
         sourceRootPath: AbsolutePath
     ) throws {
         let settingsHelper = SettingsHelper()
-        var settings = try defaultSettingsProvider.targetSettings(
+
+        var settings: SettingsDictionary = try defaultSettingsProvider.targetSettings(
             target: target,
             project: project,
             buildConfiguration: buildConfiguration
         )
+
         updateTargetDerived(
             buildSettings: &settings,
             target: target,

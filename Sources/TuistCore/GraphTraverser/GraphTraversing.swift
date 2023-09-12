@@ -45,6 +45,9 @@ public protocol GraphTraversing {
     /// Returns all the internal targets, that is, excluding `Dependencies`.
     func allInternalTargets() -> Set<GraphTarget>
 
+    /// - Returns: All the test plans of the graph
+    func allTestPlans() -> Set<TestPlan>
+
     /// Returns the project from which the graph has been loaded.
     func rootProjects() -> Set<Project>
 
@@ -64,6 +67,9 @@ public protocol GraphTraversing {
     /// It returns the targets of the project defined in the directory at the given path.
     /// - Parameter path: Path to the directory that contains the definition of the project.
     func targets(at path: AbsolutePath) -> Set<GraphTarget>
+
+    /// - Returns: The test plans with the given name.
+    func testPlan(name: String) -> TestPlan?
 
     /// Given a project directory and target name, it returns **all**l its direct target dependencies present in the same project.
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies` instead
@@ -90,6 +96,14 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
+
+    /// It returns true if the given target can be compiled for Mac Catalyst. To be able to compile it for Catalyst, itself and all its
+    /// dependencies need to support Mac Catalyst. Otherwise it'll yield a "X not found" error.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    /// - Returns: True if a given target can be compiled for Mac Catalyst.
+    func buildsForMacCatalyst(path: AbsolutePath, name: String) -> Bool
 
     /// Returns all non-transitive target static dependencies for the given target.
     /// - Parameters:

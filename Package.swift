@@ -63,7 +63,7 @@ let package = Package(
         .package(url: "https://github.com/SwiftDocOrg/GraphViz.git", exact: "0.2.0"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.5.1"),
-        .package(url: "https://github.com/tuist/XcodeProj.git", exact: "8.14.0"),
+        .package(url: "https://github.com/tuist/XcodeProj", exact: "8.15.0"),
         .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
     ],
@@ -313,6 +313,7 @@ let package = Package(
                 "TuistCore",
                 "TuistGraph",
                 "TuistSupport",
+                "TuistCloud",
             ]
         ),
         .testTarget(
@@ -323,6 +324,7 @@ let package = Package(
                 "TuistCoreTesting",
                 "TuistCacheTesting",
                 "TuistGraphTesting",
+                "TuistCloudTesting",
             ]
         ),
         .target(

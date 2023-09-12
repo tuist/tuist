@@ -43,7 +43,9 @@ extension TuistTestCase {
     ) throws {
         XCTAssertEqual(target.name, manifest.name, file: file, line: line)
         XCTAssertEqual(target.bundleId, manifest.bundleId, file: file, line: line)
-        XCTAssertTrue(target.legacyPlatform == manifest.platform, file: file, line: line)
+        XCTAssertEqual(target.supportedPlatforms.count, 1)
+        let exclusivePlatform = try XCTUnwrap(target.supportedPlatforms.first)
+        XCTAssertTrue(exclusivePlatform == manifest.platform, file: file, line: line)
         XCTAssertTrue(target.product == manifest.product, file: file, line: line)
         XCTAssertEqual(
             target.infoPlist?.path,
@@ -57,7 +59,12 @@ extension TuistTestCase {
             file: file,
             line: line
         )
-        XCTAssertEqual(target.environment, manifest.environment, file: file, line: line)
+        XCTAssertEqual(
+            target.environmentVariables,
+            manifest.environmentVariables.mapValues(EnvironmentVariable.from),
+            file: file,
+            line: line
+        )
         try assert(
             coreDataModels: target.coreDataModels,
             matches: manifest.coreDataModels,
@@ -212,7 +219,12 @@ extension TuistTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) {
-        XCTAssertEqual(arguments.environment, manifest.environment, file: file, line: line)
+        XCTAssertEqual(
+            arguments.environmentVariables,
+            manifest.environmentVariables.mapValues(EnvironmentVariable.from),
+            file: file,
+            line: line
+        )
 
         let rawArguments = arguments.launchArguments.reduce(into: [:]) { $0[$1.name] = $1.isEnabled }
         let rawManifest = manifest.launchArguments.reduce(into: [:]) { $0[$1.name] = $1.isEnabled }

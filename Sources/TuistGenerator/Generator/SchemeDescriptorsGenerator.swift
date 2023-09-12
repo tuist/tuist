@@ -335,7 +335,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         if let arguments = testAction.arguments {
             args = XCScheme.CommandLineArguments(arguments: getCommandlineArguments(arguments.launchArguments))
-            environments = environmentVariables(arguments.environment)
+            environments = environmentVariables(arguments.environmentVariables)
         }
 
         let codeCoverageTargets = try testAction.codeCoverageTargets
@@ -378,6 +378,15 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
         let language = testAction.language
         let region = testAction.region
+        let preferredScreenCaptureFormat: XCScheme.TestAction.ScreenCaptureFormat? =
+            testAction.preferredScreenCaptureFormat.flatMap { format in
+                switch format {
+                case .screenshots:
+                    return .screenshots
+                case .screenRecording:
+                    return .screenRecording
+                }
+            }
 
         return XCScheme.TestAction(
             buildConfiguration: testAction.configurationName,
@@ -399,7 +408,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             commandlineArguments: args,
             environmentVariables: environments,
             language: language,
-            region: region
+            region: region,
+            preferredScreenCaptureFormat: preferredScreenCaptureFormat
         )
     }
 
@@ -456,7 +466,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         if let arguments = scheme.runAction?.arguments {
             commandlineArguments = XCScheme.CommandLineArguments(arguments: getCommandlineArguments(arguments.launchArguments))
-            environments = environmentVariables(arguments.environment)
+            environments = environmentVariables(arguments.environmentVariables)
         }
 
         let buildConfiguration = scheme.runAction?.configurationName ?? defaultBuildConfiguration
@@ -500,11 +510,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             customLLDBInitFilePath = nil
         }
 
-        if let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath,
-           let graphTarget = graphTarget
-        {
+        if let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath {
             // the identifier is the relative path between the storekit file, and the xcode project
-            let fileRelativePath = storeKitFilePath.relative(to: graphTarget.project.xcodeProjPath)
+            let fileRelativePath = storeKitFilePath.relative(to: graphTraverser.workspace.xcWorkspacePath)
             storeKitConfigurationFileReference = .init(identifier: fileRelativePath.pathString)
         }
 
@@ -606,7 +614,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             if let arguments = action.arguments {
                 commandlineArguments = XCScheme
                     .CommandLineArguments(arguments: getCommandlineArguments(arguments.launchArguments))
-                environments = environmentVariables(arguments.environment)
+                environments = environmentVariables(arguments.environmentVariables)
             }
         } else if let action = scheme.runAction, let executable = action.executable {
             target = executable
@@ -875,9 +883,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     /// - Parameters:
     ///     - environments: environment variables
     /// - Returns: XCScheme.EnvironmentVariable.
-    private func environmentVariables(_ environments: [String: String]) -> [XCScheme.EnvironmentVariable] {
-        environments.map { key, value in
-            XCScheme.EnvironmentVariable(variable: key, value: value, enabled: true)
+    private func environmentVariables(_ environments: [String: EnvironmentVariable]) -> [XCScheme.EnvironmentVariable] {
+        environments.map { key, variable in
+            XCScheme.EnvironmentVariable(variable: key, value: variable.value, enabled: variable.isEnabled)
         }.sorted { $0.variable < $1.variable }
     }
 
@@ -955,6 +963,7 @@ extension TestAction {
             diagnosticsOptions: [],
             language: nil,
             region: nil,
+            preferredScreenCaptureFormat: nil,
             testPlans: nil
         )
     }

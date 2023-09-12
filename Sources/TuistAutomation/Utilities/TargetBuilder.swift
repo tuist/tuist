@@ -19,6 +19,7 @@ public protocol TargetBuilding {
     ///   - graphTraverser: The Graph traverser.
     func buildTarget(
         _ target: GraphTarget,
+        platform: TuistGraph.Platform,
         workspacePath: AbsolutePath,
         scheme: Scheme,
         clean: Bool,
@@ -73,6 +74,7 @@ public final class TargetBuilder: TargetBuilding {
 
     public func buildTarget(
         _ target: GraphTarget,
+        platform: TuistGraph.Platform,
         workspacePath: AbsolutePath,
         scheme: Scheme,
         clean: Bool,
@@ -93,6 +95,7 @@ public final class TargetBuilder: TargetBuilding {
 
         let destination = try await XcodeBuildDestination.find(
             for: target.target,
+            on: platform,
             scheme: scheme,
             version: osVersion,
             deviceName: device,
@@ -116,7 +119,7 @@ public final class TargetBuilder: TargetBuilding {
             try copyBuildProducts(
                 to: buildOutputPath,
                 projectPath: workspacePath,
-                platform: target.target.legacyPlatform,
+                platform: platform,
                 configuration: configuration
             )
         }

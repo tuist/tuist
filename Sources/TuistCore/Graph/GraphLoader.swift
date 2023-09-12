@@ -104,11 +104,11 @@ public final class GraphLoader: GraphLoading {
         }
 
         cache.add(target: target, path: path)
-        let dependencies = try target.dependencies.map {
+        let dependencies = try target.dependencies.compactMap { dependency in
             try loadDependency(
                 path: path,
-                fromPlatform: target.legacyPlatform,
-                dependency: $0,
+                forPlatforms: target.supportedPlatforms,
+                dependency: dependency,
                 cache: cache
             )
         }
@@ -120,10 +120,10 @@ public final class GraphLoader: GraphLoading {
 
     private func loadDependency(
         path: AbsolutePath,
-        fromPlatform: Platform,
+        forPlatforms platforms: Set<Platform>,
         dependency: TargetDependency,
         cache: Cache
-    ) throws -> GraphDependency {
+    ) throws -> GraphDependency? {
         switch dependency {
         case let .target(toTarget):
             // A target within the same project.
@@ -159,8 +159,14 @@ public final class GraphLoader: GraphLoading {
             return try loadXCFramework(path: frameworkPath, cache: cache)
 
         case let .sdk(name, status):
-            return try loadSDK(name: name, platform: fromPlatform, status: status, source: .system)
-
+            return try platforms.map { platform in
+                try loadSDK(
+                    name: name,
+                    platform: platform,
+                    status: status,
+                    source: .system
+                )
+            }.first
         case let .package(product):
             return try loadPackage(fromPath: path, productName: product, isPlugin: false)
 
@@ -168,7 +174,9 @@ public final class GraphLoader: GraphLoading {
             return try loadPackage(fromPath: path, productName: product, isPlugin: true)
 
         case .xctest:
-            return try loadXCTestSDK(platform: fromPlatform)
+            return try platforms.map { platform in
+                try loadXCTestSDK(platform: platform)
+            }.first
         }
     }
 

@@ -347,9 +347,10 @@ final class TestModelGenerator {
     }
 
     private func createArguments() -> Arguments {
-        let environment = (0 ..< 10).reduce([String: String]()) { acc, value in
+        let environmentVariables = (0 ..< 10).reduce([String: EnvironmentVariable]()) { acc, value in
             var acc = acc
-            acc["Environment\(value)"] = "EnvironmentValue\(value)"
+            let arg = EnvironmentVariable(value: "EnvironmentValue\(value)", isEnabled: true)
+            acc["Environment\(value)"] = arg
             return acc
         }
         let launch = (0 ..< 10).reduce([LaunchArgument]()) { acc, value in
@@ -358,7 +359,7 @@ final class TestModelGenerator {
             acc.append(arg)
             return acc
         }
-        return Arguments(environment: environment, launchArguments: launch)
+        return Arguments(environmentVariables: environmentVariables, launchArguments: launch)
     }
 
     private func createExecutionActions() -> [ExecutionAction] {

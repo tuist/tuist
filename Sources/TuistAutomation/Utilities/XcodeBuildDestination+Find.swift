@@ -16,30 +16,31 @@ extension XcodeBuildDestination {
     /// - Returns: The `XcodeBuildDestination` that is compatible with the given arguments.
     public static func find(
         for target: Target,
+        on platform: TuistGraph.Platform,
         scheme: Scheme,
         version: Version?,
         deviceName: String?,
         graphTraverser: GraphTraversing,
         simulatorController: SimulatorControlling
     ) async throws -> XcodeBuildDestination {
-        switch target.legacyPlatform {
+        switch platform {
         case .iOS, .tvOS, .watchOS, .visionOS:
             let minVersion: Version?
-            if let deploymentTargetVersion = target.deploymentTargets[target.legacyPlatform] {
+            if let deploymentTargetVersion = target.deploymentTargets[platform] {
                 minVersion = deploymentTargetVersion.version()
             } else {
                 minVersion = scheme.targetDependencies()
                     .flatMap {
                         graphTraverser
                             .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)
-                            .compactMap { $0.target.deploymentTargets[target.legacyPlatform]?.version() }
+                            .compactMap { $0.target.deploymentTargets[platform]?.version() }
                     }
                     .sorted()
                     .first
             }
 
             let deviceAndRuntime = try await simulatorController.findAvailableDevice(
-                platform: target.legacyPlatform,
+                platform: platform,
                 version: version,
                 minVersion: minVersion,
                 deviceName: deviceName
