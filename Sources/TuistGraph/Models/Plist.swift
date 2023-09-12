@@ -130,14 +130,14 @@ extension InfoPlist: ExpressibleByStringLiteral {
 // MARK: - Entitlements
 
 public enum Entitlements: Equatable, Codable {
-    // Path to a user defined info.plist file (already exists on disk).
+    // Path to a user defined .entitlements file (already exists on disk).
     case file(path: AbsolutePath)
 
-    // Path to a generated info.plist file (may not exist on disk at the time of project generation).
+    // Path to a generated .entitlements file (may not exist on disk at the time of project generation).
     // Data of the generated file
     case generatedFile(path: AbsolutePath, data: Data)
 
-    // User defined dictionary of keys/values for an info.plist file.
+    // User defined dictionary of keys/values for an .entitlements file.
     case dictionary([String: Plist.Value])
 
     // MARK: - Public
