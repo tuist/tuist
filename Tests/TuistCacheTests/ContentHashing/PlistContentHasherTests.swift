@@ -72,7 +72,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
         XCTAssertEqual(
             hash,
-            "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([TuistGraph.InfoPlist.Value.string(\"5a\"), TuistGraph.InfoPlist.Value.string(\"5b\")]);6=dictionary([\"6a\": TuistGraph.InfoPlist.Value.string(\"6value\")]);-hash"
+            "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([TuistGraph.Plist.Value.string(\"5a\"), TuistGraph.Plist.Value.string(\"5b\")]);6=dictionary([\"6a\": TuistGraph.Plist.Value.string(\"6value\")]);-hash"
         )
     }
 
