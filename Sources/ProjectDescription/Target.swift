@@ -121,7 +121,7 @@ public struct Target: Codable, Equatable {
         resources: ResourceFileElements? = nil,
         copyFiles: [CopyFilesAction]? = nil,
         headers: Headers? = nil,
-        entitlements: Path? = nil,
+        entitlements: Entitlements? = nil,
         scripts: [TargetScript] = [],
         dependencies: [TargetDependency] = [],
         settings: Settings? = nil,

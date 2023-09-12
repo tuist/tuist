@@ -286,7 +286,6 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         hasher.combine(product)
         hasher.combine(bundleId)
         hasher.combine(productName)
-        hasher.combine(entitlements)
         hasher.combine(environmentVariables)
     }
 
