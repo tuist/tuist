@@ -1,0 +1,3 @@
+class FrameworkClass {
+    func something() {}
+}
