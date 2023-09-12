@@ -39,7 +39,7 @@ public final class GenerateEntitlementsProjectMapper: ProjectMapping {
             return (target, [])
         }
 
-        // Get the Info.plist that needs to be generated
+        // Get the entitlements that needs to be generated
         guard let dictionary = entitlementsDictionary(
             entitlements: entitlements
         )

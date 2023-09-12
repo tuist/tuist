@@ -3,10 +3,10 @@ import Foundation
 // MARK: - Entitlements
 
 public enum Entitlements: Codable, Equatable {
-    /// The path to an existing Info.plist file.
+    /// The path to an existing .entitlements file.
     case file(path: Path)
 
-    /// A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time.
+    /// A dictionary with the entitlements content. Tuist generates the .entitlements file at the generation time.
     case dictionary([String: Plist.Value])
 
     // MARK: - Error

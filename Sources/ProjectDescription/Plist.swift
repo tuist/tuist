@@ -3,8 +3,8 @@ import Foundation
 // MARK: - Plist
 
 public enum Plist {
-    /// It represents the values of the Plist file dictionary.
-    /// It ensures that the values used to define the content of the dynamically generated Info.plist files are valid
+    /// It represents the values of the .plist or .entitlements file dictionary.
+    /// It ensures that the values used to define the content of the dynamically generated .plist or .entitlements files are valid
     public indirect enum Value: Codable, Equatable {
         /// It represents a string value.
         case string(String)
