@@ -24,7 +24,7 @@ public final class TargetContentHasher: TargetContentHashing {
     private let copyFilesContentHasher: CopyFilesContentHashing
     private let headersContentHasher: HeadersContentHashing
     private let deploymentTargetContentHasher: DeploymentTargetsContentHashing
-    private let infoPlistContentHasher: InfoPlistContentHashing
+    private let plistContentHasher: PlistContentHashing
     private let settingsContentHasher: SettingsContentHashing
     private let dependenciesContentHasher: DependenciesContentHashing
 
@@ -40,7 +40,7 @@ public final class TargetContentHasher: TargetContentHashing {
             copyFilesContentHasher: CopyFilesContentHasher(contentHasher: contentHasher),
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
             deploymentTargetContentHasher: DeploymentTargetsContentHasher(contentHasher: contentHasher),
-            infoPlistContentHasher: InfoPlistContentHasher(contentHasher: contentHasher),
+            plistContentHasher: PlistContentHasher(contentHasher: contentHasher),
             settingsContentHasher: SettingsContentHasher(contentHasher: contentHasher),
             dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher)
         )
@@ -55,7 +55,7 @@ public final class TargetContentHasher: TargetContentHashing {
         copyFilesContentHasher: CopyFilesContentHashing,
         headersContentHasher: HeadersContentHashing,
         deploymentTargetContentHasher: DeploymentTargetsContentHashing,
-        infoPlistContentHasher: InfoPlistContentHashing,
+        plistContentHasher: PlistContentHashing,
         settingsContentHasher: SettingsContentHashing,
         dependenciesContentHasher: DependenciesContentHashing
     ) {
@@ -67,7 +67,7 @@ public final class TargetContentHasher: TargetContentHashing {
         self.copyFilesContentHasher = copyFilesContentHasher
         self.headersContentHasher = headersContentHasher
         self.deploymentTargetContentHasher = deploymentTargetContentHasher
-        self.infoPlistContentHasher = infoPlistContentHasher
+        self.plistContentHasher = plistContentHasher
         self.settingsContentHasher = settingsContentHasher
         self.dependenciesContentHasher = dependenciesContentHasher
     }
@@ -120,11 +120,11 @@ public final class TargetContentHasher: TargetContentHashing {
         stringsToHash.append(deploymentTargetHash)
 
         if let infoPlist = graphTarget.target.infoPlist {
-            let infoPlistHash = try infoPlistContentHasher.hash(plist: infoPlist)
+            let infoPlistHash = try plistContentHasher.hash(plist: .infoPlist(infoPlist))
             stringsToHash.append(infoPlistHash)
         }
         if let entitlements = graphTarget.target.entitlements {
-            let entitlementsHash = try contentHasher.hash(path: entitlements)
+            let entitlementsHash = try plistContentHasher.hash(plist: .entitlements(entitlements))
             stringsToHash.append(entitlementsHash)
         }
         if let settings = graphTarget.target.settings {

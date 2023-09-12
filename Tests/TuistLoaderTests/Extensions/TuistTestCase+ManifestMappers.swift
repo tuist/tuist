@@ -54,8 +54,8 @@ extension TuistTestCase {
             line: line
         )
         XCTAssertEqual(
-            target.entitlements,
-            try manifest.entitlements.map { try generatorPaths.resolve(path: $0) },
+            target.entitlements?.path,
+            try generatorPaths.resolve(path: manifest.entitlements!.path!),
             file: file,
             line: line
         )

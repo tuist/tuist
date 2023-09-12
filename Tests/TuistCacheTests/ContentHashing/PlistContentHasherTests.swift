@@ -11,14 +11,14 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class InfoPlistContentHasherTests: TuistUnitTestCase {
-    private var subject: InfoPlistContentHasher!
+    private var subject: PlistContentHasher!
     private var mockContentHasher: MockContentHasher!
     private let filePath1 = try! AbsolutePath(validating: "/file1")
 
     override func setUp() {
         super.setUp()
         mockContentHasher = MockContentHasher()
-        subject = InfoPlistContentHasher(contentHasher: mockContentHasher)
+        subject = PlistContentHasher(contentHasher: mockContentHasher)
     }
 
     override func tearDown() {
@@ -33,7 +33,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath1] = "stubHash"
 
         // When
-        let hash = try subject.hash(plist: infoPlist)
+        let hash = try subject.hash(plist: .infoPlist(infoPlist))
 
         // Then
         XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
@@ -48,7 +48,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        let hash = try subject.hash(plist: infoPlist)
+        let hash = try subject.hash(plist: .infoPlist(infoPlist))
 
         // Then
         XCTAssertEqual(mockContentHasher.hashDataCallCount, 1)
@@ -66,13 +66,13 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
             "6": ["6a": "6value"],
         ])
         // When
-        let hash = try subject.hash(plist: infoPlist)
+        let hash = try subject.hash(plist: .infoPlist(infoPlist))
 
         // Then
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
         XCTAssertEqual(
             hash,
-            "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([TuistGraph.InfoPlist.Value.string(\"5a\"), TuistGraph.InfoPlist.Value.string(\"5b\")]);6=dictionary([\"6a\": TuistGraph.InfoPlist.Value.string(\"6value\")]);-hash"
+            "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([TuistGraph.Plist.Value.string(\"5a\"), TuistGraph.Plist.Value.string(\"5b\")]);6=dictionary([\"6a\": TuistGraph.Plist.Value.string(\"6value\")]);-hash"
         )
     }
 
@@ -88,13 +88,13 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         ])
 
         // When
-        let hash = try subject.hash(plist: infoPlist)
+        let hash = try subject.hash(plist: .infoPlist(infoPlist))
 
         // Then
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
         XCTAssertEqual(
             hash,
-            "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([TuistGraph.InfoPlist.Value.string(\"5a\"), TuistGraph.InfoPlist.Value.string(\"5b\")]);6=dictionary([\"6a\": TuistGraph.InfoPlist.Value.string(\"6value\")]);-hash"
+            "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([TuistGraph.Plist.Value.string(\"5a\"), TuistGraph.Plist.Value.string(\"5b\")]);6=dictionary([\"6a\": TuistGraph.Plist.Value.string(\"6value\")]);-hash"
         )
     }
 }

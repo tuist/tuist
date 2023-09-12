@@ -51,7 +51,8 @@ extension TuistGraph.Target {
         }
 
         let infoPlist = try TuistGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)
-        let entitlements = try manifest.entitlements.map { try generatorPaths.resolve(path: $0) }
+
+        let entitlements = try TuistGraph.Entitlements.from(manifest: manifest.entitlements, generatorPaths: generatorPaths)
 
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
 

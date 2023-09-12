@@ -387,7 +387,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             product: .app,
             bundleId: "com.bundle.id",
             infoPlist: .file(path: try AbsolutePath(validating: "/project/info.plist")),
-            entitlements: try AbsolutePath(validating: "/project/app.entitlements"),
+            entitlements: .file(path: try AbsolutePath(validating: "/project/app.entitlements")),
             settings: settings,
             sources: [SourceFile(path: try AbsolutePath(validating: "/project/file.swift"))],
             resources: [
