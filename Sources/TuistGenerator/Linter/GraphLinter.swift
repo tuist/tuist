@@ -394,6 +394,9 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
         ],
+        LintableTarget(platform: .iOS, product: .bundle): [
+            LintableTarget(platform: .iOS, product: .app)
+        ],
         // macOS
         LintableTarget(platform: .macOS, product: .app): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
@@ -457,6 +460,9 @@ public class GraphLinter: GraphLinting {
         LintableTarget(platform: .macOS, product: .xpc): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .staticFramework),
+        ],
+        LintableTarget(platform: .macOS, product: .bundle): [
+            LintableTarget(platform: .iOS, product: .app)
         ],
         LintableTarget(platform: .tvOS, product: .app): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),
