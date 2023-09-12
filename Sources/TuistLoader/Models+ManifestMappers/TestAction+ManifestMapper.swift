@@ -21,6 +21,7 @@ extension TuistGraph.TestAction {
         let diagnosticsOptions: Set<TuistGraph.SchemeDiagnosticsOption>
         let language: SchemeLanguage?
         let region: String?
+        let preferredScreenCaptureFormat: TuistGraph.ScreenCaptureFormat?
 
         if let plans = manifest.testPlans {
             testPlans = try plans.enumerated().map { index, path in
@@ -36,6 +37,7 @@ extension TuistGraph.TestAction {
             diagnosticsOptions = []
             language = nil
             region = nil
+            preferredScreenCaptureFormat = nil
         } else {
             targets = try manifest.targets
                 .map { try TuistGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
@@ -57,6 +59,8 @@ extension TuistGraph.TestAction {
             diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistGraph.SchemeDiagnosticsOption.from(manifest: $0) })
             language = manifest.options.language
             region = manifest.options.region
+            preferredScreenCaptureFormat = manifest.options.preferredScreenCaptureFormat
+                .map { .from(manifest: $0) }
 
             // not used when using targets
             testPlans = nil
@@ -85,6 +89,7 @@ extension TuistGraph.TestAction {
             diagnosticsOptions: diagnosticsOptions,
             language: language?.identifier,
             region: region,
+            preferredScreenCaptureFormat: preferredScreenCaptureFormat,
             testPlans: testPlans
         )
     }

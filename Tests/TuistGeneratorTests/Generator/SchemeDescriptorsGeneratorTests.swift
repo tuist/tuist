@@ -715,6 +715,51 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
     }
 
+    func test_schemeTestAction_with_preferredScreenCaptureFormat() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppUITests", product: .uiTests)
+
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            preferredScreenCaptureFormat: .screenshots
+        )
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+
+        let scheme = Scheme.test(name: "AppUITests", shared: true, buildAction: buildAction, testAction: testAction)
+
+        let project = Project.test(path: projectPath, targets: [target, testTarget])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target.name: target,
+                    testTarget.name: testTarget,
+                ],
+            ],
+            dependencies: [
+                .target(name: testTarget.name, path: project.path): [
+                    .target(name: target.name, path: project.path),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.preferredScreenCaptureFormat, .screenshots)
+    }
+
     func test_schemeBuildAction() throws {
         let target = Target.test(name: "App", product: .app)
         let testTarget = Target.test(name: "AppTests", product: .unitTests)

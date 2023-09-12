@@ -17,6 +17,7 @@ public struct TestAction: Equatable, Codable {
     public var diagnosticsOptions: Set<SchemeDiagnosticsOption>
     public var language: String?
     public var region: String?
+    public var preferredScreenCaptureFormat: ScreenCaptureFormat?
 
     // MARK: - Init
 
@@ -33,6 +34,7 @@ public struct TestAction: Equatable, Codable {
         diagnosticsOptions: Set<SchemeDiagnosticsOption>,
         language: String? = nil,
         region: String? = nil,
+        preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,
         testPlans: [TestPlan]? = nil
     ) {
         self.testPlans = testPlans
@@ -48,5 +50,6 @@ public struct TestAction: Equatable, Codable {
         self.diagnosticsOptions = diagnosticsOptions
         self.language = language
         self.region = region
+        self.preferredScreenCaptureFormat = preferredScreenCaptureFormat
     }
 }
