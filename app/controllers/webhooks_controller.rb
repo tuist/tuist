@@ -25,12 +25,7 @@ class WebhooksController < ActionController::Base
     case event.type
     when 'customer.subscription.updated'
       subscription = event.data.object # contains a Stripe::PaymentIntent
-      account = Account.find_by!(customer_id: subscription.customer)
-      if subscription.status == 'active' || subscription.status == 'trialing'
-        account.update(plan: :team)
-      else
-        account.update(plan: nil)
-      end
+      StripeUpdateSubscriptionService.call(subscription: subscription)
     else
       puts "Unhandled event type: #{event.type}"
     end
