@@ -11,8 +11,6 @@ default: &default
     - settings
     - organizations
     - organization
-  stripe:
-    plan_id: price_1NkZ69LWue9IBlPS0P60kMB8
 development: &development
   <<: *default
 staging:
