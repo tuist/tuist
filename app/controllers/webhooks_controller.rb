@@ -12,13 +12,13 @@ class WebhooksController < ActionController::Base
       event = Stripe::Webhook.construct_event(
         payload, sig_header, Environment.stripe_endpoint_secret
       )
-    rescue JSON::ParserError => e
+    rescue JSON::ParserError
       # Invalid payload
-      return head :bad_request
+      return head(:bad_request)
     rescue Stripe::SignatureVerificationError => e
       # Invalid signature
       puts "Error verifying webhook signature: #{e.message}"
-      return head :unauthorized
+      return head(:unauthorized)
     end
 
     # Handle the event
@@ -30,6 +30,6 @@ class WebhooksController < ActionController::Base
       puts "Unhandled event type: #{event.type}"
     end
 
-    head :ok
+    head(:ok)
   end
 end

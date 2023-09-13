@@ -11,7 +11,7 @@ class User < ApplicationRecord
   rolify
 
   # Callbacks
-  before_validation :create_account, if: -> (user) { user.account.nil? }
+  before_validation :create_account, if: ->(user) { user.account.nil? }
 
   include TokenAuthenticatable
 
@@ -67,18 +67,19 @@ class User < ApplicationRecord
   end
 
   private
-    def create_account
-      self.account = Account.new(name: account_name)
-    end
 
-    def account_name(suffix: nil)
-      name = email.split("@").first
-      name = suffix.nil? ? name : name + suffix.to_s
-      return name if Account.where(name: name).count == 0
+  def create_account
+    self.account = Account.new(name: account_name)
+  end
 
-      suffix = suffix.nil? ? 1 : suffix + 1
-      raise Error::CantObtainAccountName if suffix == ACCOUNT_SUFFIX_LIMIT
+  def account_name(suffix: nil)
+    name = email.split("@").first
+    name = suffix.nil? ? name : name + suffix.to_s
+    return name if Account.where(name: name).count == 0
 
-      account_name(suffix: suffix)
-    end
+    suffix = suffix.nil? ? 1 : suffix + 1
+    raise Error::CantObtainAccountName if suffix == ACCOUNT_SUFFIX_LIMIT
+
+    account_name(suffix: suffix)
+  end
 end

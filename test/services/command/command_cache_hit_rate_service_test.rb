@@ -23,7 +23,7 @@ class CommandCacheHitRateServiceTest < ActiveSupport::TestCase
       swift_version: "5.5.0",
       macos_version: "12.1.0",
       project: @project,
-      created_at: Time.new(2022, 03, 30),
+      created_at: Time.new(2022, 0o3, 30),
       cacheable_targets: cacheable_targets,
       local_cache_target_hits: local_cache_target_hits,
       remote_cache_target_hits: remote_cache_target_hits,
@@ -62,7 +62,7 @@ class CommandCacheHitRateServiceTest < ActiveSupport::TestCase
 
   test "returns nil when cacheable targets are not defined" do
     # Given
-    command_event = create_command_event()
+    command_event = create_command_event
 
     # When
     got = CommandCacheHitRateService.call(command_event: command_event)

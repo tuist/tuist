@@ -8,6 +8,7 @@ class ChangeMemberRoleService < ApplicationService
       attr_reader :username
 
       def initialize(username)
+        super
         @username = username
       end
 
@@ -33,21 +34,21 @@ class ChangeMemberRoleService < ApplicationService
     organization = OrganizationFetchService.call(name: organization_name, user: role_changer)
     begin
       user = Account.find_by!(name: username).owner
-      raise Error::MemberNotFound.new(username) unless user.is_a?(User)
+      raise Error::MemberNotFound, username unless user.is_a?(User)
     rescue ActiveRecord::RecordNotFound
-      raise Error::MemberNotFound.new(username)
+      raise Error::MemberNotFound, username
     end
     ChangeUserRoleService.call(
       user_id: user.id,
       organization_id: organization.id,
       role: role,
-      role_changer: role_changer
+      role_changer: role_changer,
     )
     OrganizationMember.new(
       id: user.id,
       name: user.name,
       email: user.email,
-      role: role
+      role: role,
     )
   end
 end

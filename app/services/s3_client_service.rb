@@ -9,10 +9,10 @@ class S3ClientService < ApplicationService
   end
 
   def call
-    if s3_bucket.iv.nil?
-      secret_access_key = s3_bucket.secret_access_key
+    secret_access_key = if s3_bucket.iv.nil?
+      s3_bucket.secret_access_key
     else
-      secret_access_key = DecipherService.call(
+      DecipherService.call(
         key: Base64.decode64(s3_bucket.secret_access_key),
         iv: Base64.decode64(s3_bucket.iv),
       )

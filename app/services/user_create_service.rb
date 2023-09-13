@@ -13,10 +13,10 @@ class UserCreateService < ApplicationService
   def call
     ActiveRecord::Base.transaction do
       user = User.find_or_initialize_by(email: email) do |user|
-        if password.nil?
-          user.password = Devise.friendly_token.first(16)
+        user.password = if password.nil?
+          Devise.friendly_token.first(16)
         else
-          user.password = password
+          password
         end
       end
       if skip_confirmation

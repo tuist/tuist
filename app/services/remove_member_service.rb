@@ -8,6 +8,7 @@ class RemoveMemberService < ApplicationService
       attr_reader :username
 
       def initialize(username)
+        super
         @username = username
       end
 
@@ -32,14 +33,14 @@ class RemoveMemberService < ApplicationService
     organization = OrganizationFetchService.call(name: organization_name, user: remover)
     begin
       user = Account.find_by!(name: username).owner
-      raise Error::MemberNotFound.new(username) unless user.is_a?(User)
+      raise Error::MemberNotFound, username unless user.is_a?(User)
     rescue ActiveRecord::RecordNotFound
-      raise Error::MemberNotFound.new(username)
+      raise Error::MemberNotFound, username
     end
     RemoveUserService.call(
       user_id: user.id,
       organization_id: organization.id,
-      remover: remover
+      remover: remover,
     )
   end
 end

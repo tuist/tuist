@@ -17,10 +17,11 @@ class ApplicationController < ActionController::Base
     end
   end
 
+  # rubocop:disable Naming/AccessorMethodName
   def get_started
-
-    render 'get_started'
+    render('get_started')
   end
+  # rubocop:enable Naming/AccessorMethodName
 
   def create_customer_portal_session
     session_url = StripeCreateSessionService.call(account_id: params[:account_id])
@@ -34,6 +35,10 @@ class ApplicationController < ActionController::Base
   end
 
   def fetch_authenticated_user_organizations
-    @current_organizations = Environment.stripe_configured? ? UserOrganizationsFetchService.call(user: current_user) : []
+    @current_organizations = if Environment.stripe_configured?
+      UserOrganizationsFetchService.call(user: current_user)
+    else
+      []
+    end
   end
 end

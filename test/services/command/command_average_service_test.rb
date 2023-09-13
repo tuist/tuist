@@ -12,7 +12,7 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
       token: Devise.friendly_token.first(8),
     )
     ProjectFetchService.any_instance.stubs(:fetch_by_id).returns(@project)
-    Time.stubs(:now).returns(Time.new(2022, 03, 31))
+    Time.stubs(:now).returns(Time.new(2022, 0o3, 31))
   end
 
   def create_command_event(name:, subcommand: nil, duration:, created_at:)
@@ -32,18 +32,18 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
 
   test "returns average for the last thirty days" do
     # Given
-    create_command_event(name: "generate", duration: 20, created_at: Time.new(2022, 03, 30))
-    create_command_event(name: "generate", duration: 10, created_at: Time.new(2022, 03, 30))
-    create_command_event(name: "fetch", duration: 10, created_at: Time.new(2022, 03, 30))
-    create_command_event(name: "generate", duration: 5, created_at: Time.new(2022, 03, 05))
+    create_command_event(name: "generate", duration: 20, created_at: Time.new(2022, 0o3, 30))
+    create_command_event(name: "generate", duration: 10, created_at: Time.new(2022, 0o3, 30))
+    create_command_event(name: "fetch", duration: 10, created_at: Time.new(2022, 0o3, 30))
+    create_command_event(name: "generate", duration: 5, created_at: Time.new(2022, 0o3, 0o5))
 
     # When
     got = CommandAverageService.call(project_id: @project.id, command_name: "generate", user: @user)
 
     # Then
-    assert_equal (1..31).map { |day| Date.new(2022, 03, day) }, got.map(&:date)
+    assert_equal (1..31).map { |day| Date.new(2022, 0o3, day) }, got.map(&:date)
     assert_equal (1..31).map { |day|
-      if day == 05
+      if day == 0o5
         5
       elsif day == 30
         15
@@ -56,11 +56,11 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
 
   test "returns average for the last thirty days for a subcommand" do
     # Given
-    create_command_event(name: "cache", subcommand: "warm", duration: 20, created_at: Time.new(2022, 03, 30))
-    create_command_event(name: "cache", subcommand: "warm", duration: 10, created_at: Time.new(2022, 03, 30))
-    create_command_event(name: "cache", subcommand: "print-hashes", duration: 5, created_at: Time.new(2022, 03, 30))
-    create_command_event(name: "fetch", duration: 10, created_at: Time.new(2022, 03, 30))
-    create_command_event(name: "cache", subcommand: "print-hashes", duration: 5, created_at: Time.new(2022, 03, 05))
+    create_command_event(name: "cache", subcommand: "warm", duration: 20, created_at: Time.new(2022, 0o3, 30))
+    create_command_event(name: "cache", subcommand: "warm", duration: 10, created_at: Time.new(2022, 0o3, 30))
+    create_command_event(name: "cache", subcommand: "print-hashes", duration: 5, created_at: Time.new(2022, 0o3, 30))
+    create_command_event(name: "fetch", duration: 10, created_at: Time.new(2022, 0o3, 30))
+    create_command_event(name: "cache", subcommand: "print-hashes", duration: 5, created_at: Time.new(2022, 0o3, 0o5))
 
     # When
     got = CommandAverageService.call(
@@ -70,7 +70,7 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
     )
 
     # Then
-    assert_equal (1..31).map { |day| Date.new(2022, 03, day) }, got.map(&:date)
+    assert_equal (1..31).map { |day| Date.new(2022, 0o3, day) }, got.map(&:date)
     assert_equal (1..31).map { |day|
       if day == 30
         15

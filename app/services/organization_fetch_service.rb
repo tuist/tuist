@@ -6,6 +6,7 @@ class OrganizationFetchService < ApplicationService
       attr_reader :name
 
       def initialize(name)
+        super
         @name = name
       end
 
@@ -22,6 +23,7 @@ class OrganizationFetchService < ApplicationService
       attr_reader :name
 
       def initialize(name)
+        super
         @name = name
       end
 
@@ -46,11 +48,12 @@ class OrganizationFetchService < ApplicationService
   def call
     begin
       organization = Account.find_by!(name: name).owner
-      raise Error::OrganizationNotFound.new(name) unless organization.is_a?(Organization)
+      raise Error::OrganizationNotFound, name unless organization.is_a?(Organization)
     rescue ActiveRecord::RecordNotFound
-      raise Error::OrganizationNotFound.new(name)
+      raise Error::OrganizationNotFound, name
     end
-    raise Error::Unauthorized.new(name) unless OrganizationPolicy.new(user, organization).show?
+    raise Error::Unauthorized, name unless OrganizationPolicy.new(user, organization).show?
+
     organization
   end
 end

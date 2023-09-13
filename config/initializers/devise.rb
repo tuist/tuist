@@ -359,7 +359,7 @@ Devise.setup do |config|
         token_url: okta_token_url,
         user_info_url: okta_user_info_url,
       },
-      strategy_class: OmniAuth::Strategies::Okta
+      strategy_class: OmniAuth::Strategies::Okta,
     )
   end
 end

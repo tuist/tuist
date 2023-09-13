@@ -133,7 +133,7 @@ class CacheServiceTest < ActiveSupport::TestCase
 
   test "verify upload returns content length" do
     # Given
-    bucket_object = mock()
+    bucket_object = mock
     bucket_object.stubs(:content_length).returns(5)
     Aws::S3::Client.any_instance.stubs(:get_object).returns(bucket_object)
 
@@ -154,7 +154,7 @@ class CacheServiceTest < ActiveSupport::TestCase
   test "fails with payment required if an organization has no plan" do
     # Given
     organization = Organization.create!
-    account = Account.create!(owner: organization, name: "tuist")
+    Account.create!(owner: organization, name: "tuist")
     project = Project.create!(
       name: "my-project",
       account_id: organization.account.id,
@@ -178,7 +178,7 @@ class CacheServiceTest < ActiveSupport::TestCase
   test "object exists with using passed project when an organization is on the team plan" do
     # Given
     organization = Organization.create!
-    account = Account.create!(owner: organization, name: "tuist", plan: :team)
+    Account.create!(owner: organization, name: "tuist", plan: :team)
     project = Project.create!(
       name: "my-project",
       account_id: organization.account.id,

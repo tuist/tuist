@@ -9,7 +9,7 @@ class UserAccountsFetchService < ApplicationService
   end
 
   def call
-    organization_accounts = UserOrganizationsFetchService.call(user: user).map { |organization| organization.account }
+    organization_accounts = UserOrganizationsFetchService.call(user: user).map(&:account)
     [user.account] + organization_accounts
   end
 end

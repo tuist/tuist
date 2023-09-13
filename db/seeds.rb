@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# rubocop:disable Output
-
 # This file should contain all the record creation needed to seed the database with its default values.
 # The data can then be loaded with the bin/rails db:seed command (or created alongside the database with db:setup).
 #
@@ -12,7 +10,7 @@
 
 organization_ids = []
 
-4.times do |index|
+4.times do |_index|
   organization = Organization.create!
   organization_ids.push(organization.id)
   account = Account.create!(
@@ -26,7 +24,7 @@ organization_ids = []
   )
 end
 
-10.times do |index|
+10.times do |_index|
   email = Faker::Internet.email.tr("_", "-")
   password = Faker::Internet.password(min_length: 6, max_length: 8)
   user = User.create!(

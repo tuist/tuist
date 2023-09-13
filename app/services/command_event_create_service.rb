@@ -69,9 +69,9 @@ class CommandEventCreateService < ApplicationService
       swift_version: swift_version,
       macos_version: macos_version,
       project: project,
-      cacheable_targets: cacheable_targets.nil? ? nil : cacheable_targets.join(";"),
-      local_cache_target_hits: local_cache_target_hits.nil? ? nil : local_cache_target_hits.join(";"),
-      remote_cache_target_hits: remote_cache_target_hits.nil? ? nil : remote_cache_target_hits.join(";"),
+      cacheable_targets: cacheable_targets&.join(";"),
+      local_cache_target_hits: local_cache_target_hits&.join(";"),
+      remote_cache_target_hits: remote_cache_target_hits&.join(";"),
     )
   end
 end

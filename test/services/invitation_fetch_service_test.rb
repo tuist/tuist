@@ -11,7 +11,8 @@ class InvitationFetchServiceTest < ActiveSupport::TestCase
     invitation = inviter.invitations.create!(
       invitee_email: "test@cloud.tuist.io",
       token: token,
-      organization: organization)
+      organization: organization,
+    )
 
     # When
     got = InvitationFetchService.call(token: token)

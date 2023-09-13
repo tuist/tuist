@@ -9,7 +9,8 @@ class LastVisitedProjectUpdateServiceTest < ActiveSupport::TestCase
     project = Project.create!(
       name: "tuist-project",
       account_id: user.account.id,
-      token: Devise.friendly_token.first(16))
+      token: Devise.friendly_token.first(16),
+    )
 
     # When
     got = LastVisitedProjectUpdateService.call(id: project.id, user: user)
@@ -24,11 +25,13 @@ class LastVisitedProjectUpdateServiceTest < ActiveSupport::TestCase
     project_one = Project.create!(
       name: "tuist-project-one",
       account_id: user.account.id,
-      token: Devise.friendly_token.first(16))
+      token: Devise.friendly_token.first(16),
+    )
     project_two = Project.create!(
       name: "tuist-project-two",
       account_id: user.account.id,
-      token: Devise.friendly_token.first(16))
+      token: Devise.friendly_token.first(16),
+    )
     LastVisitedProjectUpdateService.call(id: project_one.id, user: user)
 
     # When

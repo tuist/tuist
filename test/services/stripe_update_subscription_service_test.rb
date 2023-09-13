@@ -10,15 +10,15 @@ class StripeUpdateSubscriptionServiceTest < ActiveSupport::TestCase
       owner: Organization.create!,
       name: "tuist",
       customer_id: "1",
-      plan: nil
+      plan: nil,
     )
 
     # When
     StripeUpdateSubscriptionService.call(
       subscription: Subscription.new(
         customer: "1",
-        status: "trialing"
-      )
+        status: "trialing",
+      ),
     )
 
     # Then
@@ -31,15 +31,15 @@ class StripeUpdateSubscriptionServiceTest < ActiveSupport::TestCase
       owner: Organization.create!,
       name: "tuist",
       customer_id: "1",
-      plan: nil
+      plan: nil,
     )
 
     # When
     StripeUpdateSubscriptionService.call(
       subscription: Subscription.new(
         customer: "1",
-        status: "trialing"
-      )
+        status: "trialing",
+      ),
     )
 
     # Then
@@ -52,15 +52,15 @@ class StripeUpdateSubscriptionServiceTest < ActiveSupport::TestCase
       owner: Organization.create!,
       name: "tuist",
       customer_id: "1",
-      plan: :team
+      plan: :team,
     )
 
     # When
     StripeUpdateSubscriptionService.call(
       subscription: Subscription.new(
         customer: "1",
-        status: "trialing"
-      )
+        status: "trialing",
+      ),
     )
 
     # Then

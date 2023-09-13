@@ -11,9 +11,9 @@ class UserAccountsFetchServiceTest < ActiveSupport::TestCase
       confirmed_at: Date.new,
     )
     organizations = [
-      Organization.create!(),
-      Organization.create!(),
-      Organization.create!(),
+      Organization.create!,
+      Organization.create!,
+      Organization.create!,
     ]
     organization_accounts = [
       Account.create!(name: "organization-0", owner: organizations[0]),
@@ -29,11 +29,11 @@ class UserAccountsFetchServiceTest < ActiveSupport::TestCase
     )
 
     # When
-    gotAccounts = UserAccountsFetchService.call(user: user)
+    got_accounts = UserAccountsFetchService.call(user: user)
 
     # Then
     assert_equal(
-      gotAccounts,
+      got_accounts,
       [
         user.account,
         organization_accounts[0],
@@ -49,23 +49,13 @@ class UserAccountsFetchServiceTest < ActiveSupport::TestCase
       password: "my-password",
       confirmed_at: Date.new,
     )
-    organizations = [
-      Organization.create!(),
-      Organization.create!(),
-      Organization.create!(),
-    ]
-    [
-      Account.create!(name: "organization-0", owner: organizations[0]),
-      Account.create!(name: "organization-1", owner: organizations[1]),
-      Account.create!(name: "organization-2", owner: organizations[2]),
-    ]
 
     UserOrganizationsFetchService.stubs(:call).returns([])
 
     # When
-    gotAccounts = UserAccountsFetchService.call(user: user)
+    got_accounts = UserAccountsFetchService.call(user: user)
 
     # Then
-    assert_equal(gotAccounts, [user.account])
+    assert_equal(got_accounts, [user.account])
   end
 end

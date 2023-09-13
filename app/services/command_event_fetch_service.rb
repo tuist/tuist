@@ -6,6 +6,7 @@ class CommandEventFetchService < ApplicationService
       attr_reader :command_event_id
 
       def initialize(command_event_id)
+        super
         @command_event_id = command_event_id
       end
 
@@ -18,6 +19,7 @@ class CommandEventFetchService < ApplicationService
       attr_reader :command_event_id
 
       def initialize(command_event_id)
+        super
         @command_event_id = command_event_id
       end
 
@@ -30,6 +32,7 @@ class CommandEventFetchService < ApplicationService
   attr_reader :command_event_id, :user
 
   def initialize(command_event_id:, user:)
+    super()
     @command_event_id = command_event_id
     @user = user
   end
@@ -38,10 +41,10 @@ class CommandEventFetchService < ApplicationService
     begin
       command_event = CommandEvent.find(command_event_id)
     rescue ActiveRecord::RecordNotFound
-      raise Error::CommandEventNotFound.new(command_event_id)
+      raise Error::CommandEventNotFound, command_event_id
     end
 
-    raise Error::Unauthorized.new(command_event_id) unless CommandEventPolicy.new(user, command_event).show?
+    raise Error::Unauthorized, command_event_id unless CommandEventPolicy.new(user, command_event).show?
 
     command_event
   end
@@ -62,7 +65,7 @@ class CommandEventFetchService < ApplicationService
     begin
       project = Project.find(project_id)
     rescue ActiveRecord::RecordNotFound
-      raise Error::ProjectNotFoundById.new(project_id)
+      raise Error::ProjectNotFoundById, project_id
     end
 
     raise Error::Unauthorized.new(project.account.name, project.name) unless ProjectPolicy.new(user, project).show?

@@ -9,7 +9,8 @@ class Organization < ApplicationRecord
   # Inspired from: https://github.com/RolifyCommunity/rolify/wiki/Usage#finding-roles-through-associations
   has_many :users,
     -> {
-     where(roles: { name: :user }).where.not(roles: { name: :admin }) },
+      where(roles: { name: :user }).where.not(roles: { name: :admin })
+    },
     through: :roles,
     class_name: "User",
     source: :users
@@ -26,12 +27,16 @@ class Organization < ApplicationRecord
   def as_json(options = {})
     members = []
     members
-    .concat(
-      admins.map { |admin| OrganizationMember.new(id: admin.id, name: admin.account.name, email: admin.email, role: :admin) }
-    )
-    .concat(
-      users.map { |user| OrganizationMember.new(id: user.id, name: user.account.name, email: user.email, role: :user) }
-    )
+      .concat(
+        admins.map do |admin|
+          OrganizationMember.new(id: admin.id, name: admin.account.name, email: admin.email, role: :admin)
+        end,
+      )
+      .concat(
+        users.map do |user|
+          OrganizationMember.new(id: user.id, name: user.account.name, email: user.email, role: :user)
+        end,
+      )
     super(options.merge(only: [:id])).merge({ name: name, members: members, invitations: invitations })
   end
 end

@@ -14,6 +14,7 @@ class ChangeUserRoleService < ApplicationService
       attr_reader :user_id
 
       def initialize(user_id)
+        super
         @user_id = user_id
       end
 
@@ -35,7 +36,7 @@ class ChangeUserRoleService < ApplicationService
     begin
       user = User.find(user_id)
     rescue ActiveRecord::RecordNotFound
-      raise Error::UserNotFound.new(user_id)
+      raise Error::UserNotFound, user_id
     end
     current_role = user.roles.find_by(resource_type: "Organization", resource_id: organization_id)
     return user if current_role == role

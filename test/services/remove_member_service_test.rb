@@ -20,7 +20,7 @@ class RemoveMemberServiceTest < ActiveSupport::TestCase
       RemoveMemberService.call(
         username: "non-existing-username",
         organization_name: "some-org",
-        remover: remover
+        remover: remover,
       )
     end
   end

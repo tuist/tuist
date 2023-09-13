@@ -8,7 +8,7 @@ module API
       invitation = OrganizationInviteService.new.invite(
         inviter: current_user,
         invitee_email: params[:invitee_email],
-        organization_id: organization.id
+        organization_id: organization.id,
       )
 
       render(json: invitation)
@@ -18,10 +18,10 @@ module API
       OrganizationInviteService.new.cancel_invite_by_email(
         invitee_email: params[:invitee_email],
         organization_name: params[:organization_name],
-        remover: current_user
+        remover: current_user,
       )
 
-      head :no_content
+      head(:no_content)
     end
   end
 end

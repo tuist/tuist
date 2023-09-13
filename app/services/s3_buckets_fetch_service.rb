@@ -6,6 +6,7 @@ class S3BucketsFetchService < ApplicationService
       attr_reader :account_name
 
       def initialize(account_name)
+        super
         @account_name = account_name
       end
 
@@ -26,7 +27,7 @@ class S3BucketsFetchService < ApplicationService
 
   def call
     account = AccountFetchService.call(name: account_name)
-    raise Error::Unauthorized.new(account_name) unless AccountPolicy.new(user, account).show?
+    raise Error::Unauthorized, account_name unless AccountPolicy.new(user, account).show?
 
     account.s3_buckets
   end

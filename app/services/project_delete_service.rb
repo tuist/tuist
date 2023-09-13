@@ -16,6 +16,7 @@ class ProjectDeleteService < ApplicationService
       attr_reader :id
 
       def initialize(id)
+        super
         @id = id
       end
 
@@ -40,7 +41,8 @@ class ProjectDeleteService < ApplicationService
   def call
     project = ProjectFetchService.new.fetch_by_id(project_id: id, user: deleter)
 
-    raise Error::Unauthorized.new unless ProjectPolicy.new(deleter, project).update?
+    raise Error::Unauthorized unless ProjectPolicy.new(deleter, project).update?
+
     project.destroy
   end
 

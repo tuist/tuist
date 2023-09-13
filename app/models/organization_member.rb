@@ -10,12 +10,12 @@ class OrganizationMember
     @role = role
   end
 
-  def as_json()
+  def as_json
     {
       id: id,
       name: name,
       email: email,
-      role: role
+      role: role,
     }
   end
 end

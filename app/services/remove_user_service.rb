@@ -18,6 +18,7 @@ class RemoveUserService < ApplicationService
       attr_reader :user_id
 
       def initialize(user_id)
+        super
         @user_id = user_id
       end
 
@@ -34,6 +35,7 @@ class RemoveUserService < ApplicationService
       attr_reader :username, :organization_name
 
       def initialize(username, organization_name)
+        super()
         @username = username
         @organization_name = organization_name
       end
@@ -59,7 +61,7 @@ class RemoveUserService < ApplicationService
     begin
       user = User.find(user_id)
     rescue ActiveRecord::RecordNotFound
-      raise Error::UserNotFound.new(user_id)
+      raise Error::UserNotFound, user_id
     end
 
     organization = Organization.find(organization_id)

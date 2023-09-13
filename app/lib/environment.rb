@@ -12,19 +12,15 @@ module Environment
       truthy?(env['TUIST_CLOUD_SELF_HOSTED'])
     end
 
-    def fetch(*args, env: ENV)
-      key = "TUIST_#{args.join('_').upcase}"
-      env.to_h.fetch(key, nil)
-    end
-
     def truthy?(value)
       return false if value.blank?
 
       TRUTHY_VALUES.any? { |v| v == value.to_s }
     end
 
-    def fetch(*args, env: ENV, credentials: Rails.application.credentials, defaults: Rails.application.config.defaults, with_prefix: true)
-      env_variable_key = "#{args.join('_').upcase}"
+    def fetch(*args, env: ENV, credentials: Rails.application.credentials, defaults: Rails.application.config.defaults,
+      with_prefix: true)
+      env_variable_key = args.join('_').upcase.to_s
       env_variable_key = "TUIST_#{env_variable_key}" if with_prefix
       env_variable_value = env.to_h.fetch(env_variable_key, nil)
       credentials_value = credentials.dig(*args)
@@ -71,7 +67,8 @@ module Environment
       fetch(:secret_key, :password) || secret_key_base
     end
 
-    def secret_key_base(env: ENV, credentials: Rails.application.credentials, defaults: Rails.application.config.defaults, with_prefix: true)
+    def secret_key_base(env: ENV, credentials: Rails.application.credentials,
+      defaults: Rails.application.config.defaults, with_prefix: true)
       fetch(:secret_key, :base, env: env, credentials: credentials, defaults: defaults, with_prefix: with_prefix)
     end
 
@@ -138,15 +135,18 @@ module Environment
     end
 
     def stripe_configured?
-      stripe_api_key.present? && stripe_publishable_key.present? && stripe_endpoint_secret.present? && stripe_plan_id.present?
+      stripe_api_key.present? &&
+        stripe_publishable_key.present? &&
+        stripe_endpoint_secret.present? &&
+        stripe_plan_id.present?
     end
 
     def okta_configured?
-      return okta_site.present? && okta_client_id.present? && okta_client_secret.present?
+      okta_site.present? && okta_client_id.present? && okta_client_secret.present?
     end
 
     def github_configured?
-      return github_oauth_id.present? && github_oauth_secret.present?
+      github_oauth_id.present? && github_oauth_secret.present?
     end
 
     def aws_configured?
@@ -179,13 +179,12 @@ module Environment
 
       if errors.any?
         raise Error, <<~ERROR
-        Can't start Tuist Cloud due to the following errors:
-        #{errors.map { |error| " - #{error}" }.join("\n")}
+          Can't start Tuist Cloud due to the following errors:
+          #{errors.map { |error| " - #{error}" }.join("\n")}
 
-        Please, check our documentation to learn how to configure Tuist Cloud: https://github.com/tuist/cloud-enterprise
+          Please, check our documentation to learn how to configure Tuist Cloud: https://github.com/tuist/cloud-enterprise
         ERROR
       end
     end
-
   end
 end

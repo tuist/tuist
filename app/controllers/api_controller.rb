@@ -4,7 +4,8 @@ class APIController < ApplicationController
   module Error
     class Unauthorized < CloudError
       def message
-        "No auth token found. Authenticate with the `tuist cloud auth` command or via the `TUIST_CONFIG_CLOUD_TOKEN` environment variable."
+        "No auth token found. Authenticate with the `tuist cloud auth` command "\
+          "or via the `TUIST_CONFIG_CLOUD_TOKEN` environment variable."
       end
 
       def status_code
@@ -17,14 +18,14 @@ class APIController < ApplicationController
   before_action :authenticate_user_from_token!
 
   def authenticate_user_from_token!
-    authenticate_or_request_with_http_token do |token, options|
+    authenticate_or_request_with_http_token do |token, _options|
       begin
         user = User.find_by!(token: token)
       rescue ActiveRecord::RecordNotFound
         begin
           @project = Project.find_by!(token: token)
         rescue ActiveRecord::RecordNotFound
-          raise Error::Unauthorized.new
+          raise Error::Unauthorized
         end
       end
       if user
@@ -35,10 +36,10 @@ class APIController < ApplicationController
     end
   end
 
-  rescue_from(CloudError) do |error, obj, args, ctx, field|
+  rescue_from(CloudError) do |error, _obj, _args, _ctx, _field|
     render(
       json: { message: error.message },
-      status: error.status_code
+      status: error.status_code,
     )
   end
 end

@@ -2,7 +2,10 @@
 
 namespace :testing do
   task get_token: :environment do
-    ARGV.each { |a| task a.to_sym do ; end }
+    ARGV.each do |a|
+      task(a.to_sym) do
+      end
+    end
     puts Account.find_by(name: ARGV[0]).owner.token
   end
 

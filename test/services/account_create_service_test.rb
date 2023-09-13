@@ -8,27 +8,27 @@ class AccountCreateServiceTest < ActiveSupport::TestCase
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
     Stripe::Customer.expects(:create)
-      .with() { |param| param[:name] == "tuist" }
+      .with { |param| param[:name] == "tuist" }
       .returns(Customer.new(id: "1"))
 
     # When
     account = AccountCreateService.call(name: "tuist", owner: user.account)
 
     # Then
-    assert_equal "tuist", account.name
-    assert_equal "personal", account.plan
-    assert_equal "1", account.customer_id
+    assert_equal("tuist", account.name)
+    assert_equal("personal", account.plan)
+    assert_equal("1", account.customer_id)
   end
 
   test "create an organization" do
     # Given
     organization = Organization.create!
     Stripe::Customer.expects(:create)
-      .with() { |param| param[:name] == "tuist" }
+      .with { |param| param[:name] == "tuist" }
       .returns(Customer.new(id: "1"))
 
     Stripe::Subscription.expects(:create)
-      .with() { |param| param[:customer] == "1" }
+      .with { |param| param[:customer] == "1" }
 
     # When
     account = AccountCreateService.call(name: "tuist", owner: organization)

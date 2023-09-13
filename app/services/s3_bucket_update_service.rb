@@ -12,7 +12,7 @@ class S3BucketUpdateService < ApplicationService
       attr_reader :bucket_id
 
       def initialize(bucket_id)
-        @bucket_id
+        super
       end
 
       def message
@@ -37,12 +37,12 @@ class S3BucketUpdateService < ApplicationService
     begin
       bucket = S3Bucket.find(id)
     rescue ActiveRecord::RecordNotFound
-      raise Error::S3BucketNotFound.new(id)
+      raise Error::S3BucketNotFound, id
     end
-    raise Error::Unauthorized.new unless AccountPolicy.new(user, bucket.account).update?
+    raise Error::Unauthorized unless AccountPolicy.new(user, bucket.account).update?
 
     if secret_access_key != bucket.secret_access_key
-      cipher = OpenSSL::Cipher::AES.new(256, :CBC)
+      cipher = OpenSSL::Cipher.new('aes-256-cbc')
       cipher.encrypt
       cipher.key = Digest::MD5.hexdigest(Environment.secret_key_base)
       iv = cipher.random_iv

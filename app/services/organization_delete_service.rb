@@ -24,7 +24,8 @@ class OrganizationDeleteService < ApplicationService
   def call
     organization = OrganizationFetchService.call(name: name, user: deleter)
 
-    raise Error::Unauthorized.new unless OrganizationPolicy.new(deleter, organization).update?
+    raise Error::Unauthorized unless OrganizationPolicy.new(deleter, organization).update?
+
     ActiveRecord::Base.transaction do
       customer_id = organization.account.customer_id
       organization.destroy
@@ -33,7 +34,7 @@ class OrganizationDeleteService < ApplicationService
           limit: 1,
           customer: customer_id,
         }).first
-        if !subscription.nil?
+        unless subscription.nil?
           Stripe::Subscription.cancel(subscription.id)
         end
       end

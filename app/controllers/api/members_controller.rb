@@ -7,7 +7,7 @@ module API
       RemoveMemberService.call(
         username: params[:username],
         organization_name: params[:organization_name],
-        remover: current_user
+        remover: current_user,
       )
     end
 
@@ -16,7 +16,7 @@ module API
         username: params[:username],
         organization_name: params[:organization_name],
         role: params[:role],
-        role_changer: current_user
+        role_changer: current_user,
       )
 
       render(json: organization_member.as_json)

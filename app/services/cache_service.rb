@@ -64,7 +64,7 @@ class CacheService < ApplicationService
     rescue Aws::S3::Errors::NotFound
       false
     rescue Aws::S3::Errors::Forbidden
-      raise Error::S3BucketForbidden.new
+      raise Error::S3BucketForbidden
     end
   end
 
@@ -116,7 +116,7 @@ class CacheService < ApplicationService
     end
 
     if Environment.stripe_configured? && @project.account.owner.is_a?(Organization) && @project.account.plan.nil?
-      raise Error::PaymentRequired.new
+      raise Error::PaymentRequired
     end
   end
 end

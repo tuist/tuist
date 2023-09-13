@@ -9,23 +9,21 @@ module Mutations
     type Types::CreateProjectType
 
     def resolve(attributes)
-      begin
-        project = ProjectCreateService.call(creator: context[:current_user], **attributes)
-        {
-          project: project,
-          errors: [],
-        }
-      rescue CloudError => error
-        {
-          project: nil,
-          errors: [
-            {
-              message: error.message,
-              path: [**attributes],
-            },
-          ],
-        }
-      end
+      project = ProjectCreateService.call(creator: context[:current_user], **attributes)
+      {
+        project: project,
+        errors: [],
+      }
+    rescue CloudError => error
+      {
+        project: nil,
+        errors: [
+          {
+            message: error.message,
+            path: [**attributes],
+          },
+        ],
+      }
     end
   end
 end

@@ -18,15 +18,15 @@ module Types
     field :cache_hit_rate, Float, null: true
 
     def cacheable_targets
-      object.cacheable_targets.nil? ? nil : object.cacheable_targets.split(";")
+      object.cacheable_targets&.split(";")
     end
 
     def local_cache_target_hits
-      object.local_cache_target_hits.nil? ? nil : object.local_cache_target_hits.split(";")
+      object.local_cache_target_hits&.split(";")
     end
 
     def remote_cache_target_hits
-      object.remote_cache_target_hits.nil? ? nil : object.remote_cache_target_hits.split(";")
+      object.remote_cache_target_hits&.split(";")
     end
   end
 end

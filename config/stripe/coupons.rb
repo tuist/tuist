@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 # This file contains descriptions of all your statically defined
 # stripe coupons. You may wish to define unique one-off coupons
 # elsewhere, but for ones you will use many times, and will be

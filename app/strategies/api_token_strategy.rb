@@ -43,41 +43,42 @@ class APITokenStrategy < Devise::Strategies::Base
   end
 
   private
-    def skip_trackable
-      env["devise.skip_trackable"] = true
-    end
 
-    def fail!
-      super("invalid token")
-    end
+  def skip_trackable
+    env["devise.skip_trackable"] = true
+  end
 
-    def token_format_valid?
-      decoded_token.valid?
-    rescue ArgumentError
-      false
-    end
+  def fail!
+    super("invalid token")
+  end
 
-    def scope_match?
-      model.name == decoded_token.model_name
-    end
+  def token_format_valid?
+    decoded_token.valid?
+  rescue ArgumentError
+    false
+  end
 
-    def model_object
-      @model_object ||= model.find(decoded_token.id)
-    end
+  def scope_match?
+    model.name == decoded_token.model_name
+  end
 
-    def token_match?
-      Devise.secure_compare(model_object&.authentication_token, decoded_token.token)
-    end
+  def model_object
+    @model_object ||= model.find(decoded_token.id)
+  end
 
-    def model
-      mapping.to
-    end
+  def token_match?
+    Devise.secure_compare(model_object&.authentication_token, decoded_token.token)
+  end
 
-    def decoded_token
-      @decoded_token ||= Token.decode(encoded_token)
-    end
+  def model
+    mapping.to
+  end
 
-    def encoded_token
-      request.headers["Authorization"].to_s.remove("Bearer ")
-    end
+  def decoded_token
+    @decoded_token ||= Token.decode(encoded_token)
+  end
+
+  def encoded_token
+    request.headers["Authorization"].to_s.remove("Bearer ")
+  end
 end

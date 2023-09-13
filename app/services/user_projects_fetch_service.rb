@@ -14,16 +14,16 @@ class UserProjectsFetchService < ApplicationService
   def call
     user_organization_ids = UserOrganizationsFetchService.call(user: user).pluck(:id)
     account_ids = Account
-                  .where(
-                    account_name.nil? ? {} : { name: account_name },
-                    owner_id: user_organization_ids,
-                    owner_type: 'Organization'
-                  )
-                  .pluck(:id)
+      .where(
+        account_name.nil? ? {} : { name: account_name },
+        owner_id: user_organization_ids,
+        owner_type: 'Organization',
+      )
+      .pluck(:id)
     account_ids.push(Account.find_by(owner: user).id)
     Project.where(
       project_name.nil? ? {} : { name: project_name },
-      account_id: account_ids
+      account_id: account_ids,
     )
   end
 end

@@ -1,0 +1,48 @@
+AllCops:
+  TargetRubyVersion: 3.2.2
+  NewCops: enable
+  Exclude:
+    - tmp/*
+    - bin/*
+    - Gemfile
+    - vendor/**/*
+    - data/**/*
+    - db/schema.rb
+    - db/migrate/*
+
+inherit_gem:
+  rubocop-shopify: rubocop.yml
+
+Layout/LineLength:
+  Exclude:
+    - config/routes.rb
+    - test/**/*
+  Max: 120
+
+Style/PerlBackrefs:
+  Enabled: false
+
+Lint/SuppressedException:
+  Enabled: false
+
+Lint/AssignmentInCondition:
+  Enabled: false
+
+# This cop is broken https://github.com/rubocop-hq/rubocop/pull/7531
+Layout/RescueEnsureAlignment:
+  Enabled: false
+
+Style/StringLiterals:
+  Enabled: false
+
+Style/StringLiteralsInInterpolation:
+  Enabled: false
+
+Style/WordArray:
+  Enabled: false
+
+Style/SymbolArray:
+  Enabled: false
+
+Naming/InclusiveLanguage:
+  Enabled: false

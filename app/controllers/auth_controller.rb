@@ -41,6 +41,6 @@ class AuthController < ApplicationController
 
   def cli_success
     session["is_cli_authenticating"] = false
-    render "auth/cli/success"
+    render("auth/cli/success")
   end
 end

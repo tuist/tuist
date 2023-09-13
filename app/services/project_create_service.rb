@@ -6,6 +6,7 @@ class ProjectCreateService < ApplicationService
       attr_reader :name, :account_name
 
       def initialize(name, account_name)
+        super()
         @name = name
         @account_name = account_name
       end

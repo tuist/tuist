@@ -8,6 +8,7 @@ class AccountFetchService < ApplicationService
       attr_reader :name
 
       def initialize(name)
+        super
         @name = name
       end
 
@@ -23,10 +24,8 @@ class AccountFetchService < ApplicationService
   end
 
   def call
-    begin
-      Account.find_by!(name: name)
-    rescue ActiveRecord::RecordNotFound
-      raise Error::AccountNotFound.new(name)
-    end
+    Account.find_by!(name: name)
+  rescue ActiveRecord::RecordNotFound
+    raise Error::AccountNotFound, name
   end
 end

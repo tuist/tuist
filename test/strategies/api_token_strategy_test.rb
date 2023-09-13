@@ -16,31 +16,31 @@ class APITokenStrategyTest < ActiveSupport::TestCase
   end
 
   test "token's valid? method returns false when any of the attributes is missing" do
-   # Given
-   subject = APITokenStrategy::Token.new(
-     "",
-     "123",
-     "token",
-   )
+    # Given
+    subject = APITokenStrategy::Token.new(
+      "",
+      "123",
+      "token",
+    )
 
-   # Then
-   assert_not subject.valid?
- end
+    # Then
+    assert_not subject.valid?
+  end
 
   test "token's encoding/decoding" do
-     # Given
-     subject = APITokenStrategy::Token.new(
-       "Project",
-       "123",
-       "token",
-     )
+    # Given
+    subject = APITokenStrategy::Token.new(
+      "Project",
+      "123",
+      "token",
+    )
 
-     # Then
-     encoded_token = subject.encode
-     assert encoded_token
-     decoded_token = APITokenStrategy::Token.decode(encoded_token)
-     assert_equal subject.model_name, decoded_token.model_name
-     assert_equal subject.id, decoded_token.id
-     assert_equal subject.token, decoded_token.token
-   end
+    # Then
+    encoded_token = subject.encode
+    assert encoded_token
+    decoded_token = APITokenStrategy::Token.decode(encoded_token)
+    assert_equal subject.model_name, decoded_token.model_name
+    assert_equal subject.id, decoded_token.id
+    assert_equal subject.token, decoded_token.token
+  end
 end

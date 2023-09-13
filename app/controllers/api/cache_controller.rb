@@ -18,7 +18,8 @@ module API
       else
         render(
           json: { errors: [{ message: "S3 object was not found", code: :not_found }], status: :not_found },
-          status: :not_found)
+          status: :not_found,
+        )
       end
     end
 
@@ -39,14 +40,15 @@ module API
     end
 
     private
-      def cache_artifact_upload_service
-        CacheService.new(
-          project_slug: params[:project_id],
-          hash: params[:hash],
-          name: params[:name],
-          user: current_user,
-          project: @project,
-        )
-      end
+
+    def cache_artifact_upload_service
+      CacheService.new(
+        project_slug: params[:project_id],
+        hash: params[:hash],
+        name: params[:name],
+        user: current_user,
+        project: @project,
+      )
+    end
   end
 end

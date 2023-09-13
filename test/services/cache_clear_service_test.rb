@@ -6,10 +6,12 @@ class CacheClearServiceTest < ActiveSupport::TestCase
   class ContentsMock
     class CacheObject
       attr_reader :key
+
       def initialize(key:)
         @key = key
       end
     end
+
     def contents
       [CacheObject.new(key: "key")]
     end
@@ -37,7 +39,8 @@ class CacheClearServiceTest < ActiveSupport::TestCase
     project = Project.create!(
       name: "tuist-project",
       account_id: @user.account.id,
-      token: Devise.friendly_token.first(16))
+      token: Devise.friendly_token.first(16),
+    )
     project.remote_cache_storage = @s3_bucket
     ProjectFetchService.any_instance.stubs(:fetch_by_slug).returns(project)
 

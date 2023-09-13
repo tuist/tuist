@@ -15,19 +15,19 @@ class UserOrganizationsFetchServiceTest < ActiveSupport::TestCase
       confirmed_at: Date.new,
     )
     organizations = [
-      Organization.create!(),
-      Organization.create!(),
-      Organization.create!(),
+      Organization.create!,
+      Organization.create!,
+      Organization.create!,
     ]
     user.add_role(:user, organizations[0])
     user.add_role(:admin, organizations[2])
 
     # When
-    gotOrganizations = UserOrganizationsFetchService.call(user: user)
+    got_organizations = UserOrganizationsFetchService.call(user: user)
 
     # Then
     assert_equal(
-      gotOrganizations,
+      got_organizations,
       [
         organizations[0],
         organizations[2],
@@ -42,16 +42,11 @@ class UserOrganizationsFetchServiceTest < ActiveSupport::TestCase
       password: "my-password",
       confirmed_at: Date.new,
     )
-    [
-      Organization.create!(),
-      Organization.create!(),
-      Organization.create!(),
-    ]
 
     # When
-    gotOrganizations = UserOrganizationsFetchService.call(user: user)
+    got_organizations = UserOrganizationsFetchService.call(user: user)
 
     # Then
-    assert_empty(gotOrganizations)
+    assert_empty(got_organizations)
   end
 end

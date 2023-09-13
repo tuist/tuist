@@ -36,7 +36,8 @@ class InvitationAcceptServiceTest < ActiveSupport::TestCase
     inviter.invitations.create!(
       invitee_email: "test2@cloud.tuist.io",
       token: token,
-      organization: organization)
+      organization: organization,
+    )
 
     # When / Then
     assert_raises(InvitationAcceptService::Error::Unauthorized) do

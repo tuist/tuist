@@ -15,7 +15,7 @@ class OrganizationCreateService < ApplicationService
       organization = Organization.create!
       AccountCreateService.call(
         name: name,
-        owner: organization
+        owner: organization,
       )
       creator.add_role(:admin, organization)
       organization

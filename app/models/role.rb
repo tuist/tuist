@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class Role < ApplicationRecord
-  has_and_belongs_to_many :users, join_table: :users_roles # rubocop:disable Rails/HasAndBelongsToMany
+  has_and_belongs_to_many :users, join_table: :users_roles
 
   after_create :add_seat, if: :stripe_configured?
   before_destroy :remove_seat, if: :stripe_configured?

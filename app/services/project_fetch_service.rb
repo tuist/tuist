@@ -6,6 +6,7 @@ class ProjectFetchService < ApplicationService
       attr_reader :account_name, :name
 
       def initialize(account_name, name)
+        super()
         @account_name = account_name
         @name = name
       end
@@ -23,6 +24,7 @@ class ProjectFetchService < ApplicationService
       attr_reader :account_name, :name
 
       def initialize(account_name, name)
+        super()
         @account_name = account_name
         @name = name
       end
@@ -40,6 +42,7 @@ class ProjectFetchService < ApplicationService
       attr_reader :id
 
       def initialize(id)
+        super
         @id = id
       end
 
@@ -69,7 +72,7 @@ class ProjectFetchService < ApplicationService
     begin
       project = Project.find(project_id)
     rescue ActiveRecord::RecordNotFound
-      raise Error::ProjectNotFoundById.new(project_id)
+      raise Error::ProjectNotFoundById, project_id
     end
 
     raise Error::Unauthorized.new(project.account.name, project.name) unless ProjectPolicy.new(user, project).show?

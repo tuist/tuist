@@ -8,15 +8,15 @@ class StripeCreateSessionServiceTest < ActiveSupport::TestCase
     # Given
     account = Account.create!(owner: Organization.create!, name: "tuist", customer_id: "1")
     Stripe::BillingPortal::Session.expects(:create)
-      .with() { |param| param[:customer] == "1" }
+      .with { |param| param[:customer] == "1" }
       .returns(Session.new(url: "some_url"))
 
     # When
     got = StripeCreateSessionService.call(
-      account_id: account.id
+      account_id: account.id,
     )
 
     # Then
-    assert_equal "some_url" , got
+    assert_equal "some_url", got
   end
 end

@@ -6,6 +6,7 @@ class AccountCreateService < ApplicationService
       attr_reader :account_name
 
       def initialize(account_name)
+        super
         @account_name = account_name
       end
 
@@ -29,7 +30,7 @@ class AccountCreateService < ApplicationService
 
   def call
     if Account.exists?(name: name)
-      raise Error::AccountAlreadyExists.new(name)
+      raise Error::AccountAlreadyExists, name
     end
 
     ActiveRecord::Base.transaction do
@@ -60,6 +61,5 @@ class AccountCreateService < ApplicationService
       end
       account
     end
-
   end
 end

@@ -6,6 +6,7 @@ class InvitationFetchService < ApplicationService
       attr_reader :token
 
       def initialize(token)
+        super
         @token = token
       end
 
@@ -30,7 +31,7 @@ class InvitationFetchService < ApplicationService
     begin
       invitation = Invitation.find_by!(token: token)
     rescue ActiveRecord::RecordNotFound
-      raise Error::InvitationNotFound.new(token)
+      raise Error::InvitationNotFound, token
     end
     invitation
   end

@@ -6,7 +6,7 @@ module API
     def create
       organization = OrganizationCreateService.call(
         creator: current_user,
-        name: params[:name]
+        name: params[:name],
       )
 
       render(json: organization)
@@ -20,7 +20,7 @@ module API
     def destroy
       # The API route permits both organization name and ID. We currently handle the organization name only.
       OrganizationDeleteService.call(name: params[:id], deleter: current_user)
-      head :no_content
+      head(:no_content)
     end
 
     def show

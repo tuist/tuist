@@ -18,6 +18,7 @@ class OrganizationInviteService < ApplicationService
       attr_reader :organization_id
 
       def initialize(organization_id)
+        super
         @organization_id = organization_id
       end
 
@@ -30,6 +31,7 @@ class OrganizationInviteService < ApplicationService
       attr_reader :invitation_id
 
       def initialize(invitation_id)
+        super
         @invitation_id = invitation_id
       end
 
@@ -46,6 +48,7 @@ class OrganizationInviteService < ApplicationService
       attr_reader :invitee_email, :organization_name
 
       def initialize(invitee_email, organization_name)
+        super
         @invitee_email = invitee_email
         @organization_name = organization_name
       end
@@ -67,6 +70,7 @@ class OrganizationInviteService < ApplicationService
       end
 
       def initialize(invitee_email, organization_name)
+        super()
         @invitee_email = invitee_email
         @organization_name = organization_name
       end
@@ -140,7 +144,7 @@ class OrganizationInviteService < ApplicationService
     begin
       invitation = Invitation.find(invitation_id)
     rescue ActiveRecord::RecordNotFound
-      raise Error::InvitationNotFound.new(invitation_id)
+      raise Error::InvitationNotFound, invitation_id
     end
     invitation
   end
@@ -149,7 +153,7 @@ class OrganizationInviteService < ApplicationService
     begin
       organization = Organization.find(organization_id)
     rescue ActiveRecord::RecordNotFound
-      raise Error::OrganizationNotFound.new(organization_id)
+      raise Error::OrganizationNotFound, organization_id
     end
     organization
   end
