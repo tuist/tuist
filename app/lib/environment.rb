@@ -43,6 +43,10 @@ module Environment
 
     # Getters
 
+    def database_url
+      fetch(:database_url, with_prefix: false)
+    end
+
     def aws_access_key_id
       fetch(:aws, :access_key_id)
     end
