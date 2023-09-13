@@ -3,6 +3,9 @@
 class Role < ApplicationRecord
   has_and_belongs_to_many :users, join_table: :users_roles # rubocop:disable Rails/HasAndBelongsToMany
 
+  after_create :add_seat, if: :stripe_configured?
+  before_destroy :remove_seat, if: :stripe_configured?
+
   belongs_to :resource,
     polymorphic: true,
     optional: true
@@ -12,4 +15,16 @@ class Role < ApplicationRecord
     allow_nil: true
 
   scopify
+
+  def remove_seat
+    StripeRemoveSeatService.call(organization: resource)
+  end
+
+  def add_seat
+    StripeAddSeatService.call(organization: resource)
+  end
+
+  def stripe_configured?
+    Environment.stripe_configured?
+  end
 end

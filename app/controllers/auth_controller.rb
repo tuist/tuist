@@ -36,7 +36,7 @@ class AuthController < ApplicationController
 
     @invitation = InvitationFetchService.call(token: params[:token])
     InvitationAcceptService.call(token: params[:token], user: current_user)
-    render 'get_started'
+    redirect_to('/get_started')
   end
 
   def cli_success

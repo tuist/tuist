@@ -3,12 +3,21 @@
 require "test_helper"
 
 class OrganizationDeleteServiceTest < ActiveSupport::TestCase
+  Subscription = Struct.new(:id)
+
+  setup do
+    StripeAddSeatService.stubs(:call)
+    StripeRemoveSeatService.stubs(:call)
+  end
+
   test "deletes an organization with a given name" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
     organization = Organization.create!
     account = Account.create!(owner: organization, name: "tuist")
     user.add_role(:admin, organization)
+    Stripe::Subscription.stubs(:list).returns([Subscription.new(id: "subscription_id")])
+    Stripe::Subscription.expects(:cancel).with("subscription_id")
 
     # When
     OrganizationDeleteService.call(name: account.name, deleter: user)

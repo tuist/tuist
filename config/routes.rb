@@ -17,6 +17,7 @@ Rails.application.routes.draw do
   root to: "application#app"
 
   get "/get-started", to: "application#get_started"
+  post "/create-customer-portal-session/:account_id", to: "application#create_customer_portal_session"
 
   get "/auth/invitations/:token", to: "auth#accept_invitation"
   get "/auth/cli/success", to: "auth#cli_success"
@@ -39,6 +40,8 @@ Rails.application.routes.draw do
     delete '/organizations/:organization_name/members/:username', to: 'members#destroy'
     put '/organizations/:organization_name/members/:username', to: 'members#update'
   end
+
+  post '/webhooks/stripe', to: 'webhooks#stripe'
 
   get "/(*all)", to: "application#app"
 end

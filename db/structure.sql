@@ -231,7 +231,9 @@ CREATE TABLE public.accounts (
     owner_id bigint NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
-    legacy boolean DEFAULT true NOT NULL
+    legacy boolean DEFAULT true NOT NULL,
+    customer_id character varying,
+    plan integer
 );
 
 
@@ -1013,6 +1015,7 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20230115112317'),
 ('20230601202210'),
 ('20230731104741'),
-('20230818092024');
+('20230818092024'),
+('20230829211134');
 
 

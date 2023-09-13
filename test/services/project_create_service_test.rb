@@ -40,7 +40,7 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
     assert_equal "Project test/tuist already exists", got.message
   end
 
-  test "creates a project and a new organization" do
+  test "creates a project with an organization name" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
     project_name = "tuist"
@@ -48,9 +48,9 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
     organization = Organization.create!
     organization_account = Account.create!(owner: organization, name: organization_name)
 
-    OrganizationCreateService.expects(:call).with(
-      creator: user,
+    OrganizationFetchService.expects(:call).with(
       name: organization_name,
+      user: user,
     ).returns(
       organization,
     )
