@@ -52,7 +52,7 @@ class StripeUpdateSubscriptionServiceTest < ActiveSupport::TestCase
       owner: Organization.create!,
       name: "tuist",
       customer_id: "1",
-      plan: "team"
+      plan: :team
     )
 
     # When

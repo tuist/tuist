@@ -27,7 +27,7 @@ class WebhooksController < ActionController::Base
       subscription = event.data.object # contains a Stripe::PaymentIntent
       account = Account.find_by!(customer_id: subscription.customer)
       if subscription.status == 'active' || subscription.status == 'trialing'
-        account.update(plan: "team")
+        account.update(plan: :team)
       else
         account.update(plan: nil)
       end

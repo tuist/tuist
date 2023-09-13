@@ -178,7 +178,7 @@ class CacheServiceTest < ActiveSupport::TestCase
   test "object exists with using passed project when an organization is on the team plan" do
     # Given
     organization = Organization.create!
-    account = Account.create!(owner: organization, name: "tuist", plan: "team")
+    account = Account.create!(owner: organization, name: "tuist", plan: :team)
     project = Project.create!(
       name: "my-project",
       account_id: organization.account.id,

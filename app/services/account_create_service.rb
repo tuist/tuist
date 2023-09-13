@@ -53,9 +53,9 @@ class AccountCreateService < ApplicationService
             ],
             trial_period_days: 14,
           })
-          account.update(customer_id: customer.id, plan: "team")
+          account.update(customer_id: customer.id, plan: :team)
         else
-          account.update(customer_id: customer.id, plan: "personal")
+          account.update(customer_id: customer.id, plan: :personal)
         end
       end
       account
