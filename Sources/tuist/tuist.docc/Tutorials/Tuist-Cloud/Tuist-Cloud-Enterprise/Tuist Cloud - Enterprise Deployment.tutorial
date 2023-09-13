@@ -1,6 +1,7 @@
 @Tutorial(time: 25) {
     @Intro(title: "Deployment") {
         Learn how to deploy Tuist Cloud's Docker image to production.
+        @Image(source: "Logo-Blurred.png", alt: "Blurred Tuist Logo.")
     }
     
     @Section(title: "Pulling the image from GitHub's registry") {

@@ -1,0 +1,5 @@
+% mkdir MyApp
+% cd MyApp
+
+% tuist init --platform ios
+Project generated at path ~/Desktop/MyApp.

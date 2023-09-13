@@ -14,8 +14,8 @@ final class ProfileActionTests: TuistUnitTestCase {
                 name: "name"
             ),
             arguments: .init(
-                environment: [
-                    "key": "value",
+                environmentVariables: [
+                    "key": EnvironmentVariable(value: "value", isEnabled: true),
                 ],
                 launchArguments: [
                     .init(

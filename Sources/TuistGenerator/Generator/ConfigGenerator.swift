@@ -240,8 +240,14 @@ final class ConfigGenerator: ConfigGenerating {
             }
         }
 
-        if let entitlements = target.entitlements {
-            settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)")
+        // Entitlements
+        if let entitlements = target.entitlements, let path = entitlements.path {
+            let relativePath = path.relative(to: sourceRootPath).pathString
+            if project.xcodeProjPath.parentDirectory == sourceRootPath {
+                settings["CODE_SIGN_ENTITLEMENTS"] = .string(relativePath)
+            } else {
+                settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(relativePath)")
+            }
         }
 
         if target.supportedPlatforms.count == 1, let platform = target.supportedPlatforms.first {

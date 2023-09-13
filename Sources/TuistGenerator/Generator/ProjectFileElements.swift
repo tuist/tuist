@@ -153,8 +153,8 @@ class ProjectFileElements {
             files.insert(path)
         }
 
-        if let entitlements = target.entitlements {
-            files.insert(entitlements)
+        if let entitlements = target.entitlements, let path = entitlements.path {
+            files.insert(path)
         }
 
         // Config files

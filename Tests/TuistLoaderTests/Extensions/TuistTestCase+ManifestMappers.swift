@@ -54,12 +54,17 @@ extension TuistTestCase {
             line: line
         )
         XCTAssertEqual(
-            target.entitlements,
-            try manifest.entitlements.map { try generatorPaths.resolve(path: $0) },
+            target.entitlements?.path,
+            try generatorPaths.resolve(path: manifest.entitlements!.path!),
             file: file,
             line: line
         )
-        XCTAssertEqual(target.environment, manifest.environment, file: file, line: line)
+        XCTAssertEqual(
+            target.environmentVariables,
+            manifest.environmentVariables.mapValues(EnvironmentVariable.from),
+            file: file,
+            line: line
+        )
         try assert(
             coreDataModels: target.coreDataModels,
             matches: manifest.coreDataModels,
@@ -214,7 +219,12 @@ extension TuistTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) {
-        XCTAssertEqual(arguments.environment, manifest.environment, file: file, line: line)
+        XCTAssertEqual(
+            arguments.environmentVariables,
+            manifest.environmentVariables.mapValues(EnvironmentVariable.from),
+            file: file,
+            line: line
+        )
 
         let rawArguments = arguments.launchArguments.reduce(into: [:]) { $0[$1.name] = $1.isEnabled }
         let rawManifest = manifest.launchArguments.reduce(into: [:]) { $0[$1.name] = $1.isEnabled }

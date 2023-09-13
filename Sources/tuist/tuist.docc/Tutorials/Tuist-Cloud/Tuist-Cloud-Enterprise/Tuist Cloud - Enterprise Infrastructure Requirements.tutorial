@@ -1,6 +1,7 @@
 @Tutorial(time: 5) {
     @Intro(title: "Infrastructure") {
-        In this chapter you'll learn about what you'll need at the infrastructure level to be able to host Tuist Cloud.        
+        In this chapter you'll learn about what you'll need at the infrastructure level to be able to host Tuist Cloud.       
+        @Image(source: "Logo-Blurred.png", alt: "Blurred Tuist Logo.")
     }
     
     @Section(title: "Docker") {
