@@ -289,7 +289,7 @@ GEM
       railties (>= 5.2)
     rexml (3.2.6)
     rolify (6.0.1)
-    rubocop (1.56.2)
+    rubocop (1.56.3)
       base64 (~> 0.1.1)
       json (~> 2.3)
       language_server-protocol (>= 3.17.0)
