@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class StripeSessionService < ApplicationService
+class StripeCreateSessionService < ApplicationService
   attr_reader :account_id
 
   def initialize(account_id:)

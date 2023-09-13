@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-class StripeSessionServiceTest < ActiveSupport::TestCase
+class StripeCreateSessionServiceTest < ActiveSupport::TestCase
   Session = Struct.new(:url)
   test "returns a Stripe URL session" do
     # Given
@@ -12,7 +12,7 @@ class StripeSessionServiceTest < ActiveSupport::TestCase
       .returns(Session.new(url: "some_url"))
 
     # When
-    got = StripeSessionService.call(
+    got = StripeCreateSessionService.call(
       account_id: account.id
     )
 

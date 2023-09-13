@@ -22,7 +22,7 @@ class ApplicationController < ActionController::Base
   end
 
   def create_customer_portal_session
-    session_url = StripeSessionService.call(account_id: params[:account_id])
+    session_url = StripeCreateSessionService.call(account_id: params[:account_id])
     redirect_to(session_url, allow_other_host: true)
   end
 
