@@ -19,8 +19,8 @@ on:
       - .package.resolved
       - projects/fourier/**
       - .github/workflows/tuist.yml
-    workflow_dispatch:
-      paths:
+  workflow_dispatch:
+    paths:
       - Tuist/**
       - Package.resolved
       - Gemfile*
