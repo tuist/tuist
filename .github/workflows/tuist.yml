@@ -19,6 +19,21 @@ on:
       - .package.resolved
       - projects/fourier/**
       - .github/workflows/tuist.yml
+    workflow_dispatch:
+      paths:
+      - Tuist/**
+      - Package.resolved
+      - Gemfile*
+      - Package.swift
+      - Project.swift
+      - Sources/**
+      - Templates/**
+      - Tests/**
+      - projects/tuist/features/**
+      - projects/tuist/fixtures/**
+      - .package.resolved
+      - projects/fourier/**
+      - .github/workflows/tuist.yml
 
 concurrency:
   group: tuist-${{ github.head_ref }}
