@@ -223,7 +223,7 @@ If you are interested in contributing to the project, our documentation has a se
 
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/pepibumur"><img src="https://avatars1.githubusercontent.com/u/663605?v=4" width="100px;" alt=""/><br /><sub><b>Pedro Piñera</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/pepicrft"><img src="https://avatars1.githubusercontent.com/u/663605?v=4" width="100px;" alt=""/><br /><sub><b>Pedro Piñera</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a><br /></td>
     <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/danyf90"><img src="https://avatars.githubusercontent.com/u/2794031?v=4" width="100px;" alt=""/><br /><sub><b>Daniele Formichelli</b></sub></a><br /></td>
