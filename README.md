@@ -12,6 +12,10 @@
   <img src="https://img.shields.io/badge/Powered%20by-Tuist-blue" alt="Powered by Tuist">
 </div>
 
+<div align="center">
+  <a href="https://cal.com/team/tuist/cloud" target="_blank"><img alt="Book us with Cal.com" src="https://cal.com/book-with-cal-dark.svg" /></a>
+</div>
+
 ## What's Tuist 🕺
 
 Tuist is a command line tool that helps you **generate**, **maintain** and **interact** with Xcode projects.
