@@ -9,11 +9,6 @@ extension FileListGlob {
         generatorPaths: GeneratorPaths,
         filter: ((AbsolutePath) -> Bool)? = nil
     ) throws -> [AbsolutePath] {
-        /**
-         If a glob contains variables, those are resolved at build-time and therefore we cannot unfold them.
-         In that case they are made absolute by appending them to the root directory, and relativized
-         again when the Xcode project is generated.
-         */
         if glob.pathString.contains("$") {
             return [try generatorPaths.resolve(path: glob)]
         }
