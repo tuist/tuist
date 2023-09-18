@@ -32,51 +32,47 @@ public struct Client: APIProtocol {
     private var converter: Converter { client.converter }
     /// - Remark: HTTP `GET /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
-    public func listProjects(_ input: Operations.listProjects.Input) async throws
-        -> Operations.listProjects.Output
-    {
+    public func listProjects(_ input: Operations.listProjects.Input) async throws -> Operations.listProjects.Output {
         try await client.send(
             input: input,
             forOperation: Operations.listProjects.id,
-            serializer: { input in
-                let path = try converter.renderedRequestPath(
-                    template: "/api/projects",
-                    parameters: []
-                )
+            serializer: { input in let path = try converter.renderedPath(template: "/api/projects", parameters: [])
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
                 suppressMutabilityWarning(&request)
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "account_name",
                     value: input.query.account_name
                 )
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "project_name",
                     value: input.query.project_name
                 )
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
                 case 200:
-                    let headers: Operations.listProjects.Output.Ok.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.listProjects.Output.Ok.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listProjects.Output.Ok.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas.Projects.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .ok(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .ok(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -84,67 +80,56 @@ public struct Client: APIProtocol {
     }
     /// - Remark: HTTP `POST /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
-    public func createProject(_ input: Operations.createProject.Input) async throws
-        -> Operations.createProject.Output
-    {
+    public func createProject(_ input: Operations.createProject.Input) async throws -> Operations.createProject.Output {
         try await client.send(
             input: input,
             forOperation: Operations.createProject.id,
-            serializer: { input in
-                let path = try converter.renderedRequestPath(
-                    template: "/api/projects",
-                    parameters: []
-                )
+            serializer: { input in let path = try converter.renderedPath(template: "/api/projects", parameters: [])
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
                 suppressMutabilityWarning(&request)
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
-                request.body = try converter.setRequiredRequestBodyAsJSON(
-                    input.body,
-                    headerFields: &request.headerFields,
-                    transforming: { wrapped in
-                        switch wrapped {
-                        case let .json(value):
-                            return .init(
-                                value: value,
-                                contentType: "application/json; charset=utf-8"
-                            )
-                        }
-                    }
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
+                switch input.body {
+                case let .json(value):
+                    request.body = try converter.setRequiredRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
                 case 200:
-                    let headers: Operations.createProject.Output.Ok.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.createProject.Output.Ok.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createProject.Output.Ok.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas.Project.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .ok(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .ok(.init(body: body))
                 case 400:
-                    let headers: Operations.createProject.Output.BadRequest.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.createProject.Output.BadRequest.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createProject.Output.BadRequest.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .badRequest(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .badRequest(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -158,35 +143,29 @@ public struct Client: APIProtocol {
         try await client.send(
             input: input,
             forOperation: Operations.listOrganizations.id,
-            serializer: { input in
-                let path = try converter.renderedRequestPath(
-                    template: "/api/organizations",
-                    parameters: []
-                )
+            serializer: { input in let path = try converter.renderedPath(template: "/api/organizations", parameters: [])
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
                 suppressMutabilityWarning(&request)
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
                 case 200:
-                    let headers: Operations.listOrganizations.Output.Ok.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.listOrganizations.Output.Ok.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listOrganizations.Output.Ok.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas.Organizations.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .ok(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .ok(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -200,61 +179,52 @@ public struct Client: APIProtocol {
         try await client.send(
             input: input,
             forOperation: Operations.createOrganization.id,
-            serializer: { input in
-                let path = try converter.renderedRequestPath(
-                    template: "/api/organizations",
-                    parameters: []
-                )
+            serializer: { input in let path = try converter.renderedPath(template: "/api/organizations", parameters: [])
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
                 suppressMutabilityWarning(&request)
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
-                request.body = try converter.setRequiredRequestBodyAsJSON(
-                    input.body,
-                    headerFields: &request.headerFields,
-                    transforming: { wrapped in
-                        switch wrapped {
-                        case let .json(value):
-                            return .init(
-                                value: value,
-                                contentType: "application/json; charset=utf-8"
-                            )
-                        }
-                    }
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
+                switch input.body {
+                case let .json(value):
+                    request.body = try converter.setRequiredRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
                 case 200:
-                    let headers: Operations.createOrganization.Output.Ok.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.createOrganization.Output.Ok.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createOrganization.Output.Ok.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas.Organization.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .ok(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .ok(.init(body: body))
                 case 400:
-                    let headers: Operations.createOrganization.Output.BadRequest.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.createOrganization.Output.BadRequest.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createOrganization.Output.BadRequest.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .badRequest(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .badRequest(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -262,57 +232,50 @@ public struct Client: APIProtocol {
     }
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
     /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)`.
-    public func deleteProject(_ input: Operations.deleteProject.Input) async throws
-        -> Operations.deleteProject.Output
-    {
+    public func deleteProject(_ input: Operations.deleteProject.Input) async throws -> Operations.deleteProject.Output {
         try await client.send(
             input: input,
             forOperation: Operations.deleteProject.id,
             serializer: { input in
-                let path = try converter.renderedRequestPath(
-                    template: "/api/projects/{}",
-                    parameters: [input.path.id]
-                )
+                let path = try converter.renderedPath(template: "/api/projects/{}", parameters: [input.path.id])
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .delete)
                 suppressMutabilityWarning(&request)
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
-                case 204:
-                    let headers: Operations.deleteProject.Output.NoContent.Headers = .init()
-                    return .noContent(.init(headers: headers, body: nil))
+                case 204: return .noContent(.init())
                 case 404:
-                    let headers: Operations.deleteProject.Output.NotFound.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.deleteProject.Output.NotFound.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.deleteProject.Output.NotFound.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .notFound(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .notFound(.init(body: body))
                 case 401:
-                    let headers: Operations.deleteProject.Output.Unauthorized.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.deleteProject.Output.Unauthorized.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.deleteProject.Output.Unauthorized.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .unauthorized(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .unauthorized(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -320,67 +283,67 @@ public struct Client: APIProtocol {
     }
     /// - Remark: HTTP `GET /api/projects/{account_name}/{project_name}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(getProject)`.
-    public func getProject(_ input: Operations.getProject.Input) async throws
-        -> Operations.getProject.Output
-    {
+    public func getProject(_ input: Operations.getProject.Input) async throws -> Operations.getProject.Output {
         try await client.send(
             input: input,
             forOperation: Operations.getProject.id,
             serializer: { input in
-                let path = try converter.renderedRequestPath(
+                let path = try converter.renderedPath(
                     template: "/api/projects/{}/{}",
                     parameters: [input.path.account_name, input.path.project_name]
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
                 suppressMutabilityWarning(&request)
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
                 case 200:
-                    let headers: Operations.getProject.Output.Ok.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.getProject.Output.Ok.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getProject.Output.Ok.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas.Project.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .ok(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .ok(.init(body: body))
                 case 401:
-                    let headers: Operations.getProject.Output.Unauthorized.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.getProject.Output.Unauthorized.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getProject.Output.Unauthorized.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .unauthorized(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .unauthorized(.init(body: body))
                 case 404:
-                    let headers: Operations.getProject.Output.NotFound.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.getProject.Output.NotFound.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getProject.Output.NotFound.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .notFound(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .notFound(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -388,44 +351,38 @@ public struct Client: APIProtocol {
     }
     /// - Remark: HTTP `PUT /api/projects/{full_name}/cache/clean`.
     /// - Remark: Generated from `#/paths//api/projects/{full_name}/cache/clean/put(cleanCache)`.
-    public func cleanCache(_ input: Operations.cleanCache.Input) async throws
-        -> Operations.cleanCache.Output
-    {
+    public func cleanCache(_ input: Operations.cleanCache.Input) async throws -> Operations.cleanCache.Output {
         try await client.send(
             input: input,
             forOperation: Operations.cleanCache.id,
             serializer: { input in
-                let path = try converter.renderedRequestPath(
+                let path = try converter.renderedPath(
                     template: "/api/projects/{}/cache/clean",
                     parameters: [input.path.full_name]
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .put)
                 suppressMutabilityWarning(&request)
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
-                case 204:
-                    let headers: Operations.cleanCache.Output.NoContent.Headers = .init()
-                    return .noContent(.init(headers: headers, body: nil))
+                case 204: return .noContent(.init())
                 case 404:
-                    let headers: Operations.cleanCache.Output.NotFound.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.cleanCache.Output.NotFound.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.cleanCache.Output.NotFound.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .notFound(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .notFound(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -440,60 +397,62 @@ public struct Client: APIProtocol {
             input: input,
             forOperation: Operations.getOrganization.id,
             serializer: { input in
-                let path = try converter.renderedRequestPath(
+                let path = try converter.renderedPath(
                     template: "/api/organizations/{}",
                     parameters: [input.path.organization_name]
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
                 suppressMutabilityWarning(&request)
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
                 case 200:
-                    let headers: Operations.getOrganization.Output.Ok.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.getOrganization.Output.Ok.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getOrganization.Output.Ok.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas.Organization.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .ok(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .ok(.init(body: body))
                 case 401:
-                    let headers: Operations.getOrganization.Output.Unauthorized.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.getOrganization.Output.Unauthorized.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getOrganization.Output.Unauthorized.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .unauthorized(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .unauthorized(.init(body: body))
                 case 404:
-                    let headers: Operations.getOrganization.Output.NotFound.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.getOrganization.Output.NotFound.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getOrganization.Output.NotFound.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .notFound(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .notFound(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -508,50 +467,48 @@ public struct Client: APIProtocol {
             input: input,
             forOperation: Operations.deleteOrganization.id,
             serializer: { input in
-                let path = try converter.renderedRequestPath(
+                let path = try converter.renderedPath(
                     template: "/api/organizations/{}",
                     parameters: [input.path.organization_name]
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .delete)
                 suppressMutabilityWarning(&request)
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
-                case 204:
-                    let headers: Operations.deleteOrganization.Output.NoContent.Headers = .init()
-                    return .noContent(.init(headers: headers, body: nil))
+                case 204: return .noContent(.init())
                 case 404:
-                    let headers: Operations.deleteOrganization.Output.NotFound.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.deleteOrganization.Output.NotFound.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.deleteOrganization.Output.NotFound.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .notFound(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .notFound(.init(body: body))
                 case 401:
-                    let headers: Operations.deleteOrganization.Output.Unauthorized.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.deleteOrganization.Output.Unauthorized.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.deleteOrganization.Output.Unauthorized.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .unauthorized(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .unauthorized(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -559,96 +516,92 @@ public struct Client: APIProtocol {
     }
     /// - Remark: HTTP `POST /api/organizations/{organization_name}/invitations`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/post(createOrganizationInvite)`.
-    public func createOrganizationInvite(_ input: Operations.createOrganizationInvite.Input)
-        async throws -> Operations.createOrganizationInvite.Output
+    public func createOrganizationInvite(_ input: Operations.createOrganizationInvite.Input) async throws
+        -> Operations.createOrganizationInvite.Output
     {
         try await client.send(
             input: input,
             forOperation: Operations.createOrganizationInvite.id,
             serializer: { input in
-                let path = try converter.renderedRequestPath(
+                let path = try converter.renderedPath(
                     template: "/api/organizations/{}/invitations",
                     parameters: [input.path.organization_name]
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
                 suppressMutabilityWarning(&request)
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
-                request.body = try converter.setRequiredRequestBodyAsJSON(
-                    input.body,
-                    headerFields: &request.headerFields,
-                    transforming: { wrapped in
-                        switch wrapped {
-                        case let .json(value):
-                            return .init(
-                                value: value,
-                                contentType: "application/json; charset=utf-8"
-                            )
-                        }
-                    }
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
+                switch input.body {
+                case let .json(value):
+                    request.body = try converter.setRequiredRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
                 case 200:
-                    let headers: Operations.createOrganizationInvite.Output.Ok.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.createOrganizationInvite.Output.Ok.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createOrganizationInvite.Output.Ok.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas.Invitation.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .ok(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .ok(.init(body: body))
                 case 401:
-                    let headers: Operations.createOrganizationInvite.Output.Unauthorized.Headers =
-                        .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.createOrganizationInvite.Output.Unauthorized.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createOrganizationInvite.Output.Unauthorized.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .unauthorized(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .unauthorized(.init(body: body))
                 case 404:
-                    let headers: Operations.createOrganizationInvite.Output.NotFound.Headers =
-                        .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.createOrganizationInvite.Output.NotFound.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createOrganizationInvite.Output.NotFound.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .notFound(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .notFound(.init(body: body))
                 case 400:
-                    let headers: Operations.createOrganizationInvite.Output.BadRequest.Headers =
-                        .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.createOrganizationInvite.Output.BadRequest.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createOrganizationInvite.Output.BadRequest.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .badRequest(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .badRequest(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -656,73 +609,63 @@ public struct Client: APIProtocol {
     }
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/invitations`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelOrganizationInvite)`.
-    public func cancelOrganizationInvite(_ input: Operations.cancelOrganizationInvite.Input)
-        async throws -> Operations.cancelOrganizationInvite.Output
+    public func cancelOrganizationInvite(_ input: Operations.cancelOrganizationInvite.Input) async throws
+        -> Operations.cancelOrganizationInvite.Output
     {
         try await client.send(
             input: input,
             forOperation: Operations.cancelOrganizationInvite.id,
             serializer: { input in
-                let path = try converter.renderedRequestPath(
+                let path = try converter.renderedPath(
                     template: "/api/organizations/{}/invitations",
                     parameters: [input.path.organization_name]
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .delete)
                 suppressMutabilityWarning(&request)
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
-                request.body = try converter.setRequiredRequestBodyAsJSON(
-                    input.body,
-                    headerFields: &request.headerFields,
-                    transforming: { wrapped in
-                        switch wrapped {
-                        case let .json(value):
-                            return .init(
-                                value: value,
-                                contentType: "application/json; charset=utf-8"
-                            )
-                        }
-                    }
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
+                switch input.body {
+                case let .json(value):
+                    request.body = try converter.setRequiredRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
-                case 204:
-                    let headers: Operations.cancelOrganizationInvite.Output.NoContent.Headers =
-                        .init()
-                    return .noContent(.init(headers: headers, body: nil))
+                case 204: return .noContent(.init())
                 case 404:
-                    let headers: Operations.cancelOrganizationInvite.Output.NotFound.Headers =
-                        .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.cancelOrganizationInvite.Output.NotFound.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.cancelOrganizationInvite.Output.NotFound.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .notFound(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .notFound(.init(body: body))
                 case 401:
-                    let headers: Operations.cancelOrganizationInvite.Output.Unauthorized.Headers =
-                        .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.cancelOrganizationInvite.Output.Unauthorized.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.cancelOrganizationInvite.Output.Unauthorized.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .unauthorized(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .unauthorized(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -730,82 +673,77 @@ public struct Client: APIProtocol {
     }
     /// - Remark: HTTP `PUT /api/organizations/{organization_name}/members/{username}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/put(updateOrganizationMember)`.
-    public func updateOrganizationMember(_ input: Operations.updateOrganizationMember.Input)
-        async throws -> Operations.updateOrganizationMember.Output
+    public func updateOrganizationMember(_ input: Operations.updateOrganizationMember.Input) async throws
+        -> Operations.updateOrganizationMember.Output
     {
         try await client.send(
             input: input,
             forOperation: Operations.updateOrganizationMember.id,
             serializer: { input in
-                let path = try converter.renderedRequestPath(
+                let path = try converter.renderedPath(
                     template: "/api/organizations/{}/members/{}",
                     parameters: [input.path.organization_name, input.path.username]
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .put)
                 suppressMutabilityWarning(&request)
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
-                request.body = try converter.setRequiredRequestBodyAsJSON(
-                    input.body,
-                    headerFields: &request.headerFields,
-                    transforming: { wrapped in
-                        switch wrapped {
-                        case let .json(value):
-                            return .init(
-                                value: value,
-                                contentType: "application/json; charset=utf-8"
-                            )
-                        }
-                    }
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
+                switch input.body {
+                case let .json(value):
+                    request.body = try converter.setRequiredRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
                 case 200:
-                    let headers: Operations.updateOrganizationMember.Output.Ok.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.updateOrganizationMember.Output.Ok.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.updateOrganizationMember.Output.Ok.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas.OrganizationMember.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .ok(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .ok(.init(body: body))
                 case 404:
-                    let headers: Operations.updateOrganizationMember.Output.NotFound.Headers =
-                        .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.updateOrganizationMember.Output.NotFound.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.updateOrganizationMember.Output.NotFound.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .notFound(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .notFound(.init(body: body))
                 case 401:
-                    let headers: Operations.updateOrganizationMember.Output.Unauthorized.Headers =
-                        .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.updateOrganizationMember.Output.Unauthorized.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.updateOrganizationMember.Output.Unauthorized.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .unauthorized(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .unauthorized(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -813,60 +751,55 @@ public struct Client: APIProtocol {
     }
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/members/{username}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/delete(removeOrganizationMember)`.
-    public func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input)
-        async throws -> Operations.removeOrganizationMember.Output
+    public func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input) async throws
+        -> Operations.removeOrganizationMember.Output
     {
         try await client.send(
             input: input,
             forOperation: Operations.removeOrganizationMember.id,
             serializer: { input in
-                let path = try converter.renderedRequestPath(
+                let path = try converter.renderedPath(
                     template: "/api/organizations/{}/members/{}",
                     parameters: [input.path.organization_name, input.path.username]
                 )
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .delete)
                 suppressMutabilityWarning(&request)
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
-                case 204:
-                    let headers: Operations.removeOrganizationMember.Output.NoContent.Headers =
-                        .init()
-                    return .noContent(.init(headers: headers, body: nil))
+                case 204: return .noContent(.init())
                 case 404:
-                    let headers: Operations.removeOrganizationMember.Output.NotFound.Headers =
-                        .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.removeOrganizationMember.Output.NotFound.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.removeOrganizationMember.Output.NotFound.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .notFound(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .notFound(.init(body: body))
                 case 401:
-                    let headers: Operations.removeOrganizationMember.Output.Unauthorized.Headers =
-                        .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.removeOrganizationMember.Output.Unauthorized.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.removeOrganizationMember.Output.Unauthorized.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .unauthorized(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .unauthorized(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -874,85 +807,85 @@ public struct Client: APIProtocol {
     }
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheExists)`.
-    public func cacheExists(_ input: Operations.cacheExists.Input) async throws
-        -> Operations.cacheExists.Output
-    {
+    public func cacheExists(_ input: Operations.cacheExists.Input) async throws -> Operations.cacheExists.Output {
         try await client.send(
             input: input,
             forOperation: Operations.cacheExists.id,
-            serializer: { input in
-                let path = try converter.renderedRequestPath(
-                    template: "/api/cache/exists",
-                    parameters: []
-                )
+            serializer: { input in let path = try converter.renderedPath(template: "/api/cache/exists", parameters: [])
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
                 suppressMutabilityWarning(&request)
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "project_id",
                     value: input.query.project_id
                 )
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "hash",
                     value: input.query.hash
                 )
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "name",
                     value: input.query.name
                 )
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
-                case 200:
-                    let headers: Operations.cacheExists.Output.Ok.Headers = .init()
-                    return .ok(.init(headers: headers, body: nil))
+                case 200: return .ok(.init())
                 case 404:
-                    let headers: Operations.cacheExists.Output.NotFound.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.cacheExists.Output.NotFound.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.cacheExists.Output.NotFound.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Operations.cacheExists.Output.NotFound.Body.jsonPayload.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .notFound(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .notFound(.init(body: body))
                 case 401:
-                    let headers: Operations.cacheExists.Output.Unauthorized.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.cacheExists.Output.Unauthorized.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.cacheExists.Output.Unauthorized.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .unauthorized(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .unauthorized(.init(body: body))
                 case 402:
-                    let headers: Operations.cacheExists.Output.PaymentRequired.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.cacheExists.Output.PaymentRequired.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.cacheExists.Output.PaymentRequired.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .paymentRequired(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .paymentRequired(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -960,79 +893,84 @@ public struct Client: APIProtocol {
     }
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(getCache)`.
-    public func getCache(_ input: Operations.getCache.Input) async throws
-        -> Operations.getCache.Output
-    {
+    public func getCache(_ input: Operations.getCache.Input) async throws -> Operations.getCache.Output {
         try await client.send(
             input: input,
             forOperation: Operations.getCache.id,
-            serializer: { input in
-                let path = try converter.renderedRequestPath(template: "/api/cache", parameters: [])
+            serializer: { input in let path = try converter.renderedPath(template: "/api/cache", parameters: [])
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
                 suppressMutabilityWarning(&request)
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "project_id",
                     value: input.query.project_id
                 )
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "hash",
                     value: input.query.hash
                 )
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "name",
                     value: input.query.name
                 )
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
                 case 200:
-                    let headers: Operations.getCache.Output.Ok.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.getCache.Output.Ok.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getCache.Output.Ok.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas.CacheArtifact.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .ok(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .ok(.init(body: body))
                 case 401:
-                    let headers: Operations.getCache.Output.Unauthorized.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.getCache.Output.Unauthorized.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getCache.Output.Unauthorized.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .unauthorized(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .unauthorized(.init(body: body))
                 case 402:
-                    let headers: Operations.getCache.Output.PaymentRequired.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.getCache.Output.PaymentRequired.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getCache.Output.PaymentRequired.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .paymentRequired(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .paymentRequired(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -1040,84 +978,91 @@ public struct Client: APIProtocol {
     }
     /// - Remark: HTTP `POST /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/post(uploadCache)`.
-    public func uploadCache(_ input: Operations.uploadCache.Input) async throws
-        -> Operations.uploadCache.Output
-    {
+    public func uploadCache(_ input: Operations.uploadCache.Input) async throws -> Operations.uploadCache.Output {
         try await client.send(
             input: input,
             forOperation: Operations.uploadCache.id,
-            serializer: { input in
-                let path = try converter.renderedRequestPath(template: "/api/cache", parameters: [])
+            serializer: { input in let path = try converter.renderedPath(template: "/api/cache", parameters: [])
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
                 suppressMutabilityWarning(&request)
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "project_id",
                     value: input.query.project_id
                 )
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "hash",
                     value: input.query.hash
                 )
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "name",
                     value: input.query.name
                 )
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "content_md5",
                     value: input.query.content_md5
                 )
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
                 case 200:
-                    let headers: Operations.uploadCache.Output.Ok.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.uploadCache.Output.Ok.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.uploadCache.Output.Ok.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas.CacheArtifact.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .ok(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .ok(.init(body: body))
                 case 401:
-                    let headers: Operations.uploadCache.Output.Unauthorized.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.uploadCache.Output.Unauthorized.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.uploadCache.Output.Unauthorized.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .unauthorized(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .unauthorized(.init(body: body))
                 case 402:
-                    let headers: Operations.uploadCache.Output.PaymentRequired.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.uploadCache.Output.PaymentRequired.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.uploadCache.Output.PaymentRequired.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas._Error.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .paymentRequired(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .paymentRequired(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
@@ -1132,54 +1077,57 @@ public struct Client: APIProtocol {
             input: input,
             forOperation: Operations.verifyCacheUpload.id,
             serializer: { input in
-                let path = try converter.renderedRequestPath(
-                    template: "/api/cache/verify_upload",
-                    parameters: []
-                )
+                let path = try converter.renderedPath(template: "/api/cache/verify_upload", parameters: [])
                 var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
                 suppressMutabilityWarning(&request)
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "project_id",
                     value: input.query.project_id
                 )
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "hash",
                     value: input.query.hash
                 )
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "name",
                     value: input.query.name
                 )
-                try converter.setQueryItemAsText(
+                try converter.setQueryItemAsURI(
                     in: &request,
+                    style: .form,
+                    explode: true,
                     name: "content_md5",
                     value: input.query.content_md5
                 )
-                try converter.setHeaderFieldAsText(
-                    in: &request.headerFields,
-                    name: "accept",
-                    value: "application/json"
-                )
+                converter.setAcceptHeader(in: &request.headerFields, contentTypes: input.headers.accept)
                 return request
             },
             deserializer: { response in
                 switch response.statusCode {
                 case 200:
-                    let headers: Operations.verifyCacheUpload.Output.Ok.Headers = .init()
-                    try converter.validateContentTypeIfPresent(
-                        in: response.headerFields,
-                        substring: "application/json"
-                    )
-                    let body: Operations.verifyCacheUpload.Output.Ok.Body =
-                        try converter.getResponseBodyAsJSON(
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.verifyCacheUpload.Output.Ok.Body
+                    if try contentType == nil
+                        || converter.isMatchingContentType(received: contentType, expectedRaw: "application/json")
+                    {
+                        body = try converter.getResponseBodyAsJSON(
                             Components.Schemas.CacheArtifactUploadVerification.self,
                             from: response.body,
                             transforming: { value in .json(value) }
                         )
-                    return .ok(.init(headers: headers, body: body))
+                    } else {
+                        throw converter.makeUnexpectedContentTypeError(contentType: contentType)
+                    }
+                    return .ok(.init(body: body))
                 default: return .undocumented(statusCode: response.statusCode, .init())
                 }
             }
