@@ -212,11 +212,12 @@ Do you want to know more about what Tuist can offer you? Or perhaps want to cont
 
 ## Supported by great companies
 
-1Password and Bugsnag support the project by giving us access to their service through an open-source program.
+1Password, Bugsgnag Cal.com support the project by giving us access to their service through an open-source program.
 
 <div align="center">
   <img width="70" src="assets/1Password.png" hspace="10"/>
   <img width="200" src="https://images.typeform.com/images/QKuaAssrFCq7/image/default" hspace="10">
+  <img width="170" src="assets/cal-com.svg" hspace="7">
 </div>
 
 ## Contribute 👩‍💻
