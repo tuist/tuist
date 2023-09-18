@@ -13,7 +13,7 @@
 </div>
 
 <div align="center">
-  <a href="https://cal.com/team/tuist/cloud" target="_blank"><img alt="Book us with Cal.com" src="https://cal.com/book-with-cal-dark.svg" /></a>
+  <a href="https://cal.com/team/tuist/cloud?utm_source=banner&utm_campaign=oss" target="_blank"><img alt="Book us with Cal.com" src="https://cal.com/book-with-cal-dark.svg" /></a>
 </div>
 
 ## What's Tuist 🕺
