@@ -48,7 +48,10 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             tool: "my_tool",
             order: .pre,
             arguments: ["arg1", "arg2"],
-            inputPaths: ["foo/bar/**/*.swift"],
+            inputPaths: [
+                "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
+                "foo/bar/**/*.swift",
+            ],
             inputFileListPaths: ["$(SRCROOT)/foo/bar/**/*.swift"],
             outputPaths: ["$(SRCROOT)/foo/bar/**/*.swift"],
             outputFileListPaths: ["$(SRCROOT)/foo/bar/**/*.swift"]
@@ -60,6 +63,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         let relativeSources = model.inputPaths.map { $0.relative(to: temporaryPath).pathString }
 
         XCTAssertEqual(Set(relativeSources), Set([
+            "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
             "foo/bar/a.swift",
             "foo/bar/b.swift",
             "foo/bar/aTests.swift",
