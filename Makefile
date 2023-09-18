@@ -20,6 +20,8 @@ generate:
 run:
 	swift build
 	.build/debug/tuist $(ARGS)
+generate/cloud-openapi-code:
+	swift run swift-openapi-generator generate --mode types --mode client --output-directory Sources/TuistCloud/OpenAPI Sources/TuistCloud/OpenAPI/cloud.yml
 github/cancel-workflows:
 	@echo "Fetching queued workflow runs..."
 	@workflow_ids=$$(curl -s -H "Authorization: token $(TOKEN)" \
