@@ -15,6 +15,10 @@ class AccountFetchService < ApplicationService
       def message
         "Account with name #{name} was not found."
       end
+
+      def status_code
+        :not_found
+      end
     end
   end
 
