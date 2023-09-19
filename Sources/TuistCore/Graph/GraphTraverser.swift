@@ -829,7 +829,7 @@ public class GraphTraverser: GraphTraversing {
             case .framework, .library, .bundle, .packageProduct, .target, .sdk:
                 return false
             }
-        })
+        }, skip: canDependencyLinkStaticProducts)
         return Set(dependencies)
             .compactMap(dependencyReference)
     }
