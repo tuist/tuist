@@ -3790,6 +3790,150 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_copyProductDependencies_when_targetHasTransitiveStaticXCFrameworks() throws {
+        /**
+         XCFrameworks are copied into the products directory to let Xcode's compilation process pick the right architecture and
+         platform at build-time. The logic that determines which xcframeworks to include should traverse the .xcframework dependencies
+         and include not only the direct but the transitive dependencies.
+         */
+        // Given
+        let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
+        let project = Project.test(targets: [staticLibrary])
+        let directXCFramework = GraphDependency.xcframework(
+            path: "/xcframeworks/direct.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
+            linking: .static
+        )
+        let directFramework = GraphDependency.framework(
+            path: "/frameworks/direct.framework",
+            binaryPath: "/frameworks/direct.framework/direct",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let transitiveXCFramework = GraphDependency.xcframework(
+            path: "/xcframeworks/transitive.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
+            linking: .static
+        )
+        let frameworkTransitiveXCFramework = GraphDependency.xcframework(
+            path: "/xcframeworks/framework-transitive.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
+            linking: .static
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: staticLibrary.name, path: project.path): Set([directXCFramework, directFramework]),
+            directXCFramework: Set([transitiveXCFramework]),
+            directFramework: Set([frameworkTransitiveXCFramework]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                staticLibrary.name: staticLibrary,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.copyProductDependencies(path: project.path, name: staticLibrary.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            .xcframework(
+                path: "/xcframeworks/direct.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: RelativePath("path"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
+                binaryPath: "/xcframeworks/direct.xcframework/direct"
+            ),
+            .xcframework(
+                path: "/xcframeworks/transitive.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: RelativePath("path"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
+                binaryPath: "/xcframeworks/transitive.xcframework/transitive"
+            ),
+        ])
+    }
+
+    func test_copyProductDependencies_when_targetHasDirectStaticDependencies() throws {
+        // Given
+        let staticLibrary = Target.test(name: "StaticLibrary", destinations: [.iPhone], product: .staticLibrary)
+        let project = Project.test(targets: [staticLibrary])
+        let aDependency = Target.test(name: "StaticDependency", destinations: [.iPhone], product: .staticLibrary)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: staticLibrary.name, path: project.path): Set([.target(name: aDependency.name, path: project.path)]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                staticLibrary.name: staticLibrary,
+                aDependency.name: aDependency,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.copyProductDependencies(path: project.path, name: staticLibrary.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            .product(target: aDependency.name, productName: aDependency.productNameWithExtension, platformFilters: [.ios]),
+        ])
+    }
+
+    func test_copyProductDependencies_when_targetHasBundleDependencies() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let project = Project.test(targets: [app])
+        let bundle = Target.test(name: "Bundle", destinations: [.iPhone], product: .bundle)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([.target(name: bundle.name, path: project.path)]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                app.name: app,
+                bundle.name: bundle,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.copyProductDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: [.ios]),
+        ])
+    }
+
     // MARK: - Helpers
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {
