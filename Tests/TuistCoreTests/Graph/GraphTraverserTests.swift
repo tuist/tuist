@@ -3799,22 +3799,38 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given
         let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
         let project = Project.test(targets: [staticLibrary])
-        let aDependency = GraphDependency.xcframework(
-            path: "/xcframeworks/a.xcframework",
+        let directXCFramework = GraphDependency.xcframework(
+            path: "/xcframeworks/direct.xcframework",
             infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
-            primaryBinaryPath: "/xcframeworks/a.xcframework/a",
+            primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
             linking: .static
         )
-        let bDependency = GraphDependency.xcframework(
-            path: "/xcframeworks/b.xcframework",
+        let directFramework = GraphDependency.framework(
+            path: "/frameworks/direct.framework",
+            binaryPath: "/frameworks/direct.framework/direct",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let transitiveXCFramework = GraphDependency.xcframework(
+            path: "/xcframeworks/transitive.xcframework",
             infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
-            primaryBinaryPath: "/xcframeworks/b.xcframework/b",
+            primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
+            linking: .static
+        )
+        let frameworkTransitiveXCFramework = GraphDependency.xcframework(
+            path: "/xcframeworks/framework-transitive.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
             linking: .static
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: staticLibrary.name, path: project.path): Set([aDependency]),
-            aDependency: Set([bDependency]),
+            .target(name: staticLibrary.name, path: project.path): Set([directXCFramework, directFramework]),
+            directXCFramework: Set([transitiveXCFramework]),
+            directFramework: Set([frameworkTransitiveXCFramework]),
         ]
 
         // Given: Value Graph
@@ -3834,24 +3850,24 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got.sorted(), [
             .xcframework(
-                path: "/xcframeworks/a.xcframework",
+                path: "/xcframeworks/direct.xcframework",
                 infoPlist: .test(libraries: [.test(
                     identifier: "id",
                     path: RelativePath("path"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/a.xcframework/a",
-                binaryPath: "/xcframeworks/a.xcframework/a"
+                primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
+                binaryPath: "/xcframeworks/direct.xcframework/direct"
             ),
             .xcframework(
-                path: "/xcframeworks/b.xcframework",
+                path: "/xcframeworks/transitive.xcframework",
                 infoPlist: .test(libraries: [.test(
                     identifier: "id",
                     path: RelativePath("path"),
                     architectures: [.arm64]
                 )]),
-                primaryBinaryPath: "/xcframeworks/b.xcframework/b",
-                binaryPath: "/xcframeworks/b.xcframework/b"
+                primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
+                binaryPath: "/xcframeworks/transitive.xcframework/transitive"
             ),
         ])
     }

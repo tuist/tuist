@@ -822,14 +822,25 @@ public class GraphTraverser: GraphTraversing {
         path: AbsolutePath,
         name: String
     ) -> [GraphDependencyReference] {
-        let dependencies = filterDependencies(from: .target(name: name, path: path), test: { dependency in
-            switch dependency {
-            case let .xcframework(_, _, _, linking: linking):
-                return linking == .static
-            case .framework, .library, .bundle, .packageProduct, .target, .sdk:
-                return false
+        let dependencies = filterDependencies(
+            from: .target(name: name, path: path),
+            test: { dependency in
+                switch dependency {
+                case let .xcframework(_, _, _, linking: linking):
+                    return linking == .static
+                case .framework, .library, .bundle, .packageProduct, .target, .sdk:
+                    return false
+                }
+            },
+            skip: { dependency in
+                switch dependency {
+                case .xcframework:
+                    return false
+                case .framework, .library, .bundle, .packageProduct, .target, .sdk:
+                    return true
+                }
             }
-        }, skip: canDependencyLinkStaticProducts)
+        )
         return Set(dependencies)
             .compactMap(dependencyReference)
     }
