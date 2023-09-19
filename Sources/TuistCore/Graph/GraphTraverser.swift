@@ -690,6 +690,7 @@ public class GraphTraverser: GraphTraversing {
             .uiTests,
             .watch2Extension,
             .systemExtension,
+            .xpc,
         ]
         return validProducts.contains(target.product)
     }

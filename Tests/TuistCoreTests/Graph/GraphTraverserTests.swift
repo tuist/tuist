@@ -1313,6 +1313,46 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_embeddableFrameworks_when_macOS_xpc() throws {
+        // Given
+        let frameworkA = Target.test(name: "FrameworkA", destinations: .macOS, product: .framework)
+        let frameworkB = Target.test(name: "FrameworkB", destinations: .macOS, product: .framework)
+        let xpc = Target.test(name: "XPC", destinations: .macOS, product: .xpc)
+        let project = Project.test(targets: [xpc, frameworkA, frameworkB])
+
+        // Given: Value Graph
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(
+                name: xpc.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: frameworkA.name, path: project.path)),
+            .target(name: frameworkB.name, path: project.path): Set(),
+            .target(
+                name: frameworkA.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: frameworkB.name, path: project.path)),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [
+                frameworkA.name: frameworkA,
+                frameworkB.name: frameworkB,
+                xpc.name: xpc,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: xpc.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            .product(target: "FrameworkA", productName: "FrameworkA.framework", platformFilters: [.macos]),
+            .product(target: "FrameworkB", productName: "FrameworkB.framework", platformFilters: [.macos]),
+        ])
+    }
+
     func test_embeddableDependencies_whenHostedTestTarget() throws {
         // Given
         let framework = Target.test(
