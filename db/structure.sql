@@ -231,7 +231,6 @@ CREATE TABLE public.accounts (
     owner_id bigint NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
-    legacy boolean DEFAULT true NOT NULL,
     customer_id character varying,
     plan integer
 );
@@ -352,7 +351,8 @@ ALTER SEQUENCE public.invitations_id_seq OWNED BY public.invitations.id;
 CREATE TABLE public.organizations (
     id bigint NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
-    updated_at timestamp(6) without time zone NOT NULL
+    updated_at timestamp(6) without time zone NOT NULL,
+    legacy boolean DEFAULT true NOT NULL
 );
 
 
@@ -766,6 +766,13 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: index_accounts_on_customer_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_accounts_on_customer_id ON public.accounts USING btree (customer_id);
+
+
+--
 -- Name: index_accounts_on_name; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1016,6 +1023,8 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20230601202210'),
 ('20230731104741'),
 ('20230818092024'),
-('20230829211134');
+('20230829211134'),
+('20230919143833'),
+('20230919143930');
 
 
