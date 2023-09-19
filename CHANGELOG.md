@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.27.0 - 2023-09-19
+
+### Added
+
+- Allow specifying target environment variables as disabled [#5232](https://github.com/tuist/tuist/pull/5232) by [@lo1tuma](https://github.com/lo1tuma)
+- File generation for Entitlements [#5377](https://github.com/tuist/tuist/pull/5377) by [@Lilfaen](https://github.com/Lilfaen)
+
+### Fixed
+
+- Fix missing input file paths in generated script build phases [#5424](https://github.com/tuist/tuist/pull/5424) by [@pepicrft](https://github.com/pepicrft)
+- Fix cache issues when the graph contains transitive static libraries and frameworks [#5412](https://github.com/tuist/tuist/pull/5412) by [@pepicrft](https://github.com/pepicrft)
+
 ## 3.26.0 - 2023-09-12
 
 ### Added
