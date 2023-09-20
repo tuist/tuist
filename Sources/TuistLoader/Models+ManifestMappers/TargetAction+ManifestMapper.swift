@@ -15,7 +15,7 @@ extension TuistGraph.TargetScript {
     {
         let name = manifest.name
         let order = TuistGraph.TargetScript.Order.from(manifest: manifest.order)
-        let inputPaths = manifest.inputPaths.compactMap { try? $0.unfold(generatorPaths: generatorPaths) }.flatMap { $0 }
+        let inputPaths = try manifest.inputPaths.compactMap { try $0.unfold(generatorPaths: generatorPaths) }.flatMap { $0 }
         let inputFileListPaths = try absolutePaths(for: manifest.inputFileListPaths, generatorPaths: generatorPaths)
         let outputPaths = try absolutePaths(for: manifest.outputPaths, generatorPaths: generatorPaths)
         let outputFileListPaths = try absolutePaths(for: manifest.outputFileListPaths, generatorPaths: generatorPaths)

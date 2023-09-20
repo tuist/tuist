@@ -1,6 +1,6 @@
 import ProjectDescription
 
-let infoPlist: [String: InfoPlist.Value] = [
+let infoPlist: [String: Plist.Value] = [
     "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
     "CFBundleExecutable": "$(EXECUTABLE_NAME)",
     "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",

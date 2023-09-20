@@ -8,8 +8,8 @@ final class ArgumentsTests: TuistUnitTestCase {
     func test_codable() {
         // Given
         let subject = Arguments(
-            environment: [
-                "key": "value",
+            environmentVariables: [
+                "key": EnvironmentVariable(value: "value", isEnabled: true),
             ],
             launchArguments: [
                 .init(

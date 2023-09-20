@@ -822,20 +822,26 @@ public class GraphTraverser: GraphTraversing {
         path: AbsolutePath,
         name: String
     ) -> [GraphDependencyReference] {
-        let precompiledStatic = graph.dependencies[.target(name: name, path: path), default: []]
-            .filter { dependency in
+        let dependencies = filterDependencies(
+            from: .target(name: name, path: path),
+            test: { dependency in
                 switch dependency {
                 case let .xcframework(_, _, _, linking: linking):
                     return linking == .static
                 case .framework, .library, .bundle, .packageProduct, .target, .sdk:
                     return false
                 }
+            },
+            skip: { dependency in
+                switch dependency {
+                case .xcframework:
+                    return false
+                case .framework, .library, .bundle, .packageProduct, .target, .sdk:
+                    return true
+                }
             }
-
-        let precompiledDependencies = precompiledStatic
-            .flatMap { filterDependencies(from: $0) }
-
-        return Set(precompiledStatic + precompiledDependencies)
+        )
+        return Set(dependencies)
             .compactMap(dependencyReference)
     }
 }

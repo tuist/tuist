@@ -12,6 +12,10 @@
   <img src="https://img.shields.io/badge/Powered%20by-Tuist-blue" alt="Powered by Tuist">
 </div>
 
+<div align="center">
+  <a href="https://cal.com/team/tuist/cloud?utm_source=banner&utm_campaign=oss" target="_blank"><img alt="Book us with Cal.com" src="https://cal.com/book-with-cal-dark.svg" /></a>
+</div>
+
 ## What's Tuist 🕺
 
 Tuist is a command line tool that helps you **generate**, **maintain** and **interact** with Xcode projects.
@@ -208,11 +212,12 @@ Do you want to know more about what Tuist can offer you? Or perhaps want to cont
 
 ## Supported by great companies
 
-1Password and Bugsnag support the project by giving us access to their service through an open-source program.
+1Password, Bugsgnag Cal.com support the project by giving us access to their service through an open-source program.
 
 <div align="center">
   <img width="70" src="assets/1Password.png" hspace="10"/>
   <img width="200" src="https://images.typeform.com/images/QKuaAssrFCq7/image/default" hspace="10">
+  <img width="170" src="assets/cal-com.svg" hspace="7">
 </div>
 
 ## Contribute 👩‍💻
@@ -223,7 +228,7 @@ If you are interested in contributing to the project, our documentation has a se
 
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/pepibumur"><img src="https://avatars1.githubusercontent.com/u/663605?v=4" width="100px;" alt=""/><br /><sub><b>Pedro Piñera</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/pepicrft"><img src="https://avatars1.githubusercontent.com/u/663605?v=4" width="100px;" alt=""/><br /><sub><b>Pedro Piñera</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a><br /></td>
     <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/danyf90"><img src="https://avatars.githubusercontent.com/u/2794031?v=4" width="100px;" alt=""/><br /><sub><b>Daniele Formichelli</b></sub></a><br /></td>
@@ -420,6 +425,7 @@ Thanks goes to these wonderful people:
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="http://linkedin.com/in/denilchungath"><img src="https://avatars.githubusercontent.com/u/95201442?v=4" width="100px;" alt=""/><br /><sub><b>Denil Chungath</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/victor-sarda/"><img src="https://avatars.githubusercontent.com/u/6460866?v=4" width="100px;" alt=""/><br /><sub><b>Victor Sarda</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/tzxdtc"><img src="https://avatars.githubusercontent.com/u/19767846?v=4" width="100px;" alt=""/><br /><sub><b>tzxdtc10</b></sub></a></td>
     </tr>
   </tbody>
 </table>

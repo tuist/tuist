@@ -335,7 +335,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         if let arguments = testAction.arguments {
             args = XCScheme.CommandLineArguments(arguments: getCommandlineArguments(arguments.launchArguments))
-            environments = environmentVariables(arguments.environment)
+            environments = environmentVariables(arguments.environmentVariables)
         }
 
         let codeCoverageTargets = try testAction.codeCoverageTargets
@@ -466,7 +466,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         if let arguments = scheme.runAction?.arguments {
             commandlineArguments = XCScheme.CommandLineArguments(arguments: getCommandlineArguments(arguments.launchArguments))
-            environments = environmentVariables(arguments.environment)
+            environments = environmentVariables(arguments.environmentVariables)
         }
 
         let buildConfiguration = scheme.runAction?.configurationName ?? defaultBuildConfiguration
@@ -614,7 +614,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             if let arguments = action.arguments {
                 commandlineArguments = XCScheme
                     .CommandLineArguments(arguments: getCommandlineArguments(arguments.launchArguments))
-                environments = environmentVariables(arguments.environment)
+                environments = environmentVariables(arguments.environmentVariables)
             }
         } else if let action = scheme.runAction, let executable = action.executable {
             target = executable
@@ -883,9 +883,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     /// - Parameters:
     ///     - environments: environment variables
     /// - Returns: XCScheme.EnvironmentVariable.
-    private func environmentVariables(_ environments: [String: String]) -> [XCScheme.EnvironmentVariable] {
-        environments.map { key, value in
-            XCScheme.EnvironmentVariable(variable: key, value: value, enabled: true)
+    private func environmentVariables(_ environments: [String: EnvironmentVariable]) -> [XCScheme.EnvironmentVariable] {
+        environments.map { key, variable in
+            XCScheme.EnvironmentVariable(variable: key, value: variable.value, enabled: variable.isEnabled)
         }.sorted { $0.variable < $1.variable }
     }
 

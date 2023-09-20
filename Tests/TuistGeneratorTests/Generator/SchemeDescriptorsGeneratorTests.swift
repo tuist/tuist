@@ -904,7 +904,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let workspacePath = try AbsolutePath(validating: "/somepath/Workspace")
         let projectPath = workspacePath.appending(RelativePath("Projects/Project"))
-        let environment = ["env1": "1", "env2": "2", "env3": "3", "env4": "4"]
+        let environmentVariables = [
+            "env1": EnvironmentVariable(value: "1", isEnabled: true),
+            "env2": EnvironmentVariable(value: "2", isEnabled: true),
+            "env3": EnvironmentVariable(value: "3", isEnabled: true),
+            "env4": EnvironmentVariable(value: "4", isEnabled: true),
+        ]
         let launchArguments = [
             LaunchArgument(name: "arg1", isEnabled: true),
             LaunchArgument(name: "arg2", isEnabled: true),
@@ -917,7 +922,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             configurationName: "Release",
             customLLDBInitFile: workspacePath.appending(RelativePath("Projects/etc/path/to/lldbinit")),
             executable: TargetReference(projectPath: projectPath, name: "App"),
-            arguments: Arguments(environment: environment, launchArguments: launchArguments),
+            arguments: Arguments(environmentVariables: environmentVariables, launchArguments: launchArguments),
             options: .init(
                 language: "pl",
                 storeKitConfigurationPath: projectPath.appending(
@@ -930,7 +935,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let scheme = Scheme.test(buildAction: buildAction, runAction: runAction)
 
-        let app = Target.test(name: "App", product: .app, environment: environment)
+        let app = Target.test(name: "App", product: .app, environmentVariables: environmentVariables)
 
         let project = Project.test(
             path: projectPath,
@@ -1568,7 +1573,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let runAction = RunAction.test(
             executable: appTargetReference,
             arguments: Arguments(
-                environment: ["SOME": "ENV"],
+                environmentVariables: ["SOME": EnvironmentVariable(value: "ENV", isEnabled: true)],
                 launchArguments: [.init(name: "something", isEnabled: true)]
             )
         )

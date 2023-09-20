@@ -1,0 +1,2 @@
+Hello, from your Kit framework
+Hello, from your UI framework

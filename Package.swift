@@ -313,6 +313,7 @@ let package = Package(
                 "TuistCore",
                 "TuistGraph",
                 "TuistSupport",
+                "TuistCloud",
             ]
         ),
         .testTarget(
@@ -323,6 +324,7 @@ let package = Package(
                 "TuistCoreTesting",
                 "TuistCacheTesting",
                 "TuistGraphTesting",
+                "TuistCloudTesting",
             ]
         ),
         .target(

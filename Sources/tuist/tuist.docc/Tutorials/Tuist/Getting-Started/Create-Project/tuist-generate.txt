@@ -1,0 +1,6 @@
+% tuist generate
+Resolved cache profile 'Development' from Tuist's defaults
+Generating workspace MyApp.xcworkspace
+Generating project MyApp
+Project generated.
+Total time taken: 4.787s
