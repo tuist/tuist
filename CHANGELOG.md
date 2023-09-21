@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.27.1 - 2023-09-21
+
+### Fixed
+
+- Fixed a bug in the uninstall script [#5432](https://github.com/tuist/tuist/pull/5432) by [@ThiemeFM](https://github.com/ThiemeFM)
+- 5354 workaround for Xcode 15 RC bug [#5420](https://github.com/tuist/tuist/pull/5420) by [@Speakus](https://github.com/Speakus)
+
 ## 3.27.0 - 2023-09-19
 
 ### Added
