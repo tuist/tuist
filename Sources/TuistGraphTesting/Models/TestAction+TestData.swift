@@ -17,6 +17,7 @@ extension TestAction {
         diagnosticsOptions: Set<SchemeDiagnosticsOption> = [.mainThreadChecker],
         language: String? = nil,
         region: String? = nil,
+        preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,
         testPlans: [TestPlan]? = nil
     ) -> TestAction {
         TestAction(
@@ -32,6 +33,7 @@ extension TestAction {
             diagnosticsOptions: diagnosticsOptions,
             language: language,
             region: region,
+            preferredScreenCaptureFormat: preferredScreenCaptureFormat,
             testPlans: testPlans
         )
     }

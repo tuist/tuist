@@ -1078,6 +1078,99 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, .init(path: project.path, target: appClip, project: project))
     }
 
+    func test_buildsForMacCatalyst_returns_false_when_someDependenciesCantBuildForMacCatalyst() {
+        // Given
+        let project = Project.test()
+        let app = Target.test(name: "app", destinations: [.macCatalyst], product: .app)
+        let library = Target.test(name: "library-a", destinations: [.iPhone], product: .dynamicLibrary)
+        let transitiveLibrary = Target.test(name: "library-b", destinations: [.iPhone], product: .dynamicLibrary)
+
+        // Given: Value graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app, library.name: library, transitiveLibrary.name: transitiveLibrary]],
+            dependencies: [
+                .target(
+                    name: app.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: library.name, path: project.path)),
+                .target(
+                    name: library.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: transitiveLibrary.name, path: project.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.buildsForMacCatalyst(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertFalse(got)
+    }
+
+    func test_buildsForMacCatalyst_returns_false_when_aTargetDoesntSupportCatalystRegardlessOfItsDependencies() {
+        // Given
+        let project = Project.test()
+        let app = Target.test(name: "app", destinations: [.iPhone], product: .app)
+        let library = Target.test(name: "library-a", destinations: [.macCatalyst], product: .dynamicLibrary)
+        let transitiveLibrary = Target.test(name: "library-b", destinations: [.macCatalyst], product: .dynamicLibrary)
+
+        // Given: Value graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app, library.name: library, transitiveLibrary.name: transitiveLibrary]],
+            dependencies: [
+                .target(
+                    name: app.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: library.name, path: project.path)),
+                .target(
+                    name: library.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: transitiveLibrary.name, path: project.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.buildsForMacCatalyst(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertFalse(got)
+    }
+
+    func test_buildsForMacCatalyst_returns_true_when_aTargetAndItsDependenciesSupportCatalyst() {
+        // Given
+        let project = Project.test()
+        let app = Target.test(name: "app", destinations: [.macCatalyst], product: .app)
+        let library = Target.test(name: "library-a", destinations: [.macCatalyst], product: .dynamicLibrary)
+        let transitiveLibrary = Target.test(name: "library-b", destinations: [.macCatalyst], product: .dynamicLibrary)
+
+        // Given: Value graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [app.name: app, library.name: library, transitiveLibrary.name: transitiveLibrary]],
+            dependencies: [
+                .target(
+                    name: app.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: library.name, path: project.path)),
+                .target(
+                    name: library.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: transitiveLibrary.name, path: project.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.buildsForMacCatalyst(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertTrue(got)
+    }
+
     func test_embeddableFrameworks_when_targetIsNotApp() throws {
         // Given
         let target = Target.test(name: "Main", product: .framework)
@@ -3734,6 +3827,150 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got.map(\.target.name), [
             "ExtensionKitExtension",
+        ])
+    }
+
+    func test_copyProductDependencies_when_targetHasTransitiveStaticXCFrameworks() throws {
+        /**
+         XCFrameworks are copied into the products directory to let Xcode's compilation process pick the right architecture and
+         platform at build-time. The logic that determines which xcframeworks to include should traverse the .xcframework dependencies
+         and include not only the direct but the transitive dependencies.
+         */
+        // Given
+        let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
+        let project = Project.test(targets: [staticLibrary])
+        let directXCFramework = GraphDependency.xcframework(
+            path: "/xcframeworks/direct.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
+            linking: .static
+        )
+        let directFramework = GraphDependency.framework(
+            path: "/frameworks/direct.framework",
+            binaryPath: "/frameworks/direct.framework/direct",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64],
+            isCarthage: false
+        )
+        let transitiveXCFramework = GraphDependency.xcframework(
+            path: "/xcframeworks/transitive.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
+            linking: .static
+        )
+        let frameworkTransitiveXCFramework = GraphDependency.xcframework(
+            path: "/xcframeworks/framework-transitive.xcframework",
+            infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
+            primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
+            linking: .static
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: staticLibrary.name, path: project.path): Set([directXCFramework, directFramework]),
+            directXCFramework: Set([transitiveXCFramework]),
+            directFramework: Set([frameworkTransitiveXCFramework]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                staticLibrary.name: staticLibrary,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.copyProductDependencies(path: project.path, name: staticLibrary.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            .xcframework(
+                path: "/xcframeworks/direct.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: RelativePath("path"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
+                binaryPath: "/xcframeworks/direct.xcframework/direct"
+            ),
+            .xcframework(
+                path: "/xcframeworks/transitive.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: RelativePath("path"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
+                binaryPath: "/xcframeworks/transitive.xcframework/transitive"
+            ),
+        ])
+    }
+
+    func test_copyProductDependencies_when_targetHasDirectStaticDependencies() throws {
+        // Given
+        let staticLibrary = Target.test(name: "StaticLibrary", destinations: [.iPhone], product: .staticLibrary)
+        let project = Project.test(targets: [staticLibrary])
+        let aDependency = Target.test(name: "StaticDependency", destinations: [.iPhone], product: .staticLibrary)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: staticLibrary.name, path: project.path): Set([.target(name: aDependency.name, path: project.path)]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                staticLibrary.name: staticLibrary,
+                aDependency.name: aDependency,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.copyProductDependencies(path: project.path, name: staticLibrary.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            .product(target: aDependency.name, productName: aDependency.productNameWithExtension, platformFilters: [.ios]),
+        ])
+    }
+
+    func test_copyProductDependencies_when_targetHasBundleDependencies() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let project = Project.test(targets: [app])
+        let bundle = Target.test(name: "Bundle", destinations: [.iPhone], product: .bundle)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([.target(name: bundle.name, path: project.path)]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                app.name: app,
+                bundle.name: bundle,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.copyProductDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: [.ios]),
         ])
     }
 

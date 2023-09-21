@@ -105,7 +105,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let schemes: [Scheme] = [
             .test(
                 buildAction: .test(targets: [.init(projectPath: path, name: prunedTarget.name)]),
-                testAction: .test(testPlans: [.init(path: "/Test.xctestplan", isDefault: true)])
+                testAction: .test(testPlans: [.init(path: "/Test.xctestplan", testTargets: [], isDefault: true)])
             ),
         ]
         let project = Project.test(path: path, targets: [prunedTarget, keptTarget], schemes: schemes)
@@ -128,7 +128,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
             [
                 .test(
                     buildAction: .test(targets: []),
-                    testAction: .test(targets: [], testPlans: [.init(path: "/Test.xctestplan", isDefault: true)])
+                    testAction: .test(targets: [], testPlans: [.init(path: "/Test.xctestplan", testTargets: [], isDefault: true)])
                 ),
             ]
         )

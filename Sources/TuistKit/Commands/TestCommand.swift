@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistSupport
 
 /// Command that tests a target from the project in the current directory.
@@ -65,6 +66,49 @@ struct TestCommand: AsyncParsableCommand {
     )
     var retryCount: Int = 0
 
+    @Option(
+        name: .long,
+        help: "The test plan to run."
+    )
+    var testPlan: String?
+
+    @Option(
+        name: .long,
+        parsing: .upToNextOption,
+        help: "The list of test identifiers you want to test. Expected format is TestTarget[/TestClass[/TestMethod]]. It is applied before --skip-testing",
+        transform: TestIdentifier.init(string:)
+    )
+    var testTargets: [TestIdentifier] = []
+
+    @Option(
+        name: .long,
+        parsing: .upToNextOption,
+        help: "The list of test identifiers you want to skip testing. Expected format is TestTarget[/TestClass[/TestMethod]].",
+        transform: TestIdentifier.init(string:)
+    )
+    var skipTestTargets: [TestIdentifier] = []
+
+    @Option(
+        name: .customLong("filter-configurations"),
+        parsing: .upToNextOption,
+        help: "The list of configurations you want to test. It is applied before --skip-configuration"
+    )
+    var configurations: [String] = []
+
+    @Option(
+        name: .long,
+        parsing: .upToNextOption,
+        help: "The list of configurations you want to skip testing."
+    )
+    var skipConfigurations: [String] = []
+
+    func validate() throws {
+        try TestService().validateParameters(
+            testTargets: testTargets,
+            skipTestTargets: skipTestTargets
+        )
+    }
+
     func run() async throws {
         let absolutePath: AbsolutePath
 
@@ -88,7 +132,17 @@ struct TestCommand: AsyncParsableCommand {
                     relativeTo: FileHandler.shared.currentPath
                 )
             },
-            retryCount: retryCount
+            retryCount: retryCount,
+            testTargets: testTargets,
+            skipTestTargets: skipTestTargets,
+            testPlanConfiguration: testPlan.map { testPlan in
+                TestPlanConfiguration(
+                    testPlan: testPlan,
+                    configurations: configurations,
+                    skipConfigurations: skipConfigurations
+                )
+            },
+            validateTestTargetsParameters: false
         )
     }
 }

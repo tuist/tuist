@@ -17,7 +17,7 @@ extension Project {
         product: Product,
         platform: Platform,
         dependencies: [TargetDependency] = [],
-        infoPlist: [String: InfoPlist.Value] = [:]
+        infoPlist: [String: Plist.Value] = [:]
     ) -> Project {
         Project(
             name: name,

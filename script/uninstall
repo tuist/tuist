@@ -25,9 +25,9 @@ INSTALL_DIR="/usr/local/bin"
 sudo_if_install_dir_not_writeable() {
   local command="$1"
   if [ -w $INSTALL_DIR ]; then
-    bash -c $command
+    bash -c "$command"
   else
-    bash -c "sudo ${command}"
+    bash -c "sudo \"$command\""
   fi
 }
 

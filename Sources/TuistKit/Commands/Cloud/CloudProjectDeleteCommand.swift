@@ -19,7 +19,7 @@ struct CloudProjectDeleteCommand: AsyncParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The organization that the project belongs to. By default, this is your personal Cloud account."
+        help: "The organization that the project belongs to. By default, this is your personal Tuist Cloud account."
     )
     var organization: String?
 

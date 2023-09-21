@@ -1,0 +1,43 @@
+{
+  "configurations" : [
+    {
+      "id" : "07C2DFDA-784B-485A-AFF0-A8CDBE98F8FA",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:App.xcodeproj",
+      "identifier" : "93E9E330FC2CE7458D9C925F",
+      "name" : "App"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:App.xcodeproj",
+        "identifier" : "99DCC7BD0ABB09C467644299",
+        "name" : "AppTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:App.xcodeproj",
+        "identifier" : "3A196401860CE777FF5FBA54",
+        "name" : "MacFrameworkTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:App.xcodeproj",
+        "identifier" : "9BCE1287E7C8C0C664664A7E",
+        "name" : "tvOSFrameworkTests"
+      }
+    }
+  ],
+  "version" : 1
+}

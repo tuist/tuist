@@ -32,6 +32,7 @@ extension TuistGraph.Project.Options.AutomaticSchemesOptions {
             testingOptions,
             testLanguage,
             testRegion,
+            testScreenCaptureFormat,
             runLanguage,
             runRegion
         ):
@@ -41,6 +42,7 @@ extension TuistGraph.Project.Options.AutomaticSchemesOptions {
                 testingOptions: .from(manifest: testingOptions),
                 testLanguage: testLanguage?.identifier,
                 testRegion: testRegion,
+                testScreenCaptureFormat: testScreenCaptureFormat.map { .from(manifest: $0) },
                 runLanguage: runLanguage?.identifier,
                 runRegion: runRegion
             )

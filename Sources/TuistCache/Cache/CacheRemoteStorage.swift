@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCloud
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -25,69 +26,69 @@ enum CacheRemoteStorageError: FatalError, Equatable {
 public final class CacheRemoteStorage: CacheStoring {
     // MARK: - Attributes
 
-    private let cloudClient: CloudClienting
+    private let cloudConfig: Cloud
     private let fileClient: FileClienting
     private let fileArchiverFactory: FileArchivingFactorying
-    private let cloudCacheResourceFactory: CloudCacheResourceFactorying
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
+    private let cacheExistsService: CacheExistsServicing
+    private let getCacheService: GetCacheServicing
+    private let uploadCacheService: UploadCacheServicing
+    private let verifyCacheUploadService: VerifyCacheUploadServicing
 
     // MARK: - Init
 
-    public convenience init(
+    public init(
         cloudConfig: Cloud,
-        cloudClient: CloudClienting,
-        cacheDirectoriesProvider: CacheDirectoriesProviding
+        fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
+        fileClient: FileClienting = FileClient(),
+        cacheDirectoriesProvider: CacheDirectoriesProviding,
+        cacheExistsService: CacheExistsServicing = CacheExistsService(),
+        getCacheService: GetCacheServicing = GetCacheService(),
+        uploadCacheService: UploadCacheServicing = UploadCacheService(),
+        verifyCacheUploadService: VerifyCacheUploadServicing = VerifyCacheUploadService()
     ) {
-        self.init(
-            cloudClient: cloudClient,
-            fileArchiverFactory: FileArchivingFactory(),
-            fileClient: FileClient(),
-            cloudCacheResourceFactory: CloudCacheResourceFactory(cloudConfig: cloudConfig),
-            cacheDirectoriesProvider: cacheDirectoriesProvider
-        )
-    }
-
-    init(
-        cloudClient: CloudClienting,
-        fileArchiverFactory: FileArchivingFactorying,
-        fileClient: FileClienting,
-        cloudCacheResourceFactory: CloudCacheResourceFactorying,
-        cacheDirectoriesProvider: CacheDirectoriesProviding
-    ) {
-        self.cloudClient = cloudClient
+        self.cloudConfig = cloudConfig
         self.fileArchiverFactory = fileArchiverFactory
         self.fileClient = fileClient
-        self.cloudCacheResourceFactory = cloudCacheResourceFactory
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
+        self.cacheExistsService = cacheExistsService
+        self.getCacheService = getCacheService
+        self.uploadCacheService = uploadCacheService
+        self.verifyCacheUploadService = verifyCacheUploadService
     }
 
     // MARK: - CacheStoring
 
     public func exists(name: String, hash: String) async throws -> Bool {
         do {
-            let successRange = 200 ..< 300
-            let resource = try cloudCacheResourceFactory.existsResource(name: name, hash: hash)
-            let (_, response) = try await cloudClient.request(resource)
-            let exists = successRange.contains(response.statusCode)
-            if exists {
-                CacheAnalytics.addRemoteCacheTargetHit(name)
-            }
-            return exists
-        } catch {
-            if case let HTTPRequestDispatcherError.serverSideError(_, _, response) = error, response.statusCode == 404 {
+            try await cacheExistsService.cacheExists(
+                serverURL: cloudConfig.url,
+                projectId: cloudConfig.projectId,
+                hash: hash,
+                name: name
+            )
+        } catch let error as CacheExistsServiceError {
+            switch error {
+            case .notFound:
                 return false
-            } else {
+            default:
                 throw error
             }
         }
+
+        return true
     }
 
     public func fetch(name: String, hash: String) async throws -> AbsolutePath {
-        let resource = try cloudCacheResourceFactory.fetchResource(name: name, hash: hash)
-        let url = try await cloudClient.request(resource).object.data.url
+        let cacheArtifact = try await getCacheService.getCache(
+            serverURL: cloudConfig.url,
+            projectId: cloudConfig.projectId,
+            hash: hash,
+            name: name
+        )
 
         logger.info("Downloading cache artifact for target \(name) with hash \(hash).")
-        let filePath = try await fileClient.download(url: url)
+        let filePath = try await fileClient.download(url: cacheArtifact.url)
         return try unzip(downloadedArchive: filePath, hash: hash)
     }
 
@@ -96,23 +97,23 @@ public final class CacheRemoteStorage: CacheStoring {
         do {
             let destinationZipPath = try archiver.zip(name: hash)
             let md5 = try FileHandler.shared.urlSafeBase64MD5(path: destinationZipPath)
-            let storeResource = try cloudCacheResourceFactory.storeResource(
-                name: name,
+            let url = try await uploadCacheService.uploadCache(
+                serverURL: cloudConfig.url,
+                projectId: cloudConfig.projectId,
                 hash: hash,
+                name: name,
                 contentMD5: md5
-            )
-
-            let url = try await cloudClient.request(storeResource).object.data.url
+            ).url
 
             _ = try await fileClient.upload(file: destinationZipPath, hash: hash, to: url)
 
-            let verifyUploadResource = try cloudCacheResourceFactory.verifyUploadResource(
-                name: name,
+            try await verifyCacheUploadService.verifyCacheUpload(
+                serverURL: cloudConfig.url,
+                projectId: cloudConfig.projectId,
                 hash: hash,
+                name: name,
                 contentMD5: md5
             )
-
-            _ = try await cloudClient.request(verifyUploadResource)
         } catch {
             try archiver.delete()
             throw error

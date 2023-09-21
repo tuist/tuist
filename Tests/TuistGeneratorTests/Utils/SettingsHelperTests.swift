@@ -199,10 +199,31 @@ final class SettingsHelpersTests: XCTestCase {
         ]])
     }
 
+    func testOverlay_addsPlatformSpecifierWhenSettingsDiffer() {
+        // Given
+        settings["A"] = "a value"
+        settings["B"] = "b value"
+
+        // When
+        subject.overlay(settings: &settings, with: [
+            "A": "overlayed value",
+            "B": "b value",
+            "C": "c value",
+        ], for: .macOS)
+
+        // Then
+        XCTAssertEqual(settings, [
+            "A[sdk=macosx*]": "overlayed value",
+            "A": "a value",
+            "B": "b value",
+            "C": "c value",
+        ])
+    }
+
     func testSettingsProviderPlatform() {
-        XCTAssertEqual(subject.settingsProviderPlatform(.test(platform: .iOS)), .iOS)
-        XCTAssertEqual(subject.settingsProviderPlatform(.test(platform: .macOS)), .macOS)
-        XCTAssertEqual(subject.settingsProviderPlatform(.test(platform: .tvOS)), .tvOS)
+        XCTAssertEqual(subject.settingsProviderPlatform(.iOS), .iOS)
+        XCTAssertEqual(subject.settingsProviderPlatform(.macOS), .macOS)
+        XCTAssertEqual(subject.settingsProviderPlatform(.tvOS), .tvOS)
     }
 
     func testSettingsProviderProduct() {

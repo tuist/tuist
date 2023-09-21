@@ -1,5 +1,41 @@
 # Changelog
 
+## 3.27.0 - 2023-09-19
+
+### Added
+
+- Allow specifying target environment variables as disabled [#5232](https://github.com/tuist/tuist/pull/5232) by [@lo1tuma](https://github.com/lo1tuma)
+- File generation for Entitlements [#5377](https://github.com/tuist/tuist/pull/5377) by [@Lilfaen](https://github.com/Lilfaen)
+
+### Fixed
+
+- Fix missing input file paths in generated script build phases [#5424](https://github.com/tuist/tuist/pull/5424) by [@pepicrft](https://github.com/pepicrft)
+- Fix cache issues when the graph contains transitive static libraries and frameworks [#5412](https://github.com/tuist/tuist/pull/5412) by [@pepicrft](https://github.com/pepicrft)
+
+## 3.26.0 - 2023-09-12
+
+### Added
+
+- Add glob support for `inputPaths` in `TargetScript` [#5364](https://github.com/tuist/tuist/pull/5364) by [@ibrahimoktay](https://github.com/ibrahimoktay)
+- Add test plan support within Tuist test [#5135](https://github.com/tuist/tuist/pull/5135) by [@stephanecopin](https://github.com/stephanecopin)
+- Support preferredScreenCaptureFormat in test options [#5391](https://github.com/tuist/tuist/pull/5391) by [@tatagrigory](https://github.com/tatagrigory)
+
+### Fixed
+
+- Fix StoreKit Configuration file paths [#5402](https://github.com/tuist/tuist/pull/5402) by [@kwridan](https://github.com/kwridan)
+- Fix parsing of SwiftPackageManager dependencies including `macro` targets [#5308](https://github.com/tuist/tuist/pull/5308) by [@jimmy-li-houzz](https://github.com/jimmy-li-houzz)
+
+## 3.25.0 - 2023-09-04
+
+### Changed
+
+- Hoist `tuistfixturegen` to the root and rename it to `tuistfixturegenerator` [#5378](https://github.com/tuist/tuist/pull/5378) by [@pepicrft](https://github.com/pepicrft)
+
+### Added
+
+- Add support for SPM `Build Tool Plug-ins` [#5299](https://github.com/tuist/tuist/pull/5299) by [@iteracticman](https://github.com/iteracticman)
+- Add additional scheme diagnostic options [#5382](https://github.com/tuist/tuist/pull/5382) by [@navartis](https://github.com/navartis)
+
 ## 3.24.0 - 2023-08-29
 
 ### Changed

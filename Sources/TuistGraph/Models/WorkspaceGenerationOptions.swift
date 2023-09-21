@@ -24,12 +24,13 @@ extension Workspace {
                 codeCoverageMode: CodeCoverageMode = .disabled,
                 testingOptions: TestingOptions = [],
                 testLanguage: String? = nil,
-                testRegion: String? = nil
+                testRegion: String? = nil,
+                testScreenCaptureFormat: ScreenCaptureFormat? = nil
             )
 
             public var codeCoverageMode: CodeCoverageMode {
                 switch self {
-                case let .enabled(codeCoverageMode, _, _, _):
+                case let .enabled(codeCoverageMode, _, _, _, _):
                     return codeCoverageMode
                 case .disabled:
                     return .disabled
@@ -38,7 +39,7 @@ extension Workspace {
 
             public var testingOptions: TestingOptions {
                 switch self {
-                case let .enabled(_, testingOptions, _, _):
+                case let .enabled(_, testingOptions, _, _, _):
                     return testingOptions
                 case .disabled:
                     return []
@@ -47,7 +48,7 @@ extension Workspace {
 
             public var testLanguage: String? {
                 switch self {
-                case let .enabled(_, _, language, _):
+                case let .enabled(_, _, language, _, _):
                     return language
                 case .disabled:
                     return nil
@@ -56,8 +57,17 @@ extension Workspace {
 
             public var testRegion: String? {
                 switch self {
-                case let .enabled(_, _, _, region):
+                case let .enabled(_, _, _, region, _):
                     return region
+                case .disabled:
+                    return nil
+                }
+            }
+
+            public var testScreenCaptureFormat: ScreenCaptureFormat? {
+                switch self {
+                case let .enabled(_, _, _, _, testScreenCaptureFormat):
+                    return testScreenCaptureFormat
                 case .disabled:
                     return nil
                 }

@@ -34,7 +34,8 @@ extension Workspace.GenerationOptions {
             codeCoverageMode: .disabled,
             testingOptions: [],
             testLanguage: nil,
-            testRegion: nil
+            testRegion: nil,
+            testScreenCaptureFormat: nil
         ),
         lastXcodeUpgradeCheck: Version? = nil
     ) -> Self {
