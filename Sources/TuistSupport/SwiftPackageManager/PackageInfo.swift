@@ -159,6 +159,11 @@ extension PackageInfo.Product {
 
 extension PackageInfo {
     public struct Target: Decodable, Hashable {
+        private enum CodingKeys: String, CodingKey {
+            case name, path, url, sources, packageAccess, resources, exclude, dependencies, publicHeadersPath, type, settings,
+                 checksum
+        }
+
         /// The name of the target.
         public let name: String
 
@@ -192,6 +197,9 @@ extension PackageInfo {
         /// The binary target checksum.
         public let checksum: String?
 
+        /// If true, access to package declarations from other targets in the package is allowed.
+        public let packageAccess: Bool
+
         public init(
             name: String,
             path: String?,
@@ -203,12 +211,14 @@ extension PackageInfo {
             publicHeadersPath: String?,
             type: TargetType,
             settings: [TargetBuildSettingDescription.Setting],
-            checksum: String?
+            checksum: String?,
+            packageAccess: Bool = false
         ) {
             self.name = name
             self.path = path
             self.url = url
             self.sources = sources
+            self.packageAccess = packageAccess
             self.resources = resources
             self.exclude = exclude
             self.dependencies = dependencies
@@ -216,6 +226,22 @@ extension PackageInfo {
             self.type = type
             self.settings = settings
             self.checksum = checksum
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            name = try container.decode(String.self, forKey: .name)
+            path = try container.decodeIfPresent(String.self, forKey: .path)
+            url = try container.decodeIfPresent(String.self, forKey: .url)
+            sources = try container.decodeIfPresent([String].self, forKey: .sources)
+            packageAccess = try container.decodeIfPresent(Bool.self, forKey: .packageAccess) ?? false
+            resources = try container.decode([Resource].self, forKey: .resources)
+            exclude = try container.decode([String].self, forKey: .exclude)
+            dependencies = try container.decode([Dependency].self, forKey: .dependencies)
+            publicHeadersPath = try container.decodeIfPresent(String.self, forKey: .publicHeadersPath)
+            type = try container.decode(TargetType.self, forKey: .type)
+            settings = try container.decode([TargetBuildSettingDescription.Setting].self, forKey: .settings)
+            checksum = try container.decodeIfPresent(String.self, forKey: .checksum)
         }
     }
 }
