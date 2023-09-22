@@ -313,7 +313,6 @@ final class GraphLinterTests: TuistUnitTestCase {
         let staticFramework = Target.empty(name: "StaticFramework", destinations: [.mac], product: .staticFramework)
         let staticLibrary = Target.empty(name: "StaticLibrary", destinations: [.mac], product: .staticLibrary)
 
-// Given: Value Graph
         let xpc = Target.empty(name: "xpc", destinations: [.mac], product: .xpc)
         let project = Project.empty(path: path)
 
