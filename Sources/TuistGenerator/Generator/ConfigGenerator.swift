@@ -256,6 +256,15 @@ final class ConfigGenerator: ConfigGenerating {
             settings["SDKROOT"] = "auto"
         }
 
+        if target.supportedPlatforms.count > 1 {
+            let simulatorSDKs = target.supportedPlatforms.compactMap(\.xcodeSimulatorSDK)
+            let platformSDKs = target.supportedPlatforms.map(\.xcodeDeviceSDK)
+            settings["SUPPORTED_PLATFORMS"] = .string(
+                [simulatorSDKs, platformSDKs].flatMap { $0 }.sorted()
+                    .joined(separator: " ")
+            )
+        }
+
         if target.product == .staticFramework {
             settings["MACH_O_TYPE"] = "staticlib"
         }
