@@ -428,6 +428,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/tzxdtc"><img src="https://avatars.githubusercontent.com/u/19767846?v=4" width="100px;" alt=""/><br /><sub><b>tzxdtc10</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ThiemeFM"><img src="https://avatars.githubusercontent.com/u/143395823?v=4" width="100px;" alt=""/><br /><sub><b>Thieme</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Lilfaen"><img src="https://avatars.githubusercontent.com/u/39119695?v=4" width="100px;" alt=""/><br /><sub><b>Clemens Beck</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://macpaw.com/"><img src="https://avatars.githubusercontent.com/u/119268?v=4" width="100px;" alt=""/><br /><sub><b>Paul Taykalo</b></sub></a></td>
     </tr>
   </tbody>
 </table>
