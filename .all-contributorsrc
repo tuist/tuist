@@ -1192,6 +1192,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "PaulTaykalo",
+      "name": "Paul Taykalo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/119268?v=4",
+      "profile": "https://macpaw.com/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
