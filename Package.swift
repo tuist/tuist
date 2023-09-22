@@ -64,9 +64,8 @@ let package = Package(
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.5.1"),
         .package(url: "https://github.com/tuist/XcodeProj", exact: "8.15.0"),
-        .package(url: "https://github.com/apple/swift-openapi-generator", exact: "0.2.1"),
-        .package(url: "https://github.com/apple/swift-openapi-runtime", exact: "0.2.2"),
-        .package(url: "https://github.com/apple/swift-openapi-urlsession", exact: "0.2.2"),
+        .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
+        .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
     ],
     targets: [
         .executableTarget(

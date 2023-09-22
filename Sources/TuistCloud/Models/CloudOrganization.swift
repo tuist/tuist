@@ -1,6 +1,4 @@
 import Foundation
-import OpenAPIRuntime
-import OpenAPIURLSession
 
 /// Cloud organization
 public struct CloudOrganization: Codable {
@@ -82,7 +80,7 @@ extension CloudOrganization.Member {
         switch organizationMember.role {
         case .admin:
             role = .admin
-        case .user:
+        case .user, .undocumented:
             role = .user
         }
     }

@@ -9,10 +9,12 @@ import Foundation
 public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
-    func listProjects(_ input: Operations.listProjects.Input) async throws -> Operations.listProjects.Output
+    func listProjects(_ input: Operations.listProjects.Input) async throws
+        -> Operations.listProjects.Output
     /// - Remark: HTTP `POST /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
-    func createProject(_ input: Operations.createProject.Input) async throws -> Operations.createProject.Output
+    func createProject(_ input: Operations.createProject.Input) async throws
+        -> Operations.createProject.Output
     /// - Remark: HTTP `GET /api/organizations`.
     /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)`.
     func listOrganizations(_ input: Operations.listOrganizations.Input) async throws
@@ -23,16 +25,20 @@ public protocol APIProtocol: Sendable {
         -> Operations.createOrganization.Output
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
     /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)`.
-    func deleteProject(_ input: Operations.deleteProject.Input) async throws -> Operations.deleteProject.Output
+    func deleteProject(_ input: Operations.deleteProject.Input) async throws
+        -> Operations.deleteProject.Output
     /// - Remark: HTTP `GET /api/projects/{account_name}/{project_name}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(getProject)`.
-    func getProject(_ input: Operations.getProject.Input) async throws -> Operations.getProject.Output
+    func getProject(_ input: Operations.getProject.Input) async throws
+        -> Operations.getProject.Output
     /// - Remark: HTTP `PUT /api/projects/{full_name}/cache/clean`.
     /// - Remark: Generated from `#/paths//api/projects/{full_name}/cache/clean/put(cleanCache)`.
-    func cleanCache(_ input: Operations.cleanCache.Input) async throws -> Operations.cleanCache.Output
+    func cleanCache(_ input: Operations.cleanCache.Input) async throws
+        -> Operations.cleanCache.Output
     /// - Remark: HTTP `GET /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/get(getOrganization)`.
-    func getOrganization(_ input: Operations.getOrganization.Input) async throws -> Operations.getOrganization.Output
+    func getOrganization(_ input: Operations.getOrganization.Input) async throws
+        -> Operations.getOrganization.Output
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)`.
     func deleteOrganization(_ input: Operations.deleteOrganization.Input) async throws
@@ -55,13 +61,15 @@ public protocol APIProtocol: Sendable {
         -> Operations.removeOrganizationMember.Output
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheExists)`.
-    func cacheExists(_ input: Operations.cacheExists.Input) async throws -> Operations.cacheExists.Output
+    func cacheExists(_ input: Operations.cacheExists.Input) async throws
+        -> Operations.cacheExists.Output
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(getCache)`.
     func getCache(_ input: Operations.getCache.Input) async throws -> Operations.getCache.Output
     /// - Remark: HTTP `POST /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/post(uploadCache)`.
-    func uploadCache(_ input: Operations.uploadCache.Input) async throws -> Operations.uploadCache.Output
+    func uploadCache(_ input: Operations.uploadCache.Input) async throws
+        -> Operations.uploadCache.Output
     /// - Remark: HTTP `POST /api/cache/verify_upload`.
     /// - Remark: Generated from `#/paths//api/cache/verify_upload/post(verifyCacheUpload)`.
     func verifyCacheUpload(_ input: Operations.verifyCacheUpload.Input) async throws
@@ -70,16 +78,18 @@ public protocol APIProtocol: Sendable {
 /// Server URLs defined in the OpenAPI document.
 public enum Servers {
     /// Localhost deployment.
-    public static func server1() throws -> URL { try URL(validatingOpenAPIServerURL: "http://127.0.0.1:3000/api") }
+    public static func server1() throws -> URL {
+        try URL(validatingOpenAPIServerURL: "http://127.0.0.1:3000/api")
+    }
 }
 /// Types generated from the components section of the OpenAPI document.
 public enum Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
         /// - Remark: Generated from `#/components/schemas/CacheArtifactUploadVerification`.
-        public struct CacheArtifactUploadVerification: Codable, Hashable, Sendable {
+        public struct CacheArtifactUploadVerification: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheArtifactUploadVerification/data`.
-            public struct dataPayload: Codable, Hashable, Sendable {
+            public struct dataPayload: Codable, Equatable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/CacheArtifactUploadVerification/data/uploaded_size`.
                 public var uploaded_size: Swift.Double
                 /// Creates a new `dataPayload`.
@@ -95,13 +105,15 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - data:
-            public init(data: Components.Schemas.CacheArtifactUploadVerification.dataPayload) { self.data = data }
+            public init(data: Components.Schemas.CacheArtifactUploadVerification.dataPayload) {
+                self.data = data
+            }
             public enum CodingKeys: String, CodingKey { case data }
         }
         /// - Remark: Generated from `#/components/schemas/CacheArtifact`.
-        public struct CacheArtifact: Codable, Hashable, Sendable {
+        public struct CacheArtifact: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/CacheArtifact/data`.
-            public struct dataPayload: Codable, Hashable, Sendable {
+            public struct dataPayload: Codable, Equatable, Hashable, Sendable {
                 /// - Remark: Generated from `#/components/schemas/CacheArtifact/data/url`.
                 public var url: Swift.String
                 /// - Remark: Generated from `#/components/schemas/CacheArtifact/data/expires_at`.
@@ -130,7 +142,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey { case data }
         }
         /// - Remark: Generated from `#/components/schemas/User`.
-        public struct User: Codable, Hashable, Sendable {
+        public struct User: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/User/id`.
             public var id: Swift.Double
             /// - Remark: Generated from `#/components/schemas/User/email`.
@@ -155,7 +167,7 @@ public enum Components {
             }
         }
         /// - Remark: Generated from `#/components/schemas/Invitation`.
-        public struct Invitation: Codable, Hashable, Sendable {
+        public struct Invitation: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Invitation/id`.
             public var id: Swift.Double
             /// - Remark: Generated from `#/components/schemas/Invitation/invitee_email`.
@@ -196,7 +208,7 @@ public enum Components {
             }
         }
         /// - Remark: Generated from `#/components/schemas/OrganizationMember`.
-        public struct OrganizationMember: Codable, Hashable, Sendable {
+        public struct OrganizationMember: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/OrganizationMember/id`.
             public var id: Swift.Double
             /// - Remark: Generated from `#/components/schemas/OrganizationMember/email`.
@@ -204,9 +216,29 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/OrganizationMember/name`.
             public var name: Swift.String
             /// - Remark: Generated from `#/components/schemas/OrganizationMember/role`.
-            @frozen public enum rolePayload: String, Codable, Hashable, Sendable {
-                case admin = "admin"
-                case user = "user"
+            @frozen
+            public enum rolePayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
+                _AutoLosslessStringConvertible, CaseIterable
+            {
+                case admin
+                case user
+                /// Parsed a raw value that was not defined in the OpenAPI document.
+                case undocumented(String)
+                public init?(rawValue: String) {
+                    switch rawValue {
+                    case "admin": self = .admin
+                    case "user": self = .user
+                    default: self = .undocumented(rawValue)
+                    }
+                }
+                public var rawValue: String {
+                    switch self {
+                    case let .undocumented(string): return string
+                    case .admin: return "admin"
+                    case .user: return "user"
+                    }
+                }
+                public static var allCases: [rolePayload] { [.admin, .user] }
             }
             /// - Remark: Generated from `#/components/schemas/OrganizationMember/role`.
             public var role: Components.Schemas.OrganizationMember.rolePayload
@@ -236,7 +268,7 @@ public enum Components {
             }
         }
         /// - Remark: Generated from `#/components/schemas/Projects`.
-        public struct Projects: Codable, Hashable, Sendable {
+        public struct Projects: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Projects/projects`.
             public var projects: [Components.Schemas.Project]
             /// Creates a new `Projects`.
@@ -247,7 +279,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey { case projects }
         }
         /// - Remark: Generated from `#/components/schemas/Project`.
-        public struct Project: Codable, Hashable, Sendable {
+        public struct Project: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Project/id`.
             public var id: Swift.Double
             /// - Remark: Generated from `#/components/schemas/Project/full_name`.
@@ -272,18 +304,20 @@ public enum Components {
             }
         }
         /// - Remark: Generated from `#/components/schemas/Organizations`.
-        public struct Organizations: Codable, Hashable, Sendable {
+        public struct Organizations: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Organizations/organizations`.
             public var organizations: [Components.Schemas.Organization]
             /// Creates a new `Organizations`.
             ///
             /// - Parameters:
             ///   - organizations:
-            public init(organizations: [Components.Schemas.Organization]) { self.organizations = organizations }
+            public init(organizations: [Components.Schemas.Organization]) {
+                self.organizations = organizations
+            }
             public enum CodingKeys: String, CodingKey { case organizations }
         }
         /// - Remark: Generated from `#/components/schemas/Organization`.
-        public struct Organization: Codable, Hashable, Sendable {
+        public struct Organization: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Organization/id`.
             public var id: Swift.Double
             /// - Remark: Generated from `#/components/schemas/Organization/name`.
@@ -318,7 +352,7 @@ public enum Components {
             }
         }
         /// - Remark: Generated from `#/components/schemas/Error`.
-        public struct _Error: Codable, Hashable, Sendable {
+        public struct _Error: Codable, Equatable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/Error/message`.
             public var message: Swift.String
             /// Creates a new `_Error`.
@@ -344,60 +378,69 @@ public enum Operations {
     /// - Remark: Generated from `#/paths//api/projects/get(listProjects)`.
     public enum listProjects {
         public static let id: String = "listProjects"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// Filter items by account name
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/GET/query/account_name`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.listProjects.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
                 public var account_name: Swift.String?
-                /// Filter items by project name
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/GET/query/project_name`.
                 public var project_name: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - account_name: Filter items by account name
-                ///   - project_name: Filter items by project name
+                ///   - account_name:
+                ///   - project_name:
                 public init(account_name: Swift.String? = nil, project_name: Swift.String? = nil) {
                     self.account_name = account_name
                     self.project_name = project_name
                 }
             }
             public var query: Operations.listProjects.Input.Query
-            /// - Remark: Generated from `#/paths/api/projects/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.listProjects.AcceptableContentType>]
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listProjects.AcceptableContentType>] =
-                        .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.listProjects.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.listProjects.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.listProjects.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - path:
             ///   - query:
             ///   - headers:
+            ///   - cookies:
+            ///   - body:
             public init(
+                path: Operations.listProjects.Input.Path = .init(),
                 query: Operations.listProjects.Input.Query = .init(),
-                headers: Operations.listProjects.Input.Headers = .init()
+                headers: Operations.listProjects.Input.Headers = .init(),
+                cookies: Operations.listProjects.Input.Cookies = .init(),
+                body: Operations.listProjects.Input.Body? = nil
             ) {
+                self.path = path
                 self.query = query
                 self.headers = headers
+                self.cookies = cookies
+                self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/GET/responses/200/content/application\/json`.
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listProjects.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas.Projects)
                 }
                 /// Received HTTP response body
@@ -405,8 +448,15 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.listProjects.Output.Ok.Body) { self.body = body }
+                public init(
+                    headers: Operations.listProjects.Output.Ok.Headers = .init(),
+                    body: Operations.listProjects.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// A success response with all available cloud projects.
             ///
@@ -419,54 +469,42 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `POST /api/projects`.
     /// - Remark: Generated from `#/paths//api/projects/post(createProject)`.
     public enum createProject {
         public static let id: String = "createProject"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/POST/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.createProject.AcceptableContentType>]
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.createProject.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.createProject.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createProject.AcceptableContentType>] =
-                        .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.createProject.Input.Headers
-            /// - Remark: Generated from `#/paths/api/projects/POST/requestBody`.
-            @frozen public enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json`.
-                public struct jsonPayload: Codable, Hashable, Sendable {
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.createProject.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
                     /// The name of the project that should be created.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/name`.
+                    /// - Remark: Generated from `#/paths/api/projects/POST/json/name`.
                     public var name: Swift.String
                     /// Organization to create the project with. If nil, the project will be created with the current user's personal account.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/organization`.
+                    /// - Remark: Generated from `#/paths/api/projects/POST/json/organization`.
                     public var organization: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
@@ -482,28 +520,40 @@ public enum Operations {
                         case organization
                     }
                 }
-                /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/content/application\/json`.
                 case json(Operations.createProject.Input.Body.jsonPayload)
             }
             public var body: Operations.createProject.Input.Body
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - path:
+            ///   - query:
             ///   - headers:
+            ///   - cookies:
             ///   - body:
             public init(
+                path: Operations.createProject.Input.Path = .init(),
+                query: Operations.createProject.Input.Query = .init(),
                 headers: Operations.createProject.Input.Headers = .init(),
+                cookies: Operations.createProject.Input.Cookies = .init(),
                 body: Operations.createProject.Input.Body
             ) {
+                self.path = path
+                self.query = query
                 self.headers = headers
+                self.cookies = cookies
                 self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/POST/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/POST/responses/200/content/application\/json`.
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProject.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas.Project)
                 }
                 /// Received HTTP response body
@@ -511,8 +561,15 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.createProject.Output.Ok.Body) { self.body = body }
+                public init(
+                    headers: Operations.createProject.Output.Ok.Headers = .init(),
+                    body: Operations.createProject.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// A success response with the created project.
             ///
@@ -520,10 +577,14 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.createProject.Output.Ok)
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/POST/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/POST/responses/400/content/application\/json`.
+            public struct BadRequest: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createProject.Output.BadRequest.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -531,8 +592,15 @@ public enum Operations {
                 /// Creates a new `BadRequest`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.createProject.Output.BadRequest.Body) { self.body = body }
+                public init(
+                    headers: Operations.createProject.Output.BadRequest.Headers = .init(),
+                    body: Operations.createProject.Output.BadRequest.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The project could not be created because of a validation error.
             ///
@@ -545,55 +613,65 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `GET /api/organizations`.
     /// - Remark: Generated from `#/paths//api/organizations/get(listOrganizations)`.
     public enum listOrganizations {
         public static let id: String = "listOrganizations"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/organizations/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.listOrganizations.AcceptableContentType>]
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.listOrganizations.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.listOrganizations.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<
-                        Operations.listOrganizations.AcceptableContentType
-                    >] = .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.listOrganizations.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.listOrganizations.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.listOrganizations.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - path:
+            ///   - query:
             ///   - headers:
-            public init(headers: Operations.listOrganizations.Input.Headers = .init()) { self.headers = headers }
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.listOrganizations.Input.Path = .init(),
+                query: Operations.listOrganizations.Input.Query = .init(),
+                headers: Operations.listOrganizations.Input.Headers = .init(),
+                cookies: Operations.listOrganizations.Input.Cookies = .init(),
+                body: Operations.listOrganizations.Input.Body? = nil
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+                self.cookies = cookies
+                self.body = body
+            }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/GET/responses/200/content/application\/json`.
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.listOrganizations.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas.Organizations)
                 }
                 /// Received HTTP response body
@@ -601,8 +679,15 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.listOrganizations.Output.Ok.Body) { self.body = body }
+                public init(
+                    headers: Operations.listOrganizations.Output.Ok.Headers = .init(),
+                    body: Operations.listOrganizations.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// A success response with all available cloud organizations.
             ///
@@ -615,51 +700,38 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `POST /api/organizations`.
     /// - Remark: Generated from `#/paths//api/organizations/post(createOrganization)`.
     public enum createOrganization {
         public static let id: String = "createOrganization"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/organizations/POST/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.createOrganization.AcceptableContentType>]
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.createOrganization.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.createOrganization.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<
-                        Operations.createOrganization.AcceptableContentType
-                    >] = .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.createOrganization.Input.Headers
-            /// - Remark: Generated from `#/paths/api/organizations/POST/requestBody`.
-            @frozen public enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/POST/requestBody/json`.
-                public struct jsonPayload: Codable, Hashable, Sendable {
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.createOrganization.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
                     /// The name of the organization that should be created.
                     ///
-                    /// - Remark: Generated from `#/paths/api/organizations/POST/requestBody/json/name`.
+                    /// - Remark: Generated from `#/paths/api/organizations/POST/json/name`.
                     public var name: Swift.String
                     /// Creates a new `jsonPayload`.
                     ///
@@ -668,28 +740,40 @@ public enum Operations {
                     public init(name: Swift.String) { self.name = name }
                     public enum CodingKeys: String, CodingKey { case name }
                 }
-                /// - Remark: Generated from `#/paths/api/organizations/POST/requestBody/content/application\/json`.
                 case json(Operations.createOrganization.Input.Body.jsonPayload)
             }
             public var body: Operations.createOrganization.Input.Body
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - path:
+            ///   - query:
             ///   - headers:
+            ///   - cookies:
             ///   - body:
             public init(
+                path: Operations.createOrganization.Input.Path = .init(),
+                query: Operations.createOrganization.Input.Query = .init(),
                 headers: Operations.createOrganization.Input.Headers = .init(),
+                cookies: Operations.createOrganization.Input.Cookies = .init(),
                 body: Operations.createOrganization.Input.Body
             ) {
+                self.path = path
+                self.query = query
                 self.headers = headers
+                self.cookies = cookies
                 self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/POST/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/POST/responses/200/content/application\/json`.
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createOrganization.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas.Organization)
                 }
                 /// Received HTTP response body
@@ -697,8 +781,15 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.createOrganization.Output.Ok.Body) { self.body = body }
+                public init(
+                    headers: Operations.createOrganization.Output.Ok.Headers = .init(),
+                    body: Operations.createOrganization.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// A success response with the created organization.
             ///
@@ -706,10 +797,14 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.createOrganization.Output.Ok)
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/POST/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/POST/responses/400/content/application\/json`.
+            public struct BadRequest: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createOrganization.Output.BadRequest.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -717,8 +812,15 @@ public enum Operations {
                 /// Creates a new `BadRequest`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.createOrganization.Output.BadRequest.Body) { self.body = body }
+                public init(
+                    headers: Operations.createOrganization.Output.BadRequest.Headers = .init(),
+                    body: Operations.createOrganization.Output.BadRequest.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The organization could not be created because of a validation error.
             ///
@@ -731,73 +833,83 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
     /// - Remark: Generated from `#/paths//api/projects/{id}/delete(deleteProject)`.
     public enum deleteProject {
         public static let id: String = "deleteProject"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{id}/DELETE/path`.
-            public struct Path: Sendable, Hashable {
-                /// The id of the project that should be deleted.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{id}/DELETE/path/id`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
                 public var id: Swift.Int
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - id: The id of the project that should be deleted.
+                ///   - id:
                 public init(id: Swift.Int) { self.id = id }
             }
             public var path: Operations.deleteProject.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{id}/DELETE/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteProject.AcceptableContentType>]
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.deleteProject.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteProject.AcceptableContentType>] =
-                        .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.deleteProject.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.deleteProject.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.deleteProject.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
+            ///   - cookies:
+            ///   - body:
             public init(
                 path: Operations.deleteProject.Input.Path,
-                headers: Operations.deleteProject.Input.Headers = .init()
+                query: Operations.deleteProject.Input.Query = .init(),
+                headers: Operations.deleteProject.Input.Headers = .init(),
+                cookies: Operations.deleteProject.Input.Cookies = .init(),
+                body: Operations.deleteProject.Input.Body? = nil
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
+                self.cookies = cookies
+                self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct NoContent: Sendable, Hashable {
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteProject.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.deleteProject.Output.NoContent.Body?
                 /// Creates a new `NoContent`.
-                public init() {}
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteProject.Output.NoContent.Headers = .init(),
+                    body: Operations.deleteProject.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// A project was successfully deleted.
             ///
@@ -805,10 +917,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deleteProject.Output.NoContent)
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{id}/DELETE/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{id}/DELETE/responses/404/content/application\/json`.
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteProject.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -816,8 +932,15 @@ public enum Operations {
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.deleteProject.Output.NotFound.Body) { self.body = body }
+                public init(
+                    headers: Operations.deleteProject.Output.NotFound.Headers = .init(),
+                    body: Operations.deleteProject.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The project could not be deleted because it was not found.
             ///
@@ -825,10 +948,14 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.deleteProject.Output.NotFound)
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{id}/DELETE/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{id}/DELETE/responses/401/content/application\/json`.
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteProject.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -836,8 +963,15 @@ public enum Operations {
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.deleteProject.Output.Unauthorized.Body) { self.body = body }
+                public init(
+                    headers: Operations.deleteProject.Output.Unauthorized.Headers = .init(),
+                    body: Operations.deleteProject.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The project could not be created because the user is not authorized to do the action.
             ///
@@ -850,79 +984,74 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `GET /api/projects/{account_name}/{project_name}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_name}/{project_name}/get(getProject)`.
     public enum getProject {
         public static let id: String = "getProject"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_name}/{project_name}/GET/path`.
-            public struct Path: Sendable, Hashable {
-                /// The account name of the project to show.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_name}/{project_name}/GET/path/account_name`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
                 public var account_name: Swift.String
-                /// The name of the project to show.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_name}/{project_name}/GET/path/project_name`.
                 public var project_name: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - account_name: The account name of the project to show.
-                ///   - project_name: The name of the project to show.
+                ///   - account_name:
+                ///   - project_name:
                 public init(account_name: Swift.String, project_name: Swift.String) {
                     self.account_name = account_name
                     self.project_name = project_name
                 }
             }
             public var path: Operations.getProject.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_name}/{project_name}/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getProject.AcceptableContentType>]
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.getProject.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getProject.AcceptableContentType>] =
-                        .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.getProject.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.getProject.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.getProject.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
-            public init(path: Operations.getProject.Input.Path, headers: Operations.getProject.Input.Headers = .init())
-            {
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.getProject.Input.Path,
+                query: Operations.getProject.Input.Query = .init(),
+                headers: Operations.getProject.Input.Headers = .init(),
+                cookies: Operations.getProject.Input.Cookies = .init(),
+                body: Operations.getProject.Input.Body? = nil
+            ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
+                self.cookies = cookies
+                self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_name}/{project_name}/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_name}/{project_name}/GET/responses/200/content/application\/json`.
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getProject.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas.Project)
                 }
                 /// Received HTTP response body
@@ -930,8 +1059,15 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getProject.Output.Ok.Body) { self.body = body }
+                public init(
+                    headers: Operations.getProject.Output.Ok.Headers = .init(),
+                    body: Operations.getProject.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// A success response with the project.
             ///
@@ -939,10 +1075,14 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.getProject.Output.Ok)
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_name}/{project_name}/GET/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_name}/{project_name}/GET/responses/401/content/application\/json`.
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getProject.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -950,8 +1090,15 @@ public enum Operations {
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getProject.Output.Unauthorized.Body) { self.body = body }
+                public init(
+                    headers: Operations.getProject.Output.Unauthorized.Headers = .init(),
+                    body: Operations.getProject.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// You don't have the permission to view the project.
             ///
@@ -959,10 +1106,14 @@ public enum Operations {
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Operations.getProject.Output.Unauthorized)
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_name}/{project_name}/GET/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_name}/{project_name}/GET/responses/404/content/application\/json`.
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getProject.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -970,8 +1121,15 @@ public enum Operations {
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getProject.Output.NotFound.Body) { self.body = body }
+                public init(
+                    headers: Operations.getProject.Output.NotFound.Headers = .init(),
+                    body: Operations.getProject.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The project was not found.
             ///
@@ -984,70 +1142,83 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `PUT /api/projects/{full_name}/cache/clean`.
     /// - Remark: Generated from `#/paths//api/projects/{full_name}/cache/clean/put(cleanCache)`.
     public enum cleanCache {
         public static let id: String = "cleanCache"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{full_name}/cache/clean/PUT/path`.
-            public struct Path: Sendable, Hashable {
-                /// The organization of the member to update.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{full_name}/cache/clean/PUT/path/full_name`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
                 public var full_name: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - full_name: The organization of the member to update.
+                ///   - full_name:
                 public init(full_name: Swift.String) { self.full_name = full_name }
             }
             public var path: Operations.cleanCache.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{full_name}/cache/clean/PUT/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cleanCache.AcceptableContentType>]
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.cleanCache.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cleanCache.AcceptableContentType>] =
-                        .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.cleanCache.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.cleanCache.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.cleanCache.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
-            public init(path: Operations.cleanCache.Input.Path, headers: Operations.cleanCache.Input.Headers = .init())
-            {
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.cleanCache.Input.Path,
+                query: Operations.cleanCache.Input.Query = .init(),
+                headers: Operations.cleanCache.Input.Headers = .init(),
+                cookies: Operations.cleanCache.Input.Cookies = .init(),
+                body: Operations.cleanCache.Input.Body? = nil
+            ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
+                self.cookies = cookies
+                self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct NoContent: Sendable, Hashable {
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cleanCache.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.cleanCache.Output.NoContent.Body?
                 /// Creates a new `NoContent`.
-                public init() {}
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cleanCache.Output.NoContent.Headers = .init(),
+                    body: Operations.cleanCache.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The cache was successfuly cleaned.
             ///
@@ -1055,10 +1226,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.cleanCache.Output.NoContent)
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{full_name}/cache/clean/PUT/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{full_name}/cache/clean/PUT/responses/404/content/application\/json`.
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cleanCache.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1066,8 +1241,15 @@ public enum Operations {
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.cleanCache.Output.NotFound.Body) { self.body = body }
+                public init(
+                    headers: Operations.cleanCache.Output.NotFound.Headers = .init(),
+                    body: Operations.cleanCache.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The project was not found.
             ///
@@ -1080,74 +1262,71 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `GET /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/get(getOrganization)`.
     public enum getOrganization {
         public static let id: String = "getOrganization"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/GET/path`.
-            public struct Path: Sendable, Hashable {
-                /// The organization to show.
-                ///
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/GET/path/organization_name`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
                 public var organization_name: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - organization_name: The organization to show.
-                public init(organization_name: Swift.String) { self.organization_name = organization_name }
+                ///   - organization_name:
+                public init(organization_name: Swift.String) {
+                    self.organization_name = organization_name
+                }
             }
             public var path: Operations.getOrganization.Input.Path
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.getOrganization.AcceptableContentType>]
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.getOrganization.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getOrganization.AcceptableContentType>] =
-                        .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.getOrganization.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.getOrganization.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.getOrganization.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
+            ///   - cookies:
+            ///   - body:
             public init(
                 path: Operations.getOrganization.Input.Path,
-                headers: Operations.getOrganization.Input.Headers = .init()
+                query: Operations.getOrganization.Input.Query = .init(),
+                headers: Operations.getOrganization.Input.Headers = .init(),
+                cookies: Operations.getOrganization.Input.Cookies = .init(),
+                body: Operations.getOrganization.Input.Body? = nil
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
+                self.cookies = cookies
+                self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/GET/responses/200/content/application\/json`.
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getOrganization.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas.Organization)
                 }
                 /// Received HTTP response body
@@ -1155,8 +1334,15 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getOrganization.Output.Ok.Body) { self.body = body }
+                public init(
+                    headers: Operations.getOrganization.Output.Ok.Headers = .init(),
+                    body: Operations.getOrganization.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// A success response with the organization.
             ///
@@ -1164,10 +1350,14 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.getOrganization.Output.Ok)
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/GET/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/GET/responses/401/content/application\/json`.
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getOrganization.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1175,8 +1365,15 @@ public enum Operations {
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getOrganization.Output.Unauthorized.Body) { self.body = body }
+                public init(
+                    headers: Operations.getOrganization.Output.Unauthorized.Headers = .init(),
+                    body: Operations.getOrganization.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// You don't have the permission to view the organization.
             ///
@@ -1184,10 +1381,14 @@ public enum Operations {
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Operations.getOrganization.Output.Unauthorized)
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/GET/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/GET/responses/404/content/application\/json`.
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getOrganization.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1195,8 +1396,15 @@ public enum Operations {
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getOrganization.Output.NotFound.Body) { self.body = body }
+                public init(
+                    headers: Operations.getOrganization.Output.NotFound.Headers = .init(),
+                    body: Operations.getOrganization.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The organization was not found.
             ///
@@ -1209,74 +1417,85 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/delete(deleteOrganization)`.
     public enum deleteOrganization {
         public static let id: String = "deleteOrganization"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/DELETE/path`.
-            public struct Path: Sendable, Hashable {
-                /// The name of the organization that should be deleted.
-                ///
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/DELETE/path/organization_name`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
                 public var organization_name: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - organization_name: The name of the organization that should be deleted.
-                public init(organization_name: Swift.String) { self.organization_name = organization_name }
+                ///   - organization_name:
+                public init(organization_name: Swift.String) {
+                    self.organization_name = organization_name
+                }
             }
             public var path: Operations.deleteOrganization.Input.Path
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/DELETE/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.deleteOrganization.AcceptableContentType>]
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.deleteOrganization.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<
-                        Operations.deleteOrganization.AcceptableContentType
-                    >] = .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.deleteOrganization.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.deleteOrganization.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.deleteOrganization.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
+            ///   - cookies:
+            ///   - body:
             public init(
                 path: Operations.deleteOrganization.Input.Path,
-                headers: Operations.deleteOrganization.Input.Headers = .init()
+                query: Operations.deleteOrganization.Input.Query = .init(),
+                headers: Operations.deleteOrganization.Input.Headers = .init(),
+                cookies: Operations.deleteOrganization.Input.Cookies = .init(),
+                body: Operations.deleteOrganization.Input.Body? = nil
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
+                self.cookies = cookies
+                self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct NoContent: Sendable, Hashable {
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteOrganization.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.deleteOrganization.Output.NoContent.Body?
                 /// Creates a new `NoContent`.
-                public init() {}
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.deleteOrganization.Output.NoContent.Headers = .init(),
+                    body: Operations.deleteOrganization.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// An organization was successfully deleted.
             ///
@@ -1284,10 +1503,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.deleteOrganization.Output.NoContent)
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/DELETE/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/DELETE/responses/404/content/application\/json`.
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteOrganization.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1295,8 +1518,15 @@ public enum Operations {
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.deleteOrganization.Output.NotFound.Body) { self.body = body }
+                public init(
+                    headers: Operations.deleteOrganization.Output.NotFound.Headers = .init(),
+                    body: Operations.deleteOrganization.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The organization could not be deleted because it was not found.
             ///
@@ -1304,10 +1534,14 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.deleteOrganization.Output.NotFound)
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/DELETE/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/DELETE/responses/401/content/application\/json`.
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.deleteOrganization.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1315,8 +1549,15 @@ public enum Operations {
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.deleteOrganization.Output.Unauthorized.Body) { self.body = body }
+                public init(
+                    headers: Operations.deleteOrganization.Output.Unauthorized.Headers = .init(),
+                    body: Operations.deleteOrganization.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The organization could not be deleted because the user is not authorized to do the action.
             ///
@@ -1329,64 +1570,44 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `POST /api/organizations/{organization_name}/invitations`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/post(createOrganizationInvite)`.
     public enum createOrganizationInvite {
         public static let id: String = "createOrganizationInvite"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/path`.
-            public struct Path: Sendable, Hashable {
-                /// The organization to invite the user to.
-                ///
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/path/organization_name`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
                 public var organization_name: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - organization_name: The organization to invite the user to.
-                public init(organization_name: Swift.String) { self.organization_name = organization_name }
+                ///   - organization_name:
+                public init(organization_name: Swift.String) {
+                    self.organization_name = organization_name
+                }
             }
             public var path: Operations.createOrganizationInvite.Input.Path
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.createOrganizationInvite.AcceptableContentType>]
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.createOrganizationInvite.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<
-                        Operations.createOrganizationInvite.AcceptableContentType
-                    >] = .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.createOrganizationInvite.Input.Headers
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/requestBody`.
-            @frozen public enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/requestBody/json`.
-                public struct jsonPayload: Codable, Hashable, Sendable {
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.createOrganizationInvite.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
                     /// Email of the user to invite.
                     ///
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/requestBody/json/invitee_email`.
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/json/invitee_email`.
                     public var invitee_email: Swift.String
                     /// Creates a new `jsonPayload`.
                     ///
@@ -1395,7 +1616,6 @@ public enum Operations {
                     public init(invitee_email: Swift.String) { self.invitee_email = invitee_email }
                     public enum CodingKeys: String, CodingKey { case invitee_email }
                 }
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/requestBody/content/application\/json`.
                 case json(Operations.createOrganizationInvite.Input.Body.jsonPayload)
             }
             public var body: Operations.createOrganizationInvite.Input.Body
@@ -1403,23 +1623,33 @@ public enum Operations {
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
+            ///   - cookies:
             ///   - body:
             public init(
                 path: Operations.createOrganizationInvite.Input.Path,
+                query: Operations.createOrganizationInvite.Input.Query = .init(),
                 headers: Operations.createOrganizationInvite.Input.Headers = .init(),
+                cookies: Operations.createOrganizationInvite.Input.Cookies = .init(),
                 body: Operations.createOrganizationInvite.Input.Body
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
+                self.cookies = cookies
                 self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/responses/200/content/application\/json`.
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createOrganizationInvite.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas.Invitation)
                 }
                 /// Received HTTP response body
@@ -1427,8 +1657,15 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.createOrganizationInvite.Output.Ok.Body) { self.body = body }
+                public init(
+                    headers: Operations.createOrganizationInvite.Output.Ok.Headers = .init(),
+                    body: Operations.createOrganizationInvite.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// A user was successfully invited.
             ///
@@ -1436,10 +1673,14 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.createOrganizationInvite.Output.Ok)
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/responses/401/content/application\/json`.
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createOrganizationInvite.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1447,8 +1688,16 @@ public enum Operations {
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.createOrganizationInvite.Output.Unauthorized.Body) { self.body = body }
+                public init(
+                    headers: Operations.createOrganizationInvite.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.createOrganizationInvite.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The invitation could not be created because the user is not authorized to perform the action.
             ///
@@ -1456,10 +1705,14 @@ public enum Operations {
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Operations.createOrganizationInvite.Output.Unauthorized)
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/responses/404/content/application\/json`.
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createOrganizationInvite.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1467,8 +1720,15 @@ public enum Operations {
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.createOrganizationInvite.Output.NotFound.Body) { self.body = body }
+                public init(
+                    headers: Operations.createOrganizationInvite.Output.NotFound.Headers = .init(),
+                    body: Operations.createOrganizationInvite.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The invitation could not be created because the relevant organization was not found.
             ///
@@ -1476,10 +1736,14 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.createOrganizationInvite.Output.NotFound)
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/POST/responses/400/content/application\/json`.
+            public struct BadRequest: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.createOrganizationInvite.Output.BadRequest.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1487,8 +1751,16 @@ public enum Operations {
                 /// Creates a new `BadRequest`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.createOrganizationInvite.Output.BadRequest.Body) { self.body = body }
+                public init(
+                    headers: Operations.createOrganizationInvite.Output.BadRequest.Headers =
+                        .init(),
+                    body: Operations.createOrganizationInvite.Output.BadRequest.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The invitation could not be created because of a validation error.
             ///
@@ -1501,64 +1773,44 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/invitations`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelOrganizationInvite)`.
     public enum cancelOrganizationInvite {
         public static let id: String = "cancelOrganizationInvite"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/path`.
-            public struct Path: Sendable, Hashable {
-                /// The organization to invite the user to.
-                ///
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/path/organization_name`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
                 public var organization_name: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - organization_name: The organization to invite the user to.
-                public init(organization_name: Swift.String) { self.organization_name = organization_name }
+                ///   - organization_name:
+                public init(organization_name: Swift.String) {
+                    self.organization_name = organization_name
+                }
             }
             public var path: Operations.cancelOrganizationInvite.Input.Path
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.cancelOrganizationInvite.AcceptableContentType>]
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.cancelOrganizationInvite.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<
-                        Operations.cancelOrganizationInvite.AcceptableContentType
-                    >] = .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.cancelOrganizationInvite.Input.Headers
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/requestBody`.
-            @frozen public enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/requestBody/json`.
-                public struct jsonPayload: Codable, Hashable, Sendable {
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.cancelOrganizationInvite.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
                     /// Email of the user to cancel the invite for.
                     ///
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/requestBody/json/invitee_email`.
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/json/invitee_email`.
                     public var invitee_email: Swift.String
                     /// Creates a new `jsonPayload`.
                     ///
@@ -1567,7 +1819,6 @@ public enum Operations {
                     public init(invitee_email: Swift.String) { self.invitee_email = invitee_email }
                     public enum CodingKeys: String, CodingKey { case invitee_email }
                 }
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/requestBody/content/application\/json`.
                 case json(Operations.cancelOrganizationInvite.Input.Body.jsonPayload)
             }
             public var body: Operations.cancelOrganizationInvite.Input.Body
@@ -1575,22 +1826,47 @@ public enum Operations {
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
+            ///   - cookies:
             ///   - body:
             public init(
                 path: Operations.cancelOrganizationInvite.Input.Path,
+                query: Operations.cancelOrganizationInvite.Input.Query = .init(),
                 headers: Operations.cancelOrganizationInvite.Input.Headers = .init(),
+                cookies: Operations.cancelOrganizationInvite.Input.Cookies = .init(),
                 body: Operations.cancelOrganizationInvite.Input.Body
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
+                self.cookies = cookies
                 self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct NoContent: Sendable, Hashable {
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cancelOrganizationInvite.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.cancelOrganizationInvite.Output.NoContent.Body?
                 /// Creates a new `NoContent`.
-                public init() {}
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cancelOrganizationInvite.Output.NoContent.Headers = .init(),
+                    body: Operations.cancelOrganizationInvite.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The invitations was successfully cancelled.
             ///
@@ -1598,10 +1874,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.cancelOrganizationInvite.Output.NoContent)
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/responses/404/content/application\/json`.
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cancelOrganizationInvite.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1609,8 +1889,15 @@ public enum Operations {
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.cancelOrganizationInvite.Output.NotFound.Body) { self.body = body }
+                public init(
+                    headers: Operations.cancelOrganizationInvite.Output.NotFound.Headers = .init(),
+                    body: Operations.cancelOrganizationInvite.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The invitation could not be deleted because it was not found.
             ///
@@ -1618,10 +1905,14 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.cancelOrganizationInvite.Output.NotFound)
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/invitations/DELETE/responses/401/content/application\/json`.
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cancelOrganizationInvite.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1629,8 +1920,16 @@ public enum Operations {
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.cancelOrganizationInvite.Output.Unauthorized.Body) { self.body = body }
+                public init(
+                    headers: Operations.cancelOrganizationInvite.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.cancelOrganizationInvite.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The invitation could not be cancelled because the user is not authorized to do the action.
             ///
@@ -1643,72 +1942,47 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `PUT /api/organizations/{organization_name}/members/{username}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/put(updateOrganizationMember)`.
     public enum updateOrganizationMember {
         public static let id: String = "updateOrganizationMember"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/path`.
-            public struct Path: Sendable, Hashable {
-                /// The organization of the member to update.
-                ///
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/path/organization_name`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
                 public var organization_name: Swift.String
-                /// The username of the member to update.
-                ///
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/path/username`.
                 public var username: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - organization_name: The organization of the member to update.
-                ///   - username: The username of the member to update.
+                ///   - organization_name:
+                ///   - username:
                 public init(organization_name: Swift.String, username: Swift.String) {
                     self.organization_name = organization_name
                     self.username = username
                 }
             }
             public var path: Operations.updateOrganizationMember.Input.Path
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.updateOrganizationMember.AcceptableContentType>]
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.updateOrganizationMember.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<
-                        Operations.updateOrganizationMember.AcceptableContentType
-                    >] = .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.updateOrganizationMember.Input.Headers
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/requestBody`.
-            @frozen public enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/requestBody/json`.
-                public struct jsonPayload: Codable, Hashable, Sendable {
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.updateOrganizationMember.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {
+                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/json`.
+                public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
                     /// The new role of the member.
                     ///
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/requestBody/json/role`.
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/json/role`.
                     public var role: OpenAPIRuntime.OpenAPIValueContainer
                     /// Creates a new `jsonPayload`.
                     ///
@@ -1717,7 +1991,6 @@ public enum Operations {
                     public init(role: OpenAPIRuntime.OpenAPIValueContainer) { self.role = role }
                     public enum CodingKeys: String, CodingKey { case role }
                 }
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/requestBody/content/application\/json`.
                 case json(Operations.updateOrganizationMember.Input.Body.jsonPayload)
             }
             public var body: Operations.updateOrganizationMember.Input.Body
@@ -1725,23 +1998,33 @@ public enum Operations {
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
+            ///   - cookies:
             ///   - body:
             public init(
                 path: Operations.updateOrganizationMember.Input.Path,
+                query: Operations.updateOrganizationMember.Input.Query = .init(),
                 headers: Operations.updateOrganizationMember.Input.Headers = .init(),
+                cookies: Operations.updateOrganizationMember.Input.Cookies = .init(),
                 body: Operations.updateOrganizationMember.Input.Body
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
+                self.cookies = cookies
                 self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/responses/200/content/application\/json`.
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateOrganizationMember.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas.OrganizationMember)
                 }
                 /// Received HTTP response body
@@ -1749,8 +2032,15 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.updateOrganizationMember.Output.Ok.Body) { self.body = body }
+                public init(
+                    headers: Operations.updateOrganizationMember.Output.Ok.Headers = .init(),
+                    body: Operations.updateOrganizationMember.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The member was successfully updated.
             ///
@@ -1758,10 +2048,14 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.updateOrganizationMember.Output.Ok)
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/responses/404/content/application\/json`.
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateOrganizationMember.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1769,8 +2063,15 @@ public enum Operations {
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.updateOrganizationMember.Output.NotFound.Body) { self.body = body }
+                public init(
+                    headers: Operations.updateOrganizationMember.Output.NotFound.Headers = .init(),
+                    body: Operations.updateOrganizationMember.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The organization or the member were not found.
             ///
@@ -1778,10 +2079,14 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.updateOrganizationMember.Output.NotFound)
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/PUT/responses/401/content/application\/json`.
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.updateOrganizationMember.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1789,8 +2094,16 @@ public enum Operations {
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.updateOrganizationMember.Output.Unauthorized.Body) { self.body = body }
+                public init(
+                    headers: Operations.updateOrganizationMember.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.updateOrganizationMember.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The member could not be updated because the user is not authorized to do the action.
             ///
@@ -1803,82 +2116,88 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/members/{username}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{username}/delete(removeOrganizationMember)`.
     public enum removeOrganizationMember {
         public static let id: String = "removeOrganizationMember"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/DELETE/path`.
-            public struct Path: Sendable, Hashable {
-                /// The organization to remove the member from.
-                ///
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/DELETE/path/organization_name`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
                 public var organization_name: Swift.String
-                /// The username of the member to remove from the organization.
-                ///
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/DELETE/path/username`.
                 public var username: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
-                ///   - organization_name: The organization to remove the member from.
-                ///   - username: The username of the member to remove from the organization.
+                ///   - organization_name:
+                ///   - username:
                 public init(organization_name: Swift.String, username: Swift.String) {
                     self.organization_name = organization_name
                     self.username = username
                 }
             }
             public var path: Operations.removeOrganizationMember.Input.Path
-            /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/DELETE/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.removeOrganizationMember.AcceptableContentType>]
+            public struct Query: Sendable, Equatable, Hashable {
+                /// Creates a new `Query`.
+                public init() {}
+            }
+            public var query: Operations.removeOrganizationMember.Input.Query
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<
-                        Operations.removeOrganizationMember.AcceptableContentType
-                    >] = .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.removeOrganizationMember.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.removeOrganizationMember.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.removeOrganizationMember.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
+            ///   - cookies:
+            ///   - body:
             public init(
                 path: Operations.removeOrganizationMember.Input.Path,
-                headers: Operations.removeOrganizationMember.Input.Headers = .init()
+                query: Operations.removeOrganizationMember.Input.Query = .init(),
+                headers: Operations.removeOrganizationMember.Input.Headers = .init(),
+                cookies: Operations.removeOrganizationMember.Input.Cookies = .init(),
+                body: Operations.removeOrganizationMember.Input.Body? = nil
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
+                self.cookies = cookies
+                self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct NoContent: Sendable, Hashable {
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct NoContent: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.removeOrganizationMember.Output.NoContent.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.removeOrganizationMember.Output.NoContent.Body?
                 /// Creates a new `NoContent`.
-                public init() {}
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.removeOrganizationMember.Output.NoContent.Headers = .init(),
+                    body: Operations.removeOrganizationMember.Output.NoContent.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The member was successfully removed.
             ///
@@ -1886,10 +2205,14 @@ public enum Operations {
             ///
             /// HTTP response code: `204 noContent`.
             case noContent(Operations.removeOrganizationMember.Output.NoContent)
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/DELETE/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/DELETE/responses/404/content/application\/json`.
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.removeOrganizationMember.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1897,8 +2220,15 @@ public enum Operations {
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.removeOrganizationMember.Output.NotFound.Body) { self.body = body }
+                public init(
+                    headers: Operations.removeOrganizationMember.Output.NotFound.Headers = .init(),
+                    body: Operations.removeOrganizationMember.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The organization or the member were not found.
             ///
@@ -1906,10 +2236,14 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.removeOrganizationMember.Output.NotFound)
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/DELETE/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/members/{username}/DELETE/responses/401/content/application\/json`.
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.removeOrganizationMember.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -1917,8 +2251,16 @@ public enum Operations {
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.removeOrganizationMember.Output.Unauthorized.Body) { self.body = body }
+                public init(
+                    headers: Operations.removeOrganizationMember.Output.Unauthorized.Headers =
+                        .init(),
+                    body: Operations.removeOrganizationMember.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The member could not be removed because the user is not authorized to do the action.
             ///
@@ -1931,49 +2273,27 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `GET /api/cache/exists`.
     /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheExists)`.
     public enum cacheExists {
         public static let id: String = "cacheExists"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/exists/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// The id of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/query/project_id`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.cacheExists.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
                 public var project_id: Swift.String
-                /// The hash of the cache.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/query/hash`.
                 public var hash: Swift.String
-                /// The name of the module.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/query/name`.
                 public var name: Swift.String
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - project_id: The id of the project.
-                ///   - hash: The hash of the cache.
-                ///   - name: The name of the module.
+                ///   - project_id:
+                ///   - hash:
+                ///   - name:
                 public init(project_id: Swift.String, hash: Swift.String, name: Swift.String) {
                     self.project_id = project_id
                     self.hash = hash
@@ -1981,37 +2301,63 @@ public enum Operations {
                 }
             }
             public var query: Operations.cacheExists.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/exists/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.cacheExists.AcceptableContentType>]
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cacheExists.AcceptableContentType>] =
-                        .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.cacheExists.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.cacheExists.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.cacheExists.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - path:
             ///   - query:
             ///   - headers:
+            ///   - cookies:
+            ///   - body:
             public init(
+                path: Operations.cacheExists.Input.Path = .init(),
                 query: Operations.cacheExists.Input.Query,
-                headers: Operations.cacheExists.Input.Headers = .init()
+                headers: Operations.cacheExists.Input.Headers = .init(),
+                cookies: Operations.cacheExists.Input.Cookies = .init(),
+                body: Operations.cacheExists.Input.Body? = nil
             ) {
+                self.path = path
                 self.query = query
                 self.headers = headers
+                self.cookies = cookies
+                self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cacheExists.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {}
+                /// Received HTTP response body
+                public var body: Operations.cacheExists.Output.Ok.Body?
                 /// Creates a new `Ok`.
-                public init() {}
+                ///
+                /// - Parameters:
+                ///   - headers: Received HTTP response headers
+                ///   - body: Received HTTP response body
+                public init(
+                    headers: Operations.cacheExists.Output.Ok.Headers = .init(),
+                    body: Operations.cacheExists.Output.Ok.Body? = nil
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The module is present in the cache.
             ///
@@ -2019,12 +2365,17 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.cacheExists.Output.Ok)
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json`.
-                    public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/json/errors`.
+            public struct NotFound: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cacheExists.Output.NotFound.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/json`.
+                    public struct jsonPayload: Codable, Equatable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/cache/exists/GET/json/errors`.
                         public var errors: [Components.Schemas._Error]
                         /// Creates a new `jsonPayload`.
                         ///
@@ -2033,7 +2384,6 @@ public enum Operations {
                         public init(errors: [Components.Schemas._Error]) { self.errors = errors }
                         public enum CodingKeys: String, CodingKey { case errors }
                     }
-                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/404/content/application\/json`.
                     case json(Operations.cacheExists.Output.NotFound.Body.jsonPayload)
                 }
                 /// Received HTTP response body
@@ -2041,8 +2391,15 @@ public enum Operations {
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.cacheExists.Output.NotFound.Body) { self.body = body }
+                public init(
+                    headers: Operations.cacheExists.Output.NotFound.Headers = .init(),
+                    body: Operations.cacheExists.Output.NotFound.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The module is not present in the cache.
             ///
@@ -2050,10 +2407,14 @@ public enum Operations {
             ///
             /// HTTP response code: `404 notFound`.
             case notFound(Operations.cacheExists.Output.NotFound)
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/401/content/application\/json`.
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cacheExists.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -2061,8 +2422,15 @@ public enum Operations {
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.cacheExists.Output.Unauthorized.Body) { self.body = body }
+                public init(
+                    headers: Operations.cacheExists.Output.Unauthorized.Headers = .init(),
+                    body: Operations.cacheExists.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The cache could not be checked because the user is not authorized to do the action.
             ///
@@ -2070,10 +2438,14 @@ public enum Operations {
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Operations.cacheExists.Output.Unauthorized)
-            public struct PaymentRequired: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/402/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/exists/GET/responses/402/content/application\/json`.
+            public struct PaymentRequired: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.cacheExists.Output.PaymentRequired.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -2081,8 +2453,15 @@ public enum Operations {
                 /// Creates a new `PaymentRequired`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.cacheExists.Output.PaymentRequired.Body) { self.body = body }
+                public init(
+                    headers: Operations.cacheExists.Output.PaymentRequired.Headers = .init(),
+                    body: Operations.cacheExists.Output.PaymentRequired.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The cache could not be checked because the account's plan doesn't include remote cache functionality.
             ///
@@ -2095,49 +2474,27 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(getCache)`.
     public enum getCache {
         public static let id: String = "getCache"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// The id of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/GET/query/project_id`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.getCache.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
                 public var project_id: Swift.String
-                /// The hash of the cache.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/GET/query/hash`.
                 public var hash: Swift.String
-                /// The name of the module.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/GET/query/name`.
                 public var name: Swift.String
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - project_id: The id of the project.
-                ///   - hash: The hash of the cache.
-                ///   - name: The name of the module.
+                ///   - project_id:
+                ///   - hash:
+                ///   - name:
                 public init(project_id: Swift.String, hash: Swift.String, name: Swift.String) {
                     self.project_id = project_id
                     self.hash = hash
@@ -2145,34 +2502,49 @@ public enum Operations {
                 }
             }
             public var query: Operations.getCache.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCache.AcceptableContentType>]
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCache.AcceptableContentType>] =
-                        .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.getCache.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.getCache.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.getCache.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - path:
             ///   - query:
             ///   - headers:
-            public init(query: Operations.getCache.Input.Query, headers: Operations.getCache.Input.Headers = .init()) {
+            ///   - cookies:
+            ///   - body:
+            public init(
+                path: Operations.getCache.Input.Path = .init(),
+                query: Operations.getCache.Input.Query,
+                headers: Operations.getCache.Input.Headers = .init(),
+                cookies: Operations.getCache.Input.Cookies = .init(),
+                body: Operations.getCache.Input.Body? = nil
+            ) {
+                self.path = path
                 self.query = query
                 self.headers = headers
+                self.cookies = cookies
+                self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/200/content/application\/json`.
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCache.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas.CacheArtifact)
                 }
                 /// Received HTTP response body
@@ -2180,8 +2552,15 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getCache.Output.Ok.Body) { self.body = body }
+                public init(
+                    headers: Operations.getCache.Output.Ok.Headers = .init(),
+                    body: Operations.getCache.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The module is present in the cache.
             ///
@@ -2189,10 +2568,14 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.getCache.Output.Ok)
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/GET/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/401/content/application\/json`.
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCache.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -2200,8 +2583,15 @@ public enum Operations {
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getCache.Output.Unauthorized.Body) { self.body = body }
+                public init(
+                    headers: Operations.getCache.Output.Unauthorized.Headers = .init(),
+                    body: Operations.getCache.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The cache could not be fetched because the user is not authorized to do the action.
             ///
@@ -2209,10 +2599,14 @@ public enum Operations {
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Operations.getCache.Output.Unauthorized)
-            public struct PaymentRequired: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/GET/responses/402/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/GET/responses/402/content/application\/json`.
+            public struct PaymentRequired: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.getCache.Output.PaymentRequired.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -2220,8 +2614,15 @@ public enum Operations {
                 /// Creates a new `PaymentRequired`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.getCache.Output.PaymentRequired.Body) { self.body = body }
+                public init(
+                    headers: Operations.getCache.Output.PaymentRequired.Headers = .init(),
+                    body: Operations.getCache.Output.PaymentRequired.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The cache could not be fetched because the account's plan doesn't include remote cache functionality.
             ///
@@ -2234,56 +2635,35 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `POST /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/post(uploadCache)`.
     public enum uploadCache {
         public static let id: String = "uploadCache"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/POST/query`.
-            public struct Query: Sendable, Hashable {
-                /// The id of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/POST/query/project_id`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.uploadCache.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
                 public var project_id: Swift.String
-                /// The hash of the cache.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/POST/query/hash`.
                 public var hash: Swift.String
-                /// The name of the module.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/POST/query/name`.
                 public var name: Swift.String
-                /// The hash of the content.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/POST/query/content_md5`.
                 public var content_md5: Swift.String
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - project_id: The id of the project.
-                ///   - hash: The hash of the cache.
-                ///   - name: The name of the module.
-                ///   - content_md5: The hash of the content.
-                public init(project_id: Swift.String, hash: Swift.String, name: Swift.String, content_md5: Swift.String)
-                {
+                ///   - project_id:
+                ///   - hash:
+                ///   - name:
+                ///   - content_md5:
+                public init(
+                    project_id: Swift.String,
+                    hash: Swift.String,
+                    name: Swift.String,
+                    content_md5: Swift.String
+                ) {
                     self.project_id = project_id
                     self.hash = hash
                     self.name = name
@@ -2291,38 +2671,49 @@ public enum Operations {
                 }
             }
             public var query: Operations.uploadCache.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/POST/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadCache.AcceptableContentType>]
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadCache.AcceptableContentType>] =
-                        .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.uploadCache.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.uploadCache.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.uploadCache.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - path:
             ///   - query:
             ///   - headers:
+            ///   - cookies:
+            ///   - body:
             public init(
+                path: Operations.uploadCache.Input.Path = .init(),
                 query: Operations.uploadCache.Input.Query,
-                headers: Operations.uploadCache.Input.Headers = .init()
+                headers: Operations.uploadCache.Input.Headers = .init(),
+                cookies: Operations.uploadCache.Input.Cookies = .init(),
+                body: Operations.uploadCache.Input.Body? = nil
             ) {
+                self.path = path
                 self.query = query
                 self.headers = headers
+                self.cookies = cookies
+                self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/POST/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/POST/responses/200/content/application\/json`.
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCache.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas.CacheArtifact)
                 }
                 /// Received HTTP response body
@@ -2330,8 +2721,15 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.uploadCache.Output.Ok.Body) { self.body = body }
+                public init(
+                    headers: Operations.uploadCache.Output.Ok.Headers = .init(),
+                    body: Operations.uploadCache.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The uploaded module artifact.
             ///
@@ -2339,10 +2737,14 @@ public enum Operations {
             ///
             /// HTTP response code: `200 ok`.
             case ok(Operations.uploadCache.Output.Ok)
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/POST/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/POST/responses/401/content/application\/json`.
+            public struct Unauthorized: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCache.Output.Unauthorized.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -2350,8 +2752,15 @@ public enum Operations {
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.uploadCache.Output.Unauthorized.Body) { self.body = body }
+                public init(
+                    headers: Operations.uploadCache.Output.Unauthorized.Headers = .init(),
+                    body: Operations.uploadCache.Output.Unauthorized.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The cache could not be fetched because the user is not authorized to do the action.
             ///
@@ -2359,10 +2768,14 @@ public enum Operations {
             ///
             /// HTTP response code: `401 unauthorized`.
             case unauthorized(Operations.uploadCache.Output.Unauthorized)
-            public struct PaymentRequired: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/POST/responses/402/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/POST/responses/402/content/application\/json`.
+            public struct PaymentRequired: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.uploadCache.Output.PaymentRequired.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas._Error)
                 }
                 /// Received HTTP response body
@@ -2370,8 +2783,15 @@ public enum Operations {
                 /// Creates a new `PaymentRequired`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.uploadCache.Output.PaymentRequired.Body) { self.body = body }
+                public init(
+                    headers: Operations.uploadCache.Output.PaymentRequired.Headers = .init(),
+                    body: Operations.uploadCache.Output.PaymentRequired.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The cache could not be fetched because the account's plan doesn't include remote cache functionality.
             ///
@@ -2384,56 +2804,35 @@ public enum Operations {
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
         }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
-        }
     }
     /// - Remark: HTTP `POST /api/cache/verify_upload`.
     /// - Remark: Generated from `#/paths//api/cache/verify_upload/post(verifyCacheUpload)`.
     public enum verifyCacheUpload {
         public static let id: String = "verifyCacheUpload"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/verify_upload/POST/query`.
-            public struct Query: Sendable, Hashable {
-                /// The id of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/verify_upload/POST/query/project_id`.
+        public struct Input: Sendable, Equatable, Hashable {
+            public struct Path: Sendable, Equatable, Hashable {
+                /// Creates a new `Path`.
+                public init() {}
+            }
+            public var path: Operations.verifyCacheUpload.Input.Path
+            public struct Query: Sendable, Equatable, Hashable {
                 public var project_id: Swift.String
-                /// The hash of the cache.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/verify_upload/POST/query/hash`.
                 public var hash: Swift.String
-                /// The name of the module.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/verify_upload/POST/query/name`.
                 public var name: Swift.String
-                /// The hash of the content.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/verify_upload/POST/query/content_md5`.
                 public var content_md5: Swift.String
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - project_id: The id of the project.
-                ///   - hash: The hash of the cache.
-                ///   - name: The name of the module.
-                ///   - content_md5: The hash of the content.
-                public init(project_id: Swift.String, hash: Swift.String, name: Swift.String, content_md5: Swift.String)
-                {
+                ///   - project_id:
+                ///   - hash:
+                ///   - name:
+                ///   - content_md5:
+                public init(
+                    project_id: Swift.String,
+                    hash: Swift.String,
+                    name: Swift.String,
+                    content_md5: Swift.String
+                ) {
                     self.project_id = project_id
                     self.hash = hash
                     self.name = name
@@ -2441,39 +2840,49 @@ public enum Operations {
                 }
             }
             public var query: Operations.verifyCacheUpload.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/verify_upload/POST/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept:
-                    [OpenAPIRuntime.AcceptHeaderContentType<Operations.verifyCacheUpload.AcceptableContentType>]
+            public struct Headers: Sendable, Equatable, Hashable {
                 /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(
-                    accept: [OpenAPIRuntime.AcceptHeaderContentType<
-                        Operations.verifyCacheUpload.AcceptableContentType
-                    >] = .defaultValues()
-                ) { self.accept = accept }
+                public init() {}
             }
             public var headers: Operations.verifyCacheUpload.Input.Headers
+            public struct Cookies: Sendable, Equatable, Hashable {
+                /// Creates a new `Cookies`.
+                public init() {}
+            }
+            public var cookies: Operations.verifyCacheUpload.Input.Cookies
+            @frozen public enum Body: Sendable, Equatable, Hashable {}
+            public var body: Operations.verifyCacheUpload.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
+            ///   - path:
             ///   - query:
             ///   - headers:
+            ///   - cookies:
+            ///   - body:
             public init(
+                path: Operations.verifyCacheUpload.Input.Path = .init(),
                 query: Operations.verifyCacheUpload.Input.Query,
-                headers: Operations.verifyCacheUpload.Input.Headers = .init()
+                headers: Operations.verifyCacheUpload.Input.Headers = .init(),
+                cookies: Operations.verifyCacheUpload.Input.Cookies = .init(),
+                body: Operations.verifyCacheUpload.Input.Body? = nil
             ) {
+                self.path = path
                 self.query = query
                 self.headers = headers
+                self.cookies = cookies
+                self.body = body
             }
         }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/verify_upload/POST/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/verify_upload/POST/responses/200/content/application\/json`.
+        @frozen public enum Output: Sendable, Equatable, Hashable {
+            public struct Ok: Sendable, Equatable, Hashable {
+                public struct Headers: Sendable, Equatable, Hashable {
+                    /// Creates a new `Headers`.
+                    public init() {}
+                }
+                /// Received HTTP response headers
+                public var headers: Operations.verifyCacheUpload.Output.Ok.Headers
+                @frozen public enum Body: Sendable, Equatable, Hashable {
                     case json(Components.Schemas.CacheArtifactUploadVerification)
                 }
                 /// Received HTTP response body
@@ -2481,8 +2890,15 @@ public enum Operations {
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
+                ///   - headers: Received HTTP response headers
                 ///   - body: Received HTTP response body
-                public init(body: Operations.verifyCacheUpload.Output.Ok.Body) { self.body = body }
+                public init(
+                    headers: Operations.verifyCacheUpload.Output.Ok.Headers = .init(),
+                    body: Operations.verifyCacheUpload.Output.Ok.Body
+                ) {
+                    self.headers = headers
+                    self.body = body
+                }
             }
             /// The verification of the module artifact upload.
             ///
@@ -2494,23 +2910,6 @@ public enum Operations {
             ///
             /// A response with a code that is not documented in the OpenAPI document.
             case undocumented(statusCode: Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(String)
-            public init?(rawValue: String) {
-                switch rawValue.lowercased() {
-                case "application/json": self = .json
-                default: self = .other(rawValue)
-                }
-            }
-            public var rawValue: String {
-                switch self {
-                case let .other(string): return string
-                case .json: return "application/json"
-                }
-            }
-            public static var allCases: [Self] { [.json] }
         }
     }
 }

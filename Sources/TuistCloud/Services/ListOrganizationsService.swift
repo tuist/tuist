@@ -35,7 +35,9 @@ public final class ListOrganizationsService: ListOrganizationsServicing {
         let client = Client.cloud(serverURL: serverURL)
 
         let response = try await client.listOrganizations(
-            .init()
+            .init(
+                query: .init()
+            )
         )
         switch response {
         case let .ok(okResponse):
