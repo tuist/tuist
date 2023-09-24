@@ -854,7 +854,9 @@ extension ProjectDescription.Settings {
                 // Add dependencies search paths if they require a modulemap
                 guard let packagePath = packageToProject[dependency.package] else { return nil }
                 let headersPath = try dependency.target.publicHeadersPath(packageFolder: packagePath)
-                let moduleMap = targetToModuleMap[dependency.target.name]!
+                // Not all the targets have module maps. For example, Swift Macro packages do not.
+                guard let moduleMap = targetToModuleMap[dependency.target.name] else { return nil }
+                
                 switch moduleMap {
                 case .none, .header, .nestedHeader:
                     return nil
