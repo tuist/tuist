@@ -529,7 +529,7 @@ extension PackageInfo.Target.TargetType {
     /// Defines if the target would be processed when processing the package
     public var isSupported: Bool {
         switch self {
-        case .regular, .system:
+        case .regular, .system, .macro:
             return true
         default:
             return false

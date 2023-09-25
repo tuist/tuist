@@ -462,7 +462,7 @@ extension ProjectDescription.Target {
             return nil
         }
 
-        guard let product = ProjectDescription.Product.from(name: target.name, products: products, productTypes: productTypes)
+        guard let product = ProjectDescription.Product.from(name: target.name, type: target.type, products: products, productTypes: productTypes)
         else {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
@@ -470,9 +470,10 @@ extension ProjectDescription.Target {
 
         let path = try target.basePath(packageFolder: packageFolder)
 
-        let moduleMap = targetToModuleMap[target.name]!
+        let moduleMap = targetToModuleMap[target.name]
 
         let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
+            type: target.type,
             platform: platform,
             minDeploymentTargets: minDeploymentTargets,
             package: packageInfo.platforms,
@@ -554,11 +555,16 @@ extension ProjectDescription.Target {
 
 extension ProjectDescription.DeploymentTarget {
     fileprivate static func from(
+        type: PackageInfo.Target.TargetType,
         platform: ProjectDescription.Platform,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         package: [PackageInfo.Platform],
         packageName _: String
     ) throws -> Self {
+        if type == .macro {
+            return .macOS(targetVersion: minDeploymentTargets[.macOS]?.targetVersion ?? TuistGraph.Platform.oldestVersions(isLegacy: false)[.macOS]!)
+        }
+        
         if let packagePlatform = package.first(where: { $0.tuistPlatformName == platform.rawValue }) {
             // Deployment targets below the minimum one raises warnings
             let targetVersion = try Self.max(packagePlatform.version, minDeploymentTargets[platform]?.targetVersion)
@@ -594,9 +600,15 @@ extension ProjectDescription.DeploymentTarget {
 extension ProjectDescription.Product {
     fileprivate static func from(
         name: String,
+        type: PackageInfo.Target.TargetType,
         products: Set<PackageInfo.Product>,
         productTypes: [String: TuistGraph.Product]
     ) -> Self? {
+        // Swift Macros are command line tools that run in the host (macOS) at compilation time.
+        if type == .macro {
+            return .commandLineTool
+        }
+        
         if let productType = productTypes[name] {
             return ProjectDescription.Product.from(product: productType)
         }
@@ -794,7 +806,8 @@ extension ProjectDescription.TargetDependency {
 }
 
 extension ProjectDescription.Headers {
-    fileprivate static func from(moduleMap: ModuleMap, publicHeadersPath: AbsolutePath) throws -> Self? {
+    fileprivate static func from(moduleMap: ModuleMap?, publicHeadersPath: AbsolutePath) throws -> Self? {
+        guard let moduleMap = moduleMap else { return nil }
         // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
         switch moduleMap {
@@ -835,11 +848,13 @@ extension ProjectDescription.Settings {
         let mainPath = try target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
 
-        let moduleMap = targetToModuleMap[target.name]!
-        if moduleMap != .none, target.type != .system {
-            let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
-            let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
-            headerSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
+        let moduleMap = targetToModuleMap[target.name]
+        if let moduleMap = moduleMap {
+            if moduleMap != .none, target.type != .system {
+                let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
+                let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
+                headerSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
+            }
         }
 
         let allDependencies = Self.recursiveTargetDependencies(
@@ -918,7 +933,7 @@ extension ProjectDescription.Settings {
             "SWIFT_SUPPRESS_WARNINGS": "YES",
         ]
 
-        if let moduleMapPath = moduleMap.path {
+        if let moduleMapPath = moduleMap?.path {
             settingsDictionary["MODULEMAP_FILE"] = .string("$(SRCROOT)/\(moduleMapPath.relative(to: packageFolder))")
         }
 
