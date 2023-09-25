@@ -10,3 +10,7 @@ run:
 	./make/tasks/run.sh $(ARGS)
 generate/cloud-openapi-code:
 	./make/tasks/generate/cloud-openapi-code.sh
+lint-fix:
+	./make/tasks/lint-fix.sh
+lint:
+	./make/tasks/lint.sh
