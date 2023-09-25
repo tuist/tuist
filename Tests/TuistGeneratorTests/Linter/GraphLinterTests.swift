@@ -1832,4 +1832,78 @@ final class GraphLinterTests: TuistUnitTestCase {
             ]
         )
     }
+
+    func test_lint_multiDestinationTarget_validLinks() throws {
+        // Given
+        let path = try self.temporaryPath()
+        let iOSAndMacTarget = Target.test(name: "IOSAndMacTarget", destinations: [.iPhone, .mac], product: .framework)
+        let macOnlyTarget = Target.test(name: "MacOnlyTarget", destinations: [.mac], product: .framework)
+
+        let project = Project.test(
+            path: path,
+            targets: [
+                iOSAndMacTarget,
+                macOnlyTarget,
+            ]
+        )
+        let graph = Graph.test(
+            projects: [path: project],
+            targets: [
+                path: [
+                    iOSAndMacTarget.name: iOSAndMacTarget,
+                    macOnlyTarget.name: macOnlyTarget,
+                ],
+            ],
+            dependencies: [
+                .target(name: iOSAndMacTarget.name, path: path): [
+                    .target(name: macOnlyTarget.name, path: path),
+                ],
+                .target(name: macOnlyTarget.name, path: path): [],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func test_lint_multiDestinationTarget_invalidLinks() throws {
+        // Given
+        let path = try self.temporaryPath()
+        let iOSAndMacTarget = Target.test(name: "IOSAndMacTarget", destinations: [.iPhone, .mac], product: .framework)
+        let watchOnlyTarget = Target.test(name: "WatchOnlyTarget", destinations: [.appleWatch], product: .framework)
+
+        let project = Project.test(
+            path: path,
+            targets: [
+                iOSAndMacTarget,
+                watchOnlyTarget,
+            ]
+        )
+        let graph = Graph.test(
+            projects: [path: project],
+            targets: [
+                path: [
+                    iOSAndMacTarget.name: iOSAndMacTarget,
+                    watchOnlyTarget.name: watchOnlyTarget,
+                ],
+            ],
+            dependencies: [
+                .target(name: iOSAndMacTarget.name, path: path): [
+                    .target(name: watchOnlyTarget.name, path: path),
+                ],
+                .target(name: watchOnlyTarget.name, path: path): [],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertFalse(results.isEmpty)
+    }
 }
