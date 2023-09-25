@@ -47,6 +47,8 @@ extension TuistGraph.Product {
             return .systemExtension
         case .extensionKitExtension:
             return .extensionKitExtension
+        case .macro:
+            return .macro
         }
     }
 }

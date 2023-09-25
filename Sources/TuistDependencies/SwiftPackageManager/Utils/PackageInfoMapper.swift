@@ -1092,6 +1092,8 @@ extension ProjectDescription.Product {
             return .systemExtension
         case .extensionKitExtension:
             return .extensionKitExtension
+        case .macro:
+            return .macro
         }
     }
 }

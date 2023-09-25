@@ -24,6 +24,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
     case xpc
     case systemExtension = "system_extension"
     case extensionKitExtension = "extension_kit_extension"
+    case macro
 
     public var caseValue: String {
         switch self {
@@ -73,6 +74,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             return "systemExtension"
         case .extensionKitExtension:
             return "extensionKitExtension"
+        case .macro:
+            return "macro"
         }
     }
 
@@ -124,6 +127,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             return "system extension"
         case .extensionKitExtension:
             return "extensionKit extension"
+        case .macro:
+            return "Swift Macro"
         }
     }
 
@@ -140,7 +145,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             .stickerPackExtension,
             .tvTopShelfExtension,
             .watch2Extension,
-            .extensionKitExtension:
+            .extensionKitExtension,
+            .macro:
             return true
         case
             .bundle,
@@ -201,6 +207,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
 
         if platform == .macOS {
             base.append(.commandLineTool)
+            base.append(.macro)
             base.append(.xpc)
             base.append(.systemExtension)
         }
