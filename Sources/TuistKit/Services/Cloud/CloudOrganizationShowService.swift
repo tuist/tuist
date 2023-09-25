@@ -64,6 +64,7 @@ final class CloudOrganizationShowService: CloudOrganizationShowServicing {
         logger.info("""
         \("Organization".bold())
         Name: \(organization.name)
+        Plan: \(organization.plan.rawValue.capitalized)
 
         \("Organization members".bold()) (total number: \(organization.members.count))
         \(membersTable)
