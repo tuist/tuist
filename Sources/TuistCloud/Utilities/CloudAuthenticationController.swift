@@ -21,12 +21,11 @@ public final class CloudAuthenticationController: CloudAuthenticationControlling
     }
 
     public func authenticationToken(serverURL: URL) throws -> String? {
-        let environment = environmentVariables()
-        let tokenFromEnvironment = environment[Constants.EnvironmentVariables.cloudToken]
         if ciChecker.isCI() {
-            return tokenFromEnvironment
+            let environment = environmentVariables()
+            return environment[Constants.EnvironmentVariables.cloudToken]
         } else {
-            return try tokenFromEnvironment ?? credentialsStore.read(serverURL: serverURL)?.token
+            return try credentialsStore.read(serverURL: serverURL)?.token
         }
     }
 }
