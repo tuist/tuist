@@ -3,13 +3,15 @@
 class AuthController < ApplicationController
   skip_before_action :authenticate_user!
 
-  def after_auth_path(session, user, root_path)
+  def after_auth_path(session, user, root_path, stored_location)
     if session["is_cli_authenticating"]
       '/auth/cli/success'
     elsif session["invitation_token"]
       InvitationAcceptService.call(token: session["invitation_token"], user: user)
       session["invitation_token"] = nil
       '/get-started'
+    elsif !stored_location.nil?
+      stored_location
     elsif user.legacy?
       root_path
     else

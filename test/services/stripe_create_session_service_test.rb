@@ -6,6 +6,7 @@ class StripeCreateSessionServiceTest < ActiveSupport::TestCase
   Session = Struct.new(:url)
   test "returns a Stripe URL session" do
     # Given
+    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
     account = Account.create!(owner: Organization.create!, name: "tuist", customer_id: "1")
     Stripe::BillingPortal::Session.expects(:create)
       .with { |param| param[:customer] == "1" }
@@ -14,6 +15,8 @@ class StripeCreateSessionServiceTest < ActiveSupport::TestCase
     # When
     got = StripeCreateSessionService.call(
       account_id: account.id,
+      organization_name: nil,
+      user: user,
     )
 
     # Then

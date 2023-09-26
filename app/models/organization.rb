@@ -20,6 +20,10 @@ class Organization < ApplicationRecord
     account.name
   end
 
+  def plan
+    account.plan
+  end
+
   def pending_invitations
     invitations.where(accepted: false)
   end
@@ -37,6 +41,11 @@ class Organization < ApplicationRecord
           OrganizationMember.new(id: user.id, name: user.account.name, email: user.email, role: :user)
         end,
       )
-    super(options.merge(only: [:id])).merge({ name: name, members: members, invitations: invitations })
+    super(options.merge(only: [:id])).merge({
+      name: name,
+      members: members,
+      invitations: invitations,
+      plan: plan,
+    })
   end
 end

@@ -49,7 +49,7 @@ class AccountCreateService < ApplicationService
             items: [
               {
                 price: Environment.stripe_plan_id,
-                quantity: 1,
+                quantity: 0,
               },
             ],
             trial_period_days: 14,

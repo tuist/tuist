@@ -9,38 +9,6 @@
   margin: 0 auto 5rem auto;
 }
 
-:root {
-  --text-interactive: rgb(129 140 248);
-  --text-interactive-active: rgb(99 102 241);
-  --text-on-color: rgb(255, 255, 255);
-  --text-inverse: rgb(209 213 219);
-
-  --background-interactive: rgb(79 70 229);
-  --background-interactive-hover: rgb(67 56 202);
-  --background-interactive-focus:rgb(55 48 163);
-  --background-critical-strong: rgb(197, 40, 12);
-
-  --font-size-700: 2.5rem;
-  --font-size-600: 2rem;
-  --font-size-500: 1.75rem;
-  --font-size-400: 1.5rem;
-  --font-size-300: 1.25rem;
-  --font-size-200: 1rem;
-  --font-size-100: 0.875rem;
-
-  --font-weight-bold: 700;
-  --font-weight-semibold: 600;
-  --font-weight-medium: 500;
-
-  --space-4: 1rem;
-  --space-3: 0.75rem;
-  --space-2: 0.5rem;
-  --space-1: 0.25rem;
-  --space-05: 0.125rem;
-  --space-025: 0.0625rem;
-  --space-0: 0rem;
-}
-
 .organization-name {
   flex-grow: 0;
   padding: 1rem;
@@ -90,6 +58,5 @@ code {
 .members-count p {
   font-size: var(--font-size-300);
   font-weight: var(--font-weight-medium);
-  /* color: var(--text-inverse); */
   padding-left: var(--space-2);
 }

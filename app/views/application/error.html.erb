@@ -1,0 +1,17 @@
+<%= javascript_pack_tag 'application' %>
+<%= stylesheet_link_tag 'tailwind' %>
+<%= stylesheet_link_tag 'app' %>
+<%= stylesheet_link_tag 'error' %>
+<div class="content-container">
+    <a href="/" class="logo-button">
+      <%= svg('tuist_cloud_logo', class: "w-20") %>
+    </a>
+    <h1 class="error-title">Error</h1>
+    <p class="error-message">
+    <% if @error_message.nil? %>
+      Something went wrong
+    <% else %>
+      <%= @error_message %>
+    <% end %>
+    </p>
+  </div>

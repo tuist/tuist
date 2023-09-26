@@ -28,7 +28,7 @@ class AccountCreateServiceTest < ActiveSupport::TestCase
       .returns(Customer.new(id: "1"))
 
     Stripe::Subscription.expects(:create)
-      .with { |param| param[:customer] == "1" }
+      .with { |param| param[:customer] == "1" && param[:items][0][:quantity] == 0 }
 
     # When
     account = AccountCreateService.call(name: "tuist", owner: organization)

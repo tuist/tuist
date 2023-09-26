@@ -1,0 +1,25 @@
+.content-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin-top: var(--space-32);
+}
+
+.logo-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: var(--space-1);
+  font-size: var(--font-size-300);
+}
+
+.error-title {
+  text-align: center;
+  margin-top: var(--space-4);
+}
+
+.error-message {
+  text-align: center;
+  margin-top: var(--space-1);
+  color: var(--text-on-color);
+}
