@@ -1,6 +1,6 @@
 import Foundation
 
-public enum Platform: String, CaseIterable, Codable {
+public enum Platform: String, CaseIterable, Codable, Comparable {
     case iOS = "ios"
     case macOS = "macos"
     case tvOS = "tvos"
@@ -38,6 +38,10 @@ public enum Platform: String, CaseIterable, Codable {
             .watchOS: "4.0",
             .visionOS: "1.0",
         ]
+    }
+
+    public static func < (lhs: Platform, rhs: Platform) -> Bool {
+        lhs.rawValue < rhs.rawValue
     }
 }
 
