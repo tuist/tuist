@@ -241,7 +241,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     }
             }
         
-        let macOSOnlyTargets: Set<String> = macOSOnlyTargets(resolvedDependencies)
+        let macOSOnlyTargets: Set<String> = macOSOnlyTargets(resolvedDependencies, packageInfos: packageInfos)
 
         var externalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = .init()
 
@@ -344,9 +344,40 @@ public final class PackageInfoMapper: PackageInfoMapping {
      The logic flags as macOS-only targets those that are Swift Macros and their direct and transitive dependencies.
      Note that this logic might not be necessary once we support multi-platform targets throughout the codebase.
      */
-    private func macOSOnlyTargets(_ resolvedDependencies: [String: [ResolvedDependency]]) -> Set<String> {
-        // TODO
-        return Set()
+    private func macOSOnlyTargets(_ resolvedDependencies: [String: [ResolvedDependency]], packageInfos: [String: PackageInfo]) -> Set<String> {
+        let targetTypes = packageInfos.reduce(into: [String: PackageInfo.Target.TargetType]()) { partialResult, item in
+            item.value.targets.forEach { target in
+                partialResult[target.name] = target.type
+            }
+        }
+        
+        var targets = Set<String>()
+        var visited = Set<String>()
+
+        func visit(target: String, parentMacOS: Bool) {
+            if visited.contains(target) { return }
+            let isMacOS = targetTypes[target] == .macro || parentMacOS
+            if isMacOS {
+                targets.insert(target)
+            }
+            visited.insert(target)
+            guard let dependencies = resolvedDependencies[target] else { return }
+            for dependency in dependencies {
+                switch dependency {
+                case let .target(name, _):
+                    visit(target: name, parentMacOS: isMacOS)
+                case let .externalTarget(_, target, _):
+                    visit(target: target, parentMacOS: isMacOS)
+                case .xcframework(_, _):
+                    break
+                }
+            }
+        }
+        
+        for target in resolvedDependencies.keys {
+            visit(target: target, parentMacOS: false)
+        }
+        return targets
     }
 
     // swiftlint:disable:next function_body_length
@@ -1280,10 +1311,28 @@ extension PackageInfo.Target {
 }
 
 extension PackageInfoMapper {
-    public enum ResolvedDependency: Equatable {
+    public enum ResolvedDependency: Equatable, Hashable {
         case target(name: String, condition: Condition?)
         case xcframework(path: Path, condition: Condition?)
         case externalTarget(package: String, target: String, condition: Condition?)
+        
+        public func hash(into hasher: inout Hasher) {
+            switch self {
+            case let .target(name, condition):
+                hasher.combine("target")
+                hasher.combine(name)
+                hasher.combine(condition)
+            case let .xcframework(path, condition):
+                hasher.combine("package")
+                hasher.combine(path)
+                hasher.combine(condition)
+            case let .externalTarget(package, target, condition):
+                hasher.combine("externalTarget")
+                hasher.combine(package)
+                hasher.combine(target)
+                hasher.combine(condition)
+            }
+        }
 
         fileprivate var condition: Condition? {
             switch self {
@@ -1387,13 +1436,17 @@ extension PackageInfoMapper {
 }
 
 extension PackageInfoMapper.ResolvedDependency {
-    public struct Condition: Equatable {
+    public struct Condition: Equatable, Hashable {
         public let platforms: [ProjectDescription.Platform]
 
         public init(platforms: [ProjectDescription.Platform]) {
             self.platforms = platforms
         }
 
+        public func hash(into hasher: inout Hasher) {
+            hasher.combine(platforms)
+        }
+        
         fileprivate static func from(
             _ packageConditionDescription: PackageInfo.PackageConditionDescription
         ) -> Self? {
