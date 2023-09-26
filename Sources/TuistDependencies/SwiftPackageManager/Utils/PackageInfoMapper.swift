@@ -338,6 +338,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
         )
     }
     
+    /**
+     There are targets like Swift Macros that are expected to compile and run in macOS. This function traverses the graph and flags
+     which targets from the graph are macOS only and should be taken into account when defining targets and the dependencies.
+     The logic flags as macOS-only targets those that are Swift Macros and their direct and transitive dependencies.
+     Note that this logic might not be necessary once we support multi-platform targets throughout the codebase.
+     */
     private func macOSOnlyTargets(_ resolvedDependencies: [String: [ResolvedDependency]]) -> Set<String> {
         // TODO
         return Set()
