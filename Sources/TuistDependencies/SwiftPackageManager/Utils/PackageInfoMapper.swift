@@ -140,6 +140,7 @@ public protocol PackageInfoMapping {
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap],
+        macOSOnlyTargets: Set<String>,
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project?
@@ -153,6 +154,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let targetToProducts: [String: Set<PackageInfo.Product>]
         let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
         let targetToModuleMap: [String: ModuleMap]
+        let macOSOnlyTargets: Set<String>
     }
 
     // Predefined source directories, in order of preference.
@@ -224,7 +226,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let resolvedDependencies: [String: [ResolvedDependency]] = try packageInfos.values
             .reduce(into: [:]) { result, packageInfo in
                 try packageInfo.targets
-                    .filter { targetToProducts[$0.name] != nil }
+                    .filter {
+                        targetToProducts[$0.name] != nil
+                    }
                     .forEach { target in
                         guard result[target.name] == nil else { return }
                         result[target.name] = try ResolvedDependency.from(
@@ -236,6 +240,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         )
                     }
             }
+        
+        let macOSOnlyTargets: Set<String> = macOSOnlyTargets(resolvedDependencies)
 
         var externalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = .init()
 
@@ -254,8 +260,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
                                 case let .xcframework(path, _):
                                     return .xcframework(path: path)
                                 case let .target(name, _):
-                                    // When multiple platforms are supported, add the platform name as a suffix to the target
-                                    let targetName = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
+                                    var targetName = name;
+                                    if (macOSOnlyTargets.contains(product.name) && platforms.count != 1) {
+                                        // When multiple platforms are supported, add the platform name as a suffix to the target
+                                        targetName = "\(name)_\(platform.rawValue)"
+                                    }
                                     return .project(target: targetName, path: Path(packageToFolder[packageInfo.key]!.pathString))
                                 case .externalTarget:
                                     throw PackageInfoMapperError.unknownProductTarget(
@@ -324,8 +333,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
             platforms: Set(platforms.map { ProjectDescription.Platform.from(graph: $0) }),
             targetToProducts: targetToProducts,
             targetToResolvedDependencies: resolvedDependencies,
-            targetToModuleMap: targetToModuleMap
+            targetToModuleMap: targetToModuleMap,
+            macOSOnlyTargets: macOSOnlyTargets
         )
+    }
+    
+    private func macOSOnlyTargets(_ resolvedDependencies: [String: [ResolvedDependency]]) -> Set<String> {
+        // TODO
+        return Set()
     }
 
     // swiftlint:disable:next function_body_length
@@ -343,6 +358,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap],
+        macOSOnlyTargets: Set<String>,
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project? {
@@ -385,9 +401,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let targets: [ProjectDescription.Target] = try packageInfo.targets
             .flatMap { target -> [ProjectDescription.Target] in
                 guard let products = targetToProducts[target.name] else { return [] }
-
+                let platforms = macOSOnlyTargets.contains(target.name) ? [.macOS] : platforms
+                let addPlatformSuffix = target.type != .macro && platforms.count != 1
+ 
                 return try platforms.compactMap { platform in
-                    try ProjectDescription.Target.from(
+                    return try ProjectDescription.Target.from(
                         target: target,
                         products: products,
                         packageName: name,
@@ -402,7 +420,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         minDeploymentTargets: minDeploymentTargets,
                         targetToResolvedDependencies: targetToResolvedDependencies,
                         targetToModuleMap: targetToModuleMap,
-                        addPlatformSuffix: platforms.count != 1
+                        addPlatformSuffix: addPlatformSuffix
                     )
                 }
             }
@@ -606,7 +624,7 @@ extension ProjectDescription.Product {
     ) -> Self? {
         // Swift Macros are command line tools that run in the host (macOS) at compilation time.
         if type == .macro {
-            return .commandLineTool
+            return .macro
         }
         
         if let productType = productTypes[name] {

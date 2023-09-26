@@ -3136,6 +3136,7 @@ extension PackageInfoMapping {
             targetToProducts: preprocessInfo.targetToProducts,
             targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
             targetToModuleMap: preprocessInfo.targetToModuleMap,
+            macOSOnlyTargets: preprocessInfo.macOSOnlyTargets,
             packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
                 ($0, basePath.appending(component: $0))
             }),
