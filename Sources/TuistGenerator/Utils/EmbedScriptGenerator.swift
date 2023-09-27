@@ -130,7 +130,7 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
         echo "mkdir -p ${CONFIGURATION_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}"
         mkdir -p "${CONFIGURATION_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}"
 
-        SWIFT_STDLIB_PATH="${DT_TOOLCHAIN_DIR}/usr/lib/swift/${PLATFORM_NAME}"
+        SWIFT_STDLIB_PATH="${TOOLCHAIN_DIR}/usr/lib/swift/${PLATFORM_NAME}"
         # Used as a return value for each invocation of `strip_invalid_archs` function.
         STRIP_BINARY_RETVAL=0
         # This protects against multiple targets copying the same framework dependency at the same time. The solution
