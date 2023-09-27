@@ -264,7 +264,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                                     if macOSTargets.contains(product.name) {
                                         platforms.insert(.macOS)
                                     }
-                                    var targetName = "\(name)_\(platform.rawValue)"
+                                    // When multiple platforms are supported, add the platform name as a suffix to the target
+                                    let targetName = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
                                     return .project(target: targetName, path: Path(packageToFolder[packageInfo.key]!.pathString))
                                 case .externalTarget:
                                     throw PackageInfoMapperError.unknownProductTarget(
@@ -339,10 +340,16 @@ public final class PackageInfoMapper: PackageInfoMapping {
     }
 
     /**
-     There are targets like Swift Macros that are expected to compile and run in macOS. This function traverses the graph and flags
-     which targets from the graph are macOS only and should be taken into account when defining targets and the dependencies.
-     The logic flags as macOS-only targets those that are Swift Macros and their direct and transitive dependencies.
-     Note that this logic might not be necessary once we support multi-platform targets throughout the codebase.
+     There are certain Swift Package targets that need to run on macOS. Examples of these are Swift Macros.
+     It's important that we take that into account when generating and serializing the graph, which contains information
+     about targets' macros, into disk.  It's important to note that these targets require its dependencies, direct or transitive,
+     to compile for macOS too. This function traverses the graph and returns all the targets that need to compile for macOS
+     in a set. The set is then used in the serialization logic when:
+
+     - Unfolding the target into platform-specific targets.
+     - Declaring dependencies.
+
+     All the complexity associated to this might go away once we have support for multi-platform targets.
      */
     private func macOSTargets(
         _ resolvedDependencies: [String: [ResolvedDependency]],

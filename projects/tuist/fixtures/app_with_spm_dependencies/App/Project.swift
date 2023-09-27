@@ -37,7 +37,8 @@ let project = Project(
                 .external(name: "FirebaseFirestore"),
                 .external(name: "GRDB"),
                 .external(name: "IterableSDK"),
-                .external(name: "Stringify"),
+                // Stringify depends on a Swift Macro, which is not yet supported.
+                // .external(name: "Stringify"),
                 .external(name: "Stripe"),
                 .external(name: "StripeCardScan"),
                 .external(name: "TYStatusBarView"),
