@@ -36,7 +36,7 @@ class ApplicationController < ActionController::Base
   private
 
   def store_location
-    unless request.fullpath.starts_with?('/users')
+    unless request.fullpath.starts_with?('/user') || request.fullpath.starts_with?('/packs')
       store_location_for(:user, request.fullpath)
     end
   end
