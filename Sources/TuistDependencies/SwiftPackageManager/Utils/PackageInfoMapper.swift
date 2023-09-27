@@ -146,6 +146,7 @@ public protocol PackageInfoMapping {
     ) throws -> ProjectDescription.Project?
 }
 
+// swiftlint:disable:next type_body_length
 public final class PackageInfoMapper: PackageInfoMapping {
     public struct PreprocessInfo {
         let platformToMinDeploymentTarget: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
@@ -1137,6 +1138,7 @@ extension PackageInfo.Platform {
 }
 
 extension ProjectDescription.Product {
+    // swiftlint:disable:next function_body_length
     fileprivate static func from(product: TuistGraph.Product) -> Self {
         switch product {
         case .app:
