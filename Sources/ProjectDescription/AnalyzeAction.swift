@@ -7,10 +7,6 @@ public struct AnalyzeAction: Equatable, Codable {
     /// Indicates the build configuration the product should be analyzed with.
     public let configuration: ConfigurationName
 
-    init(configuration: ConfigurationName) {
-        self.configuration = configuration
-    }
-
     /// Returns an analyze action.
     /// - Parameter configuration: Indicates the build configuration the product should be analyzed with.
     /// - Returns: Analyze action.

@@ -42,13 +42,6 @@ public struct Configuration: Equatable, Codable {
     public let settings: SettingsDictionary
     public let xcconfig: Path?
 
-    init(name: ConfigurationName, variant: Variant, settings: SettingsDictionary, xcconfig: Path?) {
-        self.name = name
-        self.variant = variant
-        self.settings = settings
-        self.xcconfig = xcconfig
-    }
-
     /// Returns a debug configuration.
     ///
     /// - Parameters:
@@ -122,16 +115,6 @@ public struct Settings: Equatable, Codable {
     public let base: SettingsDictionary
     public let configurations: [Configuration]
     public let defaultSettings: DefaultSettings
-
-    init(
-        base: SettingsDictionary,
-        configurations: [Configuration],
-        defaultSettings: DefaultSettings
-    ) {
-        self.base = base
-        self.configurations = configurations
-        self.defaultSettings = defaultSettings
-    }
 
     /// Creates settings with default.configurations `Debug` and `Release`
     ///

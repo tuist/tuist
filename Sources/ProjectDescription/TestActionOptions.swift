@@ -17,20 +17,6 @@ public struct TestActionOptions: Equatable, Codable {
     /// A list of targets you want to gather the test coverage data for them, which are defined in the project.
     public let codeCoverageTargets: [TargetReference]
 
-    init(
-        language: SchemeLanguage?,
-        region: String?,
-        preferredScreenCaptureFormat: ScreenCaptureFormat?,
-        coverage: Bool,
-        codeCoverageTargets: [TargetReference]
-    ) {
-        self.language = language
-        self.region = region
-        self.preferredScreenCaptureFormat = preferredScreenCaptureFormat
-        self.coverage = coverage
-        self.codeCoverageTargets = codeCoverageTargets
-    }
-
     /// Returns a set of options for a test action.
     /// - Parameters:
     ///   - language: Language used for running the tests.
