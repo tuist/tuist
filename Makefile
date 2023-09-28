@@ -3,12 +3,9 @@ REPO := tuist
 TOKEN := $(or $(GITHUB_TOKEN),$(shell echo "url=https://github.com" | git credential fill | grep password | cut -d '=' -f 2))
 
 docs/tuist/preview:
-	swift package --disable-sandbox preview-documentation --target tuist --hosting-base-path /
+	./make/tasks/docs/tuist/preview.sh
 docs/tuist/build:
-	swift package --allow-writing-to-directory .build/documentation generate-documentation --target tuist --disable-indexing --output-path .build/documentation --transform-for-static-hosting
-	echo "/index.html	/documentation/tuist" > ".build/documentation/_redirects"
-	cp assets/favicon.ico .build/documentation/favicon.ico
-	cp assets/favicon.svg .build/documentation/favicon.svg
+	./make/tasks/docs/tuist/build.sh
 edit:
 	swift build
 	.build/debug/tuist edit --only-current-directory
