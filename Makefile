@@ -7,8 +7,7 @@ docs/tuist/preview:
 docs/tuist/build:
 	./make/tasks/docs/tuist/build.sh
 edit:
-	swift build
-	.build/debug/tuist edit --only-current-directory
+	./make/tasks/edit.sh
 generate:
 	swift build
 	.build/debug/tuist fetch
