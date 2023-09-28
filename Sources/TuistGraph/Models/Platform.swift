@@ -1,4 +1,5 @@
 import Foundation
+import TSCUtility
 
 public enum Platform: String, CaseIterable, Codable {
     case iOS = "ios"
@@ -18,9 +19,8 @@ public enum Platform: String, CaseIterable, Codable {
     }
 
     /// A dictionary that contains the oldest supported version of each platform
-    public static func oldestVersions(isLegacy: Bool) -> [Platform: String] {
-        guard !isLegacy else {
-            /// https://github.com/apple/swift-package-manager/blob/5d3db35d1f388f4b0bb7e82f4cfa050103bb3e07/Sources/PackageModel/Platform.swift#L32-L42
+    public static func oldestVersions(for swiftVersion: Version) -> [Platform: String] {
+        if (swiftVersion < Version(5, 7, 0)) {
             return [
                 .iOS: "9.0",
                 .tvOS: "9.0",
@@ -28,16 +28,24 @@ public enum Platform: String, CaseIterable, Codable {
                 .watchOS: "2.0",
                 .visionOS: "1.0",
             ]
+        } else if (swiftVersion < Version(5, 9, 0)) {
+            return [
+                .iOS: "11.0",
+                .tvOS: "11.0",
+                .macOS: "10.13",
+                .watchOS: "4.0",
+                .visionOS: "1.0",
+            ]
+        } else {
+            return [
+                .iOS: "12.0",
+                .tvOS: "12.0",
+                .macOS: "10.13",
+                .watchOS: "4.0",
+                .visionOS: "1.0",
+            ]
+            
         }
-
-        /// https://github.com/apple/swift-package-manager/blob/86b245fd68157a0592b1d9ef15284e3b22c3fb44/Sources/PackageModel/Platform.swift#L34-L44
-        return [
-            .iOS: "11.0",
-            .tvOS: "11.0",
-            .macOS: "10.13",
-            .watchOS: "4.0",
-            .visionOS: "1.0",
-        ]
     }
 }
 
