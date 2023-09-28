@@ -181,3 +181,7 @@ the appClip {string} without architecture {string}") do |product, destination, a
   assert(status.success?, err)
   refute(out.include?(architecture))
 end
+
+Then(/content of a file named (.+) in a directory (.+) should contain:$/) do |file, dir, content|
+  assert_equal File.readlines(File.join(@dir, dir, file)).any?{ |l| l[content] }, true
+end
