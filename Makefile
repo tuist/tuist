@@ -9,4 +9,4 @@ generate:
 run:
 	./make/tasks/run.sh $(ARGS)
 generate/cloud-openapi-code:
-	./make/tasks/generate/cloud-openapi-code.sh	
+	./make/tasks/generate/cloud-openapi-code.sh
