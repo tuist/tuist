@@ -64,7 +64,7 @@ public struct TestAction: Equatable, Codable {
     ///   - arguments: Arguments passed when running the tests.
     ///   - configuration: Configuration to be used.
     ///   - attachDebugger: A boolean controlling whether a debugger is attached to the process running the tests.
-    ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables definition
+    ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables definition. When nil, it does not expand any variables.
     ///   - preActions: Actions to execute before running the tests.
     ///   - postActions: Actions to execute after running the tests.
     ///   - options: Test options.
