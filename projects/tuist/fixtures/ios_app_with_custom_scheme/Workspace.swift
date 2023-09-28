@@ -39,9 +39,11 @@ let customAppScheme = Scheme(
     ),
     runAction: .runAction(
         executable: .project(path: "App", target: "App"),
+        arguments: Arguments(environment: ["path": "$(SRCROOT)"], launchArguments: []),
         options: .options(
             storeKitConfigurationPath: "App/Config/ProjectStoreKitConfig.storekit"
-        )
+        ),
+        expandVariableFromTarget: .project(path: "Frameworks/Framework1", target: "Framework1")
     ),
     archiveAction: .archiveAction(configuration: "Debug", customArchiveName: "Something2")
 )
