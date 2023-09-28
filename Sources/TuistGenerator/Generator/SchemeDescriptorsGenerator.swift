@@ -459,19 +459,17 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             }
         }
 
-        if let expandVariableFromTarget = scheme.runAction?.expandVariableFromTarget {
-            guard let graphTarget = graphTraverser.target(
-                path: expandVariableFromTarget.projectPath,
-                name: expandVariableFromTarget.name
-            ) else { return nil }
-
-            guard let buildableReference = try createBuildableReference(
-                graphTarget: graphTarget,
-                graphTraverser: graphTraverser,
-                rootPath: rootPath,
-                generatedProjects: generatedProjects
-            ) else { return nil }
-
+        if let expandVariableFromTarget = scheme.runAction?.expandVariableFromTarget,
+           let graphTarget = graphTraverser.target(
+               path: expandVariableFromTarget.projectPath,
+               name: expandVariableFromTarget.name
+           ),
+           let buildableReference = try createBuildableReference(
+               graphTarget: graphTarget,
+               graphTraverser: graphTraverser,
+               rootPath: rootPath,
+               generatedProjects: generatedProjects
+           ) {
             // Xcode assigns the runnable target to the expand variables target by default.
             // Assigning the runnable target to macro expansion can lead to an unstable .xcscheme.
             // Initially, macroExpansion is added, but when the edit scheme editor is opened and closed, macroExpansion gets removed.
