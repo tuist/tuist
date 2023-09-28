@@ -139,7 +139,9 @@ public struct Target: Codable, Equatable {
         environment: [String: String],
         launchArguments: [LaunchArgument] = [],
         additionalFiles: [FileElement] = [],
-        buildRules: [BuildRule] = []
+        buildRules: [BuildRule] = [],
+        mergedBinaryType: MergedBinaryType = .disabled,
+        mergeable: Bool = false
     ) {
         self.name = name
         self.platform = platform
@@ -163,5 +165,7 @@ public struct Target: Codable, Equatable {
         self.deploymentTarget = deploymentTarget
         self.additionalFiles = additionalFiles
         self.buildRules = buildRules
+        self.mergedBinaryType = mergedBinaryType
+        self.mergeable = mergeable
     }
 }

@@ -283,7 +283,6 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             lhs.coreDataModels == rhs.coreDataModels &&
             lhs.scripts == rhs.scripts &&
             lhs.dependencies == rhs.dependencies &&
-            lhs.environment == rhs.environment &&
             lhs.mergedBinaryType == rhs.mergedBinaryType &&
             lhs.mergeable == rhs.mergeable &&
             lhs.environmentVariables == rhs.environmentVariables

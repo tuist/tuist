@@ -3962,7 +3962,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
             path: "/xcframeworks/direct.xcframework",
             infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
             primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
-            linking: .static
+            linking: .static,
+            mergeable: false
         )
         let directFramework = GraphDependency.framework(
             path: "/frameworks/direct.framework",
@@ -3977,13 +3978,15 @@ final class GraphTraverserTests: TuistUnitTestCase {
             path: "/xcframeworks/transitive.xcframework",
             infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
             primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
-            linking: .static
+            linking: .static,
+            mergeable: false
         )
         let frameworkTransitiveXCFramework = GraphDependency.xcframework(
             path: "/xcframeworks/framework-transitive.xcframework",
             infoPlist: .test(libraries: [.test(identifier: "id", path: RelativePath("path"), architectures: [.arm64])]),
             primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
-            linking: .static
+            linking: .static,
+            mergeable: false
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [

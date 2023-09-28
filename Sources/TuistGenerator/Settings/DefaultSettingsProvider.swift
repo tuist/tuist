@@ -199,9 +199,6 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     private func mergeableSettings(for target: Target, configuration: BuildConfiguration) -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
         if target.mergeable {
-            if target.product != .dynamicLibrary {
-                fatalError("Only products that are dynamic libraries can be marked as mergeable")
-            }
             settings["MAKE_MERGEABLE"] = "YES"
             settings["MERGEABLE_LIBRARY"] = "YES"
         }
