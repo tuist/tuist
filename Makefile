@@ -7,6 +7,6 @@ edit:
 generate:
 	./make/tasks/generate.sh $(ARGS)
 run:
-	./make/tasks/run.sh
+	./make/tasks/run.sh $(ARGS)
 generate/cloud-openapi-code:
 	./make/tasks/generate/cloud-openapi-code.sh	
