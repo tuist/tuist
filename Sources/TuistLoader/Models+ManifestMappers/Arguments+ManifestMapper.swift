@@ -9,6 +9,9 @@ extension TuistGraph.Arguments {
     ///   - manifest: Manifest representation of arguments model.
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.Arguments) -> TuistGraph.Arguments {
-        Arguments(environment: manifest.environment, launchArguments: manifest.launchArguments.map(LaunchArgument.from))
+        Arguments(
+            environmentVariables: manifest.environmentVariables.mapValues(EnvironmentVariable.from),
+            launchArguments: manifest.launchArguments.map(LaunchArgument.from)
+        )
     }
 }

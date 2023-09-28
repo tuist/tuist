@@ -305,6 +305,51 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
+    func test_lint_xpcCanDependOnAllTypesOfFrameworksAndLibraries() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let dynamicFramework = Target.empty(name: "DynamicFramework", destinations: [.mac], product: .framework)
+        let dynamicLibrary = Target.empty(name: "DynamicLibrary", destinations: [.mac], product: .dynamicLibrary)
+        let staticFramework = Target.empty(name: "StaticFramework", destinations: [.mac], product: .staticFramework)
+        let staticLibrary = Target.empty(name: "StaticLibrary", destinations: [.mac], product: .staticLibrary)
+
+        let xpc = Target.empty(name: "xpc", destinations: [.mac], product: .xpc)
+        let project = Project.empty(path: path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: dynamicFramework.name, path: path): Set([]),
+            .target(name: dynamicLibrary.name, path: path): Set([]),
+            .target(name: staticFramework.name, path: path): Set([]),
+            .target(name: staticLibrary.name, path: path): Set([]),
+            .target(name: xpc.name, path: path): Set([
+                .target(name: dynamicFramework.name, path: path),
+                .target(name: dynamicLibrary.name, path: path),
+                .target(name: staticFramework.name, path: path),
+                .target(name: staticLibrary.name, path: path),
+            ]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [
+                xpc.name: xpc,
+                dynamicFramework.name: dynamicFramework,
+                dynamicLibrary.name: dynamicLibrary,
+                staticFramework.name: staticFramework,
+                staticLibrary.name: staticLibrary,
+            ]],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.lint(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEqual(result, [])
+    }
+
     func test_lint_testTargetsDependsOnBundle() throws {
         // Given
         let path: AbsolutePath = "/project"
@@ -1096,7 +1141,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             platform: .iOS,
             product: .appClip,
             bundleId: "com.example.app.clip",
-            entitlements: entitlementsPath
+            entitlements: .file(path: entitlementsPath)
         )
         let project = Project.test(path: temporaryPath, targets: [app, appClip])
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -1140,7 +1185,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             platform: .iOS,
             product: .appClip,
             bundleId: "com.example1.app.clip",
-            entitlements: entitlementsPath
+            entitlements: .file(path: entitlementsPath)
         )
         let project = Project.test(targets: [app, appClip])
 
@@ -1275,7 +1320,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             platform: .iOS,
             product: .appClip,
             bundleId: "com.example.app.clip1",
-            entitlements: entitlementsPath
+            entitlements: .file(path: entitlementsPath)
         )
 
         let appClip2 = Target.test(
@@ -1283,7 +1328,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             platform: .iOS,
             product: .appClip,
             bundleId: "com.example.app.clip2",
-            entitlements: entitlementsPath
+            entitlements: .file(path: entitlementsPath)
         )
 
         let project = Project.test(path: temporaryPath, targets: [app, appClip1, appClip2])
@@ -1343,7 +1388,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             platform: .iOS,
             product: .appClip,
             bundleId: "com.example.app.clip1",
-            entitlements: entitlementsPath
+            entitlements: .file(path: entitlementsPath)
         )
 
         let project = Project.test(path: temporaryPath, targets: [app, appClip, framework])

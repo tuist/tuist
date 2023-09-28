@@ -165,11 +165,13 @@ final class ConfigGenerator: ConfigGenerating {
         sourceRootPath: AbsolutePath
     ) throws {
         let settingsHelper = SettingsHelper()
-        var settings = try defaultSettingsProvider.targetSettings(
+
+        var settings: SettingsDictionary = try defaultSettingsProvider.targetSettings(
             target: target,
             project: project,
             buildConfiguration: buildConfiguration
         )
+
         updateTargetDerived(
             buildSettings: &settings,
             target: target,
@@ -238,14 +240,29 @@ final class ConfigGenerator: ConfigGenerating {
             }
         }
 
-        if let entitlements = target.entitlements {
-            settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)")
+        // Entitlements
+        if let entitlements = target.entitlements, let path = entitlements.path {
+            let relativePath = path.relative(to: sourceRootPath).pathString
+            if project.xcodeProjPath.parentDirectory == sourceRootPath {
+                settings["CODE_SIGN_ENTITLEMENTS"] = .string(relativePath)
+            } else {
+                settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(relativePath)")
+            }
         }
 
         if target.supportedPlatforms.count == 1, let platform = target.supportedPlatforms.first {
             settings["SDKROOT"] = .string(platform.xcodeSdkRoot)
         } else {
             settings["SDKROOT"] = "auto"
+        }
+
+        if target.supportedPlatforms.count > 1 {
+            let simulatorSDKs = target.supportedPlatforms.compactMap(\.xcodeSimulatorSDK)
+            let platformSDKs = target.supportedPlatforms.map(\.xcodeDeviceSDK)
+            settings["SUPPORTED_PLATFORMS"] = .string(
+                [simulatorSDKs, platformSDKs].flatMap { $0 }.sorted()
+                    .joined(separator: " ")
+            )
         }
 
         if target.product == .staticFramework {

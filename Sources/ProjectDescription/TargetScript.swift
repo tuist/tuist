@@ -34,7 +34,7 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     public let order: Order
 
     /// List of input file paths
-    public let inputPaths: [Path]
+    public let inputPaths: [FileListGlob]
 
     /// List of input filelist paths
     public let inputFileListPaths: [Path]
@@ -63,19 +63,19 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - name: Name of the build phase when the project gets generated.
     ///   - script: The script to be executed.
     ///   - order: Target script order
-    ///   - inputPaths: List of input file paths.
+    ///   - inputPaths: Glob pattern to the files.
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     init(
         name: String,
         script: Script = .embedded(""),
         order: Order,
-        inputPaths: [Path] = [],
+        inputPaths: [FileListGlob] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
         outputFileListPaths: [Path] = [],
@@ -105,20 +105,20 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - path: Path to the script to execute.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
+    ///   - inputPaths: Glob pattern to the files.
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func pre(
         path: Path,
         arguments: String...,
         name: String,
-        inputPaths: [Path] = [],
+        inputPaths: [FileListGlob] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
         outputFileListPaths: [Path] = [],
@@ -148,20 +148,20 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - path: Path to the script to execute.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
+    ///   - inputPaths: Glob pattern to the files.
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func pre(
         path: Path,
         arguments: [String],
         name: String,
-        inputPaths: [Path] = [],
+        inputPaths: [FileListGlob] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
         outputFileListPaths: [Path] = [],
@@ -191,20 +191,20 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - path: Path to the script to execute.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
+    ///   - inputPaths: Glob pattern to the files.
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func post(
         path: Path,
         arguments: String...,
         name: String,
-        inputPaths: [Path] = [],
+        inputPaths: [FileListGlob] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
         outputFileListPaths: [Path] = [],
@@ -234,20 +234,20 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - path: Path to the script to execute.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
+    ///   - inputPaths: Glob pattern to the files.
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func post(
         path: Path,
         arguments: [String],
         name: String,
-        inputPaths: [Path] = [],
+        inputPaths: [FileListGlob] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
         outputFileListPaths: [Path] = [],
@@ -279,20 +279,20 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
+    ///   - inputPaths: Glob pattern to the files.
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func pre(
         tool: String,
         arguments: String...,
         name: String,
-        inputPaths: [Path] = [],
+        inputPaths: [FileListGlob] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
         outputFileListPaths: [Path] = [],
@@ -322,20 +322,20 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
+    ///   - inputPaths: Glob pattern to the files.
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func pre(
         tool: String,
         arguments: [String],
         name: String,
-        inputPaths: [Path] = [],
+        inputPaths: [FileListGlob] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
         outputFileListPaths: [Path] = [],
@@ -365,20 +365,20 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
+    ///   - inputPaths: Glob pattern to the files.
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func post(
         tool: String,
         arguments: String...,
         name: String,
-        inputPaths: [Path] = [],
+        inputPaths: [FileListGlob] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
         outputFileListPaths: [Path] = [],
@@ -408,20 +408,20 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
+    ///   - inputPaths: Glob pattern to the files.
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func post(
         tool: String,
         arguments: [String],
         name: String,
-        inputPaths: [Path] = [],
+        inputPaths: [FileListGlob] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
         outputFileListPaths: [Path] = [],
@@ -453,19 +453,19 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     ///   - script: The text of the script to run. This should be kept small.
     ///   - arguments: Arguments that to be passed.
     ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
+    ///   - inputPaths: Glob pattern to the files.
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func pre(
         script: String,
         name: String,
-        inputPaths: [Path] = [],
+        inputPaths: [FileListGlob] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
         outputFileListPaths: [Path] = [],
@@ -494,19 +494,19 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     /// - Parameters:
     ///   - script: The script to be executed.
     ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
+    ///   - inputPaths: Glob pattern to the files.
     ///   - inputFileListPaths: List of input filelist paths.
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    ///   - dependencyFile The path to the dependency file. Default is `nil`.
+    ///   - dependencyFile: The path to the dependency file. Default is `nil`.
     /// - Returns: Target script.
     public static func post(
         script: String,
         name: String,
-        inputPaths: [Path] = [],
+        inputPaths: [FileListGlob] = [],
         inputFileListPaths: [Path] = [],
         outputPaths: [Path] = [],
         outputFileListPaths: [Path] = [],

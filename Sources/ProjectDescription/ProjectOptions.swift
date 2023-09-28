@@ -79,6 +79,7 @@ extension Project.Options {
             testingOptions: TestingOptions = [],
             testLanguage: SchemeLanguage? = nil,
             testRegion: String? = nil,
+            testScreenCaptureFormat: ScreenCaptureFormat? = nil,
             runLanguage: SchemeLanguage? = nil,
             runRegion: String? = nil
         )

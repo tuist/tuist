@@ -22,15 +22,6 @@ module Fourier
     desc "build", "Build projects"
     subcommand "build", Commands::Build
 
-    desc "github", "Utilities to manage the repository and the organization on GitHub"
-    subcommand "github", Commands::GitHub
-
-    desc "generate", "Generate the Xcode project to work on Tuist, focusing on the target TARGET"
-    subcommand "generate", Commands::Generate
-
-    desc "edit", "Edit Tuist's project manifest in Xcode"
-    subcommand "edit", Commands::Edit
-
     desc "lint", "Lint the project's code"
     subcommand "lint", Commands::Lint
 
@@ -39,14 +30,6 @@ module Fourier
 
     desc "bundle", "Bundle tuist and tuistenv"
     subcommand "bundle", Commands::Bundle
-
-    desc "encrypt", "Encrypt content in the repository"
-    subcommand "encrypt", Commands::Encrypt
-
-    desc "tuist", "Runs Tuist"
-    def tuist(*arguments)
-      Services::Tuist.call(*arguments)
-    end
 
     desc "fixture", "Generate a fixture"
     option(
@@ -91,11 +74,6 @@ module Fourier
     desc "benchmark", "Benchmark Tuist"
     def benchmark
       Services::Benchmark.call
-    end
-
-    desc "up", "Ensures the environment is ready to work on Tuist"
-    def up
-      Services::Up.call
     end
 
     desc "check", "Checks whether the environment is setup for working on Tuist"

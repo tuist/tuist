@@ -280,10 +280,10 @@ public class GraphLinter: GraphLinting {
         }
 
         if let entitlements = appClip.target.entitlements {
-            if !FileHandler.shared.exists(entitlements) {
+            if case let .file(path: path) = entitlements, !FileHandler.shared.exists(path) {
                 foundIssues
                     .append(LintingIssue(
-                        reason: "The entitlements at path '\(entitlements)' referenced by target does not exist",
+                        reason: "The entitlements at path '\(path.pathString)' referenced by target does not exist",
                         severity: .error
                     ))
             }
@@ -457,6 +457,8 @@ public class GraphLinter: GraphLinting {
         LintableTarget(platform: .macOS, product: .xpc): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .dynamicLibrary),
+            LintableTarget(platform: .macOS, product: .framework),
         ],
         LintableTarget(platform: .tvOS, product: .app): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),

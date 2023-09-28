@@ -568,7 +568,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let project = Project.test()
         let planPath = try AbsolutePath(validating: "folder/Plan.xctestplan", relativeTo: project.path)
-        let planList = [TestPlan(path: planPath, isDefault: true)]
+        let planList = [TestPlan(path: planPath, testTargets: [], isDefault: true)]
         let scheme = Scheme.test(testAction: TestAction.test(testPlans: planList))
         let generatedProject = GeneratedProject.test()
         let graph = Graph.test(
@@ -596,7 +596,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let project = Project.test()
         let planPath = try AbsolutePath(validating: "folder/Plan.xctestplan", relativeTo: project.path)
-        let planList = [TestPlan(path: planPath, isDefault: true)]
+        let planList = [TestPlan(path: planPath, testTargets: [], isDefault: true)]
         let scheme = Scheme.test(testAction: TestAction.test(attachDebugger: false, testPlans: planList))
         let generatedProject = GeneratedProject.test()
         let graph = Graph.test(
@@ -713,6 +713,51 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.selectedDebuggerIdentifier, "")
         XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
+    }
+
+    func test_schemeTestAction_with_preferredScreenCaptureFormat() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppUITests", product: .uiTests)
+
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            preferredScreenCaptureFormat: .screenshots
+        )
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+
+        let scheme = Scheme.test(name: "AppUITests", shared: true, buildAction: buildAction, testAction: testAction)
+
+        let project = Project.test(path: projectPath, targets: [target, testTarget])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target.name: target,
+                    testTarget.name: testTarget,
+                ],
+            ],
+            dependencies: [
+                .target(name: testTarget.name, path: project.path): [
+                    .target(name: target.name, path: project.path),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.preferredScreenCaptureFormat, .screenshots)
     }
 
     func test_schemeBuildAction() throws {
@@ -857,8 +902,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
     func test_schemeLaunchAction() throws {
         // Given
-        let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
-        let environment = ["env1": "1", "env2": "2", "env3": "3", "env4": "4"]
+        let workspacePath = try AbsolutePath(validating: "/somepath/Workspace")
+        let projectPath = workspacePath.appending(RelativePath("Projects/Project"))
+        let environmentVariables = [
+            "env1": EnvironmentVariable(value: "1", isEnabled: true),
+            "env2": EnvironmentVariable(value: "2", isEnabled: true),
+            "env3": EnvironmentVariable(value: "3", isEnabled: true),
+            "env4": EnvironmentVariable(value: "4", isEnabled: true),
+        ]
         let launchArguments = [
             LaunchArgument(name: "arg1", isEnabled: true),
             LaunchArgument(name: "arg2", isEnabled: true),
@@ -869,12 +920,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
         let runAction = RunAction.test(
             configurationName: "Release",
-            customLLDBInitFile: "/somepath/Workspace/Projects/etc/path/to/lldbinit",
+            customLLDBInitFile: workspacePath.appending(RelativePath("Projects/etc/path/to/lldbinit")),
             executable: TargetReference(projectPath: projectPath, name: "App"),
-            arguments: Arguments(environment: environment, launchArguments: launchArguments),
+            arguments: Arguments(environmentVariables: environmentVariables, launchArguments: launchArguments),
             options: .init(
                 language: "pl",
-                storeKitConfigurationPath: "/somepath/Workspace/Projects/Project/nested/configuration/configuration.storekit",
+                storeKitConfigurationPath: projectPath.appending(
+                    RelativePath("nested/configuration/configuration.storekit")
+                ),
                 simulatedLocation: .reference("New York, NY, USA"),
                 enableGPUFrameCaptureMode: .metal
             )
@@ -882,7 +935,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let scheme = Scheme.test(buildAction: buildAction, runAction: runAction)
 
-        let app = Target.test(name: "App", product: .app, environment: environment)
+        let app = Target.test(name: "App", product: .app, environmentVariables: environmentVariables)
 
         let project = Project.test(
             path: projectPath,
@@ -890,6 +943,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             targets: [app]
         )
         let graph = Graph.test(
+            path: workspacePath,
+            workspace: .test(
+                path: workspacePath,
+                xcWorkspacePath: workspacePath.appending(component: "Workspace.xcworkspace")
+            ),
             projects: [project.path: project],
             targets: [
                 project.path: [
@@ -903,7 +961,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let got = try subject.schemeLaunchAction(
             scheme: scheme,
             graphTraverser: graphTraverser,
-            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            rootPath: workspacePath,
             generatedProjects: createGeneratedProjects(projects: [project])
         )
 
@@ -939,7 +997,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
         XCTAssertEqual(
             result.storeKitConfigurationFileReference,
-            .init(identifier: "../nested/configuration/configuration.storekit")
+            .init(identifier: "../Projects/Project/nested/configuration/configuration.storekit")
         )
         XCTAssertEqual(result.locationScenarioReference?.referenceType, "1")
         XCTAssertEqual(result.locationScenarioReference?.identifier, "New York, NY, USA")
@@ -1515,7 +1573,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let runAction = RunAction.test(
             executable: appTargetReference,
             arguments: Arguments(
-                environment: ["SOME": "ENV"],
+                environmentVariables: ["SOME": EnvironmentVariable(value: "ENV", isEnabled: true)],
                 launchArguments: [.init(name: "something", isEnabled: true)]
             )
         )

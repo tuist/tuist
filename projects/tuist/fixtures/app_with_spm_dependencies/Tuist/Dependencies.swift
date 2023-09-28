@@ -11,6 +11,7 @@ let packages: [Package] = [
     .package(url: "https://github.com/stripe/stripe-ios", .upToNextMajor(from: "23.12.0")),
     .local(path: "LocalSwiftPackage"),
     .package(url: "https://github.com/groue/GRDB.swift", .upToNextMajor(from: "6.16.0")),
+    .local(path: "StringifyMacro"),
 ]
 
 let dependencies = Dependencies(

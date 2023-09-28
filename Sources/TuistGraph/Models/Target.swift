@@ -27,7 +27,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     // An info.plist file is needed for (dynamic) frameworks, applications and executables
     // however is not needed for other products such as static libraries.
     public var infoPlist: InfoPlist?
-    public var entitlements: AbsolutePath?
+    public var entitlements: Entitlements?
     public var settings: Settings?
     public var dependencies: [TargetDependency]
     public var sources: [SourceFile]
@@ -36,7 +36,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var headers: Headers?
     public var coreDataModels: [CoreDataModel]
     public var scripts: [TargetScript]
-    public var environment: [String: String]
+    public var environmentVariables: [String: EnvironmentVariable]
     public var launchArguments: [LaunchArgument]
     public var filesGroup: ProjectGroup
     public var rawScriptBuildPhases: [RawScriptBuildPhase]
@@ -57,7 +57,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         bundleId: String,
         deploymentTargets: DeploymentTargets = DeploymentTargets(),
         infoPlist: InfoPlist? = nil,
-        entitlements: AbsolutePath? = nil,
+        entitlements: Entitlements? = nil,
         settings: Settings? = nil,
         sources: [SourceFile] = [],
         resources: [ResourceFileElement] = [],
@@ -65,7 +65,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         headers: Headers? = nil,
         coreDataModels: [CoreDataModel] = [],
         scripts: [TargetScript] = [],
-        environment: [String: String] = [:],
+        environmentVariables: [String: EnvironmentVariable] = [:],
         launchArguments: [LaunchArgument] = [],
         filesGroup: ProjectGroup,
         dependencies: [TargetDependency] = [],
@@ -92,7 +92,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         self.headers = headers
         self.coreDataModels = coreDataModels
         self.scripts = scripts
-        self.environment = environment
+        self.environmentVariables = environmentVariables
         self.launchArguments = launchArguments
         self.filesGroup = filesGroup
         self.dependencies = dependencies
@@ -135,6 +135,11 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         scripts.filter { $0.order == .post }
     }
 
+    /// Returns true if the target supports Mac Catalyst
+    public var supportsCatalyst: Bool {
+        destinations.contains(.macCatalyst)
+    }
+
     /// Target can link static products (e.g. an app can link a staticLibrary)
     public func canLinkStaticProducts() -> Bool {
         [
@@ -175,6 +180,11 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         default:
             return true
         }
+    }
+
+    /// Returns true if the target deploys to more then one platform
+    public var isMultiplatform: Bool {
+        supportedPlatforms.count > 1
     }
 
     /// Returns true if the target supports hosting resources
@@ -275,7 +285,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             lhs.dependencies == rhs.dependencies &&
             lhs.environment == rhs.environment &&
             lhs.mergedBinaryType == rhs.mergedBinaryType &&
-            lhs.mergeable == rhs.mergeable
+            lhs.mergeable == rhs.mergeable &&
+            lhs.environmentVariables == rhs.environmentVariables
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -284,8 +295,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         hasher.combine(product)
         hasher.combine(bundleId)
         hasher.combine(productName)
-        hasher.combine(entitlements)
-        hasher.combine(environment)
+        hasher.combine(environmentVariables)
     }
 
     /// Returns a new copy of the target with the given InfoPlist set.
@@ -293,6 +303,14 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public func with(infoPlist: InfoPlist) -> Target {
         var copy = self
         copy.infoPlist = infoPlist
+        return copy
+    }
+
+    /// Returns a new copy of the target with the given entitlements set.
+    /// - Parameter entitlements: entitlements to be set to the copied instance.
+    public func with(entitlements: Entitlements) -> Target {
+        var copy = self
+        copy.entitlements = entitlements
         return copy
     }
 

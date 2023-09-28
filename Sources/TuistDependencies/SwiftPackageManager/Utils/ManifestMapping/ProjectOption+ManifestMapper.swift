@@ -32,6 +32,7 @@ extension ProjectDescription.Project.Options.AutomaticSchemesOptions {
             testingOptions,
             testLanguage,
             testRegion,
+            testScreenCaptureFormat,
             runLanguage,
             runRegion
         ):
@@ -41,6 +42,7 @@ extension ProjectDescription.Project.Options.AutomaticSchemesOptions {
                 testingOptions: .from(manifest: testingOptions),
                 testLanguage: testLanguage.map { .init(identifier: $0) },
                 testRegion: testRegion,
+                testScreenCaptureFormat: testScreenCaptureFormat.map { .from(manifest: $0) },
                 runLanguage: runLanguage.map { .init(identifier: $0) },
                 runRegion: runRegion
             )
@@ -61,6 +63,19 @@ extension ProjectDescription.Project.Options.AutomaticSchemesOptions.TargetSchem
             return .byNameSuffix(build: build, test: test, run: run)
         case .notGrouped:
             return .notGrouped
+        }
+    }
+}
+
+extension ProjectDescription.ScreenCaptureFormat {
+    static func from(
+        manifest: TuistGraph.ScreenCaptureFormat
+    ) -> Self {
+        switch manifest {
+        case .screenshots:
+            return .screenshots
+        case .screenRecording:
+            return .screenRecording
         }
     }
 }

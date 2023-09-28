@@ -18,7 +18,7 @@ final class TargetRunnerErrorTests: XCTestCase {
         )
         XCTAssertEqual(
             TargetRunnerError.runningNotSupported(target: .test(platform: .iOS, product: .app)).description,
-            "Cannot run Target - the platform iOS and product type app are not currently supported."
+            "Product type app of Target is not runnable"
         )
     }
 
@@ -68,6 +68,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         await XCTAssertThrowsSpecific(
             try await subject.runTarget(
                 target,
+                platform: .iOS,
                 workspacePath: workspacePath,
                 schemeName: "MyScheme",
                 configuration: nil,
@@ -98,6 +99,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         // WHEN
         try await subject.runTarget(
             .test(target: .test(platform: .macOS, product: .commandLineTool)),
+            platform: .macOS,
             workspacePath: workspacePath,
             schemeName: "MyScheme",
             configuration: nil,
@@ -107,7 +109,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
             arguments: []
         )
 
-        await waitForExpectations(timeout: 1.0)
+        await fulfillment(of: [expectation], timeout: 1)
     }
 
     func test_runsExecutable_when_platform_is_macOS_and_product_is_commandLineTool() async throws {
@@ -127,6 +129,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         do {
             try await subject.runTarget(
                 graphTarget,
+                platform: .macOS,
                 workspacePath: workspacePath,
                 schemeName: "MyScheme",
                 configuration: nil,
@@ -181,6 +184,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         do {
             try await subject.runTarget(
                 graphTarget,
+                platform: .iOS,
                 workspacePath: workspacePath,
                 schemeName: "MyScheme",
                 configuration: nil,

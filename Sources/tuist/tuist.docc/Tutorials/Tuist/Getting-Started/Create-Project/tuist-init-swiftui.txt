@@ -1,0 +1,5 @@
+% mkdir MyApp
+% cd MyApp
+
+% tuist init --platform ios --template swiftui
+Project generated at path ~/Desktop/MyApp.

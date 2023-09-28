@@ -52,6 +52,10 @@ public class GraphTraverser: GraphTraversing {
         allTargets(excludingExternalTargets: true)
     }
 
+    public func allTestPlans() -> Set<TestPlan> {
+        Set(schemes().flatMap { $0.testAction?.testPlans ?? [] })
+    }
+
     public func rootProjects() -> Set<Project> {
         Set(graph.workspace.projects.compactMap {
             projects[$0]
@@ -94,6 +98,10 @@ public class GraphTraverser: GraphTraversing {
         guard let project = graph.projects[path] else { return Set() }
         guard let targets = graph.targets[path] else { return [] }
         return Set(targets.values.map { GraphTarget(path: path, target: $0, project: project) })
+    }
+
+    public func testPlan(name: String) -> TestPlan? {
+        allTestPlans().first { $0.name == name }
     }
 
     public func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
@@ -179,6 +187,21 @@ public class GraphTraverser: GraphTraversing {
     public func appClipDependencies(path: AbsolutePath, name: String) -> GraphTarget? {
         directLocalTargetDependencies(path: path, name: name)
             .first { $0.target.product == .appClip }
+    }
+
+    public func buildsForMacCatalyst(path: AbsolutePath, name: String) -> Bool {
+        guard target(path: path, name: name)?.target.supportsCatalyst ?? false else {
+            return false
+        }
+        return allDependenciesSatisfy(from: .target(name: name, path: path)) { dependency in
+            if let target = self.target(from: dependency) {
+                return target.target.supportsCatalyst
+            } else {
+                // TODO: - Obtain this information from pre-compiled binaries
+                // lipo -info should include "macabi" in the list of architectures
+                return false
+            }
+        }
     }
 
     public func directStaticDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
@@ -570,6 +593,17 @@ public class GraphTraverser: GraphTraversing {
         return references
     }
 
+    func allDependenciesSatisfy(from rootDependency: GraphDependency, meets: (GraphDependency) -> Bool) -> Bool {
+        var allSatisfy = true
+        _ = filterDependencies(from: rootDependency, test: { dependency in
+            if !meets(dependency) {
+                allSatisfy = false
+            }
+            return true
+        })
+        return allSatisfy
+    }
+
     func transitiveStaticDependencies(from dependency: GraphDependency) -> Set<GraphDependency> {
         filterDependencies(
             from: dependency,
@@ -714,6 +748,7 @@ public class GraphTraverser: GraphTraversing {
             .uiTests,
             .watch2Extension,
             .systemExtension,
+            .xpc,
         ]
         return validProducts.contains(target.product)
     }
@@ -812,20 +847,26 @@ public class GraphTraverser: GraphTraversing {
         path: AbsolutePath,
         name: String
     ) -> [GraphDependencyReference] {
-        let precompiledStatic = graph.dependencies[.target(name: name, path: path), default: []]
-            .filter { dependency in
+        let dependencies = filterDependencies(
+            from: .target(name: name, path: path),
+            test: { dependency in
                 switch dependency {
                 case let .xcframework(_, _, _, linking: linking, _):
                     return linking == .static
                 case .framework, .library, .bundle, .packageProduct, .target, .sdk:
                     return false
                 }
+            },
+            skip: { dependency in
+                switch dependency {
+                case .xcframework:
+                    return false
+                case .framework, .library, .bundle, .packageProduct, .target, .sdk:
+                    return true
+                }
             }
-
-        let precompiledDependencies = precompiledStatic
-            .flatMap { filterDependencies(from: $0) }
-
-        return Set(precompiledStatic + precompiledDependencies)
+        )
+        return Set(dependencies)
             .compactMap(dependencyReference)
     }
 }

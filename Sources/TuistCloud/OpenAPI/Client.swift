@@ -872,4 +872,317 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// - Remark: HTTP `GET /api/cache/exists`.
+    /// - Remark: Generated from `#/paths//api/cache/exists/get(cacheExists)`.
+    public func cacheExists(_ input: Operations.cacheExists.Input) async throws
+        -> Operations.cacheExists.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.cacheExists.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/cache/exists",
+                    parameters: []
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
+                suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "project_id",
+                    value: input.query.project_id
+                )
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "hash",
+                    value: input.query.hash
+                )
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "name",
+                    value: input.query.name
+                )
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.cacheExists.Output.Ok.Headers = .init()
+                    return .ok(.init(headers: headers, body: nil))
+                case 404:
+                    let headers: Operations.cacheExists.Output.NotFound.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.cacheExists.Output.NotFound.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Operations.cacheExists.Output.NotFound.Body.jsonPayload.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .notFound(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.cacheExists.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.cacheExists.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 402:
+                    let headers: Operations.cacheExists.Output.PaymentRequired.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.cacheExists.Output.PaymentRequired.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .paymentRequired(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// - Remark: HTTP `GET /api/cache`.
+    /// - Remark: Generated from `#/paths//api/cache/get(getCache)`.
+    public func getCache(_ input: Operations.getCache.Input) async throws
+        -> Operations.getCache.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.getCache.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(template: "/api/cache", parameters: [])
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .get)
+                suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "project_id",
+                    value: input.query.project_id
+                )
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "hash",
+                    value: input.query.hash
+                )
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "name",
+                    value: input.query.name
+                )
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.getCache.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.getCache.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.CacheArtifact.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.getCache.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.getCache.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 402:
+                    let headers: Operations.getCache.Output.PaymentRequired.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.getCache.Output.PaymentRequired.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .paymentRequired(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// - Remark: HTTP `POST /api/cache`.
+    /// - Remark: Generated from `#/paths//api/cache/post(uploadCache)`.
+    public func uploadCache(_ input: Operations.uploadCache.Input) async throws
+        -> Operations.uploadCache.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.uploadCache.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(template: "/api/cache", parameters: [])
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
+                suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "project_id",
+                    value: input.query.project_id
+                )
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "hash",
+                    value: input.query.hash
+                )
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "name",
+                    value: input.query.name
+                )
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "content_md5",
+                    value: input.query.content_md5
+                )
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.uploadCache.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.uploadCache.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.CacheArtifact.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                case 401:
+                    let headers: Operations.uploadCache.Output.Unauthorized.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.uploadCache.Output.Unauthorized.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .unauthorized(.init(headers: headers, body: body))
+                case 402:
+                    let headers: Operations.uploadCache.Output.PaymentRequired.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.uploadCache.Output.PaymentRequired.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .paymentRequired(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
+    /// - Remark: HTTP `POST /api/cache/verify_upload`.
+    /// - Remark: Generated from `#/paths//api/cache/verify_upload/post(verifyCacheUpload)`.
+    public func verifyCacheUpload(_ input: Operations.verifyCacheUpload.Input) async throws
+        -> Operations.verifyCacheUpload.Output
+    {
+        try await client.send(
+            input: input,
+            forOperation: Operations.verifyCacheUpload.id,
+            serializer: { input in
+                let path = try converter.renderedRequestPath(
+                    template: "/api/cache/verify_upload",
+                    parameters: []
+                )
+                var request: OpenAPIRuntime.Request = .init(path: path, method: .post)
+                suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "project_id",
+                    value: input.query.project_id
+                )
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "hash",
+                    value: input.query.hash
+                )
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "name",
+                    value: input.query.name
+                )
+                try converter.setQueryItemAsText(
+                    in: &request,
+                    name: "content_md5",
+                    value: input.query.content_md5
+                )
+                try converter.setHeaderFieldAsText(
+                    in: &request.headerFields,
+                    name: "accept",
+                    value: "application/json"
+                )
+                return request
+            },
+            deserializer: { response in
+                switch response.statusCode {
+                case 200:
+                    let headers: Operations.verifyCacheUpload.Output.Ok.Headers = .init()
+                    try converter.validateContentTypeIfPresent(
+                        in: response.headerFields,
+                        substring: "application/json"
+                    )
+                    let body: Operations.verifyCacheUpload.Output.Ok.Body =
+                        try converter.getResponseBodyAsJSON(
+                            Components.Schemas.CacheArtifactUploadVerification.self,
+                            from: response.body,
+                            transforming: { value in .json(value) }
+                        )
+                    return .ok(.init(headers: headers, body: body))
+                default: return .undocumented(statusCode: response.statusCode, .init())
+                }
+            }
+        )
+    }
 }

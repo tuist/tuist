@@ -13,6 +13,8 @@ let package = Package(
     name: "tuist",
     platforms: [.macOS(.v12)],
     products: [
+        .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
+        .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
         .executable(name: "tuist", targets: ["tuist"]),
         .executable(name: "tuistenv", targets: ["tuistenv"]),
         .library(
@@ -61,11 +63,23 @@ let package = Package(
         .package(url: "https://github.com/SwiftDocOrg/GraphViz.git", exact: "0.2.0"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.5.1"),
-        .package(url: "https://github.com/tuist/XcodeProj.git", exact: "8.11.0"),
+        .package(url: "https://github.com/tuist/XcodeProj", exact: "8.15.0"),
         .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
         .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
     ],
     targets: [
+        .executableTarget(
+            name: "tuistbenchmark",
+            dependencies: [
+                .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+            ]
+        ),
+        .executableTarget(
+            name: "tuistfixturegenerator",
+            dependencies: [
+                .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+            ]
+        ),
         .target(
             name: "TuistGraph",
             dependencies: [
@@ -299,6 +313,7 @@ let package = Package(
                 "TuistCore",
                 "TuistGraph",
                 "TuistSupport",
+                "TuistCloud",
             ]
         ),
         .testTarget(
@@ -309,6 +324,7 @@ let package = Package(
                 "TuistCoreTesting",
                 "TuistCacheTesting",
                 "TuistGraphTesting",
+                "TuistCloudTesting",
             ]
         ),
         .target(

@@ -1,0 +1,68 @@
+# Build and deploy DocC to GitHub pages. Based off of Pointfree's work here:
+# https://github.com/pointfreeco/swift-parsing/blob/main/.github/workflows/documentation.yml
+name: Deploy Desscription Docc
+
+on:
+  release:
+    types:
+      - published
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: description-docc-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-13
+    steps:
+      - name: Checkout Package
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Checkout gh-pages Branch
+        uses: actions/checkout@v3
+        with:
+          ref: gh-pages
+          path: docs-out
+      - name: Build documentation
+        run: >
+          rm -rf docs-out/.git;
+          rm -rf docs-out/main;
+          rm -rf docs-out/latest;
+          for tag in $(echo "main"; echo "latest"; git tag | tail -n +94);
+          do
+            echo "⏳ Generating documentation for "$tag" release.";
+            
+            if [ -d "docs-out/$tag" ] 
+            then 
+                echo "✅ Documentation for "$tag" already exists.";
+            else 
+                if [ "$tag" == "latest" ]; then
+                  git checkout -f "$(git tag | tail -n 1)";
+                else
+                  git checkout -f "$tag";
+                fi
+                
+                swift package \
+                --allow-writing-to-directory docs-out/"$tag" \
+                generate-documentation \
+                --target ProjectDescription \
+                --output-path docs-out/"$tag" \
+                --transform-for-static-hosting \
+                --hosting-base-path /tuist/"$tag" \
+                    && echo "✅ Documentation generated for "$tag" release." \
+                    || echo "⚠️ Documentation skipped for "$tag".";
+            fi;
+          done
+      
+      - name: Fix permissions
+        run: 'sudo chown -R $USER docs-out'
+      - name: Publish documentation to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@4.1.7
+        with:
+          branch: gh-pages
+          folder: docs-out
+          single-commit: true

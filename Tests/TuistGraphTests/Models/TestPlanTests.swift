@@ -9,6 +9,7 @@ final class TestPlanTests: TuistUnitTestCase {
         // Given
         let subject = TestPlan(
             path: "/path/to",
+            testTargets: [],
             isDefault: true
         )
 

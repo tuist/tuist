@@ -79,7 +79,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument],
-        retryCount: Int
+        retryCount: Int,
+        testTargets: [TestIdentifier],
+        skipTestTargets: [TestIdentifier],
+        testPlanConfiguration: TestPlanConfiguration?
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -121,6 +124,25 @@ public final class XcodeBuildController: XcodeBuildControlling {
             command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
         }
 
+        for test in testTargets {
+            command.append(contentsOf: ["-only-testing", test.description])
+        }
+
+        for test in skipTestTargets {
+            command.append(contentsOf: ["-skip-testing", test.description])
+        }
+
+        if let testPlanConfiguration {
+            command.append(contentsOf: ["-testPlan", testPlanConfiguration.testPlan])
+            for configuration in testPlanConfiguration.configurations {
+                command.append(contentsOf: ["-only-test-configuration", configuration])
+            }
+
+            for configuration in testPlanConfiguration.skipConfigurations {
+                command.append(contentsOf: ["-skip-test-configuration", configuration])
+            }
+        }
+
         return run(command: command, isVerbose: environment.isVerbose)
     }
 
@@ -159,7 +181,16 @@ public final class XcodeBuildController: XcodeBuildControlling {
         output: AbsolutePath
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
-        command.append(contentsOf: frameworks.flatMap { ["-framework", $0.pathString] })
+        command.append(contentsOf: frameworks.flatMap {
+            let pathString = $0.pathString
+            return [
+                "-framework",
+                // It's workaround for Xcode 15 RC bug
+                // remove it since bug will be fixed
+                // more details here: https://github.com/tuist/tuist/issues/5354
+                pathString.hasPrefix("/var/") ? pathString.replacingOccurrences(of: "/var/", with: "/private/var/") : pathString
+            ]
+        })
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
         return run(command: command, isVerbose: environment.isVerbose)

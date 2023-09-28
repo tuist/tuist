@@ -32,6 +32,20 @@ func targets() -> [Target] {
             ]
         ),
         Target.target(
+            name: "tuistbenchmark",
+            product: .commandLineTool,
+            dependencies: [
+                .external(name: "SwiftToolsSupport"),
+            ]
+        ),
+        Target.target(
+            name: "tuistfixturegenerator",
+            product: .commandLineTool,
+            dependencies: [
+                .external(name: "SwiftToolsSupport"),
+            ]
+        ),
+        Target.target(
             name: "TuistIntegrationTests",
             product: .unitTests,
             dependencies: [
@@ -245,6 +259,7 @@ func targets() -> [Target] {
                     .target(name: "TuistCoreTesting"),
                     .target(name: "TuistGraphTesting"),
                     .target(name: "TuistSupportTesting"),
+                    .target(name: "TuistCloudTesting"),
                 ],
                 integrationTestsDependencies: [
                     .target(name: "TuistCore"),

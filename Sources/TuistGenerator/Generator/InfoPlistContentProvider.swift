@@ -13,7 +13,7 @@ protocol InfoPlistContentProviding {
     ///   - target: Target whose Info.plist content will be returned.
     ///   - extendedWith: Values provided by the user to extend the default ones.
     /// - Returns: Content to generate the Info.plist file.
-    func content(project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]?
+    func content(project: Project, target: Target, extendedWith: [String: Plist.Value]) -> [String: Any]?
 }
 
 final class InfoPlistContentProvider: InfoPlistContentProviding {
@@ -26,7 +26,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     ///   - target: Target whose Info.plist content will be returned.
     ///   - extendedWith: Values provided by the user to extend the default ones.
     /// - Returns: Content to generate the Info.plist file.
-    func content(project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]? {
+    func content(project: Project, target: Target, extendedWith: [String: Plist.Value]) -> [String: Any]? {
         if target.product == .staticLibrary || target.product == .dynamicLibrary {
             return nil
         }
@@ -158,8 +158,8 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             ],
             "UIApplicationSceneManifest": [
                 "UIApplicationSupportsMultipleScenes": false,
-                "UISceneConfigurations": [:],
-            ],
+                "UISceneConfigurations": [String: String](),
+            ] as [String: Any],
         ]
 
         if iPadSupport {
@@ -225,7 +225,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             "NSExtension": [
                 "NSExtensionAttributes": extensionAttributes,
                 "NSExtensionPointIdentifier": "com.apple.watchkit",
-            ],
+            ] as [String: Any],
             "WKExtensionDelegateClassName": "$(PRODUCT_MODULE_NAME).ExtensionDelegate",
         ]
     }

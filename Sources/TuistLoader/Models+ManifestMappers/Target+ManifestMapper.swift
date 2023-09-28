@@ -51,7 +51,8 @@ extension TuistGraph.Target {
         }
 
         let infoPlist = try TuistGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)
-        let entitlements = try manifest.entitlements.map { try generatorPaths.resolve(path: $0) }
+
+        let entitlements = try TuistGraph.Entitlements.from(manifest: manifest.entitlements, generatorPaths: generatorPaths)
 
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
         let mergedBinaryType = try TuistGraph.MergedBinaryType.from(manifest: manifest.mergedBinaryType)
@@ -89,7 +90,7 @@ extension TuistGraph.Target {
             try TuistGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
-        let environment = manifest.environment
+        let environmentVariables = manifest.environmentVariables.mapValues(EnvironmentVariable.from)
         let launchArguments = manifest.launchArguments.map(LaunchArgument.from)
 
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
@@ -117,7 +118,7 @@ extension TuistGraph.Target {
             headers: headers,
             coreDataModels: coreDataModels,
             scripts: scripts,
-            environment: environment,
+            environmentVariables: environmentVariables,
             launchArguments: launchArguments,
             filesGroup: .group(name: "Project"),
             dependencies: dependencies,

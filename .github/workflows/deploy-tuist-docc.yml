@@ -1,0 +1,52 @@
+# Build and deploy DocC to GitHub pages. Based off of Pointfree's work here:
+# https://github.com/pointfreeco/swift-parsing/blob/main/.github/workflows/documentation.yml
+name: Deploy Tuist Docc
+
+on:
+#   release:
+#     types:
+#       - published
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: tuist-docc-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy Documentation
+    runs-on: macos-13
+    steps:
+      - name: Start deployment
+        uses: bobheadxi/deployments@v1
+        id: deployment
+        with:
+          env: production
+          step: start
+      - name: Checkout Package
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Build documentation
+        run: make docs/tuist/build
+      - name: Fix permissions
+        run: 'sudo chown -R $USER .build/documentation'
+      - name: Deploy production to Netlify
+        uses: South-Paw/action-netlify-cli@1.0.1
+        id: netlify
+        with:
+          args: 'deploy --json --prod --dir \"./.build/documentation\" --message \"production [${{ github.sha }}]\"'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      - name: Finish deployment
+        uses: bobheadxi/deployments@v1
+        if: always()
+        with:
+          env: ${{ steps.deployment.outputs.env }}
+          step: finish
+          status: ${{ job.status }}
+          deployment_id: ${{ steps.deployment.outputs.deployment_id }}
+          env_url: ${{ steps.netlify.outputs.NETLIFY_PROD_URL }}
