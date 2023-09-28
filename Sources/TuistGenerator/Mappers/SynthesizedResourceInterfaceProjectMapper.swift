@@ -149,7 +149,6 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
     private func paths(
         for resourceSynthesizer: ResourceSynthesizer,
         target: Target,
-        defaultKnownRegions: [String]?,
         developmentRegion: String?
     ) -> [AbsolutePath] {
         let resourcesPaths = target.resources
@@ -162,7 +161,8 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         switch resourceSynthesizer.parser {
         case .strings:
             // This file kind is localizable, let's order files based on it
-            var regionPriorityQueue = defaultKnownRegions ?? ["Base", "en"]
+            var regionPriorityQueue: [String] = []
+            
             if let developmentRegion = developmentRegion {
                 regionPriorityQueue.insert(developmentRegion, at: 0)
             }
@@ -225,7 +225,6 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         let paths = try paths(
             for: resourceSynthesizer,
             target: target,
-            defaultKnownRegions: project.defaultKnownRegions,
             developmentRegion: project.developmentRegion
         )
         .filter(isResourceEmpty)
