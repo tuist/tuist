@@ -8,13 +8,15 @@ extension XCFrameworkMetadata {
         path: AbsolutePath = "/XCFrameworks/XCFramework.xcframework",
         infoPlist: XCFrameworkInfoPlist = .test(),
         primaryBinaryPath: AbsolutePath = "/XCFrameworks/XCFramework.xcframework/ios-arm64/XCFramework",
-        linking: BinaryLinking = .dynamic
+        linking: BinaryLinking = .dynamic,
+        mergeable: Bool = false
     ) -> XCFrameworkMetadata {
         XCFrameworkMetadata(
             path: path,
             infoPlist: infoPlist,
             primaryBinaryPath: primaryBinaryPath,
-            linking: linking
+            linking: linking,
+            mergeable: mergeable
         )
     }
 }

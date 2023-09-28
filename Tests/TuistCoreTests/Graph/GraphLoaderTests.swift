@@ -360,7 +360,8 @@ final class GraphLoaderTests: TuistUnitTestCase {
                 path: "/XCFrameworks/XF1.xcframework",
                 infoPlist: .test(),
                 primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
-                linking: .dynamic
+                linking: .dynamic,
+                mergeable: false
             )
         )
 
@@ -381,7 +382,48 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     path: "/XCFrameworks/XF1.xcframework",
                     infoPlist: .test(),
                     primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
-                    linking: .dynamic
+                    linking: .dynamic,
+                    mergeable: false
+                ),
+            ]),
+        ])
+    }
+
+    func test_loadWorkspace_mergeableXCFrameworkDependency() throws {
+        // Given
+        let targetA = Target.test(name: "A", dependencies: [.xcframework(path: "/XCFrameworks/XF1.xcframework")])
+        let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
+        let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
+
+        stubXCFramework(
+            metadata: .init(
+                path: "/XCFrameworks/XF1.xcframework",
+                infoPlist: .test(),
+                primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
+                linking: .dynamic,
+                mergeable: true
+            )
+        )
+
+        let subject = makeSubject()
+
+        // When
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+            ]
+        )
+
+        // Then
+        XCTAssertEqual(graph.dependencies, [
+            .target(name: "A", path: "/A"): Set([
+                .xcframework(
+                    path: "/XCFrameworks/XF1.xcframework",
+                    infoPlist: .test(),
+                    primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
+                    linking: .dynamic,
+                    mergeable: true
                 ),
             ]),
         ])
