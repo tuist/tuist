@@ -47,6 +47,14 @@ extension TuistGraph.RunAction {
 
         let diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistGraph.SchemeDiagnosticsOption.from(manifest: $0) })
 
+        let expandVariablesFromTarget: TuistGraph.TargetReference?
+        expandVariablesFromTarget = try manifest.expandVariableFromTarget.map {
+            TuistGraph.TargetReference(
+                projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
+                name: $0.targetName
+            )
+        }
+
         return TuistGraph.RunAction(
             configurationName: configurationName,
             attachDebugger: manifest.attachDebugger,
@@ -57,7 +65,8 @@ extension TuistGraph.RunAction {
             filePath: nil,
             arguments: arguments,
             options: options,
-            diagnosticsOptions: diagnosticsOptions
+            diagnosticsOptions: diagnosticsOptions,
+            expandVariableFromTarget: expandVariablesFromTarget
         )
     }
 }
