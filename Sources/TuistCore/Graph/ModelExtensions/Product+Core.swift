@@ -43,6 +43,8 @@ extension Product {
             return .stickerPack
         case .commandLineTool:
             return .commandLineTool
+        case .macro:
+            return .commandLineTool
         case .appClip:
             return .onDemandInstallCapableApplication
         case .xpc:

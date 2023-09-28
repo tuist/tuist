@@ -44,4 +44,9 @@ public enum Product: String, Codable, Equatable {
     case systemExtension
     /// An ExtensionKit extension.
     case extensionKitExtension = "extension_kit_extension"
+    /// A Swift Macro
+    /// Although Apple doesn't officially support Swift Macro Xcode Project targets, we
+    /// enable them by adding a command line tool target, a target dependency in
+    /// the dependent targets, and the right build settings to use the macro executable.
+    case macro
 }

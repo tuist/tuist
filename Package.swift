@@ -1,4 +1,4 @@
-// swift-tools-version:5.7.0
+// swift-tools-version:5.7
 
 import PackageDescription
 
@@ -349,10 +349,6 @@ let package = Package(
                 "TuistSupport",
                 .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
                 .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
-            ],
-            exclude: [
-                "graphql/CreateProject.graphql",
-                "graphql/ClearRemoteCacheStorage.graphql",
             ]
         ),
         .testTarget(

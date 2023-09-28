@@ -74,6 +74,7 @@ final class ProductTests: XCTestCase {
             .uiTests,
             .xpc,
             .systemExtension,
+            .macro,
         ]
         XCTAssertEqual(got, Set(expected))
     }
@@ -104,6 +105,7 @@ final class ProductTests: XCTestCase {
             .tvTopShelfExtension,
             .watch2Extension,
             .extensionKitExtension,
+            .macro,
         ]
         Product.allCases.forEach { product in
             if runnables.contains(product) {
