@@ -1890,6 +1890,44 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenSettingsContainsEnableUpcomingFeature_mapsToOtherSwiftFlags() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(RelativePath("Package/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            settings: [
+                                .init(tool: .swift, name: .enableUpcomingFeature, condition: nil, value: ["Foo"]),
+                            ]
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .testWithDefaultConfigs(
+                name: "Package",
+                targets: [
+                    .test("Target1", basePath: basePath, customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-upcoming-feature Foo"]]),
+                ]
+            )
+        )
+    }
+
     func testMap_whenSettingsContainsLinkerUnsafeFlags_mapsToOtherLdFlags() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Sources/Target1"))
@@ -3098,6 +3136,7 @@ extension PackageInfoMapping {
             targetToProducts: preprocessInfo.targetToProducts,
             targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
             targetToModuleMap: preprocessInfo.targetToModuleMap,
+            macOSTargets: preprocessInfo.macOSTargets,
             packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
                 ($0, basePath.appending(component: $0))
             }),

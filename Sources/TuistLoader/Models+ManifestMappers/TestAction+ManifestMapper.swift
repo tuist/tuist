@@ -3,6 +3,7 @@ import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistGraph
+import TuistSupport
 
 extension TuistGraph.TestAction {
     // swiftlint:disable function_body_length
@@ -24,8 +25,10 @@ extension TuistGraph.TestAction {
         let preferredScreenCaptureFormat: TuistGraph.ScreenCaptureFormat?
 
         if let plans = manifest.testPlans {
-            testPlans = try plans.enumerated().map { index, path in
-                try TestPlan(path: generatorPaths.resolve(path: path), isDefault: index == 0, generatorPaths: generatorPaths)
+            testPlans = try plans.enumerated().compactMap { index, path in
+                let resolvedPath = try generatorPaths.resolve(path: path)
+                guard FileHandler.shared.exists(resolvedPath) else { return nil }
+                return try TestPlan(path: resolvedPath, isDefault: index == 0, generatorPaths: generatorPaths)
             }
 
             // not used when using test plans

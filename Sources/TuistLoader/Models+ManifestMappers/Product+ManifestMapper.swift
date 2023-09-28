@@ -3,10 +3,7 @@ import ProjectDescription
 import TuistGraph
 
 extension TuistGraph.Product {
-    /// Maps a ProjectDescription.Product instance into a TuistGraph.Product instance.
-    /// - Parameters:
-    ///   - manifest: Manifest representation of product model.
-    ///   - generatorPaths: Generator paths.
+    // swiftlint:disable:next function_body_length
     static func from(manifest: ProjectDescription.Product) -> TuistGraph.Product {
         switch manifest {
         case .app:
@@ -47,6 +44,8 @@ extension TuistGraph.Product {
             return .systemExtension
         case .extensionKitExtension:
             return .extensionKitExtension
+        case .macro:
+            return .macro
         }
     }
 }

@@ -201,6 +201,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             return true
 
         case .commandLineTool,
+             .macro,
              .dynamicLibrary,
              .staticLibrary,
              .staticFramework,

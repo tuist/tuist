@@ -1,10 +1,11 @@
+// swift-tools-version:5.7
 import ProjectDescription
 import ProjectDescriptionHelpers
 
 let packages: [Package] = [
-    .package(url: "https://github.com/Alamofire/Alamofire", .upToNextMajor(from: "5.7.0")),
+    .package(url: "https://github.com/Alamofire/Alamofire", .upToNextMajor(from: "5.8.0")),
     .package(url: "https://github.com/facebook/facebook-ios-sdk", .upToNextMajor(from: "16.1.3")),
-    .package(url: "https://github.com/firebase/firebase-ios-sdk", .upToNextMajor(from: "10.13.0")),
+    .package(url: "https://github.com/firebase/firebase-ios-sdk", .upToNextMajor(from: "10.15.0")),
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture", .upToNextMinor(from: "1.0.0")),
     .package(url: "https://github.com/iterable/swift-sdk", .upToNextMajor(from: "6.4.15")),
     .package(url: "https://github.com/Trendyol/ios-components", .revision("c9260bfe203a16a278eca5542c98455eece98aa4")),
