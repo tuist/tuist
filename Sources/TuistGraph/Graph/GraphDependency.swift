@@ -7,7 +7,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         path: AbsolutePath,
         infoPlist: XCFrameworkInfoPlist,
         primaryBinaryPath: AbsolutePath,
-        linking: BinaryLinking
+        linking: BinaryLinking,
+        mergeable: Bool
     )
 
     /// A dependency that represents a pre-compiled framework.
@@ -44,7 +45,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public func hash(into hasher: inout Hasher) {
         switch self {
-        case let .xcframework(path, _, _, _):
+        case let .xcframework(path, _, _, _, _):
             hasher.combine("xcframework")
             hasher.combine(path)
         case let .framework(path, _, _, _, _, _, _):
@@ -113,7 +114,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var description: String {
         switch self {
-        case let .xcframework(path, _, _, _):
+        case let .xcframework(path, _, _, _, _):
             return "xcframework '\(path.basename)'"
         case let .framework(path, _, _, _, _, _, _):
             return "framework '\(path.basename)'"

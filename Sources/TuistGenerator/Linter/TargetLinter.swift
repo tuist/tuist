@@ -39,6 +39,7 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintValidSourceFileCodeGenAttributes(target: target))
         issues.append(contentsOf: validateCoreDataModelsExist(target: target))
         issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
+        issues.append(contentsOf: lintMergeableLibrariesOnlyAppliesToDynamicTargets(target: target))
         target.scripts.forEach { script in
             issues.append(contentsOf: targetScriptLinter.lint(script))
         }
@@ -277,6 +278,16 @@ class TargetLinter: TargetLinting {
                 severity: .warning
             )
         }
+    }
+
+    private func lintMergeableLibrariesOnlyAppliesToDynamicTargets(target: Target) -> [LintingIssue] {
+        if target.mergeable, target.product != .dynamicLibrary {
+            return [LintingIssue(
+                reason: "Target \(target.name) be marked as mergeable because it is not a dynamic library",
+                severity: .error
+            )]
+        }
+        return []
     }
 }
 

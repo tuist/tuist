@@ -1,0 +1,4 @@
+framework module MyMergeableFramework {
+  header "MyMergeableFramework-Swift.h"
+  requires objc
+}
