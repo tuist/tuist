@@ -162,7 +162,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         case .strings:
             // This file kind is localizable, let's order files based on it
             var regionPriorityQueue: [String] = []
-            
+
             if let developmentRegion = developmentRegion {
                 regionPriorityQueue.insert(developmentRegion, at: 0)
             }
