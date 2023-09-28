@@ -9,10 +9,7 @@ docs/tuist/build:
 edit:
 	./make/tasks/edit.sh
 generate:
-	swift build
-	.build/debug/tuist fetch
-	.build/debug/tuist cache warm --dependencies-only --xcframeworks
-	.build/debug/tuist generate --xcframeworks $(ARGS)
+	./make/tasks/generate.sh $(ARGS)
 run:
 	swift build
 	.build/debug/tuist $(ARGS)
