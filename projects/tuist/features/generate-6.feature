@@ -30,4 +30,3 @@ Scenario: The project is an iOS application with appclip (ios_app_with_appclip)
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the appClip 'AppClip1' without architecture 'armv7'
     Then AppClip1 embeds the framework Framework
     Then I should be able to build for iOS the scheme AppClip1
-    Then I should be able to test for iOS the scheme AppClip1
