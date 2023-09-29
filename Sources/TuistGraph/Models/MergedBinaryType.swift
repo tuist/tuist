@@ -5,7 +5,8 @@ public enum MergedBinaryType: Equatable, Codable {
     /// Target is never going to merge available dependencies
     case disabled
 
-    /// Target is going to merge direct target dependencies (just the ones declared as part of it's project). With this build setting,
+    /// Target is going to merge direct target dependencies (just the ones declared as part of it's project). With this build
+    /// setting,
     /// Xcode treats mergeable dependencies like normal dynamic libraries in debug builds,
     /// but performs steps in release mode to automatically handle merging for **direct dependencies**
     ///
@@ -20,10 +21,12 @@ public enum MergedBinaryType: Equatable, Codable {
     ///
     /// In some cases, you may want to manually configure merging between your app or framework target and dependent libraries.
     /// For example, you might not want to automatically merge dependencies that you share between an app and an app extension
-    /// if you’re concerned about the app extension’s binary size. To set up manual merging, configure your app or framework target,
+    /// if you’re concerned about the app extension’s binary size. To set up manual merging, configure your app or framework
+    /// target,
     /// then configure your dependent libraries.
     ///
-    /// In your app or framework target, add the flag `mergedBinaryType` and set it to manual. After you add that setting to your target:
+    /// In your app or framework target, add the flag `mergedBinaryType` and set it to manual. After you add that setting to your
+    /// target:
     /// - In release builds, Xcode merges the products of any of its direct dependencies which have
     /// MAKE_MERGEABLE enabled using the linker flags -merge_framework, -merge-l and so on.
     /// - In debug builds, Xcode links any of your target’s direct dependencies which have MERGEABLE_LIBRARY

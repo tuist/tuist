@@ -35,14 +35,14 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
         self.directory = directory
     }
 
-    func write<T: AsyncQueueEvent>(event: T) throws {
+    func write(event: some AsyncQueueEvent) throws {
         let path = directory.appending(component: filename(event: event))
         try createDirectoryIfNeeded()
         let data = try jsonEncoder.encode(event)
         try data.write(to: path.url)
     }
 
-    func delete<T: AsyncQueueEvent>(event: T) throws {
+    func delete(event: some AsyncQueueEvent) throws {
         try delete(filename: filename(event: event))
     }
 
@@ -86,7 +86,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
 
     // MARK: - Private
 
-    private func filename<T: AsyncQueueEvent>(event: T) -> String {
+    private func filename(event: some AsyncQueueEvent) -> String {
         "\(Int(event.date.timeIntervalSince1970)).\(event.dispatcherId).\(event.id.uuidString).json"
     }
 

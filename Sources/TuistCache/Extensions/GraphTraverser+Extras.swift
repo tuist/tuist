@@ -3,13 +3,13 @@ import TuistGraph
 
 extension GraphTraversing {
     /// Returns the included based on the parameters.
-    public func filterIncludedTargets<GraphTargets: Collection>(
-        basedOn targets: GraphTargets,
+    public func filterIncludedTargets(
+        basedOn targets: some Collection<GraphTarget>,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
         excludingExternalTargets: Bool = false
-    ) -> Set<GraphTarget> where GraphTargets.Element == GraphTarget {
+    ) -> Set<GraphTarget> {
         let allTestPlansTargetNames: Set<String>?
         if includedTargets.isEmpty, let testPlanName = testPlan, let testPlan = self.testPlan(name: testPlanName) {
             allTestPlansTargetNames = Set(testPlan.testTargets.filter { !$0.isSkipped }.map(\.target.name))

@@ -95,7 +95,7 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
             outputPaths.append("${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(relativeFrameworkPath.basename)")
 
             // .dSYM
-            if let dsymPath = dsymPath {
+            if let dsymPath {
                 let relativeDsymPath = dsymPath.relative(to: sourceRootPath)
                 script.append("install_dsym \"$SRCROOT/\(relativeDsymPath.pathString)\"\n")
             }

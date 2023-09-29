@@ -254,9 +254,13 @@ public class GraphLinter: GraphLinting {
         guard watchApp.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
             return [
                 LintingIssue(reason: """
-                Watch app '\(watchApp.target.name)' bundleId: \(watchApp.target
-                    .bundleId) isn't prefixed with its parent's app '\(parentApp.target.bundleId)' bundleId '\(parentApp.target
-                    .bundleId)'
+                Watch app '\(watchApp.target.name)' bundleId: \(
+                    watchApp.target
+                        .bundleId
+                ) isn't prefixed with its parent's app '\(parentApp.target.bundleId)' bundleId '\(
+                    parentApp.target
+                        .bundleId
+                )'
                 """, severity: .error),
             ]
         }
@@ -267,9 +271,13 @@ public class GraphLinter: GraphLinting {
         guard watchExtension.target.bundleId.hasPrefix(parentWatchApp.target.bundleId) else {
             return [
                 LintingIssue(reason: """
-                Watch extension '\(watchExtension.target.name)' bundleId: \(watchExtension.target
-                    .bundleId) isn't prefixed with its parent's watch app '\(parentWatchApp.target
-                    .bundleId)' bundleId '\(parentWatchApp.target.bundleId)'
+                Watch extension '\(watchExtension.target.name)' bundleId: \(
+                    watchExtension.target
+                        .bundleId
+                ) isn't prefixed with its parent's watch app '\(
+                    parentWatchApp.target
+                        .bundleId
+                )' bundleId '\(parentWatchApp.target.bundleId)'
                 """, severity: .error),
             ]
         }
@@ -282,9 +290,13 @@ public class GraphLinter: GraphLinting {
         if !appClip.target.bundleId.hasPrefix(parentApp.target.bundleId) {
             foundIssues.append(
                 LintingIssue(reason: """
-                AppClip '\(appClip.target.name)' bundleId: \(appClip.target
-                    .bundleId) isn't prefixed with its parent's app '\(parentApp.target.name)' bundleId '\(parentApp.target
-                    .bundleId)'
+                AppClip '\(appClip.target.name)' bundleId: \(
+                    appClip.target
+                        .bundleId
+                ) isn't prefixed with its parent's app '\(parentApp.target.name)' bundleId '\(
+                    parentApp.target
+                        .bundleId
+                )'
                 """, severity: .error)
             )
         }

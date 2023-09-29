@@ -54,7 +54,7 @@ public final class GitHandler: GitHandling {
     }
 
     public func clone(url: String, to path: AbsolutePath? = nil) throws {
-        if let path = path {
+        if let path {
             try run(command: "git", "clone", url, path.pathString)
         } else {
             try run(command: "git", "clone", url)
@@ -62,7 +62,7 @@ public final class GitHandler: GitHandling {
     }
 
     public func checkout(id: String, in path: AbsolutePath?) throws {
-        if let path = path {
+        if let path {
             let gitDirectory = path.appending(component: ".git")
             try run(command: "git", "--git-dir", gitDirectory.pathString, "--work-tree", path.pathString, "checkout", id)
         } else {

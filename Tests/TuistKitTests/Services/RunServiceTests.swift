@@ -73,7 +73,7 @@ final class RunServiceTests: TuistUnitTestCase {
 
     func test_run_generates_when_generateIsTrue() async throws {
         // Given
-        let expectation = self.expectation(description: "generates when required")
+        let expectation = expectation(description: "generates when required")
         generator.generateWithGraphStub = { _ in
             expectation.fulfill()
             return (try AbsolutePath(validating: "/path/to/project.xcworkspace"), .test())
@@ -89,7 +89,7 @@ final class RunServiceTests: TuistUnitTestCase {
     func test_run_generates_when_workspaceNotFound() async throws {
         // Given
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
-        let expectation = self.expectation(description: "generates when required")
+        let expectation = expectation(description: "generates when required")
         generator.generateWithGraphStub = { _ in
             // Then
             self.buildGraphInspector.workspacePathStub = { _ in workspacePath }
@@ -108,7 +108,7 @@ final class RunServiceTests: TuistUnitTestCase {
     func test_run_buildsTarget() async throws {
         // Given
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
-        let expectation = self.expectation(description: "builds target")
+        let expectation = expectation(description: "builds target")
         let schemeName = "AScheme"
         let clean = true
         let configuration = "Test"
@@ -138,7 +138,7 @@ final class RunServiceTests: TuistUnitTestCase {
     func test_run_runsTarget() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
-        let expectation = self.expectation(description: "runs target")
+        let expectation = expectation(description: "runs target")
         let schemeName = "AScheme"
         let configuration = "Test"
         let minVersion = Target.test().deploymentTargets.configuredVersions.first?.versionString.version()
@@ -178,7 +178,7 @@ final class RunServiceTests: TuistUnitTestCase {
     func test_run_throws_beforeBuilding_if_cantRunTarget() async throws {
         // Given
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
-        let expectation = self.expectation(description: "does not run target builder")
+        let expectation = expectation(description: "does not run target builder")
         expectation.isInverted = true
         generator.generateWithGraphStub = { _ in (workspacePath, .test()) }
         buildGraphInspector.workspacePathStub = { _ in workspacePath }

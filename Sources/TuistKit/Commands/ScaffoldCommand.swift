@@ -100,7 +100,7 @@ extension ScaffoldCommand {
 
     /// We do not know template's option in advance -> we need to dynamically add them
     static func preprocess(_ arguments: [String]? = nil) async throws {
-        guard let arguments = arguments,
+        guard let arguments,
               arguments.count >= 2
         else { throw ScaffoldCommandError.templateNotProvided }
         guard !configuration.subcommands.contains(where: { $0.configuration.commandName == arguments[1] }) else { return }

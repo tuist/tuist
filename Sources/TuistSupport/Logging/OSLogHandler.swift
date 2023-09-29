@@ -26,7 +26,7 @@ public struct OSLogHandler: LogHandler {
     ) {
         let metadataLog: String?
 
-        if let metadata = metadata, !metadata.isEmpty {
+        if let metadata, !metadata.isEmpty {
             metadataLog = self.metadata.merging(metadata, uniquingKeysWith: { $1 }).prettyDescription
         } else if !self.metadata.isEmpty {
             metadataLog = self.metadata.prettyDescription

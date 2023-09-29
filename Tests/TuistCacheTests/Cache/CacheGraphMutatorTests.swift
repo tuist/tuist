@@ -837,7 +837,8 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 //        let app = try XCTUnwrap(got.entryNodes.first as? GraphTarget)
 //        let b = try XCTUnwrap(app.dependencies.compactMap { $0 as? GraphTarget }.first(where: { $0.name == "B" }))
-//        let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? GraphTarget }.first(where: { $0.path == cCachedFrameworkPath }))
+//        let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? GraphTarget }.first(where: { $0.path == cCachedFrameworkPath
+//        }))
 //        XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
 //        XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
     }
@@ -860,7 +861,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 final class MockArtifactLoader: ArtifactLoading {
     var loadStub: ((AbsolutePath) throws -> GraphDependency)?
     func load(path: AbsolutePath) throws -> GraphDependency {
-        if let loadStub = loadStub {
+        if let loadStub {
             return try loadStub(path)
         } else {
             return GraphDependency.testFramework(path: path)

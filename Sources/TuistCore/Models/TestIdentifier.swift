@@ -65,19 +65,19 @@ public struct TestIdentifier: CustomStringConvertible, Hashable {
 
     private static func description(target: String, class: String?, method: String?) -> String {
         var description = target
-        if let `class` = `class` {
+        if let `class` {
             description += "/\(`class`)"
         }
-        if let method = method {
+        if let method {
             description += "/\(method)"
         }
         return description
     }
 }
 
-extension Optional where Wrapped == String {
+extension String? {
     fileprivate var isEmptyButNotNil: Bool {
-        if let self = self, self.isEmpty {
+        if let self, self.isEmpty {
             return true
         }
         return false

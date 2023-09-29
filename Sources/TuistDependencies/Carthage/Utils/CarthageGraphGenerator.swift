@@ -8,7 +8,8 @@ import TuistSupport
 /// A protocol that defines an interface to generate the `DependenciesGraph` for the `Carthage` dependencies.
 public protocol CarthageGraphGenerating {
     /// Generates the `DependenciesGraph` for the `Carthage` dependencies.
-    /// - Parameter path: The path to the directory that contains the `Carthage/Build` directory where `Carthage` installed dependencies.
+    /// - Parameter path: The path to the directory that contains the `Carthage/Build` directory where `Carthage` installed
+    /// dependencies.
     func generate(at path: AbsolutePath) throws -> DependenciesGraph
 }
 

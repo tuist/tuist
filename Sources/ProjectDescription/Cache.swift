@@ -41,7 +41,8 @@ public struct Cache: Codable, Equatable {
 
     /// Returns a `Cache` instance containing the given profiles.
     /// If no profile list is provided, tuist's default profile will be taken as the default.
-    /// If no profile is provided in `tuist cache --profile` command, the first profile from the profiles list will be taken as the default.
+    /// If no profile is provided in `tuist cache --profile` command, the first profile from the profiles list will be taken as
+    /// the default.
     /// - Parameters:
     ///   - profiles: Profiles to be chosen from
     ///   - path: The path where the cache will be stored, if `nil` it will be a default location in a shared directory.

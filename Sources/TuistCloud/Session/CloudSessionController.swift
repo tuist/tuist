@@ -100,7 +100,7 @@ public final class CloudSessionController: CloudSessionControlling {
         switch result {
         case let .failure(error): throw error
         case let .success(parameters):
-            guard let parameters = parameters else {
+            guard let parameters else {
                 throw CloudSessionControllerError.missingParameters
             }
             if let error = parameters["error"] {

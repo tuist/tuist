@@ -82,7 +82,7 @@ final class SettingsHelper {
 
     private func merge(oldValue: SettingValue?, newValue: SettingValue) -> SettingValue {
         // No need to merge, just return newValue when the oldValue is nil (buildSettings[key] == nil).
-        guard let oldValue = oldValue else {
+        guard let oldValue else {
             return newValue
         }
 
@@ -95,7 +95,8 @@ final class SettingsHelper {
         // it will need to be merged with the oldValue, otherwise the oldValue will be discarded
         // and the newValue returned without merging.
         //
-        // The .sortAndTrim() method ensures the result of merging does not contain duplicate "$(inherited)" and that "$(inherited)" is the first element
+        // The .sortAndTrim() method ensures the result of merging does not contain duplicate "$(inherited)" and that
+        // "$(inherited)" is the first element
         // i.e. merging the following values:
         // oldValue = ["$(inherited)", "VALUE_1"]
         // newValue = ["$(inherited)", "VALUE_2"]

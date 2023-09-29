@@ -370,7 +370,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
     ) {
         let value = lhs?["CFBundlePackageType"] as? String
 
-        if let packageType = packageType {
+        if let packageType {
             XCTAssertEqual(
                 value,
                 packageType,

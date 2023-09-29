@@ -70,7 +70,7 @@ public struct TuistCommand: AsyncParsableCommand {
             errorHandler.fatal(error: error)
             _exit(exitCode(for: error).rawValue)
         } catch {
-            if let parsedError = parsedError {
+            if let parsedError {
                 handleParseError(parsedError)
             }
             // Exit cleanly

@@ -7,6 +7,6 @@ final class MockCommandRunner: CommandRunning {
 
     func run() throws {
         runCallCount += 1
-        if let runStub = runStub { throw runStub }
+        if let runStub { throw runStub }
     }
 }

@@ -44,7 +44,7 @@ public class AsyncQueue: AsyncQueuing {
         waitIfCI()
     }
 
-    public func dispatch<T: AsyncQueueEvent>(event: T) throws {
+    public func dispatch(event: some AsyncQueueEvent) throws {
         guard let dispatcher = dispatchers[event.dispatcherId] else {
             logger.error("Couldn't find dispatcher with id: \(event.dispatcherId)")
             return
@@ -60,7 +60,7 @@ public class AsyncQueue: AsyncQueuing {
 
     // MARK: - Private
 
-    private func liveDispatchOperation<T: AsyncQueueEvent>(event: T, dispatcher: AsyncQueueDispatching) -> Operation {
+    private func liveDispatchOperation(event: some AsyncQueueEvent, dispatcher: AsyncQueueDispatching) -> Operation {
         ConcurrentOperation(name: event.id.uuidString) { operation in
             logger.debug("Dispatching event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
             do {

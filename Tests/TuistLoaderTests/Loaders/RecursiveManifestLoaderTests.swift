@@ -348,14 +348,14 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     private func createManifestLoader() -> MockManifestLoader {
         let manifestLoader = MockManifestLoader()
         manifestLoader.loadProjectStub = { [unowned self] path in
-            guard let manifest = self.projectManifests[path] else {
+            guard let manifest = projectManifests[path] else {
                 throw ManifestLoaderError.manifestNotFound(.project, path)
             }
             return manifest
         }
 
         manifestLoader.loadWorkspaceStub = { [unowned self] path in
-            guard let manifest = self.workspaceManifests[path] else {
+            guard let manifest = workspaceManifests[path] else {
                 throw ManifestLoaderError.manifestNotFound(.workspace, path)
             }
             return manifest
@@ -363,10 +363,10 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
         manifestLoader.manifestsAtStub = { [unowned self] path in
             var manifests = Set<Manifest>()
-            if let _ = self.projectManifests[path] {
+            if let _ = projectManifests[path] {
                 manifests.insert(.project)
             }
-            if let _ = self.workspaceManifests[path] {
+            if let _ = workspaceManifests[path] {
                 manifests.insert(.workspace)
             }
             return manifests

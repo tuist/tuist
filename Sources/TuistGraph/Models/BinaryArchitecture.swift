@@ -15,7 +15,7 @@ public enum BinaryLinking: String, Codable {
     case `static`, dynamic
 }
 
-extension Sequence where Element == BinaryArchitecture {
+extension Sequence<BinaryArchitecture> {
     /// Returns true if all the architectures are only for simulator.
     public var onlySimulator: Bool {
         let simulatorArchitectures: [BinaryArchitecture] = [.x8664, .i386, .arm64]

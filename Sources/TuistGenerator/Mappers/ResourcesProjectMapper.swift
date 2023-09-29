@@ -92,18 +92,20 @@ public class ResourcesProjectMapper: ProjectMapping {
     static func fileContent(targetName: String, bundleName: String, target: Target) -> String {
         if !target.supportsResources {
             return """
-            // swiftlint:disable all
-            // swift-format-ignore-file
-            // swiftformat:disable all
-            import Foundation
-
-            // MARK: - Swift Bundle Accessor
-
-            private class BundleFinder {}
-
-            extension Foundation.Bundle {
-                /// Since \(targetName) is a \(target
-                .product), the bundle containing the resources is copied into the final product.
+                // swiftlint:disable all
+                // swift-format-ignore-file
+                // swiftformat:disable all
+                import Foundation
+                
+                // MARK: - Swift Bundle Accessor
+                
+                private class BundleFinder {}
+                
+                extension Foundation.Bundle {
+                /// Since \(targetName) is a \(
+                    target
+                        .product
+                ), the bundle containing the resources is copied into the final product.
                 static let module: Bundle = {
                     let bundleName = "\(bundleName)"
 
@@ -121,49 +123,51 @@ public class ResourcesProjectMapper: ProjectMapping {
                     }
                     fatalError("unable to find bundle named \(bundleName)")
                 }()
-            }
-
-            // MARK: - Objective-C Bundle Accessor
-
-            @objc
-            public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
+                }
+                
+                // MARK: - Objective-C Bundle Accessor
+                
+                @objc
+                public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
                 @objc public class var bundle: Bundle {
                     return .module
                 }
-            }
-            // swiftlint:enable all
-            // swiftformat:enable all
+                }
+                // swiftlint:enable all
+                // swiftformat:enable all
 
-            """
+                """
         } else {
             return """
-            // swiftlint:disable all
-            // swift-format-ignore-file
-            // swiftformat:disable all
-            import Foundation
-
-            // MARK: - Swift Bundle Accessor
-
-            private class BundleFinder {}
-
-            extension Foundation.Bundle {
-                /// Since \(targetName) is a \(target
-                .product), the bundle for classes within this module can be used directly.
+                // swiftlint:disable all
+                // swift-format-ignore-file
+                // swiftformat:disable all
+                import Foundation
+                
+                // MARK: - Swift Bundle Accessor
+                
+                private class BundleFinder {}
+                
+                extension Foundation.Bundle {
+                /// Since \(targetName) is a \(
+                    target
+                        .product
+                ), the bundle for classes within this module can be used directly.
                 static let module = Bundle(for: BundleFinder.self)
-            }
-
-            // MARK: - Objective-C Bundle Accessor
-
-            @objc
-            public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
+                }
+                
+                // MARK: - Objective-C Bundle Accessor
+                
+                @objc
+                public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
                 @objc public class var bundle: Bundle {
                     return .module
                 }
-            }
-            // swiftlint:enable all
-            // swiftformat:enable all
+                }
+                // swiftlint:enable all
+                // swiftformat:enable all
 
-            """
+                """
         }
     }
 }

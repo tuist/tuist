@@ -6,7 +6,7 @@ import TuistGraph
 public final class MockFrameworkMetadataProvider: MockPrecompiledMetadataProvider, FrameworkMetadataProviding {
     public var loadMetadataStub: ((AbsolutePath) throws -> FrameworkMetadata)?
     public func loadMetadata(at path: AbsolutePath) throws -> FrameworkMetadata {
-        if let loadMetadataStub = loadMetadataStub {
+        if let loadMetadataStub {
             return try loadMetadataStub(path)
         } else {
             return FrameworkMetadata.test(path: path)
@@ -20,7 +20,7 @@ public final class MockFrameworkMetadataProvider: MockPrecompiledMetadataProvide
 
     public var bcsymbolmapPathsStub: ((AbsolutePath) throws -> [AbsolutePath])?
     public func bcsymbolmapPaths(frameworkPath: AbsolutePath) throws -> [AbsolutePath] {
-        if let bcsymbolmapPathsStub = bcsymbolmapPathsStub {
+        if let bcsymbolmapPathsStub {
             return try bcsymbolmapPathsStub(frameworkPath)
         } else {
             return []
@@ -29,7 +29,7 @@ public final class MockFrameworkMetadataProvider: MockPrecompiledMetadataProvide
 
     public var productStub: ((AbsolutePath) throws -> Product)?
     public func product(frameworkPath: AbsolutePath) throws -> Product {
-        if let productStub = productStub {
+        if let productStub {
             return try productStub(frameworkPath)
         } else {
             return .framework

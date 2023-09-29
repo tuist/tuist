@@ -41,7 +41,7 @@ extension Publisher {
         cancellables.removeAll()
 
         return try synchronizationQueue.sync { () throws -> [Output] in
-            if let error = error { throw error }
+            if let error { throw error }
             return values
         }
     }

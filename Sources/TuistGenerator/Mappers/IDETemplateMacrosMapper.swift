@@ -18,7 +18,7 @@ public final class IDETemplateMacrosMapper: ProjectMapping, WorkspaceMapping {
         for ideTemplateMacros: IDETemplateMacros?,
         to path: AbsolutePath
     ) throws -> [SideEffectDescriptor] {
-        guard let ideTemplateMacros = ideTemplateMacros else { return [] }
+        guard let ideTemplateMacros else { return [] }
 
         let encoder = PropertyListEncoder()
         let data = try encoder.encode(ideTemplateMacros)

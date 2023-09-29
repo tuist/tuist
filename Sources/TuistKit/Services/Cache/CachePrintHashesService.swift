@@ -34,7 +34,7 @@ final class CachePrintHashesService {
     }
 
     private func absolutePath(_ path: String?) throws -> AbsolutePath {
-        if let path = path {
+        if let path {
             return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath

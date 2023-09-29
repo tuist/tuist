@@ -32,7 +32,7 @@ extension TuistGraph.Headers {
             _ list: FileList?,
             isPublic: Bool = false
         ) throws -> [AbsolutePath] {
-            guard let list = list else { return [] }
+            guard let list else { return [] }
             return try list.globs.flatMap {
                 try $0.unfold(generatorPaths: generatorPaths) { path in
                     guard let fileExtension = path.extension,
@@ -41,7 +41,7 @@ extension TuistGraph.Headers {
                     else {
                         return false
                     }
-                    if isPublic, let headersFromUmbrella = headersFromUmbrella {
+                    if isPublic, let headersFromUmbrella {
                         return headersFromUmbrella.contains(path.basename)
                     }
                     return true
@@ -53,7 +53,7 @@ extension TuistGraph.Headers {
         case .projectExcludesPrivateAndPublic:
             publicHeaders = try unfold(manifest.public, isPublic: true)
             // be sure, that umbrella was not added before
-            if let resolvedUmbrellaPath = resolvedUmbrellaPath,
+            if let resolvedUmbrellaPath,
                !publicHeaders.contains(resolvedUmbrellaPath)
             {
                 publicHeaders.append(resolvedUmbrellaPath)
@@ -70,7 +70,7 @@ extension TuistGraph.Headers {
             autoExlcudedPaths.formUnion(privateHeaders)
             publicHeaders = try unfold(manifest.public, isPublic: true)
             // be sure, that umbrella was not added before
-            if let resolvedUmbrellaPath = resolvedUmbrellaPath,
+            if let resolvedUmbrellaPath,
                !publicHeaders.contains(resolvedUmbrellaPath)
             {
                 publicHeaders.append(resolvedUmbrellaPath)

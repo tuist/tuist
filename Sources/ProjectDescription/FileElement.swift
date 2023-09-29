@@ -8,7 +8,8 @@ import Foundation
 /// Note: For convenience, an element can be represented as a string literal
 ///       `"some/pattern/**"` is the equivalent of `FileElement.glob(pattern: "some/pattern/**")`
 public enum FileElement: Codable, Equatable {
-    /// A file path (or glob pattern) to include. For convenience, a string literal can be used as an alternate way to specify this option.
+    /// A file path (or glob pattern) to include. For convenience, a string literal can be used as an alternate way to specify
+    /// this option.
     case glob(pattern: Path)
 
     /// A directory path to include as a folder reference.
@@ -35,15 +36,15 @@ extension FileElement: ExpressibleByStringInterpolation {
     }
 }
 
-extension Array: ExpressibleByUnicodeScalarLiteral where Element == FileElement {
+extension [FileElement]: ExpressibleByUnicodeScalarLiteral {
     public typealias UnicodeScalarLiteralType = String
 }
 
-extension Array: ExpressibleByExtendedGraphemeClusterLiteral where Element == FileElement {
+extension [FileElement]: ExpressibleByExtendedGraphemeClusterLiteral {
     public typealias ExtendedGraphemeClusterLiteralType = String
 }
 
-extension Array: ExpressibleByStringLiteral where Element == FileElement {
+extension [FileElement]: ExpressibleByStringLiteral {
     public typealias StringLiteralType = String
 
     public init(stringLiteral value: String) {

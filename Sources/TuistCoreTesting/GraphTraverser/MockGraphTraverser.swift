@@ -157,7 +157,7 @@ final class MockGraphTraverser: GraphTraversing {
 
     var invokedTestPlan = false
     var invokedTestPlanCount = 0
-    var invokedTestPlanParameters: (String)?
+    var invokedTestPlanParameters: String?
     var invokedTestPlanParametersList = [String]()
     var stubbedTestPlanResult: TestPlan?
 

@@ -43,34 +43,34 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         subject = createSubject()
 
         manifestLoader.loadWorkspaceStub = { [unowned self] path in
-            guard let manifest = self.workspaceManifests[path] else {
+            guard let manifest = workspaceManifests[path] else {
                 throw ManifestLoaderError.manifestNotFound(.workspace, path)
             }
-            self.recordedLoadWorkspaceCalls += 1
+            recordedLoadWorkspaceCalls += 1
             return manifest
         }
 
         manifestLoader.loadProjectStub = { [unowned self] path in
-            guard let manifest = self.projectManifests[path] else {
+            guard let manifest = projectManifests[path] else {
                 throw ManifestLoaderError.manifestNotFound(.project, path)
             }
-            self.recordedLoadProjectCalls += 1
+            recordedLoadProjectCalls += 1
             return manifest
         }
 
         manifestLoader.loadConfigStub = { [unowned self] path in
-            guard let manifest = self.configManifests[path] else {
+            guard let manifest = configManifests[path] else {
                 throw ManifestLoaderError.manifestNotFound(.config, path)
             }
-            self.recordedLoadConfigCalls += 1
+            recordedLoadConfigCalls += 1
             return manifest
         }
 
         manifestLoader.loadPluginStub = { [unowned self] path in
-            guard let manifest = self.pluginManifests[path] else {
+            guard let manifest = pluginManifests[path] else {
                 throw ManifestLoaderError.manifestNotFound(.plugin, path)
             }
-            self.recordedLoadPluginCalls += 1
+            recordedLoadPluginCalls += 1
             return manifest
         }
     }

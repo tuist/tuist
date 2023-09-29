@@ -112,7 +112,7 @@ struct TestCommand: AsyncParsableCommand {
     func run() async throws {
         let absolutePath: AbsolutePath
 
-        if let path = path {
+        if let path {
             absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             absolutePath = FileHandler.shared.currentPath

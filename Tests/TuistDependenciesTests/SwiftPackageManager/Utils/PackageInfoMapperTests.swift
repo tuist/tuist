@@ -2844,7 +2844,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "NO", "ANOTHER_SETTING": "YES"]
                     case "Quick":
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES", "ANOTHER_SETTING": "YES"]
-                    case "RxTest-Dynamic": // because RxTest does have an "-" we need to account for the custom mapping to product names
+                    case "RxTest-Dynamic": // because RxTest does have an "-" we need to account for the custom mapping to product
+                        // names
                         customProductName = "RxTest_Dynamic"
                         customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
                     default:
@@ -3071,7 +3072,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ResourceFileElements {
     let fullPath: String
-    if let customPath = customPath {
+    if let customPath {
         fullPath = customPath
     } else {
         fullPath = "/Package/Sources/\(target)"
@@ -3257,7 +3258,7 @@ extension ProjectDescription.Target {
     }
 }
 
-extension Array where Element == ProjectDescription.ResourceFileElement {
+extension [ProjectDescription.ResourceFileElement] {
     static func defaultResources(
         path: AbsolutePath,
         excluding: [Path] = []
@@ -3273,7 +3274,7 @@ extension Array where Element == ProjectDescription.ResourceFileElement {
 }
 
 extension Sequence {
-    func sorted<T: Comparable>(by keyPath: KeyPath<Element, T>) -> [Element] {
+    func sorted(by keyPath: KeyPath<Element, some Comparable>) -> [Element] {
         sorted { a, b in
             a[keyPath: keyPath] < b[keyPath: keyPath]
         }

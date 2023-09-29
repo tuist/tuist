@@ -429,7 +429,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 }
                 element = (fileReference, buildFilePath)
             }
-            if let element = element, buildFilesCache.contains(element.path) == false {
+            if let element, buildFilesCache.contains(element.path) == false {
                 let tags = resource.tags.sorted()
                 let settings: [String: Any]? = !tags.isEmpty ? ["ASSET_TAGS": tags] : nil
 

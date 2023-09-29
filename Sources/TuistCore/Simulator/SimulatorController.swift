@@ -111,7 +111,7 @@ public final class SimulatorController: SimulatorControlling {
         }
 
         let runtimesData = try JSONSerialization.data(withJSONObject: runtimesJSON, options: [])
-        let runtimes = try self.jsonDecoder.decode([SimulatorRuntime].self, from: runtimesData)
+        let runtimes = try jsonDecoder.decode([SimulatorRuntime].self, from: runtimesData)
         return runtimes
     }
 
@@ -143,12 +143,12 @@ public final class SimulatorController: SimulatorControlling {
                 let nameComponents = simulatorDeviceAndRuntime.runtime.name.components(separatedBy: " ")
                 guard nameComponents.first == platform.caseValue else { return false }
                 let deviceVersion = nameComponents.last?.version()
-                if let version = version {
+                if let version {
                     guard deviceVersion == version else { return false }
-                } else if let minVersion = minVersion, let deviceVersion = deviceVersion {
+                } else if let minVersion, let deviceVersion {
                     guard deviceVersion >= minVersion else { return false }
                 }
-                if let deviceName = deviceName {
+                if let deviceName {
                     guard simulatorDeviceAndRuntime.device.name == deviceName else { return false }
                 }
                 return true

@@ -12,7 +12,7 @@ final class PluginTestService {
             "swift", "test",
             "--configuration", configuration.rawValue,
         ]
-        if let path = path {
+        if let path {
             testCommand += [
                 "--package-path",
                 try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath).pathString,

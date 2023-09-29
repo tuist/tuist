@@ -19,7 +19,8 @@ protocol Carthaging {
     ///   - path: Directory where the Carthage dependencies are defined.
     ///   - platforms: Platforms the dependencies will be bootstraped for.
     ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
-    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
+    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries
+    /// when possible.
     ///   - dependencies: Dependencies to bootstrap
     /// - Throws: An error if the dependencies bootstrap fails.
     func bootstrap(
@@ -49,7 +50,8 @@ final class Carthage: Carthaging {
     ///   - path: Directory where the Carthage dependencies are defined.
     ///   - platforms: Platforms the dependencies will be bootstraped for.
     ///   - useXCFrameworks: Indicates whether Carthage produces XCFrameworks or regular frameworks.
-    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries when possible.
+    ///   - noUseBinaries: Indicates whether Carthage rebuilds the dependency from source instead of using downloaded binaries
+    /// when possible.
     ///   - dependencies: Dependencies to bootstrap
     /// - Throws: An error if the dependencies bootstrap fails.
     func bootstrap(

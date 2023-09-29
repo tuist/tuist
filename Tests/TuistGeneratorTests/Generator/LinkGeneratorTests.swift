@@ -964,7 +964,7 @@ final class LinkGeneratorTests: XCTestCase {
     }
 
     private func createTargets(product: Product) -> (PBXTarget, Target) {
-        return (
+        (
             PBXNativeTarget(name: "Test"),
             Target.test(name: "Test", product: product)
         )

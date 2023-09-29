@@ -102,7 +102,7 @@ final class BenchmarkCommand {
             config: config
         )
 
-        if let referenceBinaryPath = referenceBinaryPath {
+        if let referenceBinaryPath {
             let results = try benchmark(
                 config: config,
                 fixtures: fixtures,
@@ -164,11 +164,11 @@ final class BenchmarkCommand {
         fixturesListPath: AbsolutePath?,
         fixturePath: AbsolutePath?
     ) throws -> [AbsolutePath] {
-        if let fixturePath = fixturePath {
+        if let fixturePath {
             return [fixturePath]
         }
 
-        if let fixturesListPath = fixturesListPath {
+        if let fixturesListPath {
             let fixtures = try parseFixtureList(path: fixturesListPath)
             return fixtures.paths.map {
                 AbsolutePath($0, relativeTo: fileHandler.currentPath)

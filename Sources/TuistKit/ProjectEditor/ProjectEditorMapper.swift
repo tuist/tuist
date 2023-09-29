@@ -100,7 +100,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                     dependencies.lazy.compactMap { dependency -> GraphDependency? in
                         switch dependency {
                         case let .target(name):
-                            if let pluginsProject = pluginsProject, editablePluginManifests.contains(where: { $0.name == name }) {
+                            if let pluginsProject, editablePluginManifests.contains(where: { $0.name == name }) {
                                 return .target(name: name, path: pluginsProject.path)
                             } else {
                                 return .target(name: name, path: project.path)
@@ -160,7 +160,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         )
 
         let configTarget: Target? = {
-            guard let configPath = configPath else { return nil }
+            guard let configPath else { return nil }
             return editorHelperTarget(
                 name: "Config",
                 filesGroup: manifestsFilesGroup,
@@ -228,7 +228,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
 
         let dependenciesTarget: Target? = {
-            guard let dependenciesPath = dependenciesPath else { return nil }
+            guard let dependenciesPath else { return nil }
             return editorHelperTarget(
                 name: "Dependencies",
                 filesGroup: manifestsFilesGroup,

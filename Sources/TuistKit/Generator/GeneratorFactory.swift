@@ -154,7 +154,7 @@ class GeneratorFactory: GeneratorFactorying {
         let graphMapperFactory = GraphMapperFactory(contentHasher: contentHasher)
 
         let graphMappers: [GraphMapping]
-        if let focusedTargets = focusedTargets {
+        if let focusedTargets {
             graphMappers = graphMapperFactory.focus(
                 config: config,
                 cache: true,

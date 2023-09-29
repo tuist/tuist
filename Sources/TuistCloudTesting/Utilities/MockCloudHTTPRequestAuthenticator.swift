@@ -9,7 +9,7 @@ final class MockCloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating {
 
     public var authenticateStub: ((URLRequest) throws -> URLRequest)?
     func authenticate(request: URLRequest) throws -> URLRequest {
-        if let authenticateStub = authenticateStub {
+        if let authenticateStub {
             return try authenticateStub(request)
         } else {
             return request

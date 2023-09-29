@@ -2,7 +2,7 @@ import MyFramework // XCFramework (dynamic framework)
 import StaticFrameworkA // Xcode target (static framework)
 import UIKit
 
-@UIApplicationMain
+@main
 class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 

@@ -14,7 +14,7 @@ extension XCTestCase {
 
     // MARK: - XCTAssertions
 
-    public func XCTAssertEmpty<T: Collection>(_ collection: T, file: StaticString = #file, line: UInt = #line) {
+    public func XCTAssertEmpty(_ collection: some Collection, file: StaticString = #file, line: UInt = #line) {
         XCTAssertEqual(
             collection.count,
             0,
@@ -24,7 +24,7 @@ extension XCTestCase {
         )
     }
 
-    public func XCTAssertNotEmpty<T: Collection>(_ collection: T, file: StaticString = #file, line: UInt = #line) {
+    public func XCTAssertNotEmpty(_ collection: some Collection, file: StaticString = #file, line: UInt = #line) {
         XCTAssertNotEqual(collection.count, 0, "Expected to not be empty but it has 0 elements", file: file, line: line)
     }
 
@@ -76,8 +76,8 @@ extension XCTestCase {
         return value
     }
 
-    public func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable, T>(
-        _ closure: @autoclosure () throws -> T,
+    public func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable>(
+        _ closure: @autoclosure () throws -> some Any,
         _ error: Error,
         file: StaticString = #file,
         line: UInt = #line
@@ -94,8 +94,8 @@ extension XCTestCase {
         XCTFail("No error was thrown", file: file, line: line)
     }
 
-    public func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable, T>(
-        _ closure: @autoclosure () async throws -> T,
+    public func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable>(
+        _ closure: @autoclosure () async throws -> some Any,
         _ error: Error,
         file: StaticString = #file,
         line: UInt = #line
@@ -145,8 +145,8 @@ extension XCTestCase {
         XCTAssertEqual(subject, decoded, "The subject is not equal to it's encoded & decoded version")
     }
 
-    public func XCTAssertEncodableEqualToJson<C: Encodable>(
-        _ subject: C,
+    public func XCTAssertEncodableEqualToJson(
+        _ subject: some Encodable,
         _ json: String,
         file: StaticString = #file,
         line: UInt = #line
@@ -214,7 +214,7 @@ extension XCTestCase {
         XCTAssertEqual(decoded, expected, errorString, file: file, line: line)
     }
 
-    public func XCTEmpty<S>(_ array: [S], file: StaticString = #file, line: UInt = #line) {
+    public func XCTEmpty(_ array: [some Any], file: StaticString = #file, line: UInt = #line) {
         XCTAssertTrue(
             array.isEmpty,
             "Expected array to be empty but it's not. It contains the following elements: \(array)",
@@ -232,7 +232,7 @@ extension XCTestCase {
     }
 
     public func XCTUnwrap<T>(_ element: T?, file: StaticString = #file, line: UInt = #line) throws -> T {
-        guard let element = element else {
+        guard let element else {
             XCTFail(
                 "expected non-nil value of type \"\(type(of: T.self))\"",
                 file: file,
@@ -245,8 +245,8 @@ extension XCTestCase {
 
     // MARK: - HTTPResource
 
-    public func XCTAssertHTTPResourceMethod<T, E: Error>(
-        _ resource: HTTPResource<T, E>,
+    public func XCTAssertHTTPResourceMethod(
+        _ resource: HTTPResource<some Any, some Error>,
         _ method: String,
         file: StaticString = #file,
         line: UInt = #line
@@ -261,8 +261,8 @@ extension XCTestCase {
         )
     }
 
-    public func XCTAssertHTTPResourceContainsHeader<T, E: Error>(
-        _ resource: HTTPResource<T, E>,
+    public func XCTAssertHTTPResourceContainsHeader(
+        _ resource: HTTPResource<some Any, some Error>,
         header: String,
         value: String,
         file: StaticString = #file,
@@ -283,8 +283,8 @@ extension XCTestCase {
         )
     }
 
-    public func XCTAssertHTTPResourcePath<T, E: Error>(
-        _ resource: HTTPResource<T, E>,
+    public func XCTAssertHTTPResourcePath(
+        _ resource: HTTPResource<some Any, some Error>,
         path: String,
         file: StaticString = #file,
         line: UInt = #line
@@ -296,8 +296,8 @@ extension XCTestCase {
         XCTAssertEqual(requestPath, path, "Expected the path \(path) but got \(requestPath)", file: file, line: line)
     }
 
-    public func XCTAssertHTTPResourceURL<T, E: Error>(
-        _ resource: HTTPResource<T, E>,
+    public func XCTAssertHTTPResourceURL(
+        _ resource: HTTPResource<some Any, some Error>,
         url: URL,
         file: StaticString = #file,
         line: UInt = #line

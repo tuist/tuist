@@ -20,7 +20,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         clean: Bool,
         arguments: [XcodeBuildArgument]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-        if let buildStub = buildStub {
+        if let buildStub {
             return buildStub(target, scheme, destination, clean, arguments).asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {
@@ -61,7 +61,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-        if let testStub = testStub {
+        if let testStub {
             let results = testStub(
                 target,
                 scheme,
@@ -75,7 +75,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                 skipTestTargets,
                 testPlanConfiguration
             )
-            if let testErrorStub = testErrorStub {
+            if let testErrorStub {
                 return AsyncThrowingStream {
                     throw testErrorStub
                 }
@@ -102,7 +102,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         archivePath: AbsolutePath,
         arguments: [XcodeBuildArgument]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-        if let archiveStub = archiveStub {
+        if let archiveStub {
             return archiveStub(target, scheme, clean, archivePath, arguments).asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {
@@ -118,7 +118,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         frameworks: [AbsolutePath],
         output: AbsolutePath
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-        if let createXCFrameworkStub = createXCFrameworkStub {
+        if let createXCFrameworkStub {
             return createXCFrameworkStub(frameworks, output).asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {
@@ -135,7 +135,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         scheme: String,
         configuration: String
     ) throws -> [String: XcodeBuildSettings] {
-        if let showBuildSettingsStub = showBuildSettingsStub {
+        if let showBuildSettingsStub {
             return showBuildSettingsStub(target, scheme, configuration)
         } else {
             throw TestError(
@@ -149,7 +149,7 @@ extension Collection {
     func asAsyncThrowingStream() -> AsyncThrowingStream<Element, Error> {
         var iterator = makeIterator()
         return AsyncThrowingStream {
-            return iterator.next()
+            iterator.next()
         }
     }
 }

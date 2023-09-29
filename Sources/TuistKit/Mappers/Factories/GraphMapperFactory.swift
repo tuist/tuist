@@ -101,7 +101,8 @@ final class GraphMapperFactory: GraphMapperFactorying {
             mappers.append(TreeShakePrunedTargetsGraphMapper())
         }
 
-        // The default mapper is executed at the end because it ensures that the workspace is in sync with the content in the graph.
+        // The default mapper is executed at the end because it ensures that the workspace is in sync with the content in the
+        // graph.
         mappers.append(contentsOf: self.default())
         return mappers
     }

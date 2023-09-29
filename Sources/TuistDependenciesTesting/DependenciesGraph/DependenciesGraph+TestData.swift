@@ -766,7 +766,7 @@ extension DependenciesGraph {
         ]
         var settingsDictionary = customSettings.merging(defaultSpmSettings, uniquingKeysWith: { custom, _ in custom })
 
-        if let moduleMap = moduleMap {
+        if let moduleMap {
             settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap)
         }
 

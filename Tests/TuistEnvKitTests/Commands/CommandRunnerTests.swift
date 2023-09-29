@@ -51,7 +51,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_binary() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
@@ -61,7 +61,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_binary_and_throws() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
@@ -73,7 +73,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_version_file() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
@@ -95,7 +95,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_version_file_and_install_fails() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         versionsController.versionsStub = []
 
         versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(temporaryPath, "3.2.1") }
@@ -109,7 +109,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_version_file_and_command_fails() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
@@ -128,7 +128,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_highest_local_version_and_version_exists() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
@@ -145,7 +145,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
     }
 
     func test_when_highest_local_version_and_no_local_version() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 
@@ -184,7 +184,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
     // TODO: And update fails
 
     func test_when_highest_local_version_and_command_fails() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let binaryPath = temporaryPath.appending(component: "tuist")
         arguments = ["tuist", "--help"]
 

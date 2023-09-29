@@ -14,7 +14,7 @@ final class MockGenerator: Generating {
     var generateCalls: [AbsolutePath] = []
     var generateStub: ((AbsolutePath) throws -> AbsolutePath)?
     func generate(path: AbsolutePath) throws -> AbsolutePath {
-        guard let generateStub = generateStub else {
+        guard let generateStub else {
             throw MockError.stubNotImplemented
         }
 
@@ -25,7 +25,7 @@ final class MockGenerator: Generating {
     var generateWithGraphCalls: [AbsolutePath] = []
     var generateWithGraphStub: ((AbsolutePath) throws -> (AbsolutePath, Graph))?
     func generateWithGraph(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
-        guard let generateWithGraphStub = generateWithGraphStub else {
+        guard let generateWithGraphStub else {
             throw MockError.stubNotImplemented
         }
         generateWithGraphCalls.append(path)
@@ -54,7 +54,7 @@ final class MockGenerator: Generating {
     var loadStub: ((AbsolutePath) throws -> Graph)?
     func load(path: AbsolutePath) throws -> Graph {
         invokedLoadParameterPath = path
-        if let loadStub = loadStub {
+        if let loadStub {
             return try loadStub(path)
         } else {
             return Graph.test()
@@ -63,7 +63,7 @@ final class MockGenerator: Generating {
 
     var loadProjectStub: ((AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]))?
     func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
-        if let loadProjectStub = loadProjectStub {
+        if let loadProjectStub {
             return try loadProjectStub(path)
         } else {
             return (Project.test(), Graph.test(), [])

@@ -14,7 +14,7 @@ final class PluginRunService {
             "swift", "run",
             "--configuration", configuration.rawValue,
         ]
-        if let path = path {
+        if let path {
             runCommand += [
                 "--package-path",
                 try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath).pathString,

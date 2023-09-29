@@ -31,7 +31,7 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
     /// https://pewpewthespells.com/blog/xcode_build_locations.html/// https://pewpewthespells.com/blog/xcode_build_locations.html
     @Atomic private var _derivedDataDirectory: AbsolutePath?
     public var derivedDataDirectory: AbsolutePath {
-        if let _derivedDataDirectory = _derivedDataDirectory {
+        if let _derivedDataDirectory {
             return _derivedDataDirectory
         }
         let location: AbsolutePath
@@ -51,7 +51,7 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
 
     @Atomic private var _architecture: MacArchitecture?
     public var architecture: MacArchitecture {
-        if let _architecture = _architecture {
+        if let _architecture {
             return _architecture
         }
         // swiftlint:disable:next force_try

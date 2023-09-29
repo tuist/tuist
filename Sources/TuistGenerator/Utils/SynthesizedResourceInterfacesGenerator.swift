@@ -69,7 +69,7 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
         var params: [String: Any] = [:]
         params["publicAccess"] = true
         params["name"] = name
-        if let bundleName = bundleName {
+        if let bundleName {
             params["bundle"] = bundleName
         }
         return params

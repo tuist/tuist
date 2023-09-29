@@ -31,7 +31,7 @@ public final class SettingsContentHasher: SettingsContentHashing {
         for buildConfiguration in configurations.keys.sorted() {
             var configurationHash = buildConfiguration.name + buildConfiguration.variant.rawValue
             if let configuration = configurations[buildConfiguration] {
-                if let configuration = configuration {
+                if let configuration {
                     configurationHash += try hash(configuration)
                 }
             }

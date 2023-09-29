@@ -2,9 +2,11 @@
 ///
 /// Tuist can be configured through a shared `Config.swift` manifest.
 /// When Tuist is executed, it traverses up the directories to find a `Tuist` directory containing a `Config.swift` file.
-/// Defining a configuration manifest is not required, but recommended to ensure a consistent behaviour across all the projects that are part of the repository.
+/// Defining a configuration manifest is not required, but recommended to ensure a consistent behaviour across all the projects
+/// that are part of the repository.
 ///
-/// The example below shows a project that has a global `Config.swift` file that will be used when Tuist is run from any of the subdirectories:
+/// The example below shows a project that has a global `Config.swift` file that will be used when Tuist is run from any of the
+/// subdirectories:
 ///
 /// ```bash
 /// /Workspace.swift
@@ -43,7 +45,8 @@ public struct Config: Codable, Equatable {
 
     /// The Swift tools versions that will be used by Tuist to fetch external dependencies.
     /// If `nil` is passed then Tuist will use the environment’s version.
-    /// - Note: This **does not** control the `SWIFT_VERSION` build setting in regular generated projects, for this please use `Project.settings`
+    /// - Note: This **does not** control the `SWIFT_VERSION` build setting in regular generated projects, for this please use
+    /// `Project.settings`
     /// or `Target.settings` as needed.
     public let swiftVersion: Version?
 

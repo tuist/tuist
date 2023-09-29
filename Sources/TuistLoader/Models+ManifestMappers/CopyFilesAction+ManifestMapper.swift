@@ -89,7 +89,7 @@ extension TuistGraph.CopyFilesAction.Destination {
 
 // MARK: - Array Extension FileElement
 
-extension Array where Element == TuistGraph.FileElement {
+extension [TuistGraph.FileElement] {
     /// Packages should be added as a whole folder not individually.
     /// (e.g. bundled file formats recognized by the OS like .pages, .numbers, .rtfd...)
     ///

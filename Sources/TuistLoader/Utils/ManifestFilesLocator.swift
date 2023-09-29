@@ -168,7 +168,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
                     )
                 }
 
-            return (projectsPaths + workspacesPaths)
+            return projectsPaths + workspacesPaths
         }
     }
 

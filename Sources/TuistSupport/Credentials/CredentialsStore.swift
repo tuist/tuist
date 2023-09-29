@@ -8,7 +8,8 @@ public protocol CredentialsStoring {
     ///   - serverURL: Server URL (without path).
     func store(credentials: Credentials, serverURL: URL) throws
 
-    /// Gets the credentials to authenticate the user against the server with the given URL. Throws an error if credentials are not found.
+    /// Gets the credentials to authenticate the user against the server with the given URL. Throws an error if credentials are
+    /// not found.
     /// - Parameter serverURL: Server URL (without path).
     func get(serverURL: URL) throws -> Credentials
 

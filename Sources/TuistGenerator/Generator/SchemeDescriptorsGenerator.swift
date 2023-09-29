@@ -473,7 +473,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         {
             // Xcode assigns the runnable target to the expand variables target by default.
             // Assigning the runnable target to macro expansion can lead to an unstable .xcscheme.
-            // Initially, macroExpansion is added, but when the edit scheme editor is opened and closed, macroExpansion gets removed.
+            // Initially, macroExpansion is added, but when the edit scheme editor is opened and closed, macroExpansion gets
+            // removed.
             if buildableProductRunnable?.buildableReference != buildableReference {
                 macroExpansion = buildableReference
             }
@@ -523,7 +524,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let customLLDBInitFilePath: RelativePath?
         if let customLLDBInitFile = scheme.runAction?.customLLDBInitFile,
-           let graphTarget = graphTarget
+           let graphTarget
         {
             customLLDBInitFilePath = customLLDBInitFile.relative(to: graphTarget.project.path)
         } else {

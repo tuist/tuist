@@ -54,9 +54,9 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         deviceName: String?,
         into outputDirectory: AbsolutePath
     ) async throws {
-        let platform = self.platform(scheme: scheme)
+        let platform = platform(scheme: scheme)
 
-        let arguments = try await self.arguments(
+        let arguments = try await arguments(
             platform: platform,
             configuration: configuration,
             version: osVersion,

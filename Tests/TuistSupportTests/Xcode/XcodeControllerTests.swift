@@ -31,7 +31,7 @@ final class XcodeControllerTests: TuistUnitTestCase {
 
     func test_selected_is_cached() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let contentsPath = temporaryPath.appending(component: "Contents")
         try FileHandler.shared.createFolder(contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
@@ -53,7 +53,7 @@ final class XcodeControllerTests: TuistUnitTestCase {
 
     func test_selected_when_xcodeSelectReturnsThePath() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let contentsPath = temporaryPath.appending(component: "Contents")
         try FileHandler.shared.createFolder(contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
@@ -81,7 +81,7 @@ final class XcodeControllerTests: TuistUnitTestCase {
 
     func test_selectedVersion_when_xcodeSelectReturnsThePath() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let contentsPath = temporaryPath.appending(component: "Contents")
         try FileHandler.shared.createFolder(contentsPath)
         let infoPlistPath = contentsPath.appending(component: "Info.plist")

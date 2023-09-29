@@ -88,7 +88,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         fileHandler.stubExists = { _ in true }
         system.succeedCommand(["/path/to/proj.xcworkspace/Target"])
 
-        let expectation = self.expectation(description: "locates with default configuration")
+        let expectation = expectation(description: "locates with default configuration")
         xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _configuration in
             // THEN
             XCTAssertEqual(_configuration, BuildConfiguration.debug.name)

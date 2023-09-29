@@ -2,7 +2,7 @@ import Framework1
 import StaticFramework
 import UIKit
 
-@UIApplicationMain
+@main
 class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     let staticFrameworkResources = StaticFrameworkResources()

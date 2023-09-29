@@ -44,7 +44,7 @@ public struct TestingLogHandler: LogHandler {
     }
 }
 
-extension Dictionary where Key == Logger.Level, Value == [String] {
+extension [Logger.Level: [String]] {
     public subscript(_ key: Key, _ comparison: (Key, Key) -> Bool) -> String {
         let level = [Key](repeating: key, count: keys.count)
         return Swift.zip(level, keys)

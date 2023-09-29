@@ -53,7 +53,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
         let projects = try loadProjects(paths: projectPaths)
         let workspace: ProjectDescription.Workspace
-        if let loadedWorkspace = loadedWorkspace {
+        if let loadedWorkspace {
             workspace = loadedWorkspace
         } else {
             let projectName = projects.projects[path]?.name

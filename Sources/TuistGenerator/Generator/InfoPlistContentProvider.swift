@@ -122,7 +122,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             packageType = "SYSX"
         }
 
-        if let packageType = packageType {
+        if let packageType {
             return ["CFBundlePackageType": packageType]
         } else {
             return [:]
@@ -210,7 +210,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
                 "UIInterfaceOrientationPortraitUpsideDown",
             ],
         ]
-        if let hostAppBundleId = hostAppBundleId {
+        if let hostAppBundleId {
             infoPlist["WKCompanionAppBundleIdentifier"] = hostAppBundleId
         }
         return infoPlist

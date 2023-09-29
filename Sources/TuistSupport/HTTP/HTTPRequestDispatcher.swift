@@ -52,7 +52,7 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
         self.session = session
     }
 
-    public func dispatch<T, E: Error>(resource: HTTPResource<T, E>) async throws -> (object: T, response: HTTPURLResponse) {
+    public func dispatch<T>(resource: HTTPResource<T, some Error>) async throws -> (object: T, response: HTTPURLResponse) {
         let request = resource.request()
         do {
             let (data, response) = try await session.data(for: request)

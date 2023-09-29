@@ -3,7 +3,7 @@ import LibraryA
 import LibraryB
 import UIKit
 
-@UIApplicationMain
+@main
 class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 

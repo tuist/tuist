@@ -1,7 +1,7 @@
 import MyFramework
 import UIKit
 
-@UIApplicationMain
+@main
 class AppDelegate: UIResponder, UIApplicationDelegate {
     let myFrameworkClass = MyFrameworkClass()
     var window: UIWindow?

@@ -19,7 +19,7 @@ public final class MockFileClient: FileClienting {
         invokedUploadCount += 1
         invokedUploadParameters = (file, hash, url)
         invokedUploadParametersList.append((file, hash, url))
-        if let stubbedUploadError = stubbedUploadError {
+        if let stubbedUploadError {
             throw stubbedUploadError
         }
         return stubbedUploadResult

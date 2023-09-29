@@ -32,11 +32,11 @@ public struct HTTPResource<T, E: Error>: Equatable, Hashable, CustomStringConver
 
     public func eraseToAnyResource() -> HTTPResource<Any, Error> {
         HTTPResource<Any, Error> {
-            self.request()
+            request()
         } parse: { data, response in
-            try self.parse(data, response) as Any
+            try parse(data, response) as Any
         } parseError: { data, response in
-            try self.parseError(data, response)
+            try parseError(data, response)
         }
     }
 
