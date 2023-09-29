@@ -22,9 +22,6 @@ module Fourier
     desc "build", "Build projects"
     subcommand "build", Commands::Build
 
-    desc "lint", "Lint the project's code"
-    subcommand "lint", Commands::Lint
-
     desc "update", "Update project's components"
     subcommand "update", Commands::Update
 
