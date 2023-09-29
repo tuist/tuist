@@ -282,7 +282,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         }
 
         let version = try Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)
-        let minDeploymentTargets = Platform.oldestVersions(isLegacy: version < TSCUtility.Version(5, 7, 0)).reduce(
+        let minDeploymentTargets = Platform.oldestVersions(for: version).reduce(
             into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()
         ) { acc, next in
             switch next.key {
@@ -632,7 +632,7 @@ extension ProjectDescription.DeploymentTarget {
         if type == .macro {
             return .macOS(
                 targetVersion: minDeploymentTargets[.macOS]?.targetVersion ?? TuistGraph.Platform
-                    .oldestVersions(isLegacy: false)[.macOS]!
+                    .oldestVersions(for: Version(5, 9, 0))[.macOS]!
             )
         }
 
