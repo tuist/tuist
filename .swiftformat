@@ -2,6 +2,7 @@
 
 --symlinks ignore
 --exclude Tests/XCTestManifests.swift,projects/tuist/features,Sources/TuistSupport/Vendored,projects/tuist/fixtures/Targets/SlothCreator,Sources/TuistCloud/OpenAPI,Sources/TuistAutomation/XcodeBuild/XcodeBuildController.swift
+--exclude projects/tuist/fixtures/tuist_plugin
 
 # format options
 
