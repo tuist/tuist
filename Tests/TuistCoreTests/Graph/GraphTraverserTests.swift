@@ -4051,7 +4051,17 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
                 binaryPath: "/xcframeworks/transitive.xcframework/transitive"
             ),
-        ])
+            .xcframework(
+                path: "/xcframeworks/framework-transitive.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: RelativePath("path"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
+                binaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive"
+            ),
+        ].sorted())
     }
 
     func test_copyProductDependencies_when_targetHasDirectStaticDependencies() throws {
