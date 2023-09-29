@@ -92,9 +92,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
      */
     public var isStaticPrecompiled: Bool {
         switch self {
-        case let .xcframework(_, _, _, linking, _): return linking == .static
-        case let .framework(_, _, _, _, linking, _, _): return linking == .static
-        case let .library(_, _, linking, _, _): return linking == .static
+        case let .xcframework(_, _, _, linking, _), let .framework(_, _, _, _, linking, _, _),
+             let .library(_, _, linking, _, _): return linking == .static
         case .bundle: return false
         case .packageProduct: return false
         case .target: return false
@@ -107,9 +106,9 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
      */
     public var isDynamicPrecompiled: Bool {
         switch self {
-        case let .xcframework(_, _, _, linking, _): return linking == .dynamic
-        case let .framework(_, _, _, _, linking, _, _): return linking == .dynamic
-        case let .library(_, _, linking, _, _): return linking == .dynamic
+        case let .xcframework(_, _, _, linking, _),
+             let .framework(_, _, _, _, linking, _, _),
+             let .library(_, _, linking, _, _): return linking == .dynamic
         case .bundle: return false
         case .packageProduct: return false
         case .target: return false
