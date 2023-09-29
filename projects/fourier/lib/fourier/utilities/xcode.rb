@@ -45,7 +45,7 @@ module Fourier
         attr_accessor :default
         attr_accessor :libraries
 
-        def initialize(default:, libraries:)
+        def initialize(default: nil, libraries: nil)
           @default   = Xcode.path_to_xcode(default)   || Xcode.current_xcode_version
           @libraries = Xcode.path_to_xcode(libraries) || @default
         end

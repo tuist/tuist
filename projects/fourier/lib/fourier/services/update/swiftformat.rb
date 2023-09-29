@@ -7,7 +7,7 @@ module Fourier
   module Services
     module Update
       class Swiftformat < Base
-        VERSION = "0.48.18"
+        VERSION = "0.52.4"
         SOURCE_TAR_URL = "https://github.com/nicklockwood/SwiftFormat/archive/refs/tags/#{VERSION}.zip"
         OUTPUT_DIRECTORY = File.join(Constants::VENDOR_DIRECTORY, "swiftformat")
 
@@ -51,6 +51,7 @@ module Fourier
           def build(sources_path, into:, swift_build_directory:)
             puts("Building...")
             Utilities::SwiftPackageManager.build_fat_release_binary(
+              xcode_paths: xcode_paths = Utilities::Xcode::Paths.new(),
               path: sources_path,
               product: "swiftformat",
               binary_name: "swiftformat",
