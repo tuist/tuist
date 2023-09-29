@@ -281,9 +281,9 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintMergeableLibrariesOnlyAppliesToDynamicTargets(target: Target) -> [LintingIssue] {
-        if target.mergeable, target.product != .dynamicLibrary {
+        if target.mergeable, target.product != .framework {
             return [LintingIssue(
-                reason: "Target \(target.name) be marked as mergeable because it is not a dynamic library",
+                reason: "Target \(target.name) can't be marked as mergeable because it is not a dynamic target",
                 severity: .error
             )]
         }
