@@ -159,14 +159,14 @@ public final class GraphLoader: GraphLoading {
             return try loadXCFramework(path: frameworkPath, cache: cache)
 
         case let .sdk(name, status):
-            return try platforms.map { platform in
+            return try platforms.sorted().first.map { platform in
                 try loadSDK(
                     name: name,
                     platform: platform,
                     status: status,
                     source: .system
                 )
-            }.first
+            }
         case let .package(product):
             return try loadPackage(fromPath: path, productName: product, isPlugin: false)
 

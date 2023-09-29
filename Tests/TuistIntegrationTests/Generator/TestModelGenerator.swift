@@ -260,7 +260,7 @@ final class TestModelGenerator {
     ) throws -> Target {
         Target(
             name: name,
-            destinations: .iOS,
+            destinations: [.iPhone, .iPad, .mac],
             product: product,
             productName: nil,
             bundleId: "test.bundle.\(name)",
@@ -277,8 +277,15 @@ final class TestModelGenerator {
             .map { TargetDependency.framework(path: path.appending(RelativePath($0))) }
 
         let libraries = try createLibraries(relativeTo: path)
-
-        return (frameworks + libraries).shuffled()
+        let sdks: [TargetDependency] = [
+            .sdk(name: "Accelerate.framework", status: .required),
+            .sdk(name: "AVKit.framework", status: .required),
+            .sdk(name: "Intents.framework", status: .optional),
+            .sdk(name: "HealthKit.framework", status: .optional),
+            .sdk(name: "libc++.tbd", status: .required),
+            .sdk(name: "libxml2.tbd", status: .required),
+        ]
+        return (frameworks + libraries + sdks).shuffled()
     }
 
     private func createLibraries(relativeTo path: AbsolutePath) throws -> [TargetDependency] {
