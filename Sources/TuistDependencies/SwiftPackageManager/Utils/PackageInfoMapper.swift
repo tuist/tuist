@@ -187,7 +187,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 guard target.type == .binary else { return }
                 if let path = target.path {
                     // local binary
-                    result[target.name] = Path(packageToFolder[packageInfo.key]!.appending(RelativePath(path)).pathString)
+                    result[target.name] = Path(packageToFolder[packageInfo.key]!.appending(try RelativePath(validating: path)).pathString)
                 } else {
                     // remote binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
                     // or in artifacts/<Package.identity>/<Target>.xcframework when using SPM 5.6 and later
@@ -559,11 +559,11 @@ extension ProjectDescription.Target {
         }
 
         if target.type.supportsSources {
-            sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
+            sources = try SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
         }
 
         if target.type.supportsResources {
-            resources = ResourceFileElements.from(
+            resources = try ResourceFileElements.from(
                 sources: target.sources,
                 resources: target.resources,
                 path: path,
@@ -720,11 +720,11 @@ extension ProjectDescription.Product {
 }
 
 extension SourceFilesList {
-    fileprivate static func from(sources: [String]?, path: AbsolutePath, excluding: [String]) -> Self? {
+    fileprivate static func from(sources: [String]?, path: AbsolutePath, excluding: [String]) throws -> Self? {
         let sourcesPaths: [AbsolutePath]
         if let customSources = sources {
-            sourcesPaths = customSources.map { source in
-                let absolutePath = path.appending(RelativePath(source))
+            sourcesPaths = try customSources.map { source in
+                let absolutePath = path.appending(try RelativePath(validating: source))
                 if absolutePath.extension == nil {
                     return absolutePath.appending(component: "**")
                 }
@@ -735,11 +735,11 @@ extension SourceFilesList {
         }
         guard !sourcesPaths.isEmpty else { return nil }
         return .init(
-            globs: sourcesPaths.map { absolutePath -> ProjectDescription.SourceFileGlob in
+            globs: try sourcesPaths.map { absolutePath -> ProjectDescription.SourceFileGlob in
                 .glob(
                     Path(absolutePath.pathString),
-                    excluding: excluding.map {
-                        let excludePath = path.appending(RelativePath($0))
+                    excluding: try excluding.map {
+                        let excludePath = path.appending(try RelativePath(validating: $0))
                         let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
                         return Path(excludeGlob.pathString)
                     }
@@ -755,7 +755,7 @@ extension ResourceFileElements {
         resources: [PackageInfo.Target.Resource],
         path: AbsolutePath,
         excluding: [String]
-    ) -> Self? {
+    ) throws -> Self? {
         /// Handles the conversion of a `.copy` resource rule of SPM
         ///
         /// - Parameters:
@@ -770,39 +770,39 @@ extension ResourceFileElements {
         /// - Parameters:
         ///   - resourceAbsolutePath: The absolute path of that resource
         /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.process` resource rule of SPM
-        func handleProcessResource(resourceAbsolutePath: AbsolutePath) -> ProjectDescription.ResourceFileElement {
+        func handleProcessResource(resourceAbsolutePath: AbsolutePath) throws -> ProjectDescription.ResourceFileElement {
             let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
                 .appending(component: "**")
             return .glob(
                 pattern: Path(absolutePathGlob.pathString),
-                excluding: excluding.map {
-                    let excludePath = path.appending(RelativePath($0))
+                excluding: try excluding.map {
+                    let excludePath = path.appending(try RelativePath(validating: $0))
                     let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
                     return Path(excludeGlob.pathString)
                 }
             )
         }
 
-        var resourceFileElements: [ProjectDescription.ResourceFileElement] = resources.map {
-            let resourceAbsolutePath = path.appending(RelativePath($0.path))
+        var resourceFileElements: [ProjectDescription.ResourceFileElement] = try resources.map {
+            let resourceAbsolutePath = path.appending(try RelativePath(validating: $0.path))
 
             switch $0.rule {
             case .copy:
                 // Single files or opaque directories are handled like a .process rule
                 if !FileHandler.shared.isFolder(resourceAbsolutePath) || resourceAbsolutePath.isOpaqueDirectory {
-                    return handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
+                    return try handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
                 } else {
                     return handleCopyResource(resourceAbsolutePath: resourceAbsolutePath)
                 }
             case .process:
-                return handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
+                return try handleProcessResource(resourceAbsolutePath: resourceAbsolutePath)
             }
         }
 
         // Add default resources path if necessary
         // They are handled like a `.process` rule
         if sources == nil {
-            resourceFileElements += defaultResourcePaths(from: path).map { handleProcessResource(resourceAbsolutePath: $0) }
+            resourceFileElements += try defaultResourcePaths(from: path).map { try handleProcessResource(resourceAbsolutePath: $0) }
         }
 
         // Check for empty resource files
@@ -883,7 +883,7 @@ extension ProjectDescription.Headers {
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
         switch moduleMap {
         case .header, .nestedHeader:
-            let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
+            let publicHeaders = try FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
                 .filter { $0.extension == "h" }
             let list: [FileListGlob] = publicHeaders.map { .glob(Path($0.pathString)) }
             return .headers(public: .list(list))
@@ -1308,7 +1308,7 @@ extension PackageInfo.Target {
     /// The path used as base for all the relative paths of the package (e.g. sources, resources, headers)
     func basePath(packageFolder: AbsolutePath) throws -> AbsolutePath {
         if let path {
-            return packageFolder.appending(RelativePath(path))
+            return packageFolder.appending(try RelativePath(validating: path))
         } else {
             let firstMatchingPath = PackageInfoMapper.predefinedSourceDirectories
                 .map { packageFolder.appending(components: [$0, name]) }
@@ -1322,7 +1322,7 @@ extension PackageInfo.Target {
 
     func publicHeadersPath(packageFolder: AbsolutePath) throws -> AbsolutePath {
         let mainPath = try basePath(packageFolder: packageFolder)
-        return mainPath.appending(RelativePath(publicHeadersPath ?? "include"))
+        return mainPath.appending(try RelativePath(validating: publicHeadersPath ?? "include"))
     }
 }
 

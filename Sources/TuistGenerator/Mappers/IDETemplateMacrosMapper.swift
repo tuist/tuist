@@ -25,7 +25,7 @@ public final class IDETemplateMacrosMapper: ProjectMapping, WorkspaceMapping {
 
         return [
             .file(FileDescriptor(
-                path: path.appending(RelativePath("xcshareddata/IDETemplateMacros.plist")),
+                path: path.appending(try! RelativePath(validating: "xcshareddata/IDETemplateMacros.plist")),
                 contents: data
             )),
         ]

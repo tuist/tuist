@@ -137,7 +137,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
         }
 
         let productNames = archivePath
-            .appending(RelativePath("Products/Library/Frameworks/"))
+            .appending(try! RelativePath(validating: "Products/Library/Frameworks/"))
             .glob("*.framework")
             .map(\.basenameWithoutExt)
 
@@ -261,7 +261,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     ///   - archivePath: Path to the .xcarchive.
     ///   - productName: Product name.
     fileprivate func frameworkPath(fromArchivePath archivePath: AbsolutePath, productName: String) -> AbsolutePath {
-        archivePath.appending(RelativePath("Products/Library/Frameworks/\(productName).framework"))
+        archivePath.appending(try! RelativePath(validating: "Products/Library/Frameworks/\(productName).framework"))
     }
 }
 

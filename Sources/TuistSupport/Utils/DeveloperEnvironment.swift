@@ -43,7 +43,7 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
             location = try! AbsolutePath(validating: customLocation.chomp()) // swiftlint:disable:this force_try
         } else {
             // Default location
-            location = fileHandler.homeDirectory.appending(RelativePath("Library/Developer/Xcode/DerivedData/"))
+            location = fileHandler.homeDirectory.appending(try! RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
         }
         _derivedDataDirectory = location
         return location

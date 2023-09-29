@@ -59,7 +59,7 @@ public class EnvironmentLinter: EnvironmentLinting {
             return []
         }
 
-        let tuistDirectoryPath = rootDirectoryPath.appending(RelativePath("\(Constants.tuistDirectoryName)"))
+        let tuistDirectoryPath = rootDirectoryPath.appending(try! RelativePath(validating: "\(Constants.tuistDirectoryName)"))
         guard configPath.removingLastComponent() == tuistDirectoryPath else {
             let message = "`Config.swift` manifest file is not located at `Tuist` directory"
             return [LintingIssue(reason: message, severity: .warning)]

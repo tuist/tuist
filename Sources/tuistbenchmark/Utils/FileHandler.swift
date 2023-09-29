@@ -5,7 +5,7 @@ final class FileHandler {
     private let fileManager: FileManager = .default
 
     var currentPath: AbsolutePath {
-        AbsolutePath(fileManager.currentDirectoryPath)
+        try! AbsolutePath(validating: fileManager.currentDirectoryPath)
     }
 
     func copy(path: AbsolutePath, to: AbsolutePath) throws {

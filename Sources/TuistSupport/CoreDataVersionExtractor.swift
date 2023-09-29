@@ -9,7 +9,7 @@ public enum CoreDataVersionExtractor {
     ///
     /// - Returns: Whether or not the xcdatamodel has versions
     public static func isVersioned(at path: AbsolutePath) -> Bool {
-        FileHandler.shared.exists(path.appending(RelativePath(".xccurrentversion")))
+        FileHandler.shared.exists(path.appending(try! RelativePath(validating: ".xccurrentversion")))
     }
 
     /// Extract version from .xccurrentversion file

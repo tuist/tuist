@@ -881,10 +881,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
     private func schemeDirectory(path: AbsolutePath, shared: Bool = true) -> AbsolutePath {
         if shared {
-            return path.appending(RelativePath("xcshareddata/xcschemes"))
+            return path.appending(try! RelativePath(validating: "xcshareddata/xcschemes"))
         } else {
             let username = NSUserName()
-            return path.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
+            return path.appending(try! RelativePath(validating: "xcuserdata/\(username).xcuserdatad/xcschemes"))
         }
     }
 

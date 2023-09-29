@@ -236,7 +236,7 @@ class ProjectFileElements {
                     pbxproj: pbxproj
                 )
             case let .product(target: target, productName: productName, _):
-                generateProduct(
+                try generateProduct(
                     targetName: target,
                     productName: productName,
                     groups: groups,
@@ -251,9 +251,9 @@ class ProjectFileElements {
         productName: String,
         groups: ProjectGroups,
         pbxproj: PBXProj
-    ) {
+    ) throws {
         guard products[targetName] == nil else { return }
-        let fileType = RelativePath(productName).extension.flatMap { Xcode.filetype(extension: $0) }
+        let fileType = try RelativePath(validating: productName).extension.flatMap { Xcode.filetype(extension: $0) }
         let fileReference = PBXFileReference(
             sourceTree: .buildProductsDir,
             explicitFileType: fileType,
@@ -306,7 +306,7 @@ class ProjectFileElements {
         for component in components.enumerated() {
             if lastGroup == nil { return }
             guard let element = addElement(
-                relativePath: RelativePath(component.element),
+                relativePath: try RelativePath(validating: component.element),
                 isLeaf: component.offset == components.count - 1,
                 from: lastPath,
                 toGroup: lastGroup!,
@@ -610,9 +610,9 @@ class ProjectFileElements {
             components.append(component)
         }
         if firstElementComponents.isEmpty, !relativePathComponents.isEmpty {
-            return RelativePath(relativePathComponents.first!)
+            return try! RelativePath(validating: relativePathComponents.first!)
         } else {
-            return RelativePath(firstElementComponents.joined(separator: "/"))
+            return try! RelativePath(validating: firstElementComponents.joined(separator: "/"))
         }
     }
 

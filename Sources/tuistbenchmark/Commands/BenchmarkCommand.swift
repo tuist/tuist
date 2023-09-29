@@ -170,8 +170,8 @@ final class BenchmarkCommand {
 
         if let fixturesListPath {
             let fixtures = try parseFixtureList(path: fixturesListPath)
-            return fixtures.paths.map {
-                AbsolutePath($0, relativeTo: fileHandler.currentPath)
+            return try fixtures.paths.map {
+                try AbsolutePath(validating: $0, relativeTo: fileHandler.currentPath)
             }
         }
 

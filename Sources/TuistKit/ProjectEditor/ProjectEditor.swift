@@ -107,12 +107,12 @@ final class ProjectEditor: ProjectEditing {
         plugins: Plugins
     ) throws -> AbsolutePath {
         let tuistIgnoreContent = (try? FileHandler.shared.readTextFile(editingPath.appending(component: ".tuistignore"))) ?? ""
-        let tuistIgnoreEntries = tuistIgnoreContent
+        let tuistIgnoreEntries = try tuistIgnoreContent
             .split(separator: "\n")
             .map(String.init)
             .map { entry -> String in
                 guard !entry.starts(with: "**") else { return entry }
-                let path = editingPath.appending(RelativePath(entry))
+                let path = editingPath.appending(try RelativePath(validating: entry))
                 if FileHandler.shared.isFolder(path) {
                     return path.appending(component: "**").pathString
                 } else {

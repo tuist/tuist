@@ -78,7 +78,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
     static func customModuleMapPath(publicHeadersPath: AbsolutePath) throws -> AbsolutePath? {
         guard FileHandler.shared.exists(publicHeadersPath) else { return nil }
 
-        let moduleMapPath = RelativePath(ModuleMap.filename)
+        let moduleMapPath = try! RelativePath(validating: ModuleMap.filename)
         let publicHeadersFolderContent = try FileHandler.shared.contentsOfDirectory(publicHeadersPath)
 
         if publicHeadersFolderContent.contains(publicHeadersPath.appending(moduleMapPath)) {

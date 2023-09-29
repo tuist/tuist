@@ -33,7 +33,7 @@ extension TuistCore.DependenciesGraph {
 
     public static func testXCFramework(
         name: String = "Test",
-        path: Path = Path(AbsolutePath.root.appending(RelativePath("Test.xcframework")).pathString),
+        path: Path = Path(AbsolutePath.root.appending(try! RelativePath(validating: "Test.xcframework")).pathString),
         platforms: Set<Platform>
     ) -> Self {
         let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in

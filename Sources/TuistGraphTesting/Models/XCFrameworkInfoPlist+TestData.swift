@@ -12,7 +12,7 @@ extension XCFrameworkInfoPlist {
 extension XCFrameworkInfoPlist.Library {
     public static func test(
         identifier: String = "test",
-        path: RelativePath = RelativePath("relative/to/library"),
+        path: RelativePath = try! RelativePath(validating: "relative/to/library"),
         mergeable: Bool = false,
         architectures: [BinaryArchitecture] = [.i386]
     ) -> XCFrameworkInfoPlist.Library {

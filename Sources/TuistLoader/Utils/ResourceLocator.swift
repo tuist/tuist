@@ -47,8 +47,8 @@ public final class ResourceLocator: ResourceLocating {
             bundlePath,
             bundlePath.parentDirectory,
         ]
-        let candidates = paths.flatMap { path in
-            frameworkNames.map { path.appending(RelativePath($0)) }
+        let candidates = try paths.flatMap { path in
+            try frameworkNames.map { path.appending(try RelativePath(validating: $0)) }
         }
         guard let frameworkPath = candidates.first(where: { FileHandler.shared.exists($0) }) else {
             throw ResourceLocatingError.notFound(name)

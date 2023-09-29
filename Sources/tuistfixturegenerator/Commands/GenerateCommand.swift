@@ -68,6 +68,6 @@ final class GenerateCommand {
         guard let path = arguments.get(pathArgument) else {
             return currentPath.appending(component: "Fixture")
         }
-        return AbsolutePath(path, relativeTo: currentPath)
+        return try AbsolutePath(validating: path, relativeTo: currentPath)
     }
 }
