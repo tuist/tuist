@@ -14,3 +14,5 @@ lint-fix:
 	./make/tasks/lint-fix.sh
 lint:
 	./make/tasks/lint.sh
+lint/lockfiles:
+	./make/tasks/lint/lockfiles.sh
