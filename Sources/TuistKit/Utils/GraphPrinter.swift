@@ -6,7 +6,6 @@ protocol GraphPrinting {
     /// Outputs the graph to the standard output.
     ///
     /// - Parameter graph: Graph to be printed.
-//    func print(graph: Graph) throws
 }
 
 /// Outputs the graph to the standard output.

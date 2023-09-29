@@ -218,4 +218,5 @@ extension TuistGraph.Target {
 
         return (sources: sourcesWithoutPlaygrounds, playgrounds: Array(playgrounds))
     }
+    // swiftlint:enable function_body_length
 }

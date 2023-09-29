@@ -7,7 +7,6 @@ extension Publisher {
     /// - Throws: Error thrown by the publisher or as a result of a time out caused by the publishing not finishing in time.
     /// - Returns: List of events sent through the publisher.
     public func toBlocking(timeout: DispatchTime = .now() + .seconds(10)) throws -> [Output] {
-        // swiftlint:disable identifier_name
         let semaphore = DispatchSemaphore(value: 0)
         var values: [Output] = []
         var error: Error?
@@ -16,6 +15,7 @@ extension Publisher {
 
         sink { completion in
             switch completion {
+            // swiftlint:disable:next identifier_name
             case let .failure(_error):
                 synchronizationQueue.async {
                     error = _error

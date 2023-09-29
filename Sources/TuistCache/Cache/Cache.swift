@@ -18,10 +18,8 @@ public final class Cache: CacheStoring {
     // MARK: - CacheStoring
 
     public func exists(name: String, hash: String) async throws -> Bool {
-        for storage in storages {
-            if try await storage.exists(name: name, hash: hash) {
-                return true
-            }
+        for storage in storages where try await storage.exists(name: name, hash: hash) {
+            return true
         }
         return false
     }

@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
+// swiftlint:disable:next large_tuple
 public typealias AsyncQueueEventTuple = (dispatcherId: String, id: UUID, date: Date, data: Data, filename: String)
 
 public protocol AsyncQueuePersisting {

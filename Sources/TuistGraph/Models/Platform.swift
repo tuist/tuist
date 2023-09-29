@@ -20,7 +20,7 @@ public enum Platform: String, CaseIterable, Codable, Comparable {
 
     /// A dictionary that contains the oldest supported version of each platform
     public static func oldestVersions(for swiftVersion: Version) -> [Platform: String] {
-        if (swiftVersion < Version(5, 7, 0)) {
+        if swiftVersion < Version(5, 7, 0) {
             return [
                 .iOS: "9.0",
                 .tvOS: "9.0",
@@ -28,7 +28,7 @@ public enum Platform: String, CaseIterable, Codable, Comparable {
                 .watchOS: "2.0",
                 .visionOS: "1.0",
             ]
-        } else if (swiftVersion < Version(5, 9, 0)) {
+        } else if swiftVersion < Version(5, 9, 0) {
             return [
                 .iOS: "11.0",
                 .tvOS: "11.0",
@@ -44,7 +44,6 @@ public enum Platform: String, CaseIterable, Codable, Comparable {
                 .watchOS: "4.0",
                 .visionOS: "1.0",
             ]
-            
         }
     }
 

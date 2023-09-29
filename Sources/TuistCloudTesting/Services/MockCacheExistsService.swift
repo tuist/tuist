@@ -4,7 +4,6 @@ import TuistCloud
 public final class MockCacheExistsService: CacheExistsServicing {
     public init() {}
 
-    // swiftlint:disable:next large_tuple
     public var cacheExistsStub: ((URL, String, String, String) async throws -> Void)?
     public func cacheExists(
         serverURL: URL,

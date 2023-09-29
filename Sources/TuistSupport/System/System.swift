@@ -70,13 +70,15 @@ public final class System: Systeming {
     /// Shared system instance.
     public static var shared: Systeming = System()
 
+    // swiftlint:disable force_try
+
     /// Regex expression used to get the Swift version (for example, 5.7) from the output of the 'swift --version' command.
-    // swiftlint:disable:next force_try
     private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
 
     /// Regex expression used to get the Swiftlang version (for example, 5.7.0.127.4) from the output of the 'swift --version' command.
-    // swiftlint:disable:next force_try
     private static var swiftlangVersion = try! NSRegularExpression(pattern: "swiftlang-(.+)\\sclang", options: [])
+
+    // swiftlint:enable force_try
 
     /// Convenience shortcut to the environment.
     public var env: [String: String] {

@@ -61,7 +61,7 @@ enum PluginServiceConstants {
 }
 
 /// A default implementation of `PluginServicing` which loads `Plugins` using the `Config` manifest.
-public final class PluginService: PluginServicing { // swiftlint:disable:this type_body_length
+public final class PluginService: PluginServicing {
     private let manifestLoader: ManifestLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let fileHandler: FileHandling

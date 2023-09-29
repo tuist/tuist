@@ -59,8 +59,7 @@ enum LinkGeneratorPath: Hashable {
     }
 }
 
-// swiftlint:disable type_body_length
-final class LinkGenerator: LinkGenerating {
+final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_length
     /// Utility that generates the script to embed dynamic frameworks.
     let embedScriptGenerator: EmbedScriptGenerating
 

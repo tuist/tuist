@@ -26,8 +26,9 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
         self.fileHandler = fileHandler
     }
 
-    /// https://pewpewthespells.com/blog/xcode_build_locations.html/// https://pewpewthespells.com/blog/xcode_build_locations.html
     // swiftlint:disable identifier_name
+
+    /// https://pewpewthespells.com/blog/xcode_build_locations.html/// https://pewpewthespells.com/blog/xcode_build_locations.html
     @Atomic private var _derivedDataDirectory: AbsolutePath?
     public var derivedDataDirectory: AbsolutePath {
         if let _derivedDataDirectory = _derivedDataDirectory {
@@ -57,5 +58,5 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
         let output = try! System.shared.capture(["/usr/bin/uname", "-m"]).chomp()
         _architecture = MacArchitecture(rawValue: output)
         return _architecture!
-    }
+    } // swiftlint:enable identifier_name
 }

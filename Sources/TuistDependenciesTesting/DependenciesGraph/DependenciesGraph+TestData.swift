@@ -255,6 +255,7 @@ extension TuistCore.DependenciesGraph {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     public static func anotherDependency(
         spmFolder: Path,
         platforms: Set<Platform>

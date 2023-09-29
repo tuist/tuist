@@ -5,7 +5,6 @@
 //  Created by Michał Tynior on 31/03/16.
 //  Copyright © 2016 Michal Tynior. All rights reserved.
 //
-// swiftlint:disable type_body_length
 // swiftlint:disable identifier_name
 import Foundation
 
@@ -248,7 +247,7 @@ extension String {
     }
 }
 
-// https://jonasjacek.github.io/colors/
+// swiftlint:disable:next type_body_length
 public enum TerminalColor: UInt8 {
     case black = 0
     case maroon
@@ -514,4 +513,4 @@ public enum TerminalColor: UInt8 {
     public func backgroundStyleCode() -> TerminalStyleCode {
         ("\u{001B}[48;5;\(rawValue)m", TerminalStyle.reset.open)
     }
-}
+} // swiftlint:enable identifier_name

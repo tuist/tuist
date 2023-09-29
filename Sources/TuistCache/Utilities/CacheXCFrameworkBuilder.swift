@@ -117,6 +117,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     fileprivate func createXCFramework(
         buildTargets: [TargetReference],
         macCatalystSupportedTargets: [Target],

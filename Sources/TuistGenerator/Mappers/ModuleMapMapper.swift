@@ -55,6 +55,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
 
     public init() {}
 
+    // swiftlint:disable function_body_length
     public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
         let (projectsByPath, targetsByName) = Self.makeProjectsByPathWithTargetsByName(workspace: workspace)
         var targetToModuleMaps: [TargetID: Set<AbsolutePath>] = [:]
@@ -112,7 +113,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
             mappedWorkspace.projects[projectIndex] = mappedProject
         }
         return (mappedWorkspace, [])
-    }
+    } // swiftlint:enable function_body_length
 
     private static func makeProjectsByPathWithTargetsByName(workspace: WorkspaceWithProjects)
         -> ([AbsolutePath: Project], [String: Target])

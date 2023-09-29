@@ -38,9 +38,10 @@ protocol Carthaging {
 }
 
 final class Carthage: Carthaging {
+    // swiftlint:disable force_try
     /// Regex used to match and extract information from the lines in the Cartfile.resolved file.
-    // swiftlint:disable:next force_try
     static let resolvedLineRegex = try! NSRegularExpression(pattern: "(github|git|binary) \"([^\"]+)\" \"([^\"]+)\"", options: [])
+    // swiftlint:enable force_try
 
     /// Bootstraps the dependencies in the given directory.
     ///

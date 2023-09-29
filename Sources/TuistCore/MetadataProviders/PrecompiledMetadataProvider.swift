@@ -65,6 +65,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
         return Set(metadata.compactMap(\.2))
     }
 
+    // swiftlint:disable:next large_tuple
     typealias Metadata = (BinaryArchitecture, BinaryLinking, UUID?)
 
     private let sizeOfArchiveHeader: UInt64 = 60
