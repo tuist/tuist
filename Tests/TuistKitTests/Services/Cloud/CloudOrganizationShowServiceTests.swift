@@ -31,6 +31,7 @@ final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
         getOrganizationService.getOrganizationStub = { _, _ in
             .test(
                 name: "test-one",
+                plan: .team,
                 members: [
                     .test(
                         name: "name-one",
@@ -63,6 +64,7 @@ final class CloudOrganizationShowServiceTests: TuistUnitTestCase {
         XCTAssertPrinterOutputContains("""
         \(TerminalStyle.bold.open)Organization\(TerminalStyle.reset.open)
         Name: test-one
+        Plan: Team
 
         \(TerminalStyle.bold.open)Organization members\(TerminalStyle.reset.open) (total number: 2)
         username  email              role

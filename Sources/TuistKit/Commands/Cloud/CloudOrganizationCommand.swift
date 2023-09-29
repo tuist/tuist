@@ -16,6 +16,7 @@ struct CloudOrganizationCommand: ParsableCommand {
                 CloudOrganizationInviteCommand.self,
                 CloudOrganizationRemoveCommand.self,
                 CloudOrganizationUpdateCommand.self,
+                CloudOrganizationBillingCommand.self,
             ]
         )
     }

@@ -322,6 +322,30 @@ public enum Components {
             public var id: Swift.Double
             /// - Remark: Generated from `#/components/schemas/Organization/name`.
             public var name: Swift.String
+            /// - Remark: Generated from `#/components/schemas/Organization/plan`.
+            @frozen
+            public enum planPayload: RawRepresentable, Codable, Equatable, Hashable, Sendable,
+                _AutoLosslessStringConvertible, CaseIterable
+            {
+                case team
+                /// Parsed a raw value that was not defined in the OpenAPI document.
+                case undocumented(String)
+                public init?(rawValue: String) {
+                    switch rawValue {
+                    case "team": self = .team
+                    default: self = .undocumented(rawValue)
+                    }
+                }
+                public var rawValue: String {
+                    switch self {
+                    case let .undocumented(string): return string
+                    case .team: return "team"
+                    }
+                }
+                public static var allCases: [planPayload] { [.team] }
+            }
+            /// - Remark: Generated from `#/components/schemas/Organization/plan`.
+            public var plan: Components.Schemas.Organization.planPayload?
             /// - Remark: Generated from `#/components/schemas/Organization/members`.
             public var members: [Components.Schemas.OrganizationMember]
             /// - Remark: Generated from `#/components/schemas/Organization/invitations`.
@@ -331,22 +355,26 @@ public enum Components {
             /// - Parameters:
             ///   - id:
             ///   - name:
+            ///   - plan:
             ///   - members:
             ///   - invitations:
             public init(
                 id: Swift.Double,
                 name: Swift.String,
+                plan: Components.Schemas.Organization.planPayload? = nil,
                 members: [Components.Schemas.OrganizationMember],
                 invitations: [Components.Schemas.Invitation]
             ) {
                 self.id = id
                 self.name = name
+                self.plan = plan
                 self.members = members
                 self.invitations = invitations
             }
             public enum CodingKeys: String, CodingKey {
                 case id
                 case name
+                case plan
                 case members
                 case invitations
             }

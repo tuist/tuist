@@ -679,6 +679,10 @@ components:
           type: number
         name:
           type: string
+        plan:
+          type: string
+          enum:
+            - team
         members:
             type: array
             items:
