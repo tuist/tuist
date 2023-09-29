@@ -91,7 +91,7 @@ extension Target {
             dependencies: dependencies,
             settings: settings,
             coreDataModels: coreDataModels,
-            environmentVariables: environment.mapValues({ .init(stringLiteral: $0)})
+            environmentVariables: environment.mapValues { .init(stringLiteral: $0) }
         )
     }
 }
@@ -201,7 +201,7 @@ extension Arguments {
         launchArguments: [LaunchArgument] = []
     ) -> Arguments {
         Arguments(
-            environmentVariables: environment.mapValues({ .init(stringLiteral: $0)}),
+            environmentVariables: environment.mapValues { .init(stringLiteral: $0) },
             launchArguments: launchArguments
         )
     }

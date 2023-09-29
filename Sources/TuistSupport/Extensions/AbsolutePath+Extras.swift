@@ -35,7 +35,8 @@ extension AbsolutePath {
     /// - Returns: List of paths that match the given pattern.
     public func glob(_ pattern: String) -> [AbsolutePath] {
         // swiftlint:disable:next force_try
-        Glob(pattern: appending(try! RelativePath(validating: pattern)).pathString).paths.map { try! AbsolutePath(validating: $0) }
+        Glob(pattern: appending(try! RelativePath(validating: pattern)).pathString).paths
+            .map { try! AbsolutePath(validating: $0) }
     }
 
     /// Returns the list of paths that match the given glob pattern, if the directory exists.

@@ -187,7 +187,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 guard target.type == .binary else { return }
                 if let path = target.path {
                     // local binary
-                    result[target.name] = Path(packageToFolder[packageInfo.key]!.appending(try RelativePath(validating: path)).pathString)
+                    result[target.name] = Path(
+                        packageToFolder[packageInfo.key]!.appending(try RelativePath(validating: path))
+                            .pathString
+                    )
                 } else {
                     // remote binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
                     // or in artifacts/<Package.identity>/<Target>.xcframework when using SPM 5.6 and later
@@ -802,7 +805,8 @@ extension ResourceFileElements {
         // Add default resources path if necessary
         // They are handled like a `.process` rule
         if sources == nil {
-            resourceFileElements += try defaultResourcePaths(from: path).map { try handleProcessResource(resourceAbsolutePath: $0) }
+            resourceFileElements += try defaultResourcePaths(from: path)
+                .map { try handleProcessResource(resourceAbsolutePath: $0) }
         }
 
         // Check for empty resource files

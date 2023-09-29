@@ -178,7 +178,8 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
     }
 
     public func locateDependencies(at locatingPath: AbsolutePath) -> AbsolutePath? {
-        let subPath = try! RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Manifest.dependencies.fileName(locatingPath))")
+        let subPath =
+            try! RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Manifest.dependencies.fileName(locatingPath))")
         return traverseAndLocate(at: locatingPath, appending: subPath)
     }
 
