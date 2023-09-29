@@ -51,7 +51,7 @@ module Fourier
           def build(sources_path, into:, swift_build_directory:)
             puts("Building...")
             Utilities::SwiftPackageManager.build_fat_release_binary(
-              xcode_paths: xcode_paths = Utilities::Xcode::Paths.new(),
+              xcode_paths: Utilities::Xcode::Paths.new(),
               path: sources_path,
               product: "swiftformat",
               binary_name: "swiftformat",

@@ -92,82 +92,82 @@ public class ResourcesProjectMapper: ProjectMapping {
     static func fileContent(targetName: String, bundleName: String, target: Target) -> String {
         if !target.supportsResources {
             return """
-                // swiftlint:disable all
-                // swift-format-ignore-file
-                // swiftformat:disable all
-                import Foundation
-                
-                // MARK: - Swift Bundle Accessor
-                
-                private class BundleFinder {}
-                
-                extension Foundation.Bundle {
-                /// Since \(targetName) is a \(
-                    target
-                        .product
-                ), the bundle containing the resources is copied into the final product.
-                static let module: Bundle = {
-                    let bundleName = "\(bundleName)"
+            // swiftlint:disable all
+            // swift-format-ignore-file
+            // swiftformat:disable all
+            import Foundation
 
-                    let candidates = [
-                        Bundle.main.resourceURL,
-                        Bundle(for: BundleFinder.self).resourceURL,
-                        Bundle.main.bundleURL,
-                    ]
+            // MARK: - Swift Bundle Accessor
 
-                    for candidate in candidates {
-                        let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
-                        if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
-                            return bundle
-                        }
+            private class BundleFinder {}
+
+            extension Foundation.Bundle {
+            /// Since \(targetName) is a \(
+                target
+                    .product
+            ), the bundle containing the resources is copied into the final product.
+            static let module: Bundle = {
+                let bundleName = "\(bundleName)"
+
+                let candidates = [
+                    Bundle.main.resourceURL,
+                    Bundle(for: BundleFinder.self).resourceURL,
+                    Bundle.main.bundleURL,
+                ]
+
+                for candidate in candidates {
+                    let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
+                    if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
+                        return bundle
                     }
-                    fatalError("unable to find bundle named \(bundleName)")
-                }()
                 }
-                
-                // MARK: - Objective-C Bundle Accessor
-                
-                @objc
-                public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
-                @objc public class var bundle: Bundle {
-                    return .module
-                }
-                }
-                // swiftlint:enable all
-                // swiftformat:enable all
+                fatalError("unable to find bundle named \(bundleName)")
+            }()
+            }
 
-                """
+            // MARK: - Objective-C Bundle Accessor
+
+            @objc
+            public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
+            @objc public class var bundle: Bundle {
+                return .module
+            }
+            }
+            // swiftlint:enable all
+            // swiftformat:enable all
+
+            """
         } else {
             return """
-                // swiftlint:disable all
-                // swift-format-ignore-file
-                // swiftformat:disable all
-                import Foundation
-                
-                // MARK: - Swift Bundle Accessor
-                
-                private class BundleFinder {}
-                
-                extension Foundation.Bundle {
-                /// Since \(targetName) is a \(
-                    target
-                        .product
-                ), the bundle for classes within this module can be used directly.
-                static let module = Bundle(for: BundleFinder.self)
-                }
-                
-                // MARK: - Objective-C Bundle Accessor
-                
-                @objc
-                public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
-                @objc public class var bundle: Bundle {
-                    return .module
-                }
-                }
-                // swiftlint:enable all
-                // swiftformat:enable all
+            // swiftlint:disable all
+            // swift-format-ignore-file
+            // swiftformat:disable all
+            import Foundation
 
-                """
+            // MARK: - Swift Bundle Accessor
+
+            private class BundleFinder {}
+
+            extension Foundation.Bundle {
+            /// Since \(targetName) is a \(
+                target
+                    .product
+            ), the bundle for classes within this module can be used directly.
+            static let module = Bundle(for: BundleFinder.self)
+            }
+
+            // MARK: - Objective-C Bundle Accessor
+
+            @objc
+            public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
+            @objc public class var bundle: Bundle {
+                return .module
+            }
+            }
+            // swiftlint:enable all
+            // swiftformat:enable all
+
+            """
         }
     }
 }
