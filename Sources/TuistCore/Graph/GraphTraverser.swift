@@ -857,14 +857,7 @@ public class GraphTraverser: GraphTraversing {
                     return false
                 }
             },
-            skip: { dependency in
-                switch dependency {
-                case .xcframework:
-                    return false
-                case .framework, .library, .bundle, .packageProduct, .target, .sdk:
-                    return true
-                }
-            }
+            skip: { $0.isDynamicPrecompiled }
         )
         return Set(dependencies)
             .compactMap(dependencyReference)
