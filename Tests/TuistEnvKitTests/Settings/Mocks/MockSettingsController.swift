@@ -9,7 +9,7 @@ final class MockSettingsController: SettingsControlling {
 
     func settings() throws -> Settings {
         settingsCount += 1
-        if let settingsStub = settingsStub { return settingsStub }
+        if let settingsStub { return settingsStub }
         return Settings()
     }
 

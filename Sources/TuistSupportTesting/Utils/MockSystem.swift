@@ -153,7 +153,7 @@ public final class MockSystem: Systeming {
     }
 
     public func swiftVersion() throws -> String {
-        if let swiftVersionStub = swiftVersionStub {
+        if let swiftVersionStub {
             return try swiftVersionStub()
         } else {
             throw TestError("Call to non-stubbed method swiftVersion")

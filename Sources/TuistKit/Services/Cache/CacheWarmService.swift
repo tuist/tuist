@@ -56,7 +56,7 @@ final class CacheWarmService {
     // MARK: - Fileprivate
 
     private func path(_ path: String?) throws -> AbsolutePath {
-        if let path = path {
+        if let path {
             return try AbsolutePath(validating: path, relativeTo: currentPath)
         } else {
             return currentPath

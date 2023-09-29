@@ -12,7 +12,7 @@ public final class MockHTTPRedirectListener: HTTPRedirectListening {
         redirectMessage: String,
         logoURL: URL
     ) -> Swift.Result<[String: String]?, HTTPRedirectListenerError> {
-        if let listenStub = listenStub {
+        if let listenStub {
             return listenStub(port, path, redirectMessage, logoURL)
         } else {
             return Result.failure(.httpServer(TestError("non-stubbed called to listen")))

@@ -15,7 +15,7 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
 
     public var buildableTargetStub: ((Scheme, GraphTraversing) -> GraphTarget?)?
     public func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
-        if let buildableTargetStub = buildableTargetStub {
+        if let buildableTargetStub {
             return buildableTargetStub(scheme, graphTraverser)
         } else {
             return GraphTarget.test()
@@ -24,7 +24,7 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
 
     public var buildableSchemesStub: ((GraphTraversing) -> [Scheme])?
     public func buildableSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
-        if let buildableSchemesStub = buildableSchemesStub {
+        if let buildableSchemesStub {
             return buildableSchemesStub(graphTraverser)
         } else {
             return []
@@ -43,7 +43,7 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         configuration: String?,
         skipSigning: Bool
     ) -> [XcodeBuildArgument] {
-        if let buildArgumentsStub = buildArgumentsStub {
+        if let buildArgumentsStub {
             return buildArgumentsStub(project, target, configuration, skipSigning)
         } else {
             return []
@@ -58,7 +58,7 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         skipTestTargets: [TestIdentifier],
         graphTraverser: GraphTraversing
     ) -> GraphTarget? {
-        if let testableTargetStub = testableTargetStub {
+        if let testableTargetStub {
             return testableTargetStub(scheme, testPlan, testTargets, skipTestTargets, graphTraverser)
         } else {
             return GraphTarget.test()
@@ -67,7 +67,7 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
 
     public var testableSchemesStub: ((GraphTraversing) -> [Scheme])?
     public func testableSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
-        if let testableSchemesStub = testableSchemesStub {
+        if let testableSchemesStub {
             return testableSchemesStub(graphTraverser)
         } else {
             return []

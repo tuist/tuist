@@ -2,7 +2,7 @@ import AppKit
 import Styles
 import UIKit
 
-@UIApplicationMain
+@main
 class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
@@ -32,7 +32,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.makeKeyAndVisible()
 
         let singleFile = StylesResources.bundle.url(forResource: "jsonFile", withExtension: "json")
-        guard let singleFile = singleFile else {
+        guard let singleFile else {
             fatalError("singleFile is missing")
         }
 

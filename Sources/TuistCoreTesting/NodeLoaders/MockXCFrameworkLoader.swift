@@ -8,7 +8,7 @@ public final class MockXCFrameworkLoader: XCFrameworkLoading {
 
     var loadStub: ((AbsolutePath) throws -> GraphDependency)?
     public func load(path: AbsolutePath) throws -> GraphDependency {
-        if let loadStub = loadStub {
+        if let loadStub {
             return try loadStub(path)
         } else {
             return .testXCFramework(path: path)

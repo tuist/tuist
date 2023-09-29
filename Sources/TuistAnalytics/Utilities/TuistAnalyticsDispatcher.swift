@@ -15,7 +15,7 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
         cloud: Cloud?,
         cloudClient: CloudClienting = CloudClient()
     ) {
-        if let cloud = cloud {
+        if let cloud {
             backend = TuistAnalyticsCloudBackend(
                 config: cloud,
                 resourceFactory: CloudAnalyticsResourceFactory(cloudConfig: cloud),

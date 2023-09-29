@@ -45,7 +45,7 @@ public final class TemplateGitLoader: TemplateGitLoading {
             let templatePath = temporaryPath.appending(component: "Template")
             try fileHandler.createFolder(templatePath)
             try gitHandler.clone(url: repoURL, to: templatePath)
-            if let repoBranch = repoBranch {
+            if let repoBranch {
                 try gitHandler.checkout(id: repoBranch, in: templatePath)
             }
             let template = try templateLoader.loadTemplate(at: templatePath)

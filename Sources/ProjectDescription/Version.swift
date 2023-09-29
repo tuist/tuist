@@ -1,5 +1,6 @@
 /// A struct representing a semver version.
-/// This is taken from SPMUtility and copied here so we do not create a direct dependency for ProjectDescription. Used for specifying version number requirements inside of Project.swift
+/// This is taken from SPMUtility and copied here so we do not create a direct dependency for ProjectDescription. Used for
+/// specifying version number requirements inside of Project.swift
 public struct Version: Hashable, Codable {
     /// The major version.
     public let major: Int
@@ -112,7 +113,7 @@ extension Version {
         patch = requiredComponents.count >= 3 ? requiredComponents[2] : 0
 
         func identifiers(start: String.Index?, end: String.Index) -> [String] {
-            guard let start = start else { return [] }
+            guard let start else { return [] }
             let identifiers = string[string.index(after: start) ..< end]
             return identifiers.split(separator: ".").map(String.init)
         }

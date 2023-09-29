@@ -209,7 +209,7 @@ class InitService {
 
     private func name(_ name: String?, path: AbsolutePath) throws -> String {
         let initName: String
-        if let name = name {
+        if let name {
             initName = name
         } else if let name = path.components.last {
             initName = name
@@ -220,7 +220,7 @@ class InitService {
     }
 
     private func path(_ path: String?) throws -> AbsolutePath {
-        if let path = path {
+        if let path {
             return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath

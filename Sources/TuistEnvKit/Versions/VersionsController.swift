@@ -44,7 +44,7 @@ class VersionsController: VersionsControlling {
     }
 
     func uninstall(version: String) throws {
-        let path = self.path(version: version)
+        let path = path(version: version)
         if FileHandler.shared.exists(path) {
             try FileHandler.shared.delete(path)
         }

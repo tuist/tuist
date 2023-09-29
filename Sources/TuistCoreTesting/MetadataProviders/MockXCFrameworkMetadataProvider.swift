@@ -6,7 +6,7 @@ import TuistGraph
 public final class MockXCFrameworkMetadataProvider: MockPrecompiledMetadataProvider, XCFrameworkMetadataProviding {
     public var loadMetadataStub: ((AbsolutePath) throws -> XCFrameworkMetadata)?
     public func loadMetadata(at path: AbsolutePath) throws -> XCFrameworkMetadata {
-        if let loadMetadataStub = loadMetadataStub {
+        if let loadMetadataStub {
             return try loadMetadataStub(path)
         } else {
             return XCFrameworkMetadata.test(
@@ -18,7 +18,7 @@ public final class MockXCFrameworkMetadataProvider: MockPrecompiledMetadataProvi
 
     public var infoPlistStub: ((AbsolutePath) throws -> XCFrameworkInfoPlist)?
     public func infoPlist(xcframeworkPath: AbsolutePath) throws -> XCFrameworkInfoPlist {
-        if let infoPlistStub = infoPlistStub {
+        if let infoPlistStub {
             return try infoPlistStub(xcframeworkPath)
         } else {
             return XCFrameworkInfoPlist.test()
@@ -27,7 +27,7 @@ public final class MockXCFrameworkMetadataProvider: MockPrecompiledMetadataProvi
 
     public var binaryPathStub: ((AbsolutePath, [XCFrameworkInfoPlist.Library]) throws -> AbsolutePath)?
     public func binaryPath(xcframeworkPath: AbsolutePath, libraries: [XCFrameworkInfoPlist.Library]) throws -> AbsolutePath {
-        if let binaryPathStub = binaryPathStub {
+        if let binaryPathStub {
             return try binaryPathStub(xcframeworkPath, libraries)
         } else {
             return AbsolutePath.root

@@ -32,7 +32,7 @@ enum FileClientError: LocalizedError, FatalError {
     }
 
     private func pathSubstring(_ path: AbsolutePath?) -> String {
-        guard let path = path else { return "" }
+        guard let path else { return "" }
         return " for file at path \(path.pathString)"
     }
 

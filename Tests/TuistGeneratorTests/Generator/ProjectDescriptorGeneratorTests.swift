@@ -27,7 +27,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
     func test_generate_testTargetIdentity() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let app = Target.test(
             name: "App",
             platform: .iOS,
@@ -92,7 +92,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
 
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let project = Project.test(
             path: temporaryPath,
             name: "Project",
@@ -135,7 +135,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         xcodeController.selectedVersionStub = .success(Version(11, 0, 0))
 
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let project = Project.test(
             path: temporaryPath,
             name: "Project",
@@ -159,7 +159,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         xcodeController.selectedVersionStub = .success(Version(10, 2, 1))
 
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let project = Project.test(
             path: temporaryPath,
             name: "Project",

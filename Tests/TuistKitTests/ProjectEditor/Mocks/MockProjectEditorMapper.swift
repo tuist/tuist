@@ -60,7 +60,7 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
             projectDescriptionPath: projectDescriptionSearchPath
         ))
 
-        if let mapStub = mapStub { return mapStub }
+        if let mapStub { return mapStub }
         return Graph.test()
     }
 }

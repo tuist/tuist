@@ -62,7 +62,7 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
     }
 }
 
-extension Collection where Element == Destination {
+extension Collection<Destination> {
     public func supports(_ platform: Platform) -> Bool {
         contains(where: { $0.platform == platform })
     }

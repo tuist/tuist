@@ -109,7 +109,7 @@ public final class PluginService: PluginServicing {
                     config: config
                 )
                 var repositoryPath = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
-                if let directory = directory {
+                if let directory {
                     repositoryPath = repositoryPath.appending(RelativePath(directory))
                 }
                 return RemotePluginPaths(
@@ -123,7 +123,7 @@ public final class PluginService: PluginServicing {
                     config: config
                 )
                 var repositoryPath = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
-                if let directory = directory {
+                if let directory {
                     repositoryPath = repositoryPath.appending(RelativePath(directory))
                 }
                 let releasePath = pluginCacheDirectory.appending(component: PluginServiceConstants.release)

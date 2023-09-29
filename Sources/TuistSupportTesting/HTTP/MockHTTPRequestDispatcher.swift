@@ -5,7 +5,7 @@ import TuistSupport
 public class MockHTTPRequestDispatcher: HTTPRequestDispatching {
     public var requests: [URLRequest] = []
 
-    public func dispatch<T, E: Error>(resource: HTTPResource<T, E>) async throws -> (object: T, response: HTTPURLResponse) {
+    public func dispatch<T>(resource: HTTPResource<T, some Error>) async throws -> (object: T, response: HTTPURLResponse) {
         if T.self != Void.self {
             fatalError(
                 """

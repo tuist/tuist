@@ -21,7 +21,7 @@ extension Scheme {
     ) -> Scheme {
         let config = env.configurationName
         var executableTarget: TargetReference?
-        if let executable = executable {
+        if let executable {
             executableTarget = "\(executable)"
         }
         return .scheme(

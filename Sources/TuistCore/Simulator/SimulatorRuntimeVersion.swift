@@ -34,12 +34,12 @@ public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, Expres
 
     public var description: String {
         var version = "\(major)"
-        if let minor = minor {
+        if let minor {
             version.append(".\(minor)")
         } else {
             return version
         }
-        if let patch = patch {
+        if let patch {
             version.append(".\(patch)")
         } else {
             return version

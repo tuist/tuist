@@ -237,9 +237,9 @@ public class CachedManifestLoader: ManifestLoading {
         return try? decoder.decode(T.self, from: cachedManifest.manifest)
     }
 
-    private func cacheManifest<T: Encodable>(
+    private func cacheManifest(
         manifest: Manifest,
-        loadedManifest: T,
+        loadedManifest: some Encodable,
         hashes: Hashes,
         to cachedManifestPath: AbsolutePath
     ) throws {

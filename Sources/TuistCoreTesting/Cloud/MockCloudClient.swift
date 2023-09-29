@@ -51,7 +51,7 @@ public final class MockCloudClient: CloudClienting {
 
     // MARK: Public Interface
 
-    public func request<T, Err: Error>(_ resource: HTTPResource<T, Err>) async throws -> (object: T, response: HTTPURLResponse) {
+    public func request<T>(_ resource: HTTPResource<T, some Error>) async throws -> (object: T, response: HTTPURLResponse) {
         invokedRequest = true
         invokedRequestCount += 1
         invokedRequestParameterList.append(resource)

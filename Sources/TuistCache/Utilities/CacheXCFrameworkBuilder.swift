@@ -29,7 +29,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     /// - Parameter destination: Output type of xcframework (device and/or simulator)
     public init(xcodeBuildController: XcodeBuildControlling, destination: CacheXCFrameworkDestination) {
         self.xcodeBuildController = xcodeBuildController
-        self.cacheOutputType = .xcframework(destination)
+        cacheOutputType = .xcframework(destination)
     }
 
     // MARK: - ArtifactBuilding
@@ -47,9 +47,9 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
         into outputDirectory: AbsolutePath
     ) async throws {
         guard let buildTargets = scheme.buildAction?.targets else { return }
-        let platform = self.platform(scheme: scheme)
+        let platform = platform(scheme: scheme)
         let macCatalystSupportedTargets = getMacCatalystTargets(graph: graph, scheme: scheme)
-        let buildsForMacCatalyst = self.buildsForMacCatalyst(graph: graph, scheme: scheme)
+        let buildsForMacCatalyst = buildsForMacCatalyst(graph: graph, scheme: scheme)
 
         // Create temporary directories
         return try await FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
@@ -128,9 +128,9 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     ) async throws {
         let archivePath: AbsolutePath
 
-        if let deviceArchivePath = deviceArchivePath {
+        if let deviceArchivePath {
             archivePath = deviceArchivePath
-        } else if let simulatorArchivePath = simulatorArchivePath {
+        } else if let simulatorArchivePath {
             archivePath = simulatorArchivePath
         } else {
             throw BuilderError.buildDestinationUnavailable
@@ -144,8 +144,8 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
         logger.notice("Caching to all cacheable targets as xcframeworks", metadata: .section)
         for productName in productNames {
             var frameworkpaths = [AbsolutePath]()
-            if let simulatorArchivePath = simulatorArchivePath {
-                frameworkpaths.append(self.frameworkPath(
+            if let simulatorArchivePath {
+                frameworkpaths.append(frameworkPath(
                     fromArchivePath: simulatorArchivePath,
                     productName: productName
                 ))
@@ -156,7 +156,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                     .filter { $0.0.name == $0.1.name }
                     .filter { $0.0.name == productName }
                     .forEach { _ in
-                        if let macCatalystArchivePath = macCatalystArchivePath {
+                        if let macCatalystArchivePath {
                             frameworkpaths.append(self.frameworkPath(
                                 fromArchivePath: macCatalystArchivePath,
                                 productName: productName
@@ -165,8 +165,8 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                     }
             }
 
-            if let deviceArchivePath = deviceArchivePath {
-                frameworkpaths.append(self.frameworkPath(
+            if let deviceArchivePath {
+                frameworkpaths.append(frameworkPath(
                     fromArchivePath: deviceArchivePath,
                     productName: productName
                 ))
@@ -174,7 +174,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
             logger.notice("Caching \(productName).xcframework")
             let xcframeworkPath = outputDirectory.appending(component: "\(productName).xcframework")
-            try await self.xcodeBuildController.createXCFramework(
+            try await xcodeBuildController.createXCFramework(
                 frameworks: frameworkpaths,
                 output: xcframeworkPath
             )

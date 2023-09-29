@@ -13,7 +13,7 @@ final class MockDescriptorGenerator: DescriptorGenerating {
 
     var generateProjectSub: ((Project, GraphTraversing) throws -> ProjectDescriptor)?
     func generateProject(project: Project, graphTraverser: GraphTraversing) throws -> ProjectDescriptor {
-        guard let generateProjectSub = generateProjectSub else {
+        guard let generateProjectSub else {
             throw MockError.stubNotImplemented
         }
 
@@ -22,7 +22,7 @@ final class MockDescriptorGenerator: DescriptorGenerating {
 
     var generateWorkspaceStub: ((GraphTraversing) throws -> WorkspaceDescriptor)?
     func generateWorkspace(graphTraverser: GraphTraversing) throws -> WorkspaceDescriptor {
-        guard let generateWorkspaceStub = generateWorkspaceStub else {
+        guard let generateWorkspaceStub else {
             throw MockError.stubNotImplemented
         }
 

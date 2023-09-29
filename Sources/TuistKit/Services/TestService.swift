@@ -23,7 +23,7 @@ enum TestServiceError: FatalError, Equatable {
             return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
         case let .schemeWithoutTestableTargets(scheme, testPlan):
             let testPlanMessage: String
-            if let testPlan = testPlan, !testPlan.isEmpty {
+            if let testPlan, !testPlan.isEmpty {
                 testPlanMessage = "test plan \(testPlan) in "
             } else {
                 testPlanMessage = ""
@@ -199,7 +199,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
         )
 
-        if let schemeName = schemeName {
+        if let schemeName {
             guard let scheme = testableSchemes.first(where: { $0.name == schemeName })
             else {
                 throw TestServiceError.schemeNotFound(

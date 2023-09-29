@@ -27,7 +27,8 @@ public enum Tuist {
 
     /// Loads and returns the graph at the given path.
     /// - parameter path: the path which graph should be loaded. If nil, the current path is used.
-    /// - parameter environmentKeys: the environment keys that should be copied. If empty, no environment variables will be passed.
+    /// - parameter environmentKeys: the environment keys that should be copied. If empty, no environment variables will be
+    /// passed.
     public static func graph(at path: String? = nil, environmentKeys: Set<String> = []) throws -> Graph {
         // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
         // Otherwise, fallback to go
@@ -40,7 +41,7 @@ public enum Tuist {
                 "--format", "json",
                 "--output-path", graphPath.parentDirectory.pathString,
             ]
-            if let path = path {
+            if let path {
                 arguments += ["--path", path]
             }
             let forceConfigCacheDirectory = "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"

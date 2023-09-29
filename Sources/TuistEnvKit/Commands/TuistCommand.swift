@@ -48,7 +48,7 @@ public struct TuistCommand: ParsableCommand {
 
         // Run the command
         do {
-            if var command = command {
+            if var command {
                 try command.run()
             } else {
                 try CommandRunner().run()

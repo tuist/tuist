@@ -68,7 +68,8 @@ public struct RunAction: Equatable, Codable {
     ///   - arguments: Command line arguments passed on launch and environment variables.
     ///   - options: List of options to set to the action.
     ///   - diagnosticsOptions: List of diagnostics options to set to the action.
-    ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT). When nil, it does not expand any variables.
+    ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables
+    /// definition (e.g. $SOURCE_ROOT). When nil, it does not expand any variables.
     /// - Returns: Run action.
     public static func runAction(
         configuration: ConfigurationName = .debug,

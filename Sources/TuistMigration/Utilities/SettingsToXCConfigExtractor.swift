@@ -96,7 +96,7 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
     }
 
     private func buildConfigurations(pbxproj: PBXProj, targetName: String?) throws -> [XCBuildConfiguration] {
-        if let targetName = targetName {
+        if let targetName {
             guard let target = pbxproj.targets(named: targetName).first else {
                 throw SettingsToXCConfigExtractorError.targetNotFound(targetName)
             }

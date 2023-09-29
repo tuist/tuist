@@ -15,7 +15,7 @@ public class AnyManifestLinter: ManifestLinting {
     }
 
     public func lint(project: ProjectDescription.Project) -> [LintingIssue] {
-        if let lint = lint {
+        if let lint {
             return lint(project)
         } else {
             return []

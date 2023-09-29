@@ -99,7 +99,7 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
         case let .library(path, publicHeaders, swiftModuleMap):
             let libraryHash = try cachedHash(path: path, hashedPaths: &hashedPaths)
             let publicHeadersHash = try contentHasher.hash(path: publicHeaders)
-            if let swiftModuleMap = swiftModuleMap {
+            if let swiftModuleMap {
                 let swiftModuleHash = try contentHasher.hash(path: swiftModuleMap)
                 return try contentHasher.hash("library-\(libraryHash)-\(publicHeadersHash)-\(swiftModuleHash)")
             } else {

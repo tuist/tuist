@@ -475,7 +475,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         }
 
         let options: ProjectDescription.Project.Options
-        if let projectOptions = projectOptions {
+        if let projectOptions {
             options = .from(manifest: projectOptions)
         } else {
             options = .options(
@@ -661,7 +661,7 @@ extension ProjectDescription.DeploymentTarget {
     }
 
     fileprivate static func max(_ lVersionString: String, _ rVersionString: String?) throws -> String {
-        guard let rVersionString = rVersionString else { return lVersionString }
+        guard let rVersionString else { return lVersionString }
         let lVersion = try Version(versionString: lVersionString, usesLenientParsing: true)
         let rVersion = try Version(versionString: rVersionString, usesLenientParsing: true)
         return lVersion > rVersion ? lVersionString : rVersionString
@@ -878,7 +878,7 @@ extension ProjectDescription.TargetDependency {
 
 extension ProjectDescription.Headers {
     fileprivate static func from(moduleMap: ModuleMap?, publicHeadersPath: AbsolutePath) throws -> Self? {
-        guard let moduleMap = moduleMap else { return nil }
+        guard let moduleMap else { return nil }
         // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
         switch moduleMap {
@@ -920,7 +920,7 @@ extension ProjectDescription.Settings {
         let mainRelativePath = mainPath.relative(to: packageFolder)
 
         let moduleMap = targetToModuleMap[target.name]
-        if let moduleMap = moduleMap {
+        if let moduleMap {
             if moduleMap != .none, target.type != .system {
                 let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
                 let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
@@ -1259,11 +1259,11 @@ extension PackageInfo {
     ) -> ProjectDescription.Settings? {
         var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
 
-        if let cLanguageStandard = cLanguageStandard {
+        if let cLanguageStandard {
             settingsDictionary["GCC_C_LANGUAGE_STANDARD"] = .string(cLanguageStandard)
         }
 
-        if let cxxLanguageStandard = cxxLanguageStandard {
+        if let cxxLanguageStandard {
             settingsDictionary["CLANG_CXX_LANGUAGE_STANDARD"] = .string(cxxLanguageStandard)
         }
 
@@ -1271,7 +1271,7 @@ extension PackageInfo {
             settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
         }
 
-        if let buildConfigs = buildConfigs {
+        if let buildConfigs {
             let configs = buildConfigs
                 .sorted()
                 .map { config -> ProjectDescription.Configuration in
@@ -1292,7 +1292,7 @@ extension PackageInfo {
         /// Take the latest swift version compatible with the configured one
         let maxAllowedSwiftLanguageVersion = swiftLanguageVersions?
             .filter {
-                guard let configuredSwiftVersion = configuredSwiftVersion else {
+                guard let configuredSwiftVersion else {
                     return true
                 }
                 return $0 <= configuredSwiftVersion
@@ -1307,7 +1307,7 @@ extension PackageInfo {
 extension PackageInfo.Target {
     /// The path used as base for all the relative paths of the package (e.g. sources, resources, headers)
     func basePath(packageFolder: AbsolutePath) throws -> AbsolutePath {
-        if let path = path {
+        if let path {
             return packageFolder.appending(RelativePath(path))
         } else {
             let firstMatchingPath = PackageInfoMapper.predefinedSourceDirectories

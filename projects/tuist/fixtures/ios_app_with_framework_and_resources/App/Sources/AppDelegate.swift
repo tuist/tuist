@@ -6,7 +6,7 @@ import StaticFramework4
 import StaticFramework5
 import UIKit
 
-@UIApplicationMain
+@main
 class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     let staticFrameworkResources = StaticFrameworkResources()

@@ -79,7 +79,7 @@ final class HTTPClient: HTTPClienting {
         }.resume()
         semaphore.wait()
 
-        if let error = error {
+        if let error {
             throw HTTPClientError.clientError(url, error)
         }
         guard let resultData = data else {
@@ -100,9 +100,9 @@ final class HTTPClient: HTTPClienting {
 
         session.downloadTask(with: url) { downloadURL, _, error in
             defer { semaphore.signal() }
-            if let error = error {
+            if let error {
                 clientError = HTTPClientError.clientError(url, error)
-            } else if let downloadURL = downloadURL {
+            } else if let downloadURL {
                 let from = try! AbsolutePath(validating: downloadURL.path) // swiftlint:disable:this force_try
                 do {
                     try FileHandler.shared.copy(from: from, to: to)
@@ -114,7 +114,7 @@ final class HTTPClient: HTTPClienting {
             }
         }.resume()
         semaphore.wait()
-        if let clientError = clientError {
+        if let clientError {
             throw clientError
         }
     }

@@ -80,7 +80,7 @@ final class BuildService {
             "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))"
         )
 
-        if let schemeName = schemeName {
+        if let schemeName {
             guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {
                 throw BuildServiceError.schemeNotFound(scheme: schemeName, existing: buildableSchemes.map(\.name))
             }

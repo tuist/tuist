@@ -20,7 +20,7 @@ public final class MockAsyncQueuePersistor<U: AsyncQueueEvent>: AsyncQueuePersis
     public var invokedWriteEvent: U?
     public var invokedWriteEvents = [U]()
 
-    public func write<T: AsyncQueueEvent>(event: T) {
+    public func write(event: some AsyncQueueEvent) {
         invokedWrite = true
         invokedWriteCount += 1
         if let event = event as? U {
@@ -34,7 +34,7 @@ public final class MockAsyncQueuePersistor<U: AsyncQueueEvent>: AsyncQueuePersis
     public var invokedDeleteEvent: U?
     public var invokedDeleteEvents = [U]()
 
-    public func delete<T: AsyncQueueEvent>(event: T) {
+    public func delete(event: some AsyncQueueEvent) {
         invokedDeleteEventCount += 1
         if let event = event as? U {
             invokedDeleteEvent = event

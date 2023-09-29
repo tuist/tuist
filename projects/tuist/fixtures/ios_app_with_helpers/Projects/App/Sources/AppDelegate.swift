@@ -1,7 +1,7 @@
 import ios_app_with_helpersKit
 import UIKit
 
-@UIApplicationMain
+@main
 class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 

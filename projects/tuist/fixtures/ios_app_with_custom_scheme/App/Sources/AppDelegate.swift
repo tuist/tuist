@@ -2,7 +2,7 @@ import Framework1
 import Framework2
 import UIKit
 
-@UIApplicationMain
+@main
 class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 

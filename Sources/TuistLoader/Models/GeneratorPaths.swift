@@ -57,11 +57,12 @@ public struct GeneratorPaths {
     }
 
     /// This method is intended to be used to get path of projects referenced from scheme.
-    /// When the user doesn't specify the project, we assume they are referencing a target in the project where the scheme is being defined.
+    /// When the user doesn't specify the project, we assume they are referencing a target in the project where the scheme is
+    /// being defined.
     /// - Parameters:
     ///   - projectPath: Path to the project that contains the target referenced by the scheme action.
     func resolveSchemeActionProjectPath(_ projectPath: Path?) throws -> AbsolutePath {
-        if let projectPath = projectPath {
+        if let projectPath {
             return try resolve(path: projectPath)
         }
         return manifestDirectory

@@ -65,7 +65,7 @@ final class ProjectWorkspaceMapperTests: XCTestCase {
         }
 
         func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-            return mapper(project)
+            mapper(project)
         }
     }
 }
@@ -136,7 +136,7 @@ final class SequentialWorkspaceMapperTests: XCTestCase {
         }
 
         func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
-            return mapper(workspace)
+            mapper(workspace)
         }
     }
 }

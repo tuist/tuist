@@ -369,7 +369,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         defaultPath: AbsolutePath,
         generatorPaths: GeneratorPaths
     ) throws -> AbsolutePath {
-        if let projectPath = projectPath { return try generatorPaths.resolve(path: projectPath) }
+        if let projectPath { return try generatorPaths.resolve(path: projectPath) }
         return defaultPath
     }
 }

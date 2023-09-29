@@ -113,7 +113,7 @@ public final class TargetBuilder: TargetBuilding {
             )
             .printFormattedOutput()
 
-        if let buildOutputPath = buildOutputPath {
+        if let buildOutputPath {
             let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?
                 .name ?? BuildConfiguration.debug.name
             try copyBuildProducts(

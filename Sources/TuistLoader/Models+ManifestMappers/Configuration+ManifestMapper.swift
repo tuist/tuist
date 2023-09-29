@@ -14,7 +14,7 @@ extension TuistGraph.Configuration {
         manifest: ProjectDescription.Configuration?,
         generatorPaths: GeneratorPaths
     ) throws -> TuistGraph.Configuration? {
-        guard let manifest = manifest else { return nil }
+        guard let manifest else { return nil }
         let settings = manifest.settings.mapValues(TuistGraph.SettingValue.from)
         let xcconfig = try manifest.xcconfig.flatMap { try generatorPaths.resolve(path: $0) }
         return Configuration(settings: settings, xcconfig: xcconfig)

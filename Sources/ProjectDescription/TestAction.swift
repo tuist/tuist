@@ -2,7 +2,8 @@ import Foundation
 
 /// An action that tests the built products.
 ///
-/// You can create a test action with either a set of test targets or test plans using the `.targets` or `.testPlans` static methods respectively.
+/// You can create a test action with either a set of test targets or test plans using the `.targets` or `.testPlans` static
+/// methods respectively.
 public struct TestAction: Equatable, Codable {
     /// List of test plans. The first in the list will be the default plan.
     public let testPlans: [Path]?
@@ -64,7 +65,8 @@ public struct TestAction: Equatable, Codable {
     ///   - arguments: Arguments passed when running the tests.
     ///   - configuration: Configuration to be used.
     ///   - attachDebugger: A boolean controlling whether a debugger is attached to the process running the tests.
-    ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables definition. When nil, it does not expand any variables.
+    ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables
+    /// definition. When nil, it does not expand any variables.
     ///   - preActions: Actions to execute before running the tests.
     ///   - postActions: Actions to execute after running the tests.
     ///   - options: Test options.

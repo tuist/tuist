@@ -14,7 +14,7 @@ final class PluginBuildService {
             "swift", "build",
             "--configuration", configuration.rawValue,
         ]
-        if let path = path {
+        if let path {
             buildCommand += [
                 "--package-path",
                 path,

@@ -21,8 +21,8 @@ public struct LaunchArgument: Equatable, Codable {
     }
 }
 
-extension Array where Element == LaunchArgument {
-    internal init(launchArguments: [String: Bool]) {
+extension [LaunchArgument] {
+    init(launchArguments: [String: Bool]) {
         self = launchArguments.map(LaunchArgument.init)
             .sorted { $0.name < $1.name }
     }

@@ -62,7 +62,7 @@ public final class LibraryMetadataProvider: PrecompiledMetadataProvider, Library
         guard fileHandler.exists(publicHeaders) else {
             throw LibraryMetadataProviderError.publicHeadersNotFound(libraryPath: path, headersPath: publicHeaders)
         }
-        if let swiftModuleMap = swiftModuleMap {
+        if let swiftModuleMap {
             guard fileHandler.exists(swiftModuleMap) else {
                 throw LibraryMetadataProviderError.swiftModuleMapNotFound(libraryPath: path, moduleMapPath: swiftModuleMap)
             }

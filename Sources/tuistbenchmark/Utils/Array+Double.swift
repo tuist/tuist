@@ -1,6 +1,6 @@
 import Foundation
 
-extension Array where Element == Double {
+extension [Double] {
     func average() -> Double {
         reduce(0, +) / Double(count)
     }

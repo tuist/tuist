@@ -62,7 +62,7 @@ final class TargetProjectMapperTests: XCTestCase {
         }
 
         func map(target: Target) throws -> (Target, [SideEffectDescriptor]) {
-            return mapper(target)
+            mapper(target)
         }
     }
 }
@@ -121,7 +121,7 @@ final class SequentialProjectMapperTests: XCTestCase {
         }
 
         func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-            return mapper(project)
+            mapper(project)
         }
     }
 }

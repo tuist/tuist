@@ -15,7 +15,7 @@ final class MockEmbedScriptGenerator: EmbedScriptGenerating {
         includeSymbolsInFileLists: Bool
     ) throws -> EmbedScript {
         scriptArgs.append((sourceRootPath, frameworkReferences, includeSymbolsInFileLists))
-        if let scriptStub = scriptStub {
+        if let scriptStub {
             switch scriptStub {
             case let .failure(error): throw error
             case let .success(script): return script

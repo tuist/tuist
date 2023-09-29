@@ -98,7 +98,7 @@ extension InitCommand {
 
     /// We do not know template's option in advance -> we need to dynamically add them
     static func preprocess(_ arguments: [String]? = nil) throws {
-        guard let arguments = arguments,
+        guard let arguments,
               arguments.contains("--template") ||
               arguments.contains("-t")
         else { return }

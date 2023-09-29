@@ -1,6 +1,6 @@
 import Foundation
 
-func dumpIfNeeded<E: Encodable>(_ entity: E) {
+func dumpIfNeeded(_ entity: some Encodable) {
     guard CommandLine.argc > 0,
           CommandLine.arguments.contains("--tuist-dump")
     else { return }

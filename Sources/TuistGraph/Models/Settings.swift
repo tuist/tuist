@@ -126,7 +126,7 @@ extension Settings {
     }
 }
 
-extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
+extension [BuildConfiguration: Configuration?] {
     public func sortedByBuildConfigurationName() -> [(key: BuildConfiguration, value: Configuration?)] {
         sorted(by: { first, second -> Bool in first.key < second.key })
     }
@@ -138,7 +138,7 @@ extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
     }
 }
 
-extension Dictionary where Key == String, Value == SettingValue {
+extension [String: SettingValue] {
     public func toAny() -> [String: Any] {
         mapValues { value in
             switch value {

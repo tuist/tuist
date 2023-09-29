@@ -75,7 +75,8 @@ public final class System: Systeming {
     /// Regex expression used to get the Swift version (for example, 5.7) from the output of the 'swift --version' command.
     private static var swiftVersionRegex = try! NSRegularExpression(pattern: "Apple Swift version\\s(.+)\\s\\(.+\\)", options: [])
 
-    /// Regex expression used to get the Swiftlang version (for example, 5.7.0.127.4) from the output of the 'swift --version' command.
+    /// Regex expression used to get the Swiftlang version (for example, 5.7.0.127.4) from the output of the 'swift --version'
+    /// command.
     private static var swiftlangVersion = try! NSRegularExpression(pattern: "swiftlang-(.+)\\sclang", options: [])
 
     // swiftlint:enable force_try
@@ -175,7 +176,7 @@ public final class System: Systeming {
     var cachedSwiftlangVersion: String?
 
     public func swiftVersion() throws -> String {
-        if let cachedSwiftVersion = cachedSwiftVersion {
+        if let cachedSwiftVersion {
             return cachedSwiftVersion
         }
         let output = try capture(["/usr/bin/xcrun", "swift", "--version"])
@@ -188,7 +189,7 @@ public final class System: Systeming {
     }
 
     public func swiftlangVersion() throws -> String {
-        if let cachedSwiftlangVersion = cachedSwiftlangVersion {
+        if let cachedSwiftlangVersion {
             return cachedSwiftlangVersion
         }
         let output = try capture(["/usr/bin/xcrun", "swift", "--version"])

@@ -1,7 +1,7 @@
 import LibraryA
 import UIKit
 
-@UIApplicationMain
+@main
 class AppDelegate: UIResponder, UIApplicationDelegate {
     private let libraryClass = LibraryAClass()
 

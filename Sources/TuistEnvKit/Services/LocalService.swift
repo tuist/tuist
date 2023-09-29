@@ -10,7 +10,7 @@ final class LocalService {
     }
 
     func run(version: String?) throws {
-        if let version = version {
+        if let version {
             try createVersionFile(version: version)
         } else {
             try printLocalVersions()

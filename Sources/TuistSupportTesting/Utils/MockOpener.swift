@@ -12,7 +12,7 @@ public final class MockOpener: Opening {
     public func open(target: String, wait: Bool) throws {
         openCallCount += 1
         openArgs.append((target, wait, nil))
-        if let openStub = openStub { throw openStub }
+        if let openStub { throw openStub }
     }
 
     public func open(path: AbsolutePath, wait: Bool) throws {
@@ -34,7 +34,7 @@ public final class MockOpener: Opening {
     public func open(path: AbsolutePath, application: AbsolutePath, wait _: Bool) throws {
         openCallCount += 1
         openArgs.append((path.pathString, false, application))
-        if let openStub = openStub { throw openStub }
+        if let openStub { throw openStub }
     }
 }
 

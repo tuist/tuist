@@ -9,7 +9,8 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
     /// Use the given configuration for building the scheme.
     case configuration(String)
 
-    /// Use the destination described by DESTINATIONSPECIFIER (a comma-separated set of key=value pairs describing the destination to use)
+    /// Use the destination described by DESTINATIONSPECIFIER (a comma-separated set of key=value pairs describing the destination
+    /// to use)
     case destination(String)
 
     /// Specifies the directory where build products and other derived data will go.

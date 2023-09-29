@@ -21,7 +21,7 @@ extension FileListGlob {
             guard !resolvedExcluding.contains(path) else {
                 return false
             }
-            if let filter = filter {
+            if let filter {
                 return filter(path)
             }
             return true

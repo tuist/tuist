@@ -38,7 +38,7 @@ final class CloudProjectDeleteService: CloudProjectDeleteServicing {
         let cloudURL = try cloudURLService.url(serverURL: serverURL)
 
         let accountName: String
-        if let organizationName = organizationName {
+        if let organizationName {
             accountName = organizationName
         } else {
             let credentials = try credentialsStore.get(serverURL: cloudURL)

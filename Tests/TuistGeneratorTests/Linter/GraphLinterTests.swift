@@ -32,7 +32,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_frameworks_are_missing() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let frameworkAPath = temporaryPath.appending(RelativePath("Carthage/Build/iOS/A.framework"))
         let frameworkBPath = temporaryPath.appending(RelativePath("Carthage/Build/iOS/B.framework"))
         try FileHandler.shared.createFolder(frameworkAPath)
@@ -1123,7 +1123,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_valid_appClipTargetBundleIdentifiers() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
 
         try createFiles([
             "entitlements/AppClip.entitlements",
@@ -1167,7 +1167,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_invalid_appClipTargetBundleIdentifiers() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
 
         try createFiles([
             "entitlements/AppClip.entitlements",
@@ -1302,7 +1302,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_app_contains_more_than_one_appClip() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
 
         try createFiles([
             "entitlements/AppClip.entitlements",
@@ -1368,7 +1368,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_when_appClip_has_a_framework_dependency() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
 
         try createFiles([
             "entitlements/AppClip.entitlements",
@@ -1661,7 +1661,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_relevant() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let targetA = Target.test(name: "TargetA")
         let targetB = Target.test(name: "TargetB")
         let project = Project.test(
@@ -1730,7 +1730,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_targets() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let project = Project.test(
             path: temporaryPath,
             targets: [
@@ -1791,7 +1791,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lintCodeCoverage_targets_nonExisting() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let project = Project.test(
             path: temporaryPath,
             targets: [
@@ -1835,7 +1835,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_multiDestinationTarget_validLinks() throws {
         // Given
-        let path = try self.temporaryPath()
+        let path = try temporaryPath()
         let iOSAndMacTarget = Target.test(name: "IOSAndMacTarget", destinations: [.iPhone, .mac], product: .framework)
         let macOnlyTarget = Target.test(name: "MacOnlyTarget", destinations: [.mac], product: .framework)
 
@@ -1872,7 +1872,7 @@ final class GraphLinterTests: TuistUnitTestCase {
 
     func test_lint_multiDestinationTarget_invalidLinks() throws {
         // Given
-        let path = try self.temporaryPath()
+        let path = try temporaryPath()
         let iOSAndMacTarget = Target.test(name: "IOSAndMacTarget", destinations: [.iPhone, .mac], product: .framework)
         let watchOnlyTarget = Target.test(name: "WatchOnlyTarget", destinations: [.appleWatch], product: .framework)
 

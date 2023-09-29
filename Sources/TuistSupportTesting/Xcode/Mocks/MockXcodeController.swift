@@ -8,7 +8,7 @@ public final class MockXcodeController: XcodeControlling {
     public var selectedVersionStub: Result<Version, Error> = .success(Version(0, 0, 0))
 
     public func selected() throws -> Xcode? {
-        guard let selectedStub = selectedStub else { return nil }
+        guard let selectedStub else { return nil }
 
         switch selectedStub {
         case let .failure(error): throw error
