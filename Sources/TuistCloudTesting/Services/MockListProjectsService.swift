@@ -8,7 +8,6 @@ public final class MockListProjectsService: ListProjectsServicing {
         try await listProjectsStub?(serverURL, nil, nil) ?? []
     }
 
-    // swiftlint:disable:next large_tuple
     public var listProjectsStub: ((URL, String?, String?) async throws -> [CloudProject])?
     public func listProjects(
         serverURL: URL,

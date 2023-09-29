@@ -4,7 +4,6 @@ import TuistCloud
 public final class MockUploadCacheService: UploadCacheServicing {
     public init() {}
 
-    // swiftlint:disable:next large_tuple
     public var uploadCacheStub: ((URL, String, String, String, String) async throws -> CloudCacheArtifact)?
     public func uploadCache(
         serverURL: URL,

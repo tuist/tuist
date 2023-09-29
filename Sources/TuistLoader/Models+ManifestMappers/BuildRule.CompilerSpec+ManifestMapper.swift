@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TuistGraph
 
-// swiftlint:disable function_body_length
 extension TuistGraph.BuildRule.CompilerSpec {
+    // swiftlint:disable function_body_length
     static func from(
         manifest: ProjectDescription.BuildRule.CompilerSpec
     ) -> TuistGraph.BuildRule.CompilerSpec {
@@ -110,4 +110,5 @@ extension TuistGraph.BuildRule.CompilerSpec {
             return .customScript
         }
     }
+    // swiftlint:enable function_body_length
 }

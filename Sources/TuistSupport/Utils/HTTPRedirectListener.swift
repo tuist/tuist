@@ -82,7 +82,6 @@ public final class HTTPRedirectListener: HTTPRedirectListening {
         return result
     }
 
-    // swiftlint:disable:next function_body_length
     private func html(logoURL: URL, redirectMessage: String) -> String {
         """
         <!DOCTYPE html>

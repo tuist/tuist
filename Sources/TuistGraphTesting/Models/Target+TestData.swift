@@ -63,7 +63,6 @@ extension Target {
 
     /// Creates a Target with test data
     /// Note: Referenced paths may not exist
-    //
     public static func test(
         name: String = "Target",
         platform: Platform,

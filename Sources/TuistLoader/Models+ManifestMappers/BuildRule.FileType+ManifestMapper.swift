@@ -2,8 +2,8 @@ import Foundation
 import ProjectDescription
 import TuistGraph
 
-// swiftlint:disable function_body_length
 extension TuistGraph.BuildRule.FileType {
+    // swiftlint:disable function_body_length
     static func from(
         manifest: ProjectDescription.BuildRule.FileType
     ) -> TuistGraph.BuildRule.FileType {
@@ -102,4 +102,5 @@ extension TuistGraph.BuildRule.FileType {
             return .sourceFilesWithNamesMatching
         }
     }
+    // swiftlint:enable function_body_length
 }

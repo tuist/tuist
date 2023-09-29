@@ -23,7 +23,7 @@ public struct Template: Equatable {
             switch self {
             case .required:
                 return false
-            case .optional(_, default: _):
+            case .optional:
                 return true
             }
         }

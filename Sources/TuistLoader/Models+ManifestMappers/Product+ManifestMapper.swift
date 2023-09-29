@@ -3,7 +3,6 @@ import ProjectDescription
 import TuistGraph
 
 extension TuistGraph.Product {
-    // swiftlint:disable:next function_body_length
     static func from(manifest: ProjectDescription.Product) -> TuistGraph.Product {
         switch manifest {
         case .app:

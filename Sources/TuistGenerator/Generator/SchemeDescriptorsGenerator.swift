@@ -121,6 +121,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         if fileHandler.exists(sharedPath) { try fileHandler.delete(sharedPath) }
     }
 
+    // swiftlint:disable function_body_length
     /// Generate schemes for a project or workspace.
     ///
     /// - Parameters:
@@ -129,7 +130,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///     - path: Path to workspace or project folder.
     ///     - graphTraverser: Graph traverser.
     ///     - generatedProjects: Project paths mapped to generated projects.
-    // swiftlint:disable:next function_body_length
     private func generateScheme(
         scheme: Scheme,
         path: AbsolutePath,
@@ -192,7 +192,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         )
 
         return SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden)
-    }
+    } // swiftlint:enable function_body_length
 
     /// Generates the scheme build action.
     ///
@@ -263,6 +263,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         )
     }
 
+    // swiftlint:disable function_body_length
     /// Generates the scheme test action.
     ///
     /// - Parameters:
@@ -271,7 +272,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - rootPath: Root path to either project or workspace.
     ///   - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme test action.
-    // swiftlint:disable:next function_body_length
     func schemeTestAction(
         scheme: Scheme,
         graphTraverser: GraphTraversing,
@@ -411,8 +411,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             region: region,
             preferredScreenCaptureFormat: preferredScreenCaptureFormat
         )
-    }
+    } // swiftlint:enable function_body_length
 
+    // swiftlint:disable function_body_length
     /// Generates the scheme launch action.
     ///
     /// - Parameters:
@@ -421,7 +422,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - rootPath: Root path to either project or workspace.
     ///   - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme launch action.
-    // swiftlint:disable:next function_body_length
     func schemeLaunchAction(
         scheme: Scheme,
         graphTraverser: GraphTraversing,
@@ -609,7 +609,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             storeKitConfigurationFileReference: storeKitConfigurationFileReference,
             customLLDBInitFile: customLLDBInitFilePath.map { "$(SRCROOT)/\($0.pathString)" }
         )
-    }
+    } // swiftlint:enable function_body_length
 
     /// Generates the scheme profile action for a given target.
     ///

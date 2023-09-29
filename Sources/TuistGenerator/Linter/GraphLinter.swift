@@ -651,4 +651,4 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .visionOS, product: .staticFramework),
         ],
     ]
-}
+} // swiftlint:enable type_body_length

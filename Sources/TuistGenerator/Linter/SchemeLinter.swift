@@ -116,10 +116,8 @@ extension SchemeLinter {
         var issues: [LintingIssue] = []
 
         for scheme in schemes {
-            for target in scheme.testAction?.codeCoverageTargets ?? [] {
-                if !targetNames.contains(target.name) {
-                    issues.append(missingCodeCoverageTargetIssue(missingTargetName: target.name, schemaName: scheme.name))
-                }
+            for target in scheme.testAction?.codeCoverageTargets ?? [] where !targetNames.contains(target.name) {
+                issues.append(missingCodeCoverageTargetIssue(missingTargetName: target.name, schemaName: scheme.name))
             }
         }
 

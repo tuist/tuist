@@ -28,7 +28,7 @@ extension XCTestCase {
         XCTAssertNotEqual(collection.count, 0, "Expected to not be empty but it has 0 elements", file: file, line: line)
     }
 
-    // swiftlint:disable large_tuple
+    // swiftlint:disable:next large_tuple
     public func XCTAssertEqualPairs<T: Equatable>(_ subjects: [(T, T, Bool)], file: StaticString = #file, line: UInt = #line) {
         subjects.forEach {
             if $0.2 {

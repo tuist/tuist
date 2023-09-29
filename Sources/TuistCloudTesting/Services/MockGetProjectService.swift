@@ -4,7 +4,6 @@ import TuistCloud
 public final class MockGetProjectService: GetProjectServicing {
     public init() {}
 
-    // swiftlint:disable:next large_tuple
     public var getProjectStub: ((String, String, URL) async throws -> CloudProject)?
     public func getProject(
         accountName: String,

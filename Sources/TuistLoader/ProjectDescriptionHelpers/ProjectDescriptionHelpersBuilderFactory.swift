@@ -3,6 +3,7 @@ import TSCBasic
 import TuistGraph
 import TuistSupport
 
+// swiftlint:disable:next type_name
 public protocol ProjectDescriptionHelpersBuilderFactoring {
     func projectDescriptionHelpersBuilder(cacheDirectory: AbsolutePath) -> ProjectDescriptionHelpersBuilding
 }
