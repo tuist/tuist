@@ -25,6 +25,7 @@ public final class IDETemplateMacrosMapper: ProjectMapping, WorkspaceMapping {
 
         return [
             .file(FileDescriptor(
+                // swiftlint:disable:next force_try
                 path: path.appending(try! RelativePath(validating: "xcshareddata/IDETemplateMacros.plist")),
                 contents: data
             )),

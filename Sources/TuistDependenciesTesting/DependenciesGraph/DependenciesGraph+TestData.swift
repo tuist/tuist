@@ -33,6 +33,7 @@ extension TuistCore.DependenciesGraph {
 
     public static func testXCFramework(
         name: String = "Test",
+        // swiftlint:disable:next force_try
         path: Path = Path(AbsolutePath.root.appending(try! RelativePath(validating: "Test.xcframework")).pathString),
         platforms: Set<Platform>
     ) -> Self {

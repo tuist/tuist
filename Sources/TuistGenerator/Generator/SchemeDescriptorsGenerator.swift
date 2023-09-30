@@ -872,19 +872,19 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     /// - Returns: Path to the schemes directory.
     /// - Throws: A FatalError if the creation of the directory fails.
     private func createSchemesDirectory(path: AbsolutePath, shared: Bool = true) throws -> AbsolutePath {
-        let schemePath = schemeDirectory(path: path, shared: shared)
+        let schemePath = try schemeDirectory(path: path, shared: shared)
         if !FileHandler.shared.exists(schemePath) {
             try FileHandler.shared.createFolder(schemePath)
         }
         return schemePath
     }
 
-    private func schemeDirectory(path: AbsolutePath, shared: Bool = true) -> AbsolutePath {
+    private func schemeDirectory(path: AbsolutePath, shared: Bool = true) throws -> AbsolutePath {
         if shared {
-            return path.appending(try! RelativePath(validating: "xcshareddata/xcschemes"))
+            return path.appending(try RelativePath(validating: "xcshareddata/xcschemes"))
         } else {
             let username = NSUserName()
-            return path.appending(try! RelativePath(validating: "xcuserdata/\(username).xcuserdatad/xcschemes"))
+            return path.appending(try RelativePath(validating: "xcuserdata/\(username).xcuserdatad/xcschemes"))
         }
     }
 

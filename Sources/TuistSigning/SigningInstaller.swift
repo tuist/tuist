@@ -41,6 +41,7 @@ final class SigningInstaller: SigningInstalling {
         }
 
         let provisioningProfilesPath = FileHandler.shared.homeDirectory
+            // swiftlint:disable:next force_try
             .appending(try! RelativePath(validating: "Library/MobileDevice/Provisioning Profiles"))
         if !FileHandler.shared.exists(provisioningProfilesPath) {
             try FileHandler.shared.createFolder(provisioningProfilesPath)

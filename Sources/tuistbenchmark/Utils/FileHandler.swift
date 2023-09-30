@@ -5,7 +5,7 @@ final class FileHandler {
     private let fileManager: FileManager = .default
 
     var currentPath: AbsolutePath {
-        try! AbsolutePath(validating: fileManager.currentDirectoryPath)
+        try! AbsolutePath(validating: fileManager.currentDirectoryPath) // swiftlint:disable:this force_try
     }
 
     func copy(path: AbsolutePath, to: AbsolutePath) throws {

@@ -137,7 +137,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
         }
 
         let productNames = archivePath
-            .appending(try! RelativePath(validating: "Products/Library/Frameworks/"))
+            .appending(try RelativePath(validating: "Products/Library/Frameworks/"))
             .glob("*.framework")
             .map(\.basenameWithoutExt)
 
@@ -261,6 +261,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     ///   - archivePath: Path to the .xcarchive.
     ///   - productName: Product name.
     fileprivate func frameworkPath(fromArchivePath archivePath: AbsolutePath, productName: String) -> AbsolutePath {
+        // swiftlint:disable:next force_try
         archivePath.appending(try! RelativePath(validating: "Products/Library/Frameworks/\(productName).framework"))
     }
 }

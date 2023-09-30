@@ -49,7 +49,7 @@ public struct Xcode {
     /// - Returns: Initialized Xcode instance.
     /// - Throws: An error if the local installation can't be read.
     static func read(path: AbsolutePath) throws -> Xcode {
-        let infoPlistPath = path.appending(try! RelativePath(validating: "Contents/Info.plist"))
+        let infoPlistPath = path.appending(try RelativePath(validating: "Contents/Info.plist"))
         if !FileHandler.shared.exists(infoPlistPath) {
             throw XcodeError.infoPlistNotFound(infoPlistPath)
         }

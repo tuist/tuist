@@ -37,14 +37,14 @@ public final class BinaryLocator: BinaryLocating {
                 .removingLastComponent()
                 .removingLastComponent()
                 .removingLastComponent()
-                .appending(try! RelativePath(validating: "projects/tuist/vendor"))
+                .appending(try RelativePath(validating: "projects/tuist/vendor"))
         #else
             let bundlePath = try AbsolutePath(validating: Bundle(for: BinaryLocator.self).bundleURL.path)
         #endif
         return [
             bundlePath,
             bundlePath.parentDirectory,
-            bundlePath.appending(try! RelativePath(validating: "vendor")),
+            bundlePath.appending(try RelativePath(validating: "vendor")),
         ]
     }
 

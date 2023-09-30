@@ -3,6 +3,8 @@ import TSCBasic
 
 @testable import TuistGraph
 
+// swiftlint:disable force_try
+
 extension GraphDependency {
     public static func testFramework(
         path: AbsolutePath = AbsolutePath.root.appending(component: "Test.framework"),

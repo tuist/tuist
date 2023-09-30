@@ -12,6 +12,7 @@ extension XCFrameworkInfoPlist {
 extension XCFrameworkInfoPlist.Library {
     public static func test(
         identifier: String = "test",
+        // swiftlint:disable:next force_try
         path: RelativePath = try! RelativePath(validating: "relative/to/library"),
         mergeable: Bool = false,
         architectures: [BinaryArchitecture] = [.i386]
