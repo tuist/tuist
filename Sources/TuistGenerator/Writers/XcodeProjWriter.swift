@@ -100,7 +100,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         xccontainerPath: AbsolutePath,
         wipeSharedSchemesBeforeWriting: Bool
     ) throws {
-        let sharedSchemesPath = schemeDirectory(path: xccontainerPath, shared: true)
+        let sharedSchemesPath = try schemeDirectory(path: xccontainerPath, shared: true)
         if wipeSharedSchemesBeforeWriting, FileHandler.shared.exists(sharedSchemesPath) {
             try FileHandler.shared.delete(sharedSchemesPath)
         }
@@ -155,7 +155,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         xccontainerPath: AbsolutePath,
         schemesOrderHint: [String: Int] = [:]
     ) throws {
-        let xcschememanagementPath = schemeDirectory(
+        let xcschememanagementPath = try schemeDirectory(
             path: xccontainerPath,
             shared: false
         ).appending(component: "xcschememanagement.plist")

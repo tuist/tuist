@@ -99,7 +99,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
     }
 
     private func createVersionFile(xcVersion: String, temporaryPath: AbsolutePath) throws {
-        let urlToCurrentVersion = temporaryPath.appending(RelativePath("model.xcdatamodeld"))
+        let urlToCurrentVersion = temporaryPath.appending(try RelativePath(validating: "model.xcdatamodeld"))
             .appending(component: ".xccurrentversion")
         let data = try XCTUnwrap(xcVersion.data(using: .utf8))
         try data.write(to: urlToCurrentVersion.asURL)

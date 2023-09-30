@@ -33,7 +33,8 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
             cacheDirectory: path,
             helpersDirectoryLocator: helpersDirectoryLocator
         )
-        let helpersPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
+        let helpersPath = path
+            .appending(try RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
         try FileHandler.shared.createFolder(path.appending(component: Constants.tuistDirectoryName))
         try FileHandler.shared.createFolder(helpersPath)
         try FileHandler.shared.write(

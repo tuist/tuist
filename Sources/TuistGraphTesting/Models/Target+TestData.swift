@@ -164,53 +164,6 @@ extension Target {
         )
     }
 
-    /// Creates a bare bones Target with as little data as possible
-    //  @available(*, deprecated, renamed: "empty(name:destinations:...)", message: "Please use the `destinations:` factory
-    //  method")
-    public static func empty(
-        name: String = "Target",
-        platform: Platform,
-        product: Product = .app,
-        productName: String? = nil,
-        bundleId: String? = nil,
-        deploymentTargets: DeploymentTargets = .empty(),
-        infoPlist: InfoPlist? = nil,
-        entitlements: Entitlements? = nil,
-        settings: Settings? = nil,
-        sources: [SourceFile] = [],
-        resources: [ResourceFileElement] = [],
-        copyFiles: [CopyFilesAction] = [],
-        coreDataModels: [CoreDataModel] = [],
-        headers: Headers? = nil,
-        scripts: [TargetScript] = [],
-        environmentVariables: [String: EnvironmentVariable] = [:],
-        filesGroup: ProjectGroup = .group(name: "Project"),
-        dependencies: [TargetDependency] = [],
-        rawScriptBuildPhases: [RawScriptBuildPhase] = []
-    ) -> Target {
-        Target(
-            name: name,
-            destinations: destinationsFrom(platform),
-            product: product,
-            productName: productName,
-            bundleId: bundleId ?? "io.tuist.\(name)",
-            deploymentTargets: deploymentTargets,
-            infoPlist: infoPlist,
-            entitlements: entitlements,
-            settings: settings,
-            sources: sources,
-            resources: resources,
-            copyFiles: copyFiles,
-            headers: headers,
-            coreDataModels: coreDataModels,
-            scripts: scripts,
-            environmentVariables: environmentVariables,
-            filesGroup: filesGroup,
-            dependencies: dependencies,
-            rawScriptBuildPhases: rawScriptBuildPhases
-        )
-    }
-
     // Maps a platform to a set of Destinations.  For migration purposes
     private static func destinationsFrom(_ platform: Platform) -> Destinations {
         switch platform {

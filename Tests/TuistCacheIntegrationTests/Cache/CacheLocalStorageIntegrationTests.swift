@@ -83,6 +83,9 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         _ = try subject.store(name: "ignored", hash: hash, paths: [xcframeworkPath])
 
         // Then
-        XCTAssertTrue(FileHandler.shared.exists(cacheDirectory.appending(RelativePath("\(hash)/framework.xcframework"))))
+        XCTAssertTrue(
+            FileHandler.shared
+                .exists(cacheDirectory.appending(try RelativePath(validating: "\(hash)/framework.xcframework")))
+        )
     }
 }

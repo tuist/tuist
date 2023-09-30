@@ -47,6 +47,7 @@ extension DependenciesGraph {
 
     public static func testXCFramework(
         name: String = "Test",
+        // swiftlint:disable:next force_try
         path: AbsolutePath = AbsolutePath.root.appending(try! RelativePath(validating: "Test.xcframework")),
         platforms: Set<Platform>
     ) -> DependenciesGraph {

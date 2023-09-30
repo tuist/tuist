@@ -71,22 +71,22 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
 
     private func findXcodeProjs(in workspace: XCWorkspace) throws -> [XcodeProj] {
         let temporaryPath = try temporaryPath()
-        let projectsPaths = workspace.projectPaths.map { temporaryPath.appending(RelativePath($0)) }
+        let projectsPaths = try workspace.projectPaths.map { temporaryPath.appending(try RelativePath(validating: $0)) }
         let xcodeProjs = try projectsPaths.map { try XcodeProj(path: $0.path) }
         return xcodeProjs
     }
 
     private func findSharedSchemes(in workspace: XCWorkspace) throws -> [XCScheme] {
-        try findSchemes(in: workspace, relativePath: RelativePath("xcshareddata"))
+        try findSchemes(in: workspace, relativePath: try RelativePath(validating: "xcshareddata"))
     }
 
     private func findUserSchemes(in workspace: XCWorkspace) throws -> [XCScheme] {
-        try findSchemes(in: workspace, relativePath: RelativePath("xcuserdata"))
+        try findSchemes(in: workspace, relativePath: try RelativePath(validating: "xcuserdata"))
     }
 
     private func findSchemes(in workspace: XCWorkspace, relativePath: RelativePath) throws -> [XCScheme] {
         let temporaryPath = try temporaryPath()
-        let projectsPaths = workspace.projectPaths.map { temporaryPath.appending(RelativePath($0)) }
+        let projectsPaths = try workspace.projectPaths.map { temporaryPath.appending(try RelativePath(validating: $0)) }
         let parentDir = projectsPaths.map { $0.appending(relativePath) }
         let schemes = try parentDir.map { FileHandler.shared.glob($0, glob: "**/*.xcscheme") }
             .flatMap { $0 }

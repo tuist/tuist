@@ -33,7 +33,7 @@ final class VersionsControllerTests: TuistUnitTestCase {
         }
 
         let versionsPath = environment.versionsDirectory
-        let testPath = versionsPath.appending(RelativePath("3.2.1/test"))
+        let testPath = versionsPath.appending(try RelativePath(validating: "3.2.1/test"))
 
         XCTAssertTrue(FileHandler.shared.exists(testPath))
     }

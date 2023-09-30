@@ -115,8 +115,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     /// - Parameter at: Path to the workspace or project.
     func wipeSchemes(at path: AbsolutePath) throws {
         let fileHandler = FileHandler.shared
-        let userPath = schemeDirectory(path: path, shared: false)
-        let sharedPath = schemeDirectory(path: path, shared: true)
+        let userPath = try schemeDirectory(path: path, shared: false)
+        let sharedPath = try schemeDirectory(path: path, shared: true)
         if fileHandler.exists(userPath) { try fileHandler.delete(userPath) }
         if fileHandler.exists(sharedPath) { try fileHandler.delete(sharedPath) }
     }

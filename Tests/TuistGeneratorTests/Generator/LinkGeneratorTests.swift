@@ -71,7 +71,7 @@ final class LinkGeneratorTests: XCTestCase {
         let sourceRootPath = try AbsolutePath(validating: "/")
         embedScriptGenerator.scriptStub = .success(EmbedScript(
             script: "script",
-            inputPaths: [RelativePath("frameworks/A.framework")],
+            inputPaths: [try RelativePath(validating: "frameworks/A.framework")],
             outputPaths: ["output/A.framework"]
         ))
 
@@ -168,7 +168,7 @@ final class LinkGeneratorTests: XCTestCase {
             let sourceRootPath = try AbsolutePath(validating: "/")
             embedScriptGenerator.scriptStub = .success(EmbedScript(
                 script: "script",
-                inputPaths: [RelativePath("frameworks/A.framework")],
+                inputPaths: [try RelativePath(validating: "frameworks/A.framework")],
                 outputPaths: ["output/A.framework"]
             ))
             let path = try AbsolutePath(validating: "/path/")
@@ -209,7 +209,7 @@ final class LinkGeneratorTests: XCTestCase {
             let sourceRootPath = try AbsolutePath(validating: "/")
             embedScriptGenerator.scriptStub = .success(EmbedScript(
                 script: "script",
-                inputPaths: [RelativePath("frameworks/A.framework")],
+                inputPaths: [try RelativePath(validating: "frameworks/A.framework")],
                 outputPaths: ["output/A.framework"]
             ))
             let path = try AbsolutePath(validating: "/path/")

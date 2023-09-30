@@ -52,7 +52,7 @@ final class FileHandlerTests: TuistUnitTestCase {
     }
 
     func test_decode() throws {
-        let testPlistPath = fixturePath(path: RelativePath("Test.plist"))
+        let testPlistPath = fixturePath(path: try RelativePath(validating: "Test.plist"))
         let xcframeworkInfoPlist: TestPlist = try subject.readPlistFile(testPlistPath)
         XCTAssertNotNil(xcframeworkInfoPlist)
     }
@@ -76,7 +76,7 @@ final class FileHandlerTests: TuistUnitTestCase {
 
     func test_base64MD5() throws {
         // Given
-        let testZippedFrameworkPath = fixturePath(path: RelativePath("uUI.xcframework.zip"))
+        let testZippedFrameworkPath = fixturePath(path: try RelativePath(validating: "uUI.xcframework.zip"))
 
         // When
         let result = try subject.urlSafeBase64MD5(path: testZippedFrameworkPath)
@@ -87,7 +87,7 @@ final class FileHandlerTests: TuistUnitTestCase {
 
     func test_changeExtension() throws {
         // Given
-        let testZippedFrameworkPath = fixturePath(path: RelativePath("uUI.xcframework.zip"))
+        let testZippedFrameworkPath = fixturePath(path: try RelativePath(validating: "uUI.xcframework.zip"))
 
         // When
         let result = try subject.changeExtension(path: testZippedFrameworkPath, to: "txt")

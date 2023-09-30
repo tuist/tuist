@@ -31,7 +31,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
 
-        zipPath = fixturePath(path: RelativePath("uUI.xcframework.zip"))
+        zipPath = fixturePath(path: try RelativePath(validating: "uUI.xcframework.zip"))
 
         cloudConfig = .test()
         cacheExistsService = MockCacheExistsService()
@@ -152,7 +152,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
         // Then
         let expectedPath = cacheDirectoriesProvider.cacheDirectory(for: .builds)
-            .appending(RelativePath("\(hash)/myFramework.xcframework"))
+            .appending(try RelativePath(validating: "\(hash)/myFramework.xcframework"))
         XCTAssertEqual(result, expectedPath)
     }
 

@@ -57,7 +57,7 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let xcframeworkPath = path.appending(component: "tuist.xcframework")
-        let binaryPath = path.appending(RelativePath("tuist.xcframework/whatever/tuist"))
+        let binaryPath = path.appending(try RelativePath(validating: "tuist.xcframework/whatever/tuist"))
         let linking: BinaryLinking = .dynamic
 
         let infoPlist = XCFrameworkInfoPlist.test()

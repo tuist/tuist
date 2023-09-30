@@ -32,7 +32,7 @@ final class TargetsExtractorIntegrationTests: TuistTestCase {
 
     func test_when_existing_xcodeproj_path_with_targets() throws {
         // Given
-        let xcodeprojPath = fixturePath(path: RelativePath("Frameworks/Frameworks.xcodeproj"))
+        let xcodeprojPath = fixturePath(path: try RelativePath(validating: "Frameworks/Frameworks.xcodeproj"))
 
         // Then
         let result = try subject.targetsSortedByDependencies(xcodeprojPath: xcodeprojPath)

@@ -92,3 +92,5 @@ extension GraphDependency {
         )
     }
 }
+
+// swiftlint:enable force_try

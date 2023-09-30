@@ -360,7 +360,7 @@ extension SwiftPackageManagerInteractorTests {
             ".build/repositories/checkouts-state.json",
             ".build/repositories/Alamofire-e8f130fe/config",
         ].forEach {
-            try fileHandler.touch(path.appending(RelativePath($0)))
+            try fileHandler.touch(path.appending(try RelativePath(validating: $0)))
         }
     }
 }

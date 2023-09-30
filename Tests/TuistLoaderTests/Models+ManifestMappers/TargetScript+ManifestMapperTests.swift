@@ -76,9 +76,18 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.name, "MyScript")
         XCTAssertEqual(model.script, .tool(path: "my_tool", args: ["arg1", "arg2"]))
         XCTAssertEqual(model.order, .pre)
-        XCTAssertEqual(model.inputFileListPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
-        XCTAssertEqual(model.outputPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
-        XCTAssertEqual(model.outputFileListPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
+        XCTAssertEqual(
+            model.inputFileListPaths,
+            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift"))]
+        )
+        XCTAssertEqual(
+            model.outputPaths,
+            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift"))]
+        )
+        XCTAssertEqual(
+            model.outputFileListPaths,
+            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift"))]
+        )
     }
 
     func test_glob_whenExcluding() throws {
@@ -128,8 +137,17 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.name, "MyScript")
         XCTAssertEqual(model.script, .tool(path: "my_tool", args: ["arg1", "arg2"]))
         XCTAssertEqual(model.order, .pre)
-        XCTAssertEqual(model.inputFileListPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
-        XCTAssertEqual(model.outputPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
-        XCTAssertEqual(model.outputFileListPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
+        XCTAssertEqual(
+            model.inputFileListPaths,
+            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift"))]
+        )
+        XCTAssertEqual(
+            model.outputPaths,
+            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift"))]
+        )
+        XCTAssertEqual(
+            model.outputFileListPaths,
+            [temporaryPath.appending(try RelativePath(validating: "$(SRCROOT)/foo/bar/**/*.swift"))]
+        )
     }
 }

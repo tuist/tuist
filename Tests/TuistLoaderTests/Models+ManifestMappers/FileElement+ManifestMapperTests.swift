@@ -74,8 +74,8 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = ProjectDescription.FileElement.glob(pattern: "invalid/path/**/*")
         let invalidGlob = InvalidGlob(
-            pattern: temporaryPath.appending(RelativePath("invalid/path/**/*")).pathString,
-            nonExistentPath: temporaryPath.appending(RelativePath("invalid/path/"))
+            pattern: temporaryPath.appending(try RelativePath(validating: "invalid/path/**/*")).pathString,
+            nonExistentPath: temporaryPath.appending(try RelativePath(validating: "invalid/path/"))
         )
         let error = GlobError.nonExistentDirectory(invalidGlob)
 

@@ -24,11 +24,15 @@ final class TemplateGeneratorTests: TuistTestCase {
 
     func test_directories_are_generated() throws {
         // Given
-        let directories = [RelativePath("a"), RelativePath("a/b"), RelativePath("c")]
+        let directories = [
+            try RelativePath(validating: "a"),
+            try RelativePath(validating: "a/b"),
+            try RelativePath(validating: "c"),
+        ]
         let destinationPath = try temporaryPath()
         let expectedDirectories = directories.map(destinationPath.appending)
-        let items = directories.map {
-            Template.Item.test(path: RelativePath($0.pathString + "/file.swift"))
+        let items = try directories.map {
+            Template.Item.test(path: try RelativePath(validating: $0.pathString + "/file.swift"))
         }
 
         let template = Template.test(items: items)
@@ -47,19 +51,19 @@ final class TemplateGeneratorTests: TuistTestCase {
     func test_directories_with_attributes() throws {
         // Given
         let directories = [
-            RelativePath("{{ name|lowercase }}"),
-            RelativePath("{{ aName }}"),
-            RelativePath("{{ name }}/{{ bName }}"),
+            try RelativePath(validating: "{{ name|lowercase }}"),
+            try RelativePath(validating: "{{ aName }}"),
+            try RelativePath(validating: "{{ name }}/{{ bName }}"),
         ]
-        let items = directories.map {
-            Template.Item.test(path: RelativePath($0.pathString + "/file.swift"))
+        let items = try directories.map {
+            Template.Item.test(path: try RelativePath(validating: $0.pathString + "/file.swift"))
         }
         let template = Template.test(items: items)
         let destinationPath = try temporaryPath()
         let expectedDirectories = [
-            RelativePath("test_name"),
-            RelativePath("test"),
-            RelativePath("test_name/nested_dir"),
+            try RelativePath(validating: "test_name"),
+            try RelativePath(validating: "test"),
+            try RelativePath(validating: "test_name/nested_dir"),
         ].map(destinationPath.appending)
 
         // When
@@ -80,8 +84,8 @@ final class TemplateGeneratorTests: TuistTestCase {
     func test_files_are_generated() throws {
         // Given
         let items: [Template.Item] = [
-            Template.Item(path: RelativePath("a"), contents: .string("aContent")),
-            Template.Item(path: RelativePath("b"), contents: .string("bContent")),
+            Template.Item(path: try RelativePath(validating: "a"), contents: .string("aContent")),
+            Template.Item(path: try RelativePath(validating: "b"), contents: .string("bContent")),
         ]
 
         let template = Template.test(items: items)
@@ -115,9 +119,15 @@ final class TemplateGeneratorTests: TuistTestCase {
         // Given
         let sourcePath = try temporaryPath()
         let items = [
-            Template.Item(path: RelativePath("{{ name }}"), contents: .string("{{ contentName }}")),
-            Template.Item(path: RelativePath("{{ directoryName }}/{{ fileName }}"), contents: .string("bContent")),
-            Template.Item(path: RelativePath("file"), contents: .file(sourcePath.appending(component: "{{ filePath }}"))),
+            Template.Item(path: try RelativePath(validating: "{{ name }}"), contents: .string("{{ contentName }}")),
+            Template.Item(
+                path: try RelativePath(validating: "{{ directoryName }}/{{ fileName }}"),
+                contents: .string("bContent")
+            ),
+            Template.Item(
+                path: try RelativePath(validating: "file"),
+                contents: .file(sourcePath.appending(component: "{{ filePath }}"))
+            ),
         ]
         let template = Template.test(items: items)
         let name = "test name"
@@ -161,9 +171,12 @@ final class TemplateGeneratorTests: TuistTestCase {
         let aContent = "test a content"
         let bContent = "test b content"
         let items = [
-            Template.Item(path: RelativePath("a/file"), contents: .file(sourcePath.appending(component: "testFile"))),
             Template.Item(
-                path: RelativePath("b/{{ name }}/file"),
+                path: try RelativePath(validating: "a/file"),
+                contents: .file(sourcePath.appending(component: "testFile"))
+            ),
+            Template.Item(
+                path: try RelativePath(validating: "b/{{ name }}/file"),
                 contents: .file(sourcePath.appending(components: "bTestFile"))
             ),
         ]
@@ -199,7 +212,7 @@ final class TemplateGeneratorTests: TuistTestCase {
             atomically: true
         )
         let template = Template.test(items: [Template.Item(
-            path: RelativePath("a"),
+            path: try RelativePath(validating: "a"),
             contents: .file(sourcePath.appending(component: "a.stencil"))
         )])
 
@@ -235,11 +248,11 @@ final class TemplateGeneratorTests: TuistTestCase {
         )
         let template = Template.test(items: [
             Template.Item(
-                path: RelativePath("unrendered"),
+                path: try RelativePath(validating: "unrendered"),
                 contents: .file(sourcePath.appending(component: "a.swift"))
             ),
             Template.Item(
-                path: RelativePath("rendered"),
+                path: try RelativePath(validating: "rendered"),
                 contents: .file(sourcePath.appending(component: "a.stencil"))
             ),
         ])
@@ -273,7 +286,7 @@ final class TemplateGeneratorTests: TuistTestCase {
         )
         let template = Template.test(items: [
             Template.Item(
-                path: RelativePath("ignore"),
+                path: try RelativePath(validating: "ignore"),
                 contents: .file(sourcePath.appending(component: "b.stencil"))
             ),
         ])
@@ -305,7 +318,7 @@ final class TemplateGeneratorTests: TuistTestCase {
 
         let template = Template.test(items: [
             Template.Item(
-                path: RelativePath("destination"),
+                path: try RelativePath(validating: "destination"),
                 contents: .directory(sourcePath)
             ),
         ])

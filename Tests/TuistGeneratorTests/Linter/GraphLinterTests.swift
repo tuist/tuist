@@ -33,8 +33,8 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_when_frameworks_are_missing() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let frameworkAPath = temporaryPath.appending(RelativePath("Carthage/Build/iOS/A.framework"))
-        let frameworkBPath = temporaryPath.appending(RelativePath("Carthage/Build/iOS/B.framework"))
+        let frameworkAPath = temporaryPath.appending(try RelativePath(validating: "Carthage/Build/iOS/A.framework"))
+        let frameworkBPath = temporaryPath.appending(try RelativePath(validating: "Carthage/Build/iOS/B.framework"))
         try FileHandler.shared.createFolder(frameworkAPath)
         let graph = Graph.test(dependencies: [
             GraphDependency.testFramework(path: frameworkAPath): Set(),
@@ -419,9 +419,9 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_macStaticProductsCantDependOniOSStaticProducts() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let macStaticFramework = Target.empty(name: "MacStaticFramework", platform: .macOS, product: .staticFramework)
-        let iosStaticFramework = Target.empty(name: "iOSStaticFramework", platform: .iOS, product: .staticFramework)
-        let iosStaticLibrary = Target.empty(name: "iOSStaticLibrary", platform: .iOS, product: .staticLibrary)
+        let macStaticFramework = Target.empty(name: "MacStaticFramework", destinations: .macOS, product: .staticFramework)
+        let iosStaticFramework = Target.empty(name: "iOSStaticFramework", destinations: .iOS, product: .staticFramework)
+        let iosStaticLibrary = Target.empty(name: "iOSStaticLibrary", destinations: .iOS, product: .staticLibrary)
         let project = Project.empty(path: path)
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -458,8 +458,8 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_watch_canDependOnWatchExtension() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let watchExtension = Target.empty(name: "WatckExtension", platform: .watchOS, product: .watch2Extension)
-        let watchApp = Target.empty(name: "WatchApp", platform: .watchOS, product: .watch2App)
+        let watchExtension = Target.empty(name: "WatckExtension", destinations: .watchOS, product: .watch2Extension)
+        let watchApp = Target.empty(name: "WatchApp", destinations: .watchOS, product: .watch2App)
         let project = Project.empty(path: path)
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -488,8 +488,8 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_watch_canOnlyDependOnWatchExtension() throws {
         // Given
         let path: AbsolutePath = "/project"
-        let invalidDependency = Target.empty(name: "Framework", platform: .watchOS, product: .framework)
-        let watchApp = Target.empty(name: "WatchApp", platform: .watchOS, product: .watch2App)
+        let invalidDependency = Target.empty(name: "Framework", destinations: .watchOS, product: .framework)
+        let watchApp = Target.empty(name: "WatchApp", destinations: .watchOS, product: .watch2App)
         let project = Project.empty(path: path)
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -520,12 +520,12 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let watchApp = Target.empty(
             name: "WatchApp",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .watch2App
         )
         let watchAppTests = Target.empty(
             name: "WatchAppUITests",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .uiTests,
             dependencies: [.target(name: watchApp.name)]
         )
@@ -557,12 +557,12 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let staticLibrary = Target.empty(
             name: "StaticLibrary",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .staticLibrary
         )
         let watchAppTests = Target.empty(
             name: "WatchAppUITests",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .uiTests,
             dependencies: [.target(name: staticLibrary.name)]
         )
@@ -594,12 +594,12 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let framework = Target.empty(
             name: "Framework",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .framework
         )
         let watchAppTests = Target.empty(
             name: "WatchAppUITests",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .uiTests,
             dependencies: [.target(name: framework.name)]
         )
@@ -631,12 +631,12 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let staticFramework = Target.empty(
             name: "StaticFramework",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .watch2App
         )
         let watchAppTests = Target.empty(
             name: "WatchAppUITests",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .uiTests,
             dependencies: [.target(name: staticFramework.name)]
         )
@@ -671,17 +671,17 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let staticFramework = Target.empty(
             name: "StaticFramework",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .staticFramework
         )
         let dynamicFramework = Target.empty(
             name: "DynamicFramework",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .framework
         )
         let watchApplication = Target.empty(
             name: "WatchApp",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .app,
             dependencies: [
                 .target(name: staticFramework.name),
@@ -729,12 +729,12 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let widgetExtension = Target.empty(
             name: "WidgetExtension",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .appExtension // WidgetKit extension targets are `.appExtension` targets with custom info plist key
         )
         let watchApplication = Target.empty(
             name: "WatchApp",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .app,
             dependencies: [
                 .target(name: widgetExtension.name),
@@ -775,7 +775,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let path: AbsolutePath = "/project"
         let app = Target.empty(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             dependencies: [
                 .target(name: "WatchApp"),
@@ -783,7 +783,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
         let watchApplication = Target.empty(
             name: "WatchApp",
-            platform: .watchOS,
+            destinations: .watchOS,
             product: .app
         )
         let project = Project.test(path: path, targets: [app, watchApplication])
@@ -1129,7 +1129,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             "entitlements/AppClip.entitlements",
         ])
 
-        let entitlementsPath = temporaryPath.appending(RelativePath("entitlements/AppClip.entitlements"))
+        let entitlementsPath = temporaryPath.appending(try RelativePath(validating: "entitlements/AppClip.entitlements"))
 
         let app = Target.test(
             name: "App",
@@ -1173,7 +1173,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             "entitlements/AppClip.entitlements",
         ])
 
-        let entitlementsPath = temporaryPath.appending(RelativePath("entitlements/AppClip.entitlements"))
+        let entitlementsPath = temporaryPath.appending(try RelativePath(validating: "entitlements/AppClip.entitlements"))
 
         let app = Target.test(
             name: "TestApp",
@@ -1308,7 +1308,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             "entitlements/AppClip.entitlements",
         ])
 
-        let entitlementsPath = temporaryPath.appending(RelativePath("entitlements/AppClip.entitlements"))
+        let entitlementsPath = temporaryPath.appending(try RelativePath(validating: "entitlements/AppClip.entitlements"))
 
         let app = Target.test(
             name: "App",
@@ -1374,7 +1374,7 @@ final class GraphLinterTests: TuistUnitTestCase {
             "entitlements/AppClip.entitlements",
         ])
 
-        let entitlementsPath = temporaryPath.appending(RelativePath("entitlements/AppClip.entitlements"))
+        let entitlementsPath = temporaryPath.appending(try RelativePath(validating: "entitlements/AppClip.entitlements"))
 
         let framework = Target.empty(name: "Framework", product: .framework)
 

@@ -284,7 +284,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
         XCTAssertEqual(model.additionalFiles, [
-            .folderReference(path: temporaryPath.appending(RelativePath("Documentation"))),
+            .folderReference(path: temporaryPath.appending(try RelativePath(validating: "Documentation"))),
         ])
     }
 
