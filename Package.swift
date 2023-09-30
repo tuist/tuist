@@ -77,6 +77,7 @@ let package = Package(
         .executableTarget(
             name: "tuistfixturegenerator",
             dependencies: [
+                argumentParserDependency,
                 .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
             ]
         ),

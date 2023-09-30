@@ -145,7 +145,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         // Then
         let workspacePackageResolvedPath = temporaryPath
-            .appending(RelativePath("\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"))
+            .appending(try RelativePath(validating: "\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"))
         XCTAssertEqual(
             try FileHandler.shared.readTextFile(workspacePackageResolvedPath),
             "package"
