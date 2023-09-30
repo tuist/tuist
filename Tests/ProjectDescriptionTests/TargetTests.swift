@@ -37,7 +37,7 @@ final class TargetTests: XCTestCase {
                 release: ["a": .string("b")]
             ),
             coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
-            environment: ["a": "b"]
+            environmentVariables: ["a": "b"]
         )
         XCTAssertCodable(subject)
     }
@@ -86,7 +86,7 @@ final class TargetTests: XCTestCase {
                 ]
             ),
             coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
-            environment: ["a": "b"]
+            environmentVariables: ["a": "b"]
         )
         XCTAssertCodable(subject)
     }

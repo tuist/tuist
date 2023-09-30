@@ -39,7 +39,7 @@ extension TuistGraph.Template {
     static func from(manifest: ProjectDescription.Template, generatorPaths: GeneratorPaths) throws -> TuistGraph.Template {
         let attributes = try manifest.attributes.map(TuistGraph.Template.Attribute.from)
         let items = try manifest.items.map { Item(
-            path: RelativePath($0.path),
+            path: try RelativePath(validating: $0.path),
             contents: try TuistGraph.Template.Contents.from(
                 manifest: $0.contents,
                 generatorPaths: generatorPaths

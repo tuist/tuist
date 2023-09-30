@@ -954,7 +954,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
     func test_schemeLaunchAction() throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/somepath/Workspace")
-        let projectPath = workspacePath.appending(RelativePath("Projects/Project"))
+        let projectPath = workspacePath.appending(try RelativePath(validating: "Projects/Project"))
         let environmentVariables = [
             "env1": EnvironmentVariable(value: "1", isEnabled: true),
             "env2": EnvironmentVariable(value: "2", isEnabled: true),
@@ -971,13 +971,13 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
         let runAction = RunAction.test(
             configurationName: "Release",
-            customLLDBInitFile: workspacePath.appending(RelativePath("Projects/etc/path/to/lldbinit")),
+            customLLDBInitFile: workspacePath.appending(try RelativePath(validating: "Projects/etc/path/to/lldbinit")),
             executable: TargetReference(projectPath: projectPath, name: "App"),
             arguments: Arguments(environmentVariables: environmentVariables, launchArguments: launchArguments),
             options: .init(
                 language: "pl",
                 storeKitConfigurationPath: projectPath.appending(
-                    RelativePath("nested/configuration/configuration.storekit")
+                    try RelativePath(validating: "nested/configuration/configuration.storekit")
                 ),
                 simulatedLocation: .reference("New York, NY, USA"),
                 enableGPUFrameCaptureMode: .metal

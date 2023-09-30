@@ -63,8 +63,8 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         XCTAssertThrowsSpecific(
             try dir.throwingGlob("invalid/path/**/*"),
             GlobError.nonExistentDirectory(InvalidGlob(
-                pattern: dir.appending(RelativePath("invalid/path/**/*")).pathString,
-                nonExistentPath: dir.appending(RelativePath("invalid/path/"))
+                pattern: dir.appending(try RelativePath(validating: "invalid/path/**/*")).pathString,
+                nonExistentPath: dir.appending(try RelativePath(validating: "invalid/path/"))
             ))
         )
     }

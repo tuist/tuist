@@ -124,12 +124,12 @@ final class TargetTests: TuistUnitTestCase {
         // When
         let sources = try Target.sources(targetName: "Target", sources: [
             SourceFileGlob(
-                glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                glob: temporaryPath.appending(try RelativePath(validating: "sources/**")).pathString,
                 excluding: [],
                 compilerFlags: nil
             ),
             SourceFileGlob(
-                glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                glob: temporaryPath.appending(try RelativePath(validating: "sources/**")).pathString,
                 excluding: [],
                 compilerFlags: nil
             ),
@@ -166,8 +166,8 @@ final class TargetTests: TuistUnitTestCase {
         // When
         let sources = try Target.sources(targetName: "Target", sources: [
             SourceFileGlob(
-                glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
-                excluding: [temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString],
+                glob: temporaryPath.appending(try RelativePath(validating: "sources/**")).pathString,
+                excluding: [temporaryPath.appending(try RelativePath(validating: "sources/**/*Tests.swift")).pathString],
                 compilerFlags: nil
             ),
         ])
@@ -200,15 +200,15 @@ final class TargetTests: TuistUnitTestCase {
             "sources/d/d.m",
         ])
         let excluding: [String] = [
-            temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString,
-            temporaryPath.appending(RelativePath("sources/**/*Fake.swift")).pathString,
-            temporaryPath.appending(RelativePath("sources/**/*.m")).pathString,
+            temporaryPath.appending(try RelativePath(validating: "sources/**/*Tests.swift")).pathString,
+            temporaryPath.appending(try RelativePath(validating: "sources/**/*Fake.swift")).pathString,
+            temporaryPath.appending(try RelativePath(validating: "sources/**/*.m")).pathString,
         ]
 
         // When
         let sources = try Target.sources(targetName: "Target", sources: [
             SourceFileGlob(
-                glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                glob: temporaryPath.appending(try RelativePath(validating: "sources/**")).pathString,
                 excluding: excluding,
                 compilerFlags: nil
             ),
@@ -229,8 +229,8 @@ final class TargetTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         let invalidGlobs: [InvalidGlob] = [
             .init(
-                pattern: temporaryPath.appending(RelativePath("invalid/path/**")).pathString,
-                nonExistentPath: temporaryPath.appending(RelativePath("invalid/path"))
+                pattern: temporaryPath.appending(try RelativePath(validating: "invalid/path/**")).pathString,
+                nonExistentPath: temporaryPath.appending(try RelativePath(validating: "invalid/path"))
             ),
         ]
         let error = TargetError.invalidSourcesGlob(
@@ -239,7 +239,7 @@ final class TargetTests: TuistUnitTestCase {
         )
         // When
         XCTAssertThrowsSpecific(try Target.sources(targetName: "Target", sources: [
-            SourceFileGlob(glob: temporaryPath.appending(RelativePath("invalid/path/**")).pathString),
+            SourceFileGlob(glob: temporaryPath.appending(try RelativePath(validating: "invalid/path/**")).pathString),
         ]), error)
     }
 

@@ -102,7 +102,7 @@ final class SigningInstallerTests: TuistUnitTestCase {
         let homeDirectoryPath = try temporaryPath()
         fileHandler.homeDirectoryStub = homeDirectoryPath
         let provisioningProfilesDirectoryPath = homeDirectoryPath
-            .appending(RelativePath("Library/MobileDevice/Provisioning Profiles"))
+            .appending(try RelativePath(validating: "Library/MobileDevice/Provisioning Profiles"))
         let destinationProvisioningProfilePath = provisioningProfilesDirectoryPath
             .appending(component: "\(profile.uuid).mobileprovision")
 

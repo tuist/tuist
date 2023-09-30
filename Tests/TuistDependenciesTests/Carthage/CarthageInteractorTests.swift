@@ -329,7 +329,7 @@ extension CarthageInteractorTests {
             "Carthage/Build/tvOS/ReactiveMoya.framework/Info.plist",
             "Carthage/Build/tvOS/RxMoya.framework/Info.plist",
         ].forEach {
-            try fileHandler.touch(path.appending(RelativePath($0)))
+            try fileHandler.touch(path.appending(try RelativePath(validating: $0)))
         }
     }
 }

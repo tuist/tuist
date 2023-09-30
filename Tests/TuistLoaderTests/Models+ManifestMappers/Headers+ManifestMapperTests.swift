@@ -45,20 +45,20 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public, [
+        XCTAssertEqual(model.public, try [
             "Sources/public/A1.h",
             "Sources/public/A2.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.private, [
+        XCTAssertEqual(model.private, try [
             "Sources/private/B1.h",
             "Sources/private/B2.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.project, [
+        XCTAssertEqual(model.project, try [
             "Sources/project/C1.h",
             "Sources/project/C2.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
     func test_from_when_array() throws {
@@ -96,20 +96,20 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public, [
+        XCTAssertEqual(model.public, try [
             "Sources/public/A/A1.h",
             "Sources/public/B/B1.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.private, [
+        XCTAssertEqual(model.private, try [
             "Sources/private/C/C1.h",
             "Sources/private/D/D1.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.project, [
+        XCTAssertEqual(model.project, try [
             "Sources/project/E/E1.h",
             "Sources/project/F/F1.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
     func test_from_when_array_and_string() throws {
@@ -139,14 +139,14 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public, [
+        XCTAssertEqual(model.public, try [
             "Sources/public/A/A1.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.project, [
+        XCTAssertEqual(model.project, try [
             "Sources/project/C/C1.h",
             "Sources/project/D/D1.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
     func test_from_and_excluding() throws {
@@ -184,18 +184,18 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public, [
+        XCTAssertEqual(model.public, try [
             "Sources/public/A1.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.private, [
+        XCTAssertEqual(model.private, try [
             "Sources/private/B2.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.project, [
+        XCTAssertEqual(model.project, try [
             "Sources/project/C1.h",
             "Sources/project/C2.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
     func test_from_and_excluding_same_folder() throws {
@@ -228,18 +228,17 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public, [
+        XCTAssertEqual(model.public, try [
             "Sources/A1.h",
             "Sources/A2.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.private, [
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        XCTAssertEqual(model.private, [])
 
-        XCTAssertEqual(model.project.sorted(), [
+        XCTAssertEqual(model.project.sorted(), try [
             "Sources/A1+Project.h",
             "Sources/A2+Protected.h",
-        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
     func test_from_and_excluding_in_nested_folder() throws {
@@ -272,18 +271,17 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public, [
+        XCTAssertEqual(model.public, try [
             "Sources/group/A1.h",
             "Sources/group/A2.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.private, [
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        XCTAssertEqual(model.private, [])
 
-        XCTAssertEqual(model.project.sorted(), [
+        XCTAssertEqual(model.project.sorted(), try [
             "Sources/group/A1+Project.h",
             "Sources/group/A2+Protected.h",
-        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
     func test_exclusionRule_projectExcludesPrivateAndPublic() throws {
@@ -329,20 +327,20 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public, [
+        XCTAssertEqual(model.public, try [
             "Sources/group/A1.h",
             "Sources/group/A2.h",
             "Sources/group/A3.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.private, [
+        XCTAssertEqual(model.private, try [
             "Sources/group/A4+Private.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.project.sorted(), [
+        XCTAssertEqual(model.project.sorted(), try [
             "Sources/group/A1+Project.h",
             "Sources/group/A2+Protected.h",
-        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
     func test_exclusionRule_publicExcludesPrivateAndProject() throws {
@@ -382,20 +380,20 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public, [
+        XCTAssertEqual(model.public, try [
             "Sources/group/A1.h",
             "Sources/group/A2.h",
             "Sources/group/A3.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.private, [
+        XCTAssertEqual(model.private, try [
             "Sources/group/A4+Private.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.project.sorted(), [
+        XCTAssertEqual(model.project.sorted(), try [
             "Sources/group/A1+Project.h",
             "Sources/group/A2+Protected.h",
-        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
     func test_load_from_umbrella() throws {
@@ -420,7 +418,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         #import <TuistTestModule/A2+Protected.h> // to test modules, where some protected files became public
         #import <UIKit/A4+Private.h> // to test incorrect module
         """
-        let umbrellaPath = temporaryPath.appending(RelativePath("Sources/Umbrella.h"))
+        let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
 
         try createFiles([
             "Sources/group/A1.h",
@@ -445,21 +443,20 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public.sorted(), [
+        XCTAssertEqual(model.public.sorted(), try [
             "Sources/Umbrella.h",
             "Sources/group/A1.h",
             "Sources/group/A2.h",
             "Sources/group/A3.h",
             "Sources/group/A2+Protected.h",
-        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.private, [
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        XCTAssertEqual(model.private, [])
 
-        XCTAssertEqual(model.project.sorted(), [
+        XCTAssertEqual(model.project.sorted(), try [
             "Sources/group/A1+Project.h",
             "Sources/group/A4+Private.h",
-        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
     func test_load_from_umbrella_withExcluding() throws {
@@ -482,7 +479,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         #import <TuistTestModule/A2.h>
         #import "A3.h" // to test modules with legacy format
         """
-        let umbrellaPath = temporaryPath.appending(RelativePath("Sources/Umbrella.h"))
+        let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
 
         try createFiles([
             "Sources/group/A1.h",
@@ -513,20 +510,20 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public.sorted(), [
+        XCTAssertEqual(model.public.sorted(), try [
             "Sources/Umbrella.h", // should be added anyway
             "Sources/group/A1.h",
             "Sources/group/A2.h",
             "Sources/group/A3.h",
-        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.private, [
+        XCTAssertEqual(model.private, try [
             "Sources/group/A4+Private.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.project.sorted(), [
+        XCTAssertEqual(model.project.sorted(), try [
             "Sources/group/A2+Protected.h",
-        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
     }
 
     func test_load_from_umbrella_withExcluding_withOutProject() throws {
@@ -549,7 +546,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         #import <TuistTestModule/A2.h>
         #import "A3.h" // to test modules with legacy format
         """
-        let umbrellaPath = temporaryPath.appending(RelativePath("Sources/Umbrella.h"))
+        let umbrellaPath = temporaryPath.appending(try RelativePath(validating: "Sources/Umbrella.h"))
 
         try createFiles([
             "Sources/group/A1.h",
@@ -580,19 +577,18 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(model.public.sorted(), [
+        XCTAssertEqual(model.public.sorted(), try [
             "Sources/Umbrella.h", // should be added anyway
             "Sources/group/A1.h",
             "Sources/group/A2.h",
             "Sources/group/A3.h",
-        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+        ].sorted().map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.private, [
+        XCTAssertEqual(model.private, try [
             "Sources/group/A4+Private.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        ].map { temporaryPath.appending(try RelativePath(validating: $0)) })
 
-        XCTAssertEqual(model.project.sorted(), [
-        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+        XCTAssertEqual(model.project.sorted(), [])
     }
 
     private func createVersionFile(content: String, in path: AbsolutePath) throws {

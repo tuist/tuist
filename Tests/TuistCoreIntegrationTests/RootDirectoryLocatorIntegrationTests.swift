@@ -25,10 +25,11 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/", "this/.git"])
 
         // When
-        let got = subject.locate(from: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject
+            .locate(from: temporaryDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
 
         // Then
-        XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is")))
+        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this/is")))
     }
 
     func test_locate_when_a_tuist_directory_exists() throws {
@@ -37,10 +38,11 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/"])
 
         // When
-        let got = subject.locate(from: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject
+            .locate(from: temporaryDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
 
         // Then
-        XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is")))
+        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this/is")))
     }
 
     func test_locate_when_a_git_directory_exists() throws {
@@ -49,10 +51,11 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/.git"])
 
         // When
-        let got = subject.locate(from: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject
+            .locate(from: temporaryDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
 
         // Then
-        XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this")))
+        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this")))
     }
 
     func test_locate_when_multiple_tuist_directories_exists() throws {
@@ -65,15 +68,15 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         ]
 
         // When
-        let got = paths.map {
-            subject.locate(from: temporaryDirectory.appending(RelativePath($0)))
+        let got = try paths.map {
+            subject.locate(from: temporaryDirectory.appending(try RelativePath(validating: $0)))
         }
 
         // Then
-        XCTAssertEqual(got, [
+        XCTAssertEqual(got, try [
             "this/is",
             "this/is/a/very/nested",
-        ].map { temporaryDirectory.appending(RelativePath($0)) })
+        ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) })
     }
 
     func test_locate_when_only_plugin_manifest_exists() throws {
@@ -103,15 +106,15 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         ]
 
         // When
-        let got = paths.map {
-            subject.locate(from: temporaryDirectory.appending(RelativePath($0)))
+        let got = try paths.map {
+            subject.locate(from: temporaryDirectory.appending(try RelativePath(validating: $0)))
         }
 
         // Then
-        XCTAssertEqual(got, [
+        XCTAssertEqual(got, try [
             "APlugin/",
             "APlugin/",
-        ].map { temporaryDirectory.appending(RelativePath($0)) })
+        ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) })
     }
 
     func test_locate_when_a_git_directory_and_plugin_exists() throws {
@@ -127,14 +130,14 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
         ]
 
         // When
-        let got = paths.map {
-            subject.locate(from: temporaryDirectory.appending(RelativePath($0)))
+        let got = try paths.map {
+            subject.locate(from: temporaryDirectory.appending(try RelativePath(validating: $0)))
         }
 
         // Then
-        XCTAssertEqual(got, [
+        XCTAssertEqual(got, try [
             "APlugin/",
             "APlugin/",
-        ].map { temporaryDirectory.appending(RelativePath($0)) })
+        ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) })
     }
 }

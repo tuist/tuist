@@ -37,9 +37,9 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         ])
 
         let additionalFiles: [FileElement] = [
-            .file(path: temporaryPath.appending(RelativePath("README.md"))),
-            .file(path: temporaryPath.appending(RelativePath("Documentation/README.md"))),
-            .folderReference(path: temporaryPath.appending(RelativePath("Website"))),
+            .file(path: temporaryPath.appending(try RelativePath(validating: "README.md"))),
+            .file(path: temporaryPath.appending(try RelativePath(validating: "Documentation/README.md"))),
+            .folderReference(path: temporaryPath.appending(try RelativePath(validating: "Website"))),
         ]
 
         let workspace = Workspace.test(

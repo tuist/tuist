@@ -26,10 +26,14 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates", "this/.git"])
 
         // When
-        let got = subject.locateUserTemplates(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject
+            .locateUserTemplates(
+                at: temporaryDirectory
+                    .appending(try RelativePath(validating: "this/is/a/very/nested/directory"))
+            )
 
         // Then
-        XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is/Tuist/Templates")))
+        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this/is/Tuist/Templates")))
     }
 
     func test_locate_when_a_templates_directory_exists() throws {
@@ -38,10 +42,14 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates"])
 
         // When
-        let got = subject.locateUserTemplates(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject
+            .locateUserTemplates(
+                at: temporaryDirectory
+                    .appending(try RelativePath(validating: "this/is/a/very/nested/directory"))
+            )
 
         // Then
-        XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is/Tuist/Templates")))
+        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this/is/Tuist/Templates")))
     }
 
     func test_locate_when_a_git_directory_exists() throws {
@@ -50,10 +58,14 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Templates"])
 
         // When
-        let got = subject.locateUserTemplates(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject
+            .locateUserTemplates(
+                at: temporaryDirectory
+                    .appending(try RelativePath(validating: "this/is/a/very/nested/directory"))
+            )
 
         // Then
-        XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/Tuist/Templates")))
+        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this/Tuist/Templates")))
     }
 
     func test_locate_when_multiple_tuist_directories_exists() throws {
@@ -66,14 +78,14 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         ]
 
         // When
-        let got = paths.map {
-            subject.locateUserTemplates(at: temporaryDirectory.appending(RelativePath($0)))
+        let got = try paths.map {
+            subject.locateUserTemplates(at: temporaryDirectory.appending(try RelativePath(validating: $0)))
         }
 
         // Then
-        XCTAssertEqual(got, [
+        XCTAssertEqual(got, try [
             "this/is/Tuist/Templates",
             "this/is/a/very/nested/Tuist/Templates",
-        ].map { temporaryDirectory.appending(RelativePath($0)) })
+        ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) })
     }
 }

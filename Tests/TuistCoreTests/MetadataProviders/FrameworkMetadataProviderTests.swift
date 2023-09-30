@@ -19,7 +19,7 @@ final class FrameworkMetadataProviderTests: XCTestCase {
 
     func test_loadMetadata() throws {
         // Given
-        let frameworkPath = fixturePath(path: RelativePath("xpm.framework"))
+        let frameworkPath = fixturePath(path: try RelativePath(validating: "xpm.framework"))
 
         // When
         let metadata = try subject.loadMetadata(at: frameworkPath)

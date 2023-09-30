@@ -11,7 +11,7 @@ public final class MockXCFrameworkMetadataProvider: MockPrecompiledMetadataProvi
         } else {
             return XCFrameworkMetadata.test(
                 path: path,
-                primaryBinaryPath: path.appending(RelativePath("ios-arm64/binary"))
+                primaryBinaryPath: path.appending(try RelativePath(validating: "ios-arm64/binary"))
             )
         }
     }

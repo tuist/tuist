@@ -1,27 +1,20 @@
+import ArgumentParser
 import Foundation
 import TSCBasic
 import TSCUtility
 
-func main() throws {
-    let parser = ArgumentParser(
-        commandName: "tuistfixturegenerator",
-        usage: "<options>",
-        overview: "Generates large fixtures for the purposes of stress testing Tuist."
-    )
+public struct TuistFixtureGeneratorCommand: ParsableCommand {
+    public init() {}
 
-    let fileSystem = localFileSystem
-    let generateCommand = GenerateCommand(
-        fileSystem: fileSystem,
-        parser: parser
-    )
-
-    let arguments = ProcessInfo.processInfo.arguments
-    let results = try parser.parse(Array(arguments.dropFirst()))
-    try generateCommand.run(with: results)
+    public static var configuration: CommandConfiguration {
+        CommandConfiguration(
+            commandName: "tuistfixturegenerator",
+            abstract: "Generates large fixtures for the purposes of stress testing Tuist",
+            subcommands: [
+                GenerateCommand.self,
+            ]
+        )
+    }
 }
 
-do {
-    try main()
-} catch {
-    print("Error: \(error.localizedDescription)")
-}
+TuistFixtureGeneratorCommand.main()

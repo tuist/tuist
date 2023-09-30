@@ -32,9 +32,9 @@ public final class MockFileHandler: FileHandler {
     }
 
     public var stubFilesAndDirectoriesContained: ((AbsolutePath) -> [AbsolutePath]?)?
-    override public func filesAndDirectoriesContained(in path: AbsolutePath) -> [AbsolutePath]? {
+    override public func filesAndDirectoriesContained(in path: AbsolutePath) throws -> [AbsolutePath]? {
         guard let stubFilesAndDirectoriesContained else {
-            return super.filesAndDirectoriesContained(in: path)
+            return try super.filesAndDirectoriesContained(in: path)
         }
         return stubFilesAndDirectoriesContained(path)
     }
@@ -145,7 +145,7 @@ open class TuistTestCase: XCTestCase {
     public func createFiles(_ files: [String], content: String? = nil) throws -> [AbsolutePath] {
         let temporaryPath = try temporaryPath()
         let fileHandler = FileHandler()
-        let paths = files.map { temporaryPath.appending(RelativePath($0)) }
+        let paths = try files.map { temporaryPath.appending(try RelativePath(validating: $0)) }
 
         try paths.forEach {
             try fileHandler.touch($0)
@@ -160,7 +160,7 @@ open class TuistTestCase: XCTestCase {
     public func createFolders(_ folders: [String]) throws -> [AbsolutePath] {
         let temporaryPath = try temporaryPath()
         let fileHandler = FileHandler.shared
-        let paths = folders.map { temporaryPath.appending(RelativePath($0)) }
+        let paths = try folders.map { temporaryPath.appending(try RelativePath(validating: $0)) }
         try paths.forEach {
             try fileHandler.createFolder($0)
         }
@@ -239,8 +239,8 @@ open class TuistTestCase: XCTestCase {
             .map(\.pathString)
             .sorted()
 
-        let expectedContent = expected
-            .map { directory.appending(RelativePath($0)) }
+        let expectedContent = try expected
+            .map { directory.appending(try RelativePath(validating: $0)) }
             .map(\.pathString)
             .sorted()
 
@@ -258,7 +258,7 @@ open class TuistTestCase: XCTestCase {
     }
 
     public func temporaryFixture(_ pathString: String) throws -> AbsolutePath {
-        let path = RelativePath(pathString)
+        let path = try RelativePath(validating: pathString)
         let fixturePath = fixturePath(path: path)
         let destinationPath = (try temporaryPath()).appending(component: path.basename)
         try FileHandler.shared.copy(from: fixturePath, to: destinationPath)

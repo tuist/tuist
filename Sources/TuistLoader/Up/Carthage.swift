@@ -123,7 +123,8 @@ final class Carthage: Carthaging {
             let dependencyRevisionRange = match.range(at: 3)
             let dependencyRevision = cartfileResolvedNSString.substring(with: dependencyRevisionRange)
 
-            let dependencyVersionFilePath = path.appending(RelativePath("Carthage/Build/.\(dependencyName).version"))
+            let dependencyVersionFilePath = path
+                .appending(try RelativePath(validating: "Carthage/Build/.\(dependencyName).version"))
 
             // We consider missing dependencies outdated
             if !FileHandler.shared.exists(dependencyVersionFilePath) {

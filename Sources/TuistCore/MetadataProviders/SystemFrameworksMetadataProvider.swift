@@ -68,7 +68,7 @@ public final class SystemFrameworkMetadataProvider: SystemFrameworkMetadataProvi
             let xcodeDeveloperSdkRootPath = platform.xcodeDeveloperSdkRootPath
             let sdkRootPath = try AbsolutePath(validating: "/\(xcodeDeveloperSdkRootPath)")
             return sdkRootPath
-                .appending(RelativePath("Frameworks"))
+                .appending(try RelativePath(validating: "Frameworks"))
                 .appending(component: name)
 
         case .system:
@@ -76,11 +76,11 @@ public final class SystemFrameworkMetadataProvider: SystemFrameworkMetadataProvi
             switch type {
             case .framework:
                 return sdkRootPath
-                    .appending(RelativePath("System/Library/Frameworks"))
+                    .appending(try RelativePath(validating: "System/Library/Frameworks"))
                     .appending(component: name)
             case .library:
                 return sdkRootPath
-                    .appending(RelativePath("usr/lib"))
+                    .appending(try RelativePath(validating: "usr/lib"))
                     .appending(component: name)
             }
         }

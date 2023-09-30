@@ -54,7 +54,8 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         }
 
         let rootPackageResolvedPath = path.appending(component: ".package.resolved")
-        let workspacePackageResolvedFolderPath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm"))
+        let workspacePackageResolvedFolderPath = path
+            .appending(try RelativePath(validating: "\(workspaceName)/xcshareddata/swiftpm"))
         let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
 
         if fileHandler.exists(rootPackageResolvedPath) {

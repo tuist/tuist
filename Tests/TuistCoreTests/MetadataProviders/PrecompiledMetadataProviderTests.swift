@@ -22,7 +22,7 @@ final class PrecompiledMetadataProviderTests: TuistUnitTestCase {
 
     func test_metadata_static() throws {
         // Given
-        let binaryPath = fixturePath(path: RelativePath("libStaticLibrary.a"))
+        let binaryPath = fixturePath(path: try RelativePath(validating: "libStaticLibrary.a"))
 
         // When
         let architectures = try subject.architectures(binaryPath: binaryPath)
@@ -37,7 +37,7 @@ final class PrecompiledMetadataProviderTests: TuistUnitTestCase {
 
     func test_metadata_carthage() throws {
         // Given
-        let binaryPath = fixturePath(path: RelativePath("Carthage/RxBlocking.framework/RxBlocking"))
+        let binaryPath = fixturePath(path: try RelativePath(validating: "Carthage/RxBlocking.framework/RxBlocking"))
 
         // When
         let architectures = try subject.architectures(binaryPath: binaryPath)
@@ -60,7 +60,7 @@ final class PrecompiledMetadataProviderTests: TuistUnitTestCase {
 
     func test_metadata_framework() throws {
         // Given
-        let binaryPath = fixturePath(path: RelativePath("xpm.framework/xpm"))
+        let binaryPath = fixturePath(path: try RelativePath(validating: "xpm.framework/xpm"))
 
         // When
         let architectures = try subject.architectures(binaryPath: binaryPath)
@@ -82,7 +82,11 @@ final class PrecompiledMetadataProviderTests: TuistUnitTestCase {
     func test_metadata_xcframework() throws {
         // Given
         let binaryPath =
-            fixturePath(path: RelativePath("MyFramework.xcframework/ios-x86_64-simulator/MyFramework.framework/MyFramework"))
+            fixturePath(
+                path: try RelativePath(
+                    validating: "MyFramework.xcframework/ios-x86_64-simulator/MyFramework.framework/MyFramework"
+                )
+            )
 
         // When
         let architectures = try subject.architectures(binaryPath: binaryPath)
@@ -102,7 +106,8 @@ final class PrecompiledMetadataProviderTests: TuistUnitTestCase {
 
     func test_metadata_static_xcframework() throws {
         // Given
-        let binaryPath = fixturePath(path: RelativePath("MyStaticLibrary.xcframework/ios-arm64/libMyStaticLibrary.a"))
+        let binaryPath =
+            fixturePath(path: try RelativePath(validating: "MyStaticLibrary.xcframework/ios-arm64/libMyStaticLibrary.a"))
 
         // When
         let architectures = try subject.architectures(binaryPath: binaryPath)

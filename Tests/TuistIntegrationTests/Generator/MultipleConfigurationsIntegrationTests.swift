@@ -352,7 +352,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     @discardableResult
     private func createFile(path relativePath: String, content: String) throws -> AbsolutePath {
         let temporaryPath = try temporaryPath()
-        let absolutePath = temporaryPath.appending(RelativePath(relativePath))
+        let absolutePath = temporaryPath.appending(try RelativePath(validating: relativePath))
         try FileHandler.shared.touch(absolutePath)
         try content.data(using: .utf8)!.write(to: URL(fileURLWithPath: absolutePath.pathString))
         return absolutePath
@@ -437,7 +437,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     private func pathTo(_ relativePath: String) throws -> AbsolutePath {
         let temporaryPath = try temporaryPath()
-        return temporaryPath.appending(RelativePath(relativePath))
+        return temporaryPath.appending(try RelativePath(validating: relativePath))
     }
 
     private func extractWorkspaceSettings(configuration: String) throws -> ExtractedBuildSettings {
@@ -451,7 +451,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     private func loadXcodeProj(_ relativePath: String) throws -> XcodeProj {
         let temporaryPath = try temporaryPath()
-        let appProjectPath = temporaryPath.appending(RelativePath(relativePath))
+        let appProjectPath = temporaryPath.appending(try RelativePath(validating: relativePath))
         return try XcodeProj(pathString: appProjectPath.pathString)
     }
 

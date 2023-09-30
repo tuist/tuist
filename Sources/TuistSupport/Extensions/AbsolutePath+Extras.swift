@@ -35,7 +35,8 @@ extension AbsolutePath {
     /// - Returns: List of paths that match the given pattern.
     public func glob(_ pattern: String) -> [AbsolutePath] {
         // swiftlint:disable:next force_try
-        Glob(pattern: appending(RelativePath(pattern)).pathString).paths.map { try! AbsolutePath(validating: $0) }
+        Glob(pattern: appending(try! RelativePath(validating: pattern)).pathString).paths
+            .map { try! AbsolutePath(validating: $0) } // swiftlint:disable:this force_try
     }
 
     /// Returns the list of paths that match the given glob pattern, if the directory exists.
@@ -44,7 +45,7 @@ extension AbsolutePath {
     /// - Throws: an error if the directory where the first glob pattern is declared doesn't exist
     /// - Returns: List of paths that match the given pattern.
     public func throwingGlob(_ pattern: String) throws -> [AbsolutePath] {
-        let globPath = appending(RelativePath(pattern)).pathString
+        let globPath = appending(try RelativePath(validating: pattern)).pathString
 
         if globPath.isGlobComponent {
             let pathUpToLastNonGlob = try AbsolutePath(validating: globPath).upToLastNonGlob

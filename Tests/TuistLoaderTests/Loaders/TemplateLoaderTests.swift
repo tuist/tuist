@@ -59,7 +59,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(got, TuistGraph.Template(
             description: "desc",
             items: [Template.Item(
-                path: RelativePath("generateOne"),
+                path: try RelativePath(validating: "generateOne"),
                 contents: .file(temporaryPath.appending(component: "fileOne"))
             )]
         ))

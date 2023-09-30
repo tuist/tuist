@@ -34,7 +34,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.name, "Copy Fonts")
         XCTAssertEqual(model.destination, .resources)
         XCTAssertEqual(model.subpath, "Fonts")
-        XCTAssertEqual(model.files, files.map { .file(path: temporaryPath.appending(RelativePath($0))) })
+        XCTAssertEqual(model.files, try files.map { .file(path: temporaryPath.appending(try RelativePath(validating: $0))) })
     }
 
     func test_from_with_package_files() throws {
@@ -67,6 +67,9 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.name, "Copy Templates")
         XCTAssertEqual(model.destination, .sharedSupport)
         XCTAssertEqual(model.subpath, "Templates")
-        XCTAssertEqual(model.files, cleanFiles.map { .file(path: temporaryPath.appending(RelativePath($0))) })
+        XCTAssertEqual(
+            model.files,
+            try cleanFiles.map { .file(path: temporaryPath.appending(try RelativePath(validating: $0))) }
+        )
     }
 }

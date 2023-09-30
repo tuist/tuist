@@ -195,8 +195,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let project = Project.test(
             path: path,
             targets: [
-                .test(resources: resources.map {
-                    .file(path: path.appending(RelativePath($0)))
+                .test(resources: try resources.map {
+                    .file(path: path.appending(try RelativePath(validating: $0)))
                 }),
             ]
         )

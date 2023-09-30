@@ -19,7 +19,7 @@ final class LibraryMetadataProviderTests: XCTestCase {
 
     func test_loadMetadata() throws {
         // Given
-        let libraryPath = fixturePath(path: RelativePath("libStaticLibrary.a"))
+        let libraryPath = fixturePath(path: try RelativePath(validating: "libStaticLibrary.a"))
 
         // When
         let metadata = try subject.loadMetadata(at: libraryPath, publicHeaders: libraryPath.parentDirectory, swiftModuleMap: nil)

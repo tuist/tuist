@@ -100,7 +100,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         xccontainerPath: AbsolutePath,
         wipeSharedSchemesBeforeWriting: Bool
     ) throws {
-        let sharedSchemesPath = schemeDirectory(path: xccontainerPath, shared: true)
+        let sharedSchemesPath = try schemeDirectory(path: xccontainerPath, shared: true)
         if wipeSharedSchemesBeforeWriting, FileHandler.shared.exists(sharedSchemesPath) {
             try FileHandler.shared.delete(sharedSchemesPath)
         }
@@ -155,7 +155,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         xccontainerPath: AbsolutePath,
         schemesOrderHint: [String: Int] = [:]
     ) throws {
-        let xcschememanagementPath = schemeDirectory(
+        let xcschememanagementPath = try schemeDirectory(
             path: xccontainerPath,
             shared: false
         ).appending(component: "xcschememanagement.plist")
@@ -179,18 +179,18 @@ public final class XcodeProjWriter: XcodeProjWriting {
         scheme: SchemeDescriptor,
         xccontainerPath: AbsolutePath
     ) throws {
-        let schemeDirectory = schemeDirectory(path: xccontainerPath, shared: scheme.shared)
+        let schemeDirectory = try schemeDirectory(path: xccontainerPath, shared: scheme.shared)
         let schemePath = schemeDirectory.appending(component: "\(scheme.xcScheme.name).xcscheme")
         try FileHandler.shared.createFolder(schemeDirectory)
         try scheme.xcScheme.write(path: schemePath.path, override: true)
     }
 
-    private func schemeDirectory(path: AbsolutePath, shared: Bool = true) -> AbsolutePath {
+    private func schemeDirectory(path: AbsolutePath, shared: Bool = true) throws -> AbsolutePath {
         if shared {
-            return path.appending(RelativePath("xcshareddata/xcschemes"))
+            return path.appending(try RelativePath(validating: "xcshareddata/xcschemes"))
         } else {
             let username = NSUserName()
-            return path.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
+            return path.appending(try RelativePath(validating: "xcuserdata/\(username).xcuserdatad/xcschemes"))
         }
     }
 }

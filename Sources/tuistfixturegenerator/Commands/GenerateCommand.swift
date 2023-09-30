@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 import TSCBasic
 import TSCUtility
@@ -6,68 +7,54 @@ enum GenerateCommandError: Error {
     case invalidPath
 }
 
-final class GenerateCommand {
-    private let pathArgument: OptionArgument<String>
-    private let projectsArgument: OptionArgument<Int>
-    private let targetsArgument: OptionArgument<Int>
-    private let sourcesArgument: OptionArgument<Int>
-
-    private let fileSystem: FileSystem
-
-    init(
-        fileSystem: FileSystem,
-        parser: ArgumentParser
-    ) {
-        self.fileSystem = fileSystem
-
-        pathArgument = parser.add(
-            option: "--path",
-            kind: String.self,
-            usage: "The path where the fixture will be generated.",
-            completion: .filename
-        )
-        projectsArgument = parser.add(
-            option: "--projects",
-            shortName: "-p",
-            kind: Int.self,
-            usage: "Number of projects to generate."
-        )
-        targetsArgument = parser.add(
-            option: "--targets",
-            shortName: "-t",
-            kind: Int.self,
-            usage: "Number of targets to generate within each project."
-        )
-        sourcesArgument = parser.add(
-            option: "--sources",
-            shortName: "-s",
-            kind: Int.self,
-            usage: "Number of sources to generate within each target."
+struct GenerateCommand: ParsableCommand {
+    static var configuration: CommandConfiguration {
+        CommandConfiguration(
+            commandName: "generate",
+            abstract: "Generates large fixtures for the purposes of stress testing Tuist.",
+            subcommands: []
         )
     }
 
-    func run(with arguments: ArgumentParser.Result) throws {
-        let defaultConfig = GeneratorConfig.default
+    @Option(
+        name: .long,
+        help: "The path where the fixture will be generated.",
+        completion: .directory
+    )
+    var path: String?
 
-        let path = try determineFixturePath(using: arguments)
-        let projects = arguments.get(projectsArgument) ?? defaultConfig.projects
-        let targets = arguments.get(targetsArgument) ?? defaultConfig.targets
-        let sources = arguments.get(sourcesArgument) ?? defaultConfig.sources
+    @Option(
+        name: .long,
+        help: "The number of projects to generate."
+    )
+    var projects: Int?
 
-        let config = GeneratorConfig(projects: projects, targets: targets, sources: sources)
-        let generator = Generator(fileSystem: fileSystem, config: config)
+    @Option(
+        name: .long,
+        help: "The number of targets to generate within each project."
+    )
+    var targets: Int?
 
-        try generator.generate(at: path)
-    }
+    @Option(
+        name: .long,
+        help: "The number of sources to generate within each target."
+    )
+    var sources: Int?
 
-    private func determineFixturePath(using arguments: ArgumentParser.Result) throws -> AbsolutePath {
-        guard let currentPath = fileSystem.currentWorkingDirectory else {
+    func run() throws {
+        guard let currentPath = localFileSystem.currentWorkingDirectory else {
             throw GenerateCommandError.invalidPath
         }
 
-        guard let path = arguments.get(pathArgument) else {
-            return currentPath.appending(component: "Fixture")
-        }
-        return AbsolutePath(path, relativeTo: currentPath)
+        let path = try AbsolutePath(validating: path ?? "Fixture", relativeTo: currentPath)
+
+        let config = GeneratorConfig(
+            projects: projects ?? GeneratorConfig.default.projects,
+            targets: targets ?? GeneratorConfig.default.targets,
+            sources: sources ?? GeneratorConfig.default.sources
+        )
+        let generator = Generator(fileSystem: localFileSystem, config: config)
+
+        try generator.generate(at: path)
     }
 }

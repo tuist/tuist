@@ -34,7 +34,7 @@ final class IDETemplateMacrosMapperTests: XCTestCase {
         XCTAssertEqual(sideEffects, [
             .file(
                 .init(
-                    path: project.xcodeProjPath.appending(RelativePath("xcshareddata/IDETemplateMacros.plist")),
+                    path: project.xcodeProjPath.appending(try RelativePath(validating: "xcshareddata/IDETemplateMacros.plist")),
                     contents: try PropertyListEncoder().encode(templateMacros),
                     state: .present
                 )
@@ -69,7 +69,8 @@ final class IDETemplateMacrosMapperTests: XCTestCase {
         XCTAssertEqual(sideEffects, [
             .file(
                 .init(
-                    path: workspace.xcWorkspacePath.appending(RelativePath("xcshareddata/IDETemplateMacros.plist")),
+                    path: workspace.xcWorkspacePath
+                        .appending(try RelativePath(validating: "xcshareddata/IDETemplateMacros.plist")),
                     contents: try PropertyListEncoder().encode(templateMacros),
                     state: .present
                 )

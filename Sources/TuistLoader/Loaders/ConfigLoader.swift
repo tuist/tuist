@@ -54,8 +54,9 @@ public final class ConfigLoader: ConfigLoading {
     public func locateConfig(at path: AbsolutePath) -> AbsolutePath? {
         // If the Config.swift file exists in the root Tuist/ directory, we load it from there
         if let rootDirectoryPath = rootDirectoryLocator.locate(from: path) {
-            let configPath = rootDirectoryPath
-                .appending(RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))"))
+            // swiftlint:disable:next force_try
+            let relativePath = try! RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))")
+            let configPath = rootDirectoryPath.appending(relativePath)
             if fileHandler.exists(configPath) {
                 return configPath
             }

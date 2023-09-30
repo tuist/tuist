@@ -21,7 +21,7 @@ final class SchemeTests: XCTestCase {
             testAction: TestAction.targets(
                 [TestableTarget(target: .init(projectPath: nil, target: "target"))],
                 arguments: Arguments(
-                    environment: ["test": "b"],
+                    environmentVariables: ["test": "b"],
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
                 ),
                 configuration: .debug,
@@ -36,7 +36,7 @@ final class SchemeTests: XCTestCase {
                 postActions: mockExecutionAction("run_action"),
                 executable: .init(projectPath: nil, target: "executable"),
                 arguments: Arguments(
-                    environment: ["run": "b"],
+                    environmentVariables: ["run": "b"],
                     launchArguments: [LaunchArgument(name: "run", isEnabled: true)]
                 )
             )
@@ -63,7 +63,7 @@ final class SchemeTests: XCTestCase {
             testAction: TestAction.targets(
                 [.init(target: .init(projectPath: nil, target: "target"))],
                 arguments: Arguments(
-                    environment: ["test": "b"],
+                    environmentVariables: ["test": "b"],
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
                 ),
                 configuration: .debug,
@@ -78,7 +78,7 @@ final class SchemeTests: XCTestCase {
                 postActions: mockExecutionAction("run_action"),
                 executable: .init(projectPath: nil, target: "executable"),
                 arguments: Arguments(
-                    environment: ["run": "b"],
+                    environmentVariables: ["run": "b"],
                     launchArguments: [LaunchArgument(name: "run", isEnabled: true)]
                 )
             )

@@ -31,7 +31,7 @@ public final class TemporaryDirectory {
         shouldRemoveTreeOnDeinit = removeTreeOnDeinit
         self.prefix = prefix
         // Construct path to the temporary directory.
-        let path = try determineTempDirectory(dir).appending(RelativePath(prefix + ".XXXXXX"))
+        let path = try determineTempDirectory(dir).appending(try RelativePath(validating: prefix + ".XXXXXX"))
 
         // Convert path to a C style string terminating with null char to be an valid input
         // to mkdtemp method. The XXXXXX in this string will be replaced by a random string

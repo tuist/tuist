@@ -203,7 +203,7 @@ final class TargetLinterTests: TuistUnitTestCase {
     func test_lint_when_ios_bundle_has_sources() {
         // Given
         let bundle = Target.empty(
-            platform: .iOS,
+            destinations: .iOS,
             product: .bundle,
             sources: [
                 SourceFile(path: "/path/to/some/source.swift"),
@@ -227,7 +227,7 @@ final class TargetLinterTests: TuistUnitTestCase {
     func test_lint_when_macos_bundle_has_no_sources() {
         // Given
         let bundle = Target.empty(
-            platform: .macOS,
+            destinations: .macOS,
             product: .bundle,
             sources: [],
             resources: []
@@ -243,7 +243,7 @@ final class TargetLinterTests: TuistUnitTestCase {
     func test_lint_valid_ios_bundle() {
         // Given
         let bundle = Target.empty(
-            platform: .iOS,
+            destinations: .iOS,
             product: .bundle,
             resources: [
                 .file(path: "/path/to/some/asset.png"),
@@ -317,8 +317,8 @@ final class TargetLinterTests: TuistUnitTestCase {
     func test_lint_invalidProductPlatformCombinations() throws {
         // Given
         let invalidTargets: [Target] = [
-            .empty(name: "WatchApp_for_iOS", platform: .iOS, product: .watch2App),
-            .empty(name: "Watch2Extension_for_iOS", platform: .iOS, product: .watch2Extension),
+            .empty(name: "WatchApp_for_iOS", destinations: .iOS, product: .watch2App),
+            .empty(name: "Watch2Extension_for_iOS", destinations: .iOS, product: .watch2Extension),
         ]
 
         // When

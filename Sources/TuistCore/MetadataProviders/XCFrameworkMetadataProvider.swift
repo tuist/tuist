@@ -125,11 +125,11 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
         switch library.path.extension {
         case "framework":
             binaryPath = try AbsolutePath(validating: library.identifier, relativeTo: xcframeworkPath)
-                .appending(RelativePath(library.path.pathString))
+                .appending(try RelativePath(validating: library.path.pathString))
                 .appending(component: library.path.basenameWithoutExt)
         case "a":
             binaryPath = try AbsolutePath(validating: library.identifier, relativeTo: xcframeworkPath)
-                .appending(RelativePath(library.path.pathString))
+                .appending(try RelativePath(validating: library.path.pathString))
         default:
             throw XCFrameworkMetadataProviderError.fileTypeNotRecognised(
                 file: library.path,

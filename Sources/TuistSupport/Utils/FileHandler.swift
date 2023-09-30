@@ -61,7 +61,7 @@ public protocol FileHandling: AnyObject {
     func inTemporaryDirectory<Result>(removeOnCompletion: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result
     func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
     func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath?
-    func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) -> AbsolutePath?
+    func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) throws -> AbsolutePath?
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
     func throwingGlob(_ path: AbsolutePath, glob: String) throws -> [AbsolutePath]
     func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws
@@ -75,7 +75,7 @@ public protocol FileHandling: AnyObject {
     func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath
     func resolveSymlinks(_ path: AbsolutePath) throws -> AbsolutePath
     func fileAttributes(at path: AbsolutePath) throws -> [FileAttributeKey: Any]
-    func filesAndDirectoriesContained(in path: AbsolutePath) -> [AbsolutePath]?
+    func filesAndDirectoriesContained(in path: AbsolutePath) throws -> [AbsolutePath]?
     func zipItem(at sourcePath: AbsolutePath, to destinationPath: AbsolutePath) throws
     func unzipItem(at sourcePath: AbsolutePath, to destinationPath: AbsolutePath) throws
 }
@@ -207,13 +207,13 @@ public class FileHandler: FileHandling {
         } catch {}
     }
 
-    public func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) -> AbsolutePath? {
+    public func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) throws -> AbsolutePath? {
         logger.debug("Traversing \(from) to locate \(path)")
-        let extendedPath = from.appending(RelativePath(path))
+        let extendedPath = from.appending(try RelativePath(validating: path))
         if exists(extendedPath) {
             return extendedPath
         } else if !from.isRoot {
-            return locateDirectory(path, traversingFrom: from.parentDirectory)
+            return try locateDirectory(path, traversingFrom: from.parentDirectory)
         } else {
             return nil
         }
@@ -290,8 +290,8 @@ public class FileHandler: FileHandling {
         try fileManager.attributesOfItem(atPath: path.pathString)
     }
 
-    public func filesAndDirectoriesContained(in path: AbsolutePath) -> [AbsolutePath]? {
-        fileManager.subpaths(atPath: path.pathString)?.map { path.appending(RelativePath($0)) }
+    public func filesAndDirectoriesContained(in path: AbsolutePath) throws -> [AbsolutePath]? {
+        try fileManager.subpaths(atPath: path.pathString)?.map { path.appending(try RelativePath(validating: $0)) }
     }
 
     // MARK: - MD5

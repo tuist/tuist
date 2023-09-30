@@ -173,12 +173,15 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
     }
 
     public func locateConfig(at locatingPath: AbsolutePath) -> AbsolutePath? {
-        let subPath = RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(locatingPath))")
+        // swiftlint:disable:next force_try
+        let subPath = try! RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(locatingPath))")
         return traverseAndLocate(at: locatingPath, appending: subPath)
     }
 
     public func locateDependencies(at locatingPath: AbsolutePath) -> AbsolutePath? {
-        let subPath = RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.dependencies.fileName(locatingPath))")
+        let subPath =
+            // swiftlint:disable:next force_try
+            try! RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Manifest.dependencies.fileName(locatingPath))")
         return traverseAndLocate(at: locatingPath, appending: subPath)
     }
 
