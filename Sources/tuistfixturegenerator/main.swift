@@ -5,7 +5,7 @@ import TSCUtility
 
 public struct TuistFixtureGeneratorCommand: ParsableCommand {
     public init() {}
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "tuistfixturegenerator",

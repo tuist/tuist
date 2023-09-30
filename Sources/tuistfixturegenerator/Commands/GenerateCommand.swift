@@ -28,13 +28,13 @@ struct GenerateCommand: ParsableCommand {
         help: "The number of projects to generate."
     )
     var projects: Int?
-    
+
     @Option(
         name: .long,
         help: "The number of targets to generate within each project."
     )
     var targets: Int?
-    
+
     @Option(
         name: .long,
         help: "The number of sources to generate within each target."
@@ -45,10 +45,14 @@ struct GenerateCommand: ParsableCommand {
         guard let currentPath = localFileSystem.currentWorkingDirectory else {
             throw GenerateCommandError.invalidPath
         }
-        
+
         let path = try AbsolutePath(validating: path ?? "Fixture", relativeTo: currentPath)
 
-        let config = GeneratorConfig(projects: projects ?? GeneratorConfig.default.projects, targets: targets ?? GeneratorConfig.default.targets, sources: sources ?? GeneratorConfig.default.sources)
+        let config = GeneratorConfig(
+            projects: projects ?? GeneratorConfig.default.projects,
+            targets: targets ?? GeneratorConfig.default.targets,
+            sources: sources ?? GeneratorConfig.default.sources
+        )
         let generator = Generator(fileSystem: localFileSystem, config: config)
 
         try generator.generate(at: path)

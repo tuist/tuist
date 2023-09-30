@@ -49,21 +49,21 @@ struct BenchmarkCommand: ParsableCommand {
         help: "The output format of the benchmark results."
     )
     var format: BenchmarkResultFormat?
-    
+
     @Option(
         name: .shortAndLong,
         help: "The path to the fixtures list json file.",
         completion: .file(extensions: ["json"])
     )
     var fixtureList: AbsolutePath
-    
+
     @Option(
         name: .shortAndLong,
         help: "The path to the fixture to user for benchmarking.",
         completion: .directory
     )
     var fixture: AbsolutePath
-    
+
     @Option(
         name: .shortAndLong,
         help: "The path to the binary to benchmark.",
@@ -80,7 +80,7 @@ struct BenchmarkCommand: ParsableCommand {
 
     func run() throws {
         let fileHandler = FileHandler()
-        let config: BenchmarkConfig = try config.map({ try parseConfig(path: $0, fileHandler: fileHandler) }) ?? .default
+        let config: BenchmarkConfig = try config.map { try parseConfig(path: $0, fileHandler: fileHandler) } ?? .default
         let fixtures = try getFixturePaths(
             fixturesListPath: fixtureList,
             fixturePath: fixture,

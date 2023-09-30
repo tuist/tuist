@@ -5,7 +5,7 @@ import TSCUtility
 
 public struct TuistBenchmarkCommand: ParsableCommand {
     public init() {}
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "tuistbenchmark",
