@@ -17,5 +17,4 @@ public struct TuistFixtureGeneratorCommand: ParsableCommand {
     }
 }
 
-
 TuistFixtureGeneratorCommand.main()

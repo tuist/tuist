@@ -71,6 +71,7 @@ let package = Package(
         .executableTarget(
             name: "tuistbenchmark",
             dependencies: [
+                argumentParserDependency,
                 .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
             ]
         ),

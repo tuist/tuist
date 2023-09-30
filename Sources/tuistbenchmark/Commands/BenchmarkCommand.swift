@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 import TSCBasic
 import TSCUtility
@@ -13,108 +14,99 @@ enum BenchmarkCommandError: LocalizedError {
     }
 }
 
-enum BenchmarkResultFormat: String, CaseIterable, StringEnumArgument {
+enum BenchmarkResultFormat: String, CaseIterable, ExpressibleByArgument {
     case console
     case markdown
+}
 
-    static var completion: ShellCompletion {
-        .values(
-            BenchmarkResultFormat.allCases.map {
-                (value: $0.rawValue, description: $0.rawValue)
-            }
-        )
+extension AbsolutePath: ExpressibleByArgument {
+    public init?(argument: String) {
+        guard let path = try? AbsolutePath(validating: argument) else {
+            return nil
+        }
+        self = path
     }
 }
 
-final class BenchmarkCommand {
-    private let configPathOption: OptionArgument<PathArgument>
-    private let formatOption: OptionArgument<BenchmarkResultFormat>
-    private let fixtureListPathOption: OptionArgument<PathArgument>
-    private let fixturePathOption: OptionArgument<PathArgument>
-    private let binaryPathOption: OptionArgument<PathArgument>
-    private let referenceBinaryPathOption: OptionArgument<PathArgument>
-
-    private let fileHandler: FileHandler
-
-    init(fileHandler: FileHandler, parser: ArgumentParser) {
-        self.fileHandler = fileHandler
-        configPathOption = parser.add(
-            option: "--config",
-            shortName: "-c",
-            kind: PathArgument.self,
-            usage: "The path to the benchmarking configuration json file.",
-            completion: .filename
-        )
-        formatOption = parser.add(
-            option: "--format",
-            kind: BenchmarkResultFormat.self,
-            usage: "The output format of the benchmark results."
-        )
-        fixtureListPathOption = parser.add(
-            option: "--fixture-list",
-            shortName: "-l",
-            kind: PathArgument.self,
-            usage: "The path to the fixtures list json file.",
-            completion: .filename
-        )
-        fixturePathOption = parser.add(
-            option: "--fixture",
-            shortName: "-f",
-            kind: PathArgument.self,
-            usage: "The path to the fixture to user for benchmarking.",
-            completion: .filename
-        )
-        binaryPathOption = parser.add(
-            option: "--binary",
-            shortName: "-b",
-            kind: PathArgument.self,
-            usage: "The path to the binary to benchmark.",
-            completion: .filename
-        )
-        referenceBinaryPathOption = parser.add(
-            option: "--reference-binary",
-            shortName: "-r",
-            kind: PathArgument.self,
-            usage: "The path to the binary to use as a reference for the benchmark.",
-            completion: .filename
+struct BenchmarkCommand: ParsableCommand {
+    static var configuration: CommandConfiguration {
+        CommandConfiguration(
+            commandName: "benchmark",
+            abstract: "A utility to benchmark running tuist against a set of fixtures.",
+            subcommands: []
         )
     }
 
-    func run(with arguments: ArgumentParser.Result) throws {
-        let configPath = arguments.get(configPathOption)?.path
-        let format = arguments.get(formatOption) ?? .console
-        let fixturePath = arguments.get(fixturePathOption)?.path
-        let fixtureListPath = arguments.get(fixtureListPathOption)?.path
-        let referenceBinaryPath = arguments.get(referenceBinaryPathOption)?.path
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the benchmarking configuration json file.",
+        completion: .file(extensions: ["json"])
+    )
+    var config: AbsolutePath?
 
-        guard let binaryPath = arguments.get(binaryPathOption)?.path else {
-            throw BenchmarkCommandError.missing(description: "binary path")
-        }
+    @Option(
+        name: .shortAndLong,
+        help: "The output format of the benchmark results."
+    )
+    var format: BenchmarkResultFormat?
+    
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the fixtures list json file.",
+        completion: .file(extensions: ["json"])
+    )
+    var fixtureList: AbsolutePath
+    
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the fixture to user for benchmarking.",
+        completion: .directory
+    )
+    var fixture: AbsolutePath
+    
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the binary to benchmark.",
+        completion: .file()
+    )
+    var binary: AbsolutePath
 
-        let config: BenchmarkConfig = try configPath.map(parseConfig) ?? .default
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the binary to use as a reference for the benchmark.",
+        completion: .file()
+    )
+    var referenceBinary: AbsolutePath?
+
+    func run() throws {
+        let fileHandler = FileHandler()
+        let config: BenchmarkConfig = try config.map({ try parseConfig(path: $0, fileHandler: fileHandler) }) ?? .default
         let fixtures = try getFixturePaths(
-            fixturesListPath: fixtureListPath,
-            fixturePath: fixturePath
+            fixturesListPath: fixtureList,
+            fixturePath: fixture,
+            fileHandler: fileHandler
         )
 
         let renderer = makeRenderer(
-            for: format,
+            for: format ?? .console,
             config: config
         )
 
-        if let referenceBinaryPath {
+        if let referenceBinary {
             let results = try benchmark(
                 config: config,
                 fixtures: fixtures,
-                binaryPath: binaryPath,
-                referenceBinaryPath: referenceBinaryPath
+                binaryPath: binary,
+                referenceBinaryPath: referenceBinary,
+                fileHandler: fileHandler
             )
             renderer.render(results: results)
         } else {
             let results = try measure(
                 config: config,
                 fixtures: fixtures,
-                binaryPath: binaryPath
+                binaryPath: binary,
+                fileHandler: fileHandler
             )
             renderer.render(results: results)
         }
@@ -123,7 +115,8 @@ final class BenchmarkCommand {
     private func measure(
         config: BenchmarkConfig,
         fixtures: [AbsolutePath],
-        binaryPath: AbsolutePath
+        binaryPath: AbsolutePath,
+        fileHandler: FileHandler
     ) throws -> [MeasureResult] {
         let measure = Measure(
             fileHandler: fileHandler,
@@ -143,7 +136,8 @@ final class BenchmarkCommand {
         config: BenchmarkConfig,
         fixtures: [AbsolutePath],
         binaryPath: AbsolutePath,
-        referenceBinaryPath: AbsolutePath
+        referenceBinaryPath: AbsolutePath,
+        fileHandler: FileHandler
     ) throws -> [BenchmarkResult] {
         let benchmark = Benchmark(
             fileHandler: fileHandler,
@@ -162,14 +156,15 @@ final class BenchmarkCommand {
 
     private func getFixturePaths(
         fixturesListPath: AbsolutePath?,
-        fixturePath: AbsolutePath?
+        fixturePath: AbsolutePath?,
+        fileHandler: FileHandler
     ) throws -> [AbsolutePath] {
         if let fixturePath {
             return [fixturePath]
         }
 
         if let fixturesListPath {
-            let fixtures = try parseFixtureList(path: fixturesListPath)
+            let fixtures = try parseFixtureList(path: fixturesListPath, fileHandler: fileHandler)
             return try fixtures.paths.map {
                 try AbsolutePath(validating: $0, relativeTo: fileHandler.currentPath)
             }
@@ -187,13 +182,13 @@ final class BenchmarkCommand {
         }
     }
 
-    private func parseConfig(path: AbsolutePath) throws -> BenchmarkConfig {
+    private func parseConfig(path: AbsolutePath, fileHandler: FileHandler) throws -> BenchmarkConfig {
         let decoder = JSONDecoder()
         let data = try fileHandler.contents(of: path)
         return try decoder.decode(BenchmarkConfig.self, from: data)
     }
 
-    private func parseFixtureList(path: AbsolutePath) throws -> Fixtures {
+    private func parseFixtureList(path: AbsolutePath, fileHandler: FileHandler) throws -> Fixtures {
         let decoder = JSONDecoder()
         let data = try fileHandler.contents(of: path)
         return try decoder.decode(Fixtures.self, from: data)

@@ -35,6 +35,7 @@ func targets() -> [Target] {
             name: "tuistbenchmark",
             product: .commandLineTool,
             dependencies: [
+                .external(name: "ArgumentParser"),
                 .external(name: "SwiftToolsSupport"),
             ]
         ),
