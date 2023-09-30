@@ -351,7 +351,8 @@ let package = Package(
                 "TuistSupport",
                 .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
                 .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
-            ]
+            ],
+            exclude: ["OpenAPI/cloud.yml"]
         ),
         .testTarget(
             name: "TuistCloudTests",
