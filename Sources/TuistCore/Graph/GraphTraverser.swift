@@ -857,7 +857,7 @@ public class GraphTraverser: GraphTraversing {
                     return false
                 }
             },
-            skip: { $0.isDynamicPrecompiled }
+            skip: { $0.isDynamicPrecompiled || !$0.isPrecompiled }
         )
         return Set(dependencies)
             .compactMap(dependencyReference)
