@@ -1,5 +1,23 @@
 # Changelog
 
+## 3.28.0 - 2023-10-03
+
+### Added
+
+- `XPC` product can embed dynamic libraries and frameworks [#5431](https://github.com/tuist/tuist/pull/5431) by [@PaulTaykalo](https://github.com/PaulTaykalo)
+- Add supported platforms build setting when specifying multiple destinations [#5438](https://github.com/tuist/tuist/pull/5438) by [@kwridan](https://github.com/kwridan)
+- Introduce mergeable libraries [#5351](https://github.com/tuist/tuist/pull/5351) by [@AlbGarciam](https://github.com/AlbGarciam)
+- Support for specifying the target for variable expansion in the RunAction [#5306](https://github.com/tuist/tuist/pull/5306) by [@NataliaKurek](https://github.com/NataliaKurek)
+- Add tuist cloud organization billing command [#5446](https://github.com/tuist/tuist/pull/5446) by [@fortmarek](https://github.com/fortmarek)
+- Support linting multi-destination targets [#5441](https://github.com/tuist/tuist/pull/5441) by [@kwridan](https://github.com/kwridan)
+
+### Fixed
+
+- Fix limit mergeable to framework instead of dynamic library [#5453](https://github.com/tuist/tuist/pull/5453) by [@AlbGarciam](https://github.com/AlbGarciam)
+- Generate TuistStrings+Module for correct localisation strings file [#5454](https://github.com/tuist/tuist/pull/5454) by [@leszko11](https://github.com/leszko11)
+- Fix iOS min deployment version for `Dependencies.swift` in Xcode 15 [#5455](https://github.com/tuist/tuist/pull/5455) by [@danyf90](https://github.com/danyf90)
+- Fix linking of precompiled static xcframeworks that are transitive dependencies of a static framework [#5459](https://github.com/tuist/tuist/pull/5459) by [@pepicrft](https://github.com/pepicrft)
+
 ## 3.27.1 - 2023-09-21
 
 ### Fixed
