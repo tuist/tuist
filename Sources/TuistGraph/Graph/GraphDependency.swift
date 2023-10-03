@@ -87,6 +87,35 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         }
     }
 
+    /**
+     When the graph dependency represents a pre-compiled static binary.
+     */
+    public var isStaticPrecompiled: Bool {
+        switch self {
+        case let .xcframework(_, _, _, linking, _), let .framework(_, _, _, _, linking, _, _),
+             let .library(_, _, linking, _, _): return linking == .static
+        case .bundle: return false
+        case .packageProduct: return false
+        case .target: return false
+        case .sdk: return false
+        }
+    }
+
+    /**
+     When the graph dependency represents a dynamic precompiled binary, it returns true.
+     */
+    public var isDynamicPrecompiled: Bool {
+        switch self {
+        case let .xcframework(_, _, _, linking, _),
+             let .framework(_, _, _, _, linking, _, _),
+             let .library(_, _, linking, _, _): return linking == .dynamic
+        case .bundle: return false
+        case .packageProduct: return false
+        case .target: return false
+        case .sdk: return false
+        }
+    }
+
     public var isPrecompiled: Bool {
         switch self {
         case .xcframework: return true
