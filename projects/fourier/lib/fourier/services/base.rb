@@ -12,10 +12,6 @@ module Fourier
       def call
         raise NotImplementedError
       end
-
-      def vendor_path(path)
-        File.join(Fourier::Constants::VENDOR_DIRECTORY, path)
-      end
     end
   end
 end
