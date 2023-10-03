@@ -15,6 +15,11 @@ env:
   RUBY_VERSION: '3.0.3'
   TUIST_STATS_OPT_OUT: true
 
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+
 jobs:
   prepare-release:
     runs-on: ubuntu-latest
