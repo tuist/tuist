@@ -22,7 +22,7 @@ class PackageLinter: PackageLinting {
                 severity: .error
             )
             return [issue]
-        } else if case let .remote(url, _) = package, URL(string: url) == nil {
+        } else if case let .remote(url, _) = package, !URL.isValid(url) {
             let issue = LintingIssue(
                 reason: "Package with remote URL (\(url)) does not have a valid URL.",
                 severity: .error

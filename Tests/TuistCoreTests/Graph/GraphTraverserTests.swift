@@ -3965,6 +3965,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
          */
         // Given
         let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+
         let project = Project.test(targets: [staticLibrary])
         let directXCFramework = GraphDependency.xcframework(
             path: "/xcframeworks/direct.xcframework",
@@ -3985,6 +3987,18 @@ final class GraphTraverserTests: TuistUnitTestCase {
             linking: .static,
             architectures: [.arm64],
             isCarthage: false
+        )
+        let directFrameworkTarget = GraphDependency.target(name: staticFramework.name, path: project.path)
+        let transitiveFrameworkTargetXCFramework = GraphDependency.xcframework(
+            path: "/xcframeworks/transitive-framework-target-xcframework.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "path"),
+                architectures: [.arm64]
+            )]),
+            primaryBinaryPath: "/xcframeworks/transitive-framework-target-xcframework.xcframework/transitive",
+            linking: .static,
+            mergeable: false
         )
         let transitiveXCFramework = GraphDependency.xcframework(
             path: "/xcframeworks/transitive.xcframework",
@@ -4010,7 +4024,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: staticLibrary.name, path: project.path): Set([directXCFramework, directFramework]),
+            .target(name: staticLibrary.name, path: project.path): Set([
+                directXCFramework,
+                directFramework,
+                directFrameworkTarget,
+            ]),
+            directFrameworkTarget: Set([transitiveFrameworkTargetXCFramework]),
             directXCFramework: Set([transitiveXCFramework]),
             directFramework: Set([frameworkTransitiveXCFramework]),
         ]
@@ -4051,7 +4070,17 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
                 binaryPath: "/xcframeworks/transitive.xcframework/transitive"
             ),
-        ])
+            .xcframework(
+                path: "/xcframeworks/framework-transitive.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: RelativePath("path"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
+                binaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive"
+            ),
+        ].sorted())
     }
 
     func test_copyProductDependencies_when_targetHasDirectStaticDependencies() throws {
