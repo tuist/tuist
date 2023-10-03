@@ -37,10 +37,15 @@ final class CloudOrganizationInviteService: CloudOrganizationInviteServicing {
             serverURL: cloudURL
         )
 
+        let invitationURL = cloudURL
+            .appendingPathComponent("auth")
+            .appendingPathComponent("invitations")
+            .appendingPathComponent(invitation.token)
+
         logger.info("""
         \(invitation.inviteeEmail) was successfully invited to the \(organizationName) organization 🎉
 
-        You can also share with them the invite link directly: \(cloudURL)/auth/invitations/\(invitation.token)
+        You can also share with them the invite link directly: \(invitationURL.absoluteString)
         """)
     }
 }
