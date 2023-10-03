@@ -16,3 +16,7 @@ lint:
 	./make/tasks/lint.sh
 lint/lockfiles:
 	./make/tasks/lint/lockfiles.sh
+tuist/fetch:
+	./make/tasks/tuist/fetch.sh
+tuist/cloud/cache/warm:
+	./make/tasks/tuist/cloud/cache/warm.sh $(ARGS)

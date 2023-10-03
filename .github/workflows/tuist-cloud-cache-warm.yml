@@ -1,0 +1,54 @@
+name: Tuist Cloud Cache Warm
+
+on:
+  push:
+    branches:
+      - main
+  pull_request: {}
+
+concurrency:
+  group: tuist-cloud-cache-warm-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  TUIST_STATS_OPT_OUT: true
+
+jobs:
+  production:
+    name: Production
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v3
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - uses: actions/cache@v3
+        name: 'Cache Tuist .build folder'
+        with:
+          path: .build
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
+      - name: Cache warm
+        run: |
+          make tuist/fetch
+          make tuist/cloud/cache/warm
+  staging:
+    name: Staging
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v3
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - uses: actions/cache@v3
+        name: 'Cache Tuist .build folder'
+        with:
+          path: .build
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
+      - name: Cache warm
+        run: |
+          make tuist/fetch
+          make tuist/cloud/cache/warm --cloud-url https://tuist-cloud-staging.fly.dev --cloud-token ${{secrets.TUIST_CONFIG_CLOUD_STAGING_TOKEN}}
