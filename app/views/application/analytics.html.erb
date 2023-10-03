@@ -1,0 +1,181 @@
+<%= stylesheet_link_tag 'app' %>
+<%= stylesheet_link_tag 'analytics' %>
+
+<nav>
+  <ul>
+    <li><%= svg('tuist_cloud_logo', class: "icon-medium") %><h1>Tuist Cloud</h1></li>
+  </ul>
+  <ul>
+    <li><a href="/users/sign_out" data-method="delete" role="button">Sign out</a></li>
+  </ul>
+</nav>
+
+<div class="analytics-container">
+  <article class="analytics-article">
+    <header class="analytics-article-header">
+      Average command duration
+      <select class="analytics-article-header-select" id="average-duration-select">
+        <option value="cache_warm">cache warm</option>
+        <option value="test">test</option>
+        <option value="build">build</option>
+        <option value="generate">generate</option>
+      </select>
+    </header>
+    <div class="chart">
+      <canvas id="average-duration-chart"></canvas>
+    </div>
+  </article>
+
+  <article class="analytics-article">
+    <header class="analytics-article-header">
+      Average cache hit rate
+      <select class="analytics-article-header-select" id="average-cache-hit-rate-select">
+        <option value="generate">generate</option>
+        <option value="cache_warm">cache warm</option>
+      </select>
+    </header>
+    <div>
+      <canvas id="average-cache-hit-rate-chart" class="chart"></canvas>
+    </div>
+  </article>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon@^2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@^1"></script>
+<script>
+  let width, height, gradient;
+  function getGradient(ctx, chartArea) {
+    const chartWidth = chartArea.right - chartArea.left;
+    const chartHeight = chartArea.bottom - chartArea.top;
+    if (!gradient || width !== chartWidth || height !== chartHeight) {
+      // Create the gradient because this is either the first render
+      // or the size of the chart has changed
+      width = chartWidth;
+      height = chartHeight;
+      gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+      gradient.addColorStop(0, cssvar('--tuist-color-primary-500'));
+      gradient.addColorStop(1, cssvar('--tuist-color-primary-600'));
+    }
+
+    return gradient;
+  }
+
+  function cssvar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name);
+  }
+
+  function chart({key, label, data, scales, getValue}) {
+    const ctx = document.getElementById(`${key}-chart`);
+
+    function dataset(key) {
+      const commandData = data[key];
+      return {
+        labels: commandData.map(e => e.date),
+        data: commandData.map(e => getValue(e))
+      }
+    }
+
+    const select = document.querySelector(`#${key}-select`);
+    const {labels: initialLabels, data: initialData} = dataset(select.value);
+
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: initialLabels,
+        datasets: [{
+          label,
+          data: initialData,
+          fill: false,
+          borderColor: function(context) {
+            const chart = context.chart;
+            const {ctx, chartArea} = chart;
+
+            if (!chartArea) {
+              // This case happens on initial chart load
+              return;
+            }
+            return getGradient(ctx, chartArea);
+          },
+          tension: 0.4
+        }]
+      },
+      options: {
+        interaction: {
+          intersect: false,
+          mode: 'index'
+        },
+        plugins: {
+          legend: {
+            display: false,
+          }
+        },
+        scales: {
+            x: {
+              type: 'time',
+              time: {
+                // Luxon format string
+                tooltipFormat: 'DD T'
+              },
+              ticks: {
+                color: cssvar('--text-inverse'),
+                stepSize: 2
+              }
+            },
+            ...scales
+        },
+        responsive: true
+      }
+    });
+
+    function onSelectChange(event) {
+      const key = select.value;
+      const {labels, data} = dataset(key);
+      chart.data.datasets[0].labels = labels;
+      chart.data.datasets[0].data = data;
+      chart.update();
+    }
+    select.addEventListener('change', onSelectChange);
+  }
+
+  chart(
+    {
+      key: 'average-duration',
+      label: 'Average duration',
+      data: <%= @commands_average_duration.to_json.html_safe %>,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value, index, ticks) {
+                return value / 1000 + ' s';
+            },
+            color: cssvar('--text-inverse')
+          }
+        }
+      },
+      getValue: (e) => e.duration_average
+    }
+  );
+
+  chart(
+    {
+      key: 'average-cache-hit-rate',
+      label: 'Average cache hit rate',
+      data: <%= @commands_average_cache_hit_rate.to_json.html_safe %>,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value, index, ticks) {
+                return value * 100 + ' %';
+            },
+            color: cssvar('--text-inverse')
+          }
+        }
+      },
+      getValue: (e) => e.cache_hit_rate_average
+    }
+  );
+</script>
+

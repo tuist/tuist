@@ -2,24 +2,24 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  margin-top: var(--space-32);
+  margin-top: var(--tuist-spacing-5x-large);
 }
 
 .logo-button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: var(--space-1);
-  font-size: var(--font-size-300);
+  margin-bottom: var(--tuist-spacing-2x-small);
+  font-size: var(--tuist-font-size-large);
 }
 
 .error-title {
   text-align: center;
-  margin-top: var(--space-4);
+  margin-top: var(--tuist-spacing-medium);
 }
 
 .error-message {
   text-align: center;
-  margin-top: var(--space-1);
+  margin-top: var(--tuist-spacing-2x-small);
   color: var(--text-on-color);
 }

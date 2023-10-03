@@ -33,6 +33,45 @@ class ApplicationController < ActionController::Base
     redirect_to(session_url, allow_other_host: true)
   end
 
+  def analytics
+    project_id = ProjectFetchService.new.fetch_by_name(
+      name: params[:project_name],
+      account_name: params[:account_name],
+      user: current_user,
+    ).id
+    @commands_average_duration = {
+      generate: CommandAverageService.call(
+        project_id: project_id,
+        command_name: "generate",
+        user: current_user,
+      ),
+      cache_warm: CommandAverageService.call(
+        project_id: project_id,
+        command_name: "cache warm",
+        user: current_user,
+      ),
+      build: CommandAverageService.call(
+        project_id: project_id,
+        command_name: "build",
+        user: current_user,
+      ),
+    }
+
+    @commands_average_cache_hit_rate = {
+      generate: CacheHitRateAverageService.call(
+        project_id: project_id,
+        command_name: "generate",
+        user: current_user,
+      ),
+      cache_warm: CacheHitRateAverageService.call(
+        project_id: project_id,
+        command_name: "cache warm",
+        user: current_user,
+      ),
+    }
+    render('analytics')
+  end
+
   private
 
   def store_location

@@ -36,27 +36,27 @@ code {
 
 .badge {
   display: inline-block;
-  padding: var(--space-025) var(--space-4);
-  background-color: var(--background-interactive);
+  padding: var(--tuist-spacing-4x-small) var(--tuist-spacing-medium);
+  background-color: var(--tuist-color-background-interactive);
   color: var(--text-on-color);
-  border-radius: var(--space-4);
-  font-size: var(--font-size-100);
-  font-weight: var(--font-weight-semibold);
+  border-radius: var(--tuist-spacing-medium);
+  font-size: var(--tuist-font-size-small);
+  font-weight: var(--tuist-font-weight-semibold);
 }
 
 .badge.critical {
-  background-color: var(--background-critical-strong);
+  background-color: var(--tuist-color-background-critical-strong);
 }
 
 .members-count {
   display: flex;
   flex-direction: row;
-  padding: var(--space-0) var(--space-4);
+  padding: var(--tuist-spacing-none) var(--tuist-spacing-medium);
   align-items: center;
 }
 
 .members-count p {
-  font-size: var(--font-size-300);
-  font-weight: var(--font-weight-medium);
-  padding-left: var(--space-2);
+  font-size: var(--tuist-font-size-large);
+  font-weight: var(--tuist-font-weight-normal);
+  padding-left: var(--tuist-spacing-x-small);
 }

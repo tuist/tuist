@@ -1,0 +1,31 @@
+.analytics-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: var(--tuist-spacing-large) 0;
+}
+
+.analytics-article {
+  width: 70%;
+}
+
+.analytics-article:not(:first-of-type) {
+  margin-top: var(--tuist-spacing-x-large);
+}
+
+.analytics-article-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.analytics-article-header-select {
+  margin-top: var(--tuist-spacing-medium);
+  margin-bottom: var(--tuist-spacing-2x-large);
+}
+
+.chart {
+  width: 95%;
+  padding: 0 var(--tuist-spacing-medium);
+  aspect-ratio: 2;
+}

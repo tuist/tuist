@@ -20,36 +20,236 @@
   --text-on-color: rgb(255, 255, 255);
   --text-inverse: rgb(209 213 219);
 
-  --background-interactive: rgb(79 70 229);
-  --background-interactive-hover: rgb(67 56 202);
-  --background-interactive-focus:rgb(55 48 163);
-  --background-critical-strong: rgb(197, 40, 12);
+  --tuist-color-primary-50: rgb(238, 242, 255);
+  --tuist-color-primary-100: rgb(224, 231, 255);
+  --tuist-color-primary-200: rgb(199, 210, 254);
+  --tuist-color-primary-300: rgb(165, 180, 252);
+  --tuist-color-primary-400: rgb(129, 140, 248);
+  --tuist-color-primary-500: rgb(99, 102, 241);
+  --tuist-color-primary-600: rgb(79 70 229);
+  --tuist-color-primary-700: rgb(67 56 202);
+  --tuist-color-primary-800:rgb(55 48 163);
+  --tuist-color-primary-900: rgb(49, 46, 129);
+  --tuist-color-primary-950: rgb(30, 27, 75);
 
-  --font-size-700: 2.5rem;
-  --font-size-600: 2rem;
-  --font-size-500: 1.75rem;
-  --font-size-400: 1.5rem;
-  --font-size-300: 1.25rem;
-  --font-size-200: 1rem;
-  --font-size-100: 0.875rem;
+  --tuist-color-gray-50: rgb(38, 39, 41);
+  --tuist-color-gray-100: rgb(43, 45, 49);
+  --tuist-color-gray-200: rgb(50, 53, 57);
+  --tuist-color-gray-300: rgb(61, 65, 71);
+  --tuist-color-gray-400: rgb(79, 84, 91);
+  --tuist-color-gray-500: rgb(102, 110, 119);
+  --tuist-color-gray-600: rgb(146, 157, 170);
+  --tuist-color-gray-700: rgb(187, 201, 218);
+  --tuist-color-gray-800: rgb(215, 227, 240);
+  --tuist-color-gray-900: rgb(233, 240, 249);
+  --tuist-color-gray-950: rgb(242, 242, 242);
 
-  --font-weight-bold: 700;
-  --font-weight-semibold: 600;
-  --font-weight-medium: 500;
+  --tuist-color-neutral-50: var(--tuist-color-gray-50);
+  --tuist-color-neutral-100: var(--tuist-color-gray-100);
+  --tuist-color-neutral-200: var(--tuist-color-gray-200);
+  --tuist-color-neutral-300: var(--tuist-color-gray-300);
+  --tuist-color-neutral-400: var(--tuist-color-gray-400);
+  --tuist-color-neutral-500: var(--tuist-color-gray-500);
+  --tuist-color-neutral-600: var(--tuist-color-gray-600);
+  --tuist-color-neutral-700: var(--tuist-color-gray-700);
+  --tuist-color-neutral-800: var(--tuist-color-gray-800);
+  --tuist-color-neutral-900: var(--tuist-color-gray-900);
+  --tuist-color-neutral-950: var(--tuist-color-gray-950);
 
-  --space-32: 8rem;
-  --space-4: 1rem;
-  --space-3: 0.75rem;
-  --space-2: 0.5rem;
-  --space-1: 0.25rem;
-  --space-05: 0.125rem;
-  --space-025: 0.0625rem;
-  --space-0: 0rem;
+  --tuist-color-neutral-0: rgb(38, 39, 41);
+  --tuist-color-neutral-1000: rgb(255, 255, 255);
 
-  h1 {
-    font-weight: var(--font-weight-semibold);
-    font-size: var(--font-size-700);
-    color: var(--text-on-color);
-  }
+  --tuist-color-background-critical-strong: rgb(197, 40, 12);
+  --tuist-color-background-surface: rgb(31, 41, 55);
+  --tuist-color-background: rgb(17 24 39);
+
+  --tuist-border-width-5: 0.3125rem;
+  --tuist-border-width-4: 0.25rem;
+  --tuist-border-width-3: 0.1875rem;
+  --tuist-border-width-2: 0.125rem;
+  --tuist-border-width-1: 0.0625rem;
+
+  --tuist-font-size-2x-small: 0.625rem;
+  --tuist-font-size-x-small: 0.75rem;
+  --tuist-font-size-small: 0.875rem;
+  --tuist-font-size-medium: 1rem;
+  --tuist-font-size-large: 1.25rem;
+  --tuist-font-size-x-large: 1.5rem;
+  --tuist-font-size-2x-large: 2.25rem;
+  --tuist-font-size-3x-large: 3rem;
+  --tuist-font-size-4x-large: 4.5rem;
+  --tuist-font-size-large: 1.25rem;
+
+  --tuist-font-line-height-7: 3rem;
+  --tuist-font-line-height-6: 2.5rem;
+  --tuist-font-line-height-5: 2rem;
+  --tuist-font-line-height-4: 1.75rem;
+  --tuist-font-line-height-3: 1.5rem;
+  --tuist-font-line-height-2: 1.25rem;
+  --tuist-font-line-height-1: 1rem;
+
+  --tuist-font-weight-light: 300;
+  --tuist-font-weight-normal: 400;
+  --tuist-font-weight-semibold: 500;
+  --tuist-font-weight-bold: 700;
+
+  --tuist-letter-spacing-denser: -0.03em;
+  --tuist-letter-spacing-dense: -0.015em;
+  --tuist-letter-spacing-normal: normal;
+  --tuist-letter-spacing-loose: 0.075em;
+  --tuist-letter-spacing-looser: 0.15em;
+
+  --tuist-spacing-4x-small: 0.0625rem;
+  --tuist-spacing-3x-small: 0.125rem;
+  --tuist-spacing-2x-small: 0.25rem;
+  --tuist-spacing-x-small: 0.5rem;
+  --tuist-spacing-small: 0.75rem;
+  --tuist-spacing-medium: 1rem;
+  --tuist-spacing-large: 1.25rem;
+  --tuist-spacing-x-large: 1.75rem;
+  --tuist-spacing-2x-large: 2.25rem;
+  --tuist-spacing-3x-large: 3rem;
+  --tuist-spacing-4x-large: 4.5rem;
+  --tuist-spacing-5x-large: 8rem;
+  --tuist-spacing-none: 0rem;
+
+  --tuist-button-font-size-small: var(--tuist-font-size-x-small);
+  --tuist-button-font-size-medium: var(--tuist-font-size-small);
+  --tuist-button-font-size-large: var(--tuist-font-size-medium);
+
+  --tuist-shadow-2xl: 0rem 2rem 2rem rgba(31, 33, 36, 0.15), 0rem 2rem 3.5rem -0.125rem rgba(31, 33, 36, 0.16);
+  --tuist-shadow-xl: 0rem 0.25rem 1.125rem -0.125rem rgba(31, 33, 36, 0.08), 0rem 0.75rem 1.125rem -0.125rem rgba(31, 33, 36, 0.15);
+  --tuist-shadow-lg: 0rem 0.25rem 0.75rem rgba(31, 33, 36, 0.2), 0rem 0.125rem 0.375rem rgba(31, 33, 36, 0.05);
+  --tuist-shadow-md: 0rem 0.125rem 0.25rem rgba(31, 33, 36, 0.1), 0rem 0.0625rem 0.375rem rgba(31, 33, 36, 0.05);
+  --tuist-shadow-sm: 0rem 0.0625rem 0.0625rem rgba(31, 33, 36, 0.1);
+  --tuist-shadow-xs: 0rem 0rem 0.125rem rgba(31, 33, 36, 0.24);
+
+  --tuist-border-radius-small: 0.1875rem;
+  --tuist-border-radius-medium: 0.25rem;
+  --tuist-border-radius-large: 0.5rem;
+  --tuist-border-radius-x-large: 1rem;
+  --tuist-border-radius-circle: 50%;
+  --tuist-border-radius-pill: 9999px;
+
+  --tuist-transition-x-slow: 1000ms;
+  --tuist-transition-slow:  500ms;
+  --tuist-transition-medium: 250ms;
+  --tuist-transition-fast: 150ms ;
+  --tuist-transition-x-fast: 50ms;
+
+  --tuist-z-index-12: 520;
+  --tuist-z-index-11: 519;
+  --tuist-z-index-10: 518;
+  --tuist-z-index-9: 517;
+  --tuist-z-index-8: 516;
+  --tuist-z-index-7: 515;
+  --tuist-z-index-6: 514;
+  --tuist-z-index-5: 513;
+  --tuist-z-index-4: 512;
+  --tuist-z-index-3: 510;
+  --tuist-z-index-2: 400;
+  --tuist-z-index-1: 100;
+
+   --tuist-icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgb(209, 213, 219)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
 }
 
+body {
+  font-family: "Inter", sans-serif;
+  background-color: var(--tuist-color-background);
+}
+
+select {
+  appearance: none;
+  outline: none;
+  border-style: solid;
+  border-width: var(--tuist-border-width-1);
+  font-family: var(--tuist-font-sans);
+  font-weight: var(--tuist-font-weight-semibold);
+  line-height: var(--tuist-font-line-height-6);
+  font-size: var(--tuist-font-size-small);
+  border-radius: var(--tuist-border-radius-medium);
+  padding: 0 var(--tuist-spacing-2x-large) 0 var(--tuist-spacing-medium);
+  background-color: var(--tuist-color-background-surface);
+  border-color: var(--tuist-color-neutral-300);
+  color: var(--text-inverse);
+  background-image: var(--tuist-icon-chevron);
+  background-position: center right .75rem;
+  background-size: 1rem auto;
+  background-repeat: no-repeat;
+}
+
+select:hover {
+  background-color: var(--tuist-color-neutral-200);
+}
+
+article {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--tuist-color-background-surface);
+  box-shadow: var(--tuist-shadow-xs);
+  border-radius: var(--tuist-border-radius-large);
+  color: var(--text-on-color);
+  padding: var(--tuist-spacing-2x-large);
+}
+
+article header {
+  display: block;
+  font-weight: var(--tuist-font-weight-bold);
+  font-size: var(--tuist-font-size-large);
+}
+
+h1 {
+  font-weight: var(--tuist-font-weight-semibold);
+  font-size: var(--font-size-700);
+  color: var(--text-on-color);
+}
+
+
+/* Nav */
+nav,
+nav ul {
+  display: flex;
+}
+
+nav svg {
+  width: 2.5rem;
+}
+
+nav {
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  backdrop-filter: blur(8px);
+  padding: 0 15%;
+}
+
+nav ul {
+  align-items: center;
+  margin-bottom: var(--tuist-spacing-small);
+  padding: 0;
+  list-style: none;
+}
+
+nav h1:first-of-type {
+  font-weight: var(--tuist-font-weight-bold);
+  font-size: var(--tuist-font-size-medium);
+  color: var(--text-on-color);
+  padding-left: var(--tuist-spacing-medium)
+}
+
+nav li {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: 0 var(--tuist-spacing-medium);
+}
+
+nav li > * {
+  --spacing: 0;
+}
+
+nav :where(a, [role=link]) {
+  display: inline-block;
+  text-decoration: none;
+  color: var(--text-on-color);
+}
