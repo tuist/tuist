@@ -75,22 +75,9 @@ jobs:
     - uses: actions/checkout@v3
       with:
         ref: ${{ needs.prepare-release.outputs.commit_hash }}
-    - uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: ${{ env.RUBY_VERSION }}
-    - uses: actions/cache@v3
-      with:
-        path: vendor/bundle
-        key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
-    - name: Bundle install
-      run: |
-        bundle config path vendor/bundle
-        bundle install --jobs 4 --retry 3
-    - name: Fourier release
+    - name: Build artifacts
       if: ${{ github.event.inputs.publish == 'true' }}
-      run: ./fourier release tuist ${{ needs.prepare-release.outputs.version }} $(cat .xcode-version) $(cat .xcode-version-libraries)
+      run: ARGS="--xcode-version $(cat .xcode-version) --libraries-xcode-version $(cat .xcode-version-libraries) --build-dir ./build" make release/bundle
     - name: Create GitHub Release
       if: ${{ github.event.inputs.publish == 'true' }}
       uses: softprops/action-gh-release@v1
