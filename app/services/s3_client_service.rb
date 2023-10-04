@@ -21,6 +21,19 @@ class S3ClientService < ApplicationService
       region: s3_bucket.region,
       access_key_id: s3_bucket.access_key_id,
       secret_access_key: secret_access_key,
+      endpoint_provider: TuistCloudEndpointProvider.new,
     )
+  end
+end
+
+class TuistCloudEndpointProvider < Aws::S3::EndpointProvider
+  def resolve_endpoint(parameters)
+    if Environment.aws_endpoint.present?
+      endpoint = super
+      endpoint.instance_variable_set(:@url, Environment.aws_endpoint)
+      endpoint
+    else
+      super
+    end
   end
 end

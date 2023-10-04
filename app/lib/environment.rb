@@ -51,6 +51,14 @@ module Environment
       fetch(:aws, :secret_access_key)
     end
 
+    def aws_region
+      fetch(:aws, :region)
+    end
+
+    def aws_endpoint
+      fetch(:aws, :endpoint)
+    end
+
     def storage_configured?
       aws_configured?
     end
@@ -150,7 +158,7 @@ module Environment
     end
 
     def aws_configured?
-      aws_access_key_id.present? && aws_secret_access_key.present?
+      aws_access_key_id.present? && aws_secret_access_key.present? && aws_region.present?
     end
 
     def app_url_configured?

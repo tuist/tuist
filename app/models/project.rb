@@ -51,7 +51,7 @@ class DefaultS3Bucket
   end
 
   def region
-    "eu-west-1"
+    Environment.aws_region
   end
 
   def account_id
