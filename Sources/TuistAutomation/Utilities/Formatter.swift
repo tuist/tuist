@@ -14,7 +14,6 @@ final class Formatter: Formatting {
     }
 
     func buildArguments() throws -> [String] {
-        let xcbeautifyPath = try binaryLocator.xcbeautifyPath()
-        return [xcbeautifyPath.pathString]
+        return [try binaryLocator.xcbeautifyCommand()]
     }
 }

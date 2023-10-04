@@ -7,7 +7,6 @@ module Fourier
     SWIFTLINT_CONFIG_PATH = File.expand_path(".swiftlint.yml", ROOT_DIRECTORY)
     FEATURES_DIRECTORY = File.expand_path("projects/tuist/features", ROOT_DIRECTORY)
     FIXTURES_DIRECTORY = File.expand_path("projects/tuist/fixtures", ROOT_DIRECTORY)
-    TUIST_VENDOR_DIRECTORY = File.expand_path("projects/tuist/vendor", ROOT_DIRECTORY)
     FOURIER_DIRECTORY = File.expand_path("projects/fourier", ROOT_DIRECTORY)
     REPOSITORY = "tuist/tuist"
   end

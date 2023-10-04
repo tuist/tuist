@@ -22,50 +22,45 @@ enum BinaryLocatorError: FatalError, Equatable {
 
 /// Protocol that defines the interface to locate the tuist binary in the environment.
 public protocol BinaryLocating {
-    /// Returns the path to the xcbeautify binary.
-    func xcbeautifyPath() throws -> AbsolutePath
+    /// Returns the command to run xcbeautify.
+    func xcbeautifyCommand() throws -> String
 }
 
 public final class BinaryLocator: BinaryLocating {
     public init() {}
 
-    private func binariesPaths() throws -> [AbsolutePath] {
+    public func xcbeautifyCommand() throws -> String {
         #if DEBUG
-            // Used only for debug purposes
             let bundlePath = try AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
                 .removingLastComponent()
                 .removingLastComponent()
                 .removingLastComponent()
                 .removingLastComponent()
                 .appending(try RelativePath(validating: "projects/tuist/vendor"))
+                return "swift run --package-path $\(bundlePath) xcbeautify"
         #else
-            let bundlePath = try AbsolutePath(validating: Bundle(for: BinaryLocator.self).bundleURL.path)
+            let candidatebinariesPath = [
+                bundlePath,
+                bundlePath.parentDirectory,
+                bundlePath.appending(try RelativePath(validating: "vendor")),
+                /**
+                    == Homebrew directory structure ==
+                    x.y.z/
+                    bin/
+                        tuist
+                    share/
+                        tuist/
+                            vendor
+                    */
+                bundlePath.parentDirectory.appending(try RelativePath(validating: "share/tuist")),
+            ]
+            let candidates = try candidatebinariesPath.map { path in
+                path.appending(components: "xcbeautify", "xcbeautify")
+            }
+            guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
+                throw BinaryLocatorError.xcbeautifyNotFound
+            }
+            return existingPath
         #endif
-        return [
-            bundlePath,
-            bundlePath.parentDirectory,
-            bundlePath.appending(try RelativePath(validating: "vendor")),
-            /**
-                == Homebrew directory structure ==
-                x.y.z/
-                   bin/
-                       tuist
-                   share/
-                       tuist/
-                           vendor
-                */
-            bundlePath.parentDirectory.appending(try RelativePath(validating: "share/tuist")),
-        ]
-    }
-
-    public func xcbeautifyPath() throws -> AbsolutePath {
-        let candidates = try binariesPaths().map { path in
-            path.appending(components: Constants.Vendor.xcbeautify, Constants.Vendor.xcbeautify)
-        }
-
-        guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
-            throw BinaryLocatorError.xcbeautifyNotFound
-        }
-        return existingPath
     }
 }

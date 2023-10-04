@@ -21,9 +21,9 @@ public final class MockBinaryLocator: BinaryLocating {
     public var invokedXcbeautifyPath = false
     public var invokedXcbeautifyPathCount = 0
     public var stubbedXcbeautifyPathError: Error?
-    public var stubbedXcbeautifyPathResult: AbsolutePath!
+    public var stubbedXcbeautifyPathResult: String!
 
-    public func xcbeautifyPath() throws -> AbsolutePath {
+    public func xcbeautifyCommand() throws -> String {
         invokedXcbeautifyPath = true
         invokedXcbeautifyPathCount += 1
         if let error = stubbedXcbeautifyPathError {
