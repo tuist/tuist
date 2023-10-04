@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistAutomation
-import TuistCache
+import TuistCloud
 import TuistCore
 import TuistLoader
 import TuistSupport

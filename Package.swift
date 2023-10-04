@@ -128,7 +128,6 @@ let package = Package(
                 argumentParserDependency,
                 "TuistSupport",
                 "TuistGenerator",
-                "TuistCache",
                 "TuistAutomation",
                 "ProjectDescription",
                 "ProjectAutomation",
@@ -155,7 +154,6 @@ let package = Package(
                 "ProjectDescription",
                 "ProjectAutomation",
                 "TuistLoaderTesting",
-                "TuistCacheTesting",
                 "TuistGeneratorTesting",
                 "TuistScaffoldTesting",
                 "TuistCloudTesting",
@@ -308,40 +306,6 @@ let package = Package(
             ]
         ),
         .target(
-            name: "TuistCache",
-            dependencies: [
-                "XcodeProj",
-                swiftToolsSupportDependency,
-                "TuistCore",
-                "TuistGraph",
-                "TuistSupport",
-                "TuistCloud",
-            ]
-        ),
-        .testTarget(
-            name: "TuistCacheTests",
-            dependencies: [
-                "TuistCache",
-                "TuistSupportTesting",
-                "TuistCoreTesting",
-                "TuistCacheTesting",
-                "TuistGraphTesting",
-                "TuistCloudTesting",
-            ]
-        ),
-        .target(
-            name: "TuistCacheTesting",
-            dependencies: [
-                "TuistCache",
-                "TuistCloud",
-                swiftToolsSupportDependency,
-                "TuistCore",
-                "TuistSupportTesting",
-                "TuistGraphTesting",
-                "TuistCoreTesting",
-            ]
-        ),
-        .target(
             name: "TuistCloud",
             dependencies: [
                 "XcodeProj",
@@ -358,6 +322,7 @@ let package = Package(
             name: "TuistCloudTests",
             dependencies: [
                 "TuistCloud",
+                "TuistCloudTesting",
                 "TuistSupportTesting",
                 "TuistCoreTesting",
                 "TuistGraphTesting",
@@ -373,9 +338,9 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "TuistCacheIntegrationTests",
+            name: "TuistCloudIntegrationTests",
             dependencies: [
-                "TuistCache",
+                "TuistCloud",
                 "TuistSupportTesting",
                 "TuistCoreTesting",
                 "TuistGraphTesting",
