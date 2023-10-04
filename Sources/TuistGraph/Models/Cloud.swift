@@ -27,4 +27,15 @@ public struct Cloud: Equatable, Hashable {
         self.projectId = projectId
         self.options = options
     }
+
+    /// Returns a new copy of `Cloud` with the given URL.
+    /// - Parameter url: The URL to set in the new instance.
+    /// - Returns: A new instance of Cloud.
+    public func withURL(url: URL) -> Cloud {
+        Cloud(
+            url: url,
+            projectId: projectId,
+            options: options
+        )
+    }
 }

@@ -29,7 +29,7 @@ public final class CloudURLService: CloudURLServicing {
     public init() {}
 
     public func url(serverURL: String?) throws -> URL {
-        let cloudURL = serverURL ?? ProcessInfo.processInfo.environment["TUIST_CLOUD_URL"] ?? Constants.tuistCloudURL
+        let cloudURL = ProcessInfo.processInfo.environment["TUIST_CLOUD_URL"] ?? serverURL ?? Constants.tuistCloudURL
         guard let url = URL(string: cloudURL)
         else {
             throw CloudURLServiceError.invalidCloudURL(cloudURL)

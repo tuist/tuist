@@ -28,6 +28,7 @@ final class CacheStorageProvider: CacheStorageProviding {
     private let config: Config
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let cloudAuthenticationController: CloudAuthenticationControlling
+    private let cloudURLService: CloudURLServicing
 
     /// Cached response for list of storages
     @Atomic
@@ -39,18 +40,21 @@ final class CacheStorageProvider: CacheStorageProviding {
         self.init(
             config: config,
             cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
-            cloudAuthenticationController: CloudAuthenticationController()
+            cloudAuthenticationController: CloudAuthenticationController(),
+            cloudURLService: CloudURLService()
         )
     }
 
     init(
         config: Config,
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
-        cloudAuthenticationController: CloudAuthenticationControlling
+        cloudAuthenticationController: CloudAuthenticationControlling,
+        cloudURLService: CloudURLServicing
     ) {
         self.config = config
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.cloudAuthenticationController = cloudAuthenticationController
+        self.cloudURLService = cloudURLService
     }
 
     func storages() throws -> [CacheStoring] {
@@ -59,8 +63,11 @@ final class CacheStorageProvider: CacheStorageProviding {
         }
         let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
         var storages: [CacheStoring] = [CacheLocalStorage(cacheDirectoriesProvider: cacheDirectoriesProvider)]
-        if let cloudConfig = config.cloud {
-            if try cloudAuthenticationController.authenticationToken(serverURL: cloudConfig.url)?.isEmpty == false {
+
+        if var cloudConfig = config.cloud {
+            let url = try cloudURLService.url(serverURL: config.cloud?.url.absoluteString)
+            cloudConfig = cloudConfig.withURL(url: url)
+            if try cloudAuthenticationController.authenticationToken(serverURL: url)?.isEmpty == false {
                 let remoteStorage = CacheRemoteStorage(
                     cloudConfig: cloudConfig,
                     cacheDirectoriesProvider: cacheDirectoriesProvider
@@ -71,7 +78,7 @@ final class CacheStorageProvider: CacheStorageProviding {
                 if cloudConfig.options.contains(.optional) {
                     logger
                         .warning(
-                            "Authentication token for tuist cloud was not found. Skipping using remote cache. Run `tuist cloud auth` to authenticate yourself."
+                            "Authentication token for Tuist Cloud was not found. Skipping using remote cache. Run `tuist cloud auth` to authenticate yourself."
                         )
                 } else {
                     throw CacheStorageProviderError.tokenNotFound

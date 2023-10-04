@@ -11,15 +11,18 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
     private var subject: CacheStorageProvider!
     private var cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory!
     private var cloudAuthenticationController: MockCloudAuthenticationController!
+    private var cloudURLService: CloudURLServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
         cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactory(provider: try MockCacheDirectoriesProvider())
         cloudAuthenticationController = MockCloudAuthenticationController()
+        cloudURLService = CloudURLService()
         subject = CacheStorageProvider(
             config: .test(),
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
-            cloudAuthenticationController: cloudAuthenticationController
+            cloudAuthenticationController: cloudAuthenticationController,
+            cloudURLService: cloudURLService
         )
     }
 
@@ -36,7 +39,8 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         subject = CacheStorageProvider(
             config: .test(cloud: .test(options: [])),
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
-            cloudAuthenticationController: cloudAuthenticationController
+            cloudAuthenticationController: cloudAuthenticationController,
+            cloudURLService: cloudURLService
         )
         cloudAuthenticationController.authenticationTokenStub = { _ in
             "token"
@@ -55,7 +59,8 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         subject = CacheStorageProvider(
             config: .test(cloud: .test(options: [])),
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
-            cloudAuthenticationController: cloudAuthenticationController
+            cloudAuthenticationController: cloudAuthenticationController,
+            cloudURLService: cloudURLService
         )
         cloudAuthenticationController.authenticationTokenStub = { _ in
             nil
@@ -73,7 +78,8 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         subject = CacheStorageProvider(
             config: .test(cloud: .test(options: [.optional])),
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
-            cloudAuthenticationController: cloudAuthenticationController
+            cloudAuthenticationController: cloudAuthenticationController,
+            cloudURLService: cloudURLService
         )
         cloudAuthenticationController.authenticationTokenStub = { _ in
             nil
@@ -86,7 +92,7 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         XCTAssertEqual(got.count, 1)
         XCTAssertContainsElementOfType(got, CacheLocalStorage.self)
         XCTAssertPrinterOutputContains(
-            "Authentication token for tuist cloud was not found. Skipping using remote cache. Run `tuist cloud auth` to authenticate yourself."
+            "Authentication token for Tuist Cloud was not found. Skipping using remote cache. Run `tuist cloud auth` to authenticate yourself."
         )
     }
 
@@ -95,7 +101,8 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         subject = CacheStorageProvider(
             config: .test(cloud: nil),
             cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
-            cloudAuthenticationController: cloudAuthenticationController
+            cloudAuthenticationController: cloudAuthenticationController,
+            cloudURLService: cloudURLService
         )
         cloudAuthenticationController.authenticationTokenStub = { _ in
             nil
