@@ -62,3 +62,5 @@ group :test do
   gem "capybara", ">= 3.26"
   gem "mocha", "~> 2.1.0"
 end
+
+gem "dockerfile-rails", ">= 1.5", :group => :development

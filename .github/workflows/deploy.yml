@@ -11,6 +11,9 @@ concurrency:
 
 jobs:
   deploy-staging:
+    environment:
+      name: staging
+      url: https://staging.cloud.tuist.io
     name: Deploy staging app
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_STAGING_API_TOKEN }}
@@ -23,7 +26,26 @@ jobs:
       # We deploy first to staging to give some window to test the changes
       - name: Deploy staging
         run: flyctl deploy -c fly.staging.toml --build-arg RAILS_ENV=staging --wait-timeout 600
-  deploy:
+  deploy-canary:
+    environment:
+      name: canary
+      url: https://canary.cloud.tuist.io
+    name: Deploy canary app
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_STAGING_API_TOKEN }}
+      DOCKER_BUILDKIT: 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v3
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # We deploy first to canary to give some window to test the changes
+      - name: Deploy canary
+        run: flyctl deploy -c fly.canary.toml --build-arg RAILS_ENV=canary --wait-timeout 600
+  production:
+    environment:
+      name: production
+      url: https://cloud.tuist.io
     name: Deploy app
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

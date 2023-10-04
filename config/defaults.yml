@@ -15,8 +15,12 @@ development: &development
   <<: *default
 staging:
   <<: *default
-  app_url: https://tuist-cloud-staging.fly.dev
-  domain: tuist-cloud-staging.fly.dev
+  app_url: https://staging.cloud.tuist.io
+  domain: staging.cloud.tuist.io
+canary:
+  <<: *default
+  app_url: https://canary.cloud.tuist.io
+  domain: canary.cloud.tuist.io
 production:
   <<: *default
   app_url: https://cloud.tuist.io
