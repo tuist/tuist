@@ -37,7 +37,7 @@ public final class BinaryLocator: BinaryLocating {
                 .removingLastComponent()
                 .removingLastComponent()
                 .appending(try RelativePath(validating: "projects/tuist/vendor"))
-                return "swift run --package-path $\(bundlePath) xcbeautify"
+                return "swift run --package-path \(bundlePath) xcbeautify"
         #else
             let candidatebinariesPath = [
                 bundlePath,
