@@ -27,7 +27,7 @@ gem "que", "~> 2.2"
 gem "httpx", "~> 0.24.3"
 
 # GraphQL
-gem "graphql", "~> 2.0.5"
+gem "graphql", "~> 2.1.0"
 gem "graphiql-rails", group: :development
 gem "graphql-schema_comparator", "~> 1.0"
 
