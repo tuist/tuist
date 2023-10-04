@@ -56,7 +56,7 @@ class AccountCreateService < ApplicationService
           })
           account.update(customer_id: customer.id, plan: :team)
         else
-          account.update(customer_id: customer.id, plan: :personal)
+          account.update(customer_id: customer.id)
         end
       end
       account

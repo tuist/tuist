@@ -16,7 +16,7 @@ class AccountCreateServiceTest < ActiveSupport::TestCase
 
     # Then
     assert_equal("tuist", account.name)
-    assert_equal("personal", account.plan)
+    assert_equal(nil, account.plan)
     assert_equal("1", account.customer_id)
   end
 
