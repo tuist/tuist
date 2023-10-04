@@ -51,4 +51,4 @@ jobs:
       - name: Cache warm
         run: |
           make tuist/fetch
-          make tuist/cloud/cache/warm --cloud-url https://tuist-cloud-staging.fly.dev --cloud-token ${{secrets.TUIST_CONFIG_CLOUD_STAGING_TOKEN}}
+          ARGS="--cloud-url https://tuist-cloud-staging.fly.dev --cloud-token ${{secrets.TUIST_CONFIG_CLOUD_STAGING_TOKEN}}" make tuist/cloud/cache/warm
