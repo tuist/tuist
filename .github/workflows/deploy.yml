@@ -9,6 +9,9 @@ concurrency:
   group: deploy-${{ github.head_ref }}
   cancel-in-progress: true
 
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
 jobs:
   deploy-staging:
     environment:
@@ -16,7 +19,6 @@ jobs:
       url: https://staging.cloud.tuist.io
     name: Deploy staging app
     env:
-      FLY_API_TOKEN: ${{ secrets.FLY_STAGING_API_TOKEN }}
       DOCKER_BUILDKIT: 1
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -32,7 +34,6 @@ jobs:
       url: https://canary.cloud.tuist.io
     name: Deploy canary app
     env:
-      FLY_API_TOKEN: ${{ secrets.FLY_STAGING_API_TOKEN }}
       DOCKER_BUILDKIT: 1
     runs-on: ubuntu-latest
     timeout-minutes: 40
