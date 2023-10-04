@@ -1,5 +1,4 @@
 import Foundation
-import TuistCache
 import TuistCloud
 import TuistCore
 import TuistGraph

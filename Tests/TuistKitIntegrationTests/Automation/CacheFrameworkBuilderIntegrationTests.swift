@@ -5,7 +5,7 @@ import TuistGraph
 import TuistGraphTesting
 import TuistSupport
 import XCTest
-@testable import TuistCache
+@testable import TuistCloud
 @testable import TuistCore
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting

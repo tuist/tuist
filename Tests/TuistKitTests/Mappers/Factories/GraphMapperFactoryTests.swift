@@ -6,7 +6,8 @@ import TuistGraph
 import TuistLoader
 import TuistSigning
 import XCTest
-@testable import TuistCache
+@testable import TuistCloud
+@testable import TuistCloudTesting
 @testable import TuistCore
 @testable import TuistGenerator
 @testable import TuistKit

@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistCache
+import TuistCloud
 import TuistCore
 import TuistGenerator
 import TuistGraph

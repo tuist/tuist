@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistCacheTesting
+import TuistCloudTesting
 import TuistCore
 import TuistGraph
 import TuistLoaderTesting

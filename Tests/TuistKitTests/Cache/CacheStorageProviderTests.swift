@@ -1,4 +1,3 @@
-import TuistCache
 import TuistCloud
 import TuistCloudTesting
 import TuistCoreTesting
