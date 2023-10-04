@@ -143,8 +143,6 @@ jobs:
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
       - name: Cache warm
-        env:
-          TUIST_CONFIG_CLOUD_TOKEN: ${{ secrets.TUIST_CONFIG_CLOUD_STAGING_TOKEN }}
         run: |
           make tuist/fetch
-          ARGS="--cloud-url https://tuist-cloud-staging.fly.dev" make tuist/cloud/cache/warm
+          ARGS="--cloud-url https://tuist-cloud-staging.fly.dev --cloud-token ${{ secrets.TUIST_CONFIG_CLOUD_STAGING_TOKEN }}" make tuist/cloud/cache/warm

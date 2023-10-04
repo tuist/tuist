@@ -21,7 +21,7 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-# swift build --package-path $ROOT_DIR
+swift build --package-path $ROOT_DIR
 
 if [[ -n "$CLOUD_TOKEN" ]]; then
     TUIST_CLOUD_URL=$CLOUD_URL TUIST_CONFIG_CLOUD_TOKEN=$CLOUD_TOKEN $ROOT_DIR/.build/debug/tuist cache warm --path $ROOT_DIR --dependencies-only --xcframeworks
