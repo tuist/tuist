@@ -3,7 +3,7 @@
   "extends": ["config:base"],
   "packageRules": [
     {
-      "matchManagers": ["docker", "ruby"],
+      "matchManagers": ["dockerfile", "bundler"],
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "automerge": true,
       "automergeType": "pr"
