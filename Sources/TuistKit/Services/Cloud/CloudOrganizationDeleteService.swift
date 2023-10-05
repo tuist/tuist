@@ -1,39 +1,41 @@
-import Foundation
-import TSCBasic
-import TuistCloud
-import TuistLoader
-import TuistSupport
+#if canImport(TuistCloud)
+    import Foundation
+    import TSCBasic
+    import TuistCloud
+    import TuistLoader
+    import TuistSupport
 
-protocol CloudOrganizationDeleteServicing {
-    func run(
-        organizationName: String,
-        serverURL: String?
-    ) async throws
-}
-
-final class CloudOrganizationDeleteService: CloudOrganizationDeleteServicing {
-    private let deleteOrganizationService: DeleteOrganizationServicing
-    private let cloudURLService: CloudURLServicing
-
-    init(
-        deleteOrganizationService: DeleteOrganizationServicing = DeleteOrganizationService(),
-        cloudURLService: CloudURLServicing = CloudURLService()
-    ) {
-        self.deleteOrganizationService = deleteOrganizationService
-        self.cloudURLService = cloudURLService
+    protocol CloudOrganizationDeleteServicing {
+        func run(
+            organizationName: String,
+            serverURL: String?
+        ) async throws
     }
 
-    func run(
-        organizationName: String,
-        serverURL: String?
-    ) async throws {
-        let cloudURL = try cloudURLService.url(serverURL: serverURL)
+    final class CloudOrganizationDeleteService: CloudOrganizationDeleteServicing {
+        private let deleteOrganizationService: DeleteOrganizationServicing
+        private let cloudURLService: CloudURLServicing
 
-        try await deleteOrganizationService.deleteOrganization(
-            name: organizationName,
-            serverURL: cloudURL
-        )
+        init(
+            deleteOrganizationService: DeleteOrganizationServicing = DeleteOrganizationService(),
+            cloudURLService: CloudURLServicing = CloudURLService()
+        ) {
+            self.deleteOrganizationService = deleteOrganizationService
+            self.cloudURLService = cloudURLService
+        }
 
-        logger.info("Cloud organization \(organizationName) was successfully deleted.")
+        func run(
+            organizationName: String,
+            serverURL: String?
+        ) async throws {
+            let cloudURL = try cloudURLService.url(serverURL: serverURL)
+
+            try await deleteOrganizationService.deleteOrganization(
+                name: organizationName,
+                serverURL: cloudURL
+            )
+
+            logger.info("Cloud organization \(organizationName) was successfully deleted.")
+        }
     }
-}
+#endif

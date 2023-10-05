@@ -1,7 +1,9 @@
 import Foundation
 import TSCBasic
 import TuistAutomation
-import TuistCloud
+#if canImport(TuistCloud)
+    import TuistCloud
+#endif
 import TuistCore
 import TuistGraph
 import TuistLoader

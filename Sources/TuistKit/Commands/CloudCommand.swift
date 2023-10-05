@@ -4,10 +4,9 @@ import TSCBasic
 
 struct CloudCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
-        CommandConfiguration(
-            commandName: "cloud",
-            abstract: "A set of commands to interact with the cloud.",
-            subcommands: [
+        var subcommands: [ParsableCommand.Type] = []
+        #if canImport(TuistCloud)
+            subcommands = [
                 CloudAuthCommand.self,
                 CloudSessionCommand.self,
                 CloudLogoutCommand.self,
@@ -17,6 +16,11 @@ struct CloudCommand: ParsableCommand {
                 CloudOrganizationCommand.self,
                 CloudAnalyticsCommand.self,
             ]
+        #endif
+        return CommandConfiguration(
+            commandName: "cloud",
+            abstract: "A set of commands to interact with the cloud.",
+            subcommands: subcommands
         )
     }
 }

@@ -1,6 +1,8 @@
 import Foundation
 import TSCBasic
-import TuistCloud
+#if canImport(TuistCloud)
+    import TuistCloud
+#endif
 import TuistCore
 import TuistGenerator
 import TuistGraph
@@ -55,23 +57,25 @@ final class GraphMapperFactory: GraphMapperFactorying {
         excludedTargets: Set<String>
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
-        mappers.append(
-            TestsCacheGraphMapper(
-                hashesCacheDirectory: testsCacheDirectory,
-                config: config,
-                testPlan: testPlan,
-                includedTargets: includedTargets,
-                excludedTargets: excludedTargets
+        #if canImport(TuistCloud)
+            mappers.append(
+                TestsCacheGraphMapper(
+                    hashesCacheDirectory: testsCacheDirectory,
+                    config: config,
+                    testPlan: testPlan,
+                    includedTargets: includedTargets,
+                    excludedTargets: excludedTargets
+                )
             )
-        )
-        mappers.append(
-            FocusTargetsGraphMappers(
-                testPlan: testPlan,
-                includedTargets: includedTargets,
-                excludedTargets: excludedTargets
+            mappers.append(
+                FocusTargetsGraphMappers(
+                    testPlan: testPlan,
+                    includedTargets: includedTargets,
+                    excludedTargets: excludedTargets
+                )
             )
-        )
-        mappers.append(TreeShakePrunedTargetsGraphMapper())
+            mappers.append(TreeShakePrunedTargetsGraphMapper())
+        #endif
         mappers.append(contentsOf: self.default())
         return mappers
     }
@@ -85,20 +89,23 @@ final class GraphMapperFactory: GraphMapperFactorying {
         targetsToSkipCache: Set<String>
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
-        mappers.append(FocusTargetsGraphMappers(includedTargets: cacheSources))
-        mappers.append(TreeShakePrunedTargetsGraphMapper())
-        if cache {
-            let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
-                config: config,
-                cacheStorageProvider: CacheStorageProvider(config: config),
-                sources: cacheSources,
-                cacheProfile: cacheProfile,
-                cacheOutputType: cacheOutputType,
-                excludedSources: targetsToSkipCache
-            )
-            mappers.append(focusTargetsGraphMapper)
+        #if canImport(TuistCloud)
+            mappers.append(FocusTargetsGraphMappers(includedTargets: cacheSources))
             mappers.append(TreeShakePrunedTargetsGraphMapper())
-        }
+
+            if cache {
+                let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
+                    config: config,
+                    cacheStorageProvider: CacheStorageProvider(config: config),
+                    sources: cacheSources,
+                    cacheProfile: cacheProfile,
+                    cacheOutputType: cacheOutputType,
+                    excludedSources: targetsToSkipCache
+                )
+                mappers.append(focusTargetsGraphMapper)
+                mappers.append(TreeShakePrunedTargetsGraphMapper())
+            }
+        #endif
 
         // The default mapper is executed at the end because it ensures that the workspace is in sync with the content in the
         // graph.
@@ -107,10 +114,11 @@ final class GraphMapperFactory: GraphMapperFactorying {
     }
 
     func cache(includedTargets: Set<String>) -> [GraphMapping] {
-        var mappers: [GraphMapping] = [
-            FocusTargetsGraphMappers(includedTargets: includedTargets),
-            TreeShakePrunedTargetsGraphMapper(),
-        ]
+        var mappers: [GraphMapping] = []
+        #if canImport(TuistCloud)
+            mappers.append(FocusTargetsGraphMappers(includedTargets: includedTargets))
+            mappers.append(TreeShakePrunedTargetsGraphMapper())
+        #endif
         mappers += self.default()
         return mappers
     }

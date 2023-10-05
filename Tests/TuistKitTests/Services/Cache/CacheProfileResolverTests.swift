@@ -1,6 +1,8 @@
 import Foundation
 import TSCBasic
-import TuistCloudTesting
+#if canImport(TuistCloud)
+    import TuistCloudTesting
+#endif
 import TuistGraph
 import TuistSupport
 import XCTest

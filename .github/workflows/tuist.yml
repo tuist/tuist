@@ -43,10 +43,10 @@ jobs:
         name: 'Cache Tuist .build folder'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
@@ -72,10 +72,10 @@ jobs:
         name: 'Cache Tuist .build folder'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1
       - name: Select Xcode for Tuist and Tuistenv
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Build Tuist for release
@@ -93,8 +93,8 @@ jobs:
         feature:
           [
             'build',
-            'cache-frameworks',
-            'cache-xcframeworks',
+            # 'cache-frameworks',
+            # 'cache-xcframeworks',
             'dependencies',
             'edit',
             'env',
@@ -120,18 +120,19 @@ jobs:
     needs: release_build
     steps:
       - uses: actions/checkout@v3
-        with:
-          submodules: recursive
+      - name: Initialize submodules
+        run: |
+          git submodule update --init projects/tuist/fixtures/tuist_plugin
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v3
         name: 'Cache Tuist .build folder'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}

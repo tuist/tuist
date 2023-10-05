@@ -74,6 +74,7 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Generate
         run: |
+          make fetch
           ARGS="--no-open tuist" make generate
   test:
     name: Test with Xcode
