@@ -4,6 +4,8 @@ docs/tuist/build:
 	./make/tasks/docs/tuist/build.sh
 edit:
 	./make/tasks/edit.sh
+fetch:
+	./make/tasks/fetch.sh $(ARGS)
 generate:
 	./make/tasks/generate.sh $(ARGS)
 generate/with-cloud:
@@ -18,5 +20,5 @@ lint:
 	./make/tasks/lint.sh
 lint/lockfiles:
 	./make/tasks/lint/lockfiles.sh
-cloud/pull:
-	git submodule update --init --recursive
+pull/cloud:
+	git submodule update --init submodules/TuistCloud

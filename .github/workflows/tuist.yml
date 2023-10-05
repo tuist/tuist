@@ -120,8 +120,9 @@ jobs:
     needs: release_build
     steps:
       - uses: actions/checkout@v3
-        with:
-          submodules: recursive
+      - name: Initialize submodules
+        run: |
+          git submodule update --init projects/tuist/fixtures/tuist_plugin
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v3
