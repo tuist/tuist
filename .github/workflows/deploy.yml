@@ -16,7 +16,7 @@ jobs:
   deploy-staging:
     environment:
       name: staging
-      url: https://staging.cloud.tuist.io
+      url: https://cloud-staging.tuist.io
     name: Deploy staging app
     env:
       DOCKER_BUILDKIT: 1
@@ -31,7 +31,7 @@ jobs:
   deploy-canary:
     environment:
       name: canary
-      url: https://canary.cloud.tuist.io
+      url: https://cloud-canary.tuist.io
     name: Deploy canary app
     env:
       DOCKER_BUILDKIT: 1

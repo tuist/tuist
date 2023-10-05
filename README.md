@@ -15,6 +15,6 @@ If you are an enterprise user of Tuist Cloud, you can check out the documentatio
 | Environment | Description | URL |
 | --- | ---- | ---- |
 | **Production** | Default environment | [https://cloud.tuist.io](https://cloud.tuist.io) |
-| **Canary** | Used for testing new features before they are released to production | [https://canary.cloud.tuist.io](https://canary.cloud.tuist.io) |
+| **Canary** | Used for testing new features before they are released to production | [https://cloud-canary.tuist.io](https://cloud-canary.tuist.io) |
 | **Staging** | Used for testing new features during development | [https://staging.cloud.tuist.io](https://staging.cloud.tuist.io) |
 
