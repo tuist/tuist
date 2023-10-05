@@ -16,3 +16,5 @@ lint:
 	./make/tasks/lint.sh
 lint/lockfiles:
 	./make/tasks/lint/lockfiles.sh
+cloud/pull:
+	git submodule update --init --recursive
