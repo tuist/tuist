@@ -1,6 +1,8 @@
 import Foundation
 import TSCBasic
+#if canImport(TuistCloud)
 import TuistCloud
+#endif
 import TuistCore
 import TuistGenerator
 import TuistGraph
@@ -55,6 +57,7 @@ final class GraphMapperFactory: GraphMapperFactorying {
         excludedTargets: Set<String>
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
+        #if canImport(TuistCloud)
         mappers.append(
             TestsCacheGraphMapper(
                 hashesCacheDirectory: testsCacheDirectory,
@@ -72,6 +75,7 @@ final class GraphMapperFactory: GraphMapperFactorying {
             )
         )
         mappers.append(TreeShakePrunedTargetsGraphMapper())
+        #endif
         mappers.append(contentsOf: self.default())
         return mappers
     }
@@ -85,8 +89,10 @@ final class GraphMapperFactory: GraphMapperFactorying {
         targetsToSkipCache: Set<String>
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
+        #if canImport(TuistCloud)
         mappers.append(FocusTargetsGraphMappers(includedTargets: cacheSources))
         mappers.append(TreeShakePrunedTargetsGraphMapper())
+
         if cache {
             let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                 config: config,
@@ -99,6 +105,7 @@ final class GraphMapperFactory: GraphMapperFactorying {
             mappers.append(focusTargetsGraphMapper)
             mappers.append(TreeShakePrunedTargetsGraphMapper())
         }
+        #endif
 
         // The default mapper is executed at the end because it ensures that the workspace is in sync with the content in the
         // graph.
@@ -107,10 +114,11 @@ final class GraphMapperFactory: GraphMapperFactorying {
     }
 
     func cache(includedTargets: Set<String>) -> [GraphMapping] {
-        var mappers: [GraphMapping] = [
-            FocusTargetsGraphMappers(includedTargets: includedTargets),
-            TreeShakePrunedTargetsGraphMapper(),
-        ]
+        var mappers: [GraphMapping] = []
+        #if canImport(TuistCloud)
+        mappers.append(FocusTargetsGraphMappers(includedTargets: includedTargets))
+        mappers.append(TreeShakePrunedTargetsGraphMapper())
+        #endif
         mappers += self.default()
         return mappers
     }

@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloudTesting
@@ -230,3 +231,4 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedCacheProfile, profile)
     }
 }
+#endif

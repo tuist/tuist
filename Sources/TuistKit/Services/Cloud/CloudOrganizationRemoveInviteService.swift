@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloud
@@ -40,3 +41,4 @@ final class CloudOrganizationRemoveInviteService: CloudOrganizationRemoveInviteS
         logger.info("The invitation for \(email) to the \(organizationName) organization was successfully cancelled.")
     }
 }
+#endif

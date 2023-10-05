@@ -1,7 +1,9 @@
 import AnyCodable
 import ArgumentParser
 import Foundation
+#if canImport(TuistCloud)
 import TuistCloud
+#endif
 import TuistCore
 
 struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
@@ -86,15 +88,23 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
             ignoreCache: ignoreCache,
             targetsToSkipCache: Set(targetsToSkipCache)
         )
+        var parameters: [String: AnyCodable] = [
+            "no_open": AnyCodable(noOpen),
+            "xcframeworks": AnyCodable(xcframeworks),
+            "no_cache": AnyCodable(ignoreCache),
+            "n_targets": AnyCodable(sources.count)
+        ]
+        #if canImport(TuistCloud)
+        parameters["cacheable_targets"] = AnyCodable(CacheAnalytics.cacheableTargets)
+        parameters["local_cache_target_hits"] = AnyCodable(CacheAnalytics.localCacheTargetsHits)
+        parameters["remote_cache_target_hits"] = AnyCodable(CacheAnalytics.remoteCacheTargetsHits)
+        #endif
         GenerateCommand.analyticsDelegate?.addParameters(
             [
                 "no_open": AnyCodable(noOpen),
                 "xcframeworks": AnyCodable(xcframeworks),
                 "no_cache": AnyCodable(ignoreCache),
-                "n_targets": AnyCodable(sources.count),
-                "cacheable_targets": AnyCodable(CacheAnalytics.cacheableTargets),
-                "local_cache_target_hits": AnyCodable(CacheAnalytics.localCacheTargetsHits),
-                "remote_cache_target_hits": AnyCodable(CacheAnalytics.remoteCacheTargetsHits),
+                "n_targets": AnyCodable(sources.count)
             ]
         )
     }

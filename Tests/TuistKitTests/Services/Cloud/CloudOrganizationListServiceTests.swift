@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TuistCloud
 import TuistCloudTesting
@@ -60,3 +61,4 @@ final class CloudOrganizationListServiceTests: TuistUnitTestCase {
         )
     }
 }
+#endif

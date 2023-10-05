@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloud
@@ -59,3 +60,4 @@ final class CloudProjectDeleteService: CloudProjectDeleteServicing {
         logger.info("Successfully deleted the \(project.fullName) project.")
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import ArgumentParser
 import Foundation
 import TSCBasic
@@ -21,3 +22,4 @@ struct CloudOrganizationCommand: ParsableCommand {
         )
     }
 }
+#endif

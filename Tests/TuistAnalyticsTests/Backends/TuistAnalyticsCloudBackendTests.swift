@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import TuistCloud
 import TuistCore
 import TuistGraph
@@ -72,3 +73,4 @@ final class TuistAnalyticsCloudBackendTests: TuistUnitTestCase {
         XCTAssertEqual(resourceFactory.invokedCreateCount, 1)
     }
 }
+#endif

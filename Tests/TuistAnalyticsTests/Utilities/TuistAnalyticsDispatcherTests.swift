@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import TuistCloud
 import TuistCore
 import TuistGraph
@@ -83,3 +84,4 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
         return try encoder.encode(Self.commandEvent)
     }
 }
+#endif

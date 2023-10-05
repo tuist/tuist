@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TuistAsyncQueue
 import TuistCloud
@@ -35,3 +36,4 @@ class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {
         _ = try await client.request(resource)
     }
 }
+#endif

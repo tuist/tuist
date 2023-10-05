@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloud
@@ -43,3 +44,4 @@ final class CloudOrganizationUpdateMemberService: CloudOrganizationUpdateMemberS
         logger.info("The member \(username) role was successfully updated to \(member.role.rawValue).")
     }
 }
+#endif

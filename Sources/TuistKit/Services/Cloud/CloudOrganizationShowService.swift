@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloud
@@ -116,3 +117,4 @@ extension String {
         return self + spaces
     }
 }
+#endif

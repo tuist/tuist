@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TuistCloud
 import TuistCore
@@ -31,3 +32,4 @@ final class CloudLogoutService: CloudLogoutServicing {
         try cloudSessionController.logout(serverURL: cloudURL)
     }
 }
+#endif

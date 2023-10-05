@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloudTesting
@@ -43,3 +44,4 @@ final class CloudAuthServiceTests: TuistUnitTestCase {
         )
     }
 }
+#endif

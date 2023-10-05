@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import TuistCloudTesting
 import TuistGraph
 import TuistGraphTesting
@@ -62,3 +63,4 @@ final class CloudCleanServiceTests: TuistUnitTestCase {
         XCTAssertPrinterOutputContains("Project was successfully cleaned.")
     }
 }
+#endif

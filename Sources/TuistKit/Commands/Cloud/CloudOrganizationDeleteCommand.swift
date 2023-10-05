@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import ArgumentParser
 import Foundation
 import TSCBasic
@@ -31,3 +32,4 @@ struct CloudOrganizationDeleteCommand: AsyncParsableCommand {
         )
     }
 }
+#endif

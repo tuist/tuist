@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistAutomation
@@ -151,3 +152,4 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         return try frameworkMetadataProvider.architectures(binaryPath: binaryPath)
     }
 }
+#endif

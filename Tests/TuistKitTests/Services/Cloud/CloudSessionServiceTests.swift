@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloudTesting
@@ -39,3 +40,4 @@ final class CloudSessionServiceTests: TuistUnitTestCase {
         XCTAssertTrue(cloudSessionController.printSessionArgs.contains(URL(string: Constants.tuistCloudURL)!))
     }
 }
+#endif

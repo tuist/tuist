@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloud
@@ -51,3 +52,4 @@ final class CloudProjectTokenService: CloudProjectTokenServicing {
         logger.info(.init(stringLiteral: project.token))
     }
 }
+#endif

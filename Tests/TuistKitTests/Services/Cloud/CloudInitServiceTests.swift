@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import TSCBasic
 import TuistCloudTesting
 import TuistGraph
@@ -114,3 +115,4 @@ final class CloudInitServiceTests: TuistUnitTestCase {
         )
     }
 }
+#endif

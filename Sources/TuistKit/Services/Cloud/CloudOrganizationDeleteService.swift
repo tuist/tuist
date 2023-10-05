@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloud
@@ -37,3 +38,4 @@ final class CloudOrganizationDeleteService: CloudOrganizationDeleteServicing {
         logger.info("Cloud organization \(organizationName) was successfully deleted.")
     }
 }
+#endif

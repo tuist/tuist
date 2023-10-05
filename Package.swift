@@ -135,7 +135,8 @@ let package = Package(
                 "TuistScaffold",
                 "TuistSigning",
                 "TuistDependencies",
-                "TuistCloud",
+                // TODO:TuistCloud
+                // "TuistCloud",
                 "GraphViz",
                 "TuistMigration",
                 "TuistAsyncQueue",
@@ -156,7 +157,8 @@ let package = Package(
                 "TuistLoaderTesting",
                 "TuistGeneratorTesting",
                 "TuistScaffoldTesting",
-                "TuistCloudTesting",
+                // TODO:TuistCloud
+                // "TuistCloudTesting",
                 "TuistAutomationTesting",
                 "TuistSigningTesting",
                 "TuistDependenciesTesting",
@@ -176,7 +178,8 @@ let package = Package(
                 "ProjectDescription",
                 "ProjectAutomation",
                 "TuistLoaderTesting",
-                "TuistCloudTesting",
+                // TODO:TuistCloud
+                // "TuistCloudTesting",
                 "TuistGraphTesting",
             ]
         ),
@@ -305,47 +308,48 @@ let package = Package(
                 "TuistGraphTesting",
             ]
         ),
-        .target(
-            name: "TuistCloud",
-            dependencies: [
-                "XcodeProj",
-                swiftToolsSupportDependency,
-                "TuistCore",
-                "TuistGraph",
-                "TuistSupport",
-                .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
-                .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
-            ],
-            exclude: ["OpenAPI/cloud.yml"]
-        ),
-        .testTarget(
-            name: "TuistCloudTests",
-            dependencies: [
-                "TuistCloud",
-                "TuistCloudTesting",
-                "TuistSupportTesting",
-                "TuistCoreTesting",
-                "TuistGraphTesting",
-            ]
-        ),
-        .target(
-            name: "TuistCloudTesting",
-            dependencies: [
-                "TuistCloud",
-                swiftToolsSupportDependency,
-                "TuistCore",
-                "TuistGraphTesting",
-            ]
-        ),
-        .testTarget(
-            name: "TuistCloudIntegrationTests",
-            dependencies: [
-                "TuistCloud",
-                "TuistSupportTesting",
-                "TuistCoreTesting",
-                "TuistGraphTesting",
-            ]
-        ),
+        // TODO:TuistCloud
+        // .target(
+        //     name: "TuistCloud",
+        //     dependencies: [
+        //         "XcodeProj",
+        //         swiftToolsSupportDependency,
+        //         "TuistCore",
+        //         "TuistGraph",
+        //         "TuistSupport",
+        //         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+        //         .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+        //     ],
+        //     exclude: ["OpenAPI/cloud.yml"]
+        // ),
+        // .testTarget(
+        //     name: "TuistCloudTests",
+        //     dependencies: [
+        //         "TuistCloud",
+        //         "TuistCloudTesting",
+        //         "TuistSupportTesting",
+        //         "TuistCoreTesting",
+        //         "TuistGraphTesting",
+        //     ]
+        // ),
+        // .target(
+        //     name: "TuistCloudTesting",
+        //     dependencies: [
+        //         "TuistCloud",
+        //         swiftToolsSupportDependency,
+        //         "TuistCore",
+        //         "TuistGraphTesting",
+        //     ]
+        // ),
+        // .testTarget(
+        //     name: "TuistCloudIntegrationTests",
+        //     dependencies: [
+        //         "TuistCloud",
+        //         "TuistSupportTesting",
+        //         "TuistCoreTesting",
+        //         "TuistGraphTesting",
+        //     ]
+        // ),
         .target(
             name: "TuistScaffold",
             dependencies: [
@@ -598,7 +602,8 @@ let package = Package(
             dependencies: [
                 .byName(name: "AnyCodable"),
                 "TuistAsyncQueue",
-                "TuistCloud",
+                // TODO:TuistCloud
+                // "TuistCloud",
                 "TuistCore",
                 "TuistGraph",
                 "TuistLoader",

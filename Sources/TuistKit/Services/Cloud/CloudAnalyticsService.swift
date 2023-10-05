@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloud
@@ -46,3 +47,4 @@ final class CloudAnalyticsService: CloudAnalyticsServicing {
         }
     }
 }
+#endif

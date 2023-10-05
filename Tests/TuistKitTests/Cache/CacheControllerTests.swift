@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloud
@@ -465,3 +466,4 @@ final class CacheControllerTests: TuistUnitTestCase {
         XCTAssertEqual(first.1, nodeWithHashes[bGraphTarget])
     }
 }
+#endif

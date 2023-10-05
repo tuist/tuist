@@ -6,8 +6,10 @@ import TuistGraph
 import TuistLoader
 import TuistSigning
 import XCTest
+#if canImport(TuistCloud)
 @testable import TuistCloud
 @testable import TuistCloudTesting
+#endif
 @testable import TuistCore
 @testable import TuistGenerator
 @testable import TuistKit
@@ -34,6 +36,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, UpdateWorkspaceProjectsGraphMapper.self)
     }
 
+    #if canImport(TuistCloud)
     func test_cache_contains_the_filter_target_dependenies_tree_graph_mapper() {
         // Given
         let includedTargets = Set(["MyTarget"])
@@ -45,7 +48,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         let mapper = XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self)
         XCTAssertEqual(mapper?.includedTargets, includedTargets)
     }
-
+    #endif
+    
+    #if canImport(TuistCloud)
     func test_cache_contains_the_tree_shaking_mapper() {
         // Given
         let includedTargets = Set(["MyTarget"])
@@ -56,7 +61,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         // Then
         XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self)
     }
+    #endif
 
+    #if canImport(TuistCloud)
     func test_focus_contains_the_filter_target_dependenies_tree_graph_mapper() {
         // Given
         let config = Config.test()
@@ -78,7 +85,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         let mapper = XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self)
         XCTAssertEqual(mapper?.includedTargets, cacheSources)
     }
+    #endif
 
+    #if canImport(TuistCloud)
     func test_focus_contains_the_cache_tree_shaking_graph_mapper() {
         // Given
         let config = Config.test()
@@ -100,7 +109,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self)
         XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: TargetsToCacheBinariesGraphMapper.self)
     }
-
+    #endif
+    
+    #if canImport(TuistCloud)
     func test_focus_contains_the_cache_mapper() {
         // Given
         let config = Config.test()
@@ -121,7 +132,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         // Then
         XCTAssertContainsElementOfType(got, TargetsToCacheBinariesGraphMapper.self, after: FocusTargetsGraphMappers.self)
     }
+    #endif
 
+    #if canImport(TuistCloud)
     func test_automation_contains_the_tests_cache_graph_mapper() throws {
         // Given
         let config = Config.test()
@@ -141,7 +154,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         XCTAssertEqual(mapper?.hashesCacheDirectory, testsCacheDirectory)
         XCTAssertEqual(mapper?.config, config)
     }
+    #endif
 
+    #if canImport(TuistCloud)
     func test_automation_contains_the_filter_target_dependenies_tree_graph_mapper() throws {
         // Given
         let config = Config.test()
@@ -159,7 +174,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         // Then
         XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self, after: TestsCacheGraphMapper.self)
     }
+    #endif
 
+    #if canImport(TuistCloud)
     func test_automation_contains_the_tests_cache_tree_shaking_mapper() throws {
         // Given
         let config = Config.test()
@@ -177,4 +194,5 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         // Then
         XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self)
     }
+    #endif
 }

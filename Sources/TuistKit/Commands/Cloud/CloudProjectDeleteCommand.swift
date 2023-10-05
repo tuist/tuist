@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import ArgumentParser
 import Foundation
 import TuistSupport
@@ -37,3 +38,4 @@ struct CloudProjectDeleteCommand: AsyncParsableCommand {
         )
     }
 }
+#endif

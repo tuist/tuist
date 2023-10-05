@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TuistCloud
 import TuistCore
@@ -35,3 +36,4 @@ final class CloudSessionService: CloudSessionServicing {
         try cloudSessionController.printSession(serverURL: cloudURL)
     }
 }
+#endif

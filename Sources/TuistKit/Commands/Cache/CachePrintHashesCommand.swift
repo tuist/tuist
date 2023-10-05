@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import ArgumentParser
 import Foundation
 import TSCBasic
@@ -24,3 +25,4 @@ struct CachePrintHashesCommand: AsyncParsableCommand {
         )
     }
 }
+#endif

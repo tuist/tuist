@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistAutomation
@@ -243,3 +244,4 @@ final class CacheController: CacheControlling {
         .reversed()
     }
 }
+#endif

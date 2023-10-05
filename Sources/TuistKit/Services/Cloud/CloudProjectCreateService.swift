@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloud
@@ -40,3 +41,4 @@ final class CloudProjectCreateService: CloudProjectCreateServicing {
         logger.info("Tuist Cloud project \(project.fullName) was successfully created 🎉")
     }
 }
+#endif

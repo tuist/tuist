@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import AnyCodable
 import ArgumentParser
 import Foundation
@@ -69,3 +70,4 @@ struct CacheWarmCommand: AsyncParsableCommand, HasTrackableParameters {
         }
     }
 }
+#endif

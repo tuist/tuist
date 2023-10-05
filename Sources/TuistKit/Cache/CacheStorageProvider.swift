@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TuistCloud
 import TuistCore
@@ -81,3 +82,4 @@ final class CacheStorageProvider: CacheStorageProviding {
         return storages
     }
 }
+#endif

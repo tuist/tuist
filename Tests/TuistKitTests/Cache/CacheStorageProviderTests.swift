@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import TuistCloud
 import TuistCloudTesting
 import TuistCoreTesting
@@ -108,3 +109,4 @@ final class CacheStorageProviderTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, CacheLocalStorage.self)
     }
 }
+#endif

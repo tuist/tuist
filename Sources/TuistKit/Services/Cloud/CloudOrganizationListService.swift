@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloud
@@ -49,3 +50,4 @@ final class CloudOrganizationListService: CloudOrganizationListServicing {
         logger.info("\(organizationsString)")
     }
 }
+#endif

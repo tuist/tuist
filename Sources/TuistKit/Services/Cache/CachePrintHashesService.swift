@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistAutomation
@@ -73,3 +74,4 @@ final class CachePrintHashesService {
         logger.notice("Total time taken: \(time)s")
     }
 }
+#endif

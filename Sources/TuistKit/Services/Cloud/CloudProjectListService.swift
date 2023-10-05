@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloud
@@ -48,3 +49,4 @@ final class CloudProjectListService: CloudProjectListServicing {
         logger.info("\(projectsString)")
     }
 }
+#endif

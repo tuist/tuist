@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import TuistCloud
 import TuistCore
 import TuistGraph
@@ -48,3 +49,4 @@ final class CloudAnalyticsResourceFactoryTests: TuistUnitTestCase {
         XCTAssertHTTPResourceURL(got, url: URL(string: cloud.url.absoluteString + "/api/analytics?project_id=123")!)
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistCloud
@@ -40,3 +41,4 @@ final class CloudOrganizationRemoveMemberService: CloudOrganizationRemoveMemberS
         logger.info("The member \(username) was successfully removed from the \(organizationName) organization.")
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if canImport(TuistCloud)
 import Foundation
 import TSCBasic
 import TuistAutomation
@@ -326,3 +327,4 @@ private struct XCFrameworkInfoPlist: Decodable {
         }
     }
 }
+#endif
