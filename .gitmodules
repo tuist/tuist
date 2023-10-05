@@ -1,3 +1,6 @@
 [submodule "projects/tuist/fixtures/tuist_plugin"]
 	path = projects/tuist/fixtures/tuist_plugin
 	url = https://github.com/fortmarek/ExampleTuistPlugin/
+[submodule "submodules/TuistCloud"]
+	path = submodules/TuistCloud
+	url = https://github.com/tuist/TuistCloud.git
