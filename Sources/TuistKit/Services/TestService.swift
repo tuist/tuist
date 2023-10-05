@@ -3,7 +3,7 @@ import TSCBasic
 import struct TSCUtility.Version
 import TuistAutomation
 #if canImport(TuistCloud)
-import TuistCloud
+    import TuistCloud
 #endif
 import TuistCore
 import TuistGraph

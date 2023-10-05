@@ -1,55 +1,55 @@
 #if canImport(TuistCloud)
-import Foundation
-import TSCBasic
-import TuistCloud
-import TuistLoader
-import TuistSupport
+    import Foundation
+    import TSCBasic
+    import TuistCloud
+    import TuistLoader
+    import TuistSupport
 
-protocol CloudProjectTokenServicing {
-    func run(
-        projectName: String,
-        organizationName: String?,
-        serverURL: String?
-    ) async throws
-}
-
-final class CloudProjectTokenService: CloudProjectTokenServicing {
-    private let getProjectService: GetProjectServicing
-    private let credentialsStore: CredentialsStoring
-    private let cloudURLService: CloudURLServicing
-
-    init(
-        getProjectService: GetProjectServicing = GetProjectService(),
-        credentialsStore: CredentialsStoring = CredentialsStore(),
-        cloudURLService: CloudURLServicing = CloudURLService()
-    ) {
-        self.getProjectService = getProjectService
-        self.credentialsStore = credentialsStore
-        self.cloudURLService = cloudURLService
+    protocol CloudProjectTokenServicing {
+        func run(
+            projectName: String,
+            organizationName: String?,
+            serverURL: String?
+        ) async throws
     }
 
-    func run(
-        projectName: String,
-        organizationName: String?,
-        serverURL: String?
-    ) async throws {
-        let cloudURL = try cloudURLService.url(serverURL: serverURL)
+    final class CloudProjectTokenService: CloudProjectTokenServicing {
+        private let getProjectService: GetProjectServicing
+        private let credentialsStore: CredentialsStoring
+        private let cloudURLService: CloudURLServicing
 
-        let accountName: String
-        if let organizationName {
-            accountName = organizationName
-        } else {
-            let credentials = try credentialsStore.get(serverURL: cloudURL)
-            accountName = credentials.account
+        init(
+            getProjectService: GetProjectServicing = GetProjectService(),
+            credentialsStore: CredentialsStoring = CredentialsStore(),
+            cloudURLService: CloudURLServicing = CloudURLService()
+        ) {
+            self.getProjectService = getProjectService
+            self.credentialsStore = credentialsStore
+            self.cloudURLService = cloudURLService
         }
 
-        let project = try await getProjectService.getProject(
-            accountName: accountName,
-            projectName: projectName,
-            serverURL: cloudURL
-        )
+        func run(
+            projectName: String,
+            organizationName: String?,
+            serverURL: String?
+        ) async throws {
+            let cloudURL = try cloudURLService.url(serverURL: serverURL)
 
-        logger.info(.init(stringLiteral: project.token))
+            let accountName: String
+            if let organizationName {
+                accountName = organizationName
+            } else {
+                let credentials = try credentialsStore.get(serverURL: cloudURL)
+                accountName = credentials.account
+            }
+
+            let project = try await getProjectService.getProject(
+                accountName: accountName,
+                projectName: projectName,
+                serverURL: cloudURL
+            )
+
+            logger.info(.init(stringLiteral: project.token))
+        }
     }
-}
 #endif

@@ -515,7 +515,7 @@ var targets: [Target] = [
         dependencies: [
             .byName(name: "AnyCodable"),
             "TuistAsyncQueue",
-            // TODO:TuistCloud
+            // TODO: TuistCloud
             // "TuistCloud",
             "TuistCore",
             "TuistGraph",

@@ -1,44 +1,44 @@
 #if canImport(TuistCloud)
-import Foundation
-import TSCBasic
-import TuistCloud
-import TuistLoader
-import TuistSupport
+    import Foundation
+    import TSCBasic
+    import TuistCloud
+    import TuistLoader
+    import TuistSupport
 
-protocol CloudOrganizationRemoveInviteServicing {
-    func run(
-        organizationName: String,
-        email: String,
-        serverURL: String?
-    ) async throws
-}
-
-final class CloudOrganizationRemoveInviteService: CloudOrganizationRemoveInviteServicing {
-    private let cancelOrganizationRemoveInviteService: CancelOrganizationInviteServicing
-    private let cloudURLService: CloudURLServicing
-
-    init(
-        cancelOrganizationRemoveInviteService: CancelOrganizationInviteServicing = CancelOrganizationInviteService(),
-        cloudURLService: CloudURLServicing = CloudURLService()
-    ) {
-        self.cancelOrganizationRemoveInviteService = cancelOrganizationRemoveInviteService
-        self.cloudURLService = cloudURLService
+    protocol CloudOrganizationRemoveInviteServicing {
+        func run(
+            organizationName: String,
+            email: String,
+            serverURL: String?
+        ) async throws
     }
 
-    func run(
-        organizationName: String,
-        email: String,
-        serverURL: String?
-    ) async throws {
-        let cloudURL = try cloudURLService.url(serverURL: serverURL)
+    final class CloudOrganizationRemoveInviteService: CloudOrganizationRemoveInviteServicing {
+        private let cancelOrganizationRemoveInviteService: CancelOrganizationInviteServicing
+        private let cloudURLService: CloudURLServicing
 
-        try await cancelOrganizationRemoveInviteService.cancelOrganizationInvite(
-            organizationName: organizationName,
-            email: email,
-            serverURL: cloudURL
-        )
+        init(
+            cancelOrganizationRemoveInviteService: CancelOrganizationInviteServicing = CancelOrganizationInviteService(),
+            cloudURLService: CloudURLServicing = CloudURLService()
+        ) {
+            self.cancelOrganizationRemoveInviteService = cancelOrganizationRemoveInviteService
+            self.cloudURLService = cloudURLService
+        }
 
-        logger.info("The invitation for \(email) to the \(organizationName) organization was successfully cancelled.")
+        func run(
+            organizationName: String,
+            email: String,
+            serverURL: String?
+        ) async throws {
+            let cloudURL = try cloudURLService.url(serverURL: serverURL)
+
+            try await cancelOrganizationRemoveInviteService.cancelOrganizationInvite(
+                organizationName: organizationName,
+                email: email,
+                serverURL: cloudURL
+            )
+
+            logger.info("The invitation for \(email) to the \(organizationName) organization was successfully cancelled.")
+        }
     }
-}
 #endif

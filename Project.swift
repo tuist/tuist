@@ -2,7 +2,7 @@ import ProjectDescription
 import ProjectDescriptionHelpers
 
 func includeTuistCloud() -> Bool {
-    return Environment.includeTuistCloud.getBoolean(default: false)
+    Environment.includeTuistCloud.getBoolean(default: false)
 }
 
 func mapDependenciesOfSourcesTargetDependentOnTuistCloud(_ dependencies: [TargetDependency]) -> [TargetDependency] {
@@ -21,7 +21,6 @@ func mapDependenciesOfTestsTargetDependentOnTuistCloud(_ dependencies: [TargetDe
     }
     return dependencies
 }
-
 
 let baseSettings: SettingsDictionary = [:]
 
@@ -460,7 +459,7 @@ func targets() -> [Target] {
                 .target(name: "TuistCoreTesting"),
                 .target(name: "TuistGraphTesting"),
             ]
-        ).flatMap({ $0 }))
+        ).flatMap { $0 })
     }
     return executableTargets + moduleTargets
 }

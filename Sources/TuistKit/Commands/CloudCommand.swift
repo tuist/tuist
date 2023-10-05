@@ -6,16 +6,16 @@ struct CloudCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         var subcommands: [ParsableCommand.Type] = []
         #if canImport(TuistCloud)
-        subcommands = [
-            CloudAuthCommand.self,
-            CloudSessionCommand.self,
-            CloudLogoutCommand.self,
-            CloudInitCommand.self,
-            CloudCleanCommand.self,
-            CloudProjectCommand.self,
-            CloudOrganizationCommand.self,
-            CloudAnalyticsCommand.self,
-        ]
+            subcommands = [
+                CloudAuthCommand.self,
+                CloudSessionCommand.self,
+                CloudLogoutCommand.self,
+                CloudInitCommand.self,
+                CloudCleanCommand.self,
+                CloudProjectCommand.self,
+                CloudOrganizationCommand.self,
+                CloudAnalyticsCommand.self,
+            ]
         #endif
         return CommandConfiguration(
             commandName: "cloud",

@@ -7,8 +7,8 @@ import TuistLoader
 import TuistSigning
 import XCTest
 #if canImport(TuistCloud)
-@testable import TuistCloud
-@testable import TuistCloudTesting
+    @testable import TuistCloud
+    @testable import TuistCloudTesting
 #endif
 @testable import TuistCore
 @testable import TuistGenerator
@@ -37,162 +37,166 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
     }
 
     #if canImport(TuistCloud)
-    func test_cache_contains_the_filter_target_dependenies_tree_graph_mapper() {
-        // Given
-        let includedTargets = Set(["MyTarget"])
+        func test_cache_contains_the_filter_target_dependenies_tree_graph_mapper() {
+            // Given
+            let includedTargets = Set(["MyTarget"])
 
-        // When
-        let got = subject.cache(includedTargets: includedTargets)
+            // When
+            let got = subject.cache(includedTargets: includedTargets)
 
-        // Then
-        let mapper = XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self)
-        XCTAssertEqual(mapper?.includedTargets, includedTargets)
-    }
-    #endif
-    
-    #if canImport(TuistCloud)
-    func test_cache_contains_the_tree_shaking_mapper() {
-        // Given
-        let includedTargets = Set(["MyTarget"])
-
-        // When
-        let got = subject.cache(includedTargets: includedTargets)
-
-        // Then
-        XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self)
-    }
+            // Then
+            let mapper = XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self)
+            XCTAssertEqual(mapper?.includedTargets, includedTargets)
+        }
     #endif
 
     #if canImport(TuistCloud)
-    func test_focus_contains_the_filter_target_dependenies_tree_graph_mapper() {
-        // Given
-        let config = Config.test()
-        let cacheSources = Set(["MyTarget"])
-        let cacheProfile = Cache.Profile.test()
-        let cacheOutputType = CacheOutputType.framework
+        func test_cache_contains_the_tree_shaking_mapper() {
+            // Given
+            let includedTargets = Set(["MyTarget"])
 
-        // When
-        let got = subject.focus(
-            config: config,
-            cache: true,
-            cacheSources: cacheSources,
-            cacheProfile: cacheProfile,
-            cacheOutputType: cacheOutputType,
-            targetsToSkipCache: []
-        )
+            // When
+            let got = subject.cache(includedTargets: includedTargets)
 
-        // Then
-        let mapper = XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self)
-        XCTAssertEqual(mapper?.includedTargets, cacheSources)
-    }
+            // Then
+            XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self)
+        }
     #endif
 
     #if canImport(TuistCloud)
-    func test_focus_contains_the_cache_tree_shaking_graph_mapper() {
-        // Given
-        let config = Config.test()
-        let cacheSources = Set(["MyTarget"])
-        let cacheProfile = Cache.Profile.test()
-        let cacheOutputType = CacheOutputType.framework
+        func test_focus_contains_the_filter_target_dependenies_tree_graph_mapper() {
+            // Given
+            let config = Config.test()
+            let cacheSources = Set(["MyTarget"])
+            let cacheProfile = Cache.Profile.test()
+            let cacheOutputType = CacheOutputType.framework
 
-        // When
-        let got = subject.focus(
-            config: config,
-            cache: true,
-            cacheSources: cacheSources,
-            cacheProfile: cacheProfile,
-            cacheOutputType: cacheOutputType,
-            targetsToSkipCache: []
-        )
+            // When
+            let got = subject.focus(
+                config: config,
+                cache: true,
+                cacheSources: cacheSources,
+                cacheProfile: cacheProfile,
+                cacheOutputType: cacheOutputType,
+                targetsToSkipCache: []
+            )
 
-        // Then
-        XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self)
-        XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: TargetsToCacheBinariesGraphMapper.self)
-    }
-    #endif
-    
-    #if canImport(TuistCloud)
-    func test_focus_contains_the_cache_mapper() {
-        // Given
-        let config = Config.test()
-        let cacheSources = Set(["MyTarget"])
-        let cacheProfile = Cache.Profile.test()
-        let cacheOutputType = CacheOutputType.framework
-
-        // When
-        let got = subject.focus(
-            config: config,
-            cache: true,
-            cacheSources: cacheSources,
-            cacheProfile: cacheProfile,
-            cacheOutputType: cacheOutputType,
-            targetsToSkipCache: []
-        )
-
-        // Then
-        XCTAssertContainsElementOfType(got, TargetsToCacheBinariesGraphMapper.self, after: FocusTargetsGraphMappers.self)
-    }
+            // Then
+            let mapper = XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self)
+            XCTAssertEqual(mapper?.includedTargets, cacheSources)
+        }
     #endif
 
     #if canImport(TuistCloud)
-    func test_automation_contains_the_tests_cache_graph_mapper() throws {
-        // Given
-        let config = Config.test()
-        let testsCacheDirectory = try temporaryPath()
+        func test_focus_contains_the_cache_tree_shaking_graph_mapper() {
+            // Given
+            let config = Config.test()
+            let cacheSources = Set(["MyTarget"])
+            let cacheProfile = Cache.Profile.test()
+            let cacheOutputType = CacheOutputType.framework
 
-        // When
-        let got = subject.automation(
-            config: config,
-            testsCacheDirectory: testsCacheDirectory,
-            testPlan: nil,
-            includedTargets: [],
-            excludedTargets: []
-        )
+            // When
+            let got = subject.focus(
+                config: config,
+                cache: true,
+                cacheSources: cacheSources,
+                cacheProfile: cacheProfile,
+                cacheOutputType: cacheOutputType,
+                targetsToSkipCache: []
+            )
 
-        // Then
-        let mapper = XCTAssertContainsElementOfType(got, TestsCacheGraphMapper.self)
-        XCTAssertEqual(mapper?.hashesCacheDirectory, testsCacheDirectory)
-        XCTAssertEqual(mapper?.config, config)
-    }
+            // Then
+            XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self)
+            XCTAssertContainsElementOfType(
+                got,
+                TreeShakePrunedTargetsGraphMapper.self,
+                after: TargetsToCacheBinariesGraphMapper.self
+            )
+        }
     #endif
 
     #if canImport(TuistCloud)
-    func test_automation_contains_the_filter_target_dependenies_tree_graph_mapper() throws {
-        // Given
-        let config = Config.test()
-        let testsCacheDirectory = try temporaryPath()
+        func test_focus_contains_the_cache_mapper() {
+            // Given
+            let config = Config.test()
+            let cacheSources = Set(["MyTarget"])
+            let cacheProfile = Cache.Profile.test()
+            let cacheOutputType = CacheOutputType.framework
 
-        // When
-        let got = subject.automation(
-            config: config,
-            testsCacheDirectory: testsCacheDirectory,
-            testPlan: nil,
-            includedTargets: [],
-            excludedTargets: []
-        )
+            // When
+            let got = subject.focus(
+                config: config,
+                cache: true,
+                cacheSources: cacheSources,
+                cacheProfile: cacheProfile,
+                cacheOutputType: cacheOutputType,
+                targetsToSkipCache: []
+            )
 
-        // Then
-        XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self, after: TestsCacheGraphMapper.self)
-    }
+            // Then
+            XCTAssertContainsElementOfType(got, TargetsToCacheBinariesGraphMapper.self, after: FocusTargetsGraphMappers.self)
+        }
     #endif
 
     #if canImport(TuistCloud)
-    func test_automation_contains_the_tests_cache_tree_shaking_mapper() throws {
-        // Given
-        let config = Config.test()
-        let testsCacheDirectory = try temporaryPath()
+        func test_automation_contains_the_tests_cache_graph_mapper() throws {
+            // Given
+            let config = Config.test()
+            let testsCacheDirectory = try temporaryPath()
 
-        // When
-        let got = subject.automation(
-            config: config,
-            testsCacheDirectory: testsCacheDirectory,
-            testPlan: nil,
-            includedTargets: [],
-            excludedTargets: []
-        )
+            // When
+            let got = subject.automation(
+                config: config,
+                testsCacheDirectory: testsCacheDirectory,
+                testPlan: nil,
+                includedTargets: [],
+                excludedTargets: []
+            )
 
-        // Then
-        XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self)
-    }
+            // Then
+            let mapper = XCTAssertContainsElementOfType(got, TestsCacheGraphMapper.self)
+            XCTAssertEqual(mapper?.hashesCacheDirectory, testsCacheDirectory)
+            XCTAssertEqual(mapper?.config, config)
+        }
+    #endif
+
+    #if canImport(TuistCloud)
+        func test_automation_contains_the_filter_target_dependenies_tree_graph_mapper() throws {
+            // Given
+            let config = Config.test()
+            let testsCacheDirectory = try temporaryPath()
+
+            // When
+            let got = subject.automation(
+                config: config,
+                testsCacheDirectory: testsCacheDirectory,
+                testPlan: nil,
+                includedTargets: [],
+                excludedTargets: []
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self, after: TestsCacheGraphMapper.self)
+        }
+    #endif
+
+    #if canImport(TuistCloud)
+        func test_automation_contains_the_tests_cache_tree_shaking_mapper() throws {
+            // Given
+            let config = Config.test()
+            let testsCacheDirectory = try temporaryPath()
+
+            // When
+            let got = subject.automation(
+                config: config,
+                testsCacheDirectory: testsCacheDirectory,
+                testPlan: nil,
+                includedTargets: [],
+                excludedTargets: []
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self)
+        }
     #endif
 }

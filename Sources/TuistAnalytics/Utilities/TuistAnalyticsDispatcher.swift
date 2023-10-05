@@ -1,7 +1,7 @@
 import Foundation
 import TuistAsyncQueue
 #if canImport(TuistCloud)
-import TuistCloud
+    import TuistCloud
 #endif
 import TuistCore
 import TuistGraph
@@ -16,23 +16,23 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
     private init(backend: TuistAnalyticsBackend?) {
         self.backend = backend
     }
-    
+
     #if canImport(TuistCloud)
-    public init(cloud: Cloud?, cloudClient: CloudClienting? = nil) {
-        if let cloud, let cloudClient {
-            let backend = TuistAnalyticsCloudBackend(
-                config: cloud,
-                resourceFactory: CloudAnalyticsResourceFactory(cloudConfig: cloud),
-                client: cloudClient
-            )
-            self.init(backend: backend)
-        } else {
-            self.init(backend: nil)
+        public init(cloud: Cloud?, cloudClient: CloudClienting? = nil) {
+            if let cloud, let cloudClient {
+                let backend = TuistAnalyticsCloudBackend(
+                    config: cloud,
+                    resourceFactory: CloudAnalyticsResourceFactory(cloudConfig: cloud),
+                    client: cloudClient
+                )
+                self.init(backend: backend)
+            } else {
+                self.init(backend: nil)
+            }
         }
-    }
     #endif
-    
-    public init(cloud: Cloud?) {
+
+    public init(cloud _: Cloud?) {
         self.init(backend: nil)
     }
 

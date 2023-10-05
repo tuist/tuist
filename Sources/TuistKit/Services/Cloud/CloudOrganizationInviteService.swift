@@ -1,53 +1,53 @@
 #if canImport(TuistCloud)
-import Foundation
-import TSCBasic
-import TuistCloud
-import TuistLoader
-import TuistSupport
+    import Foundation
+    import TSCBasic
+    import TuistCloud
+    import TuistLoader
+    import TuistSupport
 
-protocol CloudOrganizationInviteServicing {
-    func run(
-        organizationName: String,
-        email: String,
-        serverURL: String?
-    ) async throws
-}
-
-final class CloudOrganizationInviteService: CloudOrganizationInviteServicing {
-    private let createOrganizationInviteService: CreateOrganizationInviteServicing
-    private let cloudURLService: CloudURLServicing
-
-    init(
-        createOrganizationInviteService: CreateOrganizationInviteServicing = CreateOrganizationInviteService(),
-        cloudURLService: CloudURLServicing = CloudURLService()
-    ) {
-        self.createOrganizationInviteService = createOrganizationInviteService
-        self.cloudURLService = cloudURLService
+    protocol CloudOrganizationInviteServicing {
+        func run(
+            organizationName: String,
+            email: String,
+            serverURL: String?
+        ) async throws
     }
 
-    func run(
-        organizationName: String,
-        email: String,
-        serverURL: String?
-    ) async throws {
-        let cloudURL = try cloudURLService.url(serverURL: serverURL)
+    final class CloudOrganizationInviteService: CloudOrganizationInviteServicing {
+        private let createOrganizationInviteService: CreateOrganizationInviteServicing
+        private let cloudURLService: CloudURLServicing
 
-        let invitation = try await createOrganizationInviteService.createOrganizationInvite(
-            organizationName: organizationName,
-            email: email,
-            serverURL: cloudURL
-        )
+        init(
+            createOrganizationInviteService: CreateOrganizationInviteServicing = CreateOrganizationInviteService(),
+            cloudURLService: CloudURLServicing = CloudURLService()
+        ) {
+            self.createOrganizationInviteService = createOrganizationInviteService
+            self.cloudURLService = cloudURLService
+        }
 
-        let invitationURL = cloudURL
-            .appendingPathComponent("auth")
-            .appendingPathComponent("invitations")
-            .appendingPathComponent(invitation.token)
+        func run(
+            organizationName: String,
+            email: String,
+            serverURL: String?
+        ) async throws {
+            let cloudURL = try cloudURLService.url(serverURL: serverURL)
 
-        logger.info("""
-        \(invitation.inviteeEmail) was successfully invited to the \(organizationName) organization 🎉
+            let invitation = try await createOrganizationInviteService.createOrganizationInvite(
+                organizationName: organizationName,
+                email: email,
+                serverURL: cloudURL
+            )
 
-        You can also share with them the invite link directly: \(invitationURL.absoluteString)
-        """)
+            let invitationURL = cloudURL
+                .appendingPathComponent("auth")
+                .appendingPathComponent("invitations")
+                .appendingPathComponent(invitation.token)
+
+            logger.info("""
+            \(invitation.inviteeEmail) was successfully invited to the \(organizationName) organization 🎉
+
+            You can also share with them the invite link directly: \(invitationURL.absoluteString)
+            """)
+        }
     }
-}
 #endif

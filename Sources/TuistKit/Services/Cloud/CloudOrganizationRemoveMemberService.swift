@@ -1,44 +1,44 @@
 #if canImport(TuistCloud)
-import Foundation
-import TSCBasic
-import TuistCloud
-import TuistLoader
-import TuistSupport
+    import Foundation
+    import TSCBasic
+    import TuistCloud
+    import TuistLoader
+    import TuistSupport
 
-protocol CloudOrganizationRemoveMemberServicing {
-    func run(
-        organizationName: String,
-        username: String,
-        serverURL: String?
-    ) async throws
-}
-
-final class CloudOrganizationRemoveMemberService: CloudOrganizationRemoveMemberServicing {
-    private let removeOrganizationMemberService: RemoveOrganizationMemberServicing
-    private let cloudURLService: CloudURLServicing
-
-    init(
-        removeOrganizationMemberService: RemoveOrganizationMemberServicing = RemoveOrganizationMemberService(),
-        cloudURLService: CloudURLServicing = CloudURLService()
-    ) {
-        self.removeOrganizationMemberService = removeOrganizationMemberService
-        self.cloudURLService = cloudURLService
+    protocol CloudOrganizationRemoveMemberServicing {
+        func run(
+            organizationName: String,
+            username: String,
+            serverURL: String?
+        ) async throws
     }
 
-    func run(
-        organizationName: String,
-        username: String,
-        serverURL: String?
-    ) async throws {
-        let cloudURL = try cloudURLService.url(serverURL: serverURL)
+    final class CloudOrganizationRemoveMemberService: CloudOrganizationRemoveMemberServicing {
+        private let removeOrganizationMemberService: RemoveOrganizationMemberServicing
+        private let cloudURLService: CloudURLServicing
 
-        try await removeOrganizationMemberService.removeOrganizationMember(
-            organizationName: organizationName,
-            username: username,
-            serverURL: cloudURL
-        )
+        init(
+            removeOrganizationMemberService: RemoveOrganizationMemberServicing = RemoveOrganizationMemberService(),
+            cloudURLService: CloudURLServicing = CloudURLService()
+        ) {
+            self.removeOrganizationMemberService = removeOrganizationMemberService
+            self.cloudURLService = cloudURLService
+        }
 
-        logger.info("The member \(username) was successfully removed from the \(organizationName) organization.")
+        func run(
+            organizationName: String,
+            username: String,
+            serverURL: String?
+        ) async throws {
+            let cloudURL = try cloudURLService.url(serverURL: serverURL)
+
+            try await removeOrganizationMemberService.removeOrganizationMember(
+                organizationName: organizationName,
+                username: username,
+                serverURL: cloudURL
+            )
+
+            logger.info("The member \(username) was successfully removed from the \(organizationName) organization.")
+        }
     }
-}
 #endif
