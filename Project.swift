@@ -1,7 +1,7 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-let tuistCloudPresent = false
+let tuistCloudPresent = true
 
 func mapDependenciesOfSourcesTargetDependentOnTuistCloud(_ dependencies: [TargetDependency]) -> [TargetDependency] {
     var dependencies = dependencies

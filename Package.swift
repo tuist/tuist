@@ -2,7 +2,7 @@
 
 import PackageDescription
 
-let tuistCloudPresent = false
+let tuistCloudPresent = true
 
 let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
