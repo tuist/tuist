@@ -1,11 +1,13 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-let tuistCloudPresent = true
+func includeTuistCloud() -> Bool {
+    return Environment.includeTuistCloud.getBoolean(default: false)
+}
 
 func mapDependenciesOfSourcesTargetDependentOnTuistCloud(_ dependencies: [TargetDependency]) -> [TargetDependency] {
     var dependencies = dependencies
-    if tuistCloudPresent {
+    if includeTuistCloud() {
         dependencies.append(.target(name: "TuistCloud"))
     }
     return dependencies
@@ -13,7 +15,7 @@ func mapDependenciesOfSourcesTargetDependentOnTuistCloud(_ dependencies: [Target
 
 func mapDependenciesOfTestsTargetDependentOnTuistCloud(_ dependencies: [TargetDependency]) -> [TargetDependency] {
     var dependencies = dependencies
-    if tuistCloudPresent {
+    if includeTuistCloud() {
         dependencies.append(.target(name: "TuistCloud"))
         dependencies.append(.target(name: "TuistCloudTesting"))
     }
@@ -430,7 +432,7 @@ func targets() -> [Target] {
             ]
         ),
     ].flatMap { $0 }
-    if tuistCloudPresent {
+    if includeTuistCloud() {
         moduleTargets.append(contentsOf: Target.module(
             name: "TuistCloud",
             hasIntegrationTests: true,

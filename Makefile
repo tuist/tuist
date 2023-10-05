@@ -6,6 +6,8 @@ edit:
 	./make/tasks/edit.sh
 generate:
 	./make/tasks/generate.sh $(ARGS)
+generate/with-cloud:
+	TUIST_INCLUDE_TUIST_CLOUD=1 ./make/tasks/generate.sh $(ARGS)
 run:
 	./make/tasks/run.sh $(ARGS)
 generate/cloud-openapi-code:

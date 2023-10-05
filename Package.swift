@@ -2,7 +2,7 @@
 
 import PackageDescription
 
-let tuistCloudPresent = true
+let includeTuistCloud = false
 
 let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
@@ -13,7 +13,7 @@ let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
 
 func mapDependenciesOfSourcesTargetDependentOnTuistCloud(_ dependencies: [Target.Dependency]) -> [Target.Dependency] {
     var dependencies = dependencies
-    if tuistCloudPresent {
+    if includeTuistCloud {
         dependencies.append("TuistCloud")
     }
     return dependencies
@@ -21,7 +21,7 @@ func mapDependenciesOfSourcesTargetDependentOnTuistCloud(_ dependencies: [Target
 
 func mapDependenciesOfTestsTargetDependentOnTuistCloud(_ dependencies: [Target.Dependency]) -> [Target.Dependency] {
     var dependencies = dependencies
-    if tuistCloudPresent {
+    if includeTuistCloud {
         dependencies.append("TuistCloud")
         dependencies.append("TuistCloudTesting")
     }
@@ -567,7 +567,7 @@ var targets: [Target] = [
     ),
 ]
 
-if tuistCloudPresent {
+if includeTuistCloud {
     targets.append(contentsOf: [
         .target(
             name: "TuistCloud",
