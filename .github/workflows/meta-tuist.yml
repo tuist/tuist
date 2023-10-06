@@ -74,8 +74,8 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Generate
         run: |
-          make fetch
-          ARGS="--no-open tuist" make generate
+          make tuist/fetch
+          ARGS="--no-open tuist" make tuist/generate
   test:
     name: Test with Xcode
     runs-on: macos-13
@@ -106,4 +106,4 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Run
-        run: make lint/lockfiles
+        run: make shared/lint/lockfiles
