@@ -74,7 +74,7 @@ test:
 # URL environment variable explicitly:
 #
 #   production:
-#     url: <%= ENV['MY_APP_DATABASE_URL'] %>
+#     url: <%= ENV['DATABASE_URL'] %>
 #
 # Read https://guides.rubyonrails.org/configuring.html#configuring-a-database
 # for a full overview on how database connection configuration can be specified.
@@ -84,3 +84,9 @@ production:
   database: tuistcloud_production
   username: tuistcloud
   password: <%= ENV['tuistcloud_DATABASE_PASSWORD'] %>
+staging:
+  <<: *default
+  url: <%= ENV['DATABASE_URL'] %>
+canary:
+  <<: *default
+  url: <%= ENV['DATABASE_URL'] %>

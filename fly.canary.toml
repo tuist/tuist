@@ -1,10 +1,5 @@
-# fly.toml app configuration file generated for tuist-cloud-canary on 2023-10-04T12:15:06+02:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
 app = "tuist-cloud-canary"
-primary_region = "ams"
+primary_region = "atl"
 kill_signal = "SIGINT"
 kill_timeout = "5s"
 console_command = "/rails/bin/rails console"
@@ -12,22 +7,20 @@ console_command = "/rails/bin/rails console"
 [experimental]
   auto_rollback = true
 
-[build]
-
-[deploy]
-  release_command = "bin/rails fly:release"
-
 [env]
   PORT = "8080"
-  RAILS_ENV = "canary"
+  RAILS_ENV="canary"
 
 [processes]
-  app = "bin/rails fly:server"
-  worker = "bundle exec que"
+  app = "./bin/rails server"
+  worker = "/rails/bin/que"
 
 [[services]]
   protocol = "tcp"
-  internal_port = 3000
+  internal_port = 8080
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
   processes = ["app"]
 
   [[services.ports]]
@@ -49,5 +42,5 @@ console_command = "/rails/bin/rails console"
     grace_period = "1s"
 
 [[statics]]
-  guest_path = "/app/public"
+  guest_path = "/rails/public"
   url_prefix = "/"

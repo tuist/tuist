@@ -136,6 +136,10 @@ module Environment
       fetch(:stripe, :plan_id)
     end
 
+    def precompiling_assets?(env: ENV)
+      truthy?(env['SECRET_KEY_BASE_DUMMY'])
+    end
+
     # Configuration checkers
 
     def attio_configured?
@@ -174,7 +178,7 @@ module Environment
     end
 
     def ensure_configured!
-      return if Rails.env.test? || Rails.env.development?
+      return if Rails.env.test? || Rails.env.development? || precompiling_assets?
 
       errors = []
       errors << "Storage is not configured" unless storage_configured?

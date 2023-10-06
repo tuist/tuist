@@ -1,25 +1,19 @@
-# fly.toml app configuration file generated for tuist-cloud on 2023-08-17T19:19:40+02:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
 app = "tuist-cloud"
 primary_region = "fra"
 kill_signal = "SIGINT"
 kill_timeout = "5s"
+console_command = "/rails/bin/rails console"
 
 [experimental]
   auto_rollback = true
 
-[deploy]
-  release_command = "bin/rails fly:release"
-
 [env]
   PORT = "8080"
+  RAILS_ENV="production"
 
 [processes]
-  app = "bin/rails fly:server"
-  worker = "bundle exec que"
+  app = "./bin/rails server"
+  worker = "/rails/bin/que"
 
 [[services]]
   protocol = "tcp"
@@ -48,5 +42,5 @@ kill_timeout = "5s"
     grace_period = "1s"
 
 [[statics]]
-  guest_path = "/app/public"
+  guest_path = "/rails/public"
   url_prefix = "/"

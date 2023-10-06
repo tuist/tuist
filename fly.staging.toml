@@ -1,51 +1,46 @@
 app = "tuist-cloud-staging"
+primary_region = "atl"
 kill_signal = "SIGINT"
-kill_timeout = 5
-
-[deploy]
-  release_command = "bin/rails fly:release"
-
-[env]
-  PORT = "8080"
+kill_timeout = "5s"
+console_command = "/rails/bin/rails console"
 
 [experimental]
   auto_rollback = true
-  cmd = []
-  entrypoint = []
-  exec = []
+
+[env]
+  PORT = "8080"
+  RAILS_ENV="staging"
 
 [processes]
-  app = "bin/rails fly:server"
-  worker = "bundle exec que"
+  app = "./bin/rails server"
+  worker = "/rails/bin/que"
 
 [[services]]
-  http_checks = []
-  internal_port = 8080
-  processes = ["app"]
   protocol = "tcp"
-  script_checks = []
+  internal_port = 8080
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
   [services.concurrency]
+    type = "connections"
     hard_limit = 25
     soft_limit = 20
-    type = "connections"
-
-  [[services.ports]]
-    force_https = true
-    handlers = ["http"]
-    port = 80
-
-  [[services.ports]]
-    handlers = ["tls", "http"]
-    port = 443
 
   [[services.tcp_checks]]
-    grace_period = "1s"
     interval = "15s"
-    restart_limit = 0
     timeout = "2s"
+    grace_period = "1s"
 
 [[statics]]
-  cache_key = "___app_public"
-  guest_path = "/app/public"
-  processes = []
+  guest_path = "/rails/public"
   url_prefix = "/"
