@@ -6,7 +6,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROOT_DIR=$($SCRIPT_DIR/../../utilities/root_dir.sh)
 
 # Remove directory
-rm -rf $ROOT_DIR/cloud
+rm -rf $ROOT_DIR/TuistCloud
 
 # Removing SPM and Xcode caches
 $SCRIPT_DIR/_clean.sh
