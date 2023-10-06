@@ -12,9 +12,9 @@ If you are an enterprise user of Tuist Cloud, you can check out the documentatio
 
 ### Environments
 
-| Environment | Description | URL |
-| --- | ---- | ---- |
-| **Production** | Default environment | [https://cloud.tuist.io](https://cloud.tuist.io) |
-| **Canary** | Used for testing new features before they are released to production | [https://cloud-canary.tuist.io](https://cloud-canary.tuist.io) |
-| **Staging** | Used for testing new features during development | [https://staging.cloud.tuist.io](https://staging.cloud.tuist.io) |
+| Environment | Description | URL | Database |
+| --- | ---- | ---- | --- |
+| **Production** | Default environment | [https://cloud.tuist.io](https://cloud.tuist.io) | Production (Neon Database) |
+| **Canary** | Used for testing new features before they are released to production | [https://cloud-canary.tuist.io](https://cloud-canary.tuist.io) | Canary (Fly-managed) |
+| **Staging** | Used for testing new features during development. It can be disposed along with its databse when needed | [https://staging.cloud.tuist.io](https://staging.cloud.tuist.io) | Staging (Fly-managed) |
 
