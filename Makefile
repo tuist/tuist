@@ -1,5 +1,3 @@
-.PHONY: cloud/up
-
 # Documentation
 docs/tuist/preview:
 	./make/tasks/docs/tuist/preview.sh
