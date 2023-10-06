@@ -106,3 +106,6 @@ Tuist/Dependencies/graph.json
 # Release artifacts
 vendor/
 .bundle
+
+# Tuist Cloud
+./cloud

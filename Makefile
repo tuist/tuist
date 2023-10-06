@@ -15,7 +15,11 @@ tuist/generate/with-cloud:
 	TUIST_INCLUDE_TUIST_CLOUD=1 ./make/tasks/generate.sh $(ARGS)
 tuist/run:
 	./make/tasks/run.sh $(ARGS)
-
+# Cloud
+cloud/up:
+	./make/tasks/cloud/up.sh
+cloud/down:
+	./make/tasks/cloud/down.sh
 # Shared
 shared/lint-fix:
 	./make/tasks/shared/lint-fix.sh

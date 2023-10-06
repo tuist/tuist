@@ -113,7 +113,7 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
     fileprivate func baseScript() -> String {
         """
         #!/bin/sh
-        set -e
+        set -euo pipefail
         set -u
         set -o pipefail
 
