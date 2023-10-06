@@ -108,4 +108,5 @@ vendor/
 .bundle
 
 # Tuist Cloud
-./cloud
+cloud
+!make/tasks/cloud

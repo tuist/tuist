@@ -14,3 +14,6 @@ $SCRIPT_DIR/_clean.sh
 # Disabling Tuist Cloud
 sed -i '' -e 's/let includeTuistCloud = true/let includeTuistCloud = false/' $ROOT_DIR/Package.swift
 sed -i '' -e 's/Environment.includeTuistCloud.getBoolean(default: true)/Environment.includeTuistCloud.getBoolean(default: false)/' $ROOT_DIR/Project.swift
+
+# Remove the pre-commit hook
+rm -f $ROOT_DIR/.git/hooks/pre-commit
