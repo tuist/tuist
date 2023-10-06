@@ -8,13 +8,14 @@ docs/tuist/build:
 tuist/edit:
 	./make/tasks/tuist/edit.sh
 tuist/fetch:
-	./make/tasks/fetch.sh $(ARGS)
+	./make/tasks/tuist/fetch.sh $(ARGS)
 tuist/generate:
-	./make/tasks/generate.sh $(ARGS)
+	./make/tasks/tuist/generate.sh $(ARGS)
 tuist/generate/with-cloud:
-	TUIST_INCLUDE_TUIST_CLOUD=1 ./make/tasks/generate.sh $(ARGS)
+	TUIST_INCLUDE_TUIST_CLOUD=1 ./make/tasks/tuist/generate.sh $(ARGS)
 tuist/run:
-	./make/tasks/run.sh $(ARGS)
+	./make/tasks/tuist/run.sh $(ARGS)
+	
 # Cloud
 cloud/up:
 	./make/tasks/cloud/up.sh
