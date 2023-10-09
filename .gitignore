@@ -108,5 +108,5 @@ vendor/
 .bundle
 
 # Tuist Cloud
-cloud
+TuistCloud
 !make/tasks/cloud
