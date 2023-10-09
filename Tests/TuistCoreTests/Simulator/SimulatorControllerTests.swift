@@ -158,7 +158,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(device, expectedDeviceAndRuntime)
     }
-    
+
     func test_findAvailableDevice_should_findDeviceWithMaxVersion_when_noMinVersionAndDeviceNameIsSet() async throws {
         // Given
         let devicesAndRuntimes =
@@ -173,7 +173,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
                 ]
             )
         let expectedDeviceAndRuntime = try XCTUnwrap(devicesAndRuntimes.first(where: { $0.runtime.version == "17.0" }))
-        
+
         // When
         let device = try await subject.findAvailableDevice(
             platform: .iOS,
@@ -181,11 +181,11 @@ final class SimulatorControllerTests: TuistUnitTestCase {
             minVersion: nil,
             deviceName: nil
         )
-        
+
         // Then
         XCTAssertEqual(device, expectedDeviceAndRuntime)
     }
-    
+
     func test_installApp_should_bootSimulatorIfNotBooted() throws {
         // Given
         let deviceAndRuntime = try XCTUnwrap(createSystemStubs(devices: true, runtimes: true).first)
@@ -283,37 +283,43 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(system.called(launchAppCommand))
     }
-    
-    private func createSystemStubs(devices: Bool, runtimes: Bool, versions: [SimulatorRuntimeVersion] = [.init(major: 14, minor: 4)]) -> [SimulatorDeviceAndRuntime] {
+
+    private func createSystemStubs(
+        devices: Bool,
+        runtimes: Bool,
+        versions: [SimulatorRuntimeVersion] = [.init(major: 14, minor: 4)]
+    ) -> [SimulatorDeviceAndRuntime] {
         let stubs = createSimulatorDevicesAndRuntimes(versions: versions)
-        
+
         if runtimes {
             system.stubs["/usr/bin/xcrun simctl list runtimes --json"] = (nil, stubs.runtimesJsonResponse, 0)
         }
-        
+
         if devices {
             system.stubs["/usr/bin/xcrun simctl list devices --json"] = (nil, stubs.devicesJsonResponse, 0)
         }
-        
+
         return stubs.simulators
     }
-    
-    private func createSimulatorDevicesAndRuntimes(versions: [SimulatorRuntimeVersion]) -> (runtimesJsonResponse: String,
-                                                                                            devicesJsonResponse: String,
-                                                                                            simulators: [SimulatorDeviceAndRuntime]) {
+
+    private func createSimulatorDevicesAndRuntimes(versions: [SimulatorRuntimeVersion]) -> (
+        runtimesJsonResponse: String,
+        devicesJsonResponse: String,
+        simulators: [SimulatorDeviceAndRuntime]
+    ) {
         var runtimes: [SimulatorRuntime] = []
         let runtimesJsonResponse: String = {
             let runtimes = versions.map { version -> String in
                 let major = version.major
                 let minor = version.minor ?? .zero
-                
+
                 let bundlePath = "/path/to/bundle"
                 let buildVersion = "buildVersion"
                 let runtimeRoot = "/path/to/runtime/root"
                 let identifier = "com.apple.CoreSimulator.SimRuntime.iOS-\(major)-\(minor)"
                 let version = "\(major).\(minor)"
                 let runtimeName = "iOS \(major).\(minor)"
-                
+
                 runtimes.append(
                     SimulatorRuntime(
                         bundlePath: try! AbsolutePath(validating: bundlePath),
@@ -325,7 +331,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
                         name: runtimeName
                     )
                 )
-                
+
                 return """
                     {
                       "bundlePath" : "\(bundlePath)",
@@ -339,18 +345,18 @@ final class SimulatorControllerTests: TuistUnitTestCase {
                     }
                 """
             }
-            
+
             return """
-                { "runtimes" : [ \(runtimes.joined(separator: ",")) ]}
-                """
+            { "runtimes" : [ \(runtimes.joined(separator: ",")) ]}
+            """
         }()
-        
+
         var devices: [SimulatorDevice] = []
         let devicesJsonResponse: String = {
             let devices = versions.map { version -> String in
                 let major = version.major
                 let minor = version.minor ?? .zero
-                
+
                 let dataPath = "/path/to/sim/81F0475F-0A03-4742-92D7-D59ACE3A5895/data"
                 let logPath = "/path/to/logs/81F0475F-0A03-4742-92D7-D59ACE3A5895"
                 let udid = "81F0475F-0A03-4742-92D7-D59ACE3A5895"
@@ -358,7 +364,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
                 let state = "Shutdown"
                 let deviceName = "iPhone 11"
                 let runTimeIdentifier = "com.apple.CoreSimulator.SimRuntime.iOS-\(major)-\(minor)"
-                
+
                 devices.append(
                     SimulatorDevice(
                         dataPath: try! AbsolutePath(validating: dataPath),
@@ -372,7 +378,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
                         runtimeIdentifier: runTimeIdentifier
                     )
                 )
-                
+
                 return """
                 "\(runTimeIdentifier)" : [
                   {
@@ -385,20 +391,20 @@ final class SimulatorControllerTests: TuistUnitTestCase {
                     "name" : "\(deviceName)"
                   }
                 ]
-                
+
                 """
             }
-            
+
             return """
             { "devices" : { \(devices.joined(separator: ",")) }}
             """
         }()
-        
+
         let simulators = runtimes.enumerated().map { index, runtime in
             let device = devices[index]
             return SimulatorDeviceAndRuntime(device: device, runtime: runtime)
         }
-        
+
         return (
             runtimesJsonResponse: runtimesJsonResponse,
             devicesJsonResponse: devicesJsonResponse,
