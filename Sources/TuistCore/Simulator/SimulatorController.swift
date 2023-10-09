@@ -136,6 +136,7 @@ public final class SimulatorController: SimulatorControlling {
         deviceName: String?
     ) async throws -> SimulatorDeviceAndRuntime {
         let devicesAndRuntimes = try await devicesAndRuntimes()
+        let maxRuntimeVersion = devicesAndRuntimes.map(\.runtime.version).max()
         let availableDevices = devicesAndRuntimes
             .sorted(by: { $0.runtime.version >= $1.runtime.version })
             .filter { simulatorDeviceAndRuntime in
@@ -151,6 +152,11 @@ public final class SimulatorController: SimulatorControlling {
                 if let deviceName {
                     guard simulatorDeviceAndRuntime.device.name == deviceName else { return false }
                 }
+                
+                if let maxRuntimeVersion {
+                    guard simulatorDeviceAndRuntime.runtime.version == maxRuntimeVersion else { return false }
+                }
+                
                 return true
             }
         guard let device = availableDevices.first(where: { !$0.device.isShutdown }) ?? availableDevices.first
