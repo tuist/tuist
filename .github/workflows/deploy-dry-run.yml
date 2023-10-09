@@ -1,4 +1,4 @@
-name: 'Deploy dry run'
+name: Cloud
 
 on:
   push:
@@ -8,18 +8,24 @@ on:
   merge_group: {}
 
 concurrency:
-  group: deploy-dry-run-${{ github.head_ref }}
+  group: cloud-build-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
   deploy:
-    name: Deploy dry run
+    name: Build
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       DOCKER_BUILDKIT: 1
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Deploy
-        run: flyctl deploy --build-only
+      - uses: docker/setup-buildx-action@v1
+      - name: Build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          build-args: "RAILS_ENV=production"
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
