@@ -158,7 +158,7 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Run
-        run: make lint
+        run: make workspace/lint
   
   lint-lockfiles:
     name: Lint lockfiles
@@ -166,4 +166,4 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Run
-        run: make lint/lockfiles
+        run: make workspace/lint/lockfiles
