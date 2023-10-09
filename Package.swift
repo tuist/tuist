@@ -520,15 +520,13 @@ var targets: [Target] = [
     ),
     .target(
         name: "TuistAnalytics",
-        dependencies: [
+        dependencies: mapDependenciesOfSourcesTargetDependentOnTuistCloud([
             .byName(name: "AnyCodable"),
             "TuistAsyncQueue",
-            // TODO: TuistCloud
-            // "TuistCloud",
             "TuistCore",
             "TuistGraph",
             "TuistLoader",
-        ]
+        ])
     ),
     .testTarget(
         name: "TuistAnalyticsTests",
