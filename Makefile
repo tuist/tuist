@@ -15,9 +15,6 @@ tuist/generate/with-cloud:
 	TUIST_INCLUDE_TUIST_CLOUD=1 ./make/tasks/tuist/generate.sh $(ARGS)
 tuist/run:
 	./make/tasks/tuist/run.sh $(ARGS)
-	
-# Cloud
-
 
 # Shared
 workspace/lint-fix:
@@ -32,4 +29,6 @@ workspace/up:
 	./make/tasks/workspace/up.sh
 workspace/clean:
 	./make/tasks/workspace/clean.sh
+workspace/build-with-spm:
+	$(ARGS) ./make/tasks/workspace/build-with-spm.sh
 

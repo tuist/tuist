@@ -8,7 +8,10 @@ var includeTuistCloud = false
 import Foundation
 includeTuistCloud = ProcessInfo.processInfo.environment["TUIST_INCLUDE_TUIST_CLOUD"] == "1"
 #endif
-
+if includeTuistCloud {
+    print("Including TuistCloud sources")
+}
+includeTuistCloud = true
 
 let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
