@@ -106,4 +106,4 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Run
-        run: make shared/lint/lockfiles
+        run: make workspace/lint/lockfiles

@@ -17,17 +17,19 @@ tuist/run:
 	./make/tasks/tuist/run.sh $(ARGS)
 	
 # Cloud
-cloud/up:
-	./make/tasks/cloud/up.sh
-cloud/down:
-	./make/tasks/cloud/down.sh
+
+
 # Shared
-shared/lint-fix:
-	./make/tasks/shared/lint-fix.sh
-shared/lint:
-	./make/tasks/shared/lint.sh
-shared/lint/lockfiles:
-	./make/tasks/shared/lint/lockfiles.sh
-shared/generate/cloud-openapi-code:
-	./make/tasks/shared/generate/cloud-openapi-code.sh
+workspace/lint-fix:
+	./make/tasks/workspace/lint-fix.sh
+workspace/lint:
+	./make/tasks/workspace/lint.sh
+workspace/lint/lockfiles:
+	./make/tasks/workspace/lint/lockfiles.sh
+workspace/generate/cloud-openapi-code:
+	./make/tasks/workspace/generate/cloud-openapi-code.sh
+workspace/up:
+	./make/tasks/workspace/up.sh
+workspace/clean:
+	./make/tasks/workspace/clean.sh
 
