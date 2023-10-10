@@ -5,8 +5,8 @@ import PackageDescription
 var includeTuistCloud = false
 
 #if canImport(Foundation)
-import Foundation
-includeTuistCloud = ProcessInfo.processInfo.environment["TUIST_INCLUDE_TUIST_CLOUD"] == "1"
+    import Foundation
+    includeTuistCloud = ProcessInfo.processInfo.environment["TUIST_INCLUDE_TUIST_CLOUD"] == "1"
 #endif
 if includeTuistCloud {
     print("Including TuistCloud sources")
