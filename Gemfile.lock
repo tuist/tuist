@@ -202,6 +202,8 @@ GEM
       racc (~> 1.4)
     nokogiri (1.15.4-arm64-darwin)
       racc (~> 1.4)
+    nokogiri (1.15.4-x86_64-darwin)
+      racc (~> 1.4)
     nokogiri (1.15.4-x86_64-linux)
       racc (~> 1.4)
     oauth2 (2.0.9)
@@ -366,11 +368,17 @@ GEM
       railties (>= 6.0.0)
     tailwindcss-rails (2.0.30-arm64-darwin)
       railties (>= 6.0.0)
+    tailwindcss-rails (2.0.30-x86_64-darwin)
+      railties (>= 6.0.0)
     tailwindcss-rails (2.0.30-x86_64-linux)
       railties (>= 6.0.0)
     thor (1.2.2)
     tilt (2.2.0)
     timeout (0.4.0)
+    turbo-rails (1.4.0)
+      actionpack (>= 6.0.0)
+      activejob (>= 6.0.0)
+      railties (>= 6.0.0)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
     unicode-display_width (2.5.0)
@@ -401,6 +409,7 @@ PLATFORMS
   aarch64-linux
   arm64-darwin
   ruby
+  x86_64-darwin
   x86_64-linux
 
 DEPENDENCIES
@@ -445,6 +454,7 @@ DEPENDENCIES
   spring
   stripe-rails (~> 2.4)
   tailwindcss-rails (~> 2.0)
+  turbo-rails (~> 1.4)
   tzinfo-data
   vite_rails (~> 3.0.3)
   web-console (>= 4.1.0)

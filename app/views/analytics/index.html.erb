@@ -11,6 +11,17 @@
 </nav>
 
 <div class="analytics-container">
+  <header>
+    Analytics
+    <%= form_tag "", method: :get do %>
+      <%= select_tag :date_range, options_for_select([
+        ['Last 7 days', 'last_7_days'],
+        ['Last 30 days', 'last_30_days'],
+        ['Last 90 days', 'last_90_days'],
+        ['Last year', 'last_year'],
+      ], params[:date_range] || 'last_30_days'), onchange: 'this.form.submit();' %>
+    <% end %>
+  </header>
   <article class="analytics-article">
     <header class="analytics-article-header">
       Average command duration
@@ -34,8 +45,20 @@
         <option value="cache_warm">cache warm</option>
       </select>
     </header>
-    <div>
-      <canvas id="average-cache-hit-rate-chart" class="chart"></canvas>
+    <div class="chart">
+      <canvas id="average-cache-hit-rate-chart"></canvas>
+    </div>
+  </article>
+
+  <article class="analytics-article">
+    <header>
+      <p>Targets cache hit rate</p>
+      <a href="analytics/targets">
+        <button>Show more</button>
+      </a>
+    </header>
+    <div class="chart">
+      <canvas id="targets-cache-hit-rate-chart"></canvas>
     </div>
   </article>
 </div>
@@ -45,7 +68,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@^1"></script>
 <script>
   let width, height, gradient;
-  function getGradient(ctx, chartArea) {
+  function getGradient(ctx, chartArea, horizontal) {
     const chartWidth = chartArea.right - chartArea.left;
     const chartHeight = chartArea.bottom - chartArea.top;
     if (!gradient || width !== chartWidth || height !== chartHeight) {
@@ -53,9 +76,13 @@
       // or the size of the chart has changed
       width = chartWidth;
       height = chartHeight;
-      gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-      gradient.addColorStop(0, cssvar('--tuist-color-primary-500'));
-      gradient.addColorStop(1, cssvar('--tuist-color-primary-600'));
+      if (horizontal === true) {
+        gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
+      } else {
+        gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+      }
+      gradient.addColorStop(1, cssvar('--tuist-color-primary-500'));
+      gradient.addColorStop(0, cssvar('--tuist-color-primary-600'));
     }
 
     return gradient;
@@ -115,11 +142,12 @@
               type: 'time',
               time: {
                 // Luxon format string
-                tooltipFormat: 'DD T'
+                tooltipFormat: 'DD',
+                unit: <%= params[:date_range] == 'last_year' ? 'month'.to_json.html_safe : 'day'.to_json.html_safe %>
               },
               ticks: {
                 color: cssvar('--text-inverse'),
-                stepSize: 2
+                stepSize: <%= params[:date_range] == 'last_year' ? 1.to_json.html_safe : 2.to_json.html_safe %>
               }
             },
             ...scales
@@ -179,3 +207,47 @@
   );
 </script>
 
+<script>
+  const ctx = document.getElementById('targets-cache-hit-rate-chart');
+
+  const data = <%= @targets_cache_hit_rate.to_json.html_safe %>;
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(element => element.target),
+      datasets: [
+        {
+          label: 'Target cache hit rate average',
+          data: data.map(element => element.cache_hit_rate),
+          borderWidth: 1,
+        backgroundColor: function(context) {
+          const chart = context.chart;
+          const {ctx, chartArea} = chart;
+
+          if (!chartArea) {
+            // This case happens on initial chart load
+            return;
+          }
+          return getGradient(ctx, chartArea, true);
+        },
+        },
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      // Elements options apply to all of the options unless overridden in a dataset
+      // In this case, we are setting the border of each horizontal bar to be 2px wide
+      elements: {
+        bar: {
+          borderWidth: 2,
+        }
+      },
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'right',
+        },
+      }
+    }
+  });
+</script>

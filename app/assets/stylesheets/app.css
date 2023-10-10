@@ -18,7 +18,7 @@
   --text-interactive: rgb(129 140 248);
   --text-interactive-active: rgb(99 102 241);
   --text-on-color: rgb(255, 255, 255);
-  --text-inverse: rgb(209 213 219);
+  --text-inverse: rgb(223, 227, 232);
 
   --tuist-color-primary-50: rgb(238, 242, 255);
   --tuist-color-primary-100: rgb(224, 231, 255);
@@ -61,6 +61,7 @@
 
   --tuist-color-background-critical-strong: rgb(197, 40, 12);
   --tuist-color-background-surface: rgb(31, 41, 55);
+  --tuist-color-background-surface-hover: rgb(25, 33, 45);
   --tuist-color-background: rgb(17 24 39);
 
   --tuist-border-width-5: 0.3125rem;
@@ -151,6 +152,7 @@
   --tuist-z-index-1: 100;
 
    --tuist-icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='rgb(209, 213, 219)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+   --tuist-icon-calendar: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgb(209, 213, 219)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 h-4 w-4"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>');
 }
 
 body {
@@ -158,29 +160,39 @@ body {
   background-color: var(--tuist-color-background);
 }
 
+/* Select */
+
 select {
   appearance: none;
   outline: none;
-  border-style: solid;
-  border-width: var(--tuist-border-width-1);
-  font-family: var(--tuist-font-sans);
-  font-weight: var(--tuist-font-weight-semibold);
-  line-height: var(--tuist-font-line-height-6);
-  font-size: var(--tuist-font-size-small);
-  border-radius: var(--tuist-border-radius-medium);
-  padding: 0 var(--tuist-spacing-2x-large) 0 var(--tuist-spacing-medium);
-  background-color: var(--tuist-color-background-surface);
-  border-color: var(--tuist-color-neutral-300);
-  color: var(--text-inverse);
   background-image: var(--tuist-icon-chevron);
   background-position: center right .75rem;
   background-size: 1rem auto;
   background-repeat: no-repeat;
+  font-size: var(--tuist-font-size-small);
+  background-color: var(--tuist-color-neutral-200);
+  color: var(--text-inverse);
+  transition-property: color,background-color;
+  transition-timing-function: cubic-bezier(.4,0,.2,1);
+  transition-duration: .15s;
+  padding: var(--tuist-spacing-x-small) var(--tuist-spacing-2x-large) var(--tuist-spacing-x-small) var(--tuist-spacing-medium);
+  cursor: pointer;
+  border-width: 0;
+  border-radius: var(--tuist-border-radius-large);
+  display: inline-flex;
+  align-items: center;
 }
 
 select:hover {
-  background-color: var(--tuist-color-neutral-200);
+  background-color: var(--tuist-color-neutral-300);
+  color: var(--text-on-color);
 }
+
+select#date_range {
+  background-image: var(--tuist-icon-calendar);
+}
+
+/* Article (card) */
 
 article {
   display: flex;
@@ -189,13 +201,21 @@ article {
   box-shadow: var(--tuist-shadow-xs);
   border-radius: var(--tuist-border-radius-large);
   color: var(--text-on-color);
-  padding: var(--tuist-spacing-2x-large);
+  padding: var(--tuist-spacing-x-large) var(--tuist-spacing-2x-large);
 }
 
 article header {
-  display: block;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-grow: 1;
   font-weight: var(--tuist-font-weight-bold);
   font-size: var(--tuist-font-size-large);
+  padding: 0;
+}
+
+article header p {
+  flex: 1;
 }
 
 h1 {
@@ -241,7 +261,6 @@ nav li {
   display: flex;
   justify-content: center;
   margin: 0;
-  padding: 0 var(--tuist-spacing-medium);
 }
 
 nav li > * {
@@ -252,4 +271,131 @@ nav :where(a, [role=link]) {
   display: inline-block;
   text-decoration: none;
   color: var(--text-on-color);
+}
+
+/* Buttons */
+
+button {
+  font-size: var(--tuist-font-size-small);
+  background-color: var(--tuist-color-neutral-200);
+  color: var(--text-inverse);
+  transition-property: color,background-color;
+  transition-timing-function: cubic-bezier(.4,0,.2,1);
+  transition-duration: .15s;
+  padding: var(--tuist-spacing-x-small) var(--tuist-spacing-small);
+  cursor: pointer;
+  border-width: 0;
+  border-radius: var(--tuist-border-radius-large);
+  display: inline-flex;
+  align-items: center;
+}
+
+button:hover {
+  background-color: var(--tuist-color-neutral-300);
+  color: var(--text-on-color);
+}
+
+button svg {
+  height: 1rem;
+  width: 1rem;
+  padding-left: var(--tuist-spacing-x-small);
+}
+
+button.ghost {
+  background-color: transparent;
+}
+
+button.ghost:hover {
+  background-color: var(--tuist-color-neutral-300);
+}
+
+/* Icons */
+
+.icon-medium {
+  width: 2.5rem;
+}
+
+/* Table */
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 350px;
+  color: var(--text-on-color);
+}
+
+table th {
+  text-align: center;
+  border-top: solid var(--tuist-border-width-1) var(--tuist-color-neutral-300);
+  padding: var(--tuist-spacing-2x-small) 0;
+  font-weight: var(--tuist-font-weight-normal);
+  color: var(--text-inverse);
+  font-size: var(--tuist-font-size-small);
+}
+
+table tr th,
+table tr td {
+  border-bottom: 1px solid var(--tuist-color-neutral-300);
+}
+
+table td {
+  padding: var(--tuist-spacing-small) 0;
+  text-align: center;
+}
+
+table tr {
+  background-color: var(--tuist-color-background-surface);
+}
+
+table tr:hover {
+  background-color: var(--tuist-color-background-surface-hover);
+}
+
+table tr th:first-child,
+table tr td:first-child {
+  border-left: solid var(--tuist-border-width-1) var(--tuist-color-neutral-300);
+}
+
+table tr th:last-child,
+table tr td:last-child {
+  border-right: solid var(--tuist-border-width-1) var(--tuist-color-neutral-300);
+}
+
+/* top-left border-radius */
+table tr:first-child th:first-child {
+  border-top-left-radius: var(--tuist-border-radius-large);
+}
+
+/* top-right border-radius */
+table tr:first-child th:last-child {
+  border-top-right-radius: var(--tuist-border-radius-large);
+}
+
+/* bottom-left border-radius */
+table tr:last-child td:first-child {
+  border-bottom-left-radius: var(--tuist-border-radius-large);
+}
+
+/* bottom-right border-radius */
+table tr:last-child td:last-child {
+  border-bottom-right-radius: var(--tuist-border-radius-large);
+}
+
+/* Header */
+
+header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex-grow: 1;
+  align-self: stretch;
+  font-weight: var(--tuist-font-weight-bold);
+  font-size: var(--tuist-font-size-large);
+  color: var(--text-on-color);
+  padding-bottom: var(--tuist-spacing-x-large);
+  padding-top: var(--tuist-spacing-large);
+}
+
+header > :nth-child(1) {
+  margin-top: var(--tuist-spacing-small);
 }

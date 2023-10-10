@@ -1,21 +1,15 @@
 # frozen_string_literal: true
 
-class CacheHitRateAverage
-  attr_reader :date, :cache_hit_rate_average
-
-  def initialize(date:, cache_hit_rate_average:)
-    @date = date
-    @cache_hit_rate_average = cache_hit_rate_average
-  end
-end
+CacheHitRateAverage = Struct.new(:date, :cache_hit_rate_average)
 
 class CacheHitRateAverageService < ApplicationService
-  attr_reader :project_id, :command_name, :user
+  attr_reader :project_id, :command_name, :user, :start_date
 
-  def initialize(project_id:, command_name:, user:)
+  def initialize(project_id:, command_name:, user:, start_date: 30.days.ago)
     @project_id = project_id
     @command_name = command_name
     @user = user
+    @start_date = start_date
     super()
   end
 
@@ -28,10 +22,19 @@ class CacheHitRateAverageService < ApplicationService
       subcommand = command_name.split(" ").drop(1)
     end
 
-    project.command_events
-      .where(created_at: 30.days.ago..Time.now, name: name, subcommand: subcommand)
+    command_events = project.command_events
+      .where(created_at: start_date..Time.now, name: name, subcommand: subcommand)
       .where.not(cacheable_targets: "")
-      .group_by_day(:created_at, range: 30.days.ago..Time.now)
+
+    command_events = if start_date > 1.year.ago
+      command_events
+        .group_by_day(:created_at, range: start_date..Time.now)
+    else
+      command_events
+        .group_by_month(:created_at, range: start_date..Time.now)
+    end
+
+    command_events
       .average(
         "(#{query("local_cache_target_hits")} + #{query("remote_cache_target_hits")}) / #{query("cacheable_targets")}",
       )

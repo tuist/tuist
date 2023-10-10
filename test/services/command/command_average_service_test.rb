@@ -54,6 +54,41 @@ class CommandAverageServiceTest < ActiveSupport::TestCase
       got.map(&:duration_average)
   end
 
+  test "returns average for the last year" do
+    # Given
+    Time.stubs(:now).returns(Time.new(2022, 12, 31))
+    create_command_event(name: "generate", duration: 20, created_at: Time.new(2022, 0o3, 30))
+    create_command_event(name: "generate", duration: 10, created_at: Time.new(2022, 0o3, 30))
+    create_command_event(name: "fetch", duration: 10, created_at: Time.new(2022, 0o3, 30))
+    create_command_event(name: "generate", duration: 30, created_at: Time.new(2022, 0o3, 0o5))
+
+    # When
+    got = CommandAverageService.call(
+      project_id: @project.id,
+      command_name: "generate",
+      user: @user,
+      start_date: 1.year.ago,
+    )
+
+    # Then
+    assert_equal (0..12).map { |month|
+      if month == 0
+        Date.new(2021, 12, 1)
+      else
+        Date.new(2022, month, 1)
+      end
+    },
+      got.map(&:date)
+    assert_equal (0..12).map { |month|
+      if month == 3
+        20
+      else
+        0
+      end
+    },
+      got.map(&:duration_average)
+  end
+
   test "returns average for the last thirty days for a subcommand" do
     # Given
     create_command_event(name: "cache", subcommand: "warm", duration: 20, created_at: Time.new(2022, 0o3, 30))

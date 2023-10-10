@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-class CacheHitRateAverageServiceTest < ActiveSupport::TestCase
+class TargetCacheHitRateServiceTest < ActiveSupport::TestCase
   setup do
     ENV["TZ"] = "UTC"
     @user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
@@ -39,7 +39,7 @@ class CacheHitRateAverageServiceTest < ActiveSupport::TestCase
     )
   end
 
-  test "returns average for the last thirty days" do
+  test "returns target hit rates for the last thirty days" do
     # Given
     create_command_event(
       name: "generate",
@@ -57,80 +57,27 @@ class CacheHitRateAverageServiceTest < ActiveSupport::TestCase
     )
     create_command_event(
       name: "generate",
-      cacheable_targets: "",
-      local_cache_target_hits: "",
-      remote_cache_target_hits: "",
-      created_at: Time.new(2022, 0o3, 30),
-    )
-    create_command_event(name: "fetch", created_at: Time.new(2022, 0o3, 30))
-    create_command_event(name: "generate", created_at: Time.new(2022, 0o3, 0o5))
-
-    # When
-    got = CacheHitRateAverageService.call(project_id: @project.id, command_name: "generate", user: @user)
-
-    # Then
-    assert_equal (1..31).map { |day| Date.new(2022, 0o3, day) }, got.map(&:date)
-    assert_equal (1..31).map { |day|
-      if day == 30
-        0.5
-      else
-        0
-      end
-    },
-      got.map(&:cache_hit_rate_average)
-  end
-
-  test "returns average for the last year" do
-    # Given
-    Time.stubs(:now).returns(Time.new(2022, 12, 31))
-    create_command_event(
-      name: "generate",
       cacheable_targets: "A;B;C;D",
-      local_cache_target_hits: "A",
+      local_cache_target_hits: "",
       remote_cache_target_hits: "",
       created_at: Time.new(2022, 0o3, 30),
     )
     create_command_event(
       name: "generate",
       cacheable_targets: "A;B;C;D",
-      local_cache_target_hits: "A;B",
-      remote_cache_target_hits: "C",
-      created_at: Time.new(2022, 0o3, 30),
-    )
-    create_command_event(
-      name: "generate",
-      cacheable_targets: "",
       local_cache_target_hits: "",
-      remote_cache_target_hits: "",
+      remote_cache_target_hits: "A",
       created_at: Time.new(2022, 0o3, 30),
     )
-    create_command_event(name: "fetch", created_at: Time.new(2022, 0o3, 30))
-    create_command_event(name: "generate", created_at: Time.new(2022, 0o3, 0o5))
 
     # When
-    got = CacheHitRateAverageService.call(
-      project_id: @project.id,
-      command_name: "generate",
-      user: @user,
-      start_date: 1.year.ago,
-    )
+    got = TargetCacheHitRateService.call(project_id: @project.id, user: @user)
 
     # Then
-    assert_equal (0..12).map { |month|
-      if month == 0
-        Date.new(2021, 12, 1)
-      else
-        Date.new(2022, month, 1)
-      end
-    },
-      got.map(&:date)
-    assert_equal (0..12).map { |month|
-      if month == 3
-        0.5
-      else
-        0
-      end
-    },
-      got.map(&:cache_hit_rate_average)
+    assert_equal 4, got.length
+    assert_equal ["A", "B", "C", "D"], got.map(&:target)
+    assert_equal [0.75, 0.25, 0.25, 0.0], got.map(&:cache_hit_rate)
+    assert_equal [3, 1, 1, 0], got.map(&:hits)
+    assert_equal [1, 3, 3, 4], got.map(&:misses)
   end
 end

@@ -55,6 +55,11 @@ class ApplicationController < ActionController::Base
         command_name: "build",
         user: current_user,
       ),
+      test: CommandAverageService.call(
+        project_id: project_id,
+        command_name: "test",
+        user: current_user,
+      ),
     }
 
     @commands_average_cache_hit_rate = {
@@ -69,7 +74,30 @@ class ApplicationController < ActionController::Base
         user: current_user,
       ),
     }
+
+    @targets_cache_hit_rate = TargetCacheHitRateService.call(
+      project_id: project_id,
+      user: current_user,
+    )
     render('analytics')
+  end
+
+  def analytics_modules
+    project_id = ProjectFetchService.new.fetch_by_name(
+      name: params[:project_name],
+      account_name: params[:account_name],
+      user: current_user,
+    ).id
+    @targets_cache_hit_rate = TargetCacheHitRateService.call(
+      project_id: project_id,
+      user: current_user,
+    )
+
+    unless params[:sort].nil?
+      @targets_cache_hit_rate = @targets_cache_hit_rate
+        .sort_by { |target| target.send(params[:sort]) }
+    end
+    render('analytics_modules')
   end
 
   private

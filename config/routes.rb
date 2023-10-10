@@ -19,13 +19,13 @@ Rails.application.routes.draw do
   get "/get-started", to: "application#get_started"
   post "/create-customer-portal-session/:account_id", to: "application#create_customer_portal_session"
   get '/organizations/:organization_name/billing/plan', to: 'application#create_customer_portal_session'
-  get '/:account_name/:project_name/analytics', to: 'application#analytics'
+
+  get '/:account_name/:project_name/analytics', to: 'analytics#analytics'
+  get '/:account_name/:project_name/analytics/targets', to: 'analytics#analytics_targets'
 
   get "/auth/invitations/:token", to: "auth#accept_invitation"
   get "/auth/cli/success", to: "auth#cli_success"
   get "/auth", to: "auth#authenticate"
-
-  post "/api/analytics", to: "analytics#analytics"
 
   namespace :api do
     get "/cache", to: "cache#cache"
@@ -33,6 +33,8 @@ Rails.application.routes.draw do
     post "/cache", to: "cache#upload_cache_artifact"
     post "/cache/verify_upload", to: "cache#verify_upload"
     put "/projects/:account_name/:project_name/cache/clean", to: "cache#clean"
+
+    post "/analytics", to: "analytics#analytics"
 
     resources :projects, :projects, only: [:create, :index, :destroy]
     resources :organizations, :organizations, only: [:create, :index, :destroy, :show]

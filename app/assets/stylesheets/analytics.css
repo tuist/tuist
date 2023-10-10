@@ -3,10 +3,11 @@
   flex-direction: column;
   align-items: center;
   margin: var(--tuist-spacing-large) 0;
+  margin: 0 15%;
 }
 
 .analytics-article {
-  width: 70%;
+  align-self: stretch;
 }
 
 .analytics-article:not(:first-of-type) {

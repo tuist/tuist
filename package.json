@@ -46,6 +46,7 @@
     "@babel/plugin-proposal-private-methods": "^7.18.6",
     "@babel/preset-react": "^7.22.5",
     "@babel/preset-typescript": "^7.22.5",
+    "@hotwired/turbo-rails": "^7.3.0",
     "@juggle/resize-observer": "^3.4.0",
     "@rails/ujs": "^7.0.0",
     "@shopify/polaris": "^10.50.1",
@@ -57,9 +58,9 @@
     "mobx-react-lite": "^3.4.0",
     "prop-types": "^15.8.1",
     "react": "^17.0.2",
-    "react_ujs": "^2.7.1",
     "react-dom": "^17.0.2",
     "react-hook-form": "^7.44.3",
-    "react-router-dom": "^6.13.0"
+    "react-router-dom": "^6.13.0",
+    "react_ujs": "^2.7.1"
   }
 }
