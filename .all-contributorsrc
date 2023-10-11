@@ -1201,6 +1201,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "in4lio",
+      "name": "Vitaly Kravtsov",
+      "avatar_url": "https://avatars.githubusercontent.com/u/976061?v=4",
+      "profile": "https://github.com/in4lio",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
