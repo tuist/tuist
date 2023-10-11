@@ -130,8 +130,8 @@ GEM
     faraday-net_http (3.0.2)
     ffi (1.15.5)
     foreman (0.87.2)
-    globalid (1.1.0)
-      activesupport (>= 5.0)
+    globalid (1.2.1)
+      activesupport (>= 6.1)
     graphiql-rails (1.9.0)
       railties
       sprockets-rails
@@ -363,7 +363,7 @@ GEM
     thor (1.2.2)
     tilt (2.2.0)
     timeout (0.4.0)
-    turbo-rails (1.4.0)
+    turbo-rails (1.5.0)
       actionpack (>= 6.0.0)
       activejob (>= 6.0.0)
       railties (>= 6.0.0)
