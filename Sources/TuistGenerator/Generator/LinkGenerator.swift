@@ -193,10 +193,11 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         pbxTarget: PBXTarget,
         pbxproj: PBXProj
     ) throws {
+
         for dependency in target.dependencies {
             switch dependency {
-            case let .package(product: product, type: type):
-                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: type == .plugin, pbxproj: pbxproj)
+            case let .package(product: product, type: type, platformFilters: platformFilters):
+                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: type == .plugin, pbxproj: pbxproj, platformFilters: platformFilters)
             case .framework, .library, .project, .sdk, .target, .xcframework, .xctest:
                 break
             }
@@ -227,7 +228,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             switch dependency {
             case .framework:
                 frameworkReferences.append(dependency)
-            case let .xcframework(path, _, _, _, _, platformFilters: platformFilters):
+            case let .xcframework(path, _, _, _, _, platformFilters):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }
@@ -235,6 +236,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                     file: fileRef,
                     settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
                 )
+                buildFile.applyPlatformFilters(platformFilters, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 buildFile.applyPlatformFilters(platformFilters, applicableTo: target)
                 embedPhase.files?.append(buildFile)
@@ -650,7 +652,7 @@ extension XCBuildConfiguration {
 }
 
 extension PBXTarget {
-    func addSwiftPackageProduct(productName: String, isPlugin: Bool, pbxproj: PBXProj) throws {
+    func addSwiftPackageProduct(productName: String, isPlugin: Bool, pbxproj: PBXProj, platformFilters: PlatformFilters) throws {
         let productDependency = XCSwiftPackageProductDependency(productName: productName, isPlugin: isPlugin)
         pbxproj.add(object: productDependency)
 
@@ -662,6 +664,7 @@ extension PBXTarget {
         } else {
             // Build file
             let buildFile = PBXBuildFile(product: productDependency)
+            buildFile.applyPlatformFilters(platformFilters)
             pbxproj.add(object: buildFile)
 
             packageProductDependencies.append(productDependency)
