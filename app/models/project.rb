@@ -35,8 +35,13 @@ end
 
 class DefaultS3Bucket
   def name
-    if Rails.env.production?
+    case Rails.env
+    when "production"
       "tuist-production"
+    when "staging"
+      "tuist-cloud-staging"
+    when "canary"
+      "tuist-cloud-canary"
     else
       "tuist-debug"
     end
