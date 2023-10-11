@@ -9,27 +9,9 @@ XCODE_PATH_SCRIPT_PATH=$SCRIPT_DIR/../../../utilities/xcode_path.sh
 BUILD_DIRECTORY=$ROOT_DIR/build
 TMP_DIR=$(mktemp -d)
 trap "rm -rf $TMP_DIR" EXIT # Ensures it gets deleted
-XCODE_VERSION=""
-LIBRARIES_XCODE_VERSION=""
-BUILD_DIR=""
-
-# Parse command line arguments
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --xcode-version) shift; XCODE_VERSION="$1";;
-        --build-dir) shift; BUILD_DIR="$1";;
-        --libraries-xcode-version) shift; LIBRARIES_XCODE_VERSION="$1";;
-        *) echo "Unknown parameter passed: $1"; exit 1;;
-    esac
-    shift
-done
-
-# Check if variables are non-empty
-if [ -z "$XCODE_VERSION" ] || [ -z "$BUILD_DIR" ] || [ -z "$LIBRARIES_XCODE_VERSION" ]; then
-    echo "Error: Missing argument."
-    echo "Usage: $0 --xcode-version <xcode_version> --build-dir <build_dir> --libraries-xcode-version <libraries_xcode_version>"
-    exit 1
-fi
+XCODE_VERSION=$(cat $ROOT_DIR/.xcode-version)
+LIBRARIES_XCODE_VERSION=$(cat $ROOT_DIR/.xcode-version-libraries)
+BUILD_DIR=$ROOT_DIR/build
 
 echo "$(format_section "Building release into $BUILD_DIRECTORY")"
 
@@ -60,7 +42,36 @@ build_fat_release_library() {
     )
 }
 
+build_fat_release_binary() {
+    (
+    cd $ROOT_DIR || exit 1
+    ARM64_TARGET=arm64-apple-macosx 
+    X86_64_TARGET=x86_64-apple-macosx
+
+    swift build \
+        --configuration release \
+        --disable-sandbox \
+        --product $1 \
+        --build-path $TMP_DIR \
+        --triple $ARM64_TARGET \
+        --triple $X86_64_TARGET
+
+    lipo -create \
+        -output $BUILD_DIRECTORY/$1 \
+        $TMP_DIR/$ARM64_TARGET/release/$1 \
+        $TMP_DIR/$X86_64_TARGET/release/$1
+    )
+}
+
 echo "$(format_subsection "Building ProjectDescription")"
 build_fat_release_library "ProjectDescription"
 
-# run: ./fourier release tuist ${{ needs.prepare-release.outputs.version }} $(cat .xcode-version) $(cat .xcode-version-libraries)
+echo "$(format_subsection "Tuist")"
+build_fat_release_binary "tuist"
+
+# TODO
+# Copy the vendor directory
+# Copy the template directory
+# Run stdlib-tool tool
+# Compress
+# Generate checksums

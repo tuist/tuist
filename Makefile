@@ -32,7 +32,7 @@ workspace/clean:
 workspace/build-with-spm:
 	$(ARGS) ./make/tasks/workspace/build-with-spm.sh
 workspace/release:
-	./make/tasks/workspace/release/bundle.sh $(ARGS)
+	./make/tasks/workspace/release/bundle.sh
 workspace/release/bundle:
-	./make/tasks/workspace/release/bundle.sh $(ARGS)
+	./make/tasks/workspace/release/bundle.sh
 
