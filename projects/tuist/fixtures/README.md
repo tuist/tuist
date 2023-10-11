@@ -1,7 +1,7 @@
 # Fixtures
 
 This folder contains sample projects we use in the integration and acceptance tests.
-Please keep this keep in alphabetical order.
+Please keep this in alphabetical order.
 
 ## invalid_workspace_manifest_name
 
@@ -17,11 +17,11 @@ The workspace manifest defines:
 - glob patterns to include documentation files
 - folder reference to directory with html files
 
-The App's project manifest leverages `additionalFiles` tha defines:
+The App's project manifest leverages `additionalFiles` that:
 
-- glob patterns to include documentation files
-- Includes a swift `Danger.swift` file that shouldn't get included in any buid phase
-- folder references to a directory with json files
+- defines glob patterns to include documentation files
+- includes a Swift `Danger.swift` file that shouldn't get included in any build phase
+- defines folder references to a directory with json files
 
 ## ios_app_with_extensions
 
@@ -89,7 +89,7 @@ Dependencies:
 
 An example project demonstrating an iOS application linking a dynamic framework which itself depends on a static framework with transitive static dependencies.
 
-Only Framework1.framework should be linked and included into App, everything else should be statically linked into the Framework1 executable.
+Only `Framework1.framework` should be linked and included into App, everything else should be statically linked into the Framework1 executable.
 
 ```
 Workspace:
@@ -129,7 +129,7 @@ One of the dependencies is declared as `.optional` i.e. will be linked weakly.
 
 ## ios_app_with_static_libraries
 
-This application provides a top level application with two static library dependencies. The first static library dependency has another static library dependency so that we are able to test how tuist handles the transitiveness of the static libraries in the linked frameworks of the main app.
+This application provides a top level application with two static library dependencies. The first static library dependency has another static library dependency so that we are able to test how Tuist handles the transitiveness of the static libraries in the linked frameworks of the main app.
 
 ```
 Workspace:
@@ -217,7 +217,7 @@ Workspace:
     - Framework1Tests (iOS unit tests)
 ```
 
-A standalone Framework2 project is used to generate a prebuilt dynamic framework :
+A standalone Framework2 project is used to generate a prebuilt dynamic framework:
 
 ```
   - Framework2:
@@ -245,15 +245,15 @@ An iOS app with a Xcode build variables defined in pre action.
 
 ## ios_app_with_remote_swift_package
 
-An iOS application with remote Swift package
+An iOS application with remote Swift package.
 
 ## ios_app_with_local_swift_package
 
-An iOS application with remote Swift package
+An iOS application with local Swift package.
 
 ## ios_app_with_static_library_and_package
 
-An iOS application that depends on static library that depends on Swift package where static library is defined first
+An iOS application that depends on static library that depends on Swift package where static library is defined first.
 
 Note: to re-create `PrebuiltStaticFramework.framework` run `ios_app_with_static_library_and_package/Prebuilt/build.sh`
 
@@ -282,13 +282,12 @@ Workspace:
 
 An example of an application which depends on prebuilt `.xcframework`s.
 
-The `.xcframework` can be obtained by running the `build.sh` script within the each of the xcframework directories.
-
-e.g. `ios_app_with_xcframeworks/XCFrameworks/MyFramework/build.sh`
+The `.xcframework` can be obtained by running the `build.sh` script within the each of the xcframework directories
+e.g. `ios_app_with_xcframeworks/XCFrameworks/MyFramework/build.sh`.
 
 ## ios_app_with_coredata
 
-A simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel)
+A simple iOS app with a Core Data model and Mapping Model (.xcmappingmodel).
 
 ## ios_app_with_incompatible_dependencies
 
@@ -300,7 +299,7 @@ An iOS app where the organization name is defined at the `Project` level.
 
 ## invalid_manifest
 
-A project with an invalid manifest
+A project with an invalid manifest.
 
 ## framework_with_environment_variables
 
