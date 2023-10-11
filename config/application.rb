@@ -28,8 +28,6 @@ module TuistCloud
     config.action_controller.default_url_options = { host: Environment.app_url }
     config.action_mailer.default_url_options = { host: Environment.app_url }
 
-    config.react.server_renderer_extensions = ["jsx", "js", "tsx", "ts"]
-
     # Que
     config.active_record.schema_format = :sql
 

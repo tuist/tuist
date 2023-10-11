@@ -1,4 +1,4 @@
-name: Cloud
+name: Cloud Canary Deployment
 
 on:
   push:

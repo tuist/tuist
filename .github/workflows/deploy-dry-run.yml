@@ -1,4 +1,4 @@
-name: Cloud
+name: Cloud Dry Run
 
 on:
   push:
@@ -8,11 +8,11 @@ on:
   merge_group: {}
 
 concurrency:
-  group: cloud-build-${{ github.head_ref }}
+  group: cloud-dry-run-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     name: Build
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
