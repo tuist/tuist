@@ -152,6 +152,7 @@ public class GraphTraverser: GraphTraversing {
             test: isDependencyResourceBundle,
             skip: canHostResources
         )
+
         return Set(bundles.compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) })
     }
 
@@ -255,10 +256,12 @@ public class GraphTraverser: GraphTraversing {
         if target.target.mergedBinaryType != .disabled {
             otherTargetFrameworks = otherTargetFrameworks.filter(isDependencyDynamicNonMergeableTarget)
         }
+
         references.formUnion(otherTargetFrameworks.lazy.compactMap { self.dependencyReference(
             to: $0,
             from: .target(name: name, path: path)
         ) })
+
         // Exclude any products embed in unit test host apps
         if target.target.product == .unitTests {
             if let hostApp = unitTestHost(path: path, name: name) {
@@ -341,6 +344,7 @@ public class GraphTraverser: GraphTraversing {
             .filter(isDependencyPrecompiledDynamicAndLinkable)
             .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
 
+
         references.formUnion(precompiledLibrariesAndFrameworks)
 
         // Static libraries and frameworks / Static libraries' dynamic libraries
@@ -392,6 +396,7 @@ public class GraphTraverser: GraphTraversing {
         let dynamicLibrariesAndFrameworks = graph.dependencies[.target(name: name, path: path), default: []]
             .filter(or(isDependencyDynamicLibrary, isDependencyFramework))
             .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
+
         references.formUnion(dynamicLibrariesAndFrameworks)
 
         return references

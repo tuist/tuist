@@ -25,14 +25,14 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         primaryBinaryPath: AbsolutePath,
         binaryPath: AbsolutePath,
         status: FrameworkStatus,
-        platformFilters: PlatformFilters
+        platformFilters: PlatformFilters = []
     )
     case library(
         path: AbsolutePath,
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
         product: Product,
-        platformFilters: PlatformFilters
+        platformFilters: PlatformFilters = []
     )
     case framework(
         path: AbsolutePath,
@@ -44,7 +44,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         architectures: [BinaryArchitecture],
         product: Product,
         status: FrameworkStatus,
-        platformFilters: PlatformFilters
+        platformFilters: PlatformFilters = []
     )
     case bundle(path: AbsolutePath, platformFilters: PlatformFilters)
     case product(target: String, productName: String, platformFilters: PlatformFilters)
