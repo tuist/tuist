@@ -1946,7 +1946,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     func testMap_whenSettingsContainsEnableExperimentalFeature_mapsToOtherSwiftFlags() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -1979,7 +1979,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-experimental-feature Foo"]]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: ["OTHER_SWIFT_FLAGS": ["-enable-experimental-feature Foo"]]
+                    ),
                 ]
             )
         )
