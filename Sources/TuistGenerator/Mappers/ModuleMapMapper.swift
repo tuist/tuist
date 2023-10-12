@@ -154,7 +154,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
             let dependentProject: Project
             let dependentTarget: Target
             switch dependency {
-            case let .target(name):
+            case let .target(name, _):
                 guard let dependentTargetFromName = targetsByName[name] else {
                     throw ModuleMapMapperError.invalidTargetDependency(
                         sourceProject: project.path,
@@ -164,7 +164,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 }
                 dependentProject = project
                 dependentTarget = dependentTargetFromName
-            case let .project(name, path):
+            case let .project(name, path, _):
                 guard let dependentProjectFromPath = projectsByPath[path],
                       let dependentTargetFromName = targetsByName[name]
                 else {

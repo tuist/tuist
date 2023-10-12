@@ -315,19 +315,19 @@ extension TargetDependency {
 
     fileprivate var name: String {
         switch self {
-        case let .target(name):
+        case let .target(name, _):
             return name
-        case let .project(target, _):
+        case let .project(target, _, _):
             return target
-        case let .framework(path, _):
+        case let .framework(path, _, _):
             return path.basename
-        case let .xcframework(path, _):
+        case let .xcframework(path, _, _):
             return path.basename
-        case let .library(path, _, _):
+        case let .library(path, _, _, _):
             return path.basename
-        case let .package(product, _):
+        case let .package(product, _, _):
             return product
-        case let .sdk(name, _):
+        case let .sdk(name, _, _):
             return name
         case .xctest:
             return "xctest"
