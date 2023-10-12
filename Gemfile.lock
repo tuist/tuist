@@ -135,7 +135,7 @@ GEM
     graphiql-rails (1.9.0)
       railties
       sprockets-rails
-    graphql (2.1.1)
+    graphql (2.1.2)
     graphql-schema_comparator (1.1.2)
       bundler (>= 1.14)
       graphql (>= 1.10, < 3.0)
