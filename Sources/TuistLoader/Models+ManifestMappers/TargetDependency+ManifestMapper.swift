@@ -33,58 +33,90 @@ extension TuistGraph.TargetDependency {
         platform: TuistGraph.Platform
     ) throws -> [TuistGraph.TargetDependency] {
         switch manifest {
-        case let .target(name):
-            return [.target(name: name)]
-        case let .project(target, projectPath):
-            return [.project(target: target, path: try generatorPaths.resolve(path: projectPath))]
-        case let .framework(frameworkPath, status):
+        case let .target(name, platformFilters):
+            return [.target(name: name, platformFilters: platformFilters.asGraphFilters)]
+        case let .project(target, projectPath, platformFilters):
+            return [.project(target: target, path: try generatorPaths.resolve(path: projectPath), platformFilters: platformFilters.asGraphFilters)]
+        case let .framework(frameworkPath, status, platformFilters):
             return [
                 .framework(
                     path: try generatorPaths.resolve(path: frameworkPath),
-                    status: .from(manifest: status)
+                    status: .from(manifest: status),
+                    platformFilters: platformFilters.asGraphFilters
                 ),
             ]
-        case let .library(libraryPath, publicHeaders, swiftModuleMap):
+        case let .library(libraryPath, publicHeaders, swiftModuleMap, platformFilters):
             return [
                 .library(
                     path: try generatorPaths.resolve(path: libraryPath),
                     publicHeaders: try generatorPaths.resolve(path: publicHeaders),
-                    swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) }
+                    swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) },
+                    platformFilters: platformFilters.asGraphFilters
                 ),
             ]
-        case let .package(product, type):
+        case let .package(product, type, platformFilters):
             switch type {
             case .macro:
-                return [.package(product: product, type: .macro)]
+                return [.package(product: product, type: .macro, platformFilters: platformFilters.asGraphFilters)]
             case .runtime:
-                return [.package(product: product, type: .runtime)]
+                return [.package(product: product, type: .runtime, platformFilters: platformFilters.asGraphFilters)]
             case .plugin:
-                return [.package(product: product, type: .plugin)]
+                return [.package(product: product, type: .plugin, platformFilters: platformFilters.asGraphFilters)]
             }
-        case let .packagePlugin(product):
+        case let .packagePlugin(product, _):
             logger.warning(".packagePlugin is deprecated. Use .package(product:, type: .plugin) instead.")
             return [.package(product: product, type: .plugin)]
-        case let .sdk(name, type, status):
+        case let .sdk(name, type, status, platformFilters):
             return [
                 .sdk(
                     name: "\(type.filePrefix)\(name).\(type.fileExtension)",
-                    status: .from(manifest: status)
+                    status: .from(manifest: status),
+                    platformFilters: platformFilters.asGraphFilters
                 ),
             ]
-        case let .xcframework(path, status):
+        case let .xcframework(path, status, platformFilters):
             return [
                 .xcframework(
                     path: try generatorPaths.resolve(path: path),
-                    status: .from(manifest: status)
+                    status: .from(manifest: status),
+                    platformFilters: platformFilters.asGraphFilters
                 ),
             ]
         case .xctest:
             return [.xctest]
-        case let .external(name):
+        case let .external(name, _):
+            // Welp dependencies.swift needs more work to support these
             guard let dependencies = externalDependencies[platform]?[name] else {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name, platform: platform.rawValue)
             }
             return dependencies
+        }
+    }
+}
+
+extension ProjectDescription.PlatformFilters {
+    var asGraphFilters: TuistGraph.PlatformFilters {
+        Set<TuistGraph.PlatformFilter>(map(\.graphPlatformFilter))
+    }
+}
+
+extension ProjectDescription.PlatformFilter {
+    fileprivate var graphPlatformFilter: TuistGraph.PlatformFilter {
+        switch self {
+        case .ios:
+                .ios
+        case .macos:
+                .macos
+        case .tvos:
+                .tvos
+        case .catalyst:
+                .catalyst
+        case .driverkit:
+                .driverkit
+        case .watchos:
+                .watchos
+        case .visionos:
+                .visionos
         }
     }
 }

@@ -37,8 +37,8 @@ let project = Project(
             sources: "App/**",
             dependencies: [
                 .sdk(name: "CloudKit", type: .framework, status: .required),
-                .sdk(name: "ARKit", type: .framework, status: .required),
-                .sdk(name: "MobileCoreServices", type: .framework, status: .required),
+                .sdk(name: "ARKit", type: .framework, status: .required, platformFilters: [.ios]),
+                .sdk(name: "MobileCoreServices", type: .framework, status: .required, platformFilters: [.ios]),
             ]
         ),
         Multiplatform.Target(
