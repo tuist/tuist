@@ -33,7 +33,7 @@ public enum Tuist {
         // Otherwise, fallback to go
         let tuistBinaryPath = ProcessInfo.processInfo.environment["TUIST_CONFIG_BINARY_PATH"] ?? "tuist"
         let temporaryDirectory = try createTemporaryDirectory()
-        
+
         do {
             let graphPath = temporaryDirectory.appendingPathComponent("graph.json")
             var arguments = [
@@ -63,7 +63,7 @@ public enum Tuist {
             throw error
         }
     }
-    
+
     private static func createTemporaryDirectory() throws -> URL {
         let temporaryDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
         let temporaryFolderURL = temporaryDirectoryURL.appendingPathComponent(UUID().uuidString)
@@ -74,27 +74,30 @@ public enum Tuist {
     private static func run(
         _ launchPath: String,
         _ arguments: [String],
-        environment: [String: String]
+        environment _: [String: String]
     ) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: launchPath)
         process.arguments = arguments
-        
+
         let outputPipe = Pipe()
         let errorPipe = Pipe()
         process.standardOutput = outputPipe
         process.standardError = errorPipe
-            
+
         try process.run()
         process.waitUntilExit()
-                
+
         var command = [launchPath]
         command.append(contentsOf: arguments)
-        
+
         if process.terminationStatus != 0 {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            throw Tuist.TuistError.terminated(command: command.joined(separator: ""), code: process.terminationStatus, standardError: errorData)
+            throw Tuist.TuistError.terminated(
+                command: command.joined(separator: ""),
+                code: process.terminationStatus,
+                standardError: errorData
+            )
         }
     }
 }
-
