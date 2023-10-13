@@ -9,8 +9,7 @@
         func createProject(
             name: String,
             organization: String?,
-            serverURL: String?,
-            path: String?
+            directory: String?
         ) async throws
     }
 
@@ -55,13 +54,16 @@
         func createProject(
             name: String,
             organization: String?,
-            serverURL: String?,
-            path: String?
+            directory: String?
         ) async throws {
-            let cloudURL = try cloudURLService.url(serverURL: serverURL)
-
-            let path = try self.path(path)
-            let config = try configLoader.loadConfig(path: path)
+            let directoryPath: AbsolutePath
+            if let directory {
+                directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            } else {
+                directoryPath = FileHandler.shared.currentPath
+            }
+            let config = try self.configLoader.loadConfig(path: directoryPath)
+            let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
 
             if config.cloud != nil {
                 throw CloudInitServiceError.cloudAlreadySetUp
@@ -73,8 +75,8 @@
                 serverURL: cloudURL
             )
 
-            if configLoader.locateConfig(at: path) == nil {
-                let tuistDirectoryPath = path.appending(component: Constants.tuistDirectoryName)
+            if configLoader.locateConfig(at: directoryPath) == nil {
+                let tuistDirectoryPath = directoryPath.appending(component: Constants.tuistDirectoryName)
                 if !FileHandler.shared.exists(tuistDirectoryPath) {
                     try FileHandler.shared.createFolder(tuistDirectoryPath)
                 }
@@ -87,7 +89,7 @@
                     )
 
                     """,
-                    path: tuistDirectoryPath.appending(component: Manifest.config.fileName(path)),
+                    path: tuistDirectoryPath.appending(component: Manifest.config.fileName(directoryPath)),
                     atomically: true
                 )
                 logger.info(
@@ -102,16 +104,6 @@
                     cloud: .cloud(projectId: "\(project.fullName)", url: "\(cloudURL)")
                     """
                 )
-            }
-        }
-
-        // MARK: - Helpers
-
-        private func path(_ path: String?) throws -> AbsolutePath {
-            if let path {
-                return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-            } else {
-                return FileHandler.shared.currentPath
             }
         }
     }

@@ -19,7 +19,7 @@ struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory that contains the definition of the project.",
+        help: "The path to the directory or a subdirectory of the project.",
         completion: .directory
     )
     var path: String?

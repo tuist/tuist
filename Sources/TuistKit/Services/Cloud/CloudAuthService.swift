@@ -4,31 +4,42 @@
     import TuistCore
     import TuistLoader
     import TuistSupport
+    import TSCBasic
 
     protocol CloudAuthServicing: AnyObject {
         func authenticate(
-            serverURL: String?
+            directory: String?
         ) throws
     }
 
     final class CloudAuthService: CloudAuthServicing {
         private let cloudSessionController: CloudSessionControlling
         private let cloudURLService: CloudURLServicing
-
+        private let configLoader: ConfigLoading
+        
         init(
             cloudSessionController: CloudSessionControlling = CloudSessionController(),
-            cloudURLService: CloudURLServicing = CloudURLService()
+            cloudURLService: CloudURLServicing = CloudURLService(),
+            configLoader: ConfigLoading = ConfigLoader()
         ) {
             self.cloudSessionController = cloudSessionController
             self.cloudURLService = cloudURLService
+            self.configLoader = configLoader
         }
 
         // MARK: - CloudAuthServicing
 
         func authenticate(
-            serverURL: String?
+            directory: String?
         ) throws {
-            let cloudURL = try cloudURLService.url(serverURL: serverURL)
+            let directoryPath: AbsolutePath
+            if let directory {
+                directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            } else {
+                directoryPath = FileHandler.shared.currentPath
+            }
+            let config = try self.configLoader.loadConfig(path: directoryPath)
+            let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
             try cloudSessionController.authenticate(serverURL: cloudURL)
         }
     }

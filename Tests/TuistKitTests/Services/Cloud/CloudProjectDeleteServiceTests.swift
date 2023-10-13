@@ -4,13 +4,18 @@
     import TuistCloudTesting
     import TuistSupport
     import TuistSupportTesting
+    import TuistLoaderTesting
+    import TuistGraph
     import XCTest
+
     @testable import TuistKit
 
     final class CloudProjectDeleteServiceTests: TuistUnitTestCase {
         private var getProjectService: MockGetProjectService!
         private var deleteProjectService: MockDeleteProjectService!
         private var credentialsStore: MockCredentialsStore!
+        private var configLoader: MockConfigLoader!
+        private var cloudURL: URL!
         private var subject: CloudProjectDeleteService!
 
         override func setUp() {
@@ -19,10 +24,14 @@
             getProjectService = .init()
             deleteProjectService = .init()
             credentialsStore = .init()
+            configLoader = MockConfigLoader()
+            cloudURL = URL(string: "https://test.cloud.tuist.io")!
+            configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL))}
             subject = CloudProjectDeleteService(
                 deleteProjectService: deleteProjectService,
                 getProjectService: getProjectService,
-                credentialsStore: credentialsStore
+                credentialsStore: credentialsStore,
+                configLoader: configLoader
             )
         }
 
@@ -30,6 +39,8 @@
             deleteProjectService = nil
             getProjectService = nil
             credentialsStore = nil
+            configLoader = nil
+            cloudURL = nil
             subject = nil
 
             super.tearDown()
@@ -49,7 +60,7 @@
             ] = .init(token: "token", account: "account")
 
             // When
-            try await subject.run(projectName: "project", organizationName: "tuist", serverURL: nil)
+            try await subject.run(projectName: "project", organizationName: "tuist", directory: nil)
 
             // Then
             XCTAssertEqual(0, gotProjectId)
