@@ -1210,6 +1210,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "dcramps",
+      "name": "dc",
+      "avatar_url": "https://avatars.githubusercontent.com/u/643865?v=4",
+      "profile": "http://dc.wtf",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
