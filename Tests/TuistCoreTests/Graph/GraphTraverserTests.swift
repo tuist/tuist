@@ -4074,7 +4074,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 path: "/xcframeworks/framework-transitive.xcframework",
                 infoPlist: .test(libraries: [.test(
                     identifier: "id",
-                    path: RelativePath("path"),
+                    path: try RelativePath(validating: "path"),
                     architectures: [.arm64]
                 )]),
                 primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
