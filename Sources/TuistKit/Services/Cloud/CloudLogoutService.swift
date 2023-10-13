@@ -1,10 +1,10 @@
 #if canImport(TuistCloud)
     import Foundation
+    import TSCBasic
     import TuistCloud
     import TuistCore
     import TuistLoader
     import TuistSupport
-    import TSCBasic
 
     protocol CloudLogoutServicing: AnyObject {
         /// It removes any session associated to that domain from
@@ -38,7 +38,7 @@
             } else {
                 directoryPath = FileHandler.shared.currentPath
             }
-            let config = try self.configLoader.loadConfig(path: directoryPath)
+            let config = try configLoader.loadConfig(path: directoryPath)
             let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
             try cloudSessionController.logout(serverURL: cloudURL)
         }

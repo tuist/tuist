@@ -10,7 +10,6 @@
     import TuistLoaderTesting
     import TuistSupport
     import XCTest
-    
     @testable import TuistKit
     @testable import TuistSupportTesting
 
@@ -19,14 +18,14 @@
         private var configLoader: MockConfigLoader!
         private var cloudURL: URL!
         private var subject: CloudAuthService!
-        
+
         override func setUp() {
             super.setUp()
             cloudSessionController = MockCloudSessionController()
             configLoader = MockConfigLoader()
             cloudURL = URL(string: "https://test.cloud.tuist.io")!
-            configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL))}
-            
+            configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL)) }
+
             subject = CloudAuthService(
                 cloudSessionController: cloudSessionController,
                 configLoader: configLoader
@@ -43,7 +42,7 @@
 
         func test_authenticate() throws {
             // When
-            
+
             try subject.authenticate(directory: nil)
 
             // Then

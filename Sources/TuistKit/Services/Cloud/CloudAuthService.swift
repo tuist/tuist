@@ -1,10 +1,10 @@
 #if canImport(TuistCloud)
     import Foundation
+    import TSCBasic
     import TuistCloud
     import TuistCore
     import TuistLoader
     import TuistSupport
-    import TSCBasic
 
     protocol CloudAuthServicing: AnyObject {
         func authenticate(
@@ -16,7 +16,7 @@
         private let cloudSessionController: CloudSessionControlling
         private let cloudURLService: CloudURLServicing
         private let configLoader: ConfigLoading
-        
+
         init(
             cloudSessionController: CloudSessionControlling = CloudSessionController(),
             cloudURLService: CloudURLServicing = CloudURLService(),
@@ -38,7 +38,7 @@
             } else {
                 directoryPath = FileHandler.shared.currentPath
             }
-            let config = try self.configLoader.loadConfig(path: directoryPath)
+            let config = try configLoader.loadConfig(path: directoryPath)
             let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
             try cloudSessionController.authenticate(serverURL: cloudURL)
         }

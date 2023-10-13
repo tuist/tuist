@@ -62,7 +62,7 @@
             } else {
                 directoryPath = FileHandler.shared.currentPath
             }
-            let config = try self.configLoader.loadConfig(path: directoryPath)
+            let config = try configLoader.loadConfig(path: directoryPath)
             let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
 
             if config.cloud != nil {

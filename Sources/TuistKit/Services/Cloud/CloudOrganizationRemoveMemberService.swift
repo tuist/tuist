@@ -17,7 +17,7 @@
         private let removeOrganizationMemberService: RemoveOrganizationMemberServicing
         private let cloudURLService: CloudURLServicing
         private let configLoader: ConfigLoading
-        
+
         init(
             removeOrganizationMemberService: RemoveOrganizationMemberServicing = RemoveOrganizationMemberService(),
             cloudURLService: CloudURLServicing = CloudURLService(),
@@ -39,7 +39,7 @@
             } else {
                 directoryPath = FileHandler.shared.currentPath
             }
-            let config = try self.configLoader.loadConfig(path: directoryPath)
+            let config = try configLoader.loadConfig(path: directoryPath)
             let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
 
             try await removeOrganizationMemberService.removeOrganizationMember(

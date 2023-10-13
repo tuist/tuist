@@ -17,7 +17,7 @@
         private let createProjectService: CreateProjectServicing
         private let cloudURLService: CloudURLServicing
         private let configLoader: ConfigLoading
-        
+
         init(
             createProjectService: CreateProjectServicing = CreateProjectService(),
             cloudURLService: CloudURLServicing = CloudURLService(),
@@ -39,8 +39,8 @@
             } else {
                 directoryPath = FileHandler.shared.currentPath
             }
-            let config = try self.configLoader.loadConfig(path: directoryPath)
-            
+            let config = try configLoader.loadConfig(path: directoryPath)
+
             let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
 
             let project = try await createProjectService.createProject(

@@ -21,7 +21,7 @@
 
         func run() throws {
             try CloudAuthService().authenticate(
-                directory: self.path
+                directory: path
             )
         }
     }

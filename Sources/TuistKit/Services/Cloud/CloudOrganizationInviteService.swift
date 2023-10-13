@@ -17,7 +17,7 @@
         private let createOrganizationInviteService: CreateOrganizationInviteServicing
         private let cloudURLService: CloudURLServicing
         private let configLoader: ConfigLoading
-        
+
         init(
             createOrganizationInviteService: CreateOrganizationInviteServicing = CreateOrganizationInviteService(),
             cloudURLService: CloudURLServicing = CloudURLService(),
@@ -39,9 +39,8 @@
             } else {
                 directoryPath = FileHandler.shared.currentPath
             }
-            let config = try self.configLoader.loadConfig(path: directoryPath)
+            let config = try configLoader.loadConfig(path: directoryPath)
             let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
-
 
             let invitation = try await createOrganizationInviteService.createOrganizationInvite(
                 organizationName: organizationName,

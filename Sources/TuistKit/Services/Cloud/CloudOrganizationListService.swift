@@ -16,7 +16,7 @@
         private let listOrganizationsService: ListOrganizationsServicing
         private let cloudURLService: CloudURLServicing
         private let configLoader: ConfigLoading
-        
+
         init(
             listOrganizationsService: ListOrganizationsServicing = ListOrganizationsService(),
             cloudURLService: CloudURLServicing = CloudURLService(),
@@ -37,7 +37,7 @@
             } else {
                 directoryPath = FileHandler.shared.currentPath
             }
-            let config = try self.configLoader.loadConfig(path: directoryPath)
+            let config = try configLoader.loadConfig(path: directoryPath)
             let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
 
             let organizations = try await listOrganizationsService.listOrganizations(

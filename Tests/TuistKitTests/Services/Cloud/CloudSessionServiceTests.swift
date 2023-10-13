@@ -19,13 +19,13 @@
         private var subject: CloudSessionService!
         private var configLoader: MockConfigLoader!
         private var cloudURL: URL!
-        
+
         override func setUp() {
             super.setUp()
             cloudSessionController = MockCloudSessionController()
             configLoader = MockConfigLoader()
             cloudURL = URL(string: "https://test.cloud.tuist.io")!
-            configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL))}
+            configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL)) }
             subject = CloudSessionService(
                 cloudSessionController: cloudSessionController,
                 configLoader: configLoader

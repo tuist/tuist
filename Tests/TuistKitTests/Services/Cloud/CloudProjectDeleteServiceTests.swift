@@ -2,10 +2,10 @@
     import Foundation
     import TuistCloud
     import TuistCloudTesting
+    import TuistGraph
+    import TuistLoaderTesting
     import TuistSupport
     import TuistSupportTesting
-    import TuistLoaderTesting
-    import TuistGraph
     import XCTest
 
     @testable import TuistKit
@@ -26,7 +26,7 @@
             credentialsStore = .init()
             configLoader = MockConfigLoader()
             cloudURL = URL(string: "https://test.cloud.tuist.io")!
-            configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL))}
+            configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL)) }
             subject = CloudProjectDeleteService(
                 deleteProjectService: deleteProjectService,
                 getProjectService: getProjectService,

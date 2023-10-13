@@ -25,7 +25,7 @@
             completion: .directory
         )
         var path: String?
-        
+
         func run() async throws {
             try await CloudOrganizationDeleteService().run(
                 organizationName: organizationName,

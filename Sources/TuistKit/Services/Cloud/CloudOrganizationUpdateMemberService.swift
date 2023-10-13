@@ -18,7 +18,7 @@
         private let updateOrganizationMemberService: UpdateOrganizationMemberServicing
         private let cloudURLService: CloudURLServicing
         private let configLoader: ConfigLoading
-        
+
         init(
             updateOrganizationMemberService: UpdateOrganizationMemberServicing = UpdateOrganizationMemberService(),
             cloudURLService: CloudURLServicing = CloudURLService(),
@@ -41,8 +41,8 @@
             } else {
                 directoryPath = FileHandler.shared.currentPath
             }
-            let config = try self.configLoader.loadConfig(path: directoryPath)
-            
+            let config = try configLoader.loadConfig(path: directoryPath)
+
             let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
             let member = try await updateOrganizationMemberService.updateOrganizationMember(
                 organizationName: organizationName,

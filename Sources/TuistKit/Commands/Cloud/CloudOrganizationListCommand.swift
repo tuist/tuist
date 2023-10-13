@@ -24,7 +24,7 @@
             completion: .directory
         )
         var path: String?
-        
+
         func run() async throws {
             try await CloudOrganizationListService().run(
                 json: json,
