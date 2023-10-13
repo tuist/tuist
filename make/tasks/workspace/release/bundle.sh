@@ -63,21 +63,21 @@ build_fat_release_binary() {
     ARM64_TARGET=arm64-apple-macosx 
     X86_64_TARGET=x86_64-apple-macosx
 
-    swift build \
+   DEVELOPER_DIR=$XCODE_PATH swift build \
         --configuration release \
         --disable-sandbox \
         --product $1 \
         --build-path $TMP_DIR \
         --triple $ARM64_TARGET
 
-    swift build \
+    DEVELOPER_DIR=$XCODE_PATH swift build \
         --configuration release \
         --disable-sandbox \
         --product $1 \
         --build-path $TMP_DIR \
         --triple $X86_64_TARGET
 
-    lipo -create \
+    DEVELOPER_DIR=$XCODE_PATH lipo -create \
         -output $BUILD_DIRECTORY/$1 \
         $TMP_DIR/$ARM64_TARGET/release/$1 \
         $TMP_DIR/$X86_64_TARGET/release/$1
