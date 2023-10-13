@@ -33,7 +33,7 @@
 
         @Option(
             name: .shortAndLong,
-            help: "The path to the Tuist Cloud project.",
+            help: "The path to the directory or a subdirectory of the project.",
             completion: .directory
         )
         var path: String?
@@ -42,8 +42,7 @@
             try await CloudInitService().createProject(
                 name: name,
                 organization: organization,
-                serverURL: serverURL,
-                path: path
+                directory: path
             )
         }
     }

@@ -1,5 +1,6 @@
 #if canImport(TuistCloud)
     import Foundation
+    import TSCBasic
     import TuistCloud
     import TuistCore
     import TuistLoader
@@ -9,26 +10,36 @@
         /// It removes any session associated to that domain from
         /// the keychain
         func logout(
-            serverURL: String?
+            directory: String?
         ) throws
     }
 
     final class CloudLogoutService: CloudLogoutServicing {
         private let cloudSessionController: CloudSessionControlling
         private let cloudURLService: CloudURLServicing
+        private let configLoader: ConfigLoading
 
         init(
             cloudSessionController: CloudSessionControlling = CloudSessionController(),
-            cloudURLService: CloudURLServicing = CloudURLService()
+            cloudURLService: CloudURLServicing = CloudURLService(),
+            configLoader: ConfigLoading = ConfigLoader()
         ) {
             self.cloudSessionController = cloudSessionController
             self.cloudURLService = cloudURLService
+            self.configLoader = configLoader
         }
 
         func logout(
-            serverURL: String?
+            directory: String?
         ) throws {
-            let cloudURL = try cloudURLService.url(serverURL: serverURL)
+            let directoryPath: AbsolutePath
+            if let directory {
+                directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            } else {
+                directoryPath = FileHandler.shared.currentPath
+            }
+            let config = try configLoader.loadConfig(path: directoryPath)
+            let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
             try cloudSessionController.logout(serverURL: cloudURL)
         }
     }

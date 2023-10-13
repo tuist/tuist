@@ -431,6 +431,9 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://macpaw.com/"><img src="https://avatars.githubusercontent.com/u/119268?v=4" width="100px;" alt=""/><br /><sub><b>Paul Taykalo</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/in4lio"><img src="https://avatars.githubusercontent.com/u/976061?v=4" width="100px;" alt=""/><br /><sub><b>Vitaly Kravtsov</b></sub></a></td>
     </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="http://dc.wtf"><img src="https://avatars.githubusercontent.com/u/643865?v=4" width="100px;" alt=""/><br /><sub><b>dc</b></sub></a></td>
+    </tr>
   </tbody>
 </table>
 

@@ -9,28 +9,38 @@
         func run(
             organizationName: String,
             email: String,
-            serverURL: String?
+            directory: String?
         ) async throws
     }
 
     final class CloudOrganizationRemoveInviteService: CloudOrganizationRemoveInviteServicing {
         private let cancelOrganizationRemoveInviteService: CancelOrganizationInviteServicing
         private let cloudURLService: CloudURLServicing
+        private let configLoader: ConfigLoading
 
         init(
             cancelOrganizationRemoveInviteService: CancelOrganizationInviteServicing = CancelOrganizationInviteService(),
-            cloudURLService: CloudURLServicing = CloudURLService()
+            cloudURLService: CloudURLServicing = CloudURLService(),
+            configLoader: ConfigLoading = ConfigLoader()
         ) {
             self.cancelOrganizationRemoveInviteService = cancelOrganizationRemoveInviteService
             self.cloudURLService = cloudURLService
+            self.configLoader = configLoader
         }
 
         func run(
             organizationName: String,
             email: String,
-            serverURL: String?
+            directory: String?
         ) async throws {
-            let cloudURL = try cloudURLService.url(serverURL: serverURL)
+            let directoryPath: AbsolutePath
+            if let directory {
+                directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            } else {
+                directoryPath = FileHandler.shared.currentPath
+            }
+            let config = try configLoader.loadConfig(path: directoryPath)
+            let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
 
             try await cancelOrganizationRemoveInviteService.cancelOrganizationInvite(
                 organizationName: organizationName,

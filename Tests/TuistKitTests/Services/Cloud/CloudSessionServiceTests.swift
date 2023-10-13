@@ -17,27 +17,35 @@
     final class CloudSessionServiceTests: TuistUnitTestCase {
         private var cloudSessionController: MockCloudSessionController!
         private var subject: CloudSessionService!
+        private var configLoader: MockConfigLoader!
+        private var cloudURL: URL!
 
         override func setUp() {
             super.setUp()
             cloudSessionController = MockCloudSessionController()
+            configLoader = MockConfigLoader()
+            cloudURL = URL(string: "https://test.cloud.tuist.io")!
+            configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL)) }
             subject = CloudSessionService(
-                cloudSessionController: cloudSessionController
+                cloudSessionController: cloudSessionController,
+                configLoader: configLoader
             )
         }
 
         override func tearDown() {
             cloudSessionController = nil
+            configLoader = nil
+            cloudURL = nil
             subject = nil
             super.tearDown()
         }
 
         func test_printSession() throws {
             // When
-            try subject.printSession(serverURL: nil)
+            try subject.printSession(directory: nil)
 
             // Then
-            XCTAssertTrue(cloudSessionController.printSessionArgs.contains(URL(string: Constants.tuistCloudURL)!))
+            XCTAssertTrue(cloudSessionController.printSessionArgs.contains(cloudURL))
         }
     }
 #endif

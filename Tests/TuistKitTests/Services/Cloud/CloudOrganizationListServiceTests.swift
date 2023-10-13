@@ -2,6 +2,8 @@
     import Foundation
     import TuistCloud
     import TuistCloudTesting
+    import TuistGraph
+    import TuistLoaderTesting
     import TuistSupportTesting
     import XCTest
     @testable import TuistKit
@@ -9,13 +11,20 @@
     final class CloudOrganizationListServiceTests: TuistUnitTestCase {
         private var listOrganizationsService: MockListOrganizationsService!
         private var subject: CloudOrganizationListService!
+        private var configLoader: MockConfigLoader!
+        private var cloudURL: URL!
 
         override func setUp() {
             super.setUp()
 
             listOrganizationsService = .init()
+            configLoader = MockConfigLoader()
+            cloudURL = URL(string: "https://test.cloud.tuist.io")!
+            configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL)) }
+
             subject = CloudOrganizationListService(
-                listOrganizationsService: listOrganizationsService
+                listOrganizationsService: listOrganizationsService,
+                configLoader: configLoader
             )
         }
 
@@ -36,7 +45,7 @@
             }
 
             // When
-            try await subject.run(json: false, serverURL: nil)
+            try await subject.run(json: false, directory: nil)
 
             // Then
             XCTAssertPrinterOutputContains("""
@@ -53,7 +62,7 @@
             }
 
             // When
-            try await subject.run(json: false, serverURL: nil)
+            try await subject.run(json: false, directory: nil)
 
             // Then
             XCTAssertPrinterOutputContains(
