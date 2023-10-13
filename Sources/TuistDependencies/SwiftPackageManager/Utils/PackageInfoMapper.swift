@@ -870,11 +870,8 @@ extension ProjectDescription.TargetDependency {
                 return .sdk(name: setting.value[0], type: .framework, status: .required)
             case (.linker, .linkedLibrary):
                 return .sdk(name: setting.value[0], type: .library, status: .required)
-            case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath), (.linker, .define), (
-                _,
-                .enableExperimentalFeature
-            ),
-            (.linker, .unsafeFlags):
+            case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath),
+                 (.linker, .define), (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
                 return nil
             }
         }
