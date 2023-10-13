@@ -187,10 +187,7 @@ var targets: [Target] = [
         ]
     ),
     .target(
-        name: "ProjectAutomation",
-        dependencies: [
-            swiftToolsSupportDependency,
-        ]
+        name: "ProjectAutomation"
     ),
     .target(
         name: "TuistSupport",
@@ -634,6 +631,7 @@ let package = Package(
         ),
         .library(
             name: "ProjectAutomation",
+            type: .dynamic,
             targets: ["ProjectAutomation"]
         ),
         .library(

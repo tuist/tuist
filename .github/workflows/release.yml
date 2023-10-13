@@ -71,13 +71,19 @@ jobs:
   release:
     runs-on: macos-13
     needs: prepare-release
+    environment: release
     steps:
     - uses: actions/checkout@v3
       with:
         ref: ${{ needs.prepare-release.outputs.commit_hash }}
+        token: ${{ secrets.GH_RELEASE_TOKEN }}
+      run: brew install gnupg
+    - name: Up workspace
+      if: ${{ github.event.inputs.publish == 'true' }}
+      run: make workspace/up
     - name: Build artifacts
       if: ${{ github.event.inputs.publish == 'true' }}
-      run: ARGS="--xcode-version $(cat .xcode-version) --libraries-xcode-version $(cat .xcode-version-libraries) --build-dir ./build" make release/bundle
+      run: make release/bundle
     - name: Create GitHub Release
       if: ${{ github.event.inputs.publish == 'true' }}
       uses: softprops/action-gh-release@v1

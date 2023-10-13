@@ -7,7 +7,9 @@ ROOT_DIR=$($SCRIPT_DIR/../../../utilities/root_dir.sh)
 source $ROOT_DIR/make/utilities/setup.sh
 XCODE_PATH_SCRIPT_PATH=$SCRIPT_DIR/../../../utilities/xcode_path.sh
 BUILD_DIRECTORY=$ROOT_DIR/build
-TMP_DIR=$(mktemp -d)
+# Xcode 15 has a bug that causes the /var/folders... temporary directory, which is a symlink to
+# /private/var/folders to crash Xcode.
+TMP_DIR=/private$(mktemp -d)
 trap "rm -rf $TMP_DIR" EXIT # Ensures it gets deleted
 XCODE_VERSION=$(cat $ROOT_DIR/.xcode-version)
 LIBRARIES_XCODE_VERSION=$(cat $ROOT_DIR/.xcode-version-libraries)
@@ -42,6 +44,19 @@ build_fat_release_library() {
     )
 }
 
+build_xcframework_library() {
+    (
+    cd $ROOT_DIR || exit 1
+    DEVELOPER_DIR=$XCODE_LIBRARIES_PATH xcrun xcodebuild -resolvePackageDependencies
+    DEVELOPER_DIR=$XCODE_LIBRARIES_PATH xcrun xcodebuild -scheme $1 -configuration Release -destination platform=macosx BUILD_LIBRARY_FOR_DISTRIBUTION=YES ARCHS='arm64 x86_64' BUILD_DIR=$TMP_DIR clean build
+    
+    xcodebuild -create-xcframework \
+           -framework $TMP_DIR/Release/PackageFrameworks/$1.framework \
+           -output $BUILD_DIRECTORY/$1.xcframework    
+    cp -r $TMP_DIR/Release/$1.framework.dSYM $BUILD_DIRECTORY/$1.xcframework.dSYM
+    )
+}
+
 build_fat_release_binary() {
     (
     cd $ROOT_DIR || exit 1
@@ -53,7 +68,13 @@ build_fat_release_binary() {
         --disable-sandbox \
         --product $1 \
         --build-path $TMP_DIR \
-        --triple $ARM64_TARGET \
+        --triple $ARM64_TARGET
+
+    swift build \
+        --configuration release \
+        --disable-sandbox \
+        --product $1 \
+        --build-path $TMP_DIR \
         --triple $X86_64_TARGET
 
     lipo -create \
@@ -63,15 +84,56 @@ build_fat_release_binary() {
     )
 }
 
-echo "$(format_subsection "Building ProjectDescription")"
+echo "$(format_section "Building")"
+
+echo "$(format_subsection "Building ProjectDescription framework")"
 build_fat_release_library "ProjectDescription"
 
-echo "$(format_subsection "Tuist")"
+echo "$(format_subsection "Building ProjectAutomation framework")"
+build_xcframework_library "ProjectAutomation"
+
+echo "$(format_subsection "Building tuist executable")"
 build_fat_release_binary "tuist"
 
-# TODO
-# Copy the vendor directory
-# Copy the template directory
-# Run stdlib-tool tool
-# Compress
-# Generate checksums
+echo "$(format_subsection "Building tuist executable")"
+build_fat_release_binary "tuistenv"
+
+echo "$(format_section "Copying assets")"
+
+echo "$(format_subsection "Copying Tuist's vendored resources")"
+cp -r $ROOT_DIR/projects/tuist/vendor $BUILD_DIRECTORY/vendor
+
+echo "$(format_subsection "Copying Tuist's templates")"
+cp -r $ROOT_DIR/Templates $BUILD_DIRECTORY/Templates
+
+echo "$(format_subsection "Copy Swift libraries into the Tuist binary")"
+swift stdlib-tool --copy --scan-executable $BUILD_DIRECTORY/tuist --platform macosx --destination $BUILD_DIRECTORY
+
+echo "$(format_section "Bundling")"
+
+(
+    cd $BUILD_DIRECTORY || exit 1
+    echo "$(format_subsection "Bundling tuistenv.zip")"
+    zip -q -r --symlinks tuistenv.zip tuistenv
+    echo "$(format_subsection "Bundling tuist.zip")"
+    zip -q -r --symlinks tuist.zip tuist libswift_Concurrency.dylib ProjectAutomation.xcframework ProjectAutomation.xcframework.dSYM ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor
+    echo "$(format_subsection "Bundling ProjectDescription.framework.zip")"
+    zip -q -r --symlinks ProjectDescription.framework.zip ProjectDescription.framework ProjectDescription.framework.dSYM
+    echo "$(format_subsection "Bundling ProjectAutomation.xcframework.zip")"
+    zip -q -r --symlinks ProjectAutomation.xcframework.zip ProjectAutomation.xcframework ProjectAutomation.xcframework.dSYM
+
+    rm -rf tuist tuistenv ProjectAutomation.xcframework ProjectAutomation.xcframework.dSYM ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor
+
+    : > SHASUMS256.txt
+    : > SHASUMS512.txt
+
+    for file in *; do
+        if [ -f "$file" ]; then
+            if [[ "$file" == "SHASUMS256.txt" || "$file" == "SHASUMS512.txt" ]]; then
+                continue
+            fi
+            echo "$(shasum -a 256 "$file" | awk '{print $1}') ./$file" >> SHASUMS256.txt
+            echo "$(shasum -a 512 "$file" | awk '{print $1}') ./$file" >> SHASUMS512.txt
+        fi
+    done
+)

@@ -20,24 +20,11 @@ env:
   TUIST_STATS_OPT_OUT: true
 
 jobs:
-  bundle-all:
-    name: Bundle tuist and tuistenv with Xcode
+  bundle:
+    name: Bundle
     runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v3
-        with:
-          path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
-      - name: Bundle install
+      - name: Bundle
         run: |
-          bundle config path vendor/bundle
-          bundle install --jobs 4 --retry 3
-      - name: Build
-        run: |
-          ARGS="--xcode-version $(cat .xcode-version) --libraries-xcode-version $(cat .xcode-version-libraries) --build-dir ./build" make release/bundle
+          make workspace/release/bundle
