@@ -364,6 +364,7 @@ extension PackageInfo.Target {
             case linkedFramework
             case unsafeFlags
             case enableUpcomingFeature
+            case enableExperimentalFeature
         }
 
         /// An individual build setting.
@@ -408,6 +409,7 @@ extension PackageInfo.Target {
                     case linkedFramework(String)
                     case unsafeFlags([String])
                     case enableUpcomingFeature(String)
+                    case enableExperimentalFeature(String)
                 }
 
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -433,6 +435,9 @@ extension PackageInfo.Target {
                         self.value = value
                     case let .enableUpcomingFeature(value):
                         name = .enableUpcomingFeature
+                        self.value = [value]
+                    case let .enableExperimentalFeature(value):
+                        name = .enableExperimentalFeature
                         self.value = [value]
                     }
                 } else {

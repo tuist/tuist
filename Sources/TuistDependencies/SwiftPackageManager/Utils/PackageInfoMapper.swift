@@ -870,8 +870,8 @@ extension ProjectDescription.TargetDependency {
                 return .sdk(name: setting.value[0], type: .framework, status: .required)
             case (.linker, .linkedLibrary):
                 return .sdk(name: setting.value[0], type: .library, status: .required)
-            case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath), (.linker, .define),
-                 (.linker, .unsafeFlags):
+            case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath),
+                 (.linker, .define), (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
                 return nil
             }
         }
@@ -980,6 +980,8 @@ extension ProjectDescription.Settings {
                     swiftFlags.append(contentsOf: setting.value)
                 case (.swift, .enableUpcomingFeature):
                     swiftFlags.append("-enable-upcoming-feature \(setting.value[0])")
+                case (.swift, .enableExperimentalFeature):
+                    swiftFlags.append("-enable-experimental-feature \(setting.value[0])")
                 case (.linker, .unsafeFlags):
                     linkerFlags.append(contentsOf: setting.value)
                 case (.linker, .linkedFramework), (.linker, .linkedLibrary):
@@ -988,7 +990,8 @@ extension ProjectDescription.Settings {
 
                 case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                      (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
-                     (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature):
+                     (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),
+                     (_, .enableExperimentalFeature):
                     throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
                 }
             }
