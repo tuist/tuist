@@ -19,15 +19,16 @@
         var json: Bool = false
 
         @Option(
-            name: .long,
-            help: "URL to the cloud server."
+            name: .shortAndLong,
+            help: "The path to the directory or a subdirectory of the project.",
+            completion: .directory
         )
-        var serverURL: String?
+        var path: String?
 
         func run() async throws {
             try await CloudOrganizationListService().run(
                 json: json,
-                serverURL: serverURL
+                directory: path
             )
         }
     }

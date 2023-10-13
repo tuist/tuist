@@ -14,6 +14,7 @@
         private var cloudSessionController: MockCloudSessionController!
         private var createProjectService: MockCreateProjectService!
         private var configLoader: MockConfigLoader!
+        private var cloudURL: URL!
         private var subject: CloudInitService!
 
         override func setUp() {
@@ -21,7 +22,7 @@
             cloudSessionController = MockCloudSessionController()
             createProjectService = MockCreateProjectService()
             configLoader = MockConfigLoader()
-
+            cloudURL = URL(string: "https://test.cloud.tuist.io")!
             subject = CloudInitService(
                 cloudSessionController: cloudSessionController,
                 createProjectService: createProjectService,
@@ -56,8 +57,7 @@
             try await subject.createProject(
                 name: "tuist",
                 organization: "tuist-org",
-                serverURL: nil,
-                path: nil
+                directory: nil
             )
 
             // Then
@@ -81,8 +81,7 @@
             try await subject.createProject(
                 name: "tuist",
                 organization: "tuist-org",
-                serverURL: nil,
-                path: nil
+                directory: nil
             )
 
             // Then
@@ -100,7 +99,7 @@
         func test_cloud_init_when_cloud_exists() async throws {
             // Given
             configLoader.loadConfigStub = { _ in
-                Config.test(cloud: Cloud.test())
+                Config.test(cloud: Cloud.test(url: self.cloudURL))
             }
 
             // When / Then
@@ -108,8 +107,7 @@
                 try await subject.createProject(
                     name: "tuist",
                     organization: "tuist-org",
-                    serverURL: Constants.tuistCloudURL,
-                    path: nil
+                    directory: nil
                 ),
                 CloudInitServiceError.cloudAlreadySetUp
             )

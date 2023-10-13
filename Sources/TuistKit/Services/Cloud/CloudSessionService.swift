@@ -1,5 +1,6 @@
 #if canImport(TuistCloud)
     import Foundation
+    import TSCBasic
     import TuistCloud
     import TuistCore
     import TuistLoader
@@ -9,30 +10,40 @@
         /// It prints any existing session in the keychain to authenticate
         /// on a server identified by that URL.
         func printSession(
-            serverURL: String?
+            directory: String?
         ) throws
     }
 
     final class CloudSessionService: CloudSessionServicing {
         private let cloudSessionController: CloudSessionControlling
         private let cloudURLService: CloudURLServicing
+        private let configLoader: ConfigLoading
 
         // MARK: - Init
 
         init(
             cloudSessionController: CloudSessionControlling = CloudSessionController(),
-            cloudURLService: CloudURLServicing = CloudURLService()
+            cloudURLService: CloudURLServicing = CloudURLService(),
+            configLoader: ConfigLoading = ConfigLoader()
         ) {
             self.cloudSessionController = cloudSessionController
             self.cloudURLService = cloudURLService
+            self.configLoader = configLoader
         }
 
         // MARK: - CloudAuthServicing
 
         func printSession(
-            serverURL: String?
+            directory: String?
         ) throws {
-            let cloudURL = try cloudURLService.url(serverURL: serverURL)
+            let directoryPath: AbsolutePath
+            if let directory {
+                directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            } else {
+                directoryPath = FileHandler.shared.currentPath
+            }
+            let config = try configLoader.loadConfig(path: directoryPath)
+            let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
             try cloudSessionController.printSession(serverURL: cloudURL)
         }
     }

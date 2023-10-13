@@ -24,16 +24,17 @@
         var username: String
 
         @Option(
-            name: .long,
-            help: "URL to the cloud server."
+            name: .shortAndLong,
+            help: "The path to the directory or a subdirectory of the project.",
+            completion: .directory
         )
-        var serverURL: String?
+        var path: String?
 
         func run() async throws {
             try await CloudOrganizationRemoveMemberService().run(
                 organizationName: organizationName,
                 username: username,
-                serverURL: serverURL
+                directory: path
             )
         }
     }

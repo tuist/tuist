@@ -2,6 +2,8 @@
     import Foundation
     import TuistCloud
     import TuistCloudTesting
+    import TuistGraph
+    import TuistLoaderTesting
     import TuistSupportTesting
     import XCTest
     @testable import TuistKit
@@ -9,20 +11,27 @@
     final class CloudOrganizationInviteServiceTests: TuistUnitTestCase {
         private var createOrganizationInviteService: MockCreateOrganizationInviteService!
         private var subject: CloudOrganizationInviteService!
+        private var configLoader: MockConfigLoader!
+        private var cloudURL: URL!
 
         override func setUp() {
             super.setUp()
 
             createOrganizationInviteService = .init()
+            configLoader = MockConfigLoader()
+            cloudURL = URL(string: "https://test.cloud.tuist.io")!
+            configLoader.loadConfigStub = { _ in Config.test(cloud: .test(url: self.cloudURL)) }
             subject = CloudOrganizationInviteService(
-                createOrganizationInviteService: createOrganizationInviteService
+                createOrganizationInviteService: createOrganizationInviteService,
+                configLoader: configLoader
             )
         }
 
         override func tearDown() {
             createOrganizationInviteService = nil
+            configLoader = nil
+            cloudURL = nil
             subject = nil
-
             super.tearDown()
         }
 
@@ -39,14 +48,14 @@
             try await subject.run(
                 organizationName: "tuist",
                 email: "tuist@test.io",
-                serverURL: nil
+                directory: nil
             )
 
             // Then
             XCTAssertPrinterOutputContains("""
             tuist@test.io was successfully invited to the tuist organization 🎉
 
-            You can also share with them the invite link directly: https://cloud.tuist.io/auth/invitations/invitation-token
+            You can also share with them the invite link directly: \(cloudURL.absoluteString)/auth/invitations/invitation-token
             """)
         }
     }

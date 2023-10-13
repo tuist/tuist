@@ -9,7 +9,7 @@
         func run(
             projectName: String,
             organizationName: String?,
-            serverURL: String?
+            directory: String?
         ) async throws
     }
 
@@ -17,23 +17,33 @@
         private let getProjectService: GetProjectServicing
         private let credentialsStore: CredentialsStoring
         private let cloudURLService: CloudURLServicing
+        private let configLoader: ConfigLoading
 
         init(
             getProjectService: GetProjectServicing = GetProjectService(),
             credentialsStore: CredentialsStoring = CredentialsStore(),
-            cloudURLService: CloudURLServicing = CloudURLService()
+            cloudURLService: CloudURLServicing = CloudURLService(),
+            configLoader: ConfigLoading = ConfigLoader()
         ) {
             self.getProjectService = getProjectService
             self.credentialsStore = credentialsStore
             self.cloudURLService = cloudURLService
+            self.configLoader = configLoader
         }
 
         func run(
             projectName: String,
             organizationName: String?,
-            serverURL: String?
+            directory: String?
         ) async throws {
-            let cloudURL = try cloudURLService.url(serverURL: serverURL)
+            let directoryPath: AbsolutePath
+            if let directory {
+                directoryPath = try AbsolutePath(validating: directory, relativeTo: FileHandler.shared.currentPath)
+            } else {
+                directoryPath = FileHandler.shared.currentPath
+            }
+            let config = try configLoader.loadConfig(path: directoryPath)
+            let cloudURL = try cloudURLService.url(configCloudURL: config.cloud?.url)
 
             let accountName: String
             if let organizationName {
