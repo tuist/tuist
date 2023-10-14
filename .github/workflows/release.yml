@@ -71,26 +71,19 @@ jobs:
   release:
     runs-on: macos-13
     needs: prepare-release
+    environment: release
     steps:
     - uses: actions/checkout@v3
       with:
         ref: ${{ needs.prepare-release.outputs.commit_hash }}
-    - uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: ${{ env.RUBY_VERSION }}
-    - uses: actions/cache@v3
-      with:
-        path: vendor/bundle
-        key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
-    - name: Bundle install
-      run: |
-        bundle config path vendor/bundle
-        bundle install --jobs 4 --retry 3
-    - name: Fourier release
+        token: ${{ secrets.GH_RELEASE_TOKEN }}
+      run: brew install gnupg
+    - name: Up workspace
       if: ${{ github.event.inputs.publish == 'true' }}
-      run: ./fourier release tuist ${{ needs.prepare-release.outputs.version }} $(cat .xcode-version) $(cat .xcode-version-libraries)
+      run: make workspace/up
+    - name: Build artifacts
+      if: ${{ github.event.inputs.publish == 'true' }}
+      run: make release/bundle
     - name: Create GitHub Release
       if: ${{ github.event.inputs.publish == 'true' }}
       uses: softprops/action-gh-release@v1

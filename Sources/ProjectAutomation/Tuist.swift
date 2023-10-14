@@ -1,5 +1,4 @@
 import Foundation
-import TSCBasic
 
 /// Tuist includes all methods to interact with your tuist project
 public enum Tuist {
@@ -33,13 +32,14 @@ public enum Tuist {
         // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
         // Otherwise, fallback to go
         let tuistBinaryPath = ProcessInfo.processInfo.environment["TUIST_CONFIG_BINARY_PATH"] ?? "tuist"
-        return try withTemporaryDirectory { temporaryDirectory -> Graph in
-            let graphPath = temporaryDirectory.appending(component: "graph.json")
+        let temporaryDirectory = try createTemporaryDirectory()
+
+        do {
+            let graphPath = temporaryDirectory.appendingPathComponent("graph.json")
             var arguments = [
-                tuistBinaryPath,
                 "graph",
                 "--format", "json",
-                "--output-path", graphPath.parentDirectory.pathString,
+                "--output-path", temporaryDirectory.path,
             ]
             if let path {
                 arguments += ["--path", path]
@@ -52,57 +52,52 @@ public enum Tuist {
                 }
             }
             try run(
+                tuistBinaryPath,
                 arguments,
                 environment: environment
             )
-            let graphData = try Data(contentsOf: graphPath.asURL)
+            let graphData = try Data(contentsOf: graphPath)
             return try JSONDecoder().decode(Graph.self, from: graphData)
+        } catch {
+            try FileManager.default.removeItem(at: temporaryDirectory)
+            throw error
         }
+    }
+
+    private static func createTemporaryDirectory() throws -> URL {
+        let temporaryDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory())
+        let temporaryFolderURL = temporaryDirectoryURL.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: temporaryFolderURL, withIntermediateDirectories: true, attributes: nil)
+        return temporaryFolderURL
     }
 
     private static func run(
+        _ launchPath: String,
         _ arguments: [String],
-        environment: [String: String]
+        environment _: [String: String]
     ) throws {
-        let process = Process(
-            arguments: arguments,
-            environment: environment,
-            outputRedirection: .none,
-            startNewProcessGroup: false
-        )
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: launchPath)
+        process.arguments = arguments
 
-        try process.launch()
-        let result = try process.waitUntilExit()
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
 
-        try result.throwIfErrored()
-    }
-}
+        try process.run()
+        process.waitUntilExit()
 
-extension ProcessResult {
-    /// Throws a TuistError if the result is unsuccessful.
-    ///
-    /// - Throws: A TuistError.
-    func throwIfErrored() throws {
-        switch exitStatus {
-        case let .signalled(code):
-            let data = Data(try stderrOutput.get())
-            throw Tuist.TuistError.signalled(command: command(), code: code, standardError: data)
-        case let .terminated(code):
-            if code != 0 {
-                let data = Data(try stderrOutput.get())
-                throw Tuist.TuistError.terminated(command: command(), code: code, standardError: data)
-            }
+        var command = [launchPath]
+        command.append(contentsOf: arguments)
+
+        if process.terminationStatus != 0 {
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            throw Tuist.TuistError.terminated(
+                command: command.joined(separator: ""),
+                code: process.terminationStatus,
+                standardError: errorData
+            )
         }
-    }
-
-    /// It returns the command that the process executed.
-    /// If the command is executed through xcrun, then the name of the tool is returned instead.
-    /// - Returns: Returns the command that the process executed.
-    func command() -> String {
-        let command = arguments.first!
-        if command == "/usr/bin/xcrun" {
-            return arguments[1]
-        }
-        return command
     }
 }

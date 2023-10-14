@@ -25,9 +25,6 @@ module Fourier
     desc "update", "Update project's components"
     subcommand "update", Commands::Update
 
-    desc "bundle", "Bundle tuist and tuistenv"
-    subcommand "bundle", Commands::Bundle
-
     desc "fixture", "Generate a fixture"
     option(
       :path,
@@ -77,9 +74,6 @@ module Fourier
     def check
       Services::Check.call
     end
-
-    desc "release", "Prepares the Tuist binary and dependencies for release"
-    subcommand "release", Commands::Release
 
     class << self
       def exit_on_failure?
