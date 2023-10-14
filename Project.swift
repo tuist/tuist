@@ -86,6 +86,7 @@ func targets() -> [Target] {
             name: "TuistSupport",
             hasIntegrationTests: true,
             dependencies: [
+                .external(name: "AnyCodable"),
                 .external(name: "ArgumentParser"),
                 .external(name: "Checksum"),
                 .external(name: "CombineExt"),
