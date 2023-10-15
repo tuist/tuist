@@ -306,26 +306,31 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let resourceSynthesizers: [ResourceSynthesizer] = [
             .init(
                 parser: .assets,
+                parserOptions: [:],
                 extensions: ["xcassets"],
                 template: .defaultTemplate("Assets")
             ),
             .init(
                 parser: .strings,
+                parserOptions: [:],
                 extensions: ["strings", "stringsdict"],
                 template: .file(stringsTemplatePath)
             ),
             .init(
                 parser: .plists,
+                parserOptions: [:],
                 extensions: ["plist"],
                 template: .defaultTemplate("Plists")
             ),
             .init(
                 parser: .fonts,
+                parserOptions: [:],
                 extensions: ["otf", "ttc", "ttf"],
                 template: .defaultTemplate("Fonts")
             ),
             .init(
                 parser: .json,
+                parserOptions: [:],
                 extensions: ["lottie"],
                 template: .file(lottieTemplatePath)
             ),
@@ -435,16 +440,19 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         [
             .init(
                 parser: .assets,
+                parserOptions: [:],
                 extensions: ["xcassets"],
                 template: .defaultTemplate("Assets")
             ),
             .init(
                 parser: .plists,
+                parserOptions: [:],
                 extensions: ["plist"],
                 template: .defaultTemplate("Plists")
             ),
             .init(
                 parser: .fonts,
+                parserOptions: [:],
                 extensions: ["otf", "ttc", "ttf"],
                 template: .defaultTemplate("Fonts")
             ),
