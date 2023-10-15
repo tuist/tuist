@@ -44,7 +44,6 @@ final class MockGeneratorFactory: GeneratorFactorying {
     var invokedTestCount = 0
     var invokedTestParameters: (
         config: Config,
-        automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
@@ -54,7 +53,6 @@ final class MockGeneratorFactory: GeneratorFactorying {
     var invokedTestParametersList =
         [(
             config: Config,
-            automationPath: AbsolutePath,
             testsCacheDirectory: AbsolutePath,
             testPlan: String?,
             includedTargets: Set<String>,
@@ -65,7 +63,6 @@ final class MockGeneratorFactory: GeneratorFactorying {
 
     func test(
         config: Config,
-        automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
@@ -76,7 +73,6 @@ final class MockGeneratorFactory: GeneratorFactorying {
         invokedTestCount += 1
         invokedTestParameters = (
             config,
-            automationPath,
             testsCacheDirectory,
             testPlan,
             includedTargets,
@@ -84,7 +80,18 @@ final class MockGeneratorFactory: GeneratorFactorying {
             skipUITests
         )
         invokedTestParametersList
-            .append((config, automationPath, testsCacheDirectory, testPlan, includedTargets, excludedTargets, skipUITests))
+            .append((
+                config,
+                testsCacheDirectory,
+                testPlan,
+                includedTargets,
+                excludedTargets,
+                skipUITests,
+                cacheOutputType,
+                cacheProfile,
+                ignoreCache,
+                targetsToSkipCache
+            ))
         return stubbedTestResult
     }
 

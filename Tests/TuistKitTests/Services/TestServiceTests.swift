@@ -159,25 +159,6 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_uses_project_directory() async throws {
-        // Given
-        contentHasher.hashStub = {
-            "\($0.replacingOccurrences(of: "/", with: ""))-hash"
-        }
-
-        // When
-        try? await subject.testRun(
-            path: try AbsolutePath(validating: "/test")
-        )
-
-        // Then
-        let gotPath = generatorFactory.invokedTestParametersList.first?.automationPath
-        XCTAssertEqual(
-            gotPath,
-            cacheDirectoriesProvider.cacheDirectory(for: .generatedAutomationProjects).appending(component: "test-hash")
-        )
-    }
-
     func test_run_generates_project() async throws {
         // Given
         let path = try temporaryPath()

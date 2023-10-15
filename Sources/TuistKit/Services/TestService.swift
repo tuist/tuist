@@ -173,15 +173,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         let config = try configLoader.loadConfig(path: path)
         let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
 
-        let projectDirectory = cacheDirectoriesProvider.cacheDirectory(for: .generatedAutomationProjects)
-            .appending(component: "\(try contentHasher.hash(path.pathString))")
-        if !FileHandler.shared.exists(projectDirectory) {
-            try FileHandler.shared.createFolder(projectDirectory)
-        }
-
         let generator = generatorFactory.test(
             config: config,
-            automationPath: Environment.shared.automationPath ?? projectDirectory,
             testsCacheDirectory: testsCacheTemporaryDirectory.path,
             testPlan: testPlanConfiguration?.testPlan,
             includedTargets: Set(testTargets.map(\.target)),

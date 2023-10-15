@@ -31,13 +31,11 @@ protocol GeneratorFactorying {
 
     /// Returns the generator to generate a project to run tests on.
     /// - Parameter config: The project configuration
-    /// - Parameter automationPath: The automation path.
     /// - Parameter testsCacheDirectory: The cache directory used for tests.
     /// - Parameter skipUITests: Whether UI tests should be skipped.
     /// - Returns: A Generator instance.
     func test(
         config: Config,
-        automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
@@ -108,7 +106,6 @@ class GeneratorFactory: GeneratorFactorying {
 
     func test(
         config: Config,
-        automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
@@ -128,9 +125,7 @@ class GeneratorFactory: GeneratorFactorying {
             includedTargets: includedTargets,
             excludedTargets: excludedTargets
         )
-        let workspaceMappers = workspaceMapperFactory.automation(
-            workspaceDirectory: try! FileHandler.shared.resolveSymlinks(automationPath) // swiftlint:disable:this force_try
-        )
+        let workspaceMappers = workspaceMapperFactory.automation()
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
             manifestLoader: manifestLoader,
