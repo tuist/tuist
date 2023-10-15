@@ -147,10 +147,14 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
+                cache: false,
                 testsCacheDirectory: testsCacheDirectory,
                 testPlan: nil,
                 includedTargets: [],
-                excludedTargets: []
+                excludedTargets: [],
+                cacheProfile: .test(),
+                cacheOutputType: .framework,
+                targetsToSkipCache: []
             )
 
             // Then
@@ -169,10 +173,14 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
+                cache: false,
                 testsCacheDirectory: testsCacheDirectory,
                 testPlan: nil,
                 includedTargets: [],
-                excludedTargets: []
+                excludedTargets: [],
+                cacheProfile: .test(),
+                cacheOutputType: .framework,
+                targetsToSkipCache: []
             )
 
             // Then
@@ -189,10 +197,14 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
+                cache: false,
                 testsCacheDirectory: testsCacheDirectory,
                 testPlan: nil,
                 includedTargets: [],
-                excludedTargets: []
+                excludedTargets: [],
+                cacheProfile: .test(),
+                cacheOutputType: .framework,
+                targetsToSkipCache: []
             )
 
             // Then

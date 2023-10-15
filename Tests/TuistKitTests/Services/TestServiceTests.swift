@@ -600,7 +600,12 @@ extension TestService {
         retryCount: Int = 0,
         testTargets: [TestIdentifier] = [],
         skipTestTargets: [TestIdentifier] = [],
-        testPlanConfiguration: TestPlanConfiguration? = nil
+        testPlanConfiguration: TestPlanConfiguration? = nil,
+        xcframeworks: Bool = false,
+        destination: CacheXCFrameworkDestination = .simulator,
+        profile: String? = nil,
+        ignoreCache: Bool = false,
+        targetsToSkipCache: Set<String> = []
     ) async throws {
         try await run(
             schemeName: schemeName,
@@ -614,7 +619,12 @@ extension TestService {
             retryCount: retryCount,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
-            testPlanConfiguration: testPlanConfiguration
+            testPlanConfiguration: testPlanConfiguration,
+            xcframeworks: xcframeworks,
+            destination: destination,
+            profile: profile,
+            ignoreCache: ignoreCache,
+            targetsToSkipCache: targetsToSkipCache
         )
     }
 }

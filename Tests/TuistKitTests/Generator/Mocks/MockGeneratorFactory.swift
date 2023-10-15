@@ -48,7 +48,11 @@ final class MockGeneratorFactory: GeneratorFactorying {
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
-        skipUITests: Bool
+        skipUITests: Bool,
+        cacheOutputType: TuistCore.CacheOutputType,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool,
+        targetsToSkipCache: Set<String>
     )?
     var invokedTestParametersList =
         [(
@@ -57,7 +61,11 @@ final class MockGeneratorFactory: GeneratorFactorying {
             testPlan: String?,
             includedTargets: Set<String>,
             excludedTargets: Set<String>,
-            skipUITests: Bool
+            skipUITests: Bool,
+            cacheOutputType: TuistCore.CacheOutputType,
+            cacheProfile: TuistGraph.Cache.Profile,
+            ignoreCache: Bool,
+            targetsToSkipCache: Set<String>
         )]()
     var stubbedTestResult: Generating!
 
@@ -67,7 +75,11 @@ final class MockGeneratorFactory: GeneratorFactorying {
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
-        skipUITests: Bool
+        skipUITests: Bool,
+        cacheOutputType: TuistCore.CacheOutputType,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool,
+        targetsToSkipCache: Set<String>
     ) -> Generating {
         invokedTest = true
         invokedTestCount += 1
@@ -77,7 +89,11 @@ final class MockGeneratorFactory: GeneratorFactorying {
             testPlan,
             includedTargets,
             excludedTargets,
-            skipUITests
+            skipUITests,
+            cacheOutputType,
+            cacheProfile,
+            ignoreCache,
+            targetsToSkipCache
         )
         invokedTestParametersList
             .append((

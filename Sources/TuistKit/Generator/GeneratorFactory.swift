@@ -40,7 +40,11 @@ protocol GeneratorFactorying {
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
-        skipUITests: Bool
+        skipUITests: Bool,
+        cacheOutputType: CacheOutputType,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool,
+        targetsToSkipCache: Set<String>
     ) -> Generating
 
     /// Returns the default generator.
@@ -110,7 +114,11 @@ class GeneratorFactory: GeneratorFactorying {
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
-        skipUITests: Bool
+        skipUITests: Bool,
+        cacheOutputType: CacheOutputType,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool,
+        targetsToSkipCache: Set<String>
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -120,10 +128,14 @@ class GeneratorFactory: GeneratorFactorying {
 
         let graphMappers = graphMapperFactory.automation(
             config: config,
+            cache: !ignoreCache,
             testsCacheDirectory: testsCacheDirectory,
             testPlan: testPlan,
             includedTargets: includedTargets,
-            excludedTargets: excludedTargets
+            excludedTargets: excludedTargets,
+            cacheProfile: cacheProfile,
+            cacheOutputType: cacheOutputType,
+            targetsToSkipCache: targetsToSkipCache
         )
         let workspaceMappers = workspaceMapperFactory.automation()
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
