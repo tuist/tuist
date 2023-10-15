@@ -36,6 +36,9 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
         } else if fileHandler.isFolder(path.appending(component: ".git")) {
             cache(rootDirectory: path, for: source)
             return path
+        } else if fileHandler.exists(path.appending(component: "Workspace.swift")) {
+            cache(rootDirectory: path, for: source)
+            return path
         } else if !path.isRoot {
             return locate(from: path.parentDirectory, source: source)
         }
