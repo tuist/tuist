@@ -6,6 +6,8 @@ public protocol RootDirectoryLocating {
     /// Given a path, it finds the root directory by traversing up the hierarchy.
     ///
     /// A root directory is defined as (in order of precedence):
+    ///   - Directory containing a `Project.swift` manifest.
+    ///   - Directory containing a `Workspace.swift` manifest.
     ///   - Directory containing a `Tuist/` subdirectory.
     ///   - Directory containing a `Plugin.swift` manifest.
     ///   - Directory containing a `.git/` subdirectory.
@@ -27,16 +29,11 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
     private func locate(from path: AbsolutePath, source: AbsolutePath) -> AbsolutePath? {
         if let cachedDirectory = cached(path: path) {
             return cachedDirectory
-        } else if fileHandler.exists(path.appending(component: Constants.tuistDirectoryName)) {
-            cache(rootDirectory: path, for: source)
-            return path
-        } else if fileHandler.exists(path.appending(component: "Plugin.swift")) {
-            cache(rootDirectory: path, for: source)
-            return path
-        } else if fileHandler.isFolder(path.appending(component: ".git")) {
-            cache(rootDirectory: path, for: source)
-            return path
-        } else if fileHandler.exists(path.appending(component: "Workspace.swift")) {
+        } else if fileHandler.exists(path.appending(component: "Project.swift")) ||
+            fileHandler.exists(path.appending(component: "Workspace.swift")) ||
+            fileHandler.exists(path.appending(component: Constants.tuistDirectoryName)) ||
+            fileHandler.exists(path.appending(component: "Plugin.swift")) ||
+            fileHandler.isFolder(path.appending(component: ".git")) {
             cache(rootDirectory: path, for: source)
             return path
         } else if !path.isRoot {
