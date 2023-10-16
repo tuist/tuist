@@ -15,7 +15,8 @@ class CommandEventCreateService < ApplicationService
     :macos_version,
     :cacheable_targets,
     :local_cache_target_hits,
-    :remote_cache_target_hits
+    :remote_cache_target_hits,
+    :is_ci
 
   def initialize(
     project_slug:,
@@ -31,7 +32,8 @@ class CommandEventCreateService < ApplicationService
     macos_version:,
     cacheable_targets:,
     local_cache_target_hits:,
-    remote_cache_target_hits:
+    remote_cache_target_hits:,
+    is_ci:
   )
     super()
     if project.nil?
@@ -52,6 +54,7 @@ class CommandEventCreateService < ApplicationService
     @cacheable_targets = cacheable_targets
     @local_cache_target_hits = local_cache_target_hits
     @remote_cache_target_hits = remote_cache_target_hits
+    @is_ci = is_ci
   end
 
   def call
@@ -72,6 +75,7 @@ class CommandEventCreateService < ApplicationService
       cacheable_targets: cacheable_targets&.join(";"),
       local_cache_target_hits: local_cache_target_hits&.join(";"),
       remote_cache_target_hits: remote_cache_target_hits&.join(";"),
+      is_ci: is_ci,
     )
   end
 end

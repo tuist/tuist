@@ -25,6 +25,7 @@ class CommandEventCreateServiceTest < ActiveSupport::TestCase
       cacheable_targets: nil,
       local_cache_target_hits: nil,
       remote_cache_target_hits: nil,
+      is_ci: true,
     )
 
     # Then
@@ -33,6 +34,7 @@ class CommandEventCreateServiceTest < ActiveSupport::TestCase
     assert_nil got.local_cache_target_hits
     assert_nil got.remote_cache_target_hits
     assert_equal "fetch", got.name
+    assert_equal true, got.is_ci
   end
 
   test "creates a cache warm command event for a given project" do
@@ -57,6 +59,7 @@ class CommandEventCreateServiceTest < ActiveSupport::TestCase
       cacheable_targets: ["Target1", "Target2", "Target3", "Target4"],
       local_cache_target_hits: ["Target1"],
       remote_cache_target_hits: ["Target2", "Target4"],
+      is_ci: false,
     )
 
     # Then
@@ -65,5 +68,6 @@ class CommandEventCreateServiceTest < ActiveSupport::TestCase
     assert_equal "Target1;Target2;Target3;Target4", got.cacheable_targets
     assert_equal "Target1", got.local_cache_target_hits
     assert_equal "Target2;Target4", got.remote_cache_target_hits
+    assert_equal false, got.is_ci
   end
 end

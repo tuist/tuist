@@ -286,7 +286,8 @@ CREATE TABLE public.command_events (
     updated_at timestamp(6) without time zone NOT NULL,
     cacheable_targets character varying,
     local_cache_target_hits character varying,
-    remote_cache_target_hits character varying
+    remote_cache_target_hits character varying,
+    is_ci boolean DEFAULT false
 );
 
 
@@ -1025,6 +1026,7 @@ INSERT INTO "schema_migrations" (version) VALUES
 ('20230818092024'),
 ('20230829211134'),
 ('20230919143833'),
-('20230919143930');
+('20230919143930'),
+('20231014204217');
 
 

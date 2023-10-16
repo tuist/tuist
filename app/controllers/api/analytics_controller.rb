@@ -18,6 +18,7 @@ module API
         cacheable_targets: params[:params][:cacheable_targets],
         local_cache_target_hits: params[:params][:local_cache_target_hits],
         remote_cache_target_hits: params[:params][:remote_cache_target_hits],
+        is_ci: params[:is_ci],
       )
     end
   end
