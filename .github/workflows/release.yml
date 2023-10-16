@@ -27,6 +27,7 @@ jobs:
       version: ${{ steps.semvers.outputs.version }}
       changelog: ${{ steps.changelog.outputs.changelog }}
       commit_hash: ${{ steps.auto-commit-action.outputs.commit_hash }}
+    environment: Release
     steps:
     - uses: actions/checkout@v3
       with:
@@ -71,13 +72,12 @@ jobs:
   release:
     runs-on: macos-13
     needs: prepare-release
-    environment: release
+    environment: Release
     steps:
     - uses: actions/checkout@v3
       with:
         ref: ${{ needs.prepare-release.outputs.commit_hash }}
         token: ${{ secrets.GH_RELEASE_TOKEN }}
-      run: brew install gnupg
     - name: Up workspace
       if: ${{ github.event.inputs.publish == 'true' }}
       run: make workspace/up
