@@ -54,7 +54,7 @@ public final class BinaryLocator: BinaryLocating {
                        tuist/
                            vendor
                 */
-            bundlePath.parentDirectory.appending(try! RelativePath(validating: "share/tuist")),
+            bundlePath.parentDirectory.appending(try RelativePath(validating: "share/tuist")),
         ]
     }
 
