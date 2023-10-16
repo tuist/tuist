@@ -33,7 +33,8 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
             fileHandler.exists(path.appending(component: "Workspace.swift")) ||
             fileHandler.exists(path.appending(component: Constants.tuistDirectoryName)) ||
             fileHandler.exists(path.appending(component: "Plugin.swift")) ||
-            fileHandler.isFolder(path.appending(component: ".git")) {
+            fileHandler.isFolder(path.appending(component: ".git"))
+        {
             cache(rootDirectory: path, for: source)
             return path
         } else if !path.isRoot {

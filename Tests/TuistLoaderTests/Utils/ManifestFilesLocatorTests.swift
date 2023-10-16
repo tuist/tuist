@@ -79,7 +79,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func test_locateProjectManifests_returns_single_manifest_no_workspace_given_child_path() throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
