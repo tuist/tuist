@@ -235,7 +235,7 @@ GEM
       nio4r (~> 2.0)
     pundit (2.3.0)
       activesupport (>= 3.0.0)
-    que (2.2.1)
+    que (2.3.0)
     racc (1.7.1)
     rack (2.2.8)
     rack-mini-profiler (2.3.4)
