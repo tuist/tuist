@@ -44,6 +44,16 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
         let paths = [
             bundlePath,
             bundlePath.parentDirectory,
+            /**
+                == Homebrew directory structure ==
+                x.y.z/
+                   bin/
+                       tuist
+                   share/
+                       tuist/
+                           Templates
+                */
+            bundlePath.parentDirectory.appending(try! RelativePath(validating: "share/tuist")),
         ]
         let candidates = paths.map { path in
             path.appending(component: Constants.templatesDirectoryName)
