@@ -14,6 +14,7 @@ on:
 env:
   RUBY_VERSION: '3.0.3'
   TUIST_STATS_OPT_OUT: true
+  TUIST_INCLUDE_TUIST_CLOUD: "1"
 
 permissions:
   contents: write
