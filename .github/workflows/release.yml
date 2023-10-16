@@ -77,7 +77,6 @@ jobs:
       with:
         ref: ${{ needs.prepare-release.outputs.commit_hash }}
         token: ${{ secrets.GH_RELEASE_TOKEN }}
-      run: brew install gnupg
     - name: Up workspace
       if: ${{ github.event.inputs.publish == 'true' }}
       run: make workspace/up
