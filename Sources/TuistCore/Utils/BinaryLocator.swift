@@ -45,6 +45,16 @@ public final class BinaryLocator: BinaryLocating {
             bundlePath,
             bundlePath.parentDirectory,
             bundlePath.appending(try RelativePath(validating: "vendor")),
+            /**
+                == Homebrew directory structure ==
+                x.y.z/
+                   bin/
+                       tuist
+                   share/
+                       tuist/
+                           vendor
+                */
+            bundlePath.parentDirectory.appending(try RelativePath(validating: "share/tuist")),
         ]
     }
 
