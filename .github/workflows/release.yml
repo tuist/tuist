@@ -27,6 +27,7 @@ jobs:
       version: ${{ steps.semvers.outputs.version }}
       changelog: ${{ steps.changelog.outputs.changelog }}
       commit_hash: ${{ steps.auto-commit-action.outputs.commit_hash }}
+    environment: Release
     steps:
     - uses: actions/checkout@v3
       with:
