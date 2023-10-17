@@ -37,11 +37,17 @@ extension ProvisioningProfile.Content: Decodable {
 
         private enum CodingKeys: String, CodingKey {
             case appId = "application-identifier"
+            case appIdMacOS = "com.apple.application-identifier"
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            appId = try container.decode(String.self, forKey: .appId)
+            if let id = try container.decodeIfPresent(String.self, forKey: .appId) {
+                appId = id
+            } else {
+                // Fallback to the macOS key
+                appId = try container.decode(String.self, forKey: .appIdMacOS)
+            }
         }
     }
 
