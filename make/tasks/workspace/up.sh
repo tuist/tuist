@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROOT_DIR=$($SCRIPT_DIR/../../utilities/root_dir.sh)
-REPO_URL="https://github.com/tuist/TuistCloud"
+REPO_URL="git@github.com:tuist/TuistCloud.git"
 CLONE_DIR=$ROOT_DIR/TuistCloud
 COMMIT_SHA=$(cat $ROOT_DIR/.tuist-cloud-version) 
 

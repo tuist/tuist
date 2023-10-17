@@ -14,6 +14,7 @@ on:
 env:
   RUBY_VERSION: '3.0.3'
   TUIST_STATS_OPT_OUT: true
+  TUIST_INCLUDE_TUIST_CLOUD: "1"
 
 permissions:
   contents: write
@@ -83,7 +84,7 @@ jobs:
       run: make workspace/up
     - name: Build artifacts
       if: ${{ github.event.inputs.publish == 'true' }}
-      run: make release/bundle
+      run: make workspace/release/bundle
     - name: Create GitHub Release
       if: ${{ github.event.inputs.publish == 'true' }}
       uses: softprops/action-gh-release@v1

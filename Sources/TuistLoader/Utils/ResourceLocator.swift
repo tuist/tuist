@@ -46,6 +46,16 @@ public final class ResourceLocator: ResourceLocating {
         let paths = [
             bundlePath,
             bundlePath.parentDirectory,
+            /**
+                == Homebrew directory structure ==
+                x.y.z/
+                   bin/
+                       tuist
+                   lib/
+                       ProjectDescription.framework
+                       ProjectDescription.framework.dSYM
+                */
+            bundlePath.parentDirectory.appending(component: "lib"),
         ]
         let candidates = try paths.flatMap { path in
             try frameworkNames.map { path.appending(try RelativePath(validating: $0)) }

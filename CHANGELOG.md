@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.29.0 - 2023-10-16
+
+### Added
+
+- Add tuist cloud analytics command [#5467](https://github.com/tuist/tuist/pull/5467) by [@fortmarek](https://github.com/fortmarek)
+- Add support for SwiftPackageManager `enableExperimentalFeature` target setting [#5492](https://github.com/tuist/tuist/pull/5492) by [@dcramps](https://github.com/dcramps)
+- Instruct the asset locators on how to look up assets when `tuist` is installed by Homebrew [#5500](https://github.com/tuist/tuist/pull/5500) by [@pepicrft](https://github.com/pepicrft)
+
+### Fixed
+
+- Fix invitation link [#5473](https://github.com/tuist/tuist/pull/5473) by [@fortmarek](https://github.com/fortmarek)
+- Fix deployment target calculation for `tuist test` [#5487](https://github.com/tuist/tuist/pull/5487) by [@leszko11](https://github.com/leszko11)
+
 ## 3.28.0 - 2023-10-03
 
 ### Added
