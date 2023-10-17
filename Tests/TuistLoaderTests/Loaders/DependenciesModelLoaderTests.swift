@@ -64,10 +64,10 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                 ]
             ),
             swiftPackageManager: .init(
-                [
+                .packages([
                     .local(path: localSwiftPackagePath),
                     .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
-                ],
+                ]),
                 productTypes: [:],
                 baseSettings: .init(configurations: [
                     .debug: .init(settings: [:], xcconfig: nil),

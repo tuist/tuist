@@ -17,7 +17,7 @@ let packages: [Package] = [
 
 let dependencies = Dependencies(
     swiftPackageManager: .init(
-        packages,
+        manifest: "Package.swift",
         baseSettings: .targetSettings,
         projectOptions: [
             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
