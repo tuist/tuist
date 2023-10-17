@@ -46,11 +46,13 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
         targetSettings: [String: SettingsDictionary] = [:],
         projectOptions: [String: ProjectDescription.Project.Options] = [:]
     ) {
-        packagesOrManifestPath = .packages(packages)
-        self.productTypes = productTypes
-        self.baseSettings = baseSettings
-        self.targetSettings = targetSettings
-        self.projectOptions = projectOptions
+        self.init(
+            packagesOrManifestPath: .packages(packages),
+            productTypes: productTypes,
+            baseSettings: baseSettings,
+            targetSettings: targetSettings,
+            projectOptions: projectOptions
+        )
     }
 
     /// Creates `SwiftPackageManagerDependencies` instance.
@@ -66,7 +68,23 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
         targetSettings: [String: SettingsDictionary] = [:],
         projectOptions: [String: ProjectDescription.Project.Options] = [:]
     ) {
-        packagesOrManifestPath = .manifest(manifest)
+        self.init(
+            packagesOrManifestPath: .manifest(manifest),
+            productTypes: productTypes,
+            baseSettings: baseSettings,
+            targetSettings: targetSettings,
+            projectOptions: projectOptions
+        )
+    }
+    
+    private init(
+        packagesOrManifestPath: PackagesOrManifestPath,
+        productTypes: [String: Product],
+        baseSettings: Settings,
+        targetSettings: [String: SettingsDictionary],
+        projectOptions: [String: ProjectDescription.Project.Options]
+    ) {
+        self.packagesOrManifestPath = packagesOrManifestPath
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
@@ -78,6 +96,12 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
 
 extension SwiftPackageManagerDependencies: ExpressibleByArrayLiteral {
     public init(arrayLiteral elements: Package...) {
-        self.init(elements)
+        self.init(
+            packagesOrManifestPath: .packages(elements),
+            productTypes: [:],
+            baseSettings: .settings(),
+            targetSettings: [:],
+            projectOptions: [:]
+        )
     }
 }
