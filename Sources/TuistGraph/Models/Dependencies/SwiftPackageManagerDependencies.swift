@@ -8,7 +8,8 @@ public enum PackagesOrManifestPath: Equatable {
 
 /// Contains the description of a dependency that can be installed using Swift Package Manager.
 public struct SwiftPackageManagerDependencies: Equatable {
-    /// The path to the `Package.swift` manifest defining the dependencies, or the list of packages that will be installed using Swift Package Manager.
+    /// The path to the `Package.swift` manifest defining the dependencies, or the list of packages that will be installed using
+    /// Swift Package Manager.
     public let packagesOrManifest: PackagesOrManifestPath
 
     /// The custom `Product` types to be used for SPM targets.
@@ -25,7 +26,8 @@ public struct SwiftPackageManagerDependencies: Equatable {
 
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
-    ///    - packagesOrManifestPath: The path to the `Package.swift` manifest defining the dependencies, or the list of packages that will be installed using Swift Package Manager.
+    ///    - packagesOrManifestPath: The path to the `Package.swift` manifest defining the dependencies, or the list of packages
+    /// that will be installed using Swift Package Manager.
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
     ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
@@ -54,9 +56,10 @@ extension SwiftPackageManagerDependencies {
 
     /// Returns `Package.swift` representation.
     public func manifest(isLegacy: Bool, packageManifestFolder: AbsolutePath) -> Manifest {
-        switch self.packagesOrManifest {
-        case .packages(let packages):
-            return .content("""
+        switch packagesOrManifest {
+        case let .packages(packages):
+            return .content(
+                """
                 import PackageDescription
 
                 let package = Package(
@@ -70,7 +73,7 @@ extension SwiftPackageManagerDependencies {
                 )
                 """
             )
-        case .manifest(let path):
+        case let .manifest(path):
             return .path(path)
         }
     }

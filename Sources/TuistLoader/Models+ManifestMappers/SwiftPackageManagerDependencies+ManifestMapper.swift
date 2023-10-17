@@ -14,9 +14,12 @@ extension TuistGraph.SwiftPackageManagerDependencies {
     ) throws -> Self {
         let packagesOrManifestPath: TuistGraph.PackagesOrManifestPath
         switch manifest.packagesOrManifestPath {
-        case .packages(let packages):
-            packagesOrManifestPath = .packages(try packages.map { try TuistGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) })
-        case .manifest(let path):
+        case let .packages(packages):
+            packagesOrManifestPath = .packages(try packages.map { try TuistGraph.Package.from(
+                manifest: $0,
+                generatorPaths: generatorPaths
+            ) })
+        case let .manifest(path):
             packagesOrManifestPath = .manifest(try generatorPaths.resolve(path: path))
         }
         let productTypes = manifest.productTypes.mapValues { TuistGraph.Product.from(manifest: $0) }

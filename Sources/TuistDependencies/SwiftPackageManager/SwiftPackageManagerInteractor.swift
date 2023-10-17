@@ -150,11 +150,14 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         // create `Package.swift`
         let packageManifestPath = pathsProvider.destinationPackageSwiftPath
         try fileHandler.createFolder(packageManifestPath.removingLastComponent())
-        let manifest = dependencies.manifest(isLegacy: isLegacy, packageManifestFolder: packageManifestPath.removingLastComponent())
-        switch (manifest) {
-        case .content(let content):
+        let manifest = dependencies.manifest(
+            isLegacy: isLegacy,
+            packageManifestFolder: packageManifestPath.removingLastComponent()
+        )
+        switch manifest {
+        case let .content(content):
             try fileHandler.write(content, path: packageManifestPath, atomically: true)
-        case .path(let path):
+        case let .path(path):
             if fileHandler.exists(packageManifestPath) {
                 try fileHandler.replace(packageManifestPath, with: path)
             } else {

@@ -16,7 +16,8 @@ public enum PackagesOrManifestPath: Codable, Equatable {
 /// )
 /// ```
 public struct SwiftPackageManagerDependencies: Codable, Equatable {
-    /// The path to the `Package.swift` manifest defining the dependencies, or the list of packages that will be installed using Swift Package Manager.
+    /// The path to the `Package.swift` manifest defining the dependencies, or the list of packages that will be installed using
+    /// Swift Package Manager.
     public let packagesOrManifestPath: PackagesOrManifestPath
 
     /// The custom `Product` type to be used for SPM targets.
@@ -45,7 +46,7 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
         targetSettings: [String: SettingsDictionary] = [:],
         projectOptions: [String: ProjectDescription.Project.Options] = [:]
     ) {
-        self.packagesOrManifestPath = .packages(packages)
+        packagesOrManifestPath = .packages(packages)
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
@@ -65,7 +66,7 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
         targetSettings: [String: SettingsDictionary] = [:],
         projectOptions: [String: ProjectDescription.Project.Options] = [:]
     ) {
-        self.packagesOrManifestPath = .manifest(manifest)
+        packagesOrManifestPath = .manifest(manifest)
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
