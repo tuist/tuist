@@ -79,6 +79,12 @@ jobs:
       with:
         ref: ${{ needs.prepare-release.outputs.commit_hash }}
         token: ${{ secrets.GH_RELEASE_TOKEN }}
+    - uses: actions/checkout@v3
+      with:
+        repository: tuist/TuistCloud
+        token: ${{ secrets.TUIST_CLOUD_TOKEN }}
+        path: TuistCloud
+        fetch-depth: 0
     - name: Up workspace
       if: ${{ github.event.inputs.publish == 'true' }}
       run: make workspace/up
