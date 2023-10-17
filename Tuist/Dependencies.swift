@@ -1,6 +1,6 @@
 import ProjectDescription
 
 let dependencies = Dependencies(
-    swiftPackageManager: .init(manifest: "Package.swift"),
+    swiftPackageManager: .init(manifest: "Tuist/Package.swift"),
     platforms: [.macOS]
 )

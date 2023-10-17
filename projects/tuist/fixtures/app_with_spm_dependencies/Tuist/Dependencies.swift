@@ -4,7 +4,7 @@ import ProjectDescriptionHelpers
 
 let dependencies = Dependencies(
     swiftPackageManager: .init(
-        manifest: "Package.swift",
+        manifest: "Tuist/Package.swift",
         baseSettings: .targetSettings,
         projectOptions: [
             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
