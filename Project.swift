@@ -328,9 +328,7 @@ func targets() -> [Target] {
             name: "ProjectAutomation",
             hasTests: false,
             hasTesting: false,
-            dependencies: [
-                .external(name: "SwiftToolsSupport"),
-            ]
+            dependencies: []
         ),
         Target.module(
             name: "TuistSigning",

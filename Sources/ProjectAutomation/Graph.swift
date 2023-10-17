@@ -1,5 +1,4 @@
 import Foundation
-import TSCBasic
 
 /// The structure defining the output schema of the entire project graph.
 public struct Graph: Codable, Equatable {
