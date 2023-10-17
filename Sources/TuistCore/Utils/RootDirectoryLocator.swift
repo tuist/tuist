@@ -3,10 +3,13 @@ import TSCBasic
 import TuistSupport
 
 public protocol RootDirectoryLocating {
+    /// RootDirectoryLocating initializer
+    /// - Parameter usingProjectManifest: value indicating if Project.swift manifest should be considered as root
+    init(usingProjectManifest: Bool)
     /// Given a path, it finds the root directory by traversing up the hierarchy.
     ///
     /// A root directory is defined as (in order of precedence):
-    ///   - Directory containing a `Project.swift` manifest.
+    ///   - Directory containing a `Project.swift` manifest (if `usingProjectManifest` is `true`.
     ///   - Directory containing a `Workspace.swift` manifest.
     ///   - Directory containing a `Tuist/` subdirectory.
     ///   - Directory containing a `Plugin.swift` manifest.
@@ -15,12 +18,21 @@ public protocol RootDirectoryLocating {
     func locate(from path: AbsolutePath) -> AbsolutePath?
 }
 
+extension RootDirectoryLocating {
+    public init() {
+        self.init(usingProjectManifest: false)
+    }
+}
+
 public final class RootDirectoryLocator: RootDirectoryLocating {
     private let fileHandler: FileHandling = FileHandler.shared
     /// This cache avoids having to traverse the directories hierarchy every time the locate method is called.
     @Atomic private var cache: [AbsolutePath: AbsolutePath] = [:]
+    private let usingProjectManifest: Bool
 
-    public init() {}
+    public init(usingProjectManifest: Bool) {
+        self.usingProjectManifest = usingProjectManifest
+    }
 
     public func locate(from path: AbsolutePath) -> AbsolutePath? {
         locate(from: path, source: path)
@@ -29,7 +41,7 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
     private func locate(from path: AbsolutePath, source: AbsolutePath) -> AbsolutePath? {
         if let cachedDirectory = cached(path: path) {
             return cachedDirectory
-        } else if fileHandler.exists(path.appending(component: "Project.swift")) ||
+        } else if (usingProjectManifest && fileHandler.exists(path.appending(component: "Project.swift"))) ||
             fileHandler.exists(path.appending(component: "Workspace.swift")) ||
             fileHandler.exists(path.appending(component: Constants.tuistDirectoryName)) ||
             fileHandler.exists(path.appending(component: "Plugin.swift")) ||
