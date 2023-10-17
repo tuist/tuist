@@ -76,7 +76,7 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
             projectOptions: projectOptions
         )
     }
-    
+
     private init(
         packagesOrManifestPath: PackagesOrManifestPath,
         productTypes: [String: Product],
