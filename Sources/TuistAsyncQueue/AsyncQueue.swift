@@ -8,6 +8,19 @@ public protocol AsyncQueuing {
     /// - Parameter event: Event to be dispatched.
     /// - Parameter didPersistEvent: It's called when the event has been persisted, to make sure it can't get lost
     func dispatch<T: AsyncQueueEvent>(event: T) throws
+
+    /// Waits for the queue to be fulfilled if on the CI
+    func waitIfCI()
+}
+
+private final class AsyncConcurrentOperation: ConcurrentOperation {
+    /// We want to have control over when `finish` is called
+    /// Otherwise, `finish` is called immediately and it doesn't wait for the full completion of an async operation
+    override func execute() {
+        if let executionBlock {
+            executionBlock(self)
+        }
+    }
 }
 
 public class AsyncQueue: AsyncQueuing {
@@ -44,6 +57,11 @@ public class AsyncQueue: AsyncQueuing {
         waitIfCI()
     }
 
+    public func waitIfCI() {
+        if !ciChecker.isCI() { return }
+        queue.waitUntilAllOperationsAreFinished()
+    }
+
     public func dispatch(event: some AsyncQueueEvent) throws {
         guard let dispatcher = dispatchers[event.dispatcherId] else {
             logger.error("Couldn't find dispatcher with id: \(event.dispatcherId)")
@@ -61,15 +79,19 @@ public class AsyncQueue: AsyncQueuing {
     // MARK: - Private
 
     private func liveDispatchOperation(event: some AsyncQueueEvent, dispatcher: AsyncQueueDispatching) -> Operation {
-        ConcurrentOperation(name: event.id.uuidString) { operation in
+        AsyncConcurrentOperation(name: event.id.uuidString) { operation in
             logger.debug("Dispatching event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
             do {
                 try dispatcher.dispatch(event: event) {
                     try self.persistor.delete(event: event)
-                    operation.success = true
+                    operation.finish(success: true)
                 }
             } catch {
-                operation.success = false
+                operation.finish(success: false)
+                if operation.currentAttempt <= operation.maximumRetries {
+                    operation.manualRetry = true
+                    operation.retry()
+                }
             }
         }
     }
@@ -99,11 +121,6 @@ public class AsyncQueue: AsyncQueuing {
                 logger.debug("Failed to dispatch persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
             }
         }
-    }
-
-    private func waitIfCI() {
-        if !ciChecker.isCI() { return }
-        queue.waitUntilAllOperationsAreFinished()
     }
 
     private func loadEvents() {
