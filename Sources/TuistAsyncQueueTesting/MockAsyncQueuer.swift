@@ -16,4 +16,9 @@ public class MockAsyncQueuer: AsyncQueuing {
         invokedDispatchParameters = (event, ())
         invokedDispatchParametersList.append((event, ()))
     }
+
+    public var waitIfCIStub: (() -> Void)?
+    public func waitIfCI() {
+        waitIfCIStub?()
+    }
 }

@@ -18,7 +18,7 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
     }
 
     #if canImport(TuistCloud)
-        public init(cloud: Cloud?, cloudClient: CloudClienting? = nil) {
+        public init(cloud: Cloud?, cloudClient: CloudClienting? = CloudClient()) {
             if let cloud, let cloudClient {
                 let backend = TuistAnalyticsCloudBackend(
                     config: cloud,
@@ -30,11 +30,11 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
                 self.init(backend: nil)
             }
         }
+    #else
+        public init(cloud _: Cloud?) {
+            self.init(backend: nil)
+        }
     #endif
-
-    public init(cloud _: Cloud?) {
-        self.init(backend: nil)
-    }
 
     // MARK: - AsyncQueueDispatching
 
