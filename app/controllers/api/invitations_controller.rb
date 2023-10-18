@@ -3,8 +3,10 @@
 module API
   # Controller for managing invitations to an organization
   class InvitationsController < APIController
+    authorize_current_subject_type create: [:user], destroy: [:user]
+
     def create
-      organization = OrganizationFetchService.call(name: params[:organization_name], user: current_user)
+      organization = OrganizationFetchService.call(name: params[:organization_name], subject: current_subject)
       invitation = OrganizationInviteService.new.invite(
         inviter: current_user,
         invitee_email: params[:invitee_email],

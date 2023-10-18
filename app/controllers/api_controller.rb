@@ -2,10 +2,9 @@
 
 class APIController < ApplicationController
   module Error
-    class Unauthorized < CloudError
+    class AuthenticatedSubjectNotFound < CloudError
       def message
-        "No auth token found. Authenticate with the `tuist cloud auth` command "\
-          "or via the `TUIST_CONFIG_CLOUD_TOKEN` environment variable."
+        "The authentication token is invalid or expired."
       end
 
       def status_code
@@ -14,26 +13,39 @@ class APIController < ApplicationController
     end
   end
 
-  skip_before_action :authenticate_user!
-  before_action :authenticate_user_from_token!
+  # Authentication
+  before_action :authenticate!
 
-  def authenticate_user_from_token!
+  # Authorization needs to be after the authentication
+  include AuthorizeCurrentSubjectType
+
+  devise_group :subject, contains: [:user, :project]
+  helper_method :current_project, :project_signed_in?
+  skip_before_action :authenticate_user!
+
+  attr_reader :current_project
+
+  def authenticate!
     authenticate_or_request_with_http_token do |token, _options|
-      begin
-        user = User.find_by!(token: token)
-      rescue ActiveRecord::RecordNotFound
-        begin
-          @project = Project.find_by!(token: token)
-        rescue ActiveRecord::RecordNotFound
-          raise Error::Unauthorized
-        end
-      end
+      user = User.find_by(token: token)
+      @current_project = Project.find_by(token: token)
+
+      raise Error::AuthenticatedSubjectNotFound if user.nil? && @current_project.nil?
+
       if user
         sign_in(user, store: false)
       else
-        @project
+        @current_project
       end
     end
+  end
+
+  def current_subject
+    current_user || current_project
+  end
+
+  def project_signed_in?
+    current_project.present?
   end
 
   rescue_from(CloudError) do |error, _obj, _args, _ctx, _field|

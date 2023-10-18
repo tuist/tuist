@@ -37,12 +37,12 @@ class OrganizationFetchService < ApplicationService
     end
   end
 
-  attr_reader :name, :user
+  attr_reader :name, :subject
 
-  def initialize(name:, user:)
+  def initialize(name:, subject:)
     super()
     @name = name
-    @user = user
+    @subject = subject
   end
 
   def call
@@ -52,7 +52,7 @@ class OrganizationFetchService < ApplicationService
     rescue ActiveRecord::RecordNotFound
       raise Error::OrganizationNotFound, name
     end
-    raise Error::Unauthorized, name unless OrganizationPolicy.new(user, organization).show?
+    raise Error::Unauthorized, name unless OrganizationPolicy.new(subject, organization).show?
 
     organization
   end

@@ -42,7 +42,7 @@ class ProjectCreateService < ApplicationService
         end
         project = Project.create!(name: name, account_id: account_id, token: Devise.friendly_token.first(8))
       else
-        organization = OrganizationFetchService.call(name: organization_name, user: creator)
+        organization = OrganizationFetchService.call(name: organization_name, subject: creator)
         project = Project.create!(
           name: name,
           account_id: organization.account.id,

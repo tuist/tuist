@@ -98,7 +98,7 @@ class OrganizationInviteService < ApplicationService
   end
 
   def cancel_invite_by_email(invitee_email:, organization_name:, remover:)
-    organization = OrganizationFetchService.call(name: organization_name, user: remover)
+    organization = OrganizationFetchService.call(name: organization_name, subject: remover)
     begin
       invitation = Invitation.find_by!(invitee_email: invitee_email, organization_id: organization.id)
     rescue ActiveRecord::RecordNotFound

@@ -50,7 +50,7 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
 
     OrganizationFetchService.expects(:call).with(
       name: organization_name,
-      user: user,
+      subject: user,
     ).returns(
       organization,
     )

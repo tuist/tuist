@@ -3,6 +3,8 @@
 module API
   # Controller for managing organizations
   class OrganizationsController < APIController
+    authorize_current_subject_type create: [:user], index: [:user], destroy: [:user], show: [:user]
+
     def create
       organization = OrganizationCreateService.call(
         creator: current_user,
@@ -24,7 +26,7 @@ module API
     end
 
     def show
-      organization = OrganizationFetchService.call(name: params[:id], user: current_user)
+      organization = OrganizationFetchService.call(name: params[:id], subject: current_user)
       render(json: organization)
     end
   end

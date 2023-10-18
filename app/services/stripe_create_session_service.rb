@@ -29,7 +29,7 @@ class StripeCreateSessionService < ApplicationService
 
     # rubocop:disable Style/ConditionalAssignment
     if account_id.nil?
-      account_id = OrganizationFetchService.call(name: organization_name, user: user).account.id
+      account_id = OrganizationFetchService.call(name: organization_name, subject: user).account.id
     else
       account_id = @account_id
     end

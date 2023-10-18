@@ -3,6 +3,8 @@
 module API
   # Controller for managing members of an organization
   class MembersController < APIController
+    authorize_current_subject_type destroy: [:user], update: [:user]
+
     def destroy
       RemoveMemberService.call(
         username: params[:username],
