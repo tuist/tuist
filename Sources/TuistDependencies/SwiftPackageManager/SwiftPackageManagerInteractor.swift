@@ -157,11 +157,11 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         switch manifest {
         case let .content(content):
             try fileHandler.write(content, path: packageManifestPath, atomically: true)
-        case let .path(path):
+        case .manifest:
             if fileHandler.exists(packageManifestPath) {
-                try fileHandler.replace(packageManifestPath, with: path)
+                try fileHandler.replace(packageManifestPath, with: pathsProvider.sourcePackageSwiftPath)
             } else {
-                try fileHandler.copy(from: path, to: packageManifestPath)
+                try fileHandler.copy(from: pathsProvider.sourcePackageSwiftPath, to: packageManifestPath)
             }
         }
 
@@ -215,6 +215,7 @@ private struct SwiftPackageManagerPathsProvider {
     let destinationPackageSwiftPath: AbsolutePath
     let destinationPackageResolvedPath: AbsolutePath
     let destinationBuildDirectory: AbsolutePath
+    let sourcePackageSwiftPath: AbsolutePath
 
     let temporaryPackageResolvedPath: AbsolutePath
 
@@ -228,6 +229,8 @@ private struct SwiftPackageManagerPathsProvider {
         destinationSwiftPackageManagerDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
         destinationBuildDirectory = destinationSwiftPackageManagerDirectory.appending(component: ".build")
+        sourcePackageSwiftPath = dependenciesDirectory.removingLastComponent()
+            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
 
         temporaryPackageResolvedPath = destinationSwiftPackageManagerDirectory
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)

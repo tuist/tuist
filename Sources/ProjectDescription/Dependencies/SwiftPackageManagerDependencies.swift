@@ -1,8 +1,8 @@
 import Foundation
 
-public enum PackagesOrManifestPath: Codable, Equatable {
+public enum PackagesOrManifest: Codable, Equatable {
     case packages([Package])
-    case manifest(Path)
+    case manifest
 }
 
 /// A collection of Swift Package Manager dependencies.
@@ -18,7 +18,7 @@ public enum PackagesOrManifestPath: Codable, Equatable {
 public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// The path to the `Package.swift` manifest defining the dependencies, or the list of packages that will be installed using
     /// Swift Package Manager.
-    public let packagesOrManifestPath: PackagesOrManifestPath
+    public let packagesOrManifest: PackagesOrManifest
 
     /// The custom `Product` type to be used for SPM targets.
     public let productTypes: [String: Product]
@@ -47,7 +47,7 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
         projectOptions: [String: ProjectDescription.Project.Options] = [:]
     ) {
         self.init(
-            packagesOrManifestPath: .packages(packages),
+            packagesOrManifest: .packages(packages),
             productTypes: productTypes,
             baseSettings: baseSettings,
             targetSettings: targetSettings,
@@ -55,21 +55,19 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
         )
     }
 
-    /// Creates `SwiftPackageManagerDependencies` instance.
-    /// - Parameter manifest: The path to the `Package.swift` manifest defining the dependencies.
+    /// Creates `SwiftPackageManagerDependencies` instance using the package manifest at `Tuist/Package.swift`.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
     public init(
-        manifest: Path = "Package.swift",
         productTypes: [String: Product] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary] = [:],
         projectOptions: [String: ProjectDescription.Project.Options] = [:]
     ) {
         self.init(
-            packagesOrManifestPath: .manifest(manifest),
+            packagesOrManifest: .manifest,
             productTypes: productTypes,
             baseSettings: baseSettings,
             targetSettings: targetSettings,
@@ -78,13 +76,13 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     }
 
     private init(
-        packagesOrManifestPath: PackagesOrManifestPath,
+        packagesOrManifest: PackagesOrManifest,
         productTypes: [String: Product],
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: ProjectDescription.Project.Options]
     ) {
-        self.packagesOrManifestPath = packagesOrManifestPath
+        self.packagesOrManifest = packagesOrManifest
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
@@ -97,7 +95,7 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
 extension SwiftPackageManagerDependencies: ExpressibleByArrayLiteral {
     public init(arrayLiteral elements: Package...) {
         self.init(
-            packagesOrManifestPath: .packages(elements),
+            packagesOrManifest: .packages(elements),
             productTypes: [:],
             baseSettings: .settings(),
             targetSettings: [:],

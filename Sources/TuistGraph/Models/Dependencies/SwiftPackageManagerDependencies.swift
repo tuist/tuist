@@ -1,16 +1,16 @@
 import Foundation
 import TSCBasic
 
-public enum PackagesOrManifestPath: Equatable {
+public enum PackagesOrManifest: Equatable {
     case packages([Package])
-    case manifest(AbsolutePath)
+    case manifest
 }
 
 /// Contains the description of a dependency that can be installed using Swift Package Manager.
 public struct SwiftPackageManagerDependencies: Equatable {
     /// The path to the `Package.swift` manifest defining the dependencies, or the list of packages that will be installed using
     /// Swift Package Manager.
-    public let packagesOrManifest: PackagesOrManifestPath
+    public let packagesOrManifest: PackagesOrManifest
 
     /// The custom `Product` types to be used for SPM targets.
     public let productTypes: [String: Product]
@@ -26,7 +26,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
 
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
-    ///    - packagesOrManifestPath: The path to the `Package.swift` manifest defining the dependencies, or the list of packages
+    ///    - packagesOrManifest: The path to the `Package.swift` manifest defining the dependencies, or the list of packages
     /// that will be installed using Swift Package Manager.
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
     ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
@@ -34,7 +34,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
     ///    - projectOptions: The custom project options for each project generated from a swift package
 
     public init(
-        _ packagesOrManifest: PackagesOrManifestPath,
+        _ packagesOrManifest: PackagesOrManifest,
         productTypes: [String: Product],
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
@@ -51,7 +51,7 @@ public struct SwiftPackageManagerDependencies: Equatable {
 extension SwiftPackageManagerDependencies {
     public enum Manifest: Equatable {
         case content(String)
-        case path(AbsolutePath)
+        case manifest
     }
 
     /// Returns `Package.swift` representation.
@@ -73,8 +73,8 @@ extension SwiftPackageManagerDependencies {
                 )
                 """
             )
-        case let .manifest(path):
-            return .path(path)
+        case .manifest:
+            return .manifest
         }
     }
 }
