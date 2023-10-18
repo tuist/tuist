@@ -17,11 +17,19 @@ Rails.application.routes.draw do
   root to: "application#app"
 
   get "/get-started", to: "application#get_started"
-  post "/create-customer-portal-session/:account_id", to: "application#create_customer_portal_session"
-  get '/organizations/:organization_name/billing/plan', to: 'application#create_customer_portal_session'
+  post "/create-customer-portal-session/:account_id", to: "organizations#billing_plan"
 
-  get '/:account_name/:project_name/analytics', to: 'analytics#analytics'
-  get '/:account_name/:project_name/analytics/targets', to: 'analytics#analytics_targets'
+  resources :organizations, param: :name, only: [:index] do
+    get 'billing/plan', to: "organizations#billing_plan"
+  end
+
+  resources :projects, path: '/:account_name', param: :project_name, only: [:show] do
+  end
+
+  resources :projects, path: '/:account_name', param: :name, only: [] do
+    get 'analytics', to: 'analytics#analytics'
+    get 'analytics/targets', to: 'analytics#analytics_targets'
+  end
 
   get "/auth/invitations/:token", to: "auth#accept_invitation"
   get "/auth/cli/success", to: "auth#cli_success"

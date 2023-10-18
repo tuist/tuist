@@ -21,9 +21,16 @@ class UserProjectsFetchService < ApplicationService
       )
       .pluck(:id)
     account_ids.push(Account.find_by(owner: user).id)
-    Project.where(
-      project_name.nil? ? {} : { name: project_name },
-      account_id: account_ids,
-    )
+
+    if project_name.nil?
+      projects = Project.where(account_id: account_ids)
+    else
+      projects(Project.where(
+        name: project_name,
+        account_id: account_ids,
+      ))
+    end
+    projects = projects.includes([:account])
+    projects
   end
 end

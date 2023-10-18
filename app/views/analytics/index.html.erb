@@ -1,14 +1,7 @@
 <%= stylesheet_link_tag 'app' %>
 <%= stylesheet_link_tag 'analytics' %>
 
-<nav>
-  <ul>
-    <li><%= svg('tuist_cloud_logo', class: "icon-medium") %><h1>Tuist Cloud</h1></li>
-  </ul>
-  <ul>
-    <li><a href="/users/sign_out" data-method="delete" role="button">Sign out</a></li>
-  </ul>
-</nav>
+<%= render_navigation_bar %>
 
 <div class="analytics-container">
   <header>
@@ -53,9 +46,7 @@
   <article class="analytics-article">
     <header>
       <p>Targets cache hit rate</p>
-      <a href="analytics/targets">
-        <button>Show more</button>
-      </a>
+      <%= button_to 'Show more', project_analytics_targets_path, method: :get %>
     </header>
     <div class="chart">
       <canvas id="targets-cache-hit-rate-chart"></canvas>

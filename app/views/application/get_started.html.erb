@@ -2,7 +2,7 @@
 <%= stylesheet_link_tag 'tailwind' %>
 <%= stylesheet_link_tag 'get_started' %>
 <section class="h-full">
-  <a href="/users/sign_out" data-method="delete" class="signout-button py-2 bg-gradient-to-r duration-200 focus-visible:outline-black focus-visible:ring-black focus:outline-none font-medium from-primary-600 hover:to-primary-800 px-5 rounded-xl text-center text-white to-primary-700 mr-4">Sign out</a>
+  <a href="<%= root_path %>" class="signout-button py-2 bg-gradient-to-r duration-200 focus-visible:outline-black focus-visible:ring-black focus:outline-none font-medium from-primary-600 hover:to-primary-800 px-5 rounded-xl text-center text-white to-primary-700 mr-4">Dashboard</a>
   <div class="flex-col items-center lg:py-0 px-2 content-container">
     <div class="my-10">
       <a
@@ -21,38 +21,6 @@
         <a href="https://docs.tuist.io/cloud/get-started" class="py-3 bg-gradient-to-r duration-200 focus-visible:outline-black focus-visible:ring-black focus:outline-none font-medium from-primary-600 hover:to-primary-800 px-6 rounded-xl text-center text-white to-primary-700">Tuist Cloud docs</a>
       </div>
     </div>
-    <%- if !@current_organizations.empty? %>
-        <div class="items-start flex-col flex border-white/10 lg:border lg:p-10 lg:rounded-3xl mb-4 w-full px-5">
-      <h2 class="text-2xl font-semibold leading-tight text-white mb-2">
-        Your Tuist Cloud organizations
-      </h2>
-      <p class="text-xl leading-tight text-gray-300 mb-8">
-        You belong to the following organizations:
-      </p>
-      <% @current_organizations.each do |organization| %>
-      <div class=" bg-gray-800 border-gray-700 text-white bg-gradient-to-br relative rounded-2xl to-violet-500/5 w-full xl:text-lg flex flex-row items-center mb-4">
-        <p class="text-xl leading-tight text-gray-300 organization-name flex-grow-0">
-          <%= organization.account.name %>
-        </p>
-        <% if organization.account.plan.nil? %>
-          <p class="badge critical">None</p>
-        <% else %>
-          <p class="badge"><%= organization.account.plan.capitalize %></p>
-        <% end %>
-
-        <div class="members-count">
-          <%= svg('users') %>
-          <p>
-            <%= organization.roles.count %>
-          </p>
-        </div>
-        <form method="POST" action="/create-customer-portal-session/<%= organization.account.id %>" target="_blank" class="billing-form">
-          <button type="submit" class="billing-button">Manage billing</button>
-        </form>
-      </div>
-      <% end %>
-    </div>
-    <% end %>
     <div class="items-start flex-col flex border-white/10 lg:border lg:p-10 lg:rounded-3xl mb-4 w-full px-5">
       <h2 class="text-2xl font-semibold leading-tight text-white mb-2">
         Set up Tuist Cloud

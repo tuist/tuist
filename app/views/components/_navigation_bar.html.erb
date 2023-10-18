@@ -1,0 +1,32 @@
+<nav>
+  <ul>
+    <li><%= svg('tuist_cloud_logo', class: "icon-medium") %><h1>Tuist Cloud</h1></li>
+  </ul>
+  <ul>
+    <li><%= button_to "Dashboard", root_path, class: "ghost", method: :get %></li>
+    <% if params[:account_name].present? && params[:project_name].present? %>
+      <li>
+        <details role="list">
+          <summary aria-haspopup="listbox"><%= "#{params[:account_name]}/#{params[:project_name]}" %></summary>
+          <ul role="listbox">
+            <% @projects.each do |project| %>
+              <li><%= link_to "#{project.account.name}/#{project.name}", project_path(project_name: project.name, account_name: project.account.name) %></li>
+            <% end %>
+            <hr />
+            <li><%= link_to "Organizations", organizations_path %></li>
+            <li><a href="/users/sign_out" data-method="delete" role="button">Sign out</a></li>
+          </ul>
+        </details>
+      </li>
+    <% end %>
+  </ul>
+</nav>
+
+<script>
+document.addEventListener('click', function(event) {
+  var details = document.querySelector('details[role=list][open]');
+  if (details && !details.contains(event.target)) {
+    details.removeAttribute('open');
+  }
+});
+</script>

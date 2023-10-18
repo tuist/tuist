@@ -1,0 +1,26 @@
+.organizations__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 var(--tuist-spacing-medium);
+}
+
+.organizations__row:not(:last-of-type) {
+  border-bottom: 1px solid var(--tuist-color-gray-300);
+}
+
+.organizations__container {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin: 0 15% 0 15%;
+}
+
+.organizations__container > article {
+  padding: 0;
+}
+
+.organizations__name {
+  color: var(--text-inverse);
+  padding-right: var(--tuist-spacing-medium);
+}

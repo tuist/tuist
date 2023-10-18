@@ -1,15 +1,7 @@
 <%= stylesheet_link_tag 'app' %>
 <%= stylesheet_link_tag 'analytics_targets' %>
 
-<nav>
-  <ul>
-    <li><%= svg('tuist_cloud_logo', class: "icon-medium") %><h1>Tuist Cloud</h1></li>
-  </ul>
-  <ul>
-    <li><a href="/users/sign_out" data-method="delete" role="button">Sign out</a></li>
-  </ul>
-</nav>
-
+<%= render_navigation_bar %>
 
 <div class="targets">
   <header>

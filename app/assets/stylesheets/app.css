@@ -88,6 +88,7 @@
   --tuist-font-line-height-3: 1.5rem;
   --tuist-font-line-height-2: 1.25rem;
   --tuist-font-line-height-1: 1rem;
+  --tuist-font-line-height-075: 0.75rem;
 
   --tuist-font-weight-light: 300;
   --tuist-font-weight-normal: 400;
@@ -263,6 +264,10 @@ nav li {
   margin: 0;
 }
 
+nav > ul > li:not(:last-child) {
+  margin-right: var(--tuist-spacing-medium);
+}
+
 nav li > * {
   --spacing: 0;
 }
@@ -398,4 +403,119 @@ header {
 
 header > :nth-child(1) {
   margin-top: var(--tuist-spacing-small);
+}
+
+header > .subtitle {
+  font-weight: var(--tuist-font-weight-normal);
+  font-size: var(--tuist-font-size-medium);
+  color: var(--text-inverse);
+}
+
+/**
+ * Dropdown ([role="list"])
+ */
+
+ details[role=list],
+ li[role=list] {
+   position: relative;
+ }
+
+ details[role=list] summary + ul,
+ li[role=list] > ul {
+   display: flex;
+   z-index: 99;
+   position: absolute;
+   top: auto;
+   flex-direction: column;
+   margin-top: var(--tuist-spacing-2x-small);
+   border: var(--tuist-border-width-2) solid var(--tuist-color-neutral-300);
+   border-radius: var(--tuist-border-radius-large);
+   background-color: var(--tuist-color-background-surface);
+   box-shadow: var(--tuist-shadow-xl);
+   color: var(--text-inverse);
+   white-space: nowrap;
+   user-select: none;
+ }
+
+ details[role=list]:not([open]) > ul {
+  display: none;
+ }
+
+ details[role=list] summary + ul li,
+ li[role=list] > ul li {
+   width: 100%;
+   margin-bottom: 0;
+   list-style: none;
+   display: flex;
+   align-items: stretch;
+   flex-direction: column;
+ }
+
+ details[role=list] summary + ul li a,
+ li[role=list] > ul li a {
+   display: block;
+   padding: var(--tuist-spacing-small);
+   overflow: hidden;
+   text-decoration: none;
+   text-overflow: ellipsis;
+   background-color: var(--tuist-color-neutral-100);
+ }
+
+ details[role=list] summary + ul li a:hover,
+ li[role=list] > ul li a:hover {
+   background-color: var(--tuist-color-neutral-300);
+ }
+
+ details[role=list] summary {
+   user-select: none;
+ }
+
+ details[role=list] summary:not([role]) {
+  background-image: var(--tuist-icon-chevron);
+  background-position: center right .75rem;
+  background-size: 1rem auto;
+  background-repeat: no-repeat;
+  line-height: var(--tuist-font-line-height-075);
+  font-size: var(--tuist-font-size-small);
+  background-color: var(--tuist-color-neutral-200);
+  color: var(--text-inverse);
+  transition-property: color,background-color;
+  transition-timing-function: cubic-bezier(.4,0,.2,1);
+  transition-duration: .15s;
+  padding: var(--tuist-spacing-small) var(--tuist-spacing-2x-large) var(--tuist-spacing-small) var(--tuist-spacing-medium);
+  cursor: pointer;
+  border-width: 0;
+  border-radius: var(--tuist-border-radius-large);
+  display: inline-flex;
+  align-items: center;
+ }
+
+ details[role=list] summary:not([role]):hover {
+   background-color: var(--tuist-color-neutral-300);
+ }
+
+ details[role=list] summary:not([role]):active, details[role=list] summary:not([role]):active {
+  background-color: var(--tuist-color-neutral-400);
+}
+
+/* Divider */
+hr {
+  padding: 0;
+  margin: 0;
+  height: var(--tuist-border-width-2);
+  border: none;
+  background-color: var(--tuist-color-neutral-300);
+  width: 100%;
+}
+
+/* Badge */
+
+p.badge {
+  padding: var(--tuist-spacing-x-small) var(--tuist-spacing-small);
+  background-color: var(--tuist-color-neutral-200);
+}
+
+p.badge.critical {
+  background-color: var(--tuist-color-background-critical-strong);
+  color: var(--text-on-color);
 }

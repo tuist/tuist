@@ -1,0 +1,37 @@
+<%= stylesheet_link_tag 'app' %>
+<%= stylesheet_link_tag 'organizations' %>
+
+<%= render_navigation_bar %>
+
+<div class="organizations__container">
+  <header>
+    Organizations
+    <div class="subtitle">
+    You belong to the following Tuist Cloud organizations
+    </div>
+  </header>
+  <article>
+    <% @current_organizations.each do |organization| %>
+      <div class="organizations__row">
+          <p class="organizations__name">
+            <%= organization.account.name %>
+          </p>
+          <% if organization.account.plan.nil? %>
+            <p class="badge critical">None</p>
+          <% else %>
+            <p class="badge"><%= organization.account.plan.capitalize %></p>
+          <% end %>
+
+          <div class="members-count">
+            <%= svg('users') %>
+            <p>
+              <%= organization.admins.count + organization.users.count %>
+            </p>
+          </div>
+          <form method="POST" action="/create-customer-portal-session/<%= organization.account.id %>" target="_blank" class="billing-form">
+            <button type="submit">Manage billing</button>
+          </form>
+        </div>
+    <% end %>
+  </article>
+</div>

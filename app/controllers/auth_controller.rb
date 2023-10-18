@@ -12,7 +12,7 @@ class AuthController < ApplicationController
       '/get-started'
     elsif !stored_location.nil?
       stored_location
-    elsif user.legacy?
+    elsif user.legacy? || user.created_at < 1.minute.ago
       root_path
     else
       '/get-started'

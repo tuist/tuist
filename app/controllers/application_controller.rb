@@ -6,6 +6,10 @@ class ApplicationController < ActionController::Base
   before_action :store_location
   before_action :authenticate_user!
   before_action :setup_self_hosting
+  before_action :fetch_projects
+  before_action :redirect_if_needed
+  before_action :selected_project
+  before_action :update_last_visited_project
 
   protect_from_forgery with: :null_session
 
@@ -13,7 +17,12 @@ class ApplicationController < ActionController::Base
     if current_user.legacy?
       render(layout: 'app')
     else
-      get_started
+      project = current_user.last_visited_project || UserProjectsFetchService.call(user: current_user).first
+      if project.nil?
+        redirect_to("/get-started")
+      else
+        redirect_to("/#{project.account.name}/#{project.name}")
+      end
     end
   end
 
@@ -23,82 +32,6 @@ class ApplicationController < ActionController::Base
     render('get_started')
   end
   # rubocop:enable Naming/AccessorMethodName
-
-  def create_customer_portal_session
-    session_url = StripeCreateSessionService.call(
-      account_id: params[:account_id],
-      organization_name: params[:organization_name],
-      user: current_user,
-    )
-    redirect_to(session_url, allow_other_host: true)
-  end
-
-  def analytics
-    project_id = ProjectFetchService.new.fetch_by_name(
-      name: params[:project_name],
-      account_name: params[:account_name],
-      user: current_user,
-    ).id
-    @commands_average_duration = {
-      generate: CommandAverageService.call(
-        project_id: project_id,
-        command_name: "generate",
-        user: current_user,
-      ),
-      cache_warm: CommandAverageService.call(
-        project_id: project_id,
-        command_name: "cache warm",
-        user: current_user,
-      ),
-      build: CommandAverageService.call(
-        project_id: project_id,
-        command_name: "build",
-        user: current_user,
-      ),
-      test: CommandAverageService.call(
-        project_id: project_id,
-        command_name: "test",
-        user: current_user,
-      ),
-    }
-
-    @commands_average_cache_hit_rate = {
-      generate: CacheHitRateAverageService.call(
-        project_id: project_id,
-        command_name: "generate",
-        user: current_user,
-      ),
-      cache_warm: CacheHitRateAverageService.call(
-        project_id: project_id,
-        command_name: "cache warm",
-        user: current_user,
-      ),
-    }
-
-    @targets_cache_hit_rate = TargetCacheHitRateService.call(
-      project_id: project_id,
-      user: current_user,
-    )
-    render('analytics')
-  end
-
-  def analytics_modules
-    project_id = ProjectFetchService.new.fetch_by_name(
-      name: params[:project_name],
-      account_name: params[:account_name],
-      user: current_user,
-    ).id
-    @targets_cache_hit_rate = TargetCacheHitRateService.call(
-      project_id: project_id,
-      user: current_user,
-    )
-
-    unless params[:sort].nil?
-      @targets_cache_hit_rate = @targets_cache_hit_rate
-        .sort_by { |target| target.send(params[:sort]) }
-    end
-    render('analytics_modules')
-  end
 
   private
 
@@ -117,6 +50,36 @@ class ApplicationController < ActionController::Base
       UserOrganizationsFetchService.call(user: current_user)
     else
       []
+    end
+  end
+
+  def fetch_projects
+    unless current_user.nil?
+      @projects = UserProjectsFetchService.call(user: current_user)
+    end
+  end
+
+  def redirect_if_needed
+    if params[:redirect_to].present?
+      redirect_to(params[:redirect_to])
+    end
+  end
+
+  def selected_project
+    if params[:account_name].present? && params[:project_name].present?
+      @account_name = params[:account_name]
+      @project_name = params[:project_name]
+    end
+  end
+
+  def update_last_visited_project
+    if params[:account_name].present? && params[:project_name].present?
+      project = ProjectFetchService.new.fetch_by_name(
+        name: params[:project_name],
+        account_name: params[:account_name],
+        user: current_user,
+      )
+      LastVisitedProjectUpdateService.call(id: project.id, user: current_user)
     end
   end
 
