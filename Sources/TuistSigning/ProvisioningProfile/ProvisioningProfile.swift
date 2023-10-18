@@ -2,6 +2,10 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
+fileprivate protocol Entitlements: Decodable {
+    var appId: String { get }
+}
+
 /// Model of a provisioning profile
 struct ProvisioningProfile: Equatable {
     /// Path to the provisioning profile
@@ -32,25 +36,6 @@ struct ProvisioningProfile: Equatable {
 }
 
 extension ProvisioningProfile.Content: Decodable {
-    private struct Entitlements: Decodable {
-        let appId: String
-
-        private enum CodingKeys: String, CodingKey {
-            case appId = "application-identifier"
-            case appIdMacOS = "com.apple.application-identifier"
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            if let id = try container.decodeIfPresent(String.self, forKey: .appId) {
-                appId = id
-            } else {
-                // Fallback to the macOS key
-                appId = try container.decode(String.self, forKey: .appIdMacOS)
-            }
-        }
-    }
-
     private enum CodingKeys: String, CodingKey {
         case name = "Name"
         case uuid = "UUID"
@@ -71,9 +56,36 @@ extension ProvisioningProfile.Content: Decodable {
         appIdName = try container.decode(String.self, forKey: .appIdName)
         applicationIdPrefix = try container.decode([String].self, forKey: .applicationIdPrefix)
         platforms = try container.decode([String].self, forKey: .platforms)
-        let entitlements = try container.decode(Entitlements.self, forKey: .entitlements)
+        let entitlements = try Self.platformEntitlements(container, for: platforms)
         appId = entitlements.appId
         expirationDate = try container.decode(Date.self, forKey: .expirationDate)
         developerCertificates = try container.decode([Data].self, forKey: .developerCertificates)
+    }
+
+    private static func platformEntitlements(_ container: KeyedDecodingContainer<ProvisioningProfile.Content.CodingKeys>, for platforms: [String]) throws -> Entitlements {
+        // OSX profiles are special because they use a different key to define the application identifier
+        return if platforms.contains("OSX") {
+            try container.decode(DesktopEntitlements.self, forKey: .entitlements)
+        } else {
+            try container.decode(MobileEntitlements.self, forKey: .entitlements)
+        }
+    }
+}
+
+extension ProvisioningProfile.Content {
+    private struct MobileEntitlements: Entitlements {
+        private(set) var appId: String
+
+        enum CodingKeys: String, CodingKey {
+            case appId = "application-identifier"
+        }
+    }
+
+    private struct DesktopEntitlements: Entitlements {
+        private(set) var appId: String
+
+        enum CodingKeys: String, CodingKey {
+            case appId = "com.apple.application-identifier"
+        }
     }
 }
