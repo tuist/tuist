@@ -11,8 +11,6 @@ tuist/fetch:
 	./make/tasks/tuist/fetch.sh $(ARGS)
 tuist/generate:
 	./make/tasks/tuist/generate.sh $(ARGS)
-tuist/generate/with-cloud:
-	TUIST_INCLUDE_TUIST_CLOUD=1 ./make/tasks/tuist/generate.sh $(ARGS)
 tuist/run:
 	./make/tasks/tuist/run.sh $(ARGS)
 
