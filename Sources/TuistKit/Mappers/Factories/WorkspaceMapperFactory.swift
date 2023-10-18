@@ -19,9 +19,8 @@ protocol WorkspaceMapperFactorying {
 
     /// Returns a mapper for automation commands like build and test.
     /// - Parameter config: The project configuration.
-    /// - Parameter workspaceDirectory: The directory where the workspace will be generated.
     /// - Returns: A workspace mapping instance.
-    func automation(workspaceDirectory: AbsolutePath) -> [WorkspaceMapping]
+    func automation() -> [WorkspaceMapping]
 }
 
 final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
@@ -37,9 +36,8 @@ final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
         return mappers
     }
 
-    func automation(workspaceDirectory: AbsolutePath) -> [WorkspaceMapping] {
+    func automation() -> [WorkspaceMapping] {
         var mappers: [WorkspaceMapping] = []
-        mappers.append(AutomationPathWorkspaceMapper(workspaceDirectory: workspaceDirectory))
         mappers += self.default(forceWorkspaceSchemes: true)
 
         return mappers

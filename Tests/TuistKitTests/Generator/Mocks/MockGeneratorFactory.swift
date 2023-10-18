@@ -44,47 +44,70 @@ final class MockGeneratorFactory: GeneratorFactorying {
     var invokedTestCount = 0
     var invokedTestParameters: (
         config: Config,
-        automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
-        skipUITests: Bool
+        skipUITests: Bool,
+        cacheOutputType: TuistCore.CacheOutputType,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool,
+        targetsToSkipCache: Set<String>
     )?
     var invokedTestParametersList =
         [(
             config: Config,
-            automationPath: AbsolutePath,
             testsCacheDirectory: AbsolutePath,
             testPlan: String?,
             includedTargets: Set<String>,
             excludedTargets: Set<String>,
-            skipUITests: Bool
+            skipUITests: Bool,
+            cacheOutputType: TuistCore.CacheOutputType,
+            cacheProfile: TuistGraph.Cache.Profile,
+            ignoreCache: Bool,
+            targetsToSkipCache: Set<String>
         )]()
     var stubbedTestResult: Generating!
 
     func test(
         config: Config,
-        automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
-        skipUITests: Bool
+        skipUITests: Bool,
+        cacheOutputType: TuistCore.CacheOutputType,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool,
+        targetsToSkipCache: Set<String>
     ) -> Generating {
         invokedTest = true
         invokedTestCount += 1
         invokedTestParameters = (
             config,
-            automationPath,
             testsCacheDirectory,
             testPlan,
             includedTargets,
             excludedTargets,
-            skipUITests
+            skipUITests,
+            cacheOutputType,
+            cacheProfile,
+            ignoreCache,
+            targetsToSkipCache
         )
         invokedTestParametersList
-            .append((config, automationPath, testsCacheDirectory, testPlan, includedTargets, excludedTargets, skipUITests))
+            .append((
+                config,
+                testsCacheDirectory,
+                testPlan,
+                includedTargets,
+                excludedTargets,
+                skipUITests,
+                cacheOutputType,
+                cacheProfile,
+                ignoreCache,
+                targetsToSkipCache
+            ))
         return stubbedTestResult
     }
 
