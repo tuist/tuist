@@ -13,7 +13,6 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let localPackagePath = temporaryPath.appending(component: "LocalPackage")
 
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest: ProjectDescription.Dependencies = Dependencies(
@@ -22,12 +21,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                 .git(path: "Dependency.git", requirement: .branch("BranchName")),
                 .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
             ],
-            swiftPackageManager: .init(
-                [
-                    .local(path: Path(localPackagePath.pathString)),
-                    .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
-                ]
-            ),
+            swiftPackageManager: .init(),
             platforms: [.iOS, .macOS, .tvOS]
         )
 
@@ -44,10 +38,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                 ]
             ),
             swiftPackageManager: .init(
-                .packages([
-                    .local(path: localPackagePath),
-                    .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
-                ]),
+                .manifest,
                 productTypes: [:],
                 baseSettings: .init(configurations: [
                     .debug: .init(settings: [:], xcconfig: nil),
