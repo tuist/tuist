@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-include Rails.application.routes.url_helpers
-
 class CacheService < ApplicationService
   attr_reader :account_name, :project_name, :project_slug, :hash, :name, :user, :object_key, :project
 
