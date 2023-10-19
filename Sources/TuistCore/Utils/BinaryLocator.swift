@@ -23,13 +23,13 @@ enum BinaryLocatorError: FatalError, Equatable {
 /// Protocol that defines the interface to locate the tuist binary in the environment.
 public protocol BinaryLocating {
     /// Returns the command to run xcbeautify.
-    func xcbeautifyCommand() throws -> String
+    func xcbeautifyCommand() throws -> [String]
 }
 
 public final class BinaryLocator: BinaryLocating {
     public init() {}
 
-    public func xcbeautifyCommand() throws -> String {
+    public func xcbeautifyCommand() throws -> [String] {
         #if DEBUG
             let bundlePath = try AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
                 .removingLastComponent()
@@ -37,7 +37,7 @@ public final class BinaryLocator: BinaryLocating {
                 .removingLastComponent()
                 .removingLastComponent()
                 .appending(try RelativePath(validating: "projects/tuist/vendor"))
-                return "swift run --package-path \(bundlePath) xcbeautify"
+            return ["/usr/bin/xcrun", "swift", "run", "--package-path", bundlePath.pathString, "xcbeautify"]
         #else
             let candidatebinariesPath = [
                 bundlePath,
