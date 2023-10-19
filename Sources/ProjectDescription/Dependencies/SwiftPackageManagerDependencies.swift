@@ -38,7 +38,7 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// - Parameter baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
-    @available(*, deprecated, message: "Use init with manifest path instead")
+    @available(*, deprecated, message: "Use init without packages parameter instead")
     public init(
         _ packages: [Package],
         productTypes: [String: Product] = [:],
