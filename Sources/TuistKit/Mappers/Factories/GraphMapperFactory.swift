@@ -15,10 +15,14 @@ protocol GraphMapperFactorying {
     /// - Returns: A graph mapper.
     func automation(
         config: Config,
+        cache: Bool,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
-        excludedTargets: Set<String>
+        excludedTargets: Set<String>,
+        cacheProfile: TuistGraph.Cache.Profile,
+        cacheOutputType: CacheOutputType,
+        targetsToSkipCache: Set<String>
     ) -> [GraphMapping]
 
     /// Returns the graph mapper for generating focused projects where some targets are pruned from the graph
@@ -51,10 +55,14 @@ final class GraphMapperFactory: GraphMapperFactorying {
 
     func automation(
         config: Config,
+        cache: Bool,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
-        excludedTargets: Set<String>
+        excludedTargets: Set<String>,
+        cacheProfile: TuistGraph.Cache.Profile,
+        cacheOutputType: CacheOutputType,
+        targetsToSkipCache: Set<String>
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         #if canImport(TuistCloud)
@@ -75,6 +83,19 @@ final class GraphMapperFactory: GraphMapperFactorying {
                 )
             )
             mappers.append(TreeShakePrunedTargetsGraphMapper())
+
+            if cache {
+                let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
+                    config: config,
+                    cacheStorageProvider: CacheStorageProvider(config: config),
+                    sources: includedTargets.isEmpty ? .tests : .explicit(includedTargets),
+                    cacheProfile: cacheProfile,
+                    cacheOutputType: cacheOutputType,
+                    excludedSources: targetsToSkipCache
+                )
+                mappers.append(focusTargetsGraphMapper)
+                mappers.append(TreeShakePrunedTargetsGraphMapper())
+            }
         #endif
         mappers.append(contentsOf: self.default())
         return mappers

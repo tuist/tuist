@@ -59,6 +59,7 @@ public class TrackableCommand: TrackableParametersDelegate {
         )
         let commandEvent = commandEventFactory.make(from: info)
         try asyncQueue.dispatch(event: commandEvent)
+        asyncQueue.waitIfCI()
     }
 
     func addParameters(_ parameters: [String: AnyCodable]) {
