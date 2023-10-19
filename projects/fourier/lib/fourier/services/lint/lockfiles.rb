@@ -56,7 +56,7 @@ module Fourier
           end
 
           def tuist_lockfile
-            path = File.expand_path("Tuist/Dependencies/Lockfiles/Package.resolved", root_directory)
+            path = File.expand_path("Tuist/Package.resolved", root_directory)
             load_lockfile(path)
           end
 

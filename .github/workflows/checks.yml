@@ -8,7 +8,8 @@ on:
       - main
   pull_request:
     paths:
-      - Tuist/Dependencies/Lockfiles/Package.resolved
+      - Tuist/Package.swift
+      - Tuist/Package.resolved
       - Package.resolved
       - Sources/**
       - Tests/**

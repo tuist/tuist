@@ -54,8 +54,7 @@ public protocol CarthageInteracting {
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies:  List of dependencies to install using `Carthage`.
     ///   - platforms: List of platforms for which you want to install dependencies.
-    ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the
-    /// `Tuist/Lockfiles/Cartfile.resolved` lockfile.
+    ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the lockfile.
     /// - Returns: A graph that represents dependencies installed using `Carthage`.
     func install(
         dependenciesDirectory: AbsolutePath,

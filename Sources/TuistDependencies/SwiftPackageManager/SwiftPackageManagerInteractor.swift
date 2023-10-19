@@ -46,8 +46,7 @@ public protocol SwiftPackageManagerInteracting {
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies: List of dependencies to install using `Swift Package Manager`.
     ///   - platforms: Set of supported platforms.
-    ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the
-    /// `Tuist/Lockfiles/Package.resolved` lockfile.
+    ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the lockfile.
     ///   - swiftToolsVersion: The version of Swift tools that will be used to resolve dependencies. If `nil` is passed then the
     /// environment’s version will be used.
     func install(
@@ -91,7 +90,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     ) throws -> TuistCore.DependenciesGraph {
         logger.info("Installing Swift Package Manager dependencies.", metadata: .subsection)
 
-        let pathsProvider = SwiftPackageManagerPathsProvider(dependenciesDirectory: dependenciesDirectory)
+        let pathsProvider = SwiftPackageManagerPathsProvider(dependenciesDirectory: dependenciesDirectory, packagesOrManifest: dependencies.packagesOrManifest)
 
         try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies, swiftToolsVersion: swiftToolsVersion)
 
@@ -122,9 +121,11 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     }
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {
-        let pathsProvider = SwiftPackageManagerPathsProvider(dependenciesDirectory: dependenciesDirectory)
-        try fileHandler.delete(pathsProvider.destinationSwiftPackageManagerDirectory)
-        try fileHandler.delete(pathsProvider.destinationPackageResolvedPath)
+        for packagesOrManifest in [TuistGraph.PackagesOrManifest.packages([]), .manifest] {
+            let pathsProvider = SwiftPackageManagerPathsProvider(dependenciesDirectory: dependenciesDirectory, packagesOrManifest: packagesOrManifest)
+            try fileHandler.delete(pathsProvider.destinationSwiftPackageManagerDirectory)
+            try fileHandler.delete(pathsProvider.destinationPackageResolvedPath)
+        }
     }
 
     // MARK: - Installation
@@ -219,18 +220,23 @@ private struct SwiftPackageManagerPathsProvider {
 
     let temporaryPackageResolvedPath: AbsolutePath
 
-    init(dependenciesDirectory: AbsolutePath) {
+    init(dependenciesDirectory: AbsolutePath, packagesOrManifest: TuistGraph.PackagesOrManifest) {
+        let tuistDirectory = dependenciesDirectory.removingLastComponent()
         destinationPackageSwiftPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
             .appending(component: Constants.DependenciesDirectory.packageSwiftName)
-        destinationPackageResolvedPath = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.packageResolvedName)
+        switch packagesOrManifest {
+        case .packages:
+            destinationPackageResolvedPath = dependenciesDirectory
+                .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+                .appending(component: Constants.DependenciesDirectory.packageResolvedName)
+        case .manifest:
+            destinationPackageResolvedPath = tuistDirectory.appending(component: Constants.DependenciesDirectory.packageResolvedName)
+        }
         destinationSwiftPackageManagerDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
         destinationBuildDirectory = destinationSwiftPackageManagerDirectory.appending(component: ".build")
-        sourcePackageSwiftPath = dependenciesDirectory.removingLastComponent()
-            .appending(component: Constants.DependenciesDirectory.packageSwiftName)
+        sourcePackageSwiftPath = tuistDirectory.appending(component: Constants.DependenciesDirectory.packageSwiftName)
 
         temporaryPackageResolvedPath = destinationSwiftPackageManagerDirectory
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
