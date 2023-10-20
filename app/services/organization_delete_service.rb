@@ -22,7 +22,7 @@ class OrganizationDeleteService < ApplicationService
   end
 
   def call
-    organization = OrganizationFetchService.call(name: name, subject: deleter)
+    organization = OrganizationFetchService.call(name: name, user: deleter)
 
     raise Error::Unauthorized unless OrganizationPolicy.new(deleter, organization).update?
 

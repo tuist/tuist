@@ -2,12 +2,6 @@
 
 module API
   class CacheController < APIController
-    authorize_current_subject_type cache: [:user, :project],
-      exists: [:user, :project],
-      upload_cache_artifact: [:user, :project],
-      verify_upload: [:user, :project],
-      clean: [:user, :project]
-
     def cache
       # TODO: This should be removed eventually as it's only used to support older tuist versions.
       if request.head? && !cache_artifact_upload_service.object_exists?
@@ -53,7 +47,7 @@ module API
         hash: params[:hash],
         name: params[:name],
         user: current_user,
-        project: current_project,
+        project: @project,
       )
     end
   end

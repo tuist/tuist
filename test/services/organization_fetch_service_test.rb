@@ -15,7 +15,7 @@ class OrganizationFetchServiceTest < ActiveSupport::TestCase
     user.add_role(:user, organization)
 
     # When
-    got = OrganizationFetchService.call(name: account.name, subject: user)
+    got = OrganizationFetchService.call(name: account.name, user: user)
 
     # Then
     assert_equal organization, got
@@ -27,7 +27,7 @@ class OrganizationFetchServiceTest < ActiveSupport::TestCase
 
     # When / Then
     assert_raises(OrganizationFetchService::Error::OrganizationNotFound) do
-      OrganizationFetchService.call(name: "non-existent-name", subject: user)
+      OrganizationFetchService.call(name: "non-existent-name", user: user)
     end
   end
 
@@ -39,7 +39,7 @@ class OrganizationFetchServiceTest < ActiveSupport::TestCase
 
     # When / Then
     assert_raises(OrganizationFetchService::Error::Unauthorized) do
-      OrganizationFetchService.call(name: account.name, subject: user)
+      OrganizationFetchService.call(name: account.name, user: user)
     end
   end
 end

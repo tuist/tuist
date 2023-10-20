@@ -2,13 +2,11 @@
 
 module API
   class AnalyticsController < APIController
-    authorize_current_subject_type analytics: [:user, :project]
-
     def analytics
       CommandEventCreateService.call(
         project_slug: params[:project_id],
         user: current_user,
-        project: current_project,
+        project: @project,
         name: params[:name],
         subcommand: params[:subcommand],
         command_arguments: params[:command_arguments],

@@ -2,10 +2,10 @@
 
 class ProjectPolicy < ApplicationPolicy
   def show?
-    AccountPolicy.new(subject, record.account).show?
+    AccountPolicy.new(user, record.account).show?
   end
 
   def update?
-    AccountPolicy.new(subject, record.account).update?
+    AccountPolicy.new(user, record.account).update?
   end
 end

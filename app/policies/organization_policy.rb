@@ -2,18 +2,10 @@
 
 class OrganizationPolicy < ApplicationPolicy
   def show?
-    if subject.is_a?(User)
-      subject.has_role?(:user, record) || subject.has_role?(:admin, record)
-    else
-      false
-    end
+    user.has_role?(:user, record) || user.has_role?(:admin, record)
   end
 
   def update?
-    if subject.is_a?(User)
-      subject.has_role?(:admin, record)
-    else
-      false
-    end
+    user.has_role?(:admin, record)
   end
 end

@@ -2,10 +2,10 @@
 
 class CommandEventPolicy < ApplicationPolicy
   def show?
-    ProjectPolicy.new(subject, record.project).show?
+    ProjectPolicy.new(user, record.project).show?
   end
 
   def update?
-    ProjectPolicy.new(subject, record.project).update?
+    ProjectPolicy.new(user, record.project).update?
   end
 end

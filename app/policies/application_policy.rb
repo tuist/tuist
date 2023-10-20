@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 class ApplicationPolicy
-  attr_reader :subject, :record
+  attr_reader :user, :record
 
-  def initialize(subject, record)
-    @subject = subject
+  def initialize(user, record)
+    @user = user
     @record = record
   end
 
@@ -34,5 +34,20 @@ class ApplicationPolicy
 
   def destroy?
     false
+  end
+
+  class Scope
+    def initialize(user, scope)
+      @user = user
+      @scope = scope
+    end
+
+    def resolve
+      scope.all
+    end
+
+    private
+
+    attr_reader :user, :scope
   end
 end

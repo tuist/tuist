@@ -30,7 +30,7 @@ class RemoveMemberService < ApplicationService
   end
 
   def call
-    organization = OrganizationFetchService.call(name: organization_name, subject: remover)
+    organization = OrganizationFetchService.call(name: organization_name, user: remover)
     begin
       user = Account.find_by!(name: username).owner
       raise Error::MemberNotFound, username unless user.is_a?(User)

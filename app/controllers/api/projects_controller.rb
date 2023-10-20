@@ -3,8 +3,6 @@
 module API
   # Controller for managing projects
   class ProjectsController < APIController
-    authorize_current_subject_type index: [:user], create: [:user], destroy: [:user], show: [:user]
-
     def index
       projects = UserProjectsFetchService.call(
         user: current_user,

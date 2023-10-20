@@ -2,28 +2,20 @@
 
 class AccountPolicy < ApplicationPolicy
   def show?
-    if subject.is_a?(User)
-      if record.owner_type == "User"
-        return record.owner_id == subject.id
-      end
-
-      organization = Organization.find(record.owner_id)
-      OrganizationPolicy.new(subject, organization).show?
-    else
-      false
+    if record.owner_type == "User"
+      return record.owner_id == user.id
     end
+
+    organization = Organization.find(record.owner_id)
+    OrganizationPolicy.new(user, organization).show?
   end
 
   def update?
-    if subject.is_a?(User)
-      if record.owner_type == "User"
-        return record.owner_id == subject.id
-      end
-
-      organization = Organization.find(record.owner_id)
-      OrganizationPolicy.new(subject, organization).update?
-    else
-      false
+    if record.owner_type == "User"
+      return record.owner_id == user.id
     end
+
+    organization = Organization.find(record.owner_id)
+    OrganizationPolicy.new(user, organization).update?
   end
 end
