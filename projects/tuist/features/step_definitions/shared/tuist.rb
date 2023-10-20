@@ -21,8 +21,9 @@ Given(/tuist is available/) do
   end
 
   # `tuist` release build expect to have `vendor` and `Templates` in the same directory where the executable is
-  FileUtils.cp_r(File.join(project_root, "projects/tuist/vendor"), File.join(project_root, ".build/release/vendor"))
+  FileUtils.cp_r(File.join(project_root, ".build/release/xcbeautify"), File.join(project_root, ".build/release/vendor/xcbeautify"))
   FileUtils.cp_r(File.join(project_root, "Templates"), File.join(project_root, ".build/release/Templates"))
+
   @tuist = File.join(project_root, ".build/release/tuist")
   @tuistenv = File.join(project_root, ".build/release/tuistenv")
 end

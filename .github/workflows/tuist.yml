@@ -84,6 +84,8 @@ jobs:
         run: swift build -c release --product tuistenv
       - name: Build ProjectDescription for release
         run: swift build -c release --product ProjectDescription
+      - name: Build xcbeautify for release
+        run: swift build -c release --product xcbeautify --path projects/tuist/vendor --build-path .build/
 
   acceptance_tests:
     name: ${{ matrix.feature }} acceptance tests with Xcode
