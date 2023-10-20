@@ -69,7 +69,7 @@ build_fat_release_binary() {
         --disable-sandbox \
         --product $1 \
         --package-path $2 \
-        --build-path $TMP_DIR \
+        --build-path $TMP_DIR/$1 \
         --triple $ARM64_TARGET
 
     DEVELOPER_DIR=$XCODE_PATH swift build \
@@ -77,15 +77,15 @@ build_fat_release_binary() {
         --disable-sandbox \
         --product $1 \
         --package-path $2 \
-        --build-path $TMP_DIR \
+        --build-path $TMP_DIR/$1 \
         --triple $X86_64_TARGET
 
     mkdir -p $3
     
     DEVELOPER_DIR=$XCODE_PATH lipo -create \
         -output $3/$1 \
-        $TMP_DIR/$ARM64_TARGET/release/$1 \
-        $TMP_DIR/$X86_64_TARGET/release/$1
+        $TMP_DIR/$1/$ARM64_TARGET/release/$1 \
+        $TMP_DIR/$1/$X86_64_TARGET/release/$1
     )
 }
 
