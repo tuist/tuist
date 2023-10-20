@@ -39,6 +39,7 @@ public final class BinaryLocator: BinaryLocating {
                 .appending(try RelativePath(validating: "projects/tuist/vendor"))
             return ["/usr/bin/xcrun", "swift", "run", "--package-path", bundlePath.pathString, "xcbeautify"]
         #else
+            let bundlePath = try AbsolutePath(validating: Bundle(for: BinaryLocator.self).bundleURL.path)
             let candidatebinariesPath = [
                 bundlePath,
                 bundlePath.parentDirectory,
@@ -54,13 +55,13 @@ public final class BinaryLocator: BinaryLocating {
                     */
                 bundlePath.parentDirectory.appending(try RelativePath(validating: "share/tuist")),
             ]
-            let candidates = try candidatebinariesPath.map { path in
+            let candidates = candidatebinariesPath.map { path in
                 path.appending(components: "xcbeautify", "xcbeautify")
             }
             guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
                 throw BinaryLocatorError.xcbeautifyNotFound
             }
-            return existingPath
+            return [existingPath.pathString]
         #endif
     }
 }
