@@ -90,7 +90,10 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     ) throws -> TuistCore.DependenciesGraph {
         logger.info("Installing Swift Package Manager dependencies.", metadata: .subsection)
 
-        let pathsProvider = SwiftPackageManagerPathsProvider(dependenciesDirectory: dependenciesDirectory, packagesOrManifest: dependencies.packagesOrManifest)
+        let pathsProvider = SwiftPackageManagerPathsProvider(
+            dependenciesDirectory: dependenciesDirectory,
+            packagesOrManifest: dependencies.packagesOrManifest
+        )
 
         try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies, swiftToolsVersion: swiftToolsVersion)
 
@@ -122,7 +125,10 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {
         for packagesOrManifest in [TuistGraph.PackagesOrManifest.packages([]), .manifest] {
-            let pathsProvider = SwiftPackageManagerPathsProvider(dependenciesDirectory: dependenciesDirectory, packagesOrManifest: packagesOrManifest)
+            let pathsProvider = SwiftPackageManagerPathsProvider(
+                dependenciesDirectory: dependenciesDirectory,
+                packagesOrManifest: packagesOrManifest
+            )
             try fileHandler.delete(pathsProvider.destinationSwiftPackageManagerDirectory)
             try fileHandler.delete(pathsProvider.destinationPackageResolvedPath)
         }
@@ -231,7 +237,8 @@ private struct SwiftPackageManagerPathsProvider {
                 .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
                 .appending(component: Constants.DependenciesDirectory.packageResolvedName)
         case .manifest:
-            destinationPackageResolvedPath = tuistDirectory.appending(component: Constants.DependenciesDirectory.packageResolvedName)
+            destinationPackageResolvedPath = tuistDirectory
+                .appending(component: Constants.DependenciesDirectory.packageResolvedName)
         }
         destinationSwiftPackageManagerDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
