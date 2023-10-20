@@ -37,7 +37,7 @@ class DefaultS3Bucket
   def name
     case Rails.env
     when "production"
-      "tuist-production"
+      "tuist-cloud-production"
     when "staging"
       "tuist-cloud-staging"
     when "canary"
