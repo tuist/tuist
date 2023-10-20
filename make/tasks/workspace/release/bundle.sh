@@ -68,6 +68,7 @@ build_fat_release_binary() {
         --configuration release \
         --disable-sandbox \
         --product $1 \
+        --package-path $2 \
         --build-path $TMP_DIR \
         --triple $ARM64_TARGET
 
@@ -75,11 +76,14 @@ build_fat_release_binary() {
         --configuration release \
         --disable-sandbox \
         --product $1 \
+        --package-path $2 \
         --build-path $TMP_DIR \
         --triple $X86_64_TARGET
 
+    mkdir -p $3
+    
     DEVELOPER_DIR=$XCODE_PATH lipo -create \
-        -output $BUILD_DIRECTORY/$1 \
+        -output $3/$1 \
         $TMP_DIR/$ARM64_TARGET/release/$1 \
         $TMP_DIR/$X86_64_TARGET/release/$1
     )
@@ -93,16 +97,16 @@ build_fat_release_library "ProjectDescription"
 echo "$(format_subsection "Building ProjectAutomation framework")"
 build_xcframework_library "ProjectAutomation"
 
-echo "$(format_subsection "Building tuist executable")"
-build_fat_release_binary "tuist"
+echo "$(format_subsection "Building xcbeautify executable")"
+build_fat_release_binary "xcbeautify" $ROOT_DIR/projects/tuist/vendor $BUILD_DIRECTORY/vendor
 
 echo "$(format_subsection "Building tuist executable")"
-build_fat_release_binary "tuistenv"
+build_fat_release_binary "tuist" $ROOT_DIR $BUILD_DIRECTORY
+
+echo "$(format_subsection "Building tuist executable")"
+build_fat_release_binary "tuistenv" $ROOT_DIR $BUILD_DIRECTORY
 
 echo "$(format_section "Copying assets")"
-
-echo "$(format_subsection "Copying Tuist's vendored resources")"
-cp -r $ROOT_DIR/projects/tuist/vendor $BUILD_DIRECTORY/vendor
 
 echo "$(format_subsection "Copying Tuist's templates")"
 cp -r $ROOT_DIR/Templates $BUILD_DIRECTORY/Templates
