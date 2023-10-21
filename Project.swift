@@ -98,8 +98,8 @@ func targets() -> [Target] {
                 .external(name: "Queuer"),
                 .external(name: "Stencil"),
                 .external(name: "StencilSwiftKit"),
-                .external(name: "Swifter"),
                 .external(name: "SwiftToolsSupport"),
+                .external(name: "Swifter"),
                 .external(name: "XcodeProj"),
                 .external(name: "ZIPFoundation"),
                 .target(name: "ProjectDescription"),
@@ -356,7 +356,7 @@ func targets() -> [Target] {
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistLoader"),
-                .external(name: "AnyCodable"),
+                .target(name: "TuistSupport"),
             ]),
             testDependencies: [
                 .target(name: "TuistSupportTesting"),
@@ -458,7 +458,7 @@ func targets() -> [Target] {
                 .target(name: "TuistCoreTesting"),
                 .target(name: "TuistGraphTesting"),
             ]
-        ).flatMap { $0 })
+        ).compactMap { $0 })
     }
     return executableTargets + moduleTargets
 }
