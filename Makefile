@@ -13,5 +13,7 @@ tuist/generate:
 # Shared
 workspace/lint:
 	./make/tasks/workspace/lint.sh $(ARGS)
+workspace/lint-fix:
+	./make/tasks/workspace/lint-fix.sh $(ARGS)
 workspace/up:
 	./make/tasks/workspace/up.sh
