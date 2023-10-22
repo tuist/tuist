@@ -3,7 +3,6 @@
 class ApplicationController < ActionController::Base
   before_action :store_location
   before_action :authenticate_user!
-  before_action :setup_self_hosting
   before_action :fetch_projects
   before_action :redirect_if_needed
   before_action :selected_project
