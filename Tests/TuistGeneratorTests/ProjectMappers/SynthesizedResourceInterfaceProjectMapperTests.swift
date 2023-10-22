@@ -36,8 +36,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func test_map() throws {
         // Given
         var templateStrings: [String] = []
-        synthesizedResourceInterfacesGenerator.renderStub = { _, templateString, _, _, paths in
+        var parserOptionsStrings: [ResourceSynthesizer.Parser: String] = [:]
+        synthesizedResourceInterfacesGenerator.renderStub = { parser, parserOptions, templateString, _, _, paths in
             templateStrings.append(templateString)
+            parserOptionsStrings[parser] = parserOptions.map { "\($0.key): \($0.value.value)" }.sorted().joined(separator: ", ")
             let content = paths.map { $0.components.suffix(2).joined(separator: "/") }.joined(separator: ", ")
             return content
         }
@@ -98,26 +100,56 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let resourceSynthesizers: [ResourceSynthesizer] = [
             .init(
                 parser: .assets,
+                parserOptions: [
+                    "stringValue": .init(value: "test"),
+                    "intValue": .init(value: 999),
+                    "boolValue": .init(value: true),
+                    "doubleValue": .init(value: 1.0),
+                ],
                 extensions: ["xcassets"],
                 template: .defaultTemplate("Assets")
             ),
             .init(
                 parser: .strings,
+                parserOptions: [
+                    "stringValue": .init(value: "test"),
+                    "intValue": .init(value: 999),
+                    "boolValue": .init(value: true),
+                    "doubleValue": .init(value: 1.0),
+                ],
                 extensions: ["strings", "stringsdict"],
                 template: .file(stringsTemplatePath)
             ),
             .init(
                 parser: .plists,
+                parserOptions: [
+                    "stringValue": .init(value: "test"),
+                    "intValue": .init(value: 999),
+                    "boolValue": .init(value: true),
+                    "doubleValue": .init(value: 1.0),
+                ],
                 extensions: ["plist"],
                 template: .defaultTemplate("Plists")
             ),
             .init(
                 parser: .fonts,
+                parserOptions: [
+                    "stringValue": .init(value: "test"),
+                    "intValue": .init(value: 999),
+                    "boolValue": .init(value: true),
+                    "doubleValue": .init(value: 1.0),
+                ],
                 extensions: ["otf", "ttc", "ttf"],
                 template: .defaultTemplate("Fonts")
             ),
             .init(
                 parser: .json,
+                parserOptions: [
+                    "stringValue": .init(value: "test"),
+                    "intValue": .init(value: 999),
+                    "boolValue": .init(value: true),
+                    "doubleValue": .init(value: 1.0),
+                ],
                 extensions: ["lottie"],
                 template: .file(lottieTemplatePath)
             ),
@@ -233,7 +265,18 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 "lottie template",
             ]
         )
-
+        [
+            ResourceSynthesizer.Parser.assets,
+            ResourceSynthesizer.Parser.strings,
+            ResourceSynthesizer.Parser.plists,
+            ResourceSynthesizer.Parser.fonts,
+            ResourceSynthesizer.Parser.json,
+        ].forEach { parser in
+            XCTAssertEqual(
+                parserOptionsStrings[parser],
+                "boolValue: true, doubleValue: 1.0, intValue: 999, stringValue: test"
+            )
+        }
         XCTAssertPrinterContains(
             "Skipping synthesizing accessors for \(emptyPlist.pathString) because its contents are empty.",
             at: .warning,
@@ -244,7 +287,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func testMap_whenDisableSynthesizedResourceAccessors() throws {
         // Given
         var templateStrings: [String] = []
-        synthesizedResourceInterfacesGenerator.renderStub = { _, templateString, _, _, paths in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, templateString, _, _, paths in
             templateStrings.append(templateString)
             let content = paths.map { $0.components.suffix(2).joined(separator: "/") }.joined(separator: ", ")
             return content
@@ -358,7 +401,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func testMap_bundleName_whenBundleAccessorsAreEnabled() throws {
         // Given
         var bundleNames: [String?] = []
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, bundleName, _ in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _ in
             bundleNames.append(bundleName)
             return ""
         }
@@ -395,7 +438,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
     func testMap_bundleName_whenBundleAccessorsAreDisabled() throws {
         // Given
         var bundleNames: [String?] = []
-        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, bundleName, _ in
+        synthesizedResourceInterfacesGenerator.renderStub = { _, _, _, _, bundleName, _ in
             bundleNames.append(bundleName)
             return ""
         }
