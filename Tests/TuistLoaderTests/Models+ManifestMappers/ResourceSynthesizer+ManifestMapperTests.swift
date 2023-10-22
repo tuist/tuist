@@ -43,6 +43,42 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             got,
             .init(
                 parser: .strings,
+                parserOptions: [:],
+                extensions: ["strings", "stringsdict"],
+                template: .defaultTemplate("Strings")
+            )
+        )
+    }
+
+    func test_from_when_default_strings_with_parserOptions() throws {
+        // Given
+        let parserOptions: [String: ProjectDescription.ResourceSynthesizer.Parser.Option] = [
+            "stringValue": .stringValue("test"),
+            "intValue": .intValue(999),
+            "boolValue": .boolValue(true),
+            "doubleValue": .doubleValue(1.0),
+        ]
+        let manifestDirectory = try temporaryPath()
+
+        // When
+        let got = try ResourceSynthesizer.from(
+            manifest: .strings(parserOptions: parserOptions),
+            generatorPaths: GeneratorPaths(manifestDirectory: manifestDirectory),
+            plugins: .none,
+            resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
+        )
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .init(
+                parser: .strings,
+                parserOptions: [
+                    "stringValue": .init(value: "test"),
+                    "intValue": .init(value: 999),
+                    "boolValue": .init(value: true),
+                    "doubleValue": .init(value: 1.0),
+                ],
                 extensions: ["strings", "stringsdict"],
                 template: .defaultTemplate("Strings")
             )
@@ -71,6 +107,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             got,
             .init(
                 parser: .strings,
+                parserOptions: [:],
                 extensions: ["strings", "stringsdict"],
                 template: .file(manifestDirectory.appending(component: "Template.stencil"))
             )
@@ -80,6 +117,12 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
 
     func test_from_when_assets_plugin() throws {
         // Given
+        let parserOptions: [String: ProjectDescription.ResourceSynthesizer.Parser.Option] = [
+            "stringValue": .stringValue("test"),
+            "intValue": .intValue(999),
+            "boolValue": .boolValue(true),
+            "doubleValue": .doubleValue(1.0),
+        ]
         let manifestDirectory = try temporaryPath()
         var invokedPluginNames: [String] = []
         var invokedResourceNames: [String] = []
@@ -93,7 +136,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
 
         // When
         let got = try ResourceSynthesizer.from(
-            manifest: .assets(plugin: "Plugin"),
+            manifest: .assets(plugin: "Plugin", parserOptions: parserOptions),
             generatorPaths: GeneratorPaths(manifestDirectory: manifestDirectory),
             plugins: .test(
                 resourceSynthesizers: [
@@ -108,6 +151,12 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             got,
             .init(
                 parser: .assets,
+                parserOptions: [
+                    "stringValue": .init(value: "test"),
+                    "intValue": .init(value: 999),
+                    "boolValue": .init(value: true),
+                    "doubleValue": .init(value: 1.0),
+                ],
                 extensions: ["xcassets"],
                 template: .file(manifestDirectory.appending(component: "PluginTemplate.stencil"))
             )

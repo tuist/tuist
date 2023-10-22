@@ -28,8 +28,14 @@ extension TuistGraph.ResourceSynthesizer {
             )
             template = .file(path)
         }
+
+        let parserOptions = manifest.parserOptions
+            .compactMapValues { TuistGraph.ResourceSynthesizer.Parser.Option.from(manifest: $0)
+            }
+
         return .init(
             parser: TuistGraph.ResourceSynthesizer.Parser.from(manifest: manifest.parser),
+            parserOptions: parserOptions,
             extensions: manifest.extensions,
             template: template
         )
@@ -59,6 +65,23 @@ extension TuistGraph.ResourceSynthesizer.Parser {
             return .yaml
         case .files:
             return .files
+        }
+    }
+}
+
+extension TuistGraph.ResourceSynthesizer.Parser.Option {
+    static func from(
+        manifest: ProjectDescription.ResourceSynthesizer.Parser.Option
+    ) -> Self {
+        switch manifest {
+        case let .stringValue(stringValue):
+            return .init(value: stringValue)
+        case let .intValue(intValue):
+            return .init(value: intValue)
+        case let .boolValue(boolValue):
+            return .init(value: boolValue)
+        case let .doubleValue(doubleValue):
+            return .init(value: doubleValue)
         }
     }
 }
