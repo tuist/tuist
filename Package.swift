@@ -249,6 +249,7 @@ var targets: [Target] = [
         dependencies: [
             .byName(name: "AnyCodable"),
             "TuistAsyncQueue",
+            "TuistAsyncQueue",
             "TuistCore",
             "TuistGraph",
             "TuistLoader",

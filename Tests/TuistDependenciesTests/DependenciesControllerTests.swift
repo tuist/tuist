@@ -49,7 +49,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<TuistGraph.Platform> = [.iOS]
+        let platforms: Set<TuistGraph.PackagePlatform> = [.iOS]
         let carthageDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
@@ -93,7 +93,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<TuistGraph.Platform> = [.iOS]
+        let platforms: Set<TuistGraph.PackagePlatform> = [.iOS]
         let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
             .packages([
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
@@ -139,7 +139,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<TuistGraph.Platform> = [.iOS]
+        let platforms: Set<TuistGraph.PackagePlatform> = [.iOS]
         let carthageDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
@@ -189,12 +189,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             graphManifest,
             .init(
                 externalDependencies: [
-                    .iOS: [
-                        "Carthage": TuistCore.DependenciesGraph.testXCFramework(name: "Carthage", platforms: [.iOS])
-                            .externalDependencies[.iOS]!.values.first!,
-                        "SPM": TuistCore.DependenciesGraph.testXCFramework(name: "SPM", platforms: [.iOS])
-                            .externalDependencies[.iOS]!.values.first!,
-                    ],
+                    "Carthage": TuistCore.DependenciesGraph.testXCFramework(name: "Carthage", platforms: [.iOS])
+                        .externalDependencies.values.first!,
+                    "SPM": TuistCore.DependenciesGraph.testXCFramework(name: "SPM", platforms: [.iOS])
+                        .externalDependencies.values.first!,
                 ],
                 externalProjects: [:]
             )
@@ -249,8 +247,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil),
             DependenciesControllerError.duplicatedDependency(
                 "Duplicated",
-                carthageGraph.externalDependencies[.iOS]!.values.first!,
-                spmGraph.externalDependencies[.iOS]!.values.first!
+                carthageGraph.externalDependencies.values.first!,
+                spmGraph.externalDependencies.values.first!
             )
         )
 
@@ -307,7 +305,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<TuistGraph.Platform> = [.iOS]
+        let platforms: Set<TuistGraph.PackagePlatform> = [.iOS]
         let carthageDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
@@ -349,7 +347,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<TuistGraph.Platform> = [.iOS]
+        let platforms: Set<TuistGraph.PackagePlatform> = [.iOS]
         let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
             .packages([
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
@@ -394,7 +392,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<TuistGraph.Platform> = [.iOS]
+        let platforms: Set<TuistGraph.PackagePlatform> = [.iOS]
         let carthageDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
@@ -489,10 +487,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependenciesGraph = TuistGraph.DependenciesGraph(
             externalDependencies: [
-                .iOS: [
-                    "library": [.xcframework(path: "/library.xcframework", status: .required)],
-                    "anotherLibrary": [.project(target: "Target", path: "/anotherLibrary")],
-                ],
+                "library": [.xcframework(path: "/library.xcframework", status: .required)],
+                "anotherLibrary": [.project(target: "Target", path: "/anotherLibrary")],
             ],
             externalProjects: [
                 "/anotherLibrary": .test(),

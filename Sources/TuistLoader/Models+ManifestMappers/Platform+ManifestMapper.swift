@@ -21,4 +21,29 @@ extension TuistGraph.Platform {
             return .visionOS
         }
     }
+    
+}
+
+extension TuistGraph.PackagePlatform {
+    /// Maps a ProjectDescription.Platform instance into a TuistGraph.Platform instance.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of platform model.
+    ///   - generatorPaths: Generator paths.
+    static func from(manifest: ProjectDescription.PackagePlatform) throws -> TuistGraph.PackagePlatform {
+        switch manifest {
+        case .macOS:
+            return .macOS
+        case .iOS:
+            return .iOS
+        case .macCatalyst:
+            return .macCatalyst
+        case .tvOS:
+            return .tvOS
+        case .watchOS:
+            return .watchOS
+        case .visionOS:
+            return .visionOS
+        }
+    }
+    
 }

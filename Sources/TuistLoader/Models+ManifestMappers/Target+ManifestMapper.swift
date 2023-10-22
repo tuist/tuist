@@ -28,7 +28,7 @@ extension TuistGraph.Target {
     static func from(
         manifest: ProjectDescription.Multiplatform.Target,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]]
+        externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> TuistGraph.Target {
         let name = manifest.name
         let destinations = try TuistGraph.Destination.from(destinations: manifest.destinations)
@@ -43,8 +43,8 @@ extension TuistGraph.Target {
                 try TuistGraph.TargetDependency.from(
                     manifest: dependency,
                     generatorPaths: generatorPaths,
-                    externalDependencies: externalDependencies,
-                    platform: platform
+                    externalDependencies: externalDependencies
+//                    platform: platform
                 )
             }
         }.uniqued()
@@ -133,7 +133,7 @@ extension TuistGraph.Target {
     static func from(
         manifest: ProjectDescription.Target,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]]
+        externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> TuistGraph.Target {
         let name = manifest.name
         let destinations = try TuistGraph.Destination.from(
@@ -150,8 +150,8 @@ extension TuistGraph.Target {
             try TuistGraph.TargetDependency.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies,
-                platform: TuistGraph.Platform.from(manifest: manifest.platform)
+                externalDependencies: externalDependencies
+//                platform: TuistGraph.Platform.from(manifest: manifest.platform)
             )
         }
 

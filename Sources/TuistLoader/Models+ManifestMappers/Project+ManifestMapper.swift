@@ -17,7 +17,7 @@ extension TuistGraph.Project {
         manifest: ProjectDescription.Project,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
-        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]],
+        externalDependencies: [String: [TuistGraph.TargetDependency]],
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating,
         isExternal: Bool
     ) throws -> TuistGraph.Project {

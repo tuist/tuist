@@ -1,5 +1,4 @@
 import Foundation
-import TSCUtility
 
 public enum Platform: String, CaseIterable, Codable, Comparable {
     case iOS = "ios"
@@ -17,40 +16,36 @@ public enum Platform: String, CaseIterable, Codable, Comparable {
         case .visionOS: return "visionOS"
         }
     }
-
-    /// A dictionary that contains the oldest supported version of each platform
-    public static func oldestVersions(for swiftVersion: Version) -> [Platform: String] {
-        if swiftVersion < Version(5, 7, 0) {
-            return [
-                .iOS: "9.0",
-                .tvOS: "9.0",
-                .macOS: "10.10",
-                .watchOS: "2.0",
-                .visionOS: "1.0",
-            ]
-        } else if swiftVersion < Version(5, 9, 0) {
-            return [
-                .iOS: "11.0",
-                .tvOS: "11.0",
-                .macOS: "10.13",
-                .watchOS: "4.0",
-                .visionOS: "1.0",
-            ]
-        } else {
-            return [
-                .iOS: "12.0",
-                .tvOS: "12.0",
-                .macOS: "10.15",
-                .watchOS: "4.0",
-                .visionOS: "1.0",
-            ]
-        }
-    }
-
+    
     public static func < (lhs: Platform, rhs: Platform) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
 }
+
+public enum PackagePlatform: String, CaseIterable, Codable, Comparable {
+    case iOS = "ios"
+    case macCatalyst = "maccatalyst"
+    case macOS = "macos"
+    case tvOS = "tvos"
+    case watchOS = "watchos"
+    case visionOS = "visionos"
+
+    public var caseValue: String {
+        switch self {
+        case .iOS: return "iOS"
+        case .macCatalyst: return "macCatalyst"
+        case .macOS: return "macOS"
+        case .tvOS: return "tvOS"
+        case .watchOS: return "watchOS"
+        case .visionOS: return "visionOS"
+        }
+    }
+    
+    public static func < (lhs: PackagePlatform, rhs: PackagePlatform) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
 
 extension Platform {
     public var xcodeSdkRoot: String {

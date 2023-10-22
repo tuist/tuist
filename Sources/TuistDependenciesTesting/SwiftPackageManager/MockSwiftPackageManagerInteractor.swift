@@ -14,7 +14,7 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
         (
             AbsolutePath,
             TuistGraph.SwiftPackageManagerDependencies,
-            Set<TuistGraph.Platform>,
+            Set<TuistGraph.PackagePlatform>,
             Bool,
             TSCUtility.Version?
         ) throws -> TuistCore.DependenciesGraph
@@ -23,7 +23,7 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
     public func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: TuistGraph.SwiftPackageManagerDependencies,
-        platforms: Set<TuistGraph.Platform>,
+        platforms: Set<TuistGraph.PackagePlatform>,
         shouldUpdate: Bool,
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {

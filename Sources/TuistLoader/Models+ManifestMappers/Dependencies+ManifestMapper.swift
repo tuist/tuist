@@ -29,7 +29,7 @@ extension TuistGraph.Dependencies {
                 generatorPaths: generatorPaths
             )
         }()
-        let platforms = try manifest.platforms.map { try TuistGraph.Platform.from(manifest: $0) }
+        let platforms = try manifest.platforms.map { try TuistGraph.PackagePlatform.from(manifest: $0) }
 
         return Self(
             carthage: carthage,

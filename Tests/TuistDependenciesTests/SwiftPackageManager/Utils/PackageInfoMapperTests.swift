@@ -51,8 +51,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageToTargetsToArtifactPaths: ["Package": [
                 "Target_1": try!
                     .init(validating: "/artifacts/Package/Target_1.xcframework"),
-            ]],
-            platforms: [.iOS]
+            ]]
         )
 
         XCTAssertEqual(
@@ -72,11 +71,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             preprocessInfo.productToExternalDependencies,
             [
-                .iOS: [
-                    "Product1": [
-                        .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
-                        .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
-                    ],
+                "Product1": [
+                    .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
+                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
                 ],
             ]
         )
@@ -124,14 +121,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": basePath.appending(component: "Package"),
                 "Package2": basePath.appending(component: "Package2"),
             ],
-            packageToTargetsToArtifactPaths: [:],
-            platforms: [.iOS]
+            packageToTargetsToArtifactPaths: [:]
         )
 
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
-                "Target_1": [.externalTarget(package: "Package2", target: "Target_2", condition: nil)],
+                "Target_1": [.externalTarget(package: "Package2", target: "Target_2", platformFilters: [])],
                 "Target_2": [],
             ]
         )
@@ -179,15 +175,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": basePath.appending(component: "Package"),
                 "com.example.dep-1": basePath.appending(component: "com.example.dep-1"),
             ],
-            packageToTargetsToArtifactPaths: [:],
-            platforms: [.iOS]
+            packageToTargetsToArtifactPaths: [:]
         )
 
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
                 "Target_1": [
-                    .externalTarget(package: "com.example.dep-1", target: "com_example_dep-1", condition: nil),
+                    .externalTarget(package: "com.example.dep-1", target: "com_example_dep-1", platformFilters: []),
                 ],
                 "com.example.dep-1": [],
             ]
@@ -226,16 +221,15 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageToFolder: [
                 "Package": basePath.appending(component: "Package"),
             ],
-            packageToTargetsToArtifactPaths: [:],
-            platforms: [.iOS, .tvOS]
+            packageToTargetsToArtifactPaths: [:]
         )
 
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
                 "Target_1": [
-                    .target(name: "Dependency_1", condition: .init(platforms: [.iOS])),
-                    .target(name: "Dependency_2", condition: .init(platforms: [.tvOS])),
+                    .target(name: "Dependency_1", platformFilters: [.ios]),
+                    .target(name: "Dependency_2", platformFilters: [.tvos]),
                 ],
                 "Dependency_1": [],
                 "Dependency_2": [],
@@ -296,8 +290,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package_1": basePath.appending(component: "Package_1"),
                 "Package_2": basePath.appending(component: "Package_2"),
             ],
-            packageToTargetsToArtifactPaths: [:],
-            platforms: [.iOS]
+            packageToTargetsToArtifactPaths: [:]
         )
 
         XCTAssertEqual(
@@ -306,8 +299,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Target_2": [],
                 "Target_3": [],
                 "Target_1": [
-                    .externalTarget(package: "Package_2", target: "Target_2", condition: .init(platforms: [.iOS])),
-                    .externalTarget(package: "Package_2", target: "Target_3", condition: .init(platforms: [.tvOS])),
+                    .externalTarget(package: "Package_2", target: "Target_2", platformFilters: [.ios]),
+                    .externalTarget(package: "Package_2", target: "Target_3", platformFilters: [.tvos]),
                 ],
             ]
         )
@@ -1509,7 +1502,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
 
         // Need to sort targets of projects, because internall a set is used to generate targets for different platforms
         // That could lead to mixed orders
-        let projectTargets = project!.targets.sorted(by: \.name)
+        let projectTargets = project?.targets.sorted(by: \.name)
         let expectedTargets = expected.targets.sorted(by: \.name)
         XCTAssertEqual(projectTargets, expectedTargets)
     }
@@ -3171,7 +3164,7 @@ extension PackageInfoMapping {
         package: String,
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
-        platforms: Set<TuistGraph.Platform> = [.iOS],
+        platforms: Set<TuistGraph.PackagePlatform> = [.iOS],
         baseSettings: TuistGraph.Settings = .default,
         targetSettings: [String: TuistGraph.SettingsDictionary] = [:],
         swiftToolsVersion: TSCUtility.Version? = nil,
@@ -3198,10 +3191,26 @@ extension PackageInfoMapping {
             packageInfos: packageInfos,
             idToPackage: [:],
             packageToFolder: packageToFolder,
-            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
-            platforms: platforms
+            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
         )
 
+        let destinations: ProjectDescription.Destinations = Set(platforms.flatMap({ platform -> ProjectDescription.Destinations in
+            switch platform {
+            case .iOS:
+                [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign]
+            case .macCatalyst:
+                [.macCatalyst]
+            case .macOS:
+                [.mac]
+            case .tvOS:
+                [.appleTv]
+            case .watchOS:
+                [.appleWatch]
+            case .visionOS:
+                [.appleVision]
+            }
+        }))
+        
         return try map(
             packageInfo: packageInfos[package]!,
             packageInfos: packageInfos,
@@ -3212,11 +3221,10 @@ extension PackageInfoMapping {
             targetSettings: targetSettings,
             projectOptions: projectOptions,
             minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
-            platforms: preprocessInfo.platforms,
+            destinations: destinations,
             targetToProducts: preprocessInfo.targetToProducts,
             targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
             targetToModuleMap: preprocessInfo.targetToModuleMap,
-            macOSTargets: preprocessInfo.macOSTargets,
             packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
                 ($0, basePath.appending(component: $0))
             }),

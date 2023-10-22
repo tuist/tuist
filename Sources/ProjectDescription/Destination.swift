@@ -10,6 +10,13 @@ extension Destinations {
     public static var visionOS: Destinations = [.appleVision]
 }
 
+extension Destinations {
+    public var platforms: Set<Platform> {
+        let platforms = map(\.platform)
+        return Set<Platform>(platforms)
+    }
+}
+
 /// A supported platform representation.
 public enum Destination: String, Codable, Equatable, CaseIterable {
     case iPhone
@@ -21,4 +28,19 @@ public enum Destination: String, Codable, Equatable, CaseIterable {
     case appleTv
     case appleVision
     case appleVisionWithiPadDesign
+
+    public var platform: Platform {
+        switch self {
+        case .iPad, .iPhone, .macCatalyst, .macWithiPadDesign, .appleVisionWithiPadDesign:
+            return .iOS
+        case .mac:
+            return .macOS
+        case .appleTv:
+            return .tvOS
+        case .appleWatch:
+            return .watchOS
+        case .appleVision:
+            return .visionOS
+        }
+    }
 }
