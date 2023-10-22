@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class APIController < ApplicationController
+class APIController < ActionController::Base
   module Error
     class Unauthorized < CloudError
       def message
@@ -14,7 +14,7 @@ class APIController < ApplicationController
     end
   end
 
-  skip_before_action :authenticate_user!
+  protect_from_forgery with: :null_session
   before_action :authenticate_user_from_token!
 
   def authenticate_user_from_token!

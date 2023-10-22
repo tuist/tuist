@@ -70,7 +70,7 @@
         </a>
         <% end %>
 
-        <% if !@self_hosted %>
+        <% if !Environment.self_hosted? %>
           <div class="relative">
             <div class="absolute inset-0 flex items-center">
               <div class="w-full border-t" />

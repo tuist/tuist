@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 class ApplicationController < ActionController::Base
-  include Pundit::Authorization
-
   before_action :store_location
   before_action :authenticate_user!
   before_action :setup_self_hosting
@@ -39,10 +37,6 @@ class ApplicationController < ActionController::Base
     unless request.fullpath.starts_with?('/user') || request.fullpath.starts_with?('/packs')
       store_location_for(:user, request.fullpath)
     end
-  end
-
-  def setup_self_hosting
-    @self_hosted = Environment.self_hosted?
   end
 
   def fetch_authenticated_user_organizations

@@ -7,7 +7,7 @@
     <%= csp_meta_tag %>
 
     <!-- Stripe -->
-    <% if !@self_hosted %>
+    <% if !Environment.self_hosted? %>
       <%= stripe_javascript_tag %>
     <% end %>
 
