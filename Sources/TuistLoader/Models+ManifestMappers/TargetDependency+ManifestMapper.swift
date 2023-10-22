@@ -29,8 +29,7 @@ extension TuistGraph.TargetDependency {
     static func from(
         manifest: ProjectDescription.TargetDependency,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]],
-        platform: TuistGraph.Platform
+        externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> [TuistGraph.TargetDependency] {
         switch manifest {
         case let .target(name, platformFilters):
@@ -86,8 +85,8 @@ extension TuistGraph.TargetDependency {
             return [.xctest]
         case let .external(name, _):
             // Welp dependencies.swift needs more work to support these
-            guard let dependencies = externalDependencies[platform]?[name] else {
-                throw TargetDependencyMapperError.invalidExternalDependency(name: name, platform: platform.rawValue)
+            guard let dependencies = externalDependencies[name] else {
+                throw TargetDependencyMapperError.invalidExternalDependency(name: name, platform: "Dont commit me")
             }
             return dependencies
         }

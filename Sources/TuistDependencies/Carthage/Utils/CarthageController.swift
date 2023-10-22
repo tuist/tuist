@@ -64,14 +64,14 @@ public protocol CarthageControlling {
     ///   - path: Directory where project's dependencies will be installed.
     ///   - platforms: The platforms to build for.
     ///   - printOutput: When true it prints the Carthage's output.
-    func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, printOutput: Bool) throws
+    func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.PackagePlatform>, printOutput: Bool) throws
 
     /// Updates and rebuilds the project's dependencies
     /// - Parameters:
     ///   - path: Directory where project's dependencies will be installed.
     ///   - platforms: The platforms to build for.
     ///   - printOutput: When true it prints the Carthage's output.
-    func update(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, printOutput: Bool) throws
+    func update(at path: AbsolutePath, platforms: Set<TuistGraph.PackagePlatform>, printOutput: Bool) throws
 }
 
 // MARK: - Carthage Controller
@@ -111,7 +111,7 @@ public final class CarthageController: CarthageControlling {
         return version
     }
 
-    public func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, printOutput: Bool) throws {
+    public func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.PackagePlatform>, printOutput: Bool) throws {
         guard try isXCFrameworksProductionSupported() else {
             throw CarthageControllerError.xcframeworksProductionNotSupported(installedVersion: try carthageVersion())
         }
@@ -123,7 +123,7 @@ public final class CarthageController: CarthageControlling {
             try System.shared.run(command)
     }
 
-    public func update(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, printOutput: Bool) throws {
+    public func update(at path: AbsolutePath, platforms: Set<TuistGraph.PackagePlatform>, printOutput: Bool) throws {
         guard try isXCFrameworksProductionSupported() else {
             throw CarthageControllerError.xcframeworksProductionNotSupported(installedVersion: try carthageVersion())
         }
@@ -139,7 +139,7 @@ public final class CarthageController: CarthageControlling {
 
     private func buildCarthageCommand(
         path: AbsolutePath,
-        platforms: Set<TuistGraph.Platform>,
+        platforms: Set<TuistGraph.PackagePlatform>,
         subcommand: String
     ) -> [String] {
         var commandComponents: [String] = [
@@ -153,6 +153,7 @@ public final class CarthageController: CarthageControlling {
             commandComponents += [
                 "--platform",
                 platforms
+                    .filter({ $0 != .macCatalyst }) // Carthage does not support catalyst
                     .map(\.caseValue)
                     .sorted()
                     .joined(separator: ","),

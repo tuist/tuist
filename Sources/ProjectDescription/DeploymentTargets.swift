@@ -17,6 +17,21 @@ public struct DeploymentTargets: Hashable, Codable {
         self.visionOS = visionOS
     }
 
+    public subscript(platform: Platform) -> String? {
+        switch platform {
+        case .iOS:
+            return iOS
+        case .macOS:
+            return macOS
+        case .watchOS:
+            return watchOS
+        case .tvOS:
+            return tvOS
+        case .visionOS:
+            return visionOS
+        }
+    }
+
     public static func iOS(_ version: String) -> DeploymentTargets {
         DeploymentTargets(iOS: version)
     }

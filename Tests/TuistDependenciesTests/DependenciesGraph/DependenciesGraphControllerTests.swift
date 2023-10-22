@@ -54,9 +54,7 @@ public final class DependenciesGraphControllerTests: TuistUnitTestCase {
 
         // Then
         let expected = TuistGraph.DependenciesGraph(
-            externalDependencies: [
-                .iOS: ["RxSwift": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework", status: .required)]],
-            ],
+            externalDependencies: ["RxSwift": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework", status: .required)]],
             externalProjects: [:]
         )
 

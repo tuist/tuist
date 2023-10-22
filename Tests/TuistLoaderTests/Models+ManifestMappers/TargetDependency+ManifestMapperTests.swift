@@ -19,10 +19,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [
-                .iOS: ["library": [.xcframework(path: "/path.xcframework", status: .required)]],
-            ],
-            platform: .iOS
+            externalDependencies: ["library": [.xcframework(path: "/path.xcframework", status: .required)]]
         )
 
         // Then
@@ -44,10 +41,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [
-                .iOS: ["library": [.project(target: "Target", path: "/Project")]],
-            ],
-            platform: .iOS
+            externalDependencies: ["library": [.project(target: "Target", path: "/Project")]]
         )
 
         // Then
@@ -70,14 +64,11 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [
-                .iOS: [
-                    "library": [
-                        .xcframework(path: "/path.xcframework", status: .required),
-                        .project(target: "Target", path: "/Project"),
-                    ],
+                "library": [
+                    .xcframework(path: "/path.xcframework", status: .required),
+                    .project(target: "Target", path: "/Project"),
                 ],
-            ],
-            platform: .iOS
+            ]
         )
 
         // Then
@@ -106,8 +97,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [:],
-            platform: .iOS
+            externalDependencies: [:]
         )
 
         // Then
@@ -129,8 +119,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [:],
-            platform: .iOS
+            externalDependencies: [:]
         )
 
         // Then
