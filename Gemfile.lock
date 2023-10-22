@@ -118,7 +118,7 @@ GEM
       railties (>= 4.1.0)
       responders
       warden (~> 1.2.3)
-    dockerfile-rails (1.5.10)
+    dockerfile-rails (1.5.11)
       rails (>= 3.0.0)
     dry-cli (1.0.0)
     erubi (1.12.0)
