@@ -124,7 +124,6 @@ Rails.application.configure do
     Rails::Rack::Logger,
     ActionDispatch::ShowExceptions,
     ActionDispatch::DebugExceptions,
-    Appsignal::Rack::RailsInstrumentation,
     ActionDispatch::Callbacks,
     ActionDispatch::Cookies,
     ActionDispatch::Session::CookieStore,
