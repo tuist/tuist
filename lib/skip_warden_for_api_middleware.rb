@@ -4,7 +4,7 @@ class SkipWardenForAPIMiddleware
   end
 
   def call(env)
-    if env['PATH_INFO'].start_with?('/api')
+    if env['PATH_INFO'].start_with?('/api') && env['warden']
       env['warden'].config.intercept_401 = false
     end
     @app.call(env)
