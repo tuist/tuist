@@ -16,7 +16,6 @@ class APIController < ActionController::Base
 
   # The API is used by a trusted client (CLI) that authenticates
   # using a token so this is not necessary.
-  skip_before_action :authenticate_user!
   protect_from_forgery with: :null_session
   before_action :authenticate_user_from_token!
 
