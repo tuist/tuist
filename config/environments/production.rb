@@ -113,29 +113,29 @@ Rails.application.configure do
     ->(req) { req.headers['x-request-id'] },
   ]
 
-  [ActionDispatch::HostAuthorization
-    LogUnauthorizedResponses
-    Rack::Sendfile
-    ActionDispatch::Executor
-    Rack::Runtime
-    Rack::MethodOverride
-    ActionDispatch::RequestId
-    ActionDispatch::RemoteIp
-    Rails::Rack::Logger
-    ActionDispatch::ShowExceptions
-    ActionDispatch::DebugExceptions
-    Appsignal::Rack::RailsInstrumentation
-    ActionDispatch::Callbacks
-    ActionDispatch::Cookies
-    ActionDispatch::Session::CookieStore
-    ActionDispatch::Flash
-    ActionDispatch::ContentSecurityPolicy::Middleware
-    ActionDispatch::PermissionsPolicy::Middleware
-    Rack::Head
-    Rack::ConditionalGet
-    Rack::ETag
-    Rack::TempfileReaper
-    Warden::Manager
+  [ActionDispatch::HostAuthorization,
+    LogUnauthorizedResponses,
+    Rack::Sendfile,
+    ActionDispatch::Executor,
+    Rack::Runtime,
+    Rack::MethodOverride,
+    ActionDispatch::RequestId,
+    ActionDispatch::RemoteIp,
+    Rails::Rack::Logger,
+    ActionDispatch::ShowExceptions,
+    ActionDispatch::DebugExceptions,
+    Appsignal::Rack::RailsInstrumentation,
+    ActionDispatch::Callbacks,
+    ActionDispatch::Cookies,
+    ActionDispatch::Session::CookieStore,
+    ActionDispatch::Flash,
+    ActionDispatch::ContentSecurityPolicy::Middleware,
+    ActionDispatch::PermissionsPolicy::Middleware,
+    Rack::Head,
+    Rack::ConditionalGet,
+    Rack::ETag,
+    Rack::TempfileReaper,
+    Warden::Manager,
     OmniAuth::Strategies::GitHub
   ].each do |middleware|
     config.middleware.insert_before(middleware, LogUnauthorizedResponses, middleware.to_s)
