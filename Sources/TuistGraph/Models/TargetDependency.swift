@@ -46,4 +46,27 @@ public enum TargetDependency: Equatable, Hashable, Codable {
         case .xctest: []
         }
     }
+    
+    // TODO needs tests
+    public func withFilters(_ platformFilters: PlatformFilters) -> TargetDependency {
+        switch self {
+        case .target(name: let name, platformFilters: _):
+            return .target(name: name, platformFilters: platformFilters)
+        case .project(target: let target, path: let path, platformFilters: _):
+            return .project(target: target, path: path, platformFilters: platformFilters)
+        case .framework(path: let path, platformFilters: _):
+            return .framework(path: path, platformFilters: platformFilters)
+        case .xcframework(path: let path, platformFilters: _):
+            return .xcframework(path: path, platformFilters: platformFilters)
+        case .library(path: let path, publicHeaders: let headers, swiftModuleMap: let moduleMap, platformFilters: _):
+            return .library(path: path, publicHeaders: headers, swiftModuleMap: moduleMap, platformFilters: platformFilters)
+        case .package(product: let product, platformFilters: _):
+            return .package(product: product, platformFilters: platformFilters)
+        case .packagePlugin(product: let product, platformFilters: _):
+            return .packagePlugin(product: product, platformFilters: platformFilters)
+        case .sdk(name: let name, status: let status, platformFilters: _):
+            return .sdk(name: name, status: status, platformFilters: platformFilters)
+        case .xctest: return .xctest
+        }
+    }
 }

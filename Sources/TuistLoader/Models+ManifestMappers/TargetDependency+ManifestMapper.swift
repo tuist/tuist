@@ -83,12 +83,13 @@ extension TuistGraph.TargetDependency {
             ]
         case .xctest:
             return [.xctest]
-        case let .external(name, _):
+        case let .external(name, filters):
             // Welp dependencies.swift needs more work to support these
             guard let dependencies = externalDependencies[name] else {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name, platform: "Dont commit me")
             }
-            return dependencies
+
+            return dependencies.map({ $0.withFilters(filters.asGraphFilters) })
         }
     }
 }
