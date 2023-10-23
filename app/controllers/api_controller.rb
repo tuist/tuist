@@ -20,23 +20,14 @@ class APIController < ActionController::Base
   before_action :authenticate_user_from_token!
 
   def authenticate_user_from_token!
-    authenticate_or_request_with_http_token do |token, _options|
-      user = nil
-      begin
-        user = User.find_by!(token: token)
-      rescue ActiveRecord::RecordNotFound
-        begin
-          @project = Project.find_by!(token: token)
-        rescue ActiveRecord::RecordNotFound
-          raise Error::Unauthorized
-        end
-      end
-      if user
-        sign_in(user, store: false)
-      else
-        @project
-      end
-    end
+    token = request.headers["Authorization"].to_s.remove("Bearer ")
+
+    user = User.find_by(token: token)
+    @project = Project.find_by!(token: token)
+
+    raise Error::Unauthorized if user.nil? && @project.nil?
+
+    sign_in(user, store: false) if user
   end
 
   rescue_from(CloudError) do |error, _obj, _args, _ctx, _field|
