@@ -12,6 +12,14 @@ module Environment
       truthy?(env['TUIST_CLOUD_SELF_HOSTED'])
     end
 
+    def tuist_hosted?(env: ENV)
+      !self_hosted?(env: env)
+    end
+
+    def production_like_env?(env: ENV)
+      (Rails.env.production? || Rails.env.staging? || Rails.env.canary?) && !precompiling_assets?(env: env)
+    end
+
     def truthy?(value)
       return false if value.blank?
 
