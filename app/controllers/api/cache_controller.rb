@@ -2,12 +2,11 @@
 
 module API
   class CacheController < APIController
-    def cache
+    def show
       # TODO: This should be removed eventually as it's only used to support older tuist versions.
       if request.head? && !cache_artifact_upload_service.object_exists?
         render(json: { message: "S3 object was not found", code: :not_found }, status: :not_found)
       else
-        Rails.logger.info("Looking up for cache artifact")
         # TODO: Handle expires_at instead of hardcoded value
         render(json: { status: "success", data: { url: cache_artifact_upload_service.fetch, expires_at: 1000 } })
       end

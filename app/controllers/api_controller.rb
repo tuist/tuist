@@ -25,6 +25,8 @@ class APIController < ActionController::Base
     user = User.find_by(token: token)
     @project = Project.find_by(token: token)
 
+    Rails.logger.info("UNAUTHORIZED")
+
     raise Error::Unauthorized if user.nil? && @project.nil?
 
     sign_in(user, store: false) if user

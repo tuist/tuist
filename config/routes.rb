@@ -36,7 +36,7 @@ Rails.application.routes.draw do
   get "/auth", to: "auth#authenticate"
 
   namespace :api do
-    get "/cache", to: "cache#cache"
+    get "/cache", to: "cache#show"
     get "/cache/exists", to: "cache#exists"
     post "/cache", to: "cache#upload_cache_artifact"
     post "/cache/verify_upload", to: "cache#verify_upload"
