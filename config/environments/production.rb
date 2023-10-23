@@ -134,8 +134,7 @@ Rails.application.configure do
     Rack::ConditionalGet,
     Rack::ETag,
     Rack::TempfileReaper,
-    Warden::Manager,
-    OmniAuth::Strategies::GitHub
+    Warden::Manager
   ].each do |middleware|
     config.middleware.insert_before(middleware, LogUnauthorizedResponses, middleware.to_s)
   end
