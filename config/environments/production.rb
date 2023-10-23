@@ -113,5 +113,12 @@ Rails.application.configure do
     ->(req) { req.headers['x-request-id'] },
   ]
 
-  config.middleware.insert_before(Rack::Sendfile, LogUnauthorizedResponses)
+  # config.middleware.insert_before(Rack::Sendfile, LogUnauthorizedResponses)
+  existing_middlewares = config.middleware.middlewares.dup
+  existing_middlewares.each do |middleware|
+    config.middleware.insert_before middleware, LogUnauthorizedResponses, middleware.name
+  end
+
+
+  config.hosts = []
 end

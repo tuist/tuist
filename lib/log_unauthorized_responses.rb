@@ -1,15 +1,16 @@
 # frozen_string_literal: true
 
 class LogUnauthorizedResponses
-  def initialize(app)
+  def initialize(app, middleware_name = nil)
     @app = app
+    @middleware_name = middleware_name
   end
 
   def call(env)
     status, headers, response = @app.call(env)
 
     if status == 401
-      Rails.logger.warn("[401 Unauthorized] Path: #{env['REQUEST_PATH']}"\
+      Rails.logger.warn("[401 Unauthorized] (Before middlweare #{@middleware_name}) Path: #{env['REQUEST_PATH']}"\
         " Method: #{env['REQUEST_METHOD']}, Agent: #{env['HTTP_USER_AGENT']},"\
         " Origin: #{env['REMOTE_ADDR']}")
 
