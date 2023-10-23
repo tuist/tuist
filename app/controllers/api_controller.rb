@@ -16,11 +16,12 @@ class APIController < ActionController::Base
 
   # The API is used by a trusted client (CLI) that authenticates
   # using a token so this is not necessary.
-  skip_before_action :verify_authenticity_token
+  protect_from_forgery with: :null_session
   before_action :authenticate_user_from_token!
 
   def authenticate_user_from_token!
     authenticate_or_request_with_http_token do |token, _options|
+      user = nil
       begin
         user = User.find_by!(token: token)
       rescue ActiveRecord::RecordNotFound

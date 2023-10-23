@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 class CacheService < ApplicationService
-  attr_reader :account_name, :project_name, :project_slug, :hash, :name, :user, :object_key, :project
-
   module Error
     class S3BucketForbidden < CloudError
       def message
@@ -36,6 +34,8 @@ class CacheService < ApplicationService
       end
     end
   end
+
+  attr_reader :account_name, :project_name, :project_slug, :hash, :name, :user, :object_key, :project
 
   def initialize(project_slug:, hash:, name:, user:, project:)
     super()
@@ -113,8 +113,9 @@ class CacheService < ApplicationService
       )
     end
 
-    if Environment.stripe_configured? && @project.account.owner.is_a?(Organization) && @project.account.plan.nil?
-      raise Error::PaymentRequired
-    end
+    # Disabled for now
+    # if Environment.stripe_configured? && @project.account.owner.is_a?(Organization) && @project.account.plan.nil?
+    #   raise Error::PaymentRequired
+    # end
   end
 end
