@@ -108,7 +108,7 @@ Rails.application.configure do
 
   # Logging configuration
   config.log_tags = [
-    # ... any existing log tags,
-    ->(req) { req.headers['fly-request-id'] }
+    ->(req) { req.headers['fly-request-id'] },
+    ->(req) { req.headers['x-request-id'] },
   ]
 end
