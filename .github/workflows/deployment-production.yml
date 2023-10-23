@@ -1,8 +1,9 @@
 name: Cloud Production Deployment
 
 on:
-  schedule:
-    - cron:  '0 10 * * *'
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       commit_sha:
