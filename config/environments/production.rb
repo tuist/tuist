@@ -136,6 +136,6 @@ Rails.application.configure do
     Rack::TempfileReaper,
     Warden::Manager
   ].each do |middleware|
-    config.middleware.insert_before(middleware, LogUnauthorizedResponses, middleware.to_s)
+    config.middleware.insert_after(middleware, LogUnauthorizedResponses, middleware.to_s)
   end
 end
