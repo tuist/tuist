@@ -105,4 +105,10 @@ Rails.application.configure do
     config.stripe.publishable_key = Rails.application.credentials.stripe[:publishable_key]
     config.stripe.signing_secrets = Rails.application.credentials.stripe[:webhook_signing_secret]
   end
+
+  # Logging configuration
+  config.log_tags = [
+    # ... any existing log tags,
+    ->(req) { req.headers['fly-request-id'] }
+  ]
 end
