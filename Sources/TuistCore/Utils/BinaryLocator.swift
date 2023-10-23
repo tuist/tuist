@@ -30,16 +30,7 @@ public final class BinaryLocator: BinaryLocating {
     public init() {}
 
     public func xcbeautifyCommand() throws -> [String] {
-        var bundlePath = try AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
-            .removingLastComponent()
-            .removingLastComponent()
-            .removingLastComponent()
-            .removingLastComponent()
-            .appending(try RelativePath(validating: "projects/tuist/vendor"))
-        if FileHandler.shared.exists(bundlePath) {
-            return ["/usr/bin/xcrun", "swift", "run", "--package-path", bundlePath.pathString, "xcbeautify"]
-        }
-        bundlePath = try AbsolutePath(validating: Bundle(for: BinaryLocator.self).bundleURL.path)
+        var bundlePath = try AbsolutePath(validating: Bundle(for: BinaryLocator.self).bundleURL.path)
         let candidatebinariesPath = [
             bundlePath,
             bundlePath.parentDirectory,
@@ -58,9 +49,21 @@ public final class BinaryLocator: BinaryLocating {
         let candidates = candidatebinariesPath.map { path in
             path.appending(components: "xcbeautify", "xcbeautify")
         }
-        guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
+        if let existingPath = candidates.first(where: FileHandler.shared.exists) {
+            return [existingPath.pathString]
+        }
+        
+        bundlePath = try AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
+            .removingLastComponent()
+            .removingLastComponent()
+            .removingLastComponent()
+            .removingLastComponent()
+            .appending(try RelativePath(validating: "projects/tuist/vendor"))
+        
+        if FileHandler.shared.exists(bundlePath) {
+            return ["/usr/bin/xcrun", "swift", "run", "--package-path", bundlePath.pathString, "xcbeautify"]
+        } else {
             throw BinaryLocatorError.xcbeautifyNotFound
         }
-        return [existingPath.pathString]
     }
 }
