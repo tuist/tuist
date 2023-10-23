@@ -23,7 +23,7 @@ class APIController < ActionController::Base
     token = request.headers["Authorization"].to_s.remove("Bearer ")
 
     user = User.find_by(token: token)
-    @project = Project.find_by!(token: token)
+    @project = Project.find_by(token: token)
 
     raise Error::Unauthorized if user.nil? && @project.nil?
 
