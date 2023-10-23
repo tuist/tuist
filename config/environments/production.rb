@@ -114,8 +114,7 @@ Rails.application.configure do
   ]
 
   # config.middleware.insert_before(Rack::Sendfile, LogUnauthorizedResponses)
-  existing_middlewares = config.middleware.middlewares.dup
-  existing_middlewares.each do |middleware|
+  config.middleware.each do |middleware|
     config.middleware.insert_before middleware, LogUnauthorizedResponses, middleware.name
   end
 
