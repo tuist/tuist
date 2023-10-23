@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "active_support/core_ext/integer/time"
-require_relative '../../lib/log_unauthorized_responses'
+require_relative '../../lib/skip_warden_for_api_middleware'
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
@@ -113,29 +113,5 @@ Rails.application.configure do
     ->(req) { req.headers['x-request-id'] },
   ]
 
-  [ActionDispatch::HostAuthorization,
-    LogUnauthorizedResponses,
-    Rack::Sendfile,
-    ActionDispatch::Executor,
-    Rack::Runtime,
-    Rack::MethodOverride,
-    ActionDispatch::RequestId,
-    ActionDispatch::RemoteIp,
-    Rails::Rack::Logger,
-    ActionDispatch::ShowExceptions,
-    ActionDispatch::DebugExceptions,
-    ActionDispatch::Callbacks,
-    ActionDispatch::Cookies,
-    ActionDispatch::Session::CookieStore,
-    ActionDispatch::Flash,
-    ActionDispatch::ContentSecurityPolicy::Middleware,
-    ActionDispatch::PermissionsPolicy::Middleware,
-    Rack::Head,
-    Rack::ConditionalGet,
-    Rack::ETag,
-    Rack::TempfileReaper,
-    Warden::Manager
-  ].each do |middleware|
-    config.middleware.insert_after(middleware, LogUnauthorizedResponses, middleware.to_s)
-  end
+  config.middleware.insert_before Warden::Manager, SkipWardenForAPIMiddleware
 end
