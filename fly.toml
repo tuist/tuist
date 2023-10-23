@@ -33,8 +33,8 @@ console_command = "/rails/bin/rails console"
     handlers = ["tls", "http"]
   [services.concurrency]
     type = "connections"
-    hard_limit = 25
-    soft_limit = 20
+    hard_limit = 60
+    soft_limit = 50
 
   [[services.tcp_checks]]
     interval = "15s"
