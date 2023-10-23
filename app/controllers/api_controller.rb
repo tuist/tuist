@@ -14,7 +14,9 @@ class APIController < ActionController::Base
     end
   end
 
-  protect_from_forgery with: :null_session
+  # The API is used by a trusted client (CLI) that authenticates
+  # using a token so this is not necessary.
+  skip_before_action :verify_authenticity_token
   before_action :authenticate_user_from_token!
 
   def authenticate_user_from_token!
