@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 class ApplicationPolicy
-  attr_reader :user, :record
+  attr_reader :subject, :record
 
-  def initialize(user, record)
-    @user = user
+  def initialize(subject, record)
+    @subject = subject
     @record = record
   end
 
