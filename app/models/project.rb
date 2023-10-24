@@ -39,14 +39,14 @@ class Project < ApplicationRecord
   end
 
   class << self
-    def serialize_into_session(record)
-      [record.id, record.updated_at.to_s]
+    def serialize_into_session(project)
+      [project.id, project.authenticatable_salt]
     end
 
-    def serialize_from_session(id, updated_at)
-      record = find_by(id: id)
-      if record && record.updated_at.to_s == updated_at
-        record
+    def serialize_from_session(id, salt)
+      project = find_by(id: id)
+      if project && project.authenticatable_salt == salt
+        project
       end
     end
   end
