@@ -52,14 +52,14 @@ public final class BinaryLocator: BinaryLocating {
         if let existingPath = candidates.first(where: FileHandler.shared.exists) {
             return [existingPath.pathString]
         }
-        
+
         bundlePath = try AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
             .removingLastComponent()
             .removingLastComponent()
             .removingLastComponent()
             .removingLastComponent()
             .appending(try RelativePath(validating: "projects/tuist/vendor"))
-        
+
         if FileHandler.shared.exists(bundlePath) {
             return ["/usr/bin/xcrun", "swift", "run", "--package-path", bundlePath.pathString, "xcbeautify"]
         } else {
