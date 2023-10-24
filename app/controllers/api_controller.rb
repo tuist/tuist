@@ -30,7 +30,7 @@ class APIController < ActionController::Base
 
     # TODO: Deprecate @project, because it doesn't say anything about that being the
     # authenticated project
-    @project = current_project
+    @project = @current_project
   end
 
   rescue_from(CloudError) do |error, _obj, _args, _ctx, _field|
