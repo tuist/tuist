@@ -15,7 +15,7 @@ Warden::Strategies.add(:project_token_authenticatable) do
       success!(project, store: false)
     else
       Rails.logger.info "Project authentication failed"
-      fail!()
+      pass()
     end
   end
 
@@ -43,7 +43,7 @@ Warden::Strategies.add(:user_token_authenticatable) do
       success!(user, store: false)
     else
       Rails.logger.info "User authentication failed"
-      fail!()
+      pass()
     end
   end
 
