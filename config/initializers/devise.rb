@@ -3,20 +3,6 @@
 require "environment"
 require_relative "../../lib/warden_token_strategies"
 
-class CustomFailureApp < Devise::FailureApp
-  def respond
-    # Check if the request path starts with "/api"
-    if request.path.starts_with?("/api")
-      # Do nothing and let the controller handle the response
-      self.status = 200
-    else
-      # Default behavior for non-API routes
-      super
-    end
-  end
-end
-
-
 # Assuming you have not yet modified this file, each configuration option below
 # is set to its default value. Note that some are commented out while others
 # are not: uncommented lines are intended to protect your configuration from
@@ -295,10 +281,8 @@ Devise.setup do |config|
   # change the failure app, you can configure them inside the config.warden block.
   #
   config.warden do |manager|
-    manager.failure_app = CustomFailureApp
-    # manager.intercept_401 = false
-    # manager.default_strategies(scope: :user).unshift :some_external_strategy
-    # manager.default_strategies(scope: :user).unshift(:user_token_authenticatable, :project_token_authenticatable)
+    manager.default_strategies(scope: :user).unshift(:user_token_authenticatable)
+    manager.default_strategies(scope: :project).unshift(:project_token_authenticatable)
   end
 
   # ==> Mountable engine configurations
