@@ -14,7 +14,7 @@ Warden::Strategies.add(:project_token_authenticatable) do
     if project
       success!(project, store: false)
     else
-      pass
+      fail!()
     end
   end
 
@@ -35,7 +35,7 @@ Warden::Strategies.add(:user_token_authenticatable) do
     if user
       success!(user, store: false)
     else
-      pass
+      fail!()
     end
   end
 

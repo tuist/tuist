@@ -283,8 +283,7 @@ Devise.setup do |config|
   config.warden do |manager|
     # manager.intercept_401 = false
     # manager.default_strategies(scope: :user).unshift :some_external_strategy
-    manager.default_strategies(scope: :user).unshift(:user_token_authenticatable)
-    manager.default_strategies(scope: :project).unshift(:project_token_authenticatable)
+    manager.default_strategies(scope: :user).unshift(:user_token_authenticatable, :project_token_strategy)
   end
 
   # ==> Mountable engine configurations
