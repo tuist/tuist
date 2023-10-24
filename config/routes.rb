@@ -7,6 +7,7 @@ Rails.application.routes.draw do
     sessions: "users/sessions",
     registrations: "users/registrations",
   }
+  devise_for :projects, skip: :all
 
   # GraphiQL
   if Rails.env.development?

@@ -112,6 +112,4 @@ Rails.application.configure do
     ->(req) { req.headers['fly-request-id'] },
     ->(req) { req.headers['x-request-id'] },
   ]
-
-  # config.middleware.insert_before Warden::Manager, SkipWardenForAPIMiddleware
 end

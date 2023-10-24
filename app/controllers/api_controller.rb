@@ -21,16 +21,15 @@ class APIController < ActionController::Base
   protect_from_forgery with: :null_session
 
   def authenticate_user_from_token!
-    token = request.headers["Authorization"].to_s.remove("Bearer ")
+    @current_user = env['warden'].authenticate(scope: :user)
+    @current_project = env['warden'].authenticate(scope: :project)
+    # TODO: Deprecate @project, because it doesn't say anything about that being the
+    # authenticated project
+    @project = @current_project
 
-    user = User.find_by(token: token)
-    @project = Project.find_by(token: token)
-
-    Rails.logger.info("UNAUTHORIZED")
-
-    raise Error::Unauthorized if user.nil? && @project.nil?
-
-    sign_in(user, store: false) if user
+    unless @current_user || @current_project
+      raise Error::Unauthorized
+    end
   end
 
   rescue_from(CloudError) do |error, _obj, _args, _ctx, _field|
