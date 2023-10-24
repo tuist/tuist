@@ -35,9 +35,9 @@ class CacheService < ApplicationService
     end
   end
 
-  attr_reader :account_name, :project_name, :project_slug, :hash, :name, :user, :object_key, :project
+  attr_reader :account_name, :project_name, :project_slug, :hash, :name, :object_key, :subject
 
-  def initialize(project_slug:, hash:, name:, user:, project:)
+  def initialize(project_slug:, hash:, name:, subject:)
     super()
     split_project_slug = project_slug.split("/")
     @account_name = split_project_slug.first
@@ -46,12 +46,10 @@ class CacheService < ApplicationService
     @hash = hash
     @object_key = "#{project_slug}/#{hash}/#{name}"
     @name = name
-    @user = user
-    @project = project
+    @subject = subject
   end
 
   def object_exists?
-    fetch_project_if_necessary
     s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
     begin
       s3_client.head_object(
@@ -67,7 +65,6 @@ class CacheService < ApplicationService
   end
 
   def fetch
-    fetch_project_if_necessary
     s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
     signer = Aws::S3::Presigner.new(client: s3_client)
     url = signer.presigned_url(
@@ -79,7 +76,6 @@ class CacheService < ApplicationService
   end
 
   def upload
-    fetch_project_if_necessary
     s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
     s3_client.put_object(
       bucket: project.remote_cache_storage.name,
@@ -95,7 +91,6 @@ class CacheService < ApplicationService
   end
 
   def verify_upload
-    fetch_project_if_necessary
     s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
     object = s3_client.get_object(
       bucket: project.remote_cache_storage.name,
@@ -104,15 +99,12 @@ class CacheService < ApplicationService
     object.content_length
   end
 
-  private def fetch_project_if_necessary
-    if project.nil?
-      @project = ProjectFetchService.new.fetch_by_name(
-        name: project_name,
-        account_name: account_name,
-        subject: user,
-      )
-    end
-
+  def project
+    @project ||= ProjectFetchService.new.fetch_by_name(
+      name: project_name,
+      account_name: account_name,
+      subject: subject,
+    )
     # Disabled for now
     # if Environment.stripe_configured? && @project.account.owner.is_a?(Organization) && @project.account.plan.nil?
     #   raise Error::PaymentRequired

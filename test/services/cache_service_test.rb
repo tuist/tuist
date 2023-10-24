@@ -31,8 +31,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       project_slug: "my-project/tuist",
       hash: "artifact-hash",
       name: "MyFramework",
-      user: @user,
-      project: nil,
+      subject: @user,
     )
       .object_exists?
 
@@ -50,8 +49,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       project_slug: "my-project/tuist",
       hash: "artifact-hash",
       name: "MyFramework",
-      user: nil,
-      project: @project,
+      subject: @project,
     )
       .object_exists?
 
@@ -68,8 +66,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       project_slug: "my-project/tuist",
       hash: "artifact-hash",
       name: "MyFramework",
-      user: nil,
-      project: @project,
+      subject: @project,
     )
       .object_exists?
 
@@ -86,8 +83,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       project_slug: "my-project/tuist",
       hash: "artifact-hash",
       name: "MyFramework",
-      user: @user,
-      project: nil,
+      subject: @user,
     )
       .object_exists?
 
@@ -105,8 +101,7 @@ class CacheServiceTest < ActiveSupport::TestCase
         project_slug: "my-project/tuist",
         hash: "artifact-hash",
         name: "MyFramework",
-        user: nil,
-        project: @project,
+        subject: @project,
       )
         .object_exists?
     end
@@ -122,8 +117,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       project_slug: "my-project/tuist",
       hash: "artifact-hash",
       name: "MyFramework",
-      user: @user,
-      project: nil,
+      subject: @user,
     )
       .upload
 
@@ -142,8 +136,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       project_slug: "my-project/tuist",
       hash: "artifact-hash",
       name: "MyFramework",
-      user: @user,
-      project: nil,
+      subject: @user,
     )
       .verify_upload
 
@@ -192,8 +185,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       project_slug: "my-project/tuist",
       hash: "artifact-hash",
       name: "MyFramework",
-      user: nil,
-      project: project,
+      subject: project,
     )
       .object_exists?
 

@@ -7,7 +7,7 @@ module Mutations
     type Types::ClearRemoteCacheStorageType
 
     def resolve(attributes)
-      bucket = CacheClearService.call(clearer: context[:current_user], **attributes)
+      bucket = CacheClearService.call(subject: context[:current_user], **attributes)
       {
         bucket: bucket,
         errors: [],

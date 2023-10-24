@@ -35,7 +35,7 @@ module API
     def clean
       CacheClearService.call(
         project_slug: "#{params[:account_name]}/#{params[:project_name]}",
-        clearer: current_user,
+        subject: current_subject,
       )
     end
 
@@ -46,8 +46,7 @@ module API
         project_slug: params[:project_id],
         hash: params[:hash],
         name: params[:name],
-        user: current_user,
-        project: @project,
+        subject: current_subject,
       )
     end
   end
