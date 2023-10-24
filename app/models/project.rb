@@ -31,6 +31,21 @@ class Project < ApplicationRecord
   def as_json(options = {})
     super(options.merge(only: [:id, :token])).merge({ full_name: full_name })
   end
+
+  # Warden serialization methods
+
+  class << self
+    def serialize_into_session(record)
+      [record.id, record.updated_at.to_s]
+    end
+
+    def serialize_from_session(id, updated_at)
+      record = find_by(id: id)
+      if record && record.updated_at.to_s == updated_at
+        record
+      end
+    end
+  end
 end
 
 class DefaultS3Bucket

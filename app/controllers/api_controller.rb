@@ -14,23 +14,20 @@ class APIController < ActionController::Base
     end
   end
 
-  before_action :authenticate_user_from_token!
+  before_action :authenticate_user_or_project!
 
   # The API is used by a trusted client (CLI) that authenticates
   # using a token so this is not necessary.
   protect_from_forgery with: :null_session
 
-  def authenticate_user_from_token!
-    @current_user = request.env['warden'].authenticate(scope: :user)
-    @current_project = request.env['warden'].authenticate(scope: :project)
-
-    unless @current_user || @current_project
+  def authenticate_user_or_project!
+    unless user_signed_in? || project_signed_in?
       raise Error::Unauthorized
     end
 
     # TODO: Deprecate @project, because it doesn't say anything about that being the
     # authenticated project
-    @project = @current_project
+    @project = current_project
   end
 
   rescue_from(CloudError) do |error, _obj, _args, _ctx, _field|
