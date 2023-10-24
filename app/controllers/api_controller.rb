@@ -21,7 +21,10 @@ class APIController < ActionController::Base
   protect_from_forgery with: :null_session
 
   def authenticate_user_from_token!
-    unless user_signed_in? || project_signed_in?
+    @current_user = request.env['warden'].authenticate(scope: :user)
+    @current_project = request.env['warden'].authenticate(scope: :project)
+
+    unless @current_user || @current_project
       raise Error::Unauthorized
     end
 
