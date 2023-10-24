@@ -5,6 +5,20 @@ require_relative "boot"
 require "rails/all"
 require_relative "../app/lib/environment"
 
+class SkipWardenMiddleware
+  def initialize(app)
+    @app = app
+  end
+
+  def call(env)
+    if env['PATH_INFO'].starts_with?('/api/')
+      Warden::Manager._run_callbacks(:before_failure, env, {})
+      return [401, {}, ['Unauthorized']]
+    end
+    @app.call(env)
+  end
+end
+
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
@@ -36,5 +50,8 @@ module TuistCloud
       require_relative "../app/lib/environment"
       Environment.ensure_configured!
     end
+
+    # Warden
+    config.middleware.insert_before(Warden::Manager, SkipWardenMiddleware)
   end
 end
