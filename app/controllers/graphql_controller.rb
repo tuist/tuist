@@ -5,12 +5,12 @@ class GraphqlController < APIController
   # This allows for outside API access while preventing CSRF attacks,
   # but you'll have to authenticate your user separately
   # protect_from_forgery with: :null_session
-  skip_before_action :authenticate_user_from_token!
+  skip_before_action :authenticate_user_or_project!
 
   def execute
     if current_user.nil?
       begin
-        authenticate_user_from_token!
+        authenticate_user_or_project!
       rescue
         url = URI.parse(Environment.app_url).tap { |uri| uri.path = user_session_path }.to_s
         error_message = "Authentication is required to interact with the GraphQL API. Authenticate through #{url}"
