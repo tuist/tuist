@@ -8,14 +8,21 @@ Warden::Strategies.add(:project_token_authenticatable) do
   end
 
   def authenticate!
-    token = authorization_header.split(' ').last
-    project = Project.find_by(token: token)
+    Rails.logger.info "Attempting project authentication"
+    project = Project.find_by(token: bearer_token)
 
     if project
       success!(project, store: false)
     else
+      Rails.logger.info "Project authentication failed"
       fail!()
     end
+  end
+
+  def bearer_token
+    pattern = /^Bearer /
+    header = authorization_header
+    header.gsub(pattern, '') if header&.match(pattern)
   end
 
   def authorization_header
@@ -29,14 +36,21 @@ Warden::Strategies.add(:user_token_authenticatable) do
   end
 
   def authenticate!
-    token = authorization_header.split(' ').last
-    user = User.find_by(token: token)
+    Rails.logger.info "Attempting user authentication"
+    user = User.find_by(token: bearer_token)
 
     if user
       success!(user, store: false)
     else
+      Rails.logger.info "User authentication failed"
       fail!()
     end
+  end
+
+  def bearer_token
+    pattern = /^Bearer /
+    header = authorization_header
+    header.gsub(pattern, '') if header&.match(pattern)
   end
 
   def authorization_header
