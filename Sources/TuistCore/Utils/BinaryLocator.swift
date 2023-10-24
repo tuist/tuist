@@ -71,6 +71,7 @@ public final class BinaryLocator: BinaryLocating {
                 "--product", "xcbeautify",
             ]
             let executionCommand = [
+                // swiftlint:disable:next force_try
                 bundlePath.appending(try! RelativePath(validating: ".build/debug/xcbeautify")).pathString,
             ]
             print(compilationCommand.joined(separator: " "))
