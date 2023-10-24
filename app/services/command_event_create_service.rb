@@ -59,7 +59,7 @@ class CommandEventCreateService < ApplicationService
 
   def call
     if project.nil?
-      @project = ProjectFetchService.new.fetch_by_name(name: project_name, account_name: account_name, user: user)
+      @project = ProjectFetchService.new.fetch_by_name(name: project_name, account_name: account_name, subject: user)
     end
 
     CommandEvent.create!(

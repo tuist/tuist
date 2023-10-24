@@ -56,38 +56,38 @@ class ProjectFetchService < ApplicationService
     end
   end
 
-  def fetch_by_name(name:, account_name:, user:)
+  def fetch_by_name(name:, account_name:, subject:)
     account = AccountFetchService.call(name: account_name)
     begin
       project = Project.find_by!(account_id: account.id, name: name)
     rescue ActiveRecord::RecordNotFound
       raise Error::ProjectNotFoundByName.new(account.name, name)
     end
-    raise Error::Unauthorized.new(account_name, name) unless ProjectPolicy.new(user, project).show?
+    raise Error::Unauthorized.new(account_name, name) unless ProjectPolicy.new(subject, project).show?
 
     project
   end
 
-  def fetch_by_id(project_id:, user:)
+  def fetch_by_id(project_id:, subject:)
     begin
       project = Project.find(project_id)
     rescue ActiveRecord::RecordNotFound
       raise Error::ProjectNotFoundById, project_id
     end
 
-    raise Error::Unauthorized.new(project.account.name, project.name) unless ProjectPolicy.new(user, project).show?
+    raise Error::Unauthorized.new(project.account.name, project.name) unless ProjectPolicy.new(subject, project).show?
 
     project
   end
 
-  def fetch_by_slug(slug:, user:)
+  def fetch_by_slug(slug:, subject:)
     split_project_slug = slug.split("/")
     account_name = split_project_slug.first
     project_name = split_project_slug.last
     fetch_by_name(
       name: project_name,
       account_name: account_name,
-      user: user,
+      subject: subject,
     )
   end
 end

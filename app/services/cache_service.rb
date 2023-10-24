@@ -109,7 +109,7 @@ class CacheService < ApplicationService
       @project = ProjectFetchService.new.fetch_by_name(
         name: project_name,
         account_name: account_name,
-        user: user,
+        subject: user,
       )
     end
 

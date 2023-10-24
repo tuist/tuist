@@ -39,7 +39,7 @@ class ProjectDeleteService < ApplicationService
   end
 
   def call
-    project = ProjectFetchService.new.fetch_by_id(project_id: id, user: deleter)
+    project = ProjectFetchService.new.fetch_by_id(project_id: id, subject: deleter)
 
     raise Error::Unauthorized unless ProjectPolicy.new(deleter, project).update?
 

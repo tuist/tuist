@@ -47,7 +47,7 @@ class CacheClearServiceTest < ActiveSupport::TestCase
     # When
     got = CacheClearService.call(
       project_slug: "project/slug",
-      clearer: @user,
+      subject: @user,
     )
 
     # Then

@@ -14,7 +14,7 @@ class CacheHitRateAverageService < ApplicationService
   end
 
   def call
-    project = ProjectFetchService.new.fetch_by_id(project_id: project_id, user: user)
+    project = ProjectFetchService.new.fetch_by_id(project_id: project_id, subject: user)
 
     split_command_name = command_name.split(" ")
     name = split_command_name.first

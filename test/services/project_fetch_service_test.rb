@@ -15,7 +15,7 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
     project = Project.create!(name: "tuist-project-2", account_id: account.id, token: Devise.friendly_token.first(16))
 
     # When
-    got = ProjectFetchService.new.fetch_by_name(name: project.name, account_name: account.name, user: user)
+    got = ProjectFetchService.new.fetch_by_name(name: project.name, account_name: account.name, subject: user)
 
     # Then
     assert_equal project, got
@@ -29,7 +29,7 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
     project = Project.create!(name: "tuist-project-2", account_id: account.id, token: Devise.friendly_token.first(16))
 
     # When
-    got = ProjectFetchService.new.fetch_by_slug(slug: "test/tuist-project-2", user: user)
+    got = ProjectFetchService.new.fetch_by_slug(slug: "test/tuist-project-2", subject: user)
 
     # Then
     assert_equal project, got
@@ -45,7 +45,7 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
 
     # When / Then
     assert_raises(ProjectFetchService::Error::Unauthorized) do
-      ProjectFetchService.new.fetch_by_name(name: project.name, account_name: account.name, user: user)
+      ProjectFetchService.new.fetch_by_name(name: project.name, account_name: account.name, subject: user)
     end
   end
 
@@ -57,7 +57,7 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
 
     # When / Then
     assert_raises(ProjectFetchService::Error::ProjectNotFoundByName) do
-      ProjectFetchService.new.fetch_by_name(name: "non-existent-name", account_name: account.name, user: user)
+      ProjectFetchService.new.fetch_by_name(name: "non-existent-name", account_name: account.name, subject: user)
     end
   end
 
@@ -67,7 +67,7 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
 
     # When / Then
     assert_raises(ProjectFetchService::Error::ProjectNotFoundById) do
-      ProjectFetchService.new.fetch_by_id(project_id: 2, user: user)
+      ProjectFetchService.new.fetch_by_id(project_id: 2, subject: user)
     end
   end
 
@@ -80,7 +80,7 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
     user.add_role(:user, organization)
 
     # When
-    got = ProjectFetchService.new.fetch_by_id(project_id: project.id, user: user)
+    got = ProjectFetchService.new.fetch_by_id(project_id: project.id, subject: user)
 
     # Then
     assert_equal project, got
@@ -92,7 +92,7 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
 
     # When / Then
     assert_raises(AccountFetchService::Error::AccountNotFound) do
-      ProjectFetchService.new.fetch_by_name(name: "tuist", account_name: "tuist", user: user)
+      ProjectFetchService.new.fetch_by_name(name: "tuist", account_name: "tuist", subject: user)
     end
   end
 end

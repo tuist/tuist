@@ -5,7 +5,7 @@ class AnalyticsController < ApplicationController
     project_id = ProjectFetchService.new.fetch_by_name(
       name: params[:project_name],
       account_name: params[:account_name],
-      user: current_user,
+      subject: current_user,
     ).id
     @commands_average_duration = {
       generate: CommandAverageService.call(
@@ -62,7 +62,7 @@ class AnalyticsController < ApplicationController
     project_id = ProjectFetchService.new.fetch_by_name(
       name: params[:project_name],
       account_name: params[:account_name],
-      user: current_user,
+      subject: current_user,
     ).id
 
     @targets_cache_hit_rate = TargetCacheHitRateService.call(

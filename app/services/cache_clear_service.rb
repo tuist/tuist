@@ -13,21 +13,21 @@ class CacheClearService < ApplicationService
     end
   end
 
-  attr_reader :project_slug, :clearer
+  attr_reader :project_slug, :subject
 
-  def initialize(project_slug:, clearer:)
+  def initialize(project_slug:, subject:)
     super()
     @project_slug = project_slug
-    @clearer = clearer
+    @subject = subject
   end
 
   def call
     project = ProjectFetchService.new.fetch_by_slug(
       slug: project_slug,
-      user: clearer,
+      subject: subject,
     )
     s3_bucket = project.remote_cache_storage
-    raise Error::Unauthorized unless ProjectPolicy.new(clearer, project).update?
+    raise Error::Unauthorized unless ProjectPolicy.new(subject, project).update?
 
     s3_client = S3ClientService.call(s3_bucket: s3_bucket)
     delete_objects(

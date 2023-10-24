@@ -13,7 +13,7 @@ class TargetCacheHitRateService < ApplicationService
   end
 
   def call
-    project = ProjectFetchService.new.fetch_by_id(project_id: project_id, user: user)
+    project = ProjectFetchService.new.fetch_by_id(project_id: project_id, subject: user)
 
     command_events = project.command_events
       .where(created_at: start_date..Time.now)
