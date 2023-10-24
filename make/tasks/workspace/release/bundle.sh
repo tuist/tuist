@@ -18,7 +18,13 @@ BUILD_DIR=$ROOT_DIR/build
 
 echo "$(format_section "Building release into $BUILD_DIRECTORY")"
 
-XCODE_PATH=$($XCODE_PATH_SCRIPT_PATH --version $XCODE_VERSION)
+XCODE_PATH=/Applications/Xcode_15.0.app
+# TODO:
+# Remove the hardcoded path. The GitHub hosted runners have the dev tools of 15.0.1
+# and causes the line below to output a non-existing path. Once they've installed 15.0.1
+# in the CI environments, the hardcoded path should not be necessary.
+# That will happen when this PR is merged and deployed: https://github.com/actions/runner-images/pull/8601
+# XCODE_PATH=$($XCODE_PATH_SCRIPT_PATH --version $XCODE_VERSION)
 XCODE_LIBRARIES_PATH=$($XCODE_PATH_SCRIPT_PATH --version $LIBRARIES_XCODE_VERSION)
 
 echo "Static executables will be built with $XCODE_PATH"
