@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "active_support/core_ext/integer/time"
-require_relative '../../lib/skip_warden_for_api_middleware'
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
