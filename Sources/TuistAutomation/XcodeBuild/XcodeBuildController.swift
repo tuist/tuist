@@ -40,7 +40,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         destination: XcodeBuildDestination?,
         clean: Bool = false,
         arguments: [XcodeBuildArgument]
-    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -68,7 +68,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             break
         }
 
-        return run(command: command, isVerbose: environment.isVerbose)
+        return try run(command: command, isVerbose: environment.isVerbose)
     }
 
     public func test(
@@ -83,7 +83,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?
-    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -143,7 +143,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             }
         }
 
-        return run(command: command, isVerbose: environment.isVerbose)
+        return try run(command: command, isVerbose: environment.isVerbose)
     }
 
     public func archive(
@@ -152,7 +152,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         clean: Bool,
         archivePath: AbsolutePath,
         arguments: [XcodeBuildArgument]
-    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -173,13 +173,13 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
-        return run(command: command, isVerbose: environment.isVerbose)
+        return try run(command: command, isVerbose: environment.isVerbose)
     }
 
     public func createXCFramework(
         frameworks: [AbsolutePath],
         output: AbsolutePath
-    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
         command.append(contentsOf: frameworks.flatMap {
             let pathString = $0.pathString
@@ -193,7 +193,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         })
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
-        return run(command: command, isVerbose: environment.isVerbose)
+        return try run(command: command, isVerbose: environment.isVerbose)
     }
 
     enum ShowBuildSettingsError: Error {
@@ -272,18 +272,32 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return buildSettingsByTargetName
     }
 
-    fileprivate func run(command: [String], isVerbose: Bool) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-        run(command: command, isVerbose: isVerbose)
+    fileprivate func run(command: [String], isVerbose: Bool) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+        try run(command: command, isVerbose: isVerbose)
             .mapAsXcodeBuildOutput()
             .stream
     }
 
-    fileprivate func run(command: [String], isVerbose: Bool) -> AnyPublisher<SystemEvent<Data>, Error> {
+    fileprivate func run(command: [String], isVerbose: Bool) throws -> AnyPublisher<SystemEvent<Data>, Error> {
         if isVerbose {
             return System.shared.publisher(command)
         } else {
-            // swiftlint:disable:next force_try
-            return System.shared.publisher(command, pipeTo: try! formatter.buildArguments())
+            let fomatterExecutable = try formatter.formatterExecutable()
+            let compilationPublisher: AnyPublisher<SystemEvent<Data>, Error>? = if let compilation = fomatterExecutable.compilation {
+                System.shared.publisher(compilation)
+            } else {
+                nil
+            }
+            if fomatterExecutable.compilation != nil {
+                logger.debug("We've detected xcbeautify as sources so we'll compile it to use it with xcodebuild")
+            }
+            let xcodebuildPublisher = System.shared.publisher(command, pipeTo: fomatterExecutable.execution)
+            
+            if let compilationPublisher = compilationPublisher {
+                return compilationPublisher.append(xcodebuildPublisher).eraseToAnyPublisher()
+            } else {
+                return xcodebuildPublisher
+            }
         }
     }
 }

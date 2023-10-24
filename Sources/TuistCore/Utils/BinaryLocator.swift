@@ -23,13 +23,18 @@ enum BinaryLocatorError: FatalError, Equatable {
 /// Protocol that defines the interface to locate the tuist binary in the environment.
 public protocol BinaryLocating {
     /// Returns the command to run xcbeautify.
-    func xcbeautifyCommand() throws -> [String]
+    func xcbeautifyExecutable() throws -> SwiftPackageExecutable
+}
+
+public struct SwiftPackageExecutable {
+    public let compilation: [String]?
+    public let execution: [String]
 }
 
 public final class BinaryLocator: BinaryLocating {
     public init() {}
 
-    public func xcbeautifyCommand() throws -> [String] {
+    public func xcbeautifyExecutable() throws -> SwiftPackageExecutable {
         var bundlePath = try AbsolutePath(validating: Bundle(for: BinaryLocator.self).bundleURL.path)
         let candidatebinariesPath = [
             bundlePath,
@@ -50,7 +55,7 @@ public final class BinaryLocator: BinaryLocating {
             path.appending(components: "xcbeautify", "xcbeautify")
         }
         if let existingPath = candidates.first(where: FileHandler.shared.exists) {
-            return [existingPath.pathString]
+            return SwiftPackageExecutable(compilation: nil, execution: [existingPath.pathString])
         }
 
         bundlePath = try AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
@@ -61,7 +66,15 @@ public final class BinaryLocator: BinaryLocating {
             .appending(try RelativePath(validating: "projects/tuist/vendor"))
 
         if FileHandler.shared.exists(bundlePath) {
-            return ["/usr/bin/xcrun", "swift", "run", "--package-path", bundlePath.pathString, "xcbeautify"]
+            let compilationCommand = [
+                "/usr/bin/xcrun", "swift", "build", "--configuration", "debug", "--package-path", bundlePath.pathString,
+                "--product", "xcbeautify",
+            ]
+            let executionCommand = [
+                bundlePath.appending(try! RelativePath(validating: ".build/debug/xcbeautify")).pathString,
+            ]
+            print(compilationCommand.joined(separator: " "))
+            return SwiftPackageExecutable(compilation: compilationCommand, execution: executionCommand)
         } else {
             throw BinaryLocatorError.xcbeautifyNotFound
         }
