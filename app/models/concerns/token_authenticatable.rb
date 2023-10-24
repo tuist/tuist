@@ -3,6 +3,25 @@
 module TokenAuthenticatable
   extend ActiveSupport::Concern
 
+  Token = Struct.new(:model_name, :id, :token) do
+    class << self
+      def decode(encoded)
+        decoded = Base64.urlsafe_decode64(encoded)
+        model_name, id, token = decoded.split(":")
+
+        new(model_name, id, token)
+      end
+    end
+
+    def valid?
+      [model_name, id, token].all?(&:present?)
+    end
+
+    def encode
+      Base64.urlsafe_encode64(to_a.join(":"), padding: false)
+    end
+  end
+
   included do
     before_save :ensure_token_presence
   end
@@ -18,7 +37,7 @@ module TokenAuthenticatable
   def encoded_token
     return if self.class.token_property.nil?
 
-    APITokenStrategy::Token.new(
+    Token.new(
       self.class.name,
       id,
       send(self.class.token_property),

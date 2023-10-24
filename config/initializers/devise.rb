@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "environment"
-require_relative "../../lib/warden_token_strategies"
 
 # Assuming you have not yet modified this file, each configuration option below
 # is set to its default value. Note that some are commented out while others
@@ -282,7 +281,6 @@ Devise.setup do |config|
   #
   config.warden do |manager|
     # manager.default_strategies(scope: :user).unshift(:user_token_authenticatable)
-    # manager.default_strategies(scope: :project).unshift(:project_token_authenticatable)
   end
 
   # ==> Mountable engine configurations
