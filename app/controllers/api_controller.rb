@@ -24,6 +24,7 @@ class APIController < ActionController::Base
     unless user_signed_in? || project_signed_in?
       raise Error::Unauthorized
     end
+
     # TODO: Deprecate @project, because it doesn't say anything about that being the
     # authenticated project
     @project = current_project
