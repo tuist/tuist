@@ -12,9 +12,9 @@ Warden::Strategies.add(:project_token_authenticatable) do
     project = Project.find_by(token: token)
 
     if project
-      success!(project)
+      success!(project, store: false)
     else
-      pass()
+      pass
     end
   end
 
@@ -33,9 +33,9 @@ Warden::Strategies.add(:user_token_authenticatable) do
     user = User.find_by(token: token)
 
     if user
-      success!(user)
+      success!(user, store: false)
     else
-      pass()
+      pass
     end
   end
 

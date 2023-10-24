@@ -30,6 +30,34 @@ class APIController < ActionController::Base
     @project = current_project
   end
 
+  def current_project
+    @current_project ||= fetch_project_from_token
+  end
+
+  def current_user
+    @current_user ||= fetch_user_from_token
+  end
+
+  def fetch_project_from_token
+    Project.find_by(token: authorization_token)
+  end
+
+  def fetch_user_from_token
+    User.find_by(token: authorization_token)
+  end
+
+  def authorization_token
+    request.headers['Authorization'].to_s.split('Bearer ').last
+  end
+
+  def project_signed_in?
+    !!current_project
+  end
+
+  def user_signed_in?
+    !!current_user
+  end
+
   rescue_from(CloudError) do |error, _obj, _args, _ctx, _field|
     render(
       json: { message: error.message },
