@@ -32,7 +32,11 @@ class Project < ApplicationRecord
     super(options.merge(only: [:id, :token])).merge({ full_name: full_name })
   end
 
-  # Warden serialization methods
+  # Devise::Models::Authenticatable
+
+  def authenticatable_salt
+    Digest::SHA256.hexdigest("#{id}-#{updated_at}")
+  end
 
   class << self
     def serialize_into_session(record)

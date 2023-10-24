@@ -8,14 +8,14 @@ Warden::Strategies.add(:project_token_authenticatable) do
   end
 
   def authenticate!
-    Rails.logger.info "Attempting project authentication"
+    Rails.logger.info("Attempting project authentication")
     project = Project.find_by(token: bearer_token)
 
     if project
       success!(project, store: false)
     else
-      Rails.logger.info "Project authentication failed"
-      pass()
+      Rails.logger.info("Project authentication failed")
+      pass
     end
   end
 
@@ -36,14 +36,14 @@ Warden::Strategies.add(:user_token_authenticatable) do
   end
 
   def authenticate!
-    Rails.logger.info "Attempting user authentication"
+    Rails.logger.info("Attempting user authentication")
     user = User.find_by(token: bearer_token)
 
     if user
       success!(user, store: false)
     else
-      Rails.logger.info "User authentication failed"
-      pass()
+      Rails.logger.info("User authentication failed")
+      pass
     end
   end
 
