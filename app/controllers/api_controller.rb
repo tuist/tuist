@@ -21,13 +21,17 @@ class APIController < ActionController::Base
   protect_from_forgery with: :null_session
 
   def authenticate_user_or_project!
-    unless user_signed_in? || project_signed_in?
-      raise Error::Unauthorized
-    end
+    raise Error::Unauthorized unless user_signed_in? || project_signed_in?
+  end
 
-    # TODO: Deprecate @project, because it doesn't say anything about that being the
-    # authenticated project
-    @project = current_project
+  # TODO: Deprecate @project, because it doesn't say anything about that being the
+  # authenticated project
+  def project
+    @project ||= current_project
+  end
+
+  def current_subject
+    @current_subject ||= current_project || current_user
   end
 
   def current_project
