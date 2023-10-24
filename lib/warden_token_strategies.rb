@@ -32,7 +32,7 @@ Warden::Strategies.add(:user_token_authenticatable) do
     token = authorization_header.split(' ').last
     user = User.find_by(token: token)
 
-    if project
+    if user
       success!(user)
     else
       fail!('Invalid user token')
