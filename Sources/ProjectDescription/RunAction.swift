@@ -48,7 +48,7 @@ public struct RunAction: Equatable, Codable {
         options: RunActionOptions = .options(),
         diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker, .performanceAntipatternChecker],
         expandVariableFromTarget: TargetReference? = nil,
-        launchStyle: LaunchStyle? = nil
+        launchStyle: LaunchStyle = .automatically
     ) {
         self.configuration = configuration
         self.attachDebugger = attachDebugger
@@ -88,7 +88,7 @@ public struct RunAction: Equatable, Codable {
         options: RunActionOptions = .options(),
         diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
         expandVariableFromTarget: TargetReference? = nil,
-        launchStyle: LaunchStyle? = nil
+        launchStyle: LaunchStyle = .automatically
     ) -> RunAction {
         RunAction(
             configuration: configuration,

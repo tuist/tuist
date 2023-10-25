@@ -31,7 +31,7 @@ public struct RunAction: Equatable, Codable {
         options: RunActionOptions = .init(),
         diagnosticsOptions: Set<SchemeDiagnosticsOption>,
         expandVariableFromTarget: TargetReference? = nil,
-        launchStyle: LaunchStyle? = nil
+        launchStyle: LaunchStyle = .automatically
     ) {
         self.configurationName = configurationName
         self.attachDebugger = attachDebugger
