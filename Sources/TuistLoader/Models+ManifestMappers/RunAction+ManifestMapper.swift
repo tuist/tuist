@@ -55,7 +55,7 @@ extension TuistGraph.RunAction {
             )
         }
 
-        let launchStyle = TuistGraph.LaunchStyle.from(launchStyle: manifest.launchStyle)
+        let launchStyle = TuistGraph.LaunchStyle.from(manifest: manifest.launchStyle)
 
         return TuistGraph.RunAction(
             configurationName: configurationName,
