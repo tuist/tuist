@@ -54,7 +54,10 @@ final class FrameworkLoaderTests: TuistUnitTestCase {
         let frameworkPath = path.appending(component: "tuist.framework")
 
         // Then
-        XCTAssertThrowsSpecific(try subject.load(path: frameworkPath, required: true), FrameworkLoaderError.frameworkNotFound(frameworkPath))
+        XCTAssertThrowsSpecific(
+            try subject.load(path: frameworkPath, status: .required),
+            FrameworkLoaderError.frameworkNotFound(frameworkPath)
+        )
     }
 
     func test_load_when_the_framework_exists() throws {
@@ -78,12 +81,12 @@ final class FrameworkLoaderTests: TuistUnitTestCase {
                 linking: linking,
                 architectures: architectures,
                 isCarthage: false,
-                required: true
+                status: .required
             )
         }
 
         // When
-        let got = try subject.load(path: frameworkPath, required: true)
+        let got = try subject.load(path: frameworkPath, status: .required)
 
         // Then
         XCTAssertEqual(
@@ -96,7 +99,7 @@ final class FrameworkLoaderTests: TuistUnitTestCase {
                 linking: linking,
                 architectures: architectures,
                 isCarthage: false,
-                required: true
+                status: .required
             )
         )
     }

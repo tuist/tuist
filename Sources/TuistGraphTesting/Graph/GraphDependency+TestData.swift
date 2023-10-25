@@ -14,7 +14,7 @@ extension GraphDependency {
         linking: BinaryLinking = .dynamic,
         architectures: [BinaryArchitecture] = [.armv7],
         isCarthage: Bool = false,
-        required: Bool = true
+        status: FrameworkStatus = .required
     ) -> GraphDependency {
         GraphDependency.framework(
             path: path,
@@ -24,7 +24,7 @@ extension GraphDependency {
             linking: linking,
             architectures: architectures,
             isCarthage: isCarthage,
-            required: required
+            status: status
         )
     }
 
@@ -34,7 +34,7 @@ extension GraphDependency {
         primaryBinaryPath: AbsolutePath = AbsolutePath.root
             .appending(try! RelativePath(validating: "Test.xcframework/Test")),
         linking: BinaryLinking = .dynamic,
-        required: Bool = true
+        status: FrameworkStatus = .required
     ) -> GraphDependency {
         .xcframework(
             path: path,
@@ -42,7 +42,7 @@ extension GraphDependency {
             primaryBinaryPath: primaryBinaryPath,
             linking: linking,
             mergeable: false,
-            required: required
+            status: status
         )
     }
 

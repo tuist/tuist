@@ -1311,7 +1311,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             primaryBinaryPath: "/xcframeworks/c.xcframework/c",
             linking: .dynamic,
             mergeable: false,
-            required: true
+            status: .required
         )
         let dDependency = GraphDependency.xcframework(
             path: "/xcframeworks/d.xcframework",
@@ -1323,7 +1323,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             primaryBinaryPath: "/xcframeworks/d.xcframework/d",
             linking: .dynamic,
             mergeable: false,
-            required: true
+            status: .required
         )
         let eDependency = GraphDependency.xcframework(
             path: "/xcframeworks/e.xcframework",
@@ -1336,7 +1336,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             primaryBinaryPath: "/xcframeworks/e.xcframework/e",
             linking: .dynamic,
             mergeable: true,
-            required: true
+            status: .required
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency, eDependency),
@@ -1383,7 +1383,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             primaryBinaryPath: "/xcframeworks/c.xcframework/c",
             linking: .dynamic,
             mergeable: false,
-            required: true
+            status: .required
         )
         let dDependency = GraphDependency.xcframework(
             path: "/xcframeworks/d.xcframework",
@@ -1395,7 +1395,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             primaryBinaryPath: "/xcframeworks/d.xcframework/d",
             linking: .dynamic,
             mergeable: false,
-            required: true
+            status: .required
         )
         let eDependency = GraphDependency.xcframework(
             path: "/xcframeworks/e.xcframework",
@@ -1408,7 +1408,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             primaryBinaryPath: "/xcframeworks/e.xcframework/e",
             linking: .dynamic,
             mergeable: true,
-            required: true
+            status: .required
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency, eDependency),
@@ -2695,7 +2695,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             linking: .dynamic,
             architectures: [.arm64],
             isCarthage: false,
-            required: true
+            status: .required
         )
         let project = Project.test(path: "/path/project", targets: [app, staticFramework])
         let graph = Graph.test(
@@ -2732,7 +2732,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 linking: .dynamic,
                 architectures: [.arm64],
                 product: .framework,
-                required: true
+                status: .required
             ),
         ])
     }
@@ -2750,7 +2750,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             linking: .dynamic,
             architectures: [.arm64],
             isCarthage: false,
-            required: true
+            status: .required
         )
         let project = Project.test(path: "/path/project", targets: [app, framework])
         let graph = Graph.test(
@@ -2795,7 +2795,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             linking: .dynamic,
             architectures: [.arm64],
             isCarthage: false,
-            required: true
+            status: .required
         )
         let project = Project.test(path: "/path/project", targets: [app, staticFramework, framework])
         let graph = Graph.test(
@@ -3988,7 +3988,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
             linking: .static,
             mergeable: false,
-            required: true
+            status: .required
         )
         let directFramework = GraphDependency.framework(
             path: "/frameworks/direct.framework",
@@ -3998,7 +3998,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             linking: .static,
             architectures: [.arm64],
             isCarthage: false,
-            required: true
+            status: .required
         )
         let directFrameworkTarget = GraphDependency.target(name: staticFramework.name, path: project.path)
         let transitiveFrameworkTargetXCFramework = GraphDependency.xcframework(
@@ -4011,7 +4011,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             primaryBinaryPath: "/xcframeworks/transitive-framework-target-xcframework.xcframework/transitive",
             linking: .static,
             mergeable: false,
-            required: true
+            status: .required
         )
         let transitiveXCFramework = GraphDependency.xcframework(
             path: "/xcframeworks/transitive.xcframework",
@@ -4023,7 +4023,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
             linking: .static,
             mergeable: false,
-            required: true
+            status: .required
         )
         let frameworkTransitiveXCFramework = GraphDependency.xcframework(
             path: "/xcframeworks/framework-transitive.xcframework",
@@ -4035,7 +4035,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
             linking: .static,
             mergeable: false,
-            required: true
+            status: .required
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -4074,7 +4074,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 )]),
                 primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
                 binaryPath: "/xcframeworks/direct.xcframework/direct",
-                required: true
+                status: .required
             ),
             .xcframework(
                 path: "/xcframeworks/transitive.xcframework",
@@ -4085,7 +4085,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 )]),
                 primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
                 binaryPath: "/xcframeworks/transitive.xcframework/transitive",
-                required: true
+                status: .required
             ),
             .xcframework(
                 path: "/xcframeworks/framework-transitive.xcframework",
@@ -4096,7 +4096,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 )]),
                 primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
                 binaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
-                required: true
+                status: .required
             ),
         ].sorted())
     }

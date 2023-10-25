@@ -228,10 +228,24 @@ extension ProjectAutomation.Target {
             return .target(name: name)
         case let .project(target, path):
             return .project(target: target, path: path.pathString)
-        case let .framework(path, required):
-            return .framework(path: path.pathString, required: required)
-        case let .xcframework(path, required):
-            return .xcframework(path: path.pathString, required: required)
+        case let .framework(path, status):
+            let frameworkStatus: ProjectAutomation.FrameworkStatus
+            switch status {
+            case .optional:
+                frameworkStatus = .optional
+            case .required:
+                frameworkStatus = .required
+            }
+            return .framework(path: path.pathString, status: frameworkStatus)
+        case let .xcframework(path, status):
+            let frameworkStatus: ProjectAutomation.FrameworkStatus
+            switch status {
+            case .optional:
+                frameworkStatus = .optional
+            case .required:
+                frameworkStatus = .required
+            }
+            return .xcframework(path: path.pathString, status: frameworkStatus)
         case let .library(path, publicHeaders, swiftModuleMap):
             return .library(
                 path: path.pathString,

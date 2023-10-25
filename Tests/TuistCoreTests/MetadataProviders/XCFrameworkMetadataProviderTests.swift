@@ -109,7 +109,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyFramework.xcframework"))
 
         // When
-        let metadata = try subject.loadMetadata(at: frameworkPath, required: true)
+        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -135,7 +135,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .dynamic,
             mergeable: false,
-            required: true
+            status: .required
         ))
     }
 
@@ -144,7 +144,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyMergeableFramework.xcframework"))
 
         // When
-        let metadata = try subject.loadMetadata(at: frameworkPath, required: true)
+        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -170,7 +170,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .dynamic,
             mergeable: true,
-            required: true
+            status: .required
         ))
     }
 
@@ -179,7 +179,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyStaticLibrary.xcframework"))
 
         // When
-        let metadata = try subject.loadMetadata(at: frameworkPath, required: true)
+        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -204,7 +204,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .static,
             mergeable: false,
-            required: true
+            status: .required
         ))
     }
 
@@ -213,7 +213,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
         let frameworkPath = fixturePath(path: try RelativePath(validating: "MyFrameworkMissingArch.xcframework"))
 
         // When
-        let metadata = try subject.loadMetadata(at: frameworkPath, required: true)
+        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
 
         // Then
         let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
@@ -238,7 +238,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .dynamic,
             mergeable: false,
-            required: true
+            status: .required
         ))
 
         XCTAssertPrinterOutputContains("""

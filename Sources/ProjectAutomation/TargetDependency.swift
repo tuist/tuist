@@ -1,5 +1,10 @@
 import Foundation
 
+public enum FrameworkStatus: String, Codable {
+    case required
+    case optional
+}
+
 public enum SDKStatus: String, Codable {
     case required
     case optional
@@ -8,8 +13,8 @@ public enum SDKStatus: String, Codable {
 public enum TargetDependency: Equatable, Hashable, Codable {
     case target(name: String)
     case project(target: String, path: String)
-    case framework(path: String, required: Bool)
-    case xcframework(path: String, required: Bool)
+    case framework(path: String, status: FrameworkStatus)
+    case xcframework(path: String, status: FrameworkStatus)
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
     case package(product: String)
     case packagePlugin(product: String)

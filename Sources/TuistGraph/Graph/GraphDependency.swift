@@ -9,7 +9,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         primaryBinaryPath: AbsolutePath,
         linking: BinaryLinking,
         mergeable: Bool,
-        required: Bool
+        status: FrameworkStatus
     )
 
     /// A dependency that represents a pre-compiled framework.
@@ -21,7 +21,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
         isCarthage: Bool,
-        required: Bool
+        status: FrameworkStatus
     )
 
     /// A dependency that represents a pre-compiled library.

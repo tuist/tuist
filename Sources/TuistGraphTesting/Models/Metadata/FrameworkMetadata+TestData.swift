@@ -12,7 +12,7 @@ extension FrameworkMetadata {
         linking: BinaryLinking = .dynamic,
         architectures: [BinaryArchitecture] = [.arm64],
         isCarthage: Bool = false,
-        required: Bool = true
+        status: FrameworkStatus = .required
     ) -> FrameworkMetadata {
         FrameworkMetadata(
             path: path,
@@ -22,7 +22,7 @@ extension FrameworkMetadata {
             linking: linking,
             architectures: architectures,
             isCarthage: isCarthage,
-            required: required
+            status: status
         )
     }
 }

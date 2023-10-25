@@ -78,7 +78,7 @@ extension GraphDependency {
             linking: _,
             architectures: _,
             isCarthage: _,
-            required: _
+            status: _
         ):
             return path.basenameWithoutExt
         case let .xcframework(
@@ -87,7 +87,7 @@ extension GraphDependency {
             primaryBinaryPath: _,
             linking: _,
             mergeable: _,
-            required: _
+            status: _
         ):
             return path.basenameWithoutExt
         case let .library(

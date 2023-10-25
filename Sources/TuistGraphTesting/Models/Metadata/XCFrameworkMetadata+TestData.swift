@@ -10,7 +10,7 @@ extension XCFrameworkMetadata {
         primaryBinaryPath: AbsolutePath = "/XCFrameworks/XCFramework.xcframework/ios-arm64/XCFramework",
         linking: BinaryLinking = .dynamic,
         mergeable: Bool = false,
-        required: Bool = true
+        status: FrameworkStatus = .required
     ) -> XCFrameworkMetadata {
         XCFrameworkMetadata(
             path: path,
@@ -18,7 +18,7 @@ extension XCFrameworkMetadata {
             primaryBinaryPath: primaryBinaryPath,
             linking: linking,
             mergeable: mergeable,
-            required: required
+            status: status
         )
     }
 }

@@ -496,7 +496,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         let dependenciesGraph = TuistGraph.DependenciesGraph(
             externalDependencies: [
                 .iOS: [
-                    "library": [.xcframework(path: "/library.xcframework", required: true)],
+                    "library": [.xcframework(path: "/library.xcframework", status: .required)],
                     "anotherLibrary": [.project(target: "Target", path: "/anotherLibrary")],
                 ],
             ],

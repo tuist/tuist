@@ -15,7 +15,7 @@ extension GraphDependencyReference {
         linking: BinaryLinking = .dynamic,
         architectures: [BinaryArchitecture] = [.arm64],
         product: Product = .framework,
-        required: Bool = true
+        status: FrameworkStatus = .required
     ) -> GraphDependencyReference {
         GraphDependencyReference.framework(
             path: path,
@@ -26,7 +26,7 @@ extension GraphDependencyReference {
             linking: linking,
             architectures: architectures,
             product: product,
-            required: required
+            status: status
         )
     }
 
@@ -36,14 +36,14 @@ extension GraphDependencyReference {
         primaryBinaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist",
         binaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist",
         linking _: BinaryLinking = .dynamic,
-        required: Bool = true
+        status: FrameworkStatus = .required
     ) -> GraphDependencyReference {
         GraphDependencyReference.xcframework(
             path: path,
             infoPlist: infoPlist,
             primaryBinaryPath: primaryBinaryPath,
             binaryPath: binaryPath,
-            required: required
+            status: status
         )
     }
 

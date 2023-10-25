@@ -388,12 +388,12 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         pbxproj.add(object: buildPhase)
         pbxTarget.buildPhases.append(buildPhase)
 
-        func addBuildFile(_ path: AbsolutePath, required: Bool = true) throws {
+        func addBuildFile(_ path: AbsolutePath, status: FrameworkStatus = .required) throws {
             guard let fileRef = fileElements.file(path: path) else {
                 throw LinkGeneratorError.missingReference(path: path)
             }
             var settings: [String: Any]?
-            if !required {
+            if status == .optional {
                 settings = ["ATTRIBUTES": ["Weak"]]
             }
             let buildFile = PBXBuildFile(file: fileRef, settings: settings)
@@ -404,12 +404,12 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         try linkableDependencies
             .forEach { dependency in
                 switch dependency {
-                case let .framework(path, _, _, _, _, _, _, _, required):
-                    try addBuildFile(path, required: required)
+                case let .framework(path, _, _, _, _, _, _, _, status):
+                    try addBuildFile(path, status: status)
                 case let .library(path, _, _, _):
                     try addBuildFile(path)
-                case let .xcframework(path, _, _, _, required):
-                    try addBuildFile(path, required: required)
+                case let .xcframework(path, _, _, _, status):
+                    try addBuildFile(path, status: status)
                 case .bundle:
                     break
                 case let .product(dependencyTarget, _, platformFilters):

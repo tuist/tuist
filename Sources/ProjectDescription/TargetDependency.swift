@@ -1,5 +1,15 @@
 import Foundation
 
+/// Dependency status used by `.framework` and `.xcframework` target
+/// dependencies
+public enum FrameworkStatus: String, Codable, Hashable {
+    /// Required dependency
+    case required
+
+    /// Optional dependency (weakly linked)
+    case optional
+}
+
 /// Dependency status used by `.sdk` target dependencies
 public enum SDKStatus: String, Codable, Hashable {
     /// Required dependency
@@ -37,8 +47,8 @@ public enum TargetDependency: Codable, Hashable {
     ///
     /// - Parameters:
     ///   - path: Relative path to the prebuilt framework
-    ///   - required: `false` to weakly link the framework
-    case framework(path: Path, required: Bool = true)
+    ///   - status: The dependency status (optional dependencies are weakly linked)
+    case framework(path: Path, status: FrameworkStatus = .required)
 
     /// Dependency on prebuilt library
     ///
@@ -76,8 +86,8 @@ public enum TargetDependency: Codable, Hashable {
     ///
     /// - Parameters:
     ///   - path: Relative path to the xcframework
-    ///   - required: `false` to weakly link the xcframework
-    case xcframework(path: Path, required: Bool = true)
+    ///   - status: The dependency status (optional dependencies are weakly linked)
+    case xcframework(path: Path, status: FrameworkStatus = .required)
 
     /// Dependency on XCTest.
     case xctest

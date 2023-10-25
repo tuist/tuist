@@ -22,7 +22,7 @@ final class FrameworkMetadataProviderTests: XCTestCase {
         let frameworkPath = fixturePath(path: try RelativePath(validating: "xpm.framework"))
 
         // When
-        let metadata = try subject.loadMetadata(at: frameworkPath, required: true)
+        let metadata = try subject.loadMetadata(at: frameworkPath, status: .required)
 
         // Then
         let expectedBinaryPath = frameworkPath.appending(component: frameworkPath.basenameWithoutExt)
@@ -35,7 +35,7 @@ final class FrameworkMetadataProviderTests: XCTestCase {
             linking: .dynamic,
             architectures: [.x8664, .arm64],
             isCarthage: false,
-            required: true
+            status: .required
         ))
     }
 }

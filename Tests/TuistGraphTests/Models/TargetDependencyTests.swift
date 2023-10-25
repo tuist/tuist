@@ -9,7 +9,7 @@ final class TargetDependencyTests: TuistUnitTestCase {
         // Given
         let subject = TargetDependency.framework(
             path: "/path/to/framework",
-            required: true
+            status: .required
         )
 
         // Then

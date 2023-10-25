@@ -755,7 +755,7 @@ public class GraphTraverser: GraphTraversing {
 
     func dependencyReference(dependency: GraphDependency) -> GraphDependencyReference? {
         switch dependency {
-        case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage, required):
+        case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage, status):
             return .framework(
                 path: path,
                 binaryPath: binaryPath,
@@ -765,7 +765,7 @@ public class GraphTraverser: GraphTraversing {
                 linking: linking,
                 architectures: architectures,
                 product: (linking == .static) ? .staticFramework : .framework,
-                required: required
+                status: status
             )
         case let .library(path, _, linking, architectures, _):
             return .library(
@@ -791,13 +791,13 @@ public class GraphTraverser: GraphTraversing {
                 productName: target.target.productNameWithExtension,
                 platformFilters: target.target.dependencyPlatformFilters
             )
-        case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, required):
+        case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, status):
             return .xcframework(
                 path: path,
                 infoPlist: infoPlist,
                 primaryBinaryPath: primaryBinaryPath,
                 binaryPath: primaryBinaryPath,
-                required: required
+                status: status
             )
         }
     }

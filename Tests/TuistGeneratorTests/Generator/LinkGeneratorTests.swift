@@ -631,7 +631,7 @@ final class LinkGeneratorTests: XCTestCase {
 
     func test_generateLinkingPhase_optionalFramework() throws {
         var dependencies: Set<GraphDependencyReference> = []
-        dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework", required: false))
+        dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework", status: .optional))
         dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)

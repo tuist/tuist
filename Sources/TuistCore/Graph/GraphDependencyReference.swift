@@ -8,7 +8,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         infoPlist: XCFrameworkInfoPlist,
         primaryBinaryPath: AbsolutePath,
         binaryPath: AbsolutePath,
-        required: Bool
+        status: FrameworkStatus
     )
     case library(
         path: AbsolutePath,
@@ -25,7 +25,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
         product: Product,
-        required: Bool
+        status: FrameworkStatus
     )
     case bundle(path: AbsolutePath)
     case product(target: String, productName: String, platformFilters: PlatformFilters = [])
@@ -33,7 +33,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
 
     init(_ dependency: GraphDependency) {
         switch dependency {
-        case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage, required):
+        case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage, status):
             self = .framework(
                 path: path,
                 binaryPath: binaryPath,
@@ -43,7 +43,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 linking: linking,
                 architectures: architectures,
                 product: (linking == .static) ? .staticFramework : .framework,
-                required: required
+                status: status
             )
         case let .library(path, _, linking, architectures, _):
             self = .library(
@@ -52,13 +52,13 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 architectures: architectures,
                 product: (linking == .static) ? .staticLibrary : .dynamicLibrary
             )
-        case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, required):
+        case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, status):
             self = .xcframework(
                 path: path,
                 infoPlist: infoPlist,
                 primaryBinaryPath: primaryBinaryPath,
                 binaryPath: primaryBinaryPath,
-                required: required
+                status: status
             )
         default:
             preconditionFailure("unsupported dependencies")
@@ -106,7 +106,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 infoPlist: _,
                 primaryBinaryPath: _,
                 binaryPath: _,
-                required: _):
+                status: _
+            ):
                 self = .xcframework(path: path)
             case .library(path: let path, linking: _, architectures: _, product: _):
                 self = .library(path: path)
@@ -119,7 +120,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 linking: _,
                 architectures: _,
                 product: _,
-                required: _
+                status: _
             ):
                 self = .framework(path: path)
             case let .bundle(path: path):

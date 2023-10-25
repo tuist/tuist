@@ -14,7 +14,7 @@ extension DependenciesGraph {
                 {
                   "xcframework": {
                     "path": "/Tuist/Dependencies/Carthage/RxSwift.xcframework",
-                    "required": true
+                    "status": "required"
                   }
                 }
               ]
@@ -51,10 +51,10 @@ extension DependenciesGraph {
         // swiftlint:disable:next force_try
         path: AbsolutePath = AbsolutePath.root.appending(try! RelativePath(validating: "Test.xcframework")),
         platforms: Set<Platform>,
-        required: Bool = true
+        status: FrameworkStatus = .required
     ) -> DependenciesGraph {
         let externalDependencies: [Platform: [String: [TargetDependency]]] = platforms.reduce(into: [:]) { result, platform in
-            result[platform] = [name: [.xcframework(path: path, required: required)]]
+            result[platform] = [name: [.xcframework(path: path, status: status)]]
         }
 
         return .init(

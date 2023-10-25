@@ -144,11 +144,11 @@ public final class GraphLoader: GraphLoading {
             )
             return .target(name: toTarget, path: projectPath)
 
-        case let .framework(frameworkPath, required):
+        case let .framework(frameworkPath, status):
             return try loadFramework(
                 path: frameworkPath,
                 cache: cache,
-                required: required
+                status: status
             )
 
         case let .library(libraryPath, publicHeaders, swiftModuleMap):
@@ -159,11 +159,11 @@ public final class GraphLoader: GraphLoading {
                 cache: cache
             )
 
-        case let .xcframework(frameworkPath, required):
+        case let .xcframework(frameworkPath, status):
             return try loadXCFramework(
                 path: frameworkPath,
                 cache: cache,
-                required: required
+                status: status
             )
 
         case let .sdk(name, status):
@@ -191,7 +191,7 @@ public final class GraphLoader: GraphLoading {
     private func loadFramework(
         path: AbsolutePath,
         cache: Cache,
-        required: Bool
+        status: FrameworkStatus
     ) throws -> GraphDependency {
         if let loaded = cache.frameworks[path] {
             return loaded
@@ -199,7 +199,7 @@ public final class GraphLoader: GraphLoading {
 
         let metadata = try frameworkMetadataProvider.loadMetadata(
             at: path,
-            required: required
+            status: status
         )
         let framework: GraphDependency = .framework(
             path: metadata.path,
@@ -209,7 +209,7 @@ public final class GraphLoader: GraphLoading {
             linking: metadata.linking,
             architectures: metadata.architectures,
             isCarthage: metadata.isCarthage,
-            required: metadata.required
+            status: metadata.status
         )
         cache.add(framework: framework, at: path)
         return framework
@@ -244,7 +244,7 @@ public final class GraphLoader: GraphLoading {
     private func loadXCFramework(
         path: AbsolutePath,
         cache: Cache,
-        required: Bool
+        status: FrameworkStatus
     ) throws -> GraphDependency {
         if let loaded = cache.xcframeworks[path] {
             return loaded
@@ -252,7 +252,7 @@ public final class GraphLoader: GraphLoading {
 
         let metadata = try xcframeworkMetadataProvider.loadMetadata(
             at: path,
-            required: required
+            status: status
         )
         let xcframework: GraphDependency = .xcframework(
             path: metadata.path,
@@ -260,7 +260,7 @@ public final class GraphLoader: GraphLoading {
             primaryBinaryPath: metadata.primaryBinaryPath,
             linking: metadata.linking,
             mergeable: metadata.mergeable,
-            required: metadata.required
+            status: metadata.status
         )
         cache.add(xcframework: xcframework, at: path)
         return xcframework

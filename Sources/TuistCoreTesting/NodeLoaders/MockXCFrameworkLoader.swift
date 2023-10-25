@@ -7,11 +7,11 @@ public final class MockXCFrameworkLoader: XCFrameworkLoading {
     public init() {}
 
     var loadStub: ((AbsolutePath) throws -> GraphDependency)?
-    public func load(path: AbsolutePath, required: Bool) throws -> GraphDependency {
+    public func load(path: AbsolutePath, status: FrameworkStatus) throws -> GraphDependency {
         if let loadStub {
             return try loadStub(path)
         } else {
-            return .testXCFramework(path: path, required: required)
+            return .testXCFramework(path: path, status: status)
         }
     }
 }

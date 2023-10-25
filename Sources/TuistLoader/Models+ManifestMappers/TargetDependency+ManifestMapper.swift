@@ -37,12 +37,12 @@ extension TuistGraph.TargetDependency {
             return [.target(name: name)]
         case let .project(target, projectPath):
             return [.project(target: target, path: try generatorPaths.resolve(path: projectPath))]
-        case let .framework(frameworkPath, required):
+        case let .framework(frameworkPath, status):
             return [
                 .framework(
                     path: try generatorPaths.resolve(path: frameworkPath),
-                    required: required
-                )
+                    status: .from(manifest: status)
+                ),
             ]
         case let .library(libraryPath, publicHeaders, swiftModuleMap):
             return [
@@ -63,12 +63,12 @@ extension TuistGraph.TargetDependency {
                     status: .from(manifest: status)
                 ),
             ]
-        case let .xcframework(path, required):
+        case let .xcframework(path, status):
             return [
                 .xcframework(
                     path: try generatorPaths.resolve(path: path),
-                    required: required
-                )
+                    status: .from(manifest: status)
+                ),
             ]
         case .xctest:
             return [.xctest]
