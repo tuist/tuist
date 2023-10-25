@@ -17,6 +17,10 @@ tuist/run:
 	./make/tasks/tuist/run.sh $(ARGS)
 
 # Shared
+workspace/build/tuistbenchmark:
+	./make/tasks/workspace/build/tuistbenchmark.sh $(ARGS)
+workspace/build/tuistfixturegenerator:
+	./make/tasks/workspace/build/tuistfixturegenerator.sh $(ARGS)
 workspace/lint-fix:
 	./make/tasks/workspace/lint-fix.sh
 workspace/lint:
@@ -30,7 +34,7 @@ workspace/up:
 workspace/clean:
 	./make/tasks/workspace/clean.sh
 workspace/build-with-spm:
-	$(ARGS) ./make/tasks/workspace/build-with-spm.sh
+	./make/tasks/workspace/build-with-spm.sh $(ARGS)
 workspace/release/bundle:
 	./make/tasks/workspace/release/bundle.sh
 
