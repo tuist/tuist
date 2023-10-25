@@ -5,13 +5,14 @@ import TuistGraph
 
 public final class MockXCFrameworkMetadataProvider: MockPrecompiledMetadataProvider, XCFrameworkMetadataProviding {
     public var loadMetadataStub: ((AbsolutePath) throws -> XCFrameworkMetadata)?
-    public func loadMetadata(at path: AbsolutePath) throws -> XCFrameworkMetadata {
+    public func loadMetadata(at path: AbsolutePath, required: Bool) throws -> XCFrameworkMetadata {
         if let loadMetadataStub {
             return try loadMetadataStub(path)
         } else {
             return XCFrameworkMetadata.test(
                 path: path,
-                primaryBinaryPath: path.appending(try RelativePath(validating: "ios-arm64/binary"))
+                primaryBinaryPath: path.appending(try RelativePath(validating: "ios-arm64/binary")),
+                required: required
             )
         }
     }

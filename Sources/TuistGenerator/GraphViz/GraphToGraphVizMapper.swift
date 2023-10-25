@@ -77,7 +77,8 @@ extension GraphDependency {
             bcsymbolmapPaths: _,
             linking: _,
             architectures: _,
-            isCarthage: _
+            isCarthage: _,
+            required: _
         ):
             return path.basenameWithoutExt
         case let .xcframework(
@@ -85,7 +86,8 @@ extension GraphDependency {
             infoPlist: _,
             primaryBinaryPath: _,
             linking: _,
-            mergeable: _
+            mergeable: _,
+            required: _
         ):
             return path.basenameWithoutExt
         case let .library(

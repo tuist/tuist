@@ -5,11 +5,11 @@ import TuistGraph
 
 public final class MockFrameworkMetadataProvider: MockPrecompiledMetadataProvider, FrameworkMetadataProviding {
     public var loadMetadataStub: ((AbsolutePath) throws -> FrameworkMetadata)?
-    public func loadMetadata(at path: AbsolutePath) throws -> FrameworkMetadata {
+    public func loadMetadata(at path: AbsolutePath, required: Bool) throws -> FrameworkMetadata {
         if let loadMetadataStub {
             return try loadMetadataStub(path)
         } else {
-            return FrameworkMetadata.test(path: path)
+            return FrameworkMetadata.test(path: path, required: required)
         }
     }
 

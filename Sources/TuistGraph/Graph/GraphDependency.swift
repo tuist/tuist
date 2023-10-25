@@ -8,7 +8,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         infoPlist: XCFrameworkInfoPlist,
         primaryBinaryPath: AbsolutePath,
         linking: BinaryLinking,
-        mergeable: Bool
+        mergeable: Bool,
+        required: Bool
     )
 
     /// A dependency that represents a pre-compiled framework.
@@ -19,7 +20,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         bcsymbolmapPaths: [AbsolutePath],
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
-        isCarthage: Bool
+        isCarthage: Bool,
+        required: Bool
     )
 
     /// A dependency that represents a pre-compiled library.
@@ -45,10 +47,10 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public func hash(into hasher: inout Hasher) {
         switch self {
-        case let .xcframework(path, _, _, _, _):
+        case let .xcframework(path, _, _, _, _, _):
             hasher.combine("xcframework")
             hasher.combine(path)
-        case let .framework(path, _, _, _, _, _, _):
+        case let .framework(path, _, _, _, _, _, _, _):
             hasher.combine("framework")
             hasher.combine(path)
         case let .library(path, _, _, _, _):
@@ -92,7 +94,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
      */
     public var isStaticPrecompiled: Bool {
         switch self {
-        case let .xcframework(_, _, _, linking, _), let .framework(_, _, _, _, linking, _, _),
+        case let .xcframework(_, _, _, linking, _, _),
+             let .framework(_, _, _, _, linking, _, _, _),
              let .library(_, _, linking, _, _): return linking == .static
         case .bundle: return false
         case .packageProduct: return false
@@ -106,8 +109,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
      */
     public var isDynamicPrecompiled: Bool {
         switch self {
-        case let .xcframework(_, _, _, linking, _),
-             let .framework(_, _, _, _, linking, _, _),
+        case let .xcframework(_, _, _, linking, _, _),
+             let .framework(_, _, _, _, linking, _, _, _),
              let .library(_, _, linking, _, _): return linking == .dynamic
         case .bundle: return false
         case .packageProduct: return false
@@ -143,9 +146,9 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var description: String {
         switch self {
-        case let .xcframework(path, _, _, _, _):
+        case let .xcframework(path, _, _, _, _, _):
             return "xcframework '\(path.basename)'"
-        case let .framework(path, _, _, _, _, _, _):
+        case let .framework(path, _, _, _, _, _, _, _):
             return "framework '\(path.basename)'"
         case let .library(path, _, _, _, _):
             return "library '\(path.basename)'"

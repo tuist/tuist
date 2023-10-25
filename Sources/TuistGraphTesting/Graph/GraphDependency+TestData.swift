@@ -13,7 +13,8 @@ extension GraphDependency {
         bcsymbolmapPaths: [AbsolutePath] = [],
         linking: BinaryLinking = .dynamic,
         architectures: [BinaryArchitecture] = [.armv7],
-        isCarthage: Bool = false
+        isCarthage: Bool = false,
+        required: Bool = true
     ) -> GraphDependency {
         GraphDependency.framework(
             path: path,
@@ -22,7 +23,8 @@ extension GraphDependency {
             bcsymbolmapPaths: bcsymbolmapPaths,
             linking: linking,
             architectures: architectures,
-            isCarthage: isCarthage
+            isCarthage: isCarthage,
+            required: required
         )
     }
 
@@ -31,14 +33,16 @@ extension GraphDependency {
         infoPlist: XCFrameworkInfoPlist = .test(),
         primaryBinaryPath: AbsolutePath = AbsolutePath.root
             .appending(try! RelativePath(validating: "Test.xcframework/Test")),
-        linking: BinaryLinking = .dynamic
+        linking: BinaryLinking = .dynamic,
+        required: Bool = true
     ) -> GraphDependency {
         .xcframework(
             path: path,
             infoPlist: infoPlist,
             primaryBinaryPath: primaryBinaryPath,
             linking: linking,
-            mergeable: false
+            mergeable: false,
+            required: required
         )
     }
 

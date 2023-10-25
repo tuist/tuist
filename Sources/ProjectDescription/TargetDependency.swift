@@ -37,7 +37,8 @@ public enum TargetDependency: Codable, Hashable {
     ///
     /// - Parameters:
     ///   - path: Relative path to the prebuilt framework
-    case framework(path: Path)
+    ///   - required: `false` to weakly link the framework
+    case framework(path: Path, required: Bool = true)
 
     /// Dependency on prebuilt library
     ///
@@ -75,7 +76,8 @@ public enum TargetDependency: Codable, Hashable {
     ///
     /// - Parameters:
     ///   - path: Relative path to the xcframework
-    case xcframework(path: Path)
+    ///   - required: `false` to weakly link the xcframework
+    case xcframework(path: Path, required: Bool = true)
 
     /// Dependency on XCTest.
     case xctest

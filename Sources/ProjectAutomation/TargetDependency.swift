@@ -8,8 +8,8 @@ public enum SDKStatus: String, Codable {
 public enum TargetDependency: Equatable, Hashable, Codable {
     case target(name: String)
     case project(target: String, path: String)
-    case framework(path: String)
-    case xcframework(path: String)
+    case framework(path: String, required: Bool)
+    case xcframework(path: String, required: Bool)
     case library(path: String, publicHeaders: String, swiftModuleMap: String?)
     case package(product: String)
     case packagePlugin(product: String)
