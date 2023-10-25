@@ -9,7 +9,7 @@ extension TuistGraph.FileElement {
     /// Maps a ProjectDescription.FileElement instance into a [TuistGraph.FileElement] instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
     /// - Parameters:
-    ///   - manifest: Manifest representation of  the file element.
+    ///   - manifest: Manifest representation of the file element.
     ///   - generatorPaths: Generator paths.
     static func from(
         manifest: ProjectDescription.FileElement,
