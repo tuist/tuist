@@ -10,7 +10,7 @@ gem "bootsnap", ">= 1.4.4", require: false
 gem "jbuilder", "~> 2.7"
 gem "pg", "~> 1.5.0"
 gem "puma", "~> 6.0"
-gem "rails", "~> 7.0.0"
+gem "rails", "~> 7.1.0"
 gem "redis", "~> 4.0"
 gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 gem "vite_rails", "~> 3.0.3"
