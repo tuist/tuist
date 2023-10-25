@@ -15,7 +15,7 @@ public struct RunAction: Equatable, Codable {
     public let options: RunActionOptions
     public let diagnosticsOptions: Set<SchemeDiagnosticsOption>
     public let expandVariableFromTarget: TargetReference?
-    public let launchStyle: LaunchStyle?
+    public let launchStyle: LaunchStyle
 
     // MARK: - Init
 
