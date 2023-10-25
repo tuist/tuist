@@ -77,5 +77,6 @@ This is really up to you. If you add the `.xcodeproj` and `.xcworkspace` files t
 
 ### Tuist Cloud
 
-- <doc:What-is-Tuist-Cloud>
+- <doc:Tuist-Cloud---What>
+- <doc:Tuist-Cloud---Command-Line-Interface>
 - <doc:Tuist-Cloud-Tutorial>
