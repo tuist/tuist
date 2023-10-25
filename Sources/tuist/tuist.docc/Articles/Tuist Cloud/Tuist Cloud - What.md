@@ -16,15 +16,27 @@ Tuist Cloud, a closed-source paid service, enhances Tuist by adding server-requi
 
 ### Available
 
-#### Remote caching
+#### Binary caching across environments 📦
 
 Tuist Cloud offers a robust storage solution for Tuist, enabling the sharing of cache artifacts between local and remote settings, such as continuous integration. This ensures that developers avoid recompiling targets they don't intend to modify, provided they've already been compiled by a teammate or in a CI setting. Leveraging this caching can yield efficiency rates up to 90%, leading to significant time and cost savings for both local development and CI processes.
 
-> Tip: To assist organizations in evaluating their return on investment (ROI), we've developed an [**ROI calculator**](https://tuist.io/cloud). For instance, consider an organization with approximately 20 developers. If their clean builds take 10 minutes and they achieve a 70% cache effectiveness, they could potentially reduce development time by 24,000 hours and recover up to $6.4 million.
+> Tip: To assist organizations in evaluating their return on investment (ROI), we've developed an [**ROI calculator**](https://tuist.io/cloud). For instance, consider an organization with approximately 20 developers. If their clean builds take 10 minutes and they achieve a 70% cache effectiveness, they could potentially reduce development time by 24,000 hours and recover up to $6.4 million a year.
+
+#### Incremental build and test execution across environments ✅
+
+Traditionally, reached a certain scale teams have to figure out optimizations to keep turn-around CI time low. The assumption that **you can build and test everything all the time**, which is valid at a small scale, breaks a large one. Reached that point, it's common to find teams throwing money at hardwared to speed up times, building internal tooling or adding complexity to their CI pipelines, or even worse, not doing anything at all and letting development to slow down. It doesn't need to be like that.
+
+Tuist Cloud leverages the knowledge on the graph and the fingerprinting technology used for binary caching to determine **which targets need to be built and tested based on the file changes**. And the best of all is that the behaviour is completely configurable through additional hashing keys. For example, you might want to build and test everything in main, but do it incrementally from the trunk `main` branch when development branches out. This feature saves teams time and money.
+
+#### Basic insights 📈
+
+Although optimizing your workflows based on the knowledge we have ont he project, it's important to ensure decisions you make about the evolution of the project won't introduce regressions what will have a negative impact on developers' experience working with the project. Our long-term plan is to leverage AI technologies to provide you with a copilot, but until we get there, we provide basic insights so that you have a better understanding of your project, the workflows, and can spot optimizations opportunities and make decisions based on data. We strongly believe this is data that Xcode should provide, but since they don't, and it's become clear that teams really need it, we are going ahead and giving it to you.
+
+> Info: You've probably heard of Spotify's XCMetrics open-source tool. It has a similar aim, but its integration requires installing additional tools in developers' environments and it can correlate the data with the project's data because it doesn't know anything about the project. With Tuist we are providing better analytics thanks to the insights that we can obtain from the correlation between the data and the project graph, and also making it tightly integrated into Tuist (you don't need to install additional tools).
 
 ### In development
 
-#### Insights
+#### Advanced actionable insights 📈
 
 Regressions can easily compromise the health of a project, build, or test suites. This is primarily because CI workflows focus on ensuring successful compilation and test suite outcomes. As a result, developers tend to merge pull requests (PRs) once they're approved and both the compilation and test runs are successful. Yet, such PRs might inadvertently affect other vital aspects that directly influence developer productivity. For instance, they could:
 
@@ -38,7 +50,7 @@ We aim to **gather data from builds, including build times, binary sizes, and te
 
 ### Planned
 
-#### Previews
+#### Previews 🔎
 
 In many standard setups, developers might forgo testing feature implementations within a pull request to avoid the compilation cycle. As a result, non-developers often rely on nightly builds to conduct their tests. By the time they identify a bug or regression, the pull request has usually been merged, necessitating an interruption for the original developer to investigate and address the issue. But imagine if testing new features were so swift and seamless that anyone within the organization could experience and provide feedback on enhancements within moments of their creation?
 
