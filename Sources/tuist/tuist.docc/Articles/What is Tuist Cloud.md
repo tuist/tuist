@@ -63,4 +63,4 @@ If there are **multiple people working on the project**, this is the recommended
 #### Enterprise
 
 For organizations that prefer to host the software on their own infrastructure, require SAML Single-Sign-On, and seek additional, prioritized support and advice from the creators of Tuist and Tuist Cloud, we offer an enterprise plan. If this option interests you, please reach out to [sales@tuist.io](mailto:sales@tuist.io).
-If you are already an enterprise customer of Tuist Cloud, you can follow our <doc:Tuist-Cloud---Enterprise> tutorials to run Tuist Cloud on your infrastructure.
+If you are already an enterprise customer of Tuist Cloud, you can follow our <doc:Tuist-Cloud-Tutorial> tutorials to run Tuist Cloud on your infrastructure.
