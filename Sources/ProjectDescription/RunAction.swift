@@ -34,6 +34,9 @@ public struct RunAction: Equatable, Codable {
     /// A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT)
     public let expandVariableFromTarget: TargetReference?
 
+    /// The launch style of the action
+    public let launchStyle: LaunchStyle?
+
     init(
         configuration: ConfigurationName,
         attachDebugger: Bool = true,
@@ -44,7 +47,8 @@ public struct RunAction: Equatable, Codable {
         arguments: Arguments? = nil,
         options: RunActionOptions = .options(),
         diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker, .performanceAntipatternChecker],
-        expandVariableFromTarget: TargetReference? = nil
+        expandVariableFromTarget: TargetReference? = nil,
+        launchStyle: LaunchStyle? = nil
     ) {
         self.configuration = configuration
         self.attachDebugger = attachDebugger
@@ -56,6 +60,7 @@ public struct RunAction: Equatable, Codable {
         self.options = options
         self.diagnosticsOptions = diagnosticsOptions
         self.expandVariableFromTarget = expandVariableFromTarget
+        self.launchStyle = launchStyle
     }
 
     /// Returns a run action.
@@ -68,8 +73,8 @@ public struct RunAction: Equatable, Codable {
     ///   - arguments: Command line arguments passed on launch and environment variables.
     ///   - options: List of options to set to the action.
     ///   - diagnosticsOptions: List of diagnostics options to set to the action.
-    ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables
-    /// definition (e.g. $SOURCE_ROOT). When nil, it does not expand any variables.
+    ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT). When nil, it does not expand any variables.
+    ///   - launchStyle: The launch style of the action
     /// - Returns: Run action.
     public static func runAction(
         configuration: ConfigurationName = .debug,
@@ -81,7 +86,8 @@ public struct RunAction: Equatable, Codable {
         arguments: Arguments? = nil,
         options: RunActionOptions = .options(),
         diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
-        expandVariableFromTarget: TargetReference? = nil
+        expandVariableFromTarget: TargetReference? = nil,
+        launchStyle: LaunchStyle? = nil
     ) -> RunAction {
         RunAction(
             configuration: configuration,
@@ -93,7 +99,8 @@ public struct RunAction: Equatable, Codable {
             arguments: arguments,
             options: options,
             diagnosticsOptions: diagnosticsOptions,
-            expandVariableFromTarget: expandVariableFromTarget
+            expandVariableFromTarget: expandVariableFromTarget,
+            launchStyle: launchStyle
         )
     }
 }
