@@ -35,7 +35,7 @@ public struct RunAction: Equatable, Codable {
     public let expandVariableFromTarget: TargetReference?
 
     /// The launch style of the action
-    public let launchStyle: LaunchStyle?
+    public let launchStyle: LaunchStyle
 
     init(
         configuration: ConfigurationName,
