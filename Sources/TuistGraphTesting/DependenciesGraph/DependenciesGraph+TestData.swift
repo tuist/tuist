@@ -13,7 +13,8 @@ extension DependenciesGraph {
               "RxSwift": [
                 {
                   "xcframework": {
-                    "path": "/Tuist/Dependencies/Carthage/RxSwift.xcframework"
+                    "path": "/Tuist/Dependencies/Carthage/RxSwift.xcframework",
+                    "required": true
                   }
                 }
               ]
