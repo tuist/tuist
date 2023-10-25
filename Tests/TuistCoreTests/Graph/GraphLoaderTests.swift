@@ -354,7 +354,10 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     func test_loadWorkspace_xcframeworkDependency() throws {
         // Given
-        let targetA = Target.test(name: "A", dependencies: [.xcframework(path: "/XCFrameworks/XF1.xcframework", status: .required)])
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [.xcframework(path: "/XCFrameworks/XF1.xcframework", status: .required)]
+        )
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
 
@@ -396,7 +399,10 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     func test_loadWorkspace_mergeableXCFrameworkDependency() throws {
         // Given
-        let targetA = Target.test(name: "A", dependencies: [.xcframework(path: "/XCFrameworks/XF1.xcframework", status: .required)])
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [.xcframework(path: "/XCFrameworks/XF1.xcframework", status: .required)]
+        )
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
 
