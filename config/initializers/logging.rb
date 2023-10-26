@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 if Environment.tuist_hosted? && Environment.production_like_env?
-  console_logger = ActiveSupport::Logger.new($stdout)
+  # Use AppSignal's logger and a STDOUT logger
+  console_logger = ActiveSupport::Logger.new(STDOUT)
   appsignal_logger = ActiveSupport::TaggedLogging.new(Appsignal::Logger.new("rails"))
-  Rails.logger = console_logger.extend(ActiveSupport::Logger.broadcast(appsignal_logger))
+  Rails.application.config.log_tags = [:request_id]
+  Rails.logger = ActiveSupport::BroadcastLogger.new(console_logger, appsignal_logger)
 end

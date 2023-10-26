@@ -63,3 +63,4 @@ end
 
 gem "dockerfile-rails", ">= 1.5", :group => :development
 gem "turbo-rails", "~> 1.4"
+gem "bigdecimal", "~> 3.0", :group => :development

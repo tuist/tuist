@@ -97,7 +97,7 @@ GEM
       aws-eventstream (~> 1, >= 1.0.2)
     base64 (0.1.1)
     bcrypt (3.1.19)
-    bigdecimal (1.4.4)
+    bigdecimal (3.1.4)
     bindex (0.8.1)
     bootsnap (1.16.0)
       msgpack (~> 1.2)
@@ -424,6 +424,7 @@ DEPENDENCIES
   appsignal (~> 3.4)
   aws-sdk-s3 (~> 1.112)
   bcrypt (~> 3.1.7)
+  bigdecimal (~> 3.0)
   bootsnap (>= 1.4.4)
   bullet (~> 7.0)
   byebug
