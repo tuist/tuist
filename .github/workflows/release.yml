@@ -44,24 +44,24 @@ jobs:
       - name: Update version
         run: |
           sed -i 's/CURRENT = ".*"/CURRENT = \"${{ steps.semvers.outputs.version }}"/' app/version.rb
-      - name: "Build Changelog"
-        id: changelog
-        uses: mikepenz/release-changelog-builder-action@v2
-        with:
-          configuration: ".github/changelog-configuration.json"
-          toTag: "main"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Update Changelog
-        uses: stefanzweifel/changelog-updater-action@v1
-        with:
-          latest-version: ${{ steps.semvers.outputs.version }}
-          release-notes: ${{ steps.changelog.outputs.changelog }}
-      - name: Commit
-        id: auto-commit-action
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: "[Release] Tuist ${{ steps.semvers.outputs.version }}"
+      # - name: "Build Changelog"
+      #   id: changelog
+      #   uses: mikepenz/release-changelog-builder-action@v2
+      #   with:
+      #     configuration: ".github/changelog-configuration.json"
+      #     toTag: "main"
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Update Changelog
+      #   uses: stefanzweifel/changelog-updater-action@v1
+      #   with:
+      #     latest-version: ${{ steps.semvers.outputs.version }}
+      #     release-notes: ${{ steps.changelog.outputs.changelog }}
+      # - name: Commit
+      #   id: auto-commit-action
+      #   uses: stefanzweifel/git-auto-commit-action@v4
+      #   with:
+      #     commit_message: "[Release] Tuist ${{ steps.semvers.outputs.version }}"
   build_and_push:
     needs: pre-release
     name: Build Docker image
@@ -103,5 +103,6 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         name: ${{ needs.pre-release.outputs.version }}
         tag_name: ${{ needs.pre-release.outputs.version }}
-        body: ${{ needs.pre-release.outputs.changelog }}
+        body: New release ${{ needs.pre-release.outputs.version }}
+        # body: ${{ needs.pre-release.outputs.changelog }}
         target_commitish: ${{ needs.pre-release.outputs.commit_hash }}
