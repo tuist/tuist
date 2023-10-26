@@ -543,11 +543,15 @@ extension ProjectDescription.Target {
 
         let moduleMap = targetToModuleMap[target.name]
 
-        let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
+        // Use the intersection of destations from `Dependencies.swift` and the destinations supported by the package.
+        let destinations = packageDestinations.intersection(try ProjectDescription.Destinations.from(platforms: packageInfo.platforms))
+
+        let deploymentTargets = try ProjectDescription.DeploymentTargets.from(
             type: target.type,
             platform: platform,
             minDeploymentTargets: minDeploymentTargets,
             package: packageInfo.platforms,
+            destinations: destinations,
             packageName: packageName
         )
 
@@ -630,6 +634,7 @@ extension ProjectDescription.DeploymentTarget {
         platform: ProjectDescription.Platform,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         package: [PackageInfo.Platform],
+        destinations: ProjectDescription.Destinations,
         packageName _: String
     ) throws -> Self {
         if type == .macro {
@@ -638,32 +643,29 @@ extension ProjectDescription.DeploymentTarget {
             )
         }
 
-        if let packagePlatform = package.first(where: { $0.tuistPlatformName == platform.rawValue }) {
-            // Deployment targets below the minimum one raises warnings
-            let targetVersion = try Self.max(packagePlatform.version, minDeploymentTargets[platform]?.targetVersion)
-
-            switch platform {
-            case .iOS:
-                return .iOS(
-                    targetVersion: targetVersion,
-                    devices: [.iphone, .ipad, .mac]
-                )
-            case .macOS:
-                return .macOS(targetVersion: targetVersion)
-            case .watchOS:
-                return .watchOS(targetVersion: targetVersion)
-            case .tvOS:
-                return .tvOS(targetVersion: targetVersion)
-            case .visionOS:
-                return .visionOS(targetVersion: targetVersion)
-            }
-        } else {
-            return minDeploymentTargets[platform]!
+        let versionPairs: [(ProjectDescription.Platform, String)] = package.compactMap { packagePlatform in
+            guard let tuistPlatform = ProjectDescription.Platform(rawValue: packagePlatform.tuistPlatformName) else { return nil }
+            return (tuistPlatform, packagePlatform.version)
         }
+        // maccatalyst and iOS will be the same, this chooses the first one defined, hopefully they dont disagree
+        let platformInfos = Dictionary(versionPairs) { (first, _) in first }
+        let destinationPlatforms = destinations.platforms
+
+        func versionFor(platform: ProjectDescription.Platform) throws -> String? {
+            guard destinationPlatforms.contains(platform) else { return nil }
+            return try max(minDeploymentTargets[platform], platformInfos[platform])
+        }
+
+        return .init(iOS: try versionFor(platform: .iOS),
+                     macOS: try versionFor(platform: .macOS),
+                     watchOS: try versionFor(platform: .watchOS),
+                     tvOS: try versionFor(platform: .tvOS),
+                     visionOS:  try versionFor(platform: .visionOS))
     }
 
-    fileprivate static func max(_ lVersionString: String, _ rVersionString: String?) throws -> String {
+    fileprivate static func max(_ lVersionString: String?, _ rVersionString: String?) throws -> String? {
         guard let rVersionString else { return lVersionString }
+        guard let lVersionString else { return nil }
         let lVersion = try Version(versionString: lVersionString, usesLenientParsing: true)
         let rVersion = try Version(versionString: rVersionString, usesLenientParsing: true)
         return lVersion > rVersion ? lVersionString : rVersionString
