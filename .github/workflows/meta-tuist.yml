@@ -110,7 +110,6 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Test
         run: |
-          xcodebuild -downloadPlatform iOS
           ./fourier test tuist unit
   
   lint-lockfiles:
