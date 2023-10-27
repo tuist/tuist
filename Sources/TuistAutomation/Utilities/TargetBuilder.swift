@@ -27,6 +27,7 @@ public protocol TargetBuilding {
         buildOutputPath: AbsolutePath?,
         device: String?,
         osVersion: Version?,
+        rosetta: Bool,
         graphTraverser: GraphTraversing
     ) async throws
 }
@@ -82,6 +83,7 @@ public final class TargetBuilder: TargetBuilding {
         buildOutputPath: AbsolutePath?,
         device: String?,
         osVersion: Version?,
+        rosetta: Bool,
         graphTraverser: GraphTraversing
     ) async throws {
         logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
@@ -108,6 +110,7 @@ public final class TargetBuilder: TargetBuilding {
                 .workspace(workspacePath),
                 scheme: scheme.name,
                 destination: destination,
+                rosetta: rosetta,
                 clean: clean,
                 arguments: buildArguments
             )

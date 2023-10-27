@@ -60,7 +60,8 @@ final class BuildService {
         buildOutputPath: AbsolutePath?,
         path: AbsolutePath,
         device: String?,
-        osVersion: String?
+        osVersion: String?,
+        rosetta: Bool
     ) async throws {
         let graph: Graph
         let generator = generatorFactory.default()
@@ -101,6 +102,7 @@ final class BuildService {
                 buildOutputPath: buildOutputPath,
                 device: device,
                 osVersion: osVersion?.version(),
+                rosetta: rosetta,
                 graphTraverser: graphTraverser
             )
         } else {
@@ -122,6 +124,7 @@ final class BuildService {
                     buildOutputPath: buildOutputPath,
                     device: device,
                     osVersion: osVersion?.version(),
+                    rosetta: rosetta,
                     graphTraverser: graphTraverser
                 )
                 cleaned = true

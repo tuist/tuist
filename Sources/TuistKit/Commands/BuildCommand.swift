@@ -45,6 +45,12 @@ struct BuildCommand: AsyncParsableCommand {
         help: "Build with a specific version of the OS."
     )
     var os: String?
+    
+    @Flag(
+        name: .long,
+        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
+    )
+    var rosetta: Bool = false
 
     @Option(
         name: [.long, .customShort("C")],
@@ -74,7 +80,8 @@ struct BuildCommand: AsyncParsableCommand {
             buildOutputPath: buildOutputPath.map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) },
             path: absolutePath,
             device: device,
-            osVersion: os
+            osVersion: os,
+            rosetta: rosetta
         )
     }
 }

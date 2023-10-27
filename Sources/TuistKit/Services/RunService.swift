@@ -68,6 +68,7 @@ final class RunService {
         configuration: String?,
         device: String?,
         version: String?,
+        rosetta: Bool,
         arguments: [String]
     ) async throws {
         let runPath: AbsolutePath
@@ -115,6 +116,7 @@ final class RunService {
             buildOutputPath: nil,
             device: device,
             osVersion: version?.version(),
+            rosetta: rosetta,
             graphTraverser: graphTraverser
         )
 
