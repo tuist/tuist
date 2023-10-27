@@ -86,6 +86,7 @@ final class TemplateGeneratorTests: TuistTestCase {
         let items: [Template.Item] = [
             Template.Item(path: try RelativePath(validating: "a"), contents: .string("aContent")),
             Template.Item(path: try RelativePath(validating: "b"), contents: .string("bContent")),
+            Template.Item(path: try RelativePath(validating: ".gitkeep"), contents: .string("")),
         ]
 
         let template = Template.test(items: items)

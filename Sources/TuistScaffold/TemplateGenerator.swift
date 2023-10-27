@@ -141,14 +141,16 @@ public final class TemplateGenerator: TemplateGenerating {
                 try FileHandler.shared.copy(from: path, to: destinationDirectoryPath)
                 renderedContents = nil
             }
-            // Generate file only when it has some content
-            guard let rendered = renderedContents,
-                  !rendered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            try FileHandler.shared.write(
-                rendered,
-                path: destinationPath.appending($0.path),
-                atomically: true
-            )
+            // Generate file only when it has some content, unless it is a `.gitkeep` file
+            if let rendered = renderedContents,
+               !rendered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                $0.path.basename == ".gitkeep" {
+                try FileHandler.shared.write(
+                    rendered,
+                    path: destinationPath.appending($0.path),
+                    atomically: true
+                )
+            }
         }
     }
 }
