@@ -29,6 +29,7 @@ extension PBXFileElement {
 
 extension PBXBuildFile {
     /// Apply platform filters either `platformFilter` or `platformFilters` depending on count
+    /// With Xcode 15, we're seeing `platformFilter` not have the effects we expect
     public func applyPlatformFilters(_ filters: PlatformFilters, applicableTo target: Target) {
         let dependingTargetPlatformFilters = target.dependencyPlatformFilters
 
