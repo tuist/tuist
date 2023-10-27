@@ -878,7 +878,7 @@ public class GraphTraverser: GraphTraversing {
             return .product(
                 target: target.target.name,
                 productName: target.target.productNameWithExtension,
-                platformFilters: target.target.dependencyPlatformFilters // What to do here now that we have smart things?
+                platformFilters: platformFilters
             )
         case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, status):
             return .xcframework(
