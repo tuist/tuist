@@ -24,15 +24,16 @@ Tuist Cloud offers a robust storage solution for Tuist, enabling the sharing of 
 
 #### Incremental build and test execution across environments ✅
 
-Traditionally, reached a certain scale teams have to figure out optimizations to keep turn-around CI time low. The assumption that **you can build and test everything all the time**, which is valid at a small scale, breaks a large one. Reached that point, it's common to find teams throwing money at hardwared to speed up times, building internal tooling or adding complexity to their CI pipelines, or even worse, not doing anything at all and letting development to slow down. It doesn't need to be like that.
+Once teams reach a certain scale, they often grapple with optimizing their CI process to maintain quick turnaround times. While **building and testing everything** continually might work for smaller teams, it becomes impractical on a larger scale. At this juncture, many teams resort to investing in superior hardware, creating custom tools, complicating their CI pipelines, or worse, accepting slower development cycles. But there's a better way.
 
-Tuist Cloud leverages the knowledge on the graph and the fingerprinting technology used for binary caching to determine **which targets need to be built and tested based on the file changes**. And the best of all is that the behaviour is completely configurable through additional hashing keys. For example, you might want to build and test everything in main, but do it incrementally from the trunk `main` branch when development branches out. This feature saves teams time and money.
+**Tuist Cloud utilizes graph knowledge and fingerprinting technology—essential for binary caching—to discern which targets to build and test based on file modifications.** Best of all, this behavior can be fine-tuned using additional hashing keys. For instance, while you might choose to build and test everything on the `main` branch, you can adopt an incremental approach from the primary trunk when development diverges. This approach is not only efficient but also cost-effective for teams.
 
 #### Basic insights 📈
 
-Although optimizing your workflows based on the knowledge we have ont he project, it's important to ensure decisions you make about the evolution of the project won't introduce regressions what will have a negative impact on developers' experience working with the project. Our long-term plan is to leverage AI technologies to provide you with a copilot, but until we get there, we provide basic insights so that you have a better understanding of your project, the workflows, and can spot optimizations opportunities and make decisions based on data. We strongly believe this is data that Xcode should provide, but since they don't, and it's become clear that teams really need it, we are going ahead and giving it to you.
+While optimizing workflows based on our project insights is beneficial, it's crucial to ensure that your project's evolution doesn't lead to regressions, adversely affecting the developer experience. While our ultimate goal is to harness AI technologies to offer you a virtual co-pilot, we currently provide foundational insights to enhance your understanding of your project and workflows. This allows you to identify optimization opportunities and make data-driven decisions. We firmly believe this is data that Xcode ought to supply. However, recognizing the clear demand from teams, we're stepping up to deliver it.
 
-> Info: You've probably heard of Spotify's XCMetrics open-source tool. It has a similar aim, but its integration requires installing additional tools in developers' environments and it can correlate the data with the project's data because it doesn't know anything about the project. With Tuist we are providing better analytics thanks to the insights that we can obtain from the correlation between the data and the project graph, and also making it tightly integrated into Tuist (you don't need to install additional tools).
+> Info: You might be familiar with Spotify's open-source tool, [XCMetrics](https://xcmetrics.io/). While it shares a similar objective, its integration demands extra tool installations in developers' settings, and it lacks the ability to correlate data with project specifics. In contrast, Tuist offers enhanced analytics, drawing from the synergy between data and the project graph, and is seamlessly integrated without needing any extra installations.
+
 
 ### In development
 
@@ -64,13 +65,9 @@ One of the initial decisions you or your organization must make is **determining
 
 If you are an **individual developer** working on a project, this is the advised option. It provides access to the complete feature set, however, it does not permit granting access to the project to others. It's important to note that the support available under this plan is community-based, hence it does not have as high a priority as the support provided in the plans listed below.
 
-> Tip: If you wish to test your project against Tuist Cloud, we recommend using a personal account for the tests.
-
 #### Team
 
 If there are **multiple people working on the project**, this is the recommended option. You will be able to create organizations that serve as the umbrella for multiple projects and invite people to join the organization. This plan provides access to the complete feature set and also includes community-based support, similar to the Indie plan.
-
-> Important: Unlike Tuist, which is supported by an [Open Collective fiscal host](https://opencollective.com/tuistapp), Tuist Cloud is supported by a legally incorporated German entity, **Tuist GmbH**. This entity is legally responsible for any issues that may arise.
 
 #### Enterprise
 

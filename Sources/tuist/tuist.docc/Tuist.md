@@ -17,32 +17,30 @@ Some organizations choose to bypass the compiler by abstracting the platform usi
 
 ## Project generation as a foundation
 
-Xcode, its build system, and Xcode projects are strongly coupled and lack flexibility. This leaves the community with limited options to overcome the challenges that Apple's design presents. One of the options is **project generation**, that was first used by [CocoaPods](https://cocoapods.org) to bring dependency management to the Objective-C ecosystem. 
+Xcode, its underlying build system, and the structure of Xcode projects are closely intertwined, often leading to inflexibility. This intrinsic design leaves developers with few avenues to address the inherent challenges presented by Apple. One such solution has been **project generation**, a method initially pioneered by [CocoaPods](https://cocoapods.org) to introduce dependency management into the Objective-C ecosystem.
 
-Tuist leverages project generation too, something that might make you think that we have project generation as a goal. Many teams in fact resort to project generation to overcome a challenge that has persisted for years, the proneness to conflicts when working in teams. However, project generation for Tuist is a means to an end. It's a foundation to solve challenges that go beyond project generation. Here's a non-exhaustive list of them:
+Tuist also adopts project generation, which might suggest that this approach is its primary objective. Indeed, many development teams have turned to project generation to mitigate the long-standing issue of team collaboration-induced conflicts. But for Tuist, **project generation isn't the endgame**. Instead, it serves as a foundational tool to tackle a broader range of challenges, including:
 
-- How can I modify the project modular structure with the confidence that it won't lead to runtime errors and that adheres to my team's best practices?
-- How can I add/remove targets from the graph without having to think about the cascading effects my changes have on the graph (e.g. copying dynamic frameworks into bundles)?
-- How can I decouple productivity coding, building, and testing, from the size of the project? 
-- How can I make sure my project and the workflows remain healthy fostering an environment in which developers want to work?
+- How can developers modify the modular structure of a project with assurance against runtime errors, ensuring it aligns with team best practices?
+- What's the best way to add or remove targets from the dependency graph without worrying about the ripple effects on the graph, such as dynamically copying frameworks into bundles?
+- How can developers decouple the time of tasks—like coding, building, and testing—from the overall size of the project?
+- How can teams ensure the sustained health and integrity of the project, cultivating a conducive environment for developers?
 
-Tuist is a tool that provides answers to those questions by leveraging projec generation. It codifies years of experience working in a large range of Xcode project types, and is the excellent copilot for your platform team.
+Tuist offers answers to these questions, leveraging the power of project generation. It encapsulates years of insights gathered from diverse Xcode projects, positioning itself as an invaluable ally for your platform team.
 
-> Tip: Extensible tooling would have prevented us from resorting to project generation to tackle the challenges, but Xcode doesn't seem to be moving in that direction.
+## How does it work?
 
-## How does it work
+To get started with Tuist, all you need is to define your project using **Tuist's Domain Specific Language (DSL)**. This entails using manifest files such as `Workspace.swift` or `Project.swift`. If you've worked with the Swift Package Manager before, the approach is very similar.
 
-All Tuist needs from you is your project defined using Tuist's DSL. You define your projects using manifest files like **Workspace.swift** or **Project.swift**. If you are familiar with the Swift Package Manager, the concept is identical.
+Once you've defined your project, Tuist offers various workflows to manage and interact with it:
 
-Once your project is defined, Tuist provides different workflows to interact with your projects:
+- **Generate:** This is a foundational workflow. Use it to create an Xcode project that's compatible with Xcode.
+- **Build:** This workflow not only generates the Xcode project but also employs xcodebuild to compile it.
+- **Test:** Operating much like the build workflow, this not only generates the Xcode project but utilizes xcodebuild to test it.
 
-- **Generate:** This is a cornerstone workflow. You use it to generate an Xcode project that you can use with Xcode. 
-- **Build:** This workflow generates the Xcode project and runs `xcodebuild` to build the project.
-- **Test:** Similarly to build, it generates the Xcode project but in this case it uses `xcodebuild` to test the project.
+Additionally, as detailed in <doc:Tuist-Cloud---Intro>, Tuist offers a suite of optimizations. These include **target-focused project generation**, the ability to swap out targets and dependencies with their **binary** equivalents, and ensuring build and test incrementality across different environments (e.g., local machine vs. CI). Plus, it provides actionable insights to guide teams in making informed choices.
 
-Tuist also provides as part of <doc:Tuist-Cloud---Intro> a set of **optimizations**, like project generation with a focus on a target, replacement of targets and dependencies with their binary counterpart, or build and test incrementality across environments (e.g., local and CI), and **actionable insights** to help teams make informed decisions. 
-
-> Tip: Tuist optimizations and insights are possible thanks to the knowledge that we have on your projects graph through your declaration in manifest files. We believe for teams to remain productive, we need data to back decisions, and that's unfortunately something that Xcode doesn't provide so teams often move blindly without being aware of where the time is being spent or with the confidence that the decisions that they are making are positive for the project.
+> Tip: Tuist's optimizations and insights stem from the knowledge gained from your project's manifest files. To ensure teams remain productive, data-backed decisions are essential—something Xcode doesn't offer. As a result, teams often operate without clear insights, unsure if their choices benefit the project.
 
 ## Frequently asked questions
 
@@ -50,24 +48,23 @@ Tuist also provides as part of <doc:Tuist-Cloud---Intro> a set of **optimization
 
 ##### Swift Package Manager
 
-Although there are similarities between both tools, the Swift Package Manager (SPM)'s main focus is on dependencies. With Tuist, instead of defining packages that SPM integrates into your projects, you define your projects using concepts you are already familiar with: projects, workspaces, targets, and schemes.
+While the Swift Package Manager (SPM) primarily focuses on dependencies, Tuist offers a different approach. With Tuist, you don't just define packages for SPM integration; you shape your projects using familiar concepts like projects, workspaces, targets, and schemes.
 
 ##### XcodeGen
 
-XcodeGen is a pure project generator that helps mitigate conflicts when collaborating in an Xcode project and abstracts away some intricacies of Xcode projects' internals. However, projects' definition is done through serializable formats like YAML, which unilke Swift, developers can't build their abstracions or checks upon unless they implement additional tooling. Moreover, when it comes to mapping dependencies to an internal representation that can be validated and optimized, their implementation still presents developers with the Xcode intricacies and requires them to understand some Xcode internals. The above makes it a good candidate as a foundation to build tools upon, like the Bazel community does, but not that ideal if you want everyone to take part of evolving a project and being assisted in evolving the projects to keep the environment healthy and productive.
+[XcodeGen](https://github.com/yonaskolb/XcodeGen) is a dedicated project generator designed to reduce conflicts in collaborative Xcode projects and simplify some complexities of Xcode's internal workings. However, projects are defined using serializable formats like [YAML](https://yaml.org/). Unlike Swift, this doesn't allow developers to build upon abstractions or checks without incorporating additional tools. While XcodeGen does offer a way to map dependencies to an internal representation for validation and optimization, it still exposes developers to the nuances of Xcode. This might make XcodeGen a suitable foundation for [building tools](https://github.com/MobileNativeFoundation/rules_xcodeproj), as seen in the Bazel community, but it's not optimal for inclusive project evolution that aims to maintain a healthy and productive environment.
 
 ##### Bazel
 
-Bazel is a very sophisticated build system with support for remote caching. It popularized among the Swift community due to its caching capabilities. However, since Xcode and its build system is not much extensible, the replacement of the build system with Bazel's and their maintenance requires a huge burden that only few companies can afford. This is something that can be seen from the list of companies that are using it and that coincidentally are pouring a lot of resources into making Bazel work with Xcode. Fun fact, the community built a tool that uses Bazel XcodeGen to generate an Xcode project, so the amount of indirection is bizarre: Bazel files > XcodeGen YAML > Xcode Projects. Indirection is usually a source of nightmares when problems arise and need to be debugged and fixed.
-
+[Bazel](https://bazel.build) is an advanced build system renowned for its remote caching features, gaining popularity within the Swift community primarily for this capability. However, given the limited extensibility of Xcode and its build system, substituting it with Bazel's system demands significant effort and maintenance. Only a few companies with abundant resources can bear this overhead, as evident from the select list of firms investing heavily to integrate Bazel with Xcode. Interestingly, the community created a [tool](https://github.com/MobileNativeFoundation/rules_xcodeproj) that employs Bazel's XcodeGen to generate an Xcode project. This results in a convoluted chain of conversions: from Bazel files to XcodeGen YAML and finally to Xcode Projects. Such layered indirection often complicates troubleshooting, making issues more challenging to diagnose and resolve.
 
 ### What if the tool is deprecated at some point?
 
-There's nothing to worry about, because if that happens, you can just add the Xcode projects and workspaces to the version control system and problem solved. One of Tuist's design principles is **staying as close as possible to Xcode and industry standards.** Generated projects have no dependency nor reference to Tuist whatsoever.
+Rest assured, if any issues arise, you can simply add the Xcode projects and workspaces to the version control system to resolve them. One of Tuist's core design principles is to align closely with Xcode and industry standards. Notably, the generated projects are independent, with no ties or references to Tuist.
 
 ### Should I gitignore my projects?
 
-This is really up to you. If you add the `.xcodeproj` and `.xcworkspace` files to your `.gitignore` file you'll save tons of painful git conflicts. Our recommendation is that you first migrate the project to Tuist, and once everything is up and running, educate the developers in your team on running tuist generate when they plan to work on a project. Once they build the habit, you should be able to .gitignore those projects with no impact at all.
+The choice is yours. By adding .xcodeproj and .xcworkspace files to your .gitignore, you can avoid many git conflicts. We suggest initially migrating the project to Tuist. After ensuring everything functions smoothly, guide your team on using tuist generate before they start working on a project. Once this becomes a routine, you can safely add those projects to .gitignore without any issues.
 
 ## Topics
 

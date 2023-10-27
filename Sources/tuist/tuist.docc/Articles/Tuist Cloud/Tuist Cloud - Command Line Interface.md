@@ -1,18 +1,17 @@
 # Command Line Interface
 
-Learn about the commands available and the arguments and flags they support
+Discover the available commands along with their supported arguments and flags.
 
 ## tuist cloud init
 
-While Tuist Cloud offers a web interface, we still want to provide a great experience from the CLI. And creating a new Tuist Cloud project is a part of that.
-
+This command establishes a new project in Tuist Cloud and integrates the local configuration.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user  |
+| Authorization | Any authenticated user  |
 
 #### Examples
 
@@ -28,7 +27,7 @@ tuist cloud init --name your-cloud-project --owner organization-or-your-username
 
 | Flag | Description | Default | Required |
 | -------- | ----------- | ------- | -------- |
-| `--name` | The name of the cloud project you want to initialize. | | Yes |
+| `--name` | The name of the cloud project you want to initialize | | Yes |
 | `--owner` | The name of the username or organization you want to initialize the project with | Your username | No |
 | `--url` | A custom URL. This can be useful if you don't use the official `cloud.tuist.io` project | https://cloud.tuist.io  | No |
 
@@ -36,12 +35,12 @@ tuist cloud init --name your-cloud-project --owner organization-or-your-username
 
 #### Properties
 
-Authenticates the user against the Tuist Cloud and persists the session locally.
+This command authenticates the user with Tuist Cloud and saves the session locally.
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any non-authenticated user  |
+| Authorization | Any non-authenticated user  |
 
 #### Examples
 
@@ -51,14 +50,14 @@ tuist cloud auth
 
 ## tuist cloud session
 
-The command outputs the session of the user authenticated in the current environment, and a message indicating if you are not authenticated otherwises.
+This command displays the session details for the authenticated user in the current environment. If not authenticated, it provides a corresponding message.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user  |
+| Authorization | Any authenticated user  |
 
 #### Examples
 
@@ -68,14 +67,14 @@ tuist cloud session
 
 ## tuist cloud organization create
 
-It creates a new organization. Organizations act as umbrella models to invite other members to projects:
+This command establishes a new organization. Organizations serve as overarching structures, enabling you to invite members to various projects.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user  |
+| Authorization | Any authenticated user  |
 
 #### Examples
 
@@ -91,14 +90,14 @@ tuist cloud organization create my-new-organization
 
 ## tuist cloud organization show
 
-It outputs an overview of the organization, including current members, their roles, and pending invites.
+This command displays a summary of the organization, highlighting its members, their respective roles, and any outstanding invitations.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user  |
+| Authorization | Any authenticated user  |
 
 #### Examples
 
@@ -117,14 +116,14 @@ tuist cloud organization show my-organization
 
 > Warning: Deleting an organization is an irreversible action.
 
-Deletes an organization
+This command removes an organization.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user that's admin of the organization  |
+| Authorization | Any authenticated user who's admin of the organization  |
 
 #### Examples
 
@@ -141,14 +140,14 @@ tuist cloud organization delete my-organization
 
 ## tuist cloud organization invite
 
-It invites a new member to an organization. The invited member won't have access to the organization until they accept it through the email that they'll receive.
+This command sends an invitation to a new member for an organization. The invitee will only gain access to the organization after accepting the invitation via the email they receive.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user that's admin of the organization  |
+| Authorization | Any authenticated user who's admin of the organization  |
 
 #### Examples
 
@@ -158,14 +157,14 @@ tuist cloud organization invite my-organization new-member@email.io
 
 ## tuist cloud organization list
 
-Lists all the organizations the authenticated user has access to.
+This command displays all the organizations to which the authenticated user has access.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user  |
+| Authorization | Any authenticated user  |
 
 #### Examples
 
@@ -182,14 +181,14 @@ tuist cloud organization list
 
 ## tuist cloud organization remove invite
 
-It cancels a pending invitation.
+This command revokes a pending invitation.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user that's admin of the organization  |
+| Authorization | Any authenticated user who's admin of the organization  |
 
 #### Examples
 
@@ -199,14 +198,14 @@ tuist cloud organization remove invite my-organization member@email.io
 
 ## tuist cloud organization remove invite
 
-Removes a member from the organization.
+This command ejects a member from the organization.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user that's admin of the organization  |
+| Authorization | Any authenticated user who's admin of the organization  |
 
 #### Examples
 
@@ -216,14 +215,14 @@ tuist cloud organization remove member member-username
 
 ## tuist cloud organization update
 
-It updates a member of the organization. Currently, that means updating their role. Members of the organization can either be `admin` or `user`. Admins have higher privileges than users – they can invite new members, remove projects in an organization, etc. Users have a more passive access to Tuist Cloud features.
+This command modifies a member's details in the organization, primarily their role. Organization members can be designated as either admin or user. Admins possess enhanced privileges, such as inviting new members and removing projects. In contrast, users have limited, more passive access to Tuist Cloud features.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user that's admin of the organization  |
+| Authorization | Any authenticated user who's admin of the organization  |
 
 #### Examples
 
@@ -240,14 +239,14 @@ tuist cloud organization update member member-username --role admin
 
 ## tuist cloud project create
 
-It creates a new project under the user account or a organization.
+This command initiates a new project either under the user's account or within an organization.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user that's admin of the organization if they are creating the project under a organization |
+| Authorization | Any authenticated user who's admin of the organization if they are creating the project under a organization |
 
 #### Examples
 
@@ -268,14 +267,14 @@ tuist cloud project create name-of-project --organization my-organization
 
 ## tuist cloud project delete
 
-Deletes a project.
+This command removes a project.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user that's admin of the organization if they are deleting the project from a organization |
+| Authorization | Any authenticated user who's admin of the organization if they are deleting the project from a organization |
 
 #### Examples
 
@@ -296,14 +295,14 @@ tuist cloud project delete my-project --organization my-organization
 
 ## tuist cloud project delete
 
-Lists all the project an account has access to.
+This command displays all the projects to which an account has access.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user |
+| Authorization | Any authenticated user |
 
 
 #### Examples
@@ -320,14 +319,14 @@ tuist cloud project list
 
 ## tuist cloud project token
 
-It generates a project-scoped token to authenticate as a project in non-interactive environments like CI. The token generated is expected to be pass through the environment variable `TUIST_CONFIG_CLOUD_TOKEN`.
+This command creates a project-specific token for authentication in non-interactive settings such as CI. The generated token should be provided via the `TUIST_CONFIG_CLOUD_TOKEN` environment variable.
 
 #### Properties
 
 | Property | Description | 
 | ---- | --- |
 | Interactivity | Non-interactive |
-| Authorized subjects | Any authenticated user that's admin of the organization if they are deleting the project from a organization |
+| Authorization | Any authenticated user who's admin of the organization if they are deleting the project from a organization |
 
 
 #### Examples
