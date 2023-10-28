@@ -2,6 +2,7 @@
 
 module Environment
   TRUTHY_VALUES = %w[1 true TRUE yes YES].freeze
+  FALSY_VALUES = %w[0 false FALSE no NO].freeze
 
   # Errors
   Error = Class.new(StandardError)
@@ -24,6 +25,12 @@ module Environment
       return false if value.blank?
 
       TRUTHY_VALUES.any? { |v| v == value.to_s }
+    end
+
+    def falsy?(value)
+      return false if value.blank?
+
+      FALSY_VALUES.any? { |v| v == value.to_s }
     end
 
     def fetch(*args, env: ENV, credentials: Rails.application.credentials, defaults: Rails.application.config.defaults,

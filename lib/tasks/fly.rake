@@ -22,7 +22,6 @@ namespace :fly do
   #  - failures here result in VM being stated, shutdown, and rolled back
   #    to last successful deploy (if any).
   task server: :swapfile do
-    sh "bin/rails assets:precompile"
     sh "bundle exec puma -C config/puma.rb"
   end
 
