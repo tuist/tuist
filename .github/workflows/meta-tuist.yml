@@ -12,6 +12,7 @@ on:
       - Package.swift
       - Project.swift
       - Sources/**
+      - '!Sources/**/*.docc'
       - Tests/**
       - features/**
       - fixtures/**

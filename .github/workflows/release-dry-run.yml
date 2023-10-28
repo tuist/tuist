@@ -12,6 +12,7 @@ on:
       - Gemfile*
       - Package.swift
       - Sources/**
+      - '!Sources/**/*.docc'
       - Project.swift
       - .github/workflows/release-dry-run.yml
 
