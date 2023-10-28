@@ -144,7 +144,8 @@ public final class TemplateGenerator: TemplateGenerating {
             // Generate file only when it has some content, unless it is a `.gitkeep` file
             if let rendered = renderedContents,
                !rendered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                $0.path.basename == ".gitkeep" {
+               $0.path.basename == ".gitkeep"
+            {
                 try FileHandler.shared.write(
                     rendered,
                     path: destinationPath.appending($0.path),
