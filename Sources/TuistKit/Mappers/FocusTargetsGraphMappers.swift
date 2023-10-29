@@ -6,10 +6,10 @@ import TuistGraph
 /// `FocusTargetsGraphMappers` is used to filter out some targets and their dependencies and tests targets.
 public final class FocusTargetsGraphMappers: GraphMapping {
     // When specified, if includedTargets is empty it will automatically include all targets in the test plan
-    let testPlan: String?
+    public let testPlan: String?
     /// The targets name to be kept as non prunable with their respective dependencies and tests targets
-    let includedTargets: Set<String>
-    let excludedTargets: Set<String>
+    public let includedTargets: Set<String>
+    public let excludedTargets: Set<String>
 
     public init(
         testPlan: String? = nil,
