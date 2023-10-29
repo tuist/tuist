@@ -7,7 +7,6 @@ ROOT_DIR=$($SCRIPT_DIR/../../../utilities/root_dir.sh)
 source $ROOT_DIR/make/utilities/setup.sh
 XCODE_PATH_SCRIPT_PATH=$SCRIPT_DIR/../../../utilities/xcode_path.sh
 BUILD_DIRECTORY=$ROOT_DIR/build
-export TUIST_INCLUDE_TUIST_CLOUD=1
 # Xcode 15 has a bug that causes the /var/folders... temporary directory, which is a symlink to
 # /private/var/folders to crash Xcode.
 TMP_DIR=/private$(mktemp -d)

@@ -28,13 +28,13 @@ Given(/tuist is available/) do
 end
 
 Then(/^tuist generates the project$/) do
-  system(@tuist, "generate", "--no-cache", "--no-open", "--path", @dir)
+  system(@tuist, "generate", "--no-open", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
 Then(/^tuist generates the project and outputs: (.+)$/) do |output|
-  out, err, status = Open3.capture3(@tuist, "generate", "--no-cache", "--no-open", "--path", @dir)
+  out, err, status = Open3.capture3(@tuist, "generate", "--no-open", "--path", @dir)
   assert(status.success?, err)
   assert out.include?(output), "The output from Tuist generate doesn't include: #{output}"
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
@@ -43,14 +43,14 @@ end
 
 Then(/^tuist generates the project with environment variable (.+) and value (.+)$/) do |variable, value|
   ENV[variable] = value
-  system(@tuist, "generate", "--no-cache", "--no-open", "--path", @dir)
+  system(@tuist, "generate", "--no-open", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
   ENV[variable] = nil
 end
 
 Then(%r{^tuist generates the project at ([a-zA-Z/]+)$}) do |path|
-  system(@tuist, "generate", "--no-cache", "--no-open", "--path", File.join(@dir, path))
+  system(@tuist, "generate", "--no-open", "--path", File.join(@dir, path))
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
@@ -134,7 +134,7 @@ Then(/tuist generate yields error "(.+)"/) do |error|
   xcode_version, _, _ = Open3.capture3("xcodebuild -version | sed -n \"s/Xcode //p\"")
   versioned_msg = error.gsub("${XCODE_VERSION}", xcode_version.chomp())
   expected_msg = versioned_msg.gsub("${ARG_PATH}", @dir)
-  _, stderr, status = Open3.capture3(@tuist, "generate", "--no-cache", "--no-open", "--path", @dir)
+  _, stderr, status = Open3.capture3(@tuist, "generate", "--no-open", "--path", @dir)
   actual_msg = stderr.strip
 
   error_message = <<~EOD

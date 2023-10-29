@@ -14,7 +14,6 @@ on:
 env:
   RUBY_VERSION: '3.0.3'
   TUIST_STATS_OPT_OUT: true
-  TUIST_INCLUDE_TUIST_CLOUD: "1"
 
 permissions:
   contents: write
@@ -79,15 +78,6 @@ jobs:
       with:
         ref: ${{ needs.prepare-release.outputs.commit_hash }}
         token: ${{ secrets.TUIST_GITHUB_PAT_TOKEN }}
-    - uses: actions/checkout@v3
-      with:
-        repository: tuist/TuistCloud
-        token: ${{ secrets.TUIST_GITHUB_PAT_TOKEN }}
-        path: TuistCloud
-        fetch-depth: 0
-    - name: Up workspace
-      if: ${{ github.event.inputs.publish == 'true' }}
-      run: make workspace/up
     - name: Build artifacts
       if: ${{ github.event.inputs.publish == 'true' }}
       run: make workspace/release/bundle

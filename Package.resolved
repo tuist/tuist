@@ -181,24 +181,6 @@
       }
     },
     {
-      "identity" : "swift-openapi-runtime",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/swift-openapi-runtime",
-      "state" : {
-        "branch" : "swift-tools-version",
-        "revision" : "863d51ca0b55a72143462f4517065d906a24e0fb"
-      }
-    },
-    {
-      "identity" : "swift-openapi-urlsession",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/swift-openapi-urlsession",
-      "state" : {
-        "branch" : "swift-tools-version",
-        "revision" : "91b1694705584a09827049b690e07f9118cdab5d"
-      }
-    },
-    {
       "identity" : "swift-system",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-system.git",

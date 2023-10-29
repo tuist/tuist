@@ -11,8 +11,6 @@ tuist/fetch:
 	./make/tasks/tuist/fetch.sh $(ARGS)
 tuist/generate:
 	./make/tasks/tuist/generate.sh $(ARGS)
-tuist/cache-warm:
-	./make/tasks/tuist/cache-warm.sh $(ARGS)
 tuist/run:
 	./make/tasks/tuist/run.sh $(ARGS)
 
@@ -27,10 +25,6 @@ workspace/lint:
 	./make/tasks/workspace/lint.sh
 workspace/lint/lockfiles:
 	./make/tasks/workspace/lint/lockfiles.sh
-workspace/generate/cloud-openapi-code:
-	./make/tasks/workspace/generate/cloud-openapi-code.sh
-workspace/up:
-	./make/tasks/workspace/up.sh
 workspace/clean:
 	./make/tasks/workspace/clean.sh
 workspace/build-with-spm:

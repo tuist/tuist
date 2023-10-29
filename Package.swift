@@ -2,39 +2,12 @@
 
 import PackageDescription
 
-var includeTuistCloud = false
-
-#if canImport(Foundation)
-    import Foundation
-    includeTuistCloud = ProcessInfo.processInfo.environment["TUIST_INCLUDE_TUIST_CLOUD"] == "1"
-#endif
-if includeTuistCloud {
-    print("Including TuistCloud sources")
-}
-
 let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
 let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
 let swifterDependency: Target.Dependency = .product(name: "Swifter", package: "swifter")
 let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
-
-func mapDependenciesOfSourcesTargetDependentOnTuistCloud(_ dependencies: [Target.Dependency]) -> [Target.Dependency] {
-    var dependencies = dependencies
-    if includeTuistCloud {
-        dependencies.append("TuistCloud")
-    }
-    return dependencies
-}
-
-func mapDependenciesOfTestsTargetDependentOnTuistCloud(_ dependencies: [Target.Dependency]) -> [Target.Dependency] {
-    var dependencies = dependencies
-    if includeTuistCloud {
-        dependencies.append("TuistCloud")
-        dependencies.append("TuistCloudTesting")
-    }
-    return dependencies
-}
 
 var targets: [Target] = [
     .executableTarget(
@@ -91,7 +64,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "TuistKit",
-        dependencies: mapDependenciesOfSourcesTargetDependentOnTuistCloud([
+        dependencies: [
             "XcodeProj",
             swiftToolsSupportDependency,
             argumentParserDependency,
@@ -110,11 +83,11 @@ var targets: [Target] = [
             "TuistAnalytics",
             "TuistPlugin",
             "TuistGraph",
-        ])
+        ]
     ),
     .testTarget(
         name: "TuistKitTests",
-        dependencies: mapDependenciesOfTestsTargetDependentOnTuistCloud([
+        dependencies: [
             "TuistKit",
             "TuistAutomation",
             "TuistSupportTesting",
@@ -132,11 +105,11 @@ var targets: [Target] = [
             "TuistGraphTesting",
             "TuistPlugin",
             "TuistPluginTesting",
-        ])
+        ]
     ),
     .testTarget(
         name: "TuistKitIntegrationTests",
-        dependencies: mapDependenciesOfTestsTargetDependentOnTuistCloud([
+        dependencies: [
             "TuistKit",
             "TuistCoreTesting",
             "TuistSupportTesting",
@@ -144,7 +117,7 @@ var targets: [Target] = [
             "ProjectAutomation",
             "TuistLoaderTesting",
             "TuistGraphTesting",
-        ])
+        ]
     ),
     .executableTarget(
         name: "tuist",
@@ -517,22 +490,12 @@ var targets: [Target] = [
     ),
     .target(
         name: "TuistAnalytics",
-        dependencies: mapDependenciesOfSourcesTargetDependentOnTuistCloud([
+        dependencies: [
             .byName(name: "AnyCodable"),
             "TuistAsyncQueue",
             "TuistCore",
             "TuistGraph",
             "TuistLoader",
-        ])
-    ),
-    .testTarget(
-        name: "TuistAnalyticsTests",
-        dependencies: [
-            "TuistAnalytics",
-            "TuistSupportTesting",
-            "TuistGraphTesting",
-            "TuistCoreTesting",
-            "XcodeProj",
         ]
     ),
     .target(
@@ -570,52 +533,6 @@ var targets: [Target] = [
     ),
 ]
 
-if includeTuistCloud {
-    targets.append(contentsOf: [
-        .target(
-            name: "TuistCloud",
-            dependencies: [
-                "XcodeProj",
-                swiftToolsSupportDependency,
-                "TuistCore",
-                "TuistGraph",
-                "TuistSupport",
-                .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
-                .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
-            ],
-            exclude: ["OpenAPI/cloud.yml"]
-        ),
-        .testTarget(
-            name: "TuistCloudTests",
-            dependencies: [
-                "TuistCloud",
-                "TuistCloudTesting",
-                "TuistSupportTesting",
-                "TuistCoreTesting",
-                "TuistGraphTesting",
-            ]
-        ),
-        .target(
-            name: "TuistCloudTesting",
-            dependencies: [
-                "TuistCloud",
-                swiftToolsSupportDependency,
-                "TuistCore",
-                "TuistGraphTesting",
-            ]
-        ),
-        .testTarget(
-            name: "TuistCloudIntegrationTests",
-            dependencies: [
-                "TuistCloud",
-                "TuistSupportTesting",
-                "TuistCoreTesting",
-                "TuistGraphTesting",
-            ]
-        ),
-    ])
-}
-
 let package = Package(
     name: "tuist",
     platforms: [.macOS(.v12)],
@@ -639,6 +556,10 @@ let package = Package(
             targets: ["TuistGraph"]
         ),
         .library(
+            name: "TuistGraphTesting",
+            targets: ["TuistGraphTesting"]
+        ),
+        .library(
             name: "TuistKit",
             targets: ["TuistKit"]
         ),
@@ -647,16 +568,20 @@ let package = Package(
             targets: ["TuistSupport"]
         ),
         .library(
+            name: "TuistSupportTesting",
+            targets: ["TuistSupportTesting"]
+        ),
+        .library(
             name: "TuistCore",
             targets: ["TuistCore"]
         ),
         .library(
-            name: "TuistLoader",
-            targets: ["TuistLoader"]
+            name: "TuistCoreTesting",
+            targets: ["TuistCoreTesting"]
         ),
         .library(
-            name: "TuistSupportTesting",
-            targets: ["TuistSupportTesting"]
+            name: "TuistLoader",
+            targets: ["TuistLoader"]
         ),
         .library(
             name: "TuistAnalytics",
@@ -696,8 +621,6 @@ let package = Package(
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
         .package(url: "https://github.com/tuist/XcodeProj", exact: "8.15.0"),
-        .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
-        .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
     ],
     targets: targets
 )

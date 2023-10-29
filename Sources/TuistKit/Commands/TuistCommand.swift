@@ -35,7 +35,10 @@ public struct TuistCommand: AsyncParsableCommand {
     )
     var isTuistEnvHelp: Bool = false
 
-    public static func main(_ arguments: [String]? = nil, parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot) async {
+    public static func main(
+        _ arguments: [String]? = nil,
+        parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
+    ) async {
         let errorHandler = ErrorHandler()
         let executeCommand: () async throws -> Void
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
@@ -99,7 +102,7 @@ public struct TuistCommand: AsyncParsableCommand {
 
     private static func execute(
         command: ParsableCommand,
-        commandArguments: [String]
+        commandArguments _: [String]
     ) async throws {
         var command = command
         if var asyncCommand = command as? AsyncParsableCommand {

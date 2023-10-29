@@ -1,27 +1,6 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
-func includeTuistCloud() -> Bool {
-    Environment.includeTuistCloud.getBoolean(default: false)
-}
-
-func mapDependenciesOfSourcesTargetDependentOnTuistCloud(_ dependencies: [TargetDependency]) -> [TargetDependency] {
-    var dependencies = dependencies
-    if includeTuistCloud() {
-        dependencies.append(.target(name: "TuistCloud"))
-    }
-    return dependencies
-}
-
-func mapDependenciesOfTestsTargetDependentOnTuistCloud(_ dependencies: [TargetDependency]) -> [TargetDependency] {
-    var dependencies = dependencies
-    if includeTuistCloud() {
-        dependencies.append(.target(name: "TuistCloud"))
-        dependencies.append(.target(name: "TuistCloudTesting"))
-    }
-    return dependencies
-}
-
 let baseSettings: SettingsDictionary = [:]
 
 func debugSettings() -> SettingsDictionary {
@@ -81,7 +60,7 @@ func targets() -> [Target] {
             ]
         ),
     ]
-    var moduleTargets = [
+    let moduleTargets = [
         Target.module(
             name: "TuistSupport",
             hasIntegrationTests: true,
@@ -112,7 +91,7 @@ func targets() -> [Target] {
             name: "TuistKit",
             hasTesting: false,
             hasIntegrationTests: true,
-            dependencies: mapDependenciesOfSourcesTargetDependentOnTuistCloud([
+            dependencies: [
                 .target(name: "TuistSupport"),
                 .target(name: "TuistGenerator"),
                 .target(name: "TuistAutomation"),
@@ -127,8 +106,8 @@ func targets() -> [Target] {
                 .target(name: "TuistAnalytics"),
                 .target(name: "TuistPlugin"),
                 .target(name: "TuistGraph"),
-            ]),
-            testDependencies: mapDependenciesOfTestsTargetDependentOnTuistCloud([
+            ],
+            testDependencies: [
                 .target(name: "TuistAutomation"),
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistCoreTesting"),
@@ -145,15 +124,15 @@ func targets() -> [Target] {
                 .target(name: "TuistGraphTesting"),
                 .target(name: "TuistPlugin"),
                 .target(name: "TuistPluginTesting"),
-            ]),
-            integrationTestsDependencies: mapDependenciesOfTestsTargetDependentOnTuistCloud([
+            ],
+            integrationTestsDependencies: [
                 .target(name: "TuistCoreTesting"),
                 .target(name: "TuistSupportTesting"),
                 .target(name: "ProjectDescription"),
                 .target(name: "ProjectAutomation"),
                 .target(name: "TuistLoaderTesting"),
                 .target(name: "TuistGraphTesting"),
-            ])
+            ]
         ),
         Target.module(
             name: "TuistEnvKit",
@@ -349,18 +328,14 @@ func targets() -> [Target] {
         ),
         Target.module(
             name: "TuistAnalytics",
+            hasTests: false,
             hasTesting: false,
-            dependencies: mapDependenciesOfSourcesTargetDependentOnTuistCloud([
+            dependencies: [
                 .target(name: "TuistAsyncQueue"),
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistLoader"),
                 .external(name: "AnyCodable"),
-            ]),
-            testDependencies: [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
-                .target(name: "TuistCoreTesting"),
             ]
         ),
         Target.module(
@@ -429,36 +404,6 @@ func targets() -> [Target] {
             ]
         ),
     ].flatMap { $0 }
-    if includeTuistCloud() {
-        moduleTargets.append(contentsOf: Target.module(
-            name: "TuistCloud",
-            hasIntegrationTests: true,
-            dependencies: [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
-                .external(name: "OpenAPIRuntime"),
-                .external(name: "OpenAPIURLSession"),
-            ],
-            testDependencies: [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
-            ],
-            testingDependencies: [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraphTesting"),
-            ],
-            integrationTestsDependencies: [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
-            ]
-        ).flatMap { $0 })
-    }
     return executableTargets + moduleTargets
 }
 

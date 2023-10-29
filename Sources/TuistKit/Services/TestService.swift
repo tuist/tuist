@@ -192,7 +192,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
                 skipUITests: skipUITests
             )
         }
-        
+
         logger.notice("Generating project for testing", metadata: .section)
         let graph = try await testGenerator.generateWithGraph(
             path: path

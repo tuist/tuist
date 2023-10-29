@@ -27,8 +27,8 @@ public final class GraphMapperFactory: GraphMapperFactorying {
     public init() {}
 
     public func automation(
-        config: Config,
-        testsCacheDirectory: AbsolutePath,
+        config _: Config,
+        testsCacheDirectory _: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>
