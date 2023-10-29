@@ -62,7 +62,7 @@ public class TrackableCommand: TrackableParametersDelegate {
         asyncQueue.waitIfCI()
     }
 
-    func addParameters(_ parameters: [String: AnyCodable]) {
+    public func addParameters(_ parameters: [String: AnyCodable]) {
         trackedParameters.merge(
             parameters,
             uniquingKeysWith: { _, newKey in newKey }

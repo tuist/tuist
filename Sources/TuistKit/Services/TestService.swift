@@ -2,9 +2,6 @@ import Foundation
 import TSCBasic
 import struct TSCUtility.Version
 import TuistAutomation
-#if canImport(TuistCloud)
-    import TuistCloud
-#endif
 import TuistCore
 import TuistGraph
 import TuistLoader
@@ -60,7 +57,7 @@ enum TestServiceError: FatalError, Equatable {
     }
 }
 
-final class TestService { // swiftlint:disable:this type_body_length
+public final class TestService { // swiftlint:disable:this type_body_length
     private let generatorFactory: GeneratorFactorying
     private let xcodebuildController: XcodeBuildControlling
     private let buildGraphInspector: BuildGraphInspecting
@@ -70,17 +67,25 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let testsCacheTemporaryDirectory: TemporaryDirectory
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
 
-    convenience init() throws {
-        let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+    public convenience init(
+        testsCacheTemporaryDirectory: TemporaryDirectory
+    ) {
         self.init(
             testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
             generatorFactory: GeneratorFactory()
         )
     }
 
+    convenience init() throws {
+        let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        self.init(
+            testsCacheTemporaryDirectory: testsCacheTemporaryDirectory
+        )
+    }
+
     init(
         testsCacheTemporaryDirectory: TemporaryDirectory,
-        generatorFactory: GeneratorFactorying,
+        generatorFactory: GeneratorFactorying = GeneratorFactory(),
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController(),
@@ -96,7 +101,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
     }
 
-    func validateParameters(
+    public func validateParameters(
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier]
     ) throws {
@@ -145,7 +150,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     }
 
     // swiftlint:disable:next function_body_length
-    func run(
+    public func run(
         schemeName: String?,
         clean: Bool,
         configuration: String?,
@@ -159,11 +164,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
         validateTestTargetsParameters: Bool = true,
-        xcframeworks: Bool,
-        destination: CacheXCFrameworkDestination,
-        profile: String?,
-        ignoreCache: Bool,
-        targetsToSkipCache: Set<String>
+        generator: Generating? = nil
     ) async throws {
         if validateTestTargetsParameters {
             try validateParameters(
@@ -177,23 +178,23 @@ final class TestService { // swiftlint:disable:this type_body_length
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
         let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
-        let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
-        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework(destination) : .framework
 
-        let generator = generatorFactory.test(
-            config: config,
-            testsCacheDirectory: testsCacheTemporaryDirectory.path,
-            testPlan: testPlanConfiguration?.testPlan,
-            includedTargets: Set(testTargets.map(\.target)),
-            excludedTargets: Set(skipTestTargets.map(\.target)),
-            skipUITests: skipUITests,
-            cacheOutputType: cacheOutputType,
-            cacheProfile: cacheProfile,
-            ignoreCache: ignoreCache,
-            targetsToSkipCache: targetsToSkipCache
-        )
+        let testGenerator: Generating
+        if let generator {
+            testGenerator = generator
+        } else {
+            testGenerator = generatorFactory.test(
+                config: config,
+                testsCacheDirectory: testsCacheTemporaryDirectory.path,
+                testPlan: testPlanConfiguration?.testPlan,
+                includedTargets: Set(testTargets.map(\.target)),
+                excludedTargets: Set(skipTestTargets.map(\.target)),
+                skipUITests: skipUITests
+            )
+        }
+        
         logger.notice("Generating project for testing", metadata: .section)
-        let graph = try await generator.generateWithGraph(
+        let graph = try await testGenerator.generateWithGraph(
             path: path
         ).1
         let graphTraverser = GraphTraverser(graph: graph)

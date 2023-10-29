@@ -638,6 +638,30 @@ let package = Package(
             name: "TuistGraph",
             targets: ["TuistGraph"]
         ),
+        .library(
+            name: "TuistKit",
+            targets: ["TuistKit"]
+        ),
+        .library(
+            name: "TuistSupport",
+            targets: ["TuistSupport"]
+        ),
+        .library(
+            name: "TuistCore",
+            targets: ["TuistCore"]
+        ),
+        .library(
+            name: "TuistLoader",
+            targets: ["TuistLoader"]
+        ),
+        .library(
+            name: "TuistSupportTesting",
+            targets: ["TuistSupportTesting"]
+        ),
+        .library(
+            name: "TuistAnalytics",
+            targets: ["TuistAnalytics"]
+        ),
         /// TuistGenerator
         ///
         /// A high level Xcode generator library

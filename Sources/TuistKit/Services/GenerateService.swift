@@ -1,8 +1,5 @@
 import Foundation
 import TSCBasic
-#if canImport(TuistCloud)
-    import TuistCloud
-#endif
 import TuistCore
 import TuistGenerator
 import TuistGraph
@@ -15,14 +12,12 @@ final class GenerateService {
     private let clock: Clock
     private let timeTakenLoggerFormatter: TimeTakenLoggerFormatting
     private let generatorFactory: GeneratorFactorying
-    private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
     private let pluginService: PluginServicing
 
     init(
         clock: Clock = WallClock(),
         timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         manifestLoader: ManifestLoading = ManifestLoader(),
         opener: Opening = Opener(),
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
@@ -30,7 +25,6 @@ final class GenerateService {
     ) {
         self.clock = clock
         self.timeTakenLoggerFormatter = timeTakenLoggerFormatter
-        self.configLoader = configLoader
         self.manifestLoader = manifestLoader
         self.opener = opener
         self.generatorFactory = generatorFactory
@@ -39,27 +33,11 @@ final class GenerateService {
 
     func run(
         path: String?,
-        sources: Set<String>,
-        noOpen: Bool,
-        xcframeworks: Bool,
-        destination: CacheXCFrameworkDestination,
-        profile: String?,
-        ignoreCache: Bool,
-        targetsToSkipCache: Set<String>
+        noOpen: Bool
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)
-        let config = try configLoader.loadConfig(path: path)
-        let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
-        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework(destination) : .framework
-        let generator = generatorFactory.focus(
-            config: config,
-            sources: sources,
-            cacheOutputType: cacheOutputType,
-            cacheProfile: cacheProfile,
-            ignoreCache: ignoreCache,
-            targetsToSkipCache: targetsToSkipCache
-        )
+        let generator = generatorFactory.default()
         let workspacePath = try await generator.generate(path: path)
         if !noOpen {
             try opener.open(path: workspacePath)

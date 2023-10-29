@@ -21,14 +21,14 @@ protocol ProjectMapperFactorying {
     func automation(skipUITests: Bool) -> [ProjectMapping]
 }
 
-final class ProjectMapperFactory: ProjectMapperFactorying {
+public final class ProjectMapperFactory: ProjectMapperFactorying {
     private let contentHasher: ContentHashing
 
-    init(contentHasher: ContentHashing = ContentHasher()) {
+    public init(contentHasher: ContentHashing = ContentHasher()) {
         self.contentHasher = contentHasher
     }
 
-    func automation(skipUITests: Bool) -> [ProjectMapping] {
+    public func automation(skipUITests: Bool) -> [ProjectMapping] {
         var mappers: [ProjectMapping] = []
         mappers += self.default()
 
@@ -45,7 +45,7 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         return mappers
     }
 
-    func `default`() -> [ProjectMapping] {
+    public func `default`() -> [ProjectMapping] {
         var mappers: [ProjectMapping] = []
 
         // Delete current derived
