@@ -241,7 +241,7 @@ extension SynthesizedResourceInterfaceTemplates {
     #endif
 
     {% endif %}
-    {% if resourceCount.image > 0 %}
+    {% if resourceCount.image > 0 or resourceCount.symbol > 0 %}
     {{accessModifier}} struct {{imageType}} {
       {{accessModifier}} fileprivate(set) var name: String
 
