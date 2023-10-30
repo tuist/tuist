@@ -3,7 +3,7 @@ import TuistCore
 import TuistSupport
 
 protocol Formatting {
-    func buildArguments() throws -> [String]
+    func formatterExecutable() throws -> SwiftPackageExecutable
 }
 
 final class Formatter: Formatting {
@@ -13,8 +13,7 @@ final class Formatter: Formatting {
         self.binaryLocator = binaryLocator
     }
 
-    func buildArguments() throws -> [String] {
-        let xcbeautifyPath = try binaryLocator.xcbeautifyPath()
-        return [xcbeautifyPath.pathString]
+    func formatterExecutable() throws -> SwiftPackageExecutable {
+        try binaryLocator.xcbeautifyExecutable()
     }
 }

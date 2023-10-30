@@ -146,6 +146,7 @@ struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     func run() async throws {
         let absolutePath: AbsolutePath
 

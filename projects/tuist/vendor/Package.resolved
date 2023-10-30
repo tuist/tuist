@@ -10,6 +10,15 @@
       }
     },
     {
+      "identity" : "colorizer",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/getGuaka/Colorizer.git",
+      "state" : {
+        "revision" : "2ccc99bf1715e73c4139e8d40b6e6b30be975586",
+        "version" : "0.2.1"
+      }
+    },
+    {
       "identity" : "cryptoswift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/krzyzanowskim/CryptoSwift.git",
@@ -79,6 +88,24 @@
       "state" : {
         "revision" : "a853604c9e9a83ad9954c7e3d2a565273982471f",
         "version" : "7.0.2"
+      }
+    },
+    {
+      "identity" : "xcbeautify",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/xcbeautify",
+      "state" : {
+        "revision" : "a996cc125e45afb9f2d77cacc5710f3595bcdd07",
+        "version" : "1.0.0"
+      }
+    },
+    {
+      "identity" : "xmlcoder",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MaxDesiatov/XMLCoder.git",
+      "state" : {
+        "revision" : "b1e944cbd0ef33787b13f639a5418d55b3bed501",
+        "version" : "0.17.1"
       }
     },
     {

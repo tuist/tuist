@@ -22,50 +22,61 @@ enum BinaryLocatorError: FatalError, Equatable {
 
 /// Protocol that defines the interface to locate the tuist binary in the environment.
 public protocol BinaryLocating {
-    /// Returns the path to the xcbeautify binary.
-    func xcbeautifyPath() throws -> AbsolutePath
+    /// Returns the command to run xcbeautify.
+    func xcbeautifyExecutable() throws -> SwiftPackageExecutable
+}
+
+public struct SwiftPackageExecutable {
+    public let compilation: [String]?
+    public let execution: [String]
 }
 
 public final class BinaryLocator: BinaryLocating {
     public init() {}
 
-    private func binariesPaths() throws -> [AbsolutePath] {
-        #if DEBUG
-            // Used only for debug purposes
-            let bundlePath = try AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
-                .removingLastComponent()
-                .removingLastComponent()
-                .removingLastComponent()
-                .removingLastComponent()
-                .appending(try RelativePath(validating: "projects/tuist/vendor"))
-        #else
-            let bundlePath = try AbsolutePath(validating: Bundle(for: BinaryLocator.self).bundleURL.path)
-        #endif
-        return [
+    public func xcbeautifyExecutable() throws -> SwiftPackageExecutable {
+        var bundlePath = try AbsolutePath(validating: Bundle(for: BinaryLocator.self).bundleURL.path)
+        let candidatebinariesPath = [
             bundlePath,
             bundlePath.parentDirectory,
             bundlePath.appending(try RelativePath(validating: "vendor")),
             /**
                 == Homebrew directory structure ==
                 x.y.z/
-                   bin/
-                       tuist
-                   share/
-                       tuist/
-                           vendor
+                bin/
+                    tuist
+                share/
+                    tuist/
+                        vendor
                 */
             bundlePath.parentDirectory.appending(try RelativePath(validating: "share/tuist")),
         ]
-    }
-
-    public func xcbeautifyPath() throws -> AbsolutePath {
-        let candidates = try binariesPaths().map { path in
-            path.appending(components: Constants.Vendor.xcbeautify, Constants.Vendor.xcbeautify)
+        let candidates = candidatebinariesPath.map { path in
+            path.appending(components: "xcbeautify", "xcbeautify")
+        }
+        if let existingPath = candidates.first(where: FileHandler.shared.exists) {
+            return SwiftPackageExecutable(compilation: nil, execution: [existingPath.pathString])
         }
 
-        guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
+        bundlePath = try AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
+            .removingLastComponent()
+            .removingLastComponent()
+            .removingLastComponent()
+            .removingLastComponent()
+            .appending(try RelativePath(validating: "projects/tuist/vendor"))
+
+        if FileHandler.shared.exists(bundlePath) {
+            let compilationCommand = [
+                "/usr/bin/xcrun", "swift", "build", "--configuration", "debug", "--package-path", bundlePath.pathString,
+                "--product", "xcbeautify",
+            ]
+            let executionCommand = [
+                // swiftlint:disable:next force_try
+                bundlePath.appending(try! RelativePath(validating: ".build/debug/xcbeautify")).pathString,
+            ]
+            return SwiftPackageExecutable(compilation: compilationCommand, execution: executionCommand)
+        } else {
             throw BinaryLocatorError.xcbeautifyNotFound
         }
-        return existingPath
     }
 }

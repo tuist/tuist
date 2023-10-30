@@ -33,10 +33,6 @@ public enum Constants {
     /// Changing this results in changing the target hash and hence forcing a rebuild of its artifact.
     public static let cacheVersion = "1.0.0"
 
-    public enum Vendor {
-        public static let xcbeautify = "xcbeautify"
-    }
-
     public enum DependenciesDirectory {
         public static let dependenciesFileName = "Dependencies.swift"
         public static let name = "Dependencies"
