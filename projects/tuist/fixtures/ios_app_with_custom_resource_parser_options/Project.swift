@@ -19,6 +19,6 @@ let project = Project(
         ),
     ],
     resourceSynthesizers: [
-        .strings(parserOptions: ["separator": .stringValue("/")]),
+        .strings(parserOptions: ["separator": "/"]),
     ]
 )

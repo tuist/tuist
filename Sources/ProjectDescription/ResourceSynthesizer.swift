@@ -4,7 +4,7 @@ import Foundation
 ///
 /// For example to synthesize resource accessors for strings, you can use:
 /// - `.strings()` for tuist's default
-/// - `.strings(parserOptions: ["separator": .stringValue("/")])` to use strings template with SwiftGen Parser Options
+/// - `.strings(parserOptions: ["separator": "/"])` to use strings template with SwiftGen Parser Options
 /// - `.strings(plugin: "MyPlugin")` to use strings template from a plugin
 /// - `.strings(templatePath: "Templates/Strings.stencil")` to use strings template at a given path
 public struct ResourceSynthesizer: Codable, Equatable {
@@ -42,10 +42,18 @@ public struct ResourceSynthesizer: Codable, Equatable {
         case files
 
         public enum Option: Equatable, Codable {
-            case stringValue(String)
-            case intValue(Int)
-            case boolValue(Bool)
-            case doubleValue(Double)
+            /// It represents a string value.
+            case string(String)
+            /// It represents an integer value.
+            case integer(Int)
+            /// It represents a floating value.
+            case double(Double)
+            /// It represents a boolean value.
+            case boolean(Bool)
+            /// It represents a dictionary value.
+            case dictionary([String: Option])
+            /// It represents an array value.
+            case array([Option])
         }
     }
 
@@ -399,5 +407,53 @@ extension [ResourceSynthesizer] {
             .plists(),
             .fonts(),
         ]
+    }
+}
+
+// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByStringInterpolation
+
+extension ResourceSynthesizer.Parser.Option: ExpressibleByStringInterpolation {
+    public init(stringLiteral value: String) {
+        self = .string(value)
+    }
+}
+
+// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByIntegerLiteral
+
+extension ResourceSynthesizer.Parser.Option: ExpressibleByIntegerLiteral {
+    public init(integerLiteral value: Int) {
+        self = .integer(value)
+    }
+}
+
+// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByFloatLiteral
+
+extension ResourceSynthesizer.Parser.Option: ExpressibleByFloatLiteral {
+    public init(floatLiteral value: Double) {
+        self = .double(value)
+    }
+}
+
+// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByBooleanLiteral
+
+extension ResourceSynthesizer.Parser.Option: ExpressibleByBooleanLiteral {
+    public init(booleanLiteral value: Bool) {
+        self = .boolean(value)
+    }
+}
+
+// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByDictionaryLiteral
+
+extension ResourceSynthesizer.Parser.Option: ExpressibleByDictionaryLiteral {
+    public init(dictionaryLiteral elements: (String, Self)...) {
+        self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
+    }
+}
+
+// MARK: - ResourceSynthesizer.Parser.Option - ExpressibleByArrayLiteral
+
+extension ResourceSynthesizer.Parser.Option: ExpressibleByArrayLiteral {
+    public init(arrayLiteral elements: Self...) {
+        self = .array(elements)
     }
 }
