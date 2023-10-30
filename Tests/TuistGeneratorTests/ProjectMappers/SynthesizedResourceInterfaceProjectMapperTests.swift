@@ -101,10 +101,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             .init(
                 parser: .assets,
                 parserOptions: [
-                    "stringValue": .init(value: "test"),
-                    "intValue": .init(value: 999),
-                    "boolValue": .init(value: true),
-                    "doubleValue": .init(value: 1.0),
+                    "stringValue": "test",
+                    "intValue": 999,
+                    "boolValue": true,
+                    "doubleValue": 1.0,
                 ],
                 extensions: ["xcassets"],
                 template: .defaultTemplate("Assets")
@@ -112,10 +112,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             .init(
                 parser: .strings,
                 parserOptions: [
-                    "stringValue": .init(value: "test"),
-                    "intValue": .init(value: 999),
-                    "boolValue": .init(value: true),
-                    "doubleValue": .init(value: 1.0),
+                    "stringValue": "test",
+                    "intValue": 999,
+                    "boolValue": true,
+                    "doubleValue": 1.0,
                 ],
                 extensions: ["strings", "stringsdict"],
                 template: .file(stringsTemplatePath)
@@ -123,10 +123,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             .init(
                 parser: .plists,
                 parserOptions: [
-                    "stringValue": .init(value: "test"),
-                    "intValue": .init(value: 999),
-                    "boolValue": .init(value: true),
-                    "doubleValue": .init(value: 1.0),
+                    "stringValue": "test",
+                    "intValue": 999,
+                    "boolValue": true,
+                    "doubleValue": 1.0,
                 ],
                 extensions: ["plist"],
                 template: .defaultTemplate("Plists")
@@ -134,10 +134,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             .init(
                 parser: .fonts,
                 parserOptions: [
-                    "stringValue": .init(value: "test"),
-                    "intValue": .init(value: 999),
-                    "boolValue": .init(value: true),
-                    "doubleValue": .init(value: 1.0),
+                    "stringValue": "test",
+                    "intValue": 999,
+                    "boolValue": true,
+                    "doubleValue": 1.0,
                 ],
                 extensions: ["otf", "ttc", "ttf"],
                 template: .defaultTemplate("Fonts")
@@ -145,10 +145,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             .init(
                 parser: .json,
                 parserOptions: [
-                    "stringValue": .init(value: "test"),
-                    "intValue": .init(value: 999),
-                    "boolValue": .init(value: true),
-                    "doubleValue": .init(value: 1.0),
+                    "stringValue": "test",
+                    "intValue": 999,
+                    "boolValue": true,
+                    "doubleValue": 1.0,
                 ],
                 extensions: ["lottie"],
                 template: .file(lottieTemplatePath)

@@ -53,10 +53,10 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
     func test_from_when_default_strings_with_parserOptions() throws {
         // Given
         let parserOptions: [String: ProjectDescription.ResourceSynthesizer.Parser.Option] = [
-            "stringValue": .stringValue("test"),
-            "intValue": .intValue(999),
-            "boolValue": .boolValue(true),
-            "doubleValue": .doubleValue(1.0),
+            "stringValue": "test",
+            "intValue": 999,
+            "boolValue": true,
+            "doubleValue": 1.0,
         ]
         let manifestDirectory = try temporaryPath()
 
@@ -74,10 +74,10 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             .init(
                 parser: .strings,
                 parserOptions: [
-                    "stringValue": .init(value: "test"),
-                    "intValue": .init(value: 999),
-                    "boolValue": .init(value: true),
-                    "doubleValue": .init(value: 1.0),
+                    "stringValue": "test",
+                    "intValue": 999,
+                    "boolValue": true,
+                    "doubleValue": 1.0,
                 ],
                 extensions: ["strings", "stringsdict"],
                 template: .defaultTemplate("Strings")
@@ -118,10 +118,10 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
     func test_from_when_assets_plugin() throws {
         // Given
         let parserOptions: [String: ProjectDescription.ResourceSynthesizer.Parser.Option] = [
-            "stringValue": .stringValue("test"),
-            "intValue": .intValue(999),
-            "boolValue": .boolValue(true),
-            "doubleValue": .doubleValue(1.0),
+            "stringValue": "test",
+            "intValue": 999,
+            "boolValue": true,
+            "doubleValue": 1.0,
         ]
         let manifestDirectory = try temporaryPath()
         var invokedPluginNames: [String] = []
