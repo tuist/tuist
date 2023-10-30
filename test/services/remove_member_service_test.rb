@@ -3,11 +3,6 @@
 require "test_helper"
 
 class RemoveMemberServiceTest < ActiveSupport::TestCase
-  setup do
-    StripeAddSeatService.stubs(:call)
-    StripeRemoveSeatService.stubs(:call)
-  end
-
   test "user not found error is thrown when user with a given username does not exist" do
     # Given
     organization = Organization.create!

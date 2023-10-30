@@ -3,11 +3,6 @@
 require "test_helper"
 
 class RemoveUserServiceTest < ActiveSupport::TestCase
-  setup do
-    StripeAddSeatService.stubs(:call)
-    StripeRemoveSeatService.stubs(:call)
-  end
-
   test "remove user from the organization" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))

@@ -6,11 +6,6 @@
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
-    <!-- Stripe -->
-    <% if !Environment.self_hosted? %>
-      <%= stripe_javascript_tag %>
-    <% end %>
-
      <!-- ViteJS -->
     <%= vite_client_tag %>
     <%= vite_react_refresh_tag %>

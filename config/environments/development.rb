@@ -101,5 +101,6 @@ Rails.application.configure do
     config.stripe.secret_key = Rails.application.credentials.stripe[:secret_key]
     config.stripe.publishable_key = Rails.application.credentials.stripe[:publishable_key]
     config.stripe.signing_secrets = Rails.application.credentials.stripe[:webhook_signing_secret]
+    config.stripe.debug_js = true
   end
 end

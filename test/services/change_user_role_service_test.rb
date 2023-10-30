@@ -3,11 +3,6 @@
 require "test_helper"
 
 class ChangeUserRoleServiceTest < ActiveSupport::TestCase
-  setup do
-    StripeAddSeatService.stubs(:call)
-    StripeRemoveSeatService.stubs(:call)
-  end
-
   test "change user's role from admin to user in the organization" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))

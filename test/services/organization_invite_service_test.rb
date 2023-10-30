@@ -3,11 +3,6 @@
 require "test_helper"
 
 class OrganizationInviteServiceTest < ActiveSupport::TestCase
-  setup do
-    StripeAddSeatService.stubs(:call)
-    StripeRemoveSeatService.stubs(:call)
-  end
-
   test "invite a user to an organization" do
     # Given
     inviter = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))

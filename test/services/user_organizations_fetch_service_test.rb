@@ -3,10 +3,6 @@
 require "test_helper"
 
 class UserOrganizationsFetchServiceTest < ActiveSupport::TestCase
-  setup do
-    StripeAddSeatService.stubs(:call)
-  end
-
   test "test returns user organizations" do
     # Given
     user = User.create!(

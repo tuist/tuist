@@ -38,27 +38,6 @@ class AccountCreateService < ApplicationService
         name: name,
         owner: owner,
       )
-
-      if Environment.stripe_configured?
-        customer = Stripe::Customer.create({
-          name: name,
-        })
-        if owner.is_a?(Organization)
-          Stripe::Subscription.create({
-            customer: customer.id,
-            items: [
-              {
-                price: Environment.stripe_plan_id,
-                quantity: 0,
-              },
-            ],
-            trial_period_days: 14,
-          })
-          account.update(customer_id: customer.id, plan: :team)
-        else
-          account.update(customer_id: customer.id)
-        end
-      end
       account
     end
   end
