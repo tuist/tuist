@@ -74,7 +74,6 @@ public final class BinaryLocator: BinaryLocating {
                 // swiftlint:disable:next force_try
                 bundlePath.appending(try! RelativePath(validating: ".build/debug/xcbeautify")).pathString,
             ]
-            print(compilationCommand.joined(separator: " "))
             return SwiftPackageExecutable(compilation: compilationCommand, execution: executionCommand)
         } else {
             throw BinaryLocatorError.xcbeautifyNotFound
