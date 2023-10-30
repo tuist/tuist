@@ -73,5 +73,4 @@ The choice is yours. By adding .xcodeproj and .xcworkspace files to your .gitign
 ### Tuist Cloud
 
 - <doc:Tuist-Cloud---What>
-- <doc:Tuist-Cloud---Command-Line-Interface>
 - <doc:Tuist-Cloud-Tutorial>
