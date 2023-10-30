@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class ApplicationController < ActionController::Base
+  protect_from_forgery with: :null_session
+
   before_action :store_location
   before_action :authenticate_user!
   before_action :fetch_projects
@@ -8,18 +10,12 @@ class ApplicationController < ActionController::Base
   before_action :selected_project
   before_action :update_last_visited_project
 
-  protect_from_forgery with: :null_session
-
   def app
-    if current_user.legacy?
-      render(layout: 'app')
+    project = current_user.last_visited_project || UserProjectsFetchService.call(user: current_user).first
+    if project.nil?
+      redirect_to("/get-started")
     else
-      project = current_user.last_visited_project || UserProjectsFetchService.call(user: current_user).first
-      if project.nil?
-        redirect_to("/get-started")
-      else
-        redirect_to("/#{project.account.name}/#{project.name}")
-      end
+      redirect_to("/#{project.account.name}/#{project.name}")
     end
   end
 
