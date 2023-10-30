@@ -26,7 +26,8 @@ enum FrameworkLoaderError: FatalError, Equatable {
 public protocol FrameworkLoading {
     /// Reads an existing framework and returns its in-memory representation, `GraphDependency.framework`.
     /// - Parameter path: Path to the .framework.
-    func load(path: AbsolutePath) throws -> GraphDependency
+    /// - Parameter status: `.optional` to weakly link the .framework.
+    func load(path: AbsolutePath, status: FrameworkStatus) throws -> GraphDependency
 }
 
 public final class FrameworkLoader: FrameworkLoading {
@@ -39,12 +40,15 @@ public final class FrameworkLoader: FrameworkLoading {
         self.frameworkMetadataProvider = frameworkMetadataProvider
     }
 
-    public func load(path: AbsolutePath) throws -> GraphDependency {
+    public func load(path: AbsolutePath, status: FrameworkStatus) throws -> GraphDependency {
         guard FileHandler.shared.exists(path) else {
             throw FrameworkLoaderError.frameworkNotFound(path)
         }
 
-        let metadata = try frameworkMetadataProvider.loadMetadata(at: path)
+        let metadata = try frameworkMetadataProvider.loadMetadata(
+            at: path,
+            status: status
+        )
 
         return .framework(
             path: path,
@@ -53,7 +57,8 @@ public final class FrameworkLoader: FrameworkLoading {
             bcsymbolmapPaths: metadata.bcsymbolmapPaths,
             linking: metadata.linking,
             architectures: metadata.architectures,
-            isCarthage: metadata.isCarthage
+            isCarthage: metadata.isCarthage,
+            status: metadata.status
         )
     }
 }

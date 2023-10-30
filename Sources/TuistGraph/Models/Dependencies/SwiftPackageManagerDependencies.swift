@@ -1,25 +1,16 @@
 import Foundation
 import TSCBasic
 
-/// Contains the description of a dependency that can be installed using Swift Package Manager.
-///
-/// Example:
-///
-/// ```swift
-/// let packageManager = SwiftPackageManagerDependencies(
-///     packages: [
-///         .package(url: "https://github.com/Alamofire/Alamofire", .upToNextMajor(from: "5.6.0")),
-///         .local(path: "MySwiftPackage")
-///     ],
-///     baseSettings: .settings(configurations: [.debug(name: .debug), .release(name: .release)]),
-///     targetSettings: ["MySwiftPackageTarget": ["IPHONEOS_DEPLOYMENT_TARGET": SettingValue.string("13.0")]],
-///     projectOptions: ["MySwiftPackage":  .options(disableSynthesizedResourceAccessors: false)]
-/// )
-/// ```
+public enum PackagesOrManifest: Equatable {
+    case packages([Package])
+    case manifest
+}
 
+/// Contains the description of a dependency that can be installed using Swift Package Manager.
 public struct SwiftPackageManagerDependencies: Equatable {
-    /// List of packages that will be installed using Swift Package Manager.
-    public let packages: [Package]
+    /// The path to the `Package.swift` manifest defining the dependencies, or the list of packages that will be installed using
+    /// Swift Package Manager.
+    public let packagesOrManifest: PackagesOrManifest
 
     /// The custom `Product` types to be used for SPM targets.
     public let productTypes: [String: Product]
@@ -35,20 +26,21 @@ public struct SwiftPackageManagerDependencies: Equatable {
 
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
-    ///    - packages: List of packages that will be installed using Swift Package Manager.
+    ///    - packagesOrManifest: The path to the `Package.swift` manifest defining the dependencies, or the list of packages
+    /// that will be installed using Swift Package Manager.
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
     ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
     ///    - projectOptions: The custom project options for each project generated from a swift package
 
     public init(
-        _ packages: [Package],
+        _ packagesOrManifest: PackagesOrManifest,
         productTypes: [String: Product],
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: TuistGraph.Project.Options] = [:]
     ) {
-        self.packages = packages
+        self.packagesOrManifest = packagesOrManifest
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
@@ -57,21 +49,33 @@ public struct SwiftPackageManagerDependencies: Equatable {
 }
 
 extension SwiftPackageManagerDependencies {
-    /// Returns `Package.swift` representation.
-    public func manifestValue(isLegacy: Bool, packageManifestFolder: AbsolutePath) -> String {
-        """
-        import PackageDescription
+    public enum Manifest: Equatable {
+        case content(String)
+        case manifest
+    }
 
-        let package = Package(
-            name: "PackageName",
-            dependencies: [
-                \(packages.map {
-                    let manifest = $0.manifestValue(isLegacy: isLegacy, packageManifestFolder: packageManifestFolder)
-                    return manifest + ","
-                }.joined(separator: "\n        "))
-            ]
-        )
-        """
+    /// Returns `Package.swift` representation.
+    public func manifest(isLegacy: Bool, packageManifestFolder: AbsolutePath) -> Manifest {
+        switch packagesOrManifest {
+        case let .packages(packages):
+            return .content(
+                """
+                import PackageDescription
+
+                let package = Package(
+                    name: "PackageName",
+                    dependencies: [
+                        \(packages.map {
+                            let manifest = $0.manifestValue(isLegacy: isLegacy, packageManifestFolder: packageManifestFolder)
+                            return manifest + ","
+                        }.joined(separator: "\n        "))
+                    ]
+                )
+                """
+            )
+        case .manifest:
+            return .manifest
+        }
     }
 }
 

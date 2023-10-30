@@ -1,5 +1,5 @@
 @Tutorials(name: "Tuist") {
-    @Intro(title: "Meet Tuist") {
+    @Intro(title: "Tutorials") {
         Tuist is a command line tool (CLI) that aims to facilitate the generation, maintenance, and interaction with Xcode projects. These tutorials are written to walk you through from the basics to advanced concepts of tuist right from setting up a simple project to building at massive scales.
     }
     
@@ -8,7 +8,7 @@
         
         @Image(source: "Logo.png", alt: "An illustration that shows the Tuist logo.")
         
-        @TutorialReference(tutorial: "doc:Install-Uninstall-Tuist")
-        @TutorialReference(tutorial: "doc:Create-Project")
+        @TutorialReference(tutorial: "doc:Tuist-Tutorial---Install-Uninstall-Tuist")
+        @TutorialReference(tutorial: "doc:Tuist-Tutorial---Create-Project")
     }
 }

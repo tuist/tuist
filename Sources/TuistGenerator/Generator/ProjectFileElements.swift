@@ -221,9 +221,9 @@ class ProjectFileElements {
 
         try sortedDependencies.forEach { dependency in
             switch dependency {
-            case let .xcframework(path, _, _, _):
+            case let .xcframework(path, _, _, _, _):
                 try generatePrecompiled(path)
-            case let .framework(path, _, _, _, _, _, _, _):
+            case let .framework(path, _, _, _, _, _, _, _, _):
                 try generatePrecompiled(path)
             case let .library(path, _, _, _):
                 try generatePrecompiled(path)

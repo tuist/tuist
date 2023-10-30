@@ -8,7 +8,7 @@ public enum Constants {
     public static let githubAPIURL = "https://api.github.com"
     public static let githubSlug = "tuist/tuist"
     public static let communityURL = "https://github.com/tuist/tuist/discussions/categories/general"
-    public static let version = "3.30.0"
+    public static let version = "3.31.0"
     public static let bundleName: String = "tuist.zip"
     public static let envBundleName: String = "tuistenv.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
@@ -32,10 +32,6 @@ public enum Constants {
     /// This should change only when it changes the logic to map a `TuistGraph.Target` to a cached build artifact.
     /// Changing this results in changing the target hash and hence forcing a rebuild of its artifact.
     public static let cacheVersion = "1.0.0"
-
-    public enum Vendor {
-        public static let xcbeautify = "xcbeautify"
-    }
 
     public enum DependenciesDirectory {
         public static let dependenciesFileName = "Dependencies.swift"

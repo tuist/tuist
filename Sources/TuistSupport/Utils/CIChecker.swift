@@ -31,7 +31,7 @@ public final class CIChecker: CIChecking {
 
     func isCI(environment: [String: String]) -> Bool {
         environment.first(where: {
-            CIChecker.variables.contains($0.key) && Constants.trueValues.contains($0.value)
+            CIChecker.variables.contains($0.key)
         }) != nil
     }
 }

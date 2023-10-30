@@ -45,9 +45,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let swiftPackageManagerBuildDirectory = swiftPackageManagerDirectory.appending(component: ".build")
 
         let dependencies = SwiftPackageManagerDependencies(
-            [
+            .packages([
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ],
+            ]),
             productTypes: [:],
             baseSettings: .default,
             targetSettings: [:]
@@ -137,9 +137,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         let swiftToolsVersion = TSCUtility.Version(5, 3, 0)
         let dependencies = SwiftPackageManagerDependencies(
-            [
+            .packages([
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ],
+            ]),
             productTypes: [:],
             baseSettings: .default,
             targetSettings: [:]
@@ -227,9 +227,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let swiftPackageManagerBuildDirectory = swiftPackageManagerDirectory.appending(component: ".build")
 
         let dependencies = SwiftPackageManagerDependencies(
-            [
+            .packages([
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ],
+            ]),
             productTypes: [:],
             baseSettings: .default,
             targetSettings: [:]

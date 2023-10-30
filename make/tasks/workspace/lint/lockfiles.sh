@@ -39,7 +39,7 @@ assert_same_versions() {
 }
 
 spm_lockfile="$ROOT_DIR/Package.resolved"
-tuist_lockfile="$ROOT_DIR/Tuist/Dependencies/Lockfiles/Package.resolved"
+tuist_lockfile="$ROOT_DIR/Tuist/Package.resolved"
 
 assert_same_packages_count
 status1=$?
