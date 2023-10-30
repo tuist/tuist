@@ -41,14 +41,14 @@ var targets: [Target] = [
         name: "tuistbenchmark",
         dependencies: [
             argumentParserDependency,
-            .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+            swiftToolsSupportDependency,
         ]
     ),
     .executableTarget(
         name: "tuistfixturegenerator",
         dependencies: [
             argumentParserDependency,
-            .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+            swiftToolsSupportDependency,
         ]
     ),
     .target(
