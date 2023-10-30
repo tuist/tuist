@@ -48,7 +48,7 @@ struct RunCommand: AsyncParsableCommand {
         help: "The OS version of the simulator."
     )
     var os: String?
-    
+
     @Flag(
         name: .long,
         help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."

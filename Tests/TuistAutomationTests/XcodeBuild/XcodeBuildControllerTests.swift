@@ -43,7 +43,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         let result = try await events.toArray()
         XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
     }
-    
+
     func test_build_without_device_id_but_arch() async throws {
         // Given
         let path = try temporaryPath()
@@ -80,12 +80,19 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         system.succeedCommand(command, output: "output")
 
         // When
-        let events = try subject.build(target, scheme: scheme, destination: .device("this_is_a_udid"), rosetta: false, clean: true, arguments: [])
+        let events = try subject.build(
+            target,
+            scheme: scheme,
+            destination: .device("this_is_a_udid"),
+            rosetta: false,
+            clean: true,
+            arguments: []
+        )
 
         let result = try await events.toArray()
         XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
     }
-    
+
     func test_build_with_device_id_and_arch() async throws {
         // Given
         let path = try temporaryPath()
@@ -101,7 +108,14 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         system.succeedCommand(command, output: "output")
 
         // When
-        let events = try subject.build(target, scheme: scheme, destination: .device("this_is_a_udid"), rosetta: true, clean: true, arguments: [])
+        let events = try subject.build(
+            target,
+            scheme: scheme,
+            destination: .device("this_is_a_udid"),
+            rosetta: true,
+            clean: true,
+            arguments: []
+        )
 
         let result = try await events.toArray()
         XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
@@ -148,7 +162,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         let result = try await events.toArray()
         XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
     }
-    
+
     func test_test_when_device_arch() async throws {
         // Given
         let path = try temporaryPath()

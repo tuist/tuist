@@ -176,7 +176,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(generatedPath, path)
     }
-    
+
     func test_run_tests_wtih_specified_arch() async throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
