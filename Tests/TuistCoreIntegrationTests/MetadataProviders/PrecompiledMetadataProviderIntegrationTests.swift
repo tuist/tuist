@@ -25,7 +25,10 @@ final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
         let frameworkPath = try temporaryFixture("xpm.framework")
 
         // When
-        let got = try subject.architectures(binaryPath: FrameworkMetadataProvider().loadMetadata(at: frameworkPath).binaryPath)
+        let got = try subject.architectures(
+            binaryPath: FrameworkMetadataProvider()
+                .loadMetadata(at: frameworkPath, status: .required).binaryPath
+        )
 
         // Then
         XCTAssertEqual(got.map(\.rawValue).sorted(), ["arm64", "x86_64"])
@@ -36,7 +39,10 @@ final class PrecompiledMetadataProviderIntegrationTests: TuistTestCase {
         let frameworkPath = try temporaryFixture("xpm.framework")
 
         // When
-        let got = try subject.uuids(binaryPath: FrameworkMetadataProvider().loadMetadata(at: frameworkPath).binaryPath)
+        let got = try subject.uuids(
+            binaryPath: FrameworkMetadataProvider()
+                .loadMetadata(at: frameworkPath, status: .required).binaryPath
+        )
 
         // Then
         let expected = Set([

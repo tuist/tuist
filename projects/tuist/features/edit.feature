@@ -23,3 +23,10 @@ Feature: Edit an existing project using Tuist
     Then I should be able to build for macOS the scheme Manifests
     Then I should be able to build for macOS the scheme Plugins
     Then I should be able to build for macOS the scheme LocalPlugin
+
+  Scenario: The project is a workspace with multiple projects (workspace_with_multiple_projects)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture workspace_with_multiple_projects into the working directory
+    Then tuist edits the project
+    Then I should be able to build for macOS the scheme Manifests

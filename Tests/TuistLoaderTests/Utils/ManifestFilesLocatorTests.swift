@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistSupport
 import XCTest
 
@@ -31,7 +32,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
         // When
         let manifests = subject
-            .locateProjectManifests(at: paths.first!, excluding: [], onlyCurrentDirectory: false)
+            .locateProjectManifests(at: paths[1], excluding: [], onlyCurrentDirectory: false)
             .sorted(by: { $0.path < $1.path })
 
         // Then
@@ -50,6 +51,78 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
+    func test_locateProjectManifests_returns_all_manifest_using_project_manifest_given_child_path() throws {
+        // Given
+        let tuistManifestSignature = "import ProjectDescription"
+        let paths = try createFiles([
+            "App/Project.swift",
+            "FrameworkA/Project.swift",
+            "FrameworkB/Project.swift",
+            "Project.swift",
+        ], content: tuistManifestSignature)
+        subject = ManifestFilesLocator(rootDirectoryLocator: RootDirectoryLocator(usingProjectManifest: true))
+
+        // When
+        let manifests = subject
+            .locateProjectManifests(at: paths[3], excluding: [], onlyCurrentDirectory: false)
+            .sorted(by: { $0.path < $1.path })
+
+        // Then
+        XCTAssertEqual(
+            manifests,
+            [
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[0]
+                ),
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[1]
+                ),
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[2]
+                ),
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[3]
+                ),
+            ]
+        )
+    }
+
+    func test_locateProjectManifests_returns_all_manifest_using_project_manifest_given_parent_path() throws {
+        // Given
+        let tuistManifestSignature = "import ProjectDescription"
+        let paths = try createFiles([
+            "App/Project.swift",
+            "App/FrameworkA/Project.swift",
+            "FrameworkB/Project.swift",
+            "Project.swift",
+        ], content: tuistManifestSignature)
+        subject = ManifestFilesLocator(rootDirectoryLocator: RootDirectoryLocator(usingProjectManifest: true))
+
+        // When
+        let manifests = subject
+            .locateProjectManifests(at: paths[0], excluding: [], onlyCurrentDirectory: false)
+            .sorted(by: { $0.path < $1.path })
+
+        // Then
+        XCTAssertEqual(
+            manifests,
+            [
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[1]
+                ),
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[0]
+                ),
+            ]
+        )
+    }
+
     func test_locateProjectManifests_returns_all_manifest_with_workspace_given_child_path() throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
@@ -61,7 +134,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
         // When
         let manifests = subject
-            .locateProjectManifests(at: paths.first!, excluding: [], onlyCurrentDirectory: false)
+            .locateProjectManifests(at: paths[1], excluding: [], onlyCurrentDirectory: false)
             .sorted(by: { $0.path < $1.path })
 
         // Then
@@ -75,6 +148,59 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
                 ManifestFilesLocator.ProjectManifest(
                     manifest: .workspace,
                     path: paths[1]
+                ),
+            ]
+        )
+    }
+
+    func test_locateProjectManifests_returns_single_manifest_no_workspace_using_project_manifest_given_child_path() throws {
+        // Given
+        let tuistManifestSignature = "import ProjectDescription"
+        let paths = try createFiles([
+            "Module/Project.swift",
+            "Project.swift",
+            "Tuist/Config.swift",
+        ], content: tuistManifestSignature)
+        subject = ManifestFilesLocator(rootDirectoryLocator: RootDirectoryLocator(usingProjectManifest: true))
+        // When
+        let manifests = subject
+            .locateProjectManifests(at: paths.first!, excluding: [], onlyCurrentDirectory: false)
+            .sorted(by: { $0.path < $1.path })
+
+        // Then
+        XCTAssertEqual(
+            manifests,
+            [
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[0]
+                ),
+            ]
+        )
+    }
+
+    func test_locateProjectManifests_returns_single_manifest_with_workspace_using_project_manifest_given_child_path() throws {
+        // Given
+        let tuistManifestSignature = "import ProjectDescription"
+        let paths = try createFiles([
+            "Module/Project.swift",
+            "Workspace.swift",
+            "Tuist/Config.swift",
+        ], content: tuistManifestSignature)
+        subject = ManifestFilesLocator(rootDirectoryLocator: RootDirectoryLocator(usingProjectManifest: true))
+
+        // When
+        let manifests = subject
+            .locateProjectManifests(at: paths.first!, excluding: [], onlyCurrentDirectory: false)
+            .sorted(by: { $0.path < $1.path })
+
+        // Then
+        XCTAssertEqual(
+            manifests,
+            [
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[0]
                 ),
             ]
         )

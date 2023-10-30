@@ -1,11 +1,17 @@
+import AnyCodable
 import ArgumentParser
 import Foundation
 import TSCBasic
 import TuistCore
 import TuistSupport
+#if canImport(TuistCloud)
+    import TuistCloud
+#endif
 
 /// Command that tests a target from the project in the current directory.
-struct TestCommand: AsyncParsableCommand {
+struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
+    static var analyticsDelegate: TrackableParametersDelegate?
+
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test",
@@ -102,6 +108,37 @@ struct TestCommand: AsyncParsableCommand {
     )
     var skipConfigurations: [String] = []
 
+    @Flag(
+        name: [.customShort("x"), .long],
+        help: "When passed it uses xcframeworks (simulator and device) from the cache instead of frameworks (only simulator)."
+    )
+    var xcframeworks: Bool = false
+
+    @Option(
+        name: [.long],
+        help: "Type of cached xcframeworks to use when --xcframeworks is passed (device/simulator)",
+        completion: .list(["device", "simulator"])
+    )
+    var destination: CacheXCFrameworkDestination = [.device, .simulator]
+
+    @Option(
+        name: [.customShort("P"), .long],
+        help: "The name of the cache profile to be used when testing."
+    )
+    var profile: String?
+
+    @Flag(
+        name: [.customLong("no-cache")],
+        help: "Ignore cached targets, and use their sources instead."
+    )
+    var ignoreCache: Bool = false
+
+    @Option(
+        name: [.customLong("skip-cache")],
+        help: "A list of targets which will not use cached binaries when using default `sources` list."
+    )
+    var targetsToSkipCache: [String] = []
+
     func validate() throws {
         try TestService().validateParameters(
             testTargets: testTargets,
@@ -109,6 +146,7 @@ struct TestCommand: AsyncParsableCommand {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     func run() async throws {
         let absolutePath: AbsolutePath
 
@@ -142,7 +180,27 @@ struct TestCommand: AsyncParsableCommand {
                     skipConfigurations: skipConfigurations
                 )
             },
-            validateTestTargetsParameters: false
+            validateTestTargetsParameters: false,
+            xcframeworks: xcframeworks,
+            destination: destination,
+            profile: profile,
+            ignoreCache: ignoreCache,
+            targetsToSkipCache: Set(targetsToSkipCache)
+        )
+        var parameters: [String: AnyCodable] = [
+            "xcframeworks": AnyCodable(xcframeworks),
+            "no_cache": AnyCodable(ignoreCache),
+        ]
+        #if canImport(TuistCloud)
+            parameters["cacheable_targets"] = AnyCodable(CacheAnalytics.cacheableTargets)
+            parameters["local_cache_target_hits"] = AnyCodable(CacheAnalytics.localCacheTargetsHits)
+            parameters["remote_cache_target_hits"] = AnyCodable(CacheAnalytics.remoteCacheTargetsHits)
+        #endif
+        TestCommand.analyticsDelegate?.addParameters(
+            [
+                "xcframeworks": AnyCodable(xcframeworks),
+                "no_cache": AnyCodable(ignoreCache),
+            ]
         )
     }
 }

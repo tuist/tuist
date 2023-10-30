@@ -274,7 +274,7 @@ final class TestModelGenerator {
     private func createDependencies(relativeTo path: AbsolutePath) throws -> [TargetDependency] {
         let frameworks = try (0 ..< 10)
             .map { "Frameworks/Framework\($0).framework" }
-            .map { TargetDependency.framework(path: path.appending(try RelativePath(validating: $0))) }
+            .map { TargetDependency.framework(path: path.appending(try RelativePath(validating: $0)), status: .required) }
 
         let libraries = try createLibraries(relativeTo: path)
         let sdks: [TargetDependency] = [

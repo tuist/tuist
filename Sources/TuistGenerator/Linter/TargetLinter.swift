@@ -321,9 +321,9 @@ extension TargetDependency {
             return name
         case let .project(target, _):
             return target
-        case let .framework(path):
+        case let .framework(path, _):
             return path.basename
-        case let .xcframework(path):
+        case let .xcframework(path, _):
             return path.basename
         case let .library(path, _, _):
             return path.basename

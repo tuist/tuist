@@ -52,6 +52,7 @@ jobs:
       - name: Build
         run: |
           ./fourier build tuist all
+          
   generate:
     name: Generate with Xcode
     runs-on: macos-13
@@ -59,23 +60,34 @@ jobs:
       - uses: actions/checkout@v3
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: ruby/setup-ruby@v1
+      - name: Fetch dependencies
+        run: make tuist/fetch
+      - name: Generate project
+        run:  ARGS="--no-open tuist" make tuist/generate
+
+  generate-with-cloud:
+    name: Generate with Xcode and TuistCloud
+    runs-on: macos-13
+    env:
+      TUIST_INCLUDE_TUIST_CLOUD: 1
+    steps:
+      - uses: actions/checkout@v3
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - uses: actions/checkout@v3
+        name: Clone tuist/TuistCloud
         with:
-          ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v3
-        with:
-          path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
-      - name: Bundle install
-        run: |
-          bundle config path vendor/bundle
-          bundle install --jobs 4 --retry 3
-      - name: Generate
-        run: |
-          make tuist/fetch
-          ARGS="--no-open tuist" make tuist/generate
+          repository: tuist/TuistCloud
+          token: ${{ secrets.TUIST_GITHUB_PAT_TOKEN }}
+          path: TuistCloud
+          fetch-depth: 0
+      - name: Up the workspace
+        run: make workspace/up
+      - name: Fetch dependencies
+        run: make tuist/fetch
+      - name: Generate the project
+        run: ARGS="--no-open tuist" make tuist/generate
+
   test:
     name: Test with Xcode
     runs-on: macos-13
@@ -107,3 +119,32 @@ jobs:
       - uses: actions/checkout@v3
       - name: Run
         run: make workspace/lint/lockfiles
+
+  cache-warm:
+    name: Cache warm
+    runs-on: macos-13
+    env:
+      TUIST_INCLUDE_TUIST_CLOUD: 1
+    steps:
+      - uses: actions/checkout@v3
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - uses: actions/cache@v3
+        name: 'Cache Tuist .build folder'
+        with:
+          path: .build
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
+      - uses: actions/checkout@v3
+        with:
+          repository: tuist/TuistCloud
+          token: ${{ secrets.TUIST_GITHUB_PAT_TOKEN }}
+          path: TuistCloud
+          fetch-depth: 0
+      - name: Cache warm
+        run: |
+          make workspace/up
+          make tuist/fetch
+          make tuist/cache-warm

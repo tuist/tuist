@@ -11,12 +11,16 @@ tuist/fetch:
 	./make/tasks/tuist/fetch.sh $(ARGS)
 tuist/generate:
 	./make/tasks/tuist/generate.sh $(ARGS)
-tuist/generate/with-cloud:
-	TUIST_INCLUDE_TUIST_CLOUD=1 ./make/tasks/tuist/generate.sh $(ARGS)
+tuist/cache-warm:
+	./make/tasks/tuist/cache-warm.sh $(ARGS)
 tuist/run:
 	./make/tasks/tuist/run.sh $(ARGS)
 
 # Shared
+workspace/build/tuistbenchmark:
+	./make/tasks/workspace/build/tuistbenchmark.sh $(ARGS)
+workspace/build/tuistfixturegenerator:
+	./make/tasks/workspace/build/tuistfixturegenerator.sh $(ARGS)
 workspace/lint-fix:
 	./make/tasks/workspace/lint-fix.sh
 workspace/lint:
@@ -30,7 +34,7 @@ workspace/up:
 workspace/clean:
 	./make/tasks/workspace/clean.sh
 workspace/build-with-spm:
-	$(ARGS) ./make/tasks/workspace/build-with-spm.sh
+	./make/tasks/workspace/build-with-spm.sh $(ARGS)
 workspace/release/bundle:
 	./make/tasks/workspace/release/bundle.sh
 

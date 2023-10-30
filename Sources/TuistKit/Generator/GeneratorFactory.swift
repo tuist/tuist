@@ -31,18 +31,20 @@ protocol GeneratorFactorying {
 
     /// Returns the generator to generate a project to run tests on.
     /// - Parameter config: The project configuration
-    /// - Parameter automationPath: The automation path.
     /// - Parameter testsCacheDirectory: The cache directory used for tests.
     /// - Parameter skipUITests: Whether UI tests should be skipped.
     /// - Returns: A Generator instance.
     func test(
         config: Config,
-        automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
-        skipUITests: Bool
+        skipUITests: Bool,
+        cacheOutputType: CacheOutputType,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool,
+        targetsToSkipCache: Set<String>
     ) -> Generating
 
     /// Returns the default generator.
@@ -108,12 +110,15 @@ class GeneratorFactory: GeneratorFactorying {
 
     func test(
         config: Config,
-        automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
         excludedTargets: Set<String>,
-        skipUITests: Bool
+        skipUITests: Bool,
+        cacheOutputType: CacheOutputType,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool,
+        targetsToSkipCache: Set<String>
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -123,14 +128,16 @@ class GeneratorFactory: GeneratorFactorying {
 
         let graphMappers = graphMapperFactory.automation(
             config: config,
+            cache: !ignoreCache,
             testsCacheDirectory: testsCacheDirectory,
             testPlan: testPlan,
             includedTargets: includedTargets,
-            excludedTargets: excludedTargets
+            excludedTargets: excludedTargets,
+            cacheProfile: cacheProfile,
+            cacheOutputType: cacheOutputType,
+            targetsToSkipCache: targetsToSkipCache
         )
-        let workspaceMappers = workspaceMapperFactory.automation(
-            workspaceDirectory: try! FileHandler.shared.resolveSymlinks(automationPath) // swiftlint:disable:this force_try
-        )
+        let workspaceMappers = workspaceMapperFactory.automation()
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
             manifestLoader: manifestLoader,

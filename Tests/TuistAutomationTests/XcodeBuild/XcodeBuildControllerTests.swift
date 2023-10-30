@@ -9,14 +9,17 @@ import XCTest
 
 final class XcodeBuildControllerTests: TuistUnitTestCase {
     var subject: XcodeBuildController!
+    var formatter: Formatting!
 
     override func setUp() {
         super.setUp()
-        subject = XcodeBuildController()
+        formatter = Formatter()
+        subject = XcodeBuildController(formatter: formatter, environment: Environment.shared)
     }
 
     override func tearDown() {
         subject = nil
+        formatter = nil
         super.tearDown()
     }
 
@@ -31,10 +34,11 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
 
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
+        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
 
         // When
-        let events = subject.build(target, scheme: scheme, destination: nil, clean: true, arguments: [])
+        let events = try subject.build(target, scheme: scheme, destination: nil, clean: true, arguments: [])
 
         let result = try await events.toArray()
         XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
@@ -52,10 +56,11 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=this_is_a_udid"])
+        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
 
         // When
-        let events = subject.build(target, scheme: scheme, destination: .device("this_is_a_udid"), clean: true, arguments: [])
+        let events = try subject.build(target, scheme: scheme, destination: .device("this_is_a_udid"), clean: true, arguments: [])
 
         let result = try await events.toArray()
         XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
@@ -80,11 +85,11 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         ]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=device-id"])
-
+        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
 
         // When
-        let events = subject.test(
+        let events = try subject.test(
             target,
             scheme: scheme,
             clean: true,
@@ -122,11 +127,12 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
 
+        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
         developerEnvironment.stubbedArchitecture = .x8664
 
         // When
-        let events = subject.test(
+        let events = try subject.test(
             target,
             scheme: scheme,
             clean: true,
@@ -164,11 +170,12 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
         command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
 
+        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
         developerEnvironment.stubbedArchitecture = .x8664
 
         // When
-        let events = subject.test(
+        let events = try subject.test(
             target,
             scheme: scheme,
             clean: true,
@@ -206,11 +213,12 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
         command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
 
+        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
         developerEnvironment.stubbedArchitecture = .x8664
 
         // When
-        let events = subject.test(
+        let events = try subject.test(
             target,
             scheme: scheme,
             clean: true,

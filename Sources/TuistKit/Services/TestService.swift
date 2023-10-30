@@ -158,7 +158,12 @@ final class TestService { // swiftlint:disable:this type_body_length
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
-        validateTestTargetsParameters: Bool = true
+        validateTestTargetsParameters: Bool = true,
+        xcframeworks: Bool,
+        destination: CacheXCFrameworkDestination,
+        profile: String?,
+        ignoreCache: Bool,
+        targetsToSkipCache: Set<String>
     ) async throws {
         if validateTestTargetsParameters {
             try validateParameters(
@@ -172,21 +177,20 @@ final class TestService { // swiftlint:disable:this type_body_length
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
         let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
-
-        let projectDirectory = cacheDirectoriesProvider.cacheDirectory(for: .generatedAutomationProjects)
-            .appending(component: "\(try contentHasher.hash(path.pathString))")
-        if !FileHandler.shared.exists(projectDirectory) {
-            try FileHandler.shared.createFolder(projectDirectory)
-        }
+        let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
+        let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework(destination) : .framework
 
         let generator = generatorFactory.test(
             config: config,
-            automationPath: Environment.shared.automationPath ?? projectDirectory,
             testsCacheDirectory: testsCacheTemporaryDirectory.path,
             testPlan: testPlanConfiguration?.testPlan,
             includedTargets: Set(testTargets.map(\.target)),
             excludedTargets: Set(skipTestTargets.map(\.target)),
-            skipUITests: skipUITests
+            skipUITests: skipUITests,
+            cacheOutputType: cacheOutputType,
+            cacheProfile: cacheProfile,
+            ignoreCache: ignoreCache,
+            targetsToSkipCache: targetsToSkipCache
         )
         logger.notice("Generating project for testing", metadata: .section)
         let graph = try await generator.generateWithGraph(

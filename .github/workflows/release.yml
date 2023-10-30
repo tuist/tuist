@@ -34,7 +34,7 @@ jobs:
       with:
         ref: ${{ github.head_ref }}
         fetch-depth: 0
-        token: ${{ secrets.GH_RELEASE_TOKEN }}
+        token: ${{ secrets.TUIST_GITHUB_PAT_TOKEN }}
     - name: 'Get Previous tag'
       id: previoustag
       uses: "WyriHaximus/github-action-get-previous-tag@v1"
@@ -58,7 +58,7 @@ jobs:
         configuration: ".github/workflows/changelog-configuration.json"
         toTag: "main"
       env:
-        GITHUB_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_PAT_TOKEN }}
     - name: Update Changelog
       uses: stefanzweifel/changelog-updater-action@v1
       with:
@@ -78,7 +78,13 @@ jobs:
     - uses: actions/checkout@v3
       with:
         ref: ${{ needs.prepare-release.outputs.commit_hash }}
-        token: ${{ secrets.GH_RELEASE_TOKEN }}
+        token: ${{ secrets.TUIST_GITHUB_PAT_TOKEN }}
+    - uses: actions/checkout@v3
+      with:
+        repository: tuist/TuistCloud
+        token: ${{ secrets.TUIST_GITHUB_PAT_TOKEN }}
+        path: TuistCloud
+        fetch-depth: 0
     - name: Up workspace
       if: ${{ github.event.inputs.publish == 'true' }}
       run: make workspace/up
@@ -89,7 +95,7 @@ jobs:
       if: ${{ github.event.inputs.publish == 'true' }}
       uses: softprops/action-gh-release@v1
       with:
-        token: ${{ secrets.GH_RELEASE_TOKEN }}
+        token: ${{ secrets.TUIST_GITHUB_PAT_TOKEN }}
         files: build/*
         name: ${{ needs.prepare-release.outputs.version }}
         tag_name: ${{ needs.prepare-release.outputs.version }}

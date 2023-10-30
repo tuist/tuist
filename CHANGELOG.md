@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.31.0 - 2023-10-30
+
+### Added
+
+- Allow empty `.gitkeep` files in templates [#5528](https://github.com/tuist/tuist/pull/5528) by [@waltflanagan](https://github.com/waltflanagan)
+- Support optional frameworks and xcframeworks [#5525](https://github.com/tuist/tuist/pull/5525) by [@mfcollins3](https://github.com/mfcollins3)
+- Support for using a `Package.swift` instead of defining packages directly in Dependencies.swift [#5503](https://github.com/tuist/tuist/pull/5503) by [@danyf90](https://github.com/danyf90)
+
+## 3.30.0 - 2023-10-20
+
+### Added
+
+- Reuse binaries for tuist test, generate test project in the current working directory [#5501](https://github.com/tuist/tuist/pull/5501) by [@fortmarek](https://github.com/fortmarek)
+- Add support for symbolset resources in default resource synthesizer [#5493](https://github.com/tuist/tuist/pull/5493) by [@danyf90](https://github.com/danyf90)
+
+### Fixed
+
+- Reuse HTTP connection when interacting with Tuist Cloud [#5509](https://github.com/tuist/tuist/pull/5509) by [@pepicrft](https://github.com/pepicrft)
+- Fix sending analytics from the CI [#5498](https://github.com/tuist/tuist/pull/5498) by [@fortmarek](https://github.com/fortmarek)
+
 ## 3.29.0 - 2023-10-16
 
 ### Added

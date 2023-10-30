@@ -64,9 +64,9 @@ final class FetchServiceTests: TuistUnitTestCase {
                 ]
             ),
             swiftPackageManager: .init(
-                [
+                .packages([
                     .remote(url: "Dependency1/Dependency1", requirement: .upToNextMajor("1.2.3")),
-                ],
+                ]),
                 productTypes: [:], baseSettings: .default,
                 targetSettings: [:]
             ),
@@ -147,9 +147,9 @@ final class FetchServiceTests: TuistUnitTestCase {
                 ]
             ),
             swiftPackageManager: .init(
-                [
+                .packages([
                     .remote(url: "Dependency1/Dependency1", requirement: .upToNextMajor("1.2.3")),
-                ],
+                ]),
                 productTypes: [:],
                 baseSettings: .default,
                 targetSettings: [:]

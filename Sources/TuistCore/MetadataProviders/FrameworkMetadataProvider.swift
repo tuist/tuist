@@ -30,7 +30,7 @@ enum FrameworkMetadataProviderError: FatalError, Equatable {
 public protocol FrameworkMetadataProviding: PrecompiledMetadataProviding {
     /// Loads all the metadata associated with a framework at the specified path
     /// - Note: This performs various shell calls and disk operations
-    func loadMetadata(at path: AbsolutePath) throws -> FrameworkMetadata
+    func loadMetadata(at path: AbsolutePath, status: FrameworkStatus) throws -> FrameworkMetadata
 
     /// Given the path to a framework, it returns the path to its dSYMs if they exist
     /// in the same framework directory.
@@ -54,7 +54,7 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
         super.init()
     }
 
-    public func loadMetadata(at path: AbsolutePath) throws -> FrameworkMetadata {
+    public func loadMetadata(at path: AbsolutePath, status: FrameworkStatus) throws -> FrameworkMetadata {
         let fileHandler = FileHandler.shared
         guard fileHandler.exists(path) else {
             throw FrameworkMetadataProviderError.frameworkNotFound(path)
@@ -72,7 +72,8 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
             bcsymbolmapPaths: bcsymbolmapPaths,
             linking: linking,
             architectures: architectures,
-            isCarthage: isCarthage
+            isCarthage: isCarthage,
+            status: status
         )
     }
 
