@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-fileprivate protocol Entitlements: Decodable {
+private protocol Entitlements: Decodable {
     var appId: String { get }
 }
 
@@ -62,9 +62,12 @@ extension ProvisioningProfile.Content: Decodable {
         developerCertificates = try container.decode([Data].self, forKey: .developerCertificates)
     }
 
-    private static func platformEntitlements(_ container: KeyedDecodingContainer<ProvisioningProfile.Content.CodingKeys>, for platforms: [String]) throws -> Entitlements {
+    private static func platformEntitlements(
+        _ container: KeyedDecodingContainer<ProvisioningProfile.Content.CodingKeys>,
+        for platforms: [String]
+    ) throws -> Entitlements {
         // OSX profiles are special because they use a different key to define the application identifier
-        return if platforms.contains("OSX") {
+        if platforms.contains("OSX") {
             try container.decode(DesktopEntitlements.self, forKey: .entitlements)
         } else {
             try container.decode(MobileEntitlements.self, forKey: .entitlements)
