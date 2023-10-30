@@ -28,7 +28,7 @@ module Environment
     end
 
     def falsy?(value)
-      return false if value.blank?
+      return true if value.blank?
 
       FALSY_VALUES.any? { |v| v == value.to_s }
     end
