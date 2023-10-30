@@ -39,7 +39,7 @@ enum XCFrameworkMetadataProviderError: FatalError, Equatable {
 public protocol XCFrameworkMetadataProviding: PrecompiledMetadataProviding {
     /// Loads all the metadata associated with an XCFramework at the specified path
     /// - Note: This performs various shell calls and disk operations
-    func loadMetadata(at path: AbsolutePath) throws -> XCFrameworkMetadata
+    func loadMetadata(at path: AbsolutePath, status: FrameworkStatus) throws -> XCFrameworkMetadata
 
     /// Returns the info.plist of the xcframework at the given path.
     /// - Parameter xcframeworkPath: Path to the xcframework.
@@ -58,7 +58,7 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
         super.init()
     }
 
-    public func loadMetadata(at path: AbsolutePath) throws -> XCFrameworkMetadata {
+    public func loadMetadata(at path: AbsolutePath, status: FrameworkStatus) throws -> XCFrameworkMetadata {
         let fileHandler = FileHandler.shared
         guard fileHandler.exists(path) else {
             throw XCFrameworkMetadataProviderError.xcframeworkNotFound(path)
@@ -74,7 +74,8 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
             infoPlist: infoPlist,
             primaryBinaryPath: primaryBinaryPath,
             linking: linking,
-            mergeable: infoPlist.libraries.allSatisfy(\.mergeable)
+            mergeable: infoPlist.libraries.allSatisfy(\.mergeable),
+            status: status
         )
     }
 

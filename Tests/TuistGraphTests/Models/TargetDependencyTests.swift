@@ -7,7 +7,10 @@ import XCTest
 final class TargetDependencyTests: TuistUnitTestCase {
     func test_codable_framework() {
         // Given
-        let subject = TargetDependency.framework(path: "/path/to/framework")
+        let subject = TargetDependency.framework(
+            path: "/path/to/framework",
+            status: .required
+        )
 
         // Then
         XCTAssertCodable(subject)
