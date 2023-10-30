@@ -16,7 +16,7 @@ Tuist Cloud, a closed-source paid service, enhances Tuist by adding server-requi
 
 ### Available
 
-#### Binary caching across environments 📦
+#### 📦 Binary caching across environments
 
 Tuist Cloud offers a robust storage solution for Tuist, enabling the sharing of cache artifacts between local and remote settings, such as continuous integration. This ensures that developers avoid recompiling targets they don't intend to modify, provided they've already been compiled by a teammate or in a CI setting. Leveraging this caching can yield efficiency rates up to 90%, leading to significant time and cost savings for both local development and CI processes.
 
