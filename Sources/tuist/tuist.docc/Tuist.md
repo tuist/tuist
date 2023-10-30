@@ -3,8 +3,6 @@
 Tuist is a command-line interface (CLI) designed to tackle the complexities of building large-scale applications for Apple platforms.
 
 > Warning: This website represents a partial revamp of the [Tuist documentation website](https://docs.tuist.io). For any documentation not available here, we recommend visiting the old website.
-
-
 ## Motivation
 
 As Xcode projects expand, **organizations may face a decline in productivity** due to several factors, including unreliable incremental builds, frequent clearing of Xcode's global cache by developers encountering issues, and fragile project configurations. To maintain rapid feature development, organizations typically explore various strategies.
