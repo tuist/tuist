@@ -19,12 +19,12 @@
     "editor.formatOnSave": true
   },
   "[ruby]": {
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
   },
+  "rubyLsp.formatter": "auto",
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "files.exclude": {
     "**/node_modules": true
   },
-  "jest.jestCommandLine": "yarn test",
   "typescript.tsdk": "node_modules/typescript/lib"
 }
