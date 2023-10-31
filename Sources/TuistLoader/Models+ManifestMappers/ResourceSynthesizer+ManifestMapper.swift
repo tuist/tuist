@@ -74,17 +74,17 @@ extension TuistGraph.ResourceSynthesizer.Parser.Option {
         manifest: ProjectDescription.ResourceSynthesizer.Parser.Option
     ) -> Self {
         switch manifest {
-        case .string(let value):
+        case let .string(value):
             return .init(value: value)
-        case .integer(let value):
+        case let .integer(value):
             return .init(value: value)
-        case .double(let value):
+        case let .double(value):
             return .init(value: value)
-        case .boolean(let value):
+        case let .boolean(value):
             return .init(value: value)
-        case .dictionary(let value):
+        case let .dictionary(value):
             return .init(value: value)
-        case .array(let value):
+        case let .array(value):
             return .init(value: value)
         }
     }
