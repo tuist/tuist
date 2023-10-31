@@ -185,7 +185,6 @@ GEM
     marcel (1.0.2)
     matrix (0.4.2)
     mini_mime (1.1.5)
-    mini_portile2 (2.8.5)
     minitest (5.20.0)
     mocha (2.1.0)
       ruby2_keywords (>= 0.0.5)
@@ -203,9 +202,6 @@ GEM
       net-protocol
     netrc (0.11.0)
     nio4r (2.5.9)
-    nokogiri (1.15.4)
-      mini_portile2 (~> 2.8.2)
-      racc (~> 1.4)
     nokogiri (1.15.4-aarch64-linux)
       racc (~> 1.4)
     nokogiri (1.15.4-arm64-darwin)
@@ -361,14 +357,14 @@ GEM
     snaky_hash (2.0.1)
       hashie
       version_gem (~> 1.1, >= 1.1.1)
-    sorbet (0.5.11105)
-      sorbet-static (= 0.5.11105)
-    sorbet-runtime (0.5.11105)
-    sorbet-static (0.5.11105-universal-darwin)
-    sorbet-static (0.5.11105-x86_64-linux)
-    sorbet-static-and-runtime (0.5.11105)
-      sorbet (= 0.5.11105)
-      sorbet-runtime (= 0.5.11105)
+    sorbet (0.5.11108)
+      sorbet-static (= 0.5.11108)
+    sorbet-runtime (0.5.11108)
+    sorbet-static (0.5.11108-universal-darwin)
+    sorbet-static (0.5.11108-x86_64-linux)
+    sorbet-static-and-runtime (0.5.11108)
+      sorbet (= 0.5.11108)
+      sorbet-runtime (= 0.5.11108)
     spoom (1.2.4)
       erubi (>= 1.10.0)
       sorbet-static-and-runtime (>= 0.5.10187)
@@ -389,8 +385,6 @@ GEM
       stripe (>= 3.15.0)
     syntax_tree (6.2.0)
       prettier_print (>= 1.2.0)
-    tailwindcss-rails (2.0.32)
-      railties (>= 6.0.0)
     tailwindcss-rails (2.0.32-aarch64-linux)
       railties (>= 6.0.0)
     tailwindcss-rails (2.0.32-arm64-darwin)
@@ -449,7 +443,6 @@ GEM
 PLATFORMS
   aarch64-linux
   arm64-darwin
-  ruby
   x86_64-darwin
   x86_64-linux
 
