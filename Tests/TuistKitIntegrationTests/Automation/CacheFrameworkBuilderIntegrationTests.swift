@@ -143,12 +143,12 @@
         // }
 
         fileprivate func binaryLinking(path: AbsolutePath) throws -> BinaryLinking {
-            let binaryPath = try FrameworkMetadataProvider().loadMetadata(at: path).binaryPath
+            let binaryPath = try FrameworkMetadataProvider().loadMetadata(at: path, status: .required).binaryPath
             return try frameworkMetadataProvider.linking(binaryPath: binaryPath)
         }
 
         fileprivate func architectures(path: AbsolutePath) throws -> [BinaryArchitecture] {
-            let binaryPath = try FrameworkMetadataProvider().loadMetadata(at: path).binaryPath
+            let binaryPath = try FrameworkMetadataProvider().loadMetadata(at: path, status: .required).binaryPath
             return try frameworkMetadataProvider.architectures(binaryPath: binaryPath)
         }
     }
