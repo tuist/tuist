@@ -1,6 +1,9 @@
 # frozen_string_literal: true
+# typed: true
 
 class ProjectCreateService < ApplicationService
+  extend T::Sig
+
   module Error
     class ProjectAlreadyExists < CloudError
       attr_reader :name, :account_name
@@ -20,8 +23,17 @@ class ProjectCreateService < ApplicationService
       end
     end
   end
+
   attr_reader :creator, :name, :organization_name, :account_id
 
+  sig do
+    params(
+      creator: User,
+      name: String,
+      organization_name: T.nilable(String),
+      account_id: T.nilable(Integer),
+    ).void
+  end
   def initialize(creator:, name:, organization_name: nil, account_id: nil)
     super()
     @creator = creator
@@ -30,6 +42,9 @@ class ProjectCreateService < ApplicationService
     @account_id = account_id
   end
 
+  sig do
+    returns(Project)
+  end
   def call
     ActiveRecord::Base.transaction do
       if organization_name.nil?

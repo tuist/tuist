@@ -23,6 +23,8 @@ gem "sassc-rails", "~> 2.1"
 gem "stripe-rails", "~> 2.4"
 gem "que", "~> 2.2"
 gem "httpx", "~> 0.24.3"
+gem 'sorbet-static-and-runtime'
+gem 'tapioca', require: false, :group => :development
 
 # GraphQL
 gem "graphql", "~> 2.1.0"

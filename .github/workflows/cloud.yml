@@ -125,6 +125,29 @@ jobs:
       - name: Rubocop
         run: |
           bundle exec rubocop
+  type-check:
+    name: Type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: actions/cache@v3
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
+      - name: Install dependencies
+        run: |
+          gem install bundler
+          bundle config path vendor/bundle
+          bundle install --jobs=4 --retry=3
+      - name: Type-check
+        run: |
+          bundle exec srb tc
   eslint:
     name: ESLint
     runs-on: ubuntu-latest

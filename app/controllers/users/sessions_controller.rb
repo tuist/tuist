@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# typed: ignore
 
 module Users
   class SessionsController < Devise::SessionsController
