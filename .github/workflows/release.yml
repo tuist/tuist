@@ -1,5 +1,5 @@
 name: Tuist Release
-
+# TODO: Delete this file
 on:
   workflow_dispatch:
     inputs:
