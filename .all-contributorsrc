@@ -1228,6 +1228,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "vcoutasso",
+      "name": "Vinícius Couto Tasso",
+      "avatar_url": "https://avatars.githubusercontent.com/u/44986513?v=4",
+      "profile": "http://vcoutasso.com",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
