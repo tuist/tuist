@@ -52,7 +52,7 @@ public final class BinaryLocator: BinaryLocating {
             bundlePath.parentDirectory.appending(try RelativePath(validating: "share/tuist")),
         ]
         let candidates = candidatebinariesPath.map { path in
-            path.appending(components: "xcbeautify", "xcbeautify")
+            path.appending(components: "xcbeautify")
         }
         if let existingPath = candidates.first(where: FileHandler.shared.exists) {
             return SwiftPackageExecutable(compilation: nil, execution: [existingPath.pathString])
