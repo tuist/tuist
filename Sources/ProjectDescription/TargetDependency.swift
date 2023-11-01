@@ -72,7 +72,7 @@ public enum TargetDependency: Codable, Hashable {
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
     ///              e.g. RxSwift
     case packagePlugin(product: String)
-    
+
     /// Dependency on a Swift Package Manager Swift Macro using Xcode native integration.
     ///
     /// - Parameters:

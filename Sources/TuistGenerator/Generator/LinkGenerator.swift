@@ -182,7 +182,9 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: false, pbxproj: pbxproj)
             case let .packagePlugin(product: product):
                 try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: true, pbxproj: pbxproj)
-            default:
+            case let .packageMacro(product: product):
+                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: false, pbxproj: pbxproj)
+            case .framework, .library, .project, .sdk, .target, .xcframework, .xctest:
                 break
             }
         }

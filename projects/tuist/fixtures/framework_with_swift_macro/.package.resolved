@@ -1,0 +1,23 @@
+{
+  "pins" : [
+    {
+      "identity" : "structbuildermacro",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/alschmut/StructBuilderMacro.git",
+      "state" : {
+        "revision" : "aa0029efe02ce198ebecb2905f67c6340b7d6bb2",
+        "version" : "0.2.0"
+      }
+    },
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-syntax.git",
+      "state" : {
+        "revision" : "6ad4ea24b01559dde0773e3d091f1b9e36175036",
+        "version" : "509.0.2"
+      }
+    }
+  ],
+  "version" : 2
+}
