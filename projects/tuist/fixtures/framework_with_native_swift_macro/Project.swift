@@ -2,9 +2,6 @@ import ProjectDescription
 
 let project = Project(
     name: "FrameworkWithSwiftMacro",
-    packages: [
-        .remote(url: "https://github.com/alschmut/StructBuilderMacro.git", requirement: .exact("0.2.0")),
-    ],
     targets: [
         Target(
             name: "Framework",
@@ -13,7 +10,7 @@ let project = Project(
             bundleId: "io.tuist.FrameworkWithSwiftMacro",
             sources: ["Sources/**/*"],
             dependencies: [
-                .packageMacro(product: "StructBuilder"),
+                .external(name: "StructBuilder")
             ]
         ),
     ]
