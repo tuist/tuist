@@ -16,11 +16,18 @@ final class ResourceSynthesizerTests: XCTestCase {
         )
     }
 
+    func test_codable_when_parserOptions() {
+        XCTAssertCodable(
+            ResourceSynthesizer.strings(parserOptions: ["separator": "/"])
+        )
+    }
+
     func test_codable_when_custom() {
         XCTAssertCodable(
             ResourceSynthesizer.custom(
                 name: "Custom",
                 parser: .json,
+                parserOptions: ["key": "value"],
                 extensions: ["lottie"]
             )
         )

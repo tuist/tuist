@@ -55,3 +55,25 @@ Feature: Generate a new project using Tuist (suite 2)
       """
       public static let evening = AppStrings.tr("Greetings", "evening")
       """
+
+ Scenario: The project is an iOS application with custom development region that has resources (ios_app_with_custom_resource_parser_options)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_custom_resource_parser_options into the working directory
+    Then tuist generates the project
+    Then I should be able to build for iOS the scheme App
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'en.lproj/Greetings.strings'
+    Then the product 'App.app' with destination 'Debug-iphonesimulator' contains resource 'fr.lproj/Greetings.strings'
+    Then a file Derived/Sources/TuistStrings+App.swift exists
+    Then content of a file named TuistStrings+App.swift in a directory Derived/Sources should contain:
+      """
+      public enum Good {
+      """
+    Then content of a file named TuistStrings+App.swift in a directory Derived/Sources should contain:
+      """
+      public static let evening = AppStrings.tr("Greetings", "Good/evening")
+      """
+    Then content of a file named TuistStrings+App.swift in a directory Derived/Sources should contain:
+      """
+      public static let morning = AppStrings.tr("Greetings", "Good/morning")
+      """

@@ -9,6 +9,7 @@ import TuistSupport
 protocol SynthesizedResourceInterfacesGenerating {
     func render(
         parser: ResourceSynthesizer.Parser,
+        parserOptions: [String: ResourceSynthesizer.Parser.Option],
         templateString: String,
         name: String,
         bundleName: String?,
@@ -19,6 +20,7 @@ protocol SynthesizedResourceInterfacesGenerating {
 final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating {
     func render(
         parser: ResourceSynthesizer.Parser,
+        parserOptions: [String: ResourceSynthesizer.Parser.Option],
         templateString: String,
         name: String,
         bundleName: String?,
@@ -29,7 +31,7 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
             environment: stencilSwiftEnvironment()
         )
 
-        let parser = try self.parser(for: parser)
+        let parser = try self.parser(for: parser, with: parserOptions)
 
         try paths.forEach { try parser.parse(path: Path($0.pathString), relativeTo: Path("")) }
         var context = parser.stencilContext()
@@ -42,26 +44,30 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
 
     // MARK: - Helpers
 
-    private func parser(for parser: ResourceSynthesizer.Parser) throws -> Parser {
+    private func parser(
+        for parser: ResourceSynthesizer.Parser,
+        with parserOptions: [String: ResourceSynthesizer.Parser.Option]
+    ) throws -> Parser {
+        let options = parserOptions.mapValues(\.value)
         switch parser {
         case .assets:
-            return try AssetsCatalog.Parser()
+            return try AssetsCatalog.Parser(options: options)
         case .strings:
-            return try Strings.Parser()
+            return try Strings.Parser(options: options)
         case .plists:
-            return try Plist.Parser()
+            return try Plist.Parser(options: options)
         case .fonts:
-            return try Fonts.Parser()
+            return try Fonts.Parser(options: options)
         case .coreData:
-            return try CoreData.Parser()
+            return try CoreData.Parser(options: options)
         case .interfaceBuilder:
-            return try InterfaceBuilder.Parser()
+            return try InterfaceBuilder.Parser(options: options)
         case .json:
-            return try JSON.Parser()
+            return try JSON.Parser(options: options)
         case .yaml:
-            return try Yaml.Parser()
+            return try Yaml.Parser(options: options)
         case .files:
-            return try Files.Parser()
+            return try Files.Parser(options: options)
         }
     }
 
