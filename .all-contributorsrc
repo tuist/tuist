@@ -1228,6 +1228,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "Jihoonahn",
+      "name": "안지훈",
+      "avatar_url": "https://avatars.githubusercontent.com/u/68891494?v=4",
+      "profile": "http://blog.jihoon.me",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
