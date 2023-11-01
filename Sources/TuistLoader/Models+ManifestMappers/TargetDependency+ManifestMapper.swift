@@ -56,6 +56,8 @@ extension TuistGraph.TargetDependency {
             return [.package(product: product)]
         case let .packagePlugin(product):
             return [.packagePlugin(product: product)]
+        case let .packageMacro(product):
+            return [.packageMacro(product: product)]
         case let .sdk(name, type, status):
             return [
                 .sdk(

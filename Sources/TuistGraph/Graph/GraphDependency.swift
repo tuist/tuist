@@ -2,6 +2,21 @@ import Foundation
 import TSCBasic
 
 public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Codable {
+    
+    public enum PackageProductType: String, Hashable, CustomStringConvertible, Comparable, Codable {
+        public var description: String {
+            return self.rawValue
+        }
+        
+        case sources = "sources package product"
+        case plugin = "plugin package product"
+        case macro = "macro package product"
+        
+        public static func < (lhs: PackageProductType, rhs: PackageProductType) -> Bool {
+            lhs.description < rhs.description
+        }
+    }
+    
     /// A dependency that represents a pre-compiled .xcframework.
     case xcframework(
         path: AbsolutePath,
@@ -37,7 +52,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
     case bundle(path: AbsolutePath)
 
     /// A dependency that represents a package product.
-    case packageProduct(path: AbsolutePath, product: String, isPlugin: Bool = false)
+    case packageProduct(path: AbsolutePath, product: String, type: PackageProductType)
 
     /// A dependency that represents a target that is defined in the project at the given path.
     case target(name: String, path: AbsolutePath)

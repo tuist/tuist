@@ -146,9 +146,13 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             return linking == .static
         case .bundle:
             return true
-        case let .packageProduct(_, _, isPlugin):
+        case let .packageProduct(_, _, type):
+            switch type {
             // Swift package products are currently assumed to be static
-            return !isPlugin
+            case .sources: return true
+            case .macro: return false
+            case .plugin: return false
+            }
         case let .target(name, path):
             guard let target = graphTraverser.target(path: path, name: name) else { return false }
             return target.target.product.isStatic
