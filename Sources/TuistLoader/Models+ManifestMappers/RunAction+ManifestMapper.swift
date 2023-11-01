@@ -55,6 +55,8 @@ extension TuistGraph.RunAction {
             )
         }
 
+        let launchStyle = TuistGraph.LaunchStyle.from(manifest: manifest.launchStyle)
+
         return TuistGraph.RunAction(
             configurationName: configurationName,
             attachDebugger: manifest.attachDebugger,
@@ -66,7 +68,8 @@ extension TuistGraph.RunAction {
             arguments: arguments,
             options: options,
             diagnosticsOptions: diagnosticsOptions,
-            expandVariableFromTarget: expandVariablesFromTarget
+            expandVariableFromTarget: expandVariablesFromTarget,
+            launchStyle: launchStyle
         )
     }
 }
