@@ -247,7 +247,7 @@ GEM
     pundit (2.3.1)
       activesupport (>= 3.0.0)
     que (2.3.0)
-    racc (1.7.1)
+    racc (1.7.2)
     rack (2.2.8)
     rack-mini-profiler (2.3.4)
       rack (>= 1.2.0)
