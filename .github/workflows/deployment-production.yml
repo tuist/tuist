@@ -37,5 +37,5 @@ jobs:
           ref: ${{ github.event.inputs.commit_sha }}
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
-        run: flyctl deploy --remote-only --wait-timeout 3600
+        run: flyctl deploy --local-only  --remote-only --wait-timeout 3600
 
