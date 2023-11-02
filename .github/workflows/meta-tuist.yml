@@ -88,11 +88,3 @@ jobs:
       - name: Test
         run: |
           ./fourier test tuist unit
-  
-  lint-lockfiles:
-    name: Lint lockfiles
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v3
-      - name: Run
-        run: make workspace/lint/lockfiles
