@@ -30,5 +30,7 @@ jobs:
           ref: ${{ github.event.inputs.commit_sha }}
           fetch-depth: 0
       - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       - name: Fly
         run: flyctl deploy --local-only  -c fly.staging.toml --build-arg RAILS_ENV=staging --wait-timeout 600
