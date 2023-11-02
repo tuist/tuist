@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "boot"
-
+require 'sorbet-runtime'
 require "rails/all"
 require_relative "../app/lib/environment"
 
