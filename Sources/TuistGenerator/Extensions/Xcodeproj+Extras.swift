@@ -49,10 +49,26 @@ extension PBXBuildFile {
     public func applyPlatformFilters(_ filters: PlatformFilters) {
         guard !filters.isEmpty else { return }
 
-        if filters.count == 1, let filter = filters.first {
+        if filters.count == 1,
+           let filter = filters.first,
+           useSinglePlatformFilter(for: filter) {
             platformFilter = filter.xcodeprojValue
         } else {
             platformFilters = filters.xcodeprojValue
+        }
+    }
+
+    private func useSinglePlatformFilter(
+        for platformFilter: PlatformFilter
+    ) -> Bool {
+        // Xcode uses the singlular `platformFilter` for a subset of filters
+        // when specified as a single filter, however foew newer platform filters
+        // uses the plural `platformFilters` even when specifying a single filter.
+        switch platformFilter {
+        case .catalyst, .ios:
+            return true
+        case .macos, .driverkit, .watchos, .tvos, .visionos:
+            return false
         }
     }
 }
