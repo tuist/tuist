@@ -55,6 +55,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
 
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
+        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
 
         // When
@@ -105,6 +106,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=this_is_a_udid,arch=x86_64"])
+        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
 
         // When
@@ -182,11 +184,11 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         ]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=device-id,arch=x86_64"])
-
+        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
 
         // When
-        let events = subject.test(
+        let events = try subject.test(
             target,
             scheme: scheme,
             clean: true,
