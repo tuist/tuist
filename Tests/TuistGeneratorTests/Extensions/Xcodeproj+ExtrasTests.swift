@@ -99,7 +99,7 @@ class XcodeprojExtrasTests: XCTestCase {
         buildFile.applyPlatformFilters(dependencyFilters, applicableTo: target)
 
         // Then
-        XCTAssertEqual(buildFile.platformFilter, "macos") //
-        XCTAssertNil(buildFile.platformFilters)
+        XCTAssertNil(buildFile.platformFilter)
+        XCTAssertEqual(buildFile.platformFilters, ["macos"])
     }
 }
