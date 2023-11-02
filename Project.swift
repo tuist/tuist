@@ -411,7 +411,7 @@ func targets() -> [Target] {
             ]
         ),
     ].flatMap { $0 }
-    
+
     return executableTargets + moduleTargets
 }
 
