@@ -33,4 +33,4 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Fly
-        run: flyctl deploy --local-only  -c fly.staging.toml --build-arg RAILS_ENV=staging --wait-timeout 600
+        run: flyctl deploy --remote-only -c fly.staging.toml --build-arg RAILS_ENV=staging --wait-timeout 3600
