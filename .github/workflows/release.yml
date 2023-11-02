@@ -80,7 +80,7 @@ jobs:
         token: ${{ secrets.TUIST_GITHUB_PAT_TOKEN }}
     - name: Build artifacts
       if: ${{ github.event.inputs.publish == 'true' }}
-      run: make workspace/release/bundle
+      run: ./make/tasks/workspace/release/bundle.sh
     - name: Create GitHub Release
       if: ${{ github.event.inputs.publish == 'true' }}
       uses: softprops/action-gh-release@v1

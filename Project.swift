@@ -65,6 +65,7 @@ func targets() -> [Target] {
             name: "TuistSupport",
             hasIntegrationTests: true,
             dependencies: [
+                .external(name: "AnyCodable"),
                 .external(name: "ArgumentParser"),
                 .external(name: "Checksum"),
                 .external(name: "CombineExt"),
@@ -76,8 +77,8 @@ func targets() -> [Target] {
                 .external(name: "Queuer"),
                 .external(name: "Stencil"),
                 .external(name: "StencilSwiftKit"),
-                .external(name: "Swifter"),
                 .external(name: "SwiftToolsSupport"),
+                .external(name: "Swifter"),
                 .external(name: "XcodeProj"),
                 .external(name: "ZIPFoundation"),
                 .target(name: "ProjectDescription"),
@@ -336,6 +337,12 @@ func targets() -> [Target] {
                 .target(name: "TuistGraph"),
                 .target(name: "TuistLoader"),
                 .external(name: "AnyCodable"),
+                .target(name: "TuistSupport"),
+            ]),
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+                .target(name: "TuistCoreTesting"),
             ]
         ),
         Target.module(
@@ -404,6 +411,7 @@ func targets() -> [Target] {
             ]
         ),
     ].flatMap { $0 }
+    
     return executableTargets + moduleTargets
 }
 

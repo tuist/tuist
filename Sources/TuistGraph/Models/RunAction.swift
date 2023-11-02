@@ -15,6 +15,7 @@ public struct RunAction: Equatable, Codable {
     public let options: RunActionOptions
     public let diagnosticsOptions: Set<SchemeDiagnosticsOption>
     public let expandVariableFromTarget: TargetReference?
+    public let launchStyle: LaunchStyle
 
     // MARK: - Init
 
@@ -29,7 +30,8 @@ public struct RunAction: Equatable, Codable {
         arguments: Arguments?,
         options: RunActionOptions = .init(),
         diagnosticsOptions: Set<SchemeDiagnosticsOption>,
-        expandVariableFromTarget: TargetReference? = nil
+        expandVariableFromTarget: TargetReference? = nil,
+        launchStyle: LaunchStyle = .automatically
     ) {
         self.configurationName = configurationName
         self.attachDebugger = attachDebugger
@@ -42,5 +44,6 @@ public struct RunAction: Equatable, Codable {
         self.options = options
         self.diagnosticsOptions = diagnosticsOptions
         self.expandVariableFromTarget = expandVariableFromTarget
+        self.launchStyle = launchStyle
     }
 }

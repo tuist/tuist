@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.31.2 - 2023-11-01
+
+- no changes
+
+## 3.31.1 - 2023-10-31
+
+- no changes
+
+## 3.31.0 - 2023-10-30
+
+### Added
+
+- Allow empty `.gitkeep` files in templates [#5528](https://github.com/tuist/tuist/pull/5528) by [@waltflanagan](https://github.com/waltflanagan)
+- Support optional frameworks and xcframeworks [#5525](https://github.com/tuist/tuist/pull/5525) by [@mfcollins3](https://github.com/mfcollins3)
+- Support for using a `Package.swift` instead of defining packages directly in Dependencies.swift [#5503](https://github.com/tuist/tuist/pull/5503) by [@danyf90](https://github.com/danyf90)
+
 ## 3.30.0 - 2023-10-20
 
 ### Added

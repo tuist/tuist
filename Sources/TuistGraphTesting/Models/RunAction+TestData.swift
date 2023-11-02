@@ -15,7 +15,8 @@ extension RunAction {
         arguments: Arguments? = Arguments.test(),
         options: RunActionOptions = .init(),
         diagnosticsOptions: Set<SchemeDiagnosticsOption> = [.mainThreadChecker, .performanceAntipatternChecker],
-        expandVariableFromTarget: TargetReference? = nil
+        expandVariableFromTarget: TargetReference? = nil,
+        launchStyle: LaunchStyle = .automatically
     ) -> RunAction {
         RunAction(
             configurationName: configurationName,
@@ -28,7 +29,8 @@ extension RunAction {
             arguments: arguments,
             options: options,
             diagnosticsOptions: diagnosticsOptions,
-            expandVariableFromTarget: expandVariableFromTarget
+            expandVariableFromTarget: expandVariableFromTarget,
+            launchStyle: launchStyle
         )
     }
 }

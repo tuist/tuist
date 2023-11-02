@@ -8,7 +8,6 @@ let remotePlugin = RemoteHelper(name: "remote")
 
 let dependencies = Dependencies(
     swiftPackageManager: .init(
-        [],
         targetSettings: [:]
     ),
     platforms: [.iOS, .macOS]

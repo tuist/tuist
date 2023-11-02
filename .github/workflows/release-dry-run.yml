@@ -6,7 +6,8 @@ on:
       - main
   pull_request:
     paths:
-      - Tuist/Dependencies/Lockfiles/Package.resolved
+      - Tuist/Package.swift
+      - Tuist/Package.resolved
       - Package.resolved
       - Gemfile*
       - Package.swift
@@ -27,4 +28,4 @@ jobs:
       - uses: actions/checkout@v3
       - name: Bundle
         run: |
-          make workspace/release/bundle
+          ./make/tasks/workspace/release/bundle.sh

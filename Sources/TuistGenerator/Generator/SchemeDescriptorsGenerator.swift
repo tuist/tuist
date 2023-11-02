@@ -480,6 +480,16 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             }
         }
 
+        let launchStyle: XCScheme.LaunchAction.Style = {
+            guard let style = scheme.runAction?.launchStyle else { return .auto }
+            switch style {
+            case .automatically:
+                return .auto
+            case .waitForExecutableToBeLaunched:
+                return .wait
+            }
+        }()
+
         var commandlineArguments: XCScheme.CommandLineArguments?
         var environments: [XCScheme.EnvironmentVariable]?
         var storeKitConfigurationFileReference: XCScheme.StoreKitConfigurationFileReference?
@@ -593,6 +603,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             macroExpansion: macroExpansion,
             selectedDebuggerIdentifier: debuggerIdentifier,
             selectedLauncherIdentifier: launcherIdentifier,
+            launchStyle: launchStyle,
             askForAppToLaunch: launchActionConstants.askForAppToLaunch,
             pathRunnable: pathRunnable,
             locationScenarioReference: locationScenarioReference,

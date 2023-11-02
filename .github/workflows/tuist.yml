@@ -149,7 +149,7 @@ jobs:
       - name: Run tests
         if: ${{ (github.event.pull_request.head.repo.full_name == github.repository) }}
         run: ./fourier test tuist acceptance projects/tuist/features/${{ matrix.feature }}.feature
-  
+
   lint:
     name: Lint
     runs-on: macos-13
@@ -159,11 +159,11 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Run
         run: make workspace/lint
-  
+
   lint-lockfiles:
     name: Lint lockfiles
     runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
       - name: Run
-        run: make workspace/lint/lockfiles
+        run: ./make/tasks/workspace/lint/lockfiles.sh

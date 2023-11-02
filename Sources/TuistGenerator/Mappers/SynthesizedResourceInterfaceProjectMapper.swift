@@ -247,6 +247,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     "Tuist\(templateName)+\(name)",
                     try synthesizedResourceInterfacesGenerator.render(
                         parser: resourceSynthesizer.parser,
+                        parserOptions: resourceSynthesizer.parserOptions,
                         templateString: templateString,
                         name: target.productName.camelized.uppercasingFirst,
                         bundleName: project.options.disableBundleAccessors ? nil : "Bundle.module",

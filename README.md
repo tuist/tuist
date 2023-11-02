@@ -434,6 +434,8 @@ Thanks goes to these wonderful people:
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="http://dc.wtf"><img src="https://avatars.githubusercontent.com/u/643865?v=4" width="100px;" alt=""/><br /><sub><b>dc</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/baekteun"><img src="https://avatars.githubusercontent.com/u/74440939?v=4" width="100px;" alt=""/><br /><sub><b>baegteun</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://vcoutasso.com"><img src="https://avatars.githubusercontent.com/u/44986513?v=4" width="100px;" alt=""/><br /><sub><b>Vinícius Couto Tasso</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://blog.jihoon.me"><img src="https://avatars.githubusercontent.com/u/68891494?v=4" width="100px;" alt=""/><br /><sub><b>안지훈</b></sub></a></td>
     </tr>
   </tbody>
 </table>

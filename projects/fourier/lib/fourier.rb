@@ -22,9 +22,6 @@ module Fourier
     desc "build", "Build projects"
     subcommand "build", Commands::Build
 
-    desc "update", "Update project's components"
-    subcommand "update", Commands::Update
-
     desc "fixture", "Generate a fixture"
     option(
       :path,

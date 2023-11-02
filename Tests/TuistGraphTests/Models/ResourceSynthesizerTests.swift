@@ -9,6 +9,7 @@ final class ResourceSynthesizerTests: TuistUnitTestCase {
         // Given
         let subject = ResourceSynthesizer(
             parser: .coreData,
+            parserOptions: ["key": "value"],
             extensions: [
                 "extension1",
                 "extension2",
