@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-ROOT_DIR=$($SCRIPT_DIR/../../../utilities/root_dir.sh)
+ROOT_DIR=$($SCRIPT_DIR/../../utilities/root_dir.sh)
 
 swift package --package-path $ROOT_DIR --allow-writing-to-directory .build/documentation generate-documentation --target tuist --disable-indexing --output-path .build/documentation --transform-for-static-hosting
 echo "/index.html	/documentation/tuist" > "$ROOT_DIR/.build/documentation/_redirects"
