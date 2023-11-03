@@ -48,6 +48,12 @@ struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var os: String?
 
+    @Flag(
+        name: .long,
+        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
+    )
+    var rosetta: Bool = false
+
     @Option(
         name: [.long, .customShort("C")],
         help: "The configuration to be used when testing the scheme."
@@ -163,6 +169,7 @@ struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             path: absolutePath,
             deviceName: device,
             osVersion: os,
+            rosetta: rosetta,
             skipUITests: skipUITests,
             resultBundlePath: resultBundlePath.map {
                 try AbsolutePath(

@@ -38,7 +38,28 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         system.succeedCommand(command, output: "output")
 
         // When
-        let events = try subject.build(target, scheme: scheme, destination: nil, clean: true, arguments: [])
+        let events = try subject.build(target, scheme: scheme, destination: nil, rosetta: false, clean: true, arguments: [])
+
+        let result = try await events.toArray()
+        XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
+    }
+
+    func test_build_without_device_id_but_arch() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Project.xcworkspace")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+        let scheme = "Scheme"
+        let shouldOutputBeColoured = true
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
+
+        var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
+        command.append(contentsOf: target.xcodebuildArguments)
+        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
+        system.succeedCommand(command, output: "output")
+
+        // When
+        let events = try subject.build(target, scheme: scheme, destination: nil, rosetta: true, clean: true, arguments: [])
 
         let result = try await events.toArray()
         XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
@@ -60,7 +81,43 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         system.succeedCommand(command, output: "output")
 
         // When
-        let events = try subject.build(target, scheme: scheme, destination: .device("this_is_a_udid"), clean: true, arguments: [])
+        let events = try subject.build(
+            target,
+            scheme: scheme,
+            destination: .device("this_is_a_udid"),
+            rosetta: false,
+            clean: true,
+            arguments: []
+        )
+
+        let result = try await events.toArray()
+        XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
+    }
+
+    func test_build_with_device_id_and_arch() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Project.xcworkspace")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+        let scheme = "Scheme"
+        let shouldOutputBeColoured = true
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
+
+        var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
+        command.append(contentsOf: target.xcodebuildArguments)
+        command.append(contentsOf: ["-destination", "id=this_is_a_udid,arch=x86_64"])
+        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
+        system.succeedCommand(command, output: "output")
+
+        // When
+        let events = try subject.build(
+            target,
+            scheme: scheme,
+            destination: .device("this_is_a_udid"),
+            rosetta: true,
+            clean: true,
+            arguments: []
+        )
 
         let result = try await events.toArray()
         XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
@@ -94,6 +151,49 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             clean: true,
             destination: .device("device-id"),
+            rosetta: false,
+            derivedDataPath: nil,
+            resultBundlePath: nil,
+            arguments: [],
+            retryCount: 0,
+            testTargets: [],
+            skipTestTargets: [],
+            testPlanConfiguration: nil
+        )
+
+        let result = try await events.toArray()
+        XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
+    }
+
+    func test_test_when_device_arch() async throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Project.xcworkspace")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+        let scheme = "Scheme"
+        let shouldOutputBeColoured = true
+        environment.shouldOutputBeColoured = shouldOutputBeColoured
+
+        var command = [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "clean",
+            "test",
+            "-scheme",
+            scheme,
+        ]
+        command.append(contentsOf: target.xcodebuildArguments)
+        command.append(contentsOf: ["-destination", "id=device-id,arch=x86_64"])
+        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
+        system.succeedCommand(command, output: "output")
+
+        // When
+        let events = try subject.test(
+            target,
+            scheme: scheme,
+            clean: true,
+            destination: .device("device-id"),
+            rosetta: true,
             derivedDataPath: nil,
             resultBundlePath: nil,
             arguments: [],
@@ -137,6 +237,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             clean: true,
             destination: .mac,
+            rosetta: false,
             derivedDataPath: nil,
             resultBundlePath: nil,
             arguments: [],
@@ -180,6 +281,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             clean: true,
             destination: .mac,
+            rosetta: false,
             derivedDataPath: derivedDataPath,
             resultBundlePath: nil,
             arguments: [],
@@ -223,6 +325,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             clean: true,
             destination: .mac,
+            rosetta: false,
             derivedDataPath: nil,
             resultBundlePath: resultBundlePath,
             arguments: [],
