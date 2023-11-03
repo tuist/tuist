@@ -51,7 +51,8 @@ extension PBXBuildFile {
 
         if filters.count == 1,
            let filter = filters.first,
-           useSinglePlatformFilter(for: filter) {
+           useSinglePlatformFilter(for: filter)
+        {
             platformFilter = filter.xcodeprojValue
         } else {
             platformFilters = filters.xcodeprojValue
