@@ -22,25 +22,6 @@ final class SettingsHelper {
         buildSettings = settings.toAny()
     }
 
-    /// Overlays a SettingsDictionary by adding a `[sdk=<sdk>*]` qualifier
-    /// e.g. for a multiplatform target
-    ///  `LD_RUNPATH_SEARCH_PATHS = @executable_path/Frameworks`
-    ///  `LD_RUNPATH_SEARCH_PATHS[sdk=macosx*] = @executable_path/../Frameworks`
-    func overlay(
-        settings: inout SettingsDictionary,
-        with other: SettingsDictionary,
-        for platform: Platform
-    ) {
-        other.forEach { key, newValue in
-            if settings[key] == nil {
-                settings[key] = newValue
-            } else if settings[key] != newValue {
-                let newKey = "\(key)[sdk=\(platform.xcodeSdkRoot)*]"
-                settings[newKey] = newValue
-            }
-        }
-    }
-
     func settingsProviderPlatform(_ platform: Platform) -> BuildSettingsProvider.Platform? {
         switch platform {
         case .iOS: return .iOS
