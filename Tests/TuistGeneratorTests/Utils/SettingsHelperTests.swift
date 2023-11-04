@@ -205,7 +205,7 @@ final class SettingsHelpersTests: XCTestCase {
         settings["B"] = "b value"
 
         // When
-        subject.overlay(settings: &settings, with: [
+        settings.overlay(with: [
             "A": "overlayed value",
             "B": "b value",
             "C": "c value",

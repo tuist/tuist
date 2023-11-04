@@ -3,7 +3,7 @@ import TSCBasic
 
 public typealias SettingsDictionary = [String: SettingValue]
 
-public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
+public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
     case string(String)
     case array([String])
 
@@ -24,6 +24,26 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
             return self
         case .string:
             return self
+        }
+    }
+}
+
+extension SettingsDictionary {
+    /// Overlays a SettingsDictionary by adding a `[sdk=<sdk>*]` qualifier
+    /// e.g. for a multiplatform target
+    ///  `LD_RUNPATH_SEARCH_PATHS = @executable_path/Frameworks`
+    ///  `LD_RUNPATH_SEARCH_PATHS[sdk=macosx*] = @executable_path/../Frameworks`
+    public mutating func overlay(
+        with other: SettingsDictionary,
+        for platform: Platform
+    ) {
+        other.forEach { key, newValue in
+            if self[key] == nil {
+                self[key] = newValue
+            } else if self[key] != newValue {
+                let newKey = "\(key)[sdk=\(platform.xcodeSdkRoot)*]"
+                self[newKey] = newValue
+            }
         }
     }
 }
