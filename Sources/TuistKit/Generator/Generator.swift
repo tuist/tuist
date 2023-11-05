@@ -10,14 +10,14 @@ import TuistPlugin
 import TuistSigning
 import TuistSupport
 
-protocol Generating {
+public protocol Generating {
     @discardableResult
     func load(path: AbsolutePath) async throws -> Graph
     func generate(path: AbsolutePath) async throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph)
 }
 
-class Generator: Generating {
+public class Generator: Generating {
     private let graphLinter: GraphLinting = GraphLinter()
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
     private let generator: DescriptorGenerating = DescriptorGenerator()
@@ -30,7 +30,7 @@ class Generator: Generating {
     private let manifestGraphLoader: ManifestGraphLoading
     private var lintingIssues: [LintingIssue] = []
 
-    init(
+    public init(
         manifestLoader: ManifestLoading,
         manifestGraphLoader: ManifestGraphLoading
     ) {
@@ -43,12 +43,12 @@ class Generator: Generating {
         self.manifestGraphLoader = manifestGraphLoader
     }
 
-    func generate(path: AbsolutePath) async throws -> AbsolutePath {
+    public func generate(path: AbsolutePath) async throws -> AbsolutePath {
         let (generatedPath, _) = try await generateWithGraph(path: path)
         return generatedPath
     }
 
-    func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph) {
+    public func generateWithGraph(path: AbsolutePath) async throws -> (AbsolutePath, Graph) {
         let (graph, sideEffects) = try await load(path: path)
 
         // Load
@@ -77,7 +77,7 @@ class Generator: Generating {
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
 
-    func load(path: AbsolutePath) async throws -> Graph {
+    public func load(path: AbsolutePath) async throws -> Graph {
         try await load(path: path).0
     }
 

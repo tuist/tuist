@@ -8,6 +8,8 @@ public enum MockCloudClientingError: Error {
 }
 
 public final class MockCloudClient: CloudClienting {
+    public init() {}
+
     // MARK: Factories
 
     public var invokedRequest = false

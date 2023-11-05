@@ -1,6 +1,5 @@
 import Foundation
 import TSCBasic
-import TuistAnalytics
 import TuistKit
 import TuistLoader
 import TuistSupport
@@ -15,16 +14,7 @@ private enum TuistApp {
 
         TuistSupport.LogOutput.bootstrap()
 
-        let path: AbsolutePath
-        if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
-            path = try AbsolutePath(validating: CommandLine.arguments[argumentIndex + 1], relativeTo: .current)
-        } else {
-            path = .current
-        }
-
         try TuistSupport.Environment.shared.bootstrap()
-
-        try TuistAnalytics.bootstrap(config: ConfigLoader().loadConfig(path: path))
 
         await TuistCommand.main()
     }

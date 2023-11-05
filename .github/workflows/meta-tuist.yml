@@ -62,27 +62,7 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Generate
         run: |
-          ARGS="--no-open tuist" make tuist/generate
-  generate-with-cloud:
-    name: Generate with Xcode and TuistCloud
-    runs-on: macos-13
-    env:
-      TUIST_INCLUDE_TUIST_CLOUD: 1
-    steps:
-      - uses: actions/checkout@v3
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: actions/checkout@v3
-        name: Clone tuist/TuistCloud
-        with:
-          repository: tuist/TuistCloud
-          token: ${{ secrets.TUIST_GITHUB_PAT_TOKEN }}
-          path: TuistCloud
-          fetch-depth: 0
-      - name: Generate
-        run: |
-          make workspace/up
-          ARGS="--no-open tuist" make tuist/generate
+          ARGS="--no-open" make tuist/generate
   test:
     name: Test with Xcode
     runs-on: macos-13
