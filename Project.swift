@@ -430,5 +430,8 @@ let project = Project(
     additionalFiles: [
         "CHANGELOG.md",
         "README.md",
+        "Sources/tuist/tuist.docc/**/*.md",
+        "Sources/tuist/tuist.docc/**/*.tutorial",
+        "Sources/tuist/tuist.docc/**/*.swift",
     ]
 )

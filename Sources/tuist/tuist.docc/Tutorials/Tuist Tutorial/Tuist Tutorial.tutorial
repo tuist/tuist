@@ -10,5 +10,6 @@
         
         @TutorialReference(tutorial: "doc:Tuist-Tutorial---Install-Uninstall-Tuist")
         @TutorialReference(tutorial: "doc:Tuist-Tutorial---Create-Project")
+        @TutorialReference(tutorial: "doc:Tuist-Tutorial---Add-External-Dependencies")
     }
 }
