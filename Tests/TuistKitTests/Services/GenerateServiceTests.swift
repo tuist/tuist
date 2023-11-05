@@ -29,7 +29,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
         opener = MockOpener()
         generator = MockGenerator()
         generatorFactory = MockGeneratorFactory()
-        generatorFactory.stubbedFocusResult = generator
+        generatorFactory.stubbedDefaultResult = generator
         clock = StubClock()
         subject = GenerateService(clock: clock, opener: opener, generatorFactory: generatorFactory)
     }
@@ -53,13 +53,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
             try await subject
                 .run(
                     path: nil,
-                    sources: ["Target"],
-                    noOpen: true,
-                    xcframeworks: false,
-                    destination: [],
-                    profile: nil,
-                    ignoreCache: false,
-                    targetsToSkipCache: []
+                    noOpen: true
                 )
             XCTFail("Must throw")
         } catch {
@@ -76,13 +70,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
 
         try await subject.run(
             path: nil,
-            sources: ["Target"],
-            noOpen: false,
-            xcframeworks: false,
-            destination: [],
-            profile: nil,
-            ignoreCache: false,
-            targetsToSkipCache: []
+            noOpen: false
         )
 
         XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
@@ -103,13 +91,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
         // When
         try await subject.run(
             path: nil,
-            sources: ["Target"],
-            noOpen: false,
-            xcframeworks: false,
-            destination: [],
-            profile: nil,
-            ignoreCache: false,
-            targetsToSkipCache: []
+            noOpen: false
         )
 
         // Then

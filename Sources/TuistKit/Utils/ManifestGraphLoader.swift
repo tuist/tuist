@@ -16,14 +16,14 @@ import TuistSupport
 /// - A graph is loaded from the models
 ///
 /// - Note: This is a simplified implementation that loads a graph without applying any mappers or running any linters
-protocol ManifestGraphLoading {
+public protocol ManifestGraphLoading {
     /// Loads a Workspace or Project Graph at a given path based on manifest availability
     /// - Note: This will search for a Workspace manifest first, then fallback to searching for a Project manifest
     func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue])
     // swiftlint:disable:previous large_tuple
 }
 
-final class ManifestGraphLoader: ManifestGraphLoading {
+public final class ManifestGraphLoader: ManifestGraphLoading {
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
     private let recursiveManifestLoader: RecursiveManifestLoading
@@ -36,7 +36,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     private let workspaceMapper: WorkspaceMapping
     private let graphMapper: GraphMapping
 
-    convenience init(
+    public convenience init(
         manifestLoader: ManifestLoading,
         workspaceMapper: WorkspaceMapping,
         graphMapper: GraphMapping
@@ -85,7 +85,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     }
 
     // swiftlint:disable:next large_tuple
-    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue]) {
+    public func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor], [LintingIssue]) {
         try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
 
         // Load Plugins

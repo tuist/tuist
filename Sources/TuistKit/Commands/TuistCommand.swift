@@ -1,6 +1,5 @@
 import ArgumentParser
 import Foundation
-import TuistAnalytics
 import TuistSupport
 
 public struct TuistCommand: AsyncParsableCommand {
@@ -12,7 +11,6 @@ public struct TuistCommand: AsyncParsableCommand {
             abstract: "Generate, build and test your Xcode projects.",
             subcommands: [
                 BuildCommand.self,
-                CacheCommand.self,
                 CleanCommand.self,
                 DumpCommand.self,
                 EditCommand.self,
@@ -20,7 +18,6 @@ public struct TuistCommand: AsyncParsableCommand {
                 GenerateCommand.self,
                 GraphCommand.self,
                 InitCommand.self,
-                CloudCommand.self,
                 MigrationCommand.self,
                 PluginCommand.self,
                 RunCommand.self,
@@ -38,7 +35,12 @@ public struct TuistCommand: AsyncParsableCommand {
     )
     var isTuistEnvHelp: Bool = false
 
-    public static func main(_ arguments: [String]? = nil) async {
+    public static func main(
+        _ arguments: [String]? = nil,
+        parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot,
+        execute: ((_ command: ParsableCommand, _ commandArguments: [String]) async throws -> Void)? = nil
+    ) async {
+        let execute = execute ?? Self.execute
         let errorHandler = ErrorHandler()
         let executeCommand: () async throws -> Void
         let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
@@ -53,8 +55,8 @@ public struct TuistCommand: AsyncParsableCommand {
             let command = try parseAsRoot(processedArguments)
             executeCommand = {
                 try await execute(
-                    command: command,
-                    commandArguments: processedArguments
+                    command,
+                    processedArguments
                 )
             }
         } catch {
@@ -102,21 +104,13 @@ public struct TuistCommand: AsyncParsableCommand {
 
     private static func execute(
         command: ParsableCommand,
-        commandArguments: [String]
+        commandArguments _: [String]
     ) async throws {
         var command = command
-        if Environment.shared.isStatsEnabled {
-            let trackableCommand = TrackableCommand(
-                command: command,
-                commandArguments: commandArguments
-            )
-            try await trackableCommand.run()
+        if var asyncCommand = command as? AsyncParsableCommand {
+            try await asyncCommand.run()
         } else {
-            if var asyncCommand = command as? AsyncParsableCommand {
-                try await asyncCommand.run()
-            } else {
-                try command.run()
-            }
+            try command.run()
         }
     }
 

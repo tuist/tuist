@@ -103,17 +103,4 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
         // Then
         XCTAssertContainsElementOfType(got, LastUpgradeVersionWorkspaceMapper.self)
     }
-
-    func test_cache_contains_the_generate_cacheable_schemes_workspace_mapper() throws {
-        // Given
-        let includedTargets = Set(arrayLiteral: "MyTarget")
-        subject = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMapperFactory.default()))
-
-        // When
-        let got = subject.cache(includedTargets: includedTargets)
-
-        // Then
-        let mapper = XCTAssertContainsElementOfType(got, GenerateCacheableSchemesWorkspaceMapper.self)
-        XCTAssertEqual(mapper?.includedTargets, includedTargets)
-    }
 }

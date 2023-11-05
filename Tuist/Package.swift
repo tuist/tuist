@@ -21,7 +21,5 @@ let package = Package(
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", from: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", from: "6.6.2"),
         .package(url: "https://github.com/tuist/XcodeProj", from: "8.15.0"),
-        .package(url: "https://github.com/tuist/swift-openapi-runtime", branch: "swift-tools-version"),
-        .package(url: "https://github.com/tuist/swift-openapi-urlsession", branch: "swift-tools-version"),
     ]
 )
