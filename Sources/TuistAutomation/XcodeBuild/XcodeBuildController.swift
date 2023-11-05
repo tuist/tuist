@@ -38,6 +38,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         _ target: XcodeBuildTarget,
         scheme: String,
         destination: XcodeBuildDestination?,
+        rosetta: Bool,
         clean: Bool = false,
         arguments: [XcodeBuildArgument]
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
@@ -61,7 +62,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Destination
         switch destination {
         case let .device(udid):
-            command.append(contentsOf: ["-destination", "id=\(udid)"])
+            var value = ["id=\(udid)"]
+            if rosetta {
+                value += ["arch=x86_64"]
+            }
+            command.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
             command.append(contentsOf: ["-destination", SimulatorController().macOSDestination()])
         case nil:
@@ -76,6 +81,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         scheme: String,
         clean: Bool = false,
         destination: XcodeBuildDestination,
+        rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument],
@@ -109,7 +115,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Destination
         switch destination {
         case let .device(udid):
-            command.append(contentsOf: ["-destination", "id=\(udid)"])
+            var value = ["id=\(udid)"]
+            if rosetta {
+                value += ["arch=x86_64"]
+            }
+            command.append(contentsOf: ["-destination", value.joined(separator: ",")])
         case .mac:
             command.append(contentsOf: ["-destination", SimulatorController().macOSDestination()])
         }

@@ -10,6 +10,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         String,
         XcodeBuildDestination?,
         Bool,
+        Bool,
         [XcodeBuildArgument]
     ) -> [SystemEvent<XcodeBuildOutput>])?
 
@@ -17,11 +18,12 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         _ target: XcodeBuildTarget,
         scheme: String,
         destination: XcodeBuildDestination?,
+        rosetta: Bool,
         clean: Bool,
         arguments: [XcodeBuildArgument]
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let buildStub {
-            return buildStub(target, scheme, destination, clean, arguments).asAsyncThrowingStream()
+            return buildStub(target, scheme, destination, rosetta, clean, arguments).asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {
                 throw TestError(
@@ -37,6 +39,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             String,
             Bool,
             XcodeBuildDestination,
+            Bool,
             AbsolutePath?,
             AbsolutePath?,
             [XcodeBuildArgument],
@@ -53,6 +56,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         scheme: String,
         clean: Bool,
         destination: XcodeBuildDestination,
+        rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument],
@@ -67,6 +71,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                 scheme,
                 clean,
                 destination,
+                rosetta,
                 derivedDataPath,
                 resultBundlePath,
                 arguments,

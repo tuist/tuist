@@ -49,6 +49,12 @@ struct RunCommand: AsyncParsableCommand {
     )
     var os: String?
 
+    @Flag(
+        name: .long,
+        help: "When passed, append arch=x86_64 to the 'destination' to run simulator in a Rosetta mode."
+    )
+    var rosetta: Bool = false
+
     @Argument(help: "The scheme to be run.")
     var scheme: String
 
@@ -67,6 +73,7 @@ struct RunCommand: AsyncParsableCommand {
             configuration: configuration,
             device: device,
             version: os,
+            rosetta: rosetta,
             arguments: arguments
         )
     }

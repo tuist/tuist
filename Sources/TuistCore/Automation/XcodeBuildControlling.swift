@@ -20,6 +20,7 @@ public protocol XcodeBuildControlling {
         _ target: XcodeBuildTarget,
         scheme: String,
         destination: XcodeBuildDestination?,
+        rosetta: Bool,
         clean: Bool,
         arguments: [XcodeBuildArgument]
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
@@ -41,6 +42,7 @@ public protocol XcodeBuildControlling {
         scheme: String,
         clean: Bool,
         destination: XcodeBuildDestination,
+        rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument],
