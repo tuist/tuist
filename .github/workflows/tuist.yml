@@ -117,7 +117,7 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Run tests
         if: ${{ (github.event.pull_request.head.repo.full_name == github.repository) }}
-        run: FEATURE=projects/tuist/features/${{ matrix.feature }}.feature make workspace/acceptance-test
+        run: FEATURE=projects/tuist/features/${{ matrix.feature }}.feature make tuist/acceptance-test
 
   lint:
     name: Lint

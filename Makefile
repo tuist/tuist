@@ -13,11 +13,11 @@ tuist/build:
 	./make/tasks/tuist/build.sh $(ARGS)
 tuist/test:
 	./make/tasks/tuist/test.sh $(ARGS)
-
+tuist/acceptance-test:
+	./make/tasks/tuist/acceptance-test.sh $(FEATURE)
+	
 # Shared
 workspace/lint:
 	./make/tasks/workspace/lint.sh $(ARGS)
 workspace/lint-fix:
 	./make/tasks/workspace/lint-fix.sh $(ARGS)
-workspace/acceptance-test:
-	./make/tasks/workspace/acceptance-test.sh $(FEATURE)
