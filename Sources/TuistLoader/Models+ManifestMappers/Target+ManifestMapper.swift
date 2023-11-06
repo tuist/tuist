@@ -151,7 +151,6 @@ extension TuistGraph.Target {
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies
-//                platform: TuistGraph.Platform.from(manifest: manifest.platform)
             )
         }
 
