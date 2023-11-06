@@ -16,7 +16,6 @@ on:
       - projects/tuist/features/**
       - projects/tuist/fixtures/**
       - .package.resolved
-      - projects/fourier/**
       - .github/workflows/meta-tuist.yml
 
 concurrency:
