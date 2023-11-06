@@ -2,6 +2,7 @@ import AnyCodable
 import ArgumentParser
 import Foundation
 import TuistCore
+import TuistSupport
 
 public struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     public init() {}

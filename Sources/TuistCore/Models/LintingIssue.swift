@@ -50,12 +50,9 @@ extension [LintingIssue] {
 
     public func printWarningsIfNeeded() {
         if count == 0 { return }
-
         let warningIssues = filter { $0.severity == .warning }
-        logger.warning("")
         for issue in warningIssues {
-            logger.warning("Warning: \(issue.description)")
+            WarningController.shared.append(warning: issue.description)
         }
-        logger.warning("")
     }
 }

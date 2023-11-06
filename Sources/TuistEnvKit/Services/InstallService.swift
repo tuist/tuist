@@ -21,7 +21,7 @@ final class InstallService {
         let parsedVersion = try Version(versionString: version, usesLenientParsing: true)
         let versions = versionsController.versions().map(\.description)
         if versions.contains(parsedVersion.description) {
-            logger.warning("Version \(parsedVersion) already installed, skipping")
+            WarningController.shared.append(warning: "Version \(parsedVersion) already installed, skipping")
             return
         }
         try installer.install(version: parsedVersion.description)

@@ -149,6 +149,7 @@ func targets() -> [Target] {
             name: "TuistGraph",
             dependencies: [
                 .target(name: "TuistSupport"),
+                .external(name: "AnyCodable"),
             ],
             testDependencies: [
                 .target(name: "TuistCore"),

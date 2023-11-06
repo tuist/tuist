@@ -41,7 +41,7 @@ public struct StandardLogHandler: LogHandler {
                 case .error:
                     string = message.description.red()
                 case .warning:
-                    string = message.description.yellow()
+                    string = message.description.yellow().bold()
                 case .notice, .info, .debug, .trace:
                     string = message.description
                 }

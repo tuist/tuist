@@ -102,7 +102,7 @@ final class CertificateParser: CertificateParsing {
                 .capture(["/usr/bin/openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-subject"])
         } catch let TuistSupport.SystemError.terminated(_, _, standardError) {
             if let string = String(data: standardError, encoding: .utf8) {
-                logger.warning("Parsing subject of \(path) failed with: \(string)")
+                WarningController.shared.append(warning: "Parsing subject of \(path) failed with: \(string)")
             }
             throw CertificateParserError.fileParsingFailed(path)
         } catch {
@@ -117,7 +117,7 @@ final class CertificateParser: CertificateParsing {
                 .spm_chomp()
         } catch let TuistSupport.SystemError.terminated(_, _, standardError) {
             if let string = String(data: standardError, encoding: .utf8) {
-                logger.warning("Parsing fingerprint of \(path) failed with: \(string)")
+                WarningController.shared.append(warning: "Parsing fingerprint of \(path) failed with: \(string)")
             }
             throw CertificateParserError.fileParsingFailed(path)
         } catch {

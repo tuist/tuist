@@ -67,11 +67,14 @@ public struct TuistCommand: AsyncParsableCommand {
         }
 
         do {
+            defer { WarningController.shared.flush() }
             try await executeCommand()
         } catch let error as FatalError {
+            WarningController.shared.flush()
             errorHandler.fatal(error: error)
             _exit(exitCode(for: error).rawValue)
         } catch {
+            WarningController.shared.flush()
             if let parsedError {
                 handleParseError(parsedError)
             }
