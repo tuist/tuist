@@ -42,7 +42,7 @@ tuist build # Builds your project
 
 ## Sample projects 🔬
 
-You can find some sample projects in the [fixtures folder](projects/tuist/fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
+You can find some sample projects in the [fixtures folder](fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
 
 ## Want to contribute?
 

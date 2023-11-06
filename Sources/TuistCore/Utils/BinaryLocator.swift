@@ -63,7 +63,7 @@ public final class BinaryLocator: BinaryLocating {
             .removingLastComponent()
             .removingLastComponent()
             .removingLastComponent()
-            .appending(try RelativePath(validating: "projects/tuist/vendor"))
+            .appending(try RelativePath(validating: "vendor"))
 
         if FileHandler.shared.exists(bundlePath) {
             let compilationCommand = [
