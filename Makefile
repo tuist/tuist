@@ -9,7 +9,13 @@ tuist/edit:
 	./make/tasks/tuist/edit.sh
 tuist/generate:
 	./make/tasks/tuist/generate.sh $(ARGS)
-
+tuist/build:
+	./make/tasks/tuist/build.sh $(ARGS)
+tuist/test:
+	./make/tasks/tuist/test.sh $(ARGS)
+tuist/acceptance-test:
+	./make/tasks/tuist/acceptance-test.sh $(FEATURE)
+	
 # Shared
 workspace/lint:
 	./make/tasks/workspace/lint.sh $(ARGS)

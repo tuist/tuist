@@ -32,37 +32,6 @@ env:
   NODE_VERSION: 16.17.0
 
 jobs:
-  unit_tests:
-    name: Unit tests with Xcode
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v3
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: actions/cache@v3
-        name: 'Cache Tuist .build folder'
-        with:
-          path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v3
-        with:
-          path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
-      - name: Bundle install
-        run: |
-          bundle config path vendor/bundle
-          bundle install --jobs 4 --retry 3
-      - name: Run tests
-        run: |
-          ./fourier test tuist unit
   release_build:
     name: Release build with Xcode
     runs-on: macos-13
@@ -148,7 +117,7 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Run tests
         if: ${{ (github.event.pull_request.head.repo.full_name == github.repository) }}
-        run: ./fourier test tuist acceptance projects/tuist/features/${{ matrix.feature }}.feature
+        run: FEATURE=projects/tuist/features/${{ matrix.feature }}.feature make tuist/acceptance-test
 
   lint:
     name: Lint

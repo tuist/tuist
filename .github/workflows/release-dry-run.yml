@@ -13,7 +13,6 @@ on:
       - Package.swift
       - Sources/**
       - Project.swift
-      - projects/fourier/**
       - .github/workflows/release-dry-run.yml
 
 env:

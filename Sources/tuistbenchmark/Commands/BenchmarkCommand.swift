@@ -59,10 +59,10 @@ struct BenchmarkCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the fixture to user for benchmarking.",
+        help: "The path to the fixture to use for benchmarking.",
         completion: .directory
     )
-    var fixture: AbsolutePath
+    var fixture: AbsolutePath?
 
     @Option(
         name: .shortAndLong,
