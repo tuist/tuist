@@ -256,6 +256,8 @@ extension ProjectAutomation.Target {
             return .package(product: product)
         case let .packagePlugin(product):
             return .packagePlugin(product: product)
+        case let .packageMacro(product):
+            return .packageMacro(product: product)
         case let .sdk(name, status):
             let projectAutomationStatus: ProjectAutomation.SDKStatus
             switch status {

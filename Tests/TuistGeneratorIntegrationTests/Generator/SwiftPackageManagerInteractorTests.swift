@@ -41,7 +41,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             packages: [project.path: ["Test": package]],
-            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .sources): Set()]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -83,7 +83,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             packages: [project.path: ["Test": package]],
-            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .macro): Set()]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -126,7 +126,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             packages: [project.path: ["Test": package]],
-            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .sources): Set()]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -208,7 +208,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             packages: [project.path: ["Test": package]],
-            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .sources): Set()]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 

@@ -176,10 +176,13 @@ public final class GraphLoader: GraphLoading {
                 )
             }
         case let .package(product):
-            return try loadPackage(fromPath: path, productName: product, isPlugin: false)
+            return try loadPackage(fromPath: path, productName: product, type: .sources)
 
         case let .packagePlugin(product):
-            return try loadPackage(fromPath: path, productName: product, isPlugin: true)
+            return try loadPackage(fromPath: path, productName: product, type: .plugin)
+
+        case let .packageMacro(product):
+            return try loadPackage(fromPath: path, productName: product, type: .macro)
 
         case .xctest:
             return try platforms.map { platform in
@@ -286,14 +289,18 @@ public final class GraphLoader: GraphLoading {
         return .sdk(name: metadata.name, path: metadata.path, status: metadata.status, source: metadata.source)
     }
 
-    private func loadPackage(fromPath: AbsolutePath, productName: String, isPlugin: Bool) throws -> GraphDependency {
+    private func loadPackage(
+        fromPath: AbsolutePath,
+        productName: String,
+        type: GraphDependency.PackageProductType
+    ) throws -> GraphDependency {
         // TODO: `fromPath` isn't quite correct as it reflects the path where the dependency was declared
         // and doesn't uniquely identify it. It's been copied from the previous implementation to maintain
         // existing behaviour and should be fixed separately
         .packageProduct(
             path: fromPath,
             product: productName,
-            isPlugin: isPlugin
+            type: type
         )
     }
 

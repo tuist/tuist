@@ -100,7 +100,7 @@ extension GraphDependency {
             return path.basenameWithoutExt
         case let .bundle(path):
             return path.basenameWithoutExt
-        case let .packageProduct(path: _, product: product, isPlugin: _):
+        case let .packageProduct(path: _, product: product, type: _):
             return product
         case let .sdk(
             name: name,

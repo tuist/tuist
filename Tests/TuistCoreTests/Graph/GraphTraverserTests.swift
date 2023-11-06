@@ -3919,7 +3919,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let package = Package.remote(url: "https://git.tuist.io", requirement: .branch("main"))
         let graph = Graph.test(
             packages: [path: ["Test": package]],
-            dependencies: [.packageProduct(path: path, product: "Test"): Set()]
+            dependencies: [.packageProduct(path: path, product: "Test", type: .sources): Set()]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 

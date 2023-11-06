@@ -116,7 +116,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             ],
             dependencies: [
                 .target(name: graphTarget.target.name, path: graphTarget.path): [
-                    .packageProduct(path: project.path, product: "A"),
+                    .packageProduct(path: project.path, product: "A", type: .sources),
                 ],
             ]
         )
@@ -363,7 +363,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             ],
             dependencies: [
                 .target(name: graphTarget.target.name, path: graphTarget.path): [
-                    .packageProduct(path: project.path, product: "A"),
+                    .packageProduct(path: project.path, product: "A", type: .sources),
                 ],
             ]
         )

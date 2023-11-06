@@ -32,9 +32,9 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            appDependency: Set([frameworkDependency, .packageProduct(path: path, product: "Package")]),
-            frameworkDependency: Set([.packageProduct(path: path, product: "Package")]),
-            .packageProduct(path: path, product: "Package"): Set(),
+            appDependency: Set([frameworkDependency, .packageProduct(path: path, product: "Package", type: .sources)]),
+            frameworkDependency: Set([.packageProduct(path: path, product: "Package", type: .sources)]),
+            .packageProduct(path: path, product: "Package", type: .sources): Set(),
         ]
         let graph = Graph.test(
             path: path,
@@ -67,7 +67,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
 
-        let plugin = GraphDependency.packageProduct(path: path, product: "Package", isPlugin: true)
+        let plugin = GraphDependency.packageProduct(path: path, product: "Package", type: .plugin)
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([frameworkDependency, plugin]),
             frameworkDependency: Set([plugin]),
@@ -1091,7 +1091,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let watchAppDependency = GraphDependency.target(name: watchApp.name, path: path)
         let watchAppExtensionDependency = GraphDependency.target(name: watchAppExtension.name, path: path)
-        let swiftPackage = GraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage")
+        let swiftPackage = GraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage", type: .sources)
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             // apps declare they bundle watch apps via dependencies
@@ -1132,7 +1132,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let watchAppDependency = GraphDependency.target(name: watchApp.name, path: path)
         let watchAppExtensionDependency = GraphDependency.target(name: watchAppExtension.name, path: path)
         let watchFrameworkDependency = GraphDependency.target(name: watchFramework.name, path: path)
-        let swiftPackage = GraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage")
+        let swiftPackage = GraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage", type: .sources)
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             // apps declare they bundle watch apps via dependencies

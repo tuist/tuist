@@ -541,13 +541,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
         ])
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([
-                .packageProduct(path: "/A", product: "PackageLibraryA1"),
+                .packageProduct(path: "/A", product: "PackageLibraryA1", type: .sources),
             ]),
             .target(name: "B", path: "/B"): Set([
-                .packageProduct(path: "/B", product: "PackageLibraryA2"),
+                .packageProduct(path: "/B", product: "PackageLibraryA2", type: .sources),
             ]),
             .target(name: "C", path: "/C"): Set([
-                .packageProduct(path: "/C", product: "PackageLibraryB"),
+                .packageProduct(path: "/C", product: "PackageLibraryB", type: .sources),
             ]),
         ])
     }
@@ -580,7 +580,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
         ])
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([
-                .packageProduct(path: "/A", product: "PackagePlugin", isPlugin: true),
+                .packageProduct(path: "/A", product: "PackagePlugin", type: .plugin),
             ]),
         ])
     }
