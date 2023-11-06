@@ -17,6 +17,7 @@ on:
       - projects/tuist/features/**
       - projects/tuist/fixtures/**
       - .package.resolved
+      - projects/fourier/**
       - .github/workflows/tuist.yml
 
 concurrency:
@@ -101,6 +102,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: actions/cache@v3
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock', 'project/cloud/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
+      - name: Bundle install
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
       - name: Run tests
         if: ${{ (github.event.pull_request.head.repo.full_name == github.repository) }}
         run: FEATURE=projects/tuist/features/${{ matrix.feature }}.feature make workspace/acceptance-test
