@@ -20,4 +20,14 @@ extension Logger.Metadata {
     public static var pretty: Logger.Metadata {
         [tuist: .string(prettyKey)]
     }
+
+    public static let warningTitleKey: String = "warning-title"
+    public static var warningTitle: Logger.Metadata {
+        [tuist: .string(warningTitleKey)]
+    }
+
+    public static let warningBodyKey: String = "warning-body"
+    public static var warningBody: Logger.Metadata {
+        [tuist: .string(warningBodyKey)]
+    }
 }
