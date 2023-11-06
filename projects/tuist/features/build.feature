@@ -48,10 +48,11 @@ Feature: Build projects using Tuist build
     Then a directory Builds/release-iphonesimulator/App.swiftmodule exists
     Then a directory Builds/release-iphonesimulator/FrameworkA.framework exists
     Then a directory Builds/release-iphonesimulator/FrameworkA.framework.dSYM exists
-    
-  Scenario: The project is a ramework with a Swift Macro integrated through the standard method (framework_with_swift_macro)
-    Given that tuist is available
-    And I have a working directory
-    Then I copy the fixture framework_with_swift_macro into the working directory
-    Then tuist generates the project
-    Then tuist builds the scheme Framework from the project
+
+  # TODO: Enable it when we drop support for Xcode 14    
+  # Scenario: The project is a framework with a Swift Macro integrated through the standard method (framework_with_swift_macro)
+  #   Given that tuist is available
+  #   And I have a working directory
+  #   Then I copy the fixture framework_with_swift_macro into the working directory
+  #   Then tuist generates the project
+  #   Then tuist builds the scheme Framework from the project
