@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.32.0 - 2023-11-06
+
+### Added
+
+- Add support for specifying the RunAction `launchStyle` [#5521](https://github.com/tuist/tuist/pull/5521) by [@baekteun](https://github.com/baekteun)
+- Add support for parsing macOS provisioning profiles [#5535](https://github.com/tuist/tuist/pull/5535) by [@vcoutasso](https://github.com/vcoutasso)
+- Add support for Swift Macros using the native integration [#5539](https://github.com/tuist/tuist/pull/5539) by [@pepicrft](https://github.com/pepicrft)
+
+### Fixed
+
+- AssetTemplate's Images struct is missing when synthesizing only symbolset resources [#5530](https://github.com/tuist/tuist/pull/5530) by [@acosmicflamingo](https://github.com/acosmicflamingo)
+- Fix `platformFilter` usage for single filters [#5544](https://github.com/tuist/tuist/pull/5544) by [@kwridan](https://github.com/kwridan)
+
 ## 3.31.2 - 2023-11-01
 
 - no changes
