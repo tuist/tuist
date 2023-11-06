@@ -140,7 +140,6 @@ public protocol PackageInfoMapping {
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap],
-        macOSTargets: Set<String>,
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project?
@@ -149,13 +148,11 @@ public protocol PackageInfoMapping {
 // swiftlint:disable:next type_body_length
 public final class PackageInfoMapper: PackageInfoMapping {
     public struct PreprocessInfo {
-        let platformToMinDeploymentTarget: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
-        let productToExternalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]]
-        let platforms: Set<ProjectDescription.Platform>
+        let platformToMinDeploymentTarget: ProjectDescription.DeploymentTargets
+        let productToExternalDependencies: [String: [ProjectDescription.TargetDependency]]
         let targetToProducts: [String: Set<PackageInfo.Product>]
         let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
         let targetToModuleMap: [String: ModuleMap]
-        let macOSTargets: Set<String>
     }
 
     // Predefined source directories, in order of preference.
@@ -179,8 +176,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageInfos: [String: PackageInfo],
         idToPackage: [String: String],
         packageToFolder: [String: AbsolutePath],
-        packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
-        platforms: Set<TuistGraph.Platform>
+        packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]]
     ) throws -> PreprocessInfo {
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
@@ -244,41 +240,36 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         )
                     }
             }
+        var externalDependencies: [String: [ProjectDescription.TargetDependency]] = .init()
+        externalDependencies = try packageInfos
+            .reduce(into: [:]) { result, packageInfo in
+                try packageInfo.value.products.forEach { product in
+                    result[product.name] = try product.targets.flatMap { target in
+                        try ResolvedDependency.fromTarget(
+                            name: target,
+                            targetDependencyToFramework: targetDependencyToFramework,
+                            condition: nil
+                        )
+                        .map {
+                            switch $0 {
+                            case let .xcframework(path, _):
+                                return .xcframework(path: path)
+                            case let .target(name, _):
+                                // I Think this is no longer needed
+                                //   var platforms = platforms
+                                //   if macOSTargets.contains(product.name) {
+                                //       platforms.insert(.macOS)
+                                //   }
 
-        let macOSTargets: Set<String> = macOSTargets(resolvedDependencies, packageInfos: packageInfos)
-
-        var externalDependencies: [ProjectDescription.Platform: [String: [ProjectDescription.TargetDependency]]] = .init()
-
-        for platform in platforms {
-            externalDependencies[ProjectDescription.Platform.from(graph: platform)] = try packageInfos
-                .reduce(into: [:]) { result, packageInfo in
-                    try packageInfo.value.products.forEach { product in
-                        result[product.name] = try product.targets.flatMap { target in
-                            try ResolvedDependency.fromTarget(
-                                name: target,
-                                targetDependencyToFramework: targetDependencyToFramework,
-                                condition: nil
-                            )
-                            .map {
-                                switch $0 {
-                                case let .xcframework(path, _):
-                                    return .xcframework(path: path)
-                                case let .target(name, _):
-                                    var platforms = platforms
-                                    if macOSTargets.contains(product.name) {
-                                        platforms.insert(.macOS)
-                                    }
-                                    // When multiple platforms are supported, add the platform name as a suffix to the target
-                                    let targetName = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
-                                    return .project(target: targetName, path: Path(packageToFolder[packageInfo.key]!.pathString))
-                                case .externalTarget:
-                                    throw PackageInfoMapperError.unknownProductTarget(
-                                        package: packageInfo.key,
-                                        product: product.name,
-                                        target: target
-                                    )
-                                }
-                            }
+                                // When multiple platforms are supported, add the platform name as a suffix to the target
+                                //                                    let targetName = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
+                                return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
+                            case .externalTarget:
+                                throw PackageInfoMapperError.unknownProductTarget(
+                                    package: packageInfo.key,
+                                    product: product.name,
+                                    target: target
+                                )                            }
                         }
                     }
                 }
@@ -335,11 +326,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
         return .init(
             platformToMinDeploymentTarget: minDeploymentTargets,
             productToExternalDependencies: externalDependencies,
-            platforms: Set(platforms.map { ProjectDescription.Platform.from(graph: $0) }),
             targetToProducts: targetToProducts,
             targetToResolvedDependencies: resolvedDependencies,
-            targetToModuleMap: targetToModuleMap,
-            macOSTargets: macOSTargets
+            targetToModuleMap: targetToModuleMap
         )
     }
 
@@ -594,13 +583,14 @@ extension ProjectDescription.Target {
 
         let settings = try Settings.from(
             target: target,
+            targetDestinations: destinations,
             packageFolder: packageFolder,
             packageName: packageName,
             packageInfos: packageInfos,
             packageToProject: packageToProject,
             targetToResolvedDependencies: targetToResolvedDependencies,
             settings: target.settings,
-            platform: platform,
+            platforms: packageInfo.platforms,
             targetToModuleMap: targetToModuleMap,
             baseSettings: baseSettings,
             targetSettings: targetSettings
@@ -617,7 +607,7 @@ extension ProjectDescription.Target {
                 .replacingOccurrences(of: "-", with: "_"),
             bundleId: target.name
                 .replacingOccurrences(of: "_", with: "."),
-            deploymentTarget: deploymentTarget,
+            deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,
             resources: resources,
@@ -902,34 +892,28 @@ extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
         target: PackageInfo.Target,
+        targetDestinations: ProjectDescription.Destinations,
         packageFolder: AbsolutePath,
         packageName: String,
         packageInfos: [String: PackageInfo],
         packageToProject: [String: AbsolutePath],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
-        platform: ProjectDescription.Platform,
+        platforms: [PackageInfo.Platform],
         targetToModuleMap: [String: ModuleMap],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary]
     ) throws -> Self? {
-        var headerSearchPaths: [String] = []
-        var defines = ["SWIFT_PACKAGE": "1"]
-        var swiftDefines = "SWIFT_PACKAGE"
-        var cFlags: [String] = []
-        var cxxFlags: [String] = []
-        var swiftFlags: [String] = []
-        var linkerFlags: [String] = []
-
         let mainPath = try target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
 
+        var dependencyHeaderSearchPaths: [String] = []
         let moduleMap = targetToModuleMap[target.name]
         if let moduleMap {
             if moduleMap != .none, target.type != .system {
                 let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
                 let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
-                headerSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
+                dependencyHeaderSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
             }
         }
 
@@ -940,7 +924,7 @@ extension ProjectDescription.Settings {
             targetToResolvedDependencies: targetToResolvedDependencies
         )
 
-        headerSearchPaths += try allDependencies
+        dependencyHeaderSearchPaths += try allDependencies
             .compactMap { dependency in
                 // Add dependencies search paths if they require a modulemap
                 guard let packagePath = packageToProject[dependency.package] else { return nil }
@@ -956,49 +940,115 @@ extension ProjectDescription.Settings {
                 }
             }
             .sorted()
-
-        if target.type.supportsCustomSettings {
-            try settings.forEach { setting in
-                if let condition = setting.condition {
-                    guard condition.platformNames.contains(platform.rawValue) else {
-                        return
+            
+        struct CustomSettingsMapper {
+            init(headerSearchPaths: [String], mainRelativePath: RelativePath, settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]) {
+                self.headerSearchPaths = headerSearchPaths
+                self.settings = settings
+                self.mainRelativePath = mainRelativePath
+            }
+            
+            private let headerSearchPaths: [String]
+            private let mainRelativePath: RelativePath
+            private let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
+            
+            // `nil` means settings without a condition
+            private func settingsForPlatform(_ platformName: String?) throws -> [PackageInfo.Target.TargetBuildSettingDescription.Setting] {
+                return settings.filter { setting in
+                    if let platformName {
+                        return setting.condition?.platformNames.contains(platformName) == true
+                    } else {
+                        return setting.condition != nil && setting.condition?.platformNames.isEmpty == true
                     }
                 }
-
-                switch (setting.tool, setting.name) {
-                case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
-                    headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])")
-                case (.c, .define), (.cxx, .define):
-                    let (name, value) = setting.extractDefine
-                    defines[name] = value
-                case (.c, .unsafeFlags):
-                    cFlags.append(contentsOf: setting.value)
-                case (.cxx, .unsafeFlags):
-                    cxxFlags.append(contentsOf: setting.value)
-                case (.swift, .define):
-                    swiftDefines.append(" \(setting.value[0])")
-                case (.swift, .unsafeFlags):
-                    swiftFlags.append(contentsOf: setting.value)
-                case (.swift, .enableUpcomingFeature):
-                    swiftFlags.append("-enable-upcoming-feature \(setting.value[0])")
-                case (.swift, .enableExperimentalFeature):
-                    swiftFlags.append("-enable-experimental-feature \(setting.value[0])")
-                case (.linker, .unsafeFlags):
-                    linkerFlags.append(contentsOf: setting.value)
-                case (.linker, .linkedFramework), (.linker, .linkedLibrary):
-                    // Handled as dependency
-                    return
-
-                case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
-                     (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
-                     (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),
-                     (_, .enableExperimentalFeature):
-                    throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
+            }
+            
+            func settingsDictionaryForPlatform(_ platform: PackageInfo.Platform?) throws -> TuistGraph.SettingsDictionary {
+                func settingName(_ name: String) throws -> String {
+                    if let platform {
+                        return "\(name)[sdk=\(try platform.graphPlatform().xcodeSdkRoot)*]"
+                    } else {
+                        return name
+                    }
                 }
+                var headerSearchPaths = self.headerSearchPaths
+                var defines = ["SWIFT_PACKAGE": "1"]
+                var swiftDefines = "SWIFT_PACKAGE"
+                var cFlags: [String] = []
+                var cxxFlags: [String] = []
+                var swiftFlags: [String] = []
+                var linkerFlags: [String] = []
+                
+                var settingsDictionary = TuistGraph.SettingsDictionary()
+                let platformSettings = try settingsForPlatform(platform?.platformName)
+                
+                try platformSettings.forEach { setting in
+                    switch (setting.tool, setting.name) {
+                    case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
+                        headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])")
+                    case (.c, .define), (.cxx, .define):
+                        let (name, value) = setting.extractDefine
+                        defines[name] = value
+                    case (.c, .unsafeFlags):
+                        cFlags.append(contentsOf: setting.value)
+                    case (.cxx, .unsafeFlags):
+                        cxxFlags.append(contentsOf: setting.value)
+                    case (.swift, .define):
+                        swiftDefines.append(" \(setting.value[0])")
+                    case (.swift, .unsafeFlags):
+                        swiftFlags.append(contentsOf: setting.value)
+                    case (.swift, .enableUpcomingFeature):
+                        swiftFlags.append("-enable-upcoming-feature \(setting.value[0])")
+                    case (.linker, .unsafeFlags):
+                        linkerFlags.append(contentsOf: setting.value)
+                    case (.linker, .linkedFramework), (.linker, .linkedLibrary):
+                        // Handled as dependency
+                        return
+                        
+                    case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
+                        (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
+                        (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),
+                        (_, .enableExperimentalFeature):
+                        throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
+                    }
+                }
+                
+                if !headerSearchPaths.isEmpty {
+                    settingsDictionary[try settingName("HEADER_SEARCH_PATHS")] = .array(["$(inherited)"] + headerSearchPaths.map { $0 })
+                }
+                
+                if !defines.isEmpty {
+                    let sortedDefines = defines.sorted { $0.key < $1.key }
+                    settingsDictionary[try settingName("GCC_PREPROCESSOR_DEFINITIONS")] = .array(["$(inherited)"] + sortedDefines.map { key, value in
+                        "\(key)=\(value.spm_shellEscaped())"
+                    })
+                }
+                
+                if !swiftDefines.isEmpty {
+                    settingsDictionary[try settingName("SWIFT_ACTIVE_COMPILATION_CONDITIONS")] = "$(inherited) \(swiftDefines)"
+                }
+                
+                if !cFlags.isEmpty {
+                    settingsDictionary[try settingName("OTHER_CFLAGS")] = .array(["$(inherited)"] + cFlags)
+                }
+                
+                if !cxxFlags.isEmpty {
+                    settingsDictionary[try settingName("OTHER_CPLUSPLUSFLAGS")] = .array(["$(inherited)"] + cxxFlags)
+                }
+                
+                if !swiftFlags.isEmpty {
+                    settingsDictionary[try settingName("OTHER_SWIFT_FLAGS")] = .array(["$(inherited)"] + swiftFlags)
+                }
+                
+                if !linkerFlags.isEmpty {
+                    settingsDictionary[try settingName("OTHER_LDFLAGS")] = .array(["$(inherited)"] + linkerFlags)
+                }
+
+                return settingsDictionary
             }
         }
-
-        var settingsDictionary: ProjectDescription.SettingsDictionary = [
+        
+        var settingsDictionary: TuistGraph.SettingsDictionary = [
             // Xcode settings configured by SPM by default
             "ALWAYS_SEARCH_USER_PATHS": "YES",
             "CLANG_ENABLE_OBJC_WEAK": "NO",
@@ -1011,49 +1061,36 @@ extension ProjectDescription.Settings {
             "GCC_WARN_INHIBIT_ALL_WARNINGS": "YES",
             "SWIFT_SUPPRESS_WARNINGS": "YES",
         ]
+        
+        if target.type.supportsCustomSettings {
+            let mapper = CustomSettingsMapper(headerSearchPaths: dependencyHeaderSearchPaths,
+                                              mainRelativePath: mainRelativePath,
+                                              settings: settings)
+            
+            var settingsForAllPlatforms =  try mapper.settingsDictionaryForPlatform(nil)
+            
+            for platform in platforms {
+                let platformSettings = try mapper.settingsDictionaryForPlatform(platform)
+                settingsForAllPlatforms.merge(platformSettings) { $1 }
+            }
+            
+            settingsDictionary.merge(settingsForAllPlatforms) { $1 }
+        }
+
 
         if let moduleMapPath = moduleMap?.path {
             settingsDictionary["MODULEMAP_FILE"] = .string("$(SRCROOT)/\(moduleMapPath.relative(to: packageFolder))")
         }
-
-        if !headerSearchPaths.isEmpty {
-            settingsDictionary["HEADER_SEARCH_PATHS"] = .array(["$(inherited)"] + headerSearchPaths.map { $0 })
-        }
-
-        if !defines.isEmpty {
-            let sortedDefines = defines.sorted { $0.key < $1.key }
-            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + sortedDefines.map { key, value in
-                "\(key)=\(value.spm_shellEscaped())"
-            })
-        }
-
-        if !swiftDefines.isEmpty {
-            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "$(inherited) \(swiftDefines)"
-        }
-
-        if !cFlags.isEmpty {
-            settingsDictionary["OTHER_CFLAGS"] = .array(["$(inherited)"] + cFlags)
-        }
-
-        if !cxxFlags.isEmpty {
-            settingsDictionary["OTHER_CPLUSPLUSFLAGS"] = .array(["$(inherited)"] + cxxFlags)
-        }
-
-        if !swiftFlags.isEmpty {
-            settingsDictionary["OTHER_SWIFT_FLAGS"] = .array(["$(inherited)"] + swiftFlags)
-        }
-
-        if !linkerFlags.isEmpty {
-            settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
-        }
+        
+        var mappedSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)
 
         if let settingsToOverride = targetSettings[target.name] {
             let projectDescriptionSettingsToOverride = ProjectDescription.SettingsDictionary
                 .from(settingsDictionary: settingsToOverride)
-            settingsDictionary.merge(projectDescriptionSettingsToOverride)
+            mappedSettingsDictionary.merge(projectDescriptionSettingsToOverride)
         }
 
-        return .from(settings: baseSettings, adding: settingsDictionary, packageFolder: packageFolder)
+        return .from(settings: baseSettings, adding: mappedSettingsDictionary, packageFolder: packageFolder)
     }
 
     fileprivate struct PackageTarget: Hashable {
@@ -1109,25 +1146,8 @@ extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
     }
 }
 
-extension TuistGraph.Platform {
-    fileprivate var descriptionPlatform: ProjectDescription.Platform {
-        switch self {
-        case .iOS:
-            return .iOS
-        case .macOS:
-            return .macOS
-        case .tvOS:
-            return .tvOS
-        case .watchOS:
-            return .watchOS
-        case .visionOS:
-            return .visionOS
-        }
-    }
-}
-
 extension PackageInfo.Platform {
-    fileprivate func descriptionPlatform() throws -> ProjectDescription.Platform {
+    fileprivate func graphPlatform() throws -> TuistGraph.Platform {
         switch platformName {
         case "ios", "maccatalyst":
             return .iOS
