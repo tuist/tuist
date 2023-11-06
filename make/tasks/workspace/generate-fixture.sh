@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROOT_DIR=$($SCRIPT_DIR/../../utilities/root_dir.sh)
+source $ROOT_DIR/make/utilities/setup.sh
 
 path=$(pwd)
 projects=""
