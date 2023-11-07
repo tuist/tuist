@@ -61,8 +61,6 @@ jobs:
         feature:
           [
             'build',
-            # 'cache-frameworks',
-            # 'cache-xcframeworks',
             'dependencies',
             'edit',
             'generate-1',
