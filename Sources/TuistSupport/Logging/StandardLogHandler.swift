@@ -25,8 +25,7 @@ public struct StandardLogHandler: LogHandler {
             return
         }
 
-        let string: String?
-        var shouldOputput = true
+        let string: String
 
         if Environment.shared.shouldOutputBeColoured {
             switch metadata?[Logger.Metadata.tuist] {
@@ -43,9 +42,8 @@ public struct StandardLogHandler: LogHandler {
                 case .error:
                     string = message.description.red()
                 case .warning:
-                    string = nil
-                    shouldOputput = false
                     WarningController.shared.append(warning: message.description)
+                    return
                 case .notice, .info, .debug, .trace:
                     string = message.description
                 }
@@ -54,9 +52,7 @@ public struct StandardLogHandler: LogHandler {
             string = message.description
         }
 
-        if shouldOputput, let string {
-            output(for: level).print(string)
-        }
+        output(for: level).print(string)
     }
 
     func output(for level: Logger.Level) -> FileHandle {
