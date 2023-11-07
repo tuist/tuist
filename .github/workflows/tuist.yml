@@ -14,10 +14,9 @@ on:
       - Sources/**
       - Templates/**
       - Tests/**
-      - projects/tuist/features/**
-      - projects/tuist/fixtures/**
+      - features/**
+      - fixtures/**
       - .package.resolved
-      - projects/fourier/**
       - .github/workflows/tuist.yml
 
 concurrency:
@@ -91,7 +90,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Initialize submodules
         run: |
-          git submodule update --init projects/tuist/fixtures/tuist_plugin
+          git submodule update --init fixtures/tuist_plugin
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v3
@@ -117,7 +116,7 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Run tests
         if: ${{ (github.event.pull_request.head.repo.full_name == github.repository) }}
-        run: FEATURE=projects/tuist/features/${{ matrix.feature }}.feature make tuist/acceptance-test
+        run: FEATURE=features/${{ matrix.feature }}.feature make tuist/acceptance-test
 
   lint:
     name: Lint

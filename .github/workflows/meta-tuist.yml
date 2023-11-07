@@ -13,8 +13,8 @@ on:
       - Project.swift
       - Sources/**
       - Tests/**
-      - projects/tuist/features/**
-      - projects/tuist/fixtures/**
+      - features/**
+      - fixtures/**
       - .package.resolved
       - .github/workflows/meta-tuist.yml
 

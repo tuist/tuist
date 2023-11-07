@@ -104,7 +104,6 @@ Tuist/Dependencies/graph.json
 .vscode/launch.json
 
 # Release artifacts
-vendor/
 .bundle
 
 # Tuist Cloud
