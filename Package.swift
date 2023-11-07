@@ -28,6 +28,7 @@ var targets: [Target] = [
         name: "TuistGraph",
         dependencies: [
             swiftToolsSupportDependency,
+            "AnyCodable",
             "TuistSupport",
         ]
     ),
