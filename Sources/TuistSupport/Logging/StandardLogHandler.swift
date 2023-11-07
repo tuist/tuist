@@ -26,6 +26,7 @@ public struct StandardLogHandler: LogHandler {
         }
 
         let string: String
+
         if Environment.shared.shouldOutputBeColoured {
             switch metadata?[Logger.Metadata.tuist] {
             case Logger.Metadata.successKey?:
@@ -41,7 +42,8 @@ public struct StandardLogHandler: LogHandler {
                 case .error:
                     string = message.description.red()
                 case .warning:
-                    string = message.description.yellow()
+                    WarningController.shared.append(warning: message.description)
+                    return
                 case .notice, .info, .debug, .trace:
                     string = message.description
                 }
