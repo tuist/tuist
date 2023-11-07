@@ -9,6 +9,7 @@ class ApplicationController < ActionController::Base
   before_action :redirect_if_needed
   before_action :selected_project
   before_action :update_last_visited_project
+  skip_before_action :authenticate_user!, if: :tuist_project?
 
   def app
     project = current_user.last_visited_project || UserProjectsFetchService.call(user: current_user).first
@@ -64,7 +65,7 @@ class ApplicationController < ActionController::Base
   end
 
   def update_last_visited_project
-    if params[:account_name].present? && params[:project_name].present?
+    if params[:account_name].present? && params[:project_name].present? && current_user.present?
       project = ProjectFetchService.new.fetch_by_name(
         name: params[:project_name],
         account_name: params[:account_name],
@@ -77,5 +78,9 @@ class ApplicationController < ActionController::Base
   rescue_from(CloudError) do |error, _obj, _args, _ctx, _field|
     @error_message = error.message
     render "error"
+  end
+
+  def tuist_project?
+    params[:project_name] == "tuist" && params[:account_name] == "tuist"
   end
 end

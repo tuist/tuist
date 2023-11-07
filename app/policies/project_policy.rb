@@ -2,6 +2,10 @@
 
 class ProjectPolicy < ApplicationPolicy
   def show?
+    if record.account.name == "tuist" && record.name == "tuist"
+      return true
+    end
+
     AccountPolicy.new(subject, record.account).show?
   end
 

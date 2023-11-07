@@ -4,7 +4,7 @@
   </ul>
   <ul>
     <li><%= button_to "Dashboard", root_path, class: "ghost", method: :get %></li>
-    <% if params[:account_name].present? && params[:project_name].present? %>
+    <% if params[:account_name].present? && params[:project_name].present? && current_user.present? %>
       <li>
         <details role="list">
           <summary aria-haspopup="listbox"><%= "#{params[:account_name]}/#{params[:project_name]}" %></summary>
