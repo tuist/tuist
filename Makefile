@@ -14,7 +14,7 @@ tuist/build:
 tuist/test:
 	./make/tasks/tuist/test.sh $(ARGS)
 tuist/acceptance-test:
-	./make/tasks/tuist/acceptance-test.sh $(FEATURE)
+	./make/tasks/tuist/acceptance-test.sh
 	
 # Shared
 workspace/lint:
