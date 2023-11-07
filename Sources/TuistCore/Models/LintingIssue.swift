@@ -54,7 +54,7 @@ extension [LintingIssue] {
         let warningIssues = filter { $0.severity == .warning }
 
         for issue in warningIssues {
-            logger.warning("Warning: \(issue.description)")
+            logger.warning("\(issue.description)")
         }
     }
 }

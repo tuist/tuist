@@ -39,8 +39,8 @@ public final class WarningController: WarningControlling {
         let warnings = warnings
         self.warnings = []
         if warnings.count != 0 {
-            logger.warning("\nThe following warnings need immediate attention:\n", metadata: .warningTitle)
-            logger.warning("\(warnings.map { " · \($0)" }.joined(separator: "\n"))", metadata: .warningBody)
+            FileHandle.standardOutput.print("\nThe following warnings need attention:".yellow().bold())
+            FileHandle.standardOutput.print("\(warnings.map { " · \($0)" }.joined(separator: "\n"))".yellow())
         }
     }
 }
