@@ -2,7 +2,7 @@
 
 require "open3"
 Given(/tuist is available/) do
-  project_root = File.expand_path("../../../../..", __dir__)
+  project_root = File.expand_path("../../..", __dir__)
   # On CI we expect tuist to be built already by the previous job `release_build`, so we skip `swift build`
 
   if ENV["CI"].nil?
