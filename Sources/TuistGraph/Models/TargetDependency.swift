@@ -54,10 +54,10 @@ public enum TargetDependency: Equatable, Hashable, Codable {
             return .target(name: name, platformFilters: platformFilters)
         case .project(target: let target, path: let path, platformFilters: _):
             return .project(target: target, path: path, platformFilters: platformFilters)
-        case .framework(path: let path, platformFilters: _):
-            return .framework(path: path, platformFilters: platformFilters)
-        case .xcframework(path: let path, platformFilters: _):
-            return .xcframework(path: path, platformFilters: platformFilters)
+        case .framework(path: let path, status: let status, platformFilters: _):
+            return .framework(path: path, status: status, platformFilters: platformFilters)
+        case .xcframework(path: let path, status: let status, platformFilters: _):
+            return .xcframework(path: path, status: status, platformFilters: platformFilters)
         case .library(path: let path, publicHeaders: let headers, swiftModuleMap: let moduleMap, platformFilters: _):
             return .library(path: path, publicHeaders: headers, swiftModuleMap: moduleMap, platformFilters: platformFilters)
         case .package(product: let product, platformFilters: _):
