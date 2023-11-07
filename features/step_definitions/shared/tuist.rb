@@ -147,11 +147,3 @@ Then(/tuist generate yields error "(.+)"/) do |error|
   assert actual_msg.include?(expected_msg), error_message
   refute status.success?
 end
-
-Then(/tuistenv should succeed in installing the latest version/) do
-  constants_path = File.expand_path("../../../../../Sources/TuistSupport/Constants.swift", __dir__)
-  # Matches: let version = "3.2.1"
-  version = File.read(constants_path).match(/let\sversion\s=\s\"(.+)\"/)[1].chomp
-
-  system(@tuistenv, "install", version)
-end

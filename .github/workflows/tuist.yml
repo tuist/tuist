@@ -65,7 +65,6 @@ jobs:
             # 'cache-xcframeworks',
             'dependencies',
             'edit',
-            'env',
             'generate-1',
             'generate-2',
             'generate-3',
