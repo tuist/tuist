@@ -18,6 +18,13 @@ public protocol SimulatorControlling {
         deviceName: String?
     ) async throws -> SimulatorDeviceAndRuntime
 
+    func findAvailableDevices(
+        platform: Platform,
+        version: Version?,
+        minVersion: Version?,
+        deviceName: String?
+    ) async throws -> [SimulatorDeviceAndRuntime]
+
     /// Installs an app on a given simulator.
     /// - Parameters:
     ///   - path: The path to the app to install in the simulator.
@@ -129,12 +136,12 @@ public final class SimulatorController: SimulatorControlling {
         }
     }
 
-    public func findAvailableDevice(
+    public func findAvailableDevices(
         platform: Platform,
         version: Version?,
         minVersion: Version?,
         deviceName: String?
-    ) async throws -> SimulatorDeviceAndRuntime {
+    ) async throws -> [SimulatorDeviceAndRuntime] {
         let devicesAndRuntimes = try await devicesAndRuntimes()
         let maxRuntimeVersion = devicesAndRuntimes.map(\.runtime.version).max()
         let availableDevices = devicesAndRuntimes
@@ -159,8 +166,24 @@ public final class SimulatorController: SimulatorControlling {
 
                 return true
             }
+        return availableDevices
+    }
+
+    public func findAvailableDevice(
+        platform: Platform,
+        version: Version?,
+        minVersion: Version?,
+        deviceName: String?
+    ) async throws -> SimulatorDeviceAndRuntime {
+        let availableDevices = try await findAvailableDevices(
+            platform: platform,
+            version: version,
+            minVersion: minVersion,
+            deviceName: deviceName
+        )
         guard let device = availableDevices.first(where: { !$0.device.isShutdown }) ?? availableDevices.first
-        else { throw SimulatorControllerError.deviceNotFound(platform, version, deviceName, devicesAndRuntimes) }
+        else { throw SimulatorControllerError.deviceNotFound(platform, version, deviceName, try await devicesAndRuntimes())
+        }
         return device
     }
 

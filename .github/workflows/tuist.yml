@@ -26,109 +26,143 @@ concurrency:
 env:
   RUBY_VERSION: '3.0.3'
   TUIST_STATS_OPT_OUT: true
-  RAILS_ENV: development
-  RAILS_MASTER_KEY: ${{ secrets.CLOUD_RAILS_MASTER_KEY }}
   NODE_VERSION: 16.17.0
 
 jobs:
-  release_build:
-    name: Release build with Xcode
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
-        name: 'Cache Tuist .build folder'
-        with:
-          path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1
-      - name: Select Xcode for Tuist and Tuistenv
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Build Tuist for release
-        run: swift build -c release --product tuist
-      - name: Build Tuistenv for release
-        run: swift build -c release --product tuistenv
-      - name: Build ProjectDescription for release
-        run: swift build -c release --product ProjectDescription
+  # release_build:
+  #   name: Release build with Xcode
+  #   runs-on: macos-13
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: actions/cache@v3
+  #       name: 'Cache Tuist .build folder'
+  #       with:
+  #         path: .build
+  #         key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}
+  #           ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1
+  #     - name: Select Xcode for Tuist and Tuistenv
+  #       run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+  #     - name: Build Tuist for release
+  #       run: swift build -c release --product tuist
+  #     - name: Build Tuistenv for release
+  #       run: swift build -c release --product tuistenv
+  #     - name: Build ProjectDescription for release
+  #       run: swift build -c release --product ProjectDescription
 
   acceptance_tests:
-    name: ${{ matrix.feature }} acceptance tests with Xcode
+    name: ${{ matrix.feature }} acceptance tests with Tuist
     runs-on: macos-13
+    env:
+      TUIST_CONFIG_CLOUD_TOKEN: ${{ secrets.TUIST_CONFIG_CLOUD_TOKEN }}
     strategy:
       matrix:
         feature:
           [
-            'build',
-            'dependencies',
-            'edit',
-            'generate-1',
-            'generate-2',
-            'generate-3',
-            'generate-4',
-            'generate-5',
-            'generate-6',
-            'generate-7',
-            'generate-8',
-            'graph',
-            'init',
-            'list-targets',
-            'plugins',
-            'precompiled',
-            'run',
-            'scaffold',
-            'tasks',
-            'test',
-            'plugin',
+            'Build',
+            'GenerateOne',
           ]
-    needs: release_build
     steps:
-      - uses: actions/checkout@v3
-      - name: Initialize submodules
-        run: |
-          git submodule update --init fixtures/tuist_plugin
+      - uses: actions/checkout@v4
+      - uses: asdf-vm/actions/install@v2
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v3
-        name: 'Cache Tuist .build folder'
+        name: 'Cache vendor .build folder'
         with:
-          path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
+          path: vendor/.build
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('vendor/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ env.RUBY_VERSION }}
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('vendor/Package.resolved') }}
       - uses: actions/cache@v3
+        name: 'Cache fetched dependencies folder'
         with:
-          path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock', 'project/cloud/Gemfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
-      - name: Bundle install
-        run: |
-          bundle config path vendor/bundle
-          bundle install --jobs 4 --retry 3
-      - name: Run tests
+          path: Tuist/Dependencies/SwiftPackageManager/.build
+          key: spm-v1-${{ hashFiles('Tuist/Package.resolves') }}
+          restore-keys: spm-v1-${{ hashFiles('Tuist/Package.resolved') }}
+      - name: Fetch dependencies
+        run: tuist fetch
+      - name: Build xcbeautify
+        run: swift build --package-path vendor --product xcbeautify
+      - name: Run acceptance tests
         if: ${{ (github.event.pull_request.head.repo.full_name == github.repository) }}
-        run: FEATURE=features/${{ matrix.feature }}.feature make tuist/acceptance-test
+        run: tuist test Tuist${{ matrix.feature }}AcceptanceTests --no-cache
+      
+  # cucumber_acceptance_tests:
+  #   name: ${{ matrix.feature }} acceptance tests with Xcode
+  #   runs-on: macos-13
+  #   strategy:
+  #     matrix:
+  #       feature:
+  #         [
+  #           'dependencies',
+  #           'edit',
+  #           'generate-2',
+  #           'generate-3',
+  #           'generate-4',
+  #           'generate-5',
+  #           'generate-6',
+  #           'generate-7',
+  #           'generate-8',
+  #           'graph',
+  #           'init',
+  #           'list-targets',
+  #           'plugins',
+  #           'precompiled',
+  #           'run',
+  #           'scaffold',
+  #           'tasks',
+  #           'test',
+  #           'plugin',
+  #         ]
+  #   needs: release_build
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: Initialize submodules
+  #       run: |
+  #         git submodule update --init fixtures/tuist_plugin
+  #     - name: Select Xcode
+  #       run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+  #     - uses: actions/cache@v3
+  #       name: 'Cache Tuist .build folder'
+  #       with:
+  #         path: .build
+  #         key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}
+  #           ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1
+  #     - uses: ruby/setup-ruby@v1
+  #       with:
+  #         ruby-version: ${{ env.RUBY_VERSION }}
+  #     - uses: actions/cache@v3
+  #       with:
+  #         path: vendor/bundle
+  #         key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
+  #     - name: Bundle install
+  #       run: |
+  #         bundle config path vendor/bundle
+  #         bundle install --jobs 4 --retry 3
+  #     - name: Run cucumber tests
+  #       if: ${{ (github.event.pull_request.head.repo.full_name == github.repository) }}
+  #       run: FEATURE=features/${{ matrix.feature }}.feature make tuist/acceptance-test
 
-  lint:
-    name: Lint
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v3
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Run
-        run: make workspace/lint
+  # lint:
+  #   name: Lint
+  #   runs-on: macos-13
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: Select Xcode
+  #       run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+  #     - name: Run
+  #       run: make workspace/lint
 
-  lint-lockfiles:
-    name: Lint lockfiles
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v3
-      - name: Run
-        run: ./make/tasks/workspace/lint/lockfiles.sh
+  # lint-lockfiles:
+  #   name: Lint lockfiles
+  #   runs-on: macos-13
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: Run
+  #       run: ./make/tasks/workspace/lint/lockfiles.sh

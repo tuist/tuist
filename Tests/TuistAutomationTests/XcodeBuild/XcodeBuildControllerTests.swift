@@ -38,7 +38,15 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         system.succeedCommand(command, output: "output")
 
         // When
-        let events = try subject.build(target, scheme: scheme, destination: nil, rosetta: false, clean: true, arguments: [])
+        let events = try subject.build(
+            target,
+            scheme: scheme,
+            destination: nil,
+            rosetta: false,
+            derivedDataPath: nil,
+            clean: true,
+            arguments: []
+        )
 
         let result = try await events.toArray()
         XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
@@ -59,7 +67,15 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         system.succeedCommand(command, output: "output")
 
         // When
-        let events = try subject.build(target, scheme: scheme, destination: nil, rosetta: true, clean: true, arguments: [])
+        let events = try subject.build(
+            target,
+            scheme: scheme,
+            destination: nil,
+            rosetta: true,
+            derivedDataPath: nil,
+            clean: true,
+            arguments: []
+        )
 
         let result = try await events.toArray()
         XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
@@ -86,6 +102,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             destination: .device("this_is_a_udid"),
             rosetta: false,
+            derivedDataPath: nil,
             clean: true,
             arguments: []
         )
@@ -115,6 +132,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             destination: .device("this_is_a_udid"),
             rosetta: true,
+            derivedDataPath: nil,
             clean: true,
             arguments: []
         )

@@ -413,7 +413,49 @@ func targets() -> [Target] {
         ),
     ].flatMap { $0 }
 
-    return executableTargets + moduleTargets
+    return executableTargets + moduleTargets + acceptanceTests.map(\.target) + [
+        .target(
+            name: "TuistAcceptanceTesting",
+            product: .framework,
+            dependencies: [
+                .target(name: "TuistKit"),
+                .target(name: "TuistSupportTesting"),
+                .sdk(name: "XCTest", type: .framework, status: .optional),
+            ]
+        ),
+    ]
+}
+
+let acceptanceTests: [(target: Target, scheme: Scheme)] = ["Build", "GenerateOne"].map {
+    (
+        target: .target(
+            name: "Tuist\($0)AcceptanceTests",
+            product: .unitTests,
+            dependencies: [
+                .target(name: "TuistKit"),
+                .target(name: "TuistAcceptanceTesting"),
+                .target(name: "TuistSupportTesting"),
+            ]
+        ),
+        scheme: Scheme(
+            name: "Tuist\($0)AcceptanceTests",
+            buildAction: BuildAction(targets: ["Tuist\($0)AcceptanceTests"]),
+            testAction: .targets(
+                [
+                    TestableTarget(
+                        target: "Tuist\($0)AcceptanceTests",
+                        parallelizable: true,
+                        randomExecutionOrdering: true
+                    ),
+                ]
+            ),
+            runAction: .runAction(
+                arguments: Arguments(
+                    environmentVariables: ["TUIST_CONFIG_SRCROOT": "$(SRCROOT)"]
+                )
+            )
+        )
+    )
 }
 
 let project = Project(
@@ -428,6 +470,7 @@ let project = Project(
         ]
     ),
     targets: targets(),
+    schemes: acceptanceTests.map(\.scheme),
     additionalFiles: [
         "CHANGELOG.md",
         "README.md",

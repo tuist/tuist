@@ -61,7 +61,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let workspacePath = path.appending(component: "App.xcworkspace")
         let outputPath = path.appending(component: ".build")
         let productPath = outputPath.appending(component: "Target.app")
-        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _ in outputPath }
+        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _, _ in outputPath }
         fileHandler.stubExists = { _ in false }
 
         // When / Then
@@ -89,7 +89,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         system.succeedCommand(["/path/to/proj.xcworkspace/Target"])
 
         let expectation = expectation(description: "locates with default configuration")
-        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _configuration in
+        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _, _configuration in
             // THEN
             XCTAssertEqual(_configuration, BuildConfiguration.debug.name)
             expectation.fulfill()
@@ -122,7 +122,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let arguments = ["Argument", "--option1", "AnotherArgument", "--option2=true", "-opt3"]
 
         fileHandler.stubExists = { _ in true }
-        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _ in outputPath }
+        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _, _ in outputPath }
         system.succeedCommand([executablePath.pathString] + arguments)
 
         // THEN
@@ -157,7 +157,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let bundleId = "com.tuist.bundleid"
 
         fileHandler.stubExists = { _ in true }
-        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _ in outputPath }
+        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _, _ in outputPath }
         xcodeBuildController.showBuildSettingsStub = { _, _, _ in
             let settings = ["PRODUCT_BUNDLE_IDENTIFIER": bundleId]
             return [

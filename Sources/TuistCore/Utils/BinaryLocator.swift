@@ -65,7 +65,9 @@ public final class BinaryLocator: BinaryLocating {
             .removingLastComponent()
             .appending(try RelativePath(validating: "vendor"))
 
-        if let xcbeautifyBinaryPath = Environment.shared.tuistConfigVariables[Constants.EnvironmentVariables.xcbeautifyBinaryPath] {
+        if let xcbeautifyBinaryPath = Environment.shared
+            .tuistConfigVariables[Constants.EnvironmentVariables.xcbeautifyBinaryPath]
+        {
             return SwiftPackageExecutable(compilation: nil, execution: [xcbeautifyBinaryPath])
         } else if FileHandler.shared.exists(bundlePath) {
             let compilationCommand = [

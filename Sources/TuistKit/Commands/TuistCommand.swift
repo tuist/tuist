@@ -1,4 +1,4 @@
-import ArgumentParser
+@_exported import ArgumentParser
 import Foundation
 import TuistSupport
 
