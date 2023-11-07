@@ -100,14 +100,12 @@ final class EditService {
 
     private func loadPlugins(at path: AbsolutePath) async -> Plugins {
         guard let config = try? configLoader.loadConfig(path: path) else {
-            WarningController.shared
-                .append(warning: "Unable to load Config.swift, fix any compiler errors and re-run for plugins to be loaded.")
+            logger.warning("Unable to load Config.swift, fix any compiler errors and re-run for plugins to be loaded.")
             return .none
         }
 
         guard let plugins = try? await pluginService.loadPlugins(using: config) else {
-            WarningController.shared
-                .append(warning: "Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
+            logger.warning("Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
             return .none
         }
 

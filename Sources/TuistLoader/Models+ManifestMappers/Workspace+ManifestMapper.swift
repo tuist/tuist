@@ -29,7 +29,7 @@ extension TuistGraph.Workspace {
                 // FIXME: This should be done in a linter.
                 // Before we can do that we have to change the linters to run with the TuistCore models and not the
                 // ProjectDescription ones.
-                WarningController.shared.append(warning: "No projects were found at the referenced path: \(path.pathString)")
+                logger.warning("No projects found at: \(path.pathString)")
             }
 
             return Array(projects)

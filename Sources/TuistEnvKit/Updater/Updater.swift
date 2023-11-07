@@ -31,7 +31,7 @@ final class Updater: Updating {
 
     func update() throws {
         guard let highestRemoteVersion = try versionProvider.latestVersion() else {
-            WarningController.shared.append(warning: "No remote versions were found")
+            logger.warning("No remote versions found")
             return
         }
 

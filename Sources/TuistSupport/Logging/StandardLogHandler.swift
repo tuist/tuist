@@ -34,10 +34,6 @@ public struct StandardLogHandler: LogHandler {
                 string = message.description.cyan().bold()
             case Logger.Metadata.subsectionKey?:
                 string = message.description.cyan()
-            case Logger.Metadata.warningTitleKey?:
-                string = message.description.yellow().bold()
-            case Logger.Metadata.warningBodyKey?:
-                string = message.description.yellow()
             default:
                 switch level {
                 case .critical:
@@ -45,7 +41,7 @@ public struct StandardLogHandler: LogHandler {
                 case .error:
                     string = message.description.red()
                 case .warning:
-                    string = message.description.yellow().bold()
+                    string = message.description.yellow()
                 case .notice, .info, .debug, .trace:
                     string = message.description
                 }

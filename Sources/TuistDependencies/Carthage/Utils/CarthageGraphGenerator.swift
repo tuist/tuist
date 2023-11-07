@@ -53,7 +53,7 @@ extension CarthageGraphGenerator {
                 guard let product = products.first else { return nil }
 
                 guard let xcFrameworkName = product.container else {
-                    WarningController.shared.append(warning: "\(product.name) was not added to the DependenciesGraph")
+                    logger.warning("\(product.name) was not added to the DependenciesGraph", metadata: .subsection)
                     return nil
                 }
 

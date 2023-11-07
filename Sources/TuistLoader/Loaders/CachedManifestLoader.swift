@@ -126,7 +126,7 @@ public class CachedManifestLoader: ManifestLoading {
         )
 
         guard let hashes = calculatedHashes else {
-            WarningController.shared.append(warning: "Unable to calculate manifest hash at path: \(path)")
+            logger.warning("Unable to calculate manifest hash at path: \(path)")
             return try loader()
         }
 

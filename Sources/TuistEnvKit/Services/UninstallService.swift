@@ -22,7 +22,7 @@ final class UninstallService {
             try versionsController.uninstall(version: version)
             logger.notice("Version \(version) uninstalled", metadata: .success)
         } else {
-            WarningController.shared.append(warning: "The version \(version) cannot be uninstalled because it's not installed")
+            logger.warning("Version \(version) cannot be uninstalled because it's not installed")
         }
     }
 }
