@@ -25,6 +25,7 @@ gem "que", "~> 2.2"
 gem "httpx", "~> 1.1.0"
 gem 'sorbet-static-and-runtime'
 gem 'tapioca', require: false, :group => :development
+gem "turbo-rails", "~> 1.4"
 
 # GraphQL
 gem "graphql", "~> 2.1.0"
@@ -56,13 +57,11 @@ group :development do
   gem "rack-mini-profiler", "~> 2.0"
   gem "spring"
   gem "web-console", ">= 4.1.0"
+  gem "bigdecimal", "~> 3.0"
+  gem "dockerfile-rails", ">= 1.5"
 end
 
 group :test do
   gem "capybara", ">= 3.26"
   gem "mocha", "~> 2.1.0"
 end
-
-gem "dockerfile-rails", ">= 1.5", :group => :development
-gem "turbo-rails", "~> 1.4"
-gem "bigdecimal", "~> 3.0", :group => :development
