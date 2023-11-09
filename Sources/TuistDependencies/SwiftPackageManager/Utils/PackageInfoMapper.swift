@@ -888,19 +888,19 @@ extension ProjectDescription.TargetDependency {
         }
 
         let linkerDependencies: [ProjectDescription.TargetDependency] = settings.compactMap { setting in
-            if let condition = setting.condition {
-                guard condition.platformNames.contains(platform.rawValue) else {
+            do {
+                let platformFilters = try setting.condition.map(ProjectDescription.PlatformFilters.from) ?? []
+
+                switch (setting.tool, setting.name) {
+                case (.linker, .linkedFramework):
+                    return .sdk(name: setting.value[0], type: .framework, status: .required, platformFilters: platformFilters)
+                case (.linker, .linkedLibrary):
+                    return .sdk(name: setting.value[0], type: .library, status: .required, platformFilters: platformFilters)
+                case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath), (.linker, .define),
+                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
                     return nil
                 }
-            }
-
-            switch (setting.tool, setting.name) {
-            case (.linker, .linkedFramework):
-                return .sdk(name: setting.value[0], type: .framework, status: .required)
-            case (.linker, .linkedLibrary):
-                return .sdk(name: setting.value[0], type: .library, status: .required)
-            case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath),
-                 (.linker, .define), (.linker, .unsafeFlags), (_, .enableExperimentalFeature):
+            } catch {
                 return nil
             }
         }
@@ -1508,12 +1508,16 @@ extension PackageInfoMapper {
             targetDependencyToFramework: [String: Path],
             condition packageConditionDescription: PackageInfo.PackageConditionDescription?
         ) -> [Self] {
-            let condition = packageConditionDescription.flatMap(Condition.from)
+            do {
+                let platformFilters = try packageConditionDescription.map(ProjectDescription.PlatformFilters.from) ?? []
 
-            if let framework = targetDependencyToFramework[name] {
-                return [.xcframework(path: framework, condition: condition)]
-            } else {
-                return [.target(name: PackageInfoMapper.sanitize(targetName: name), condition: condition)]
+                if let framework = targetDependencyToFramework[name] {
+                    return [.xcframework(path: framework, platformFilters: platformFilters)]
+                } else {
+                    return [.target(name: PackageInfoMapper.sanitize(targetName: name), platformFilters: platformFilters)]
+                }
+            } catch {
+                return []
             }
         }
 
@@ -1527,42 +1531,60 @@ extension PackageInfoMapper {
             guard let packageProduct = packageInfos[package]?.products.first(where: { $0.name == product }) else {
                 throw PackageInfoMapperError.unknownProductDependency(product, package)
             }
-            let condition = packageConditionDescription.flatMap(Condition.from)
 
-            return packageProduct.targets.map { name in
-                if let framework = targetDependencyToFramework[name] {
-                    return .xcframework(path: framework, condition: condition)
-                } else {
-                    return .externalTarget(
-                        package: package,
-                        target: PackageInfoMapper.sanitize(targetName: name),
-                        condition: condition
-                    )
+            do {
+                let platformFilters = try packageConditionDescription.map(ProjectDescription.PlatformFilters.from) ?? []
+
+                return packageProduct.targets.map { name in
+                    if let framework = targetDependencyToFramework[name] {
+                        return .xcframework(path: framework, platformFilters: platformFilters)
+                    } else {
+                        return .externalTarget(
+                            package: package,
+                            target: PackageInfoMapper.sanitize(targetName: name),
+                            platformFilters: platformFilters
+                        )
+                    }
                 }
+            } catch {
+                return []
             }
         }
     }
 }
 
-extension PackageInfoMapper.ResolvedDependency {
-    public struct Condition: Equatable, Hashable {
-        public let platforms: [ProjectDescription.Platform]
+extension ProjectDescription.PlatformFilters {
+    struct OnlyConditionsWithUnsupportedPlatforms: Error {}
 
-        public init(platforms: [ProjectDescription.Platform]) {
-            self.platforms = platforms
+    /// Map from a condition to platform filters.
+    /// - Parameter condition: condition representing platforms that a given dependency applies to
+    /// - Returns: set of PlatformFilters to be used with `GraphDependencyRefrence`
+    /// throws `OnlyConditionsWithUnsupportedPlatforms` if the condition only contains platforms not supported by Tuist (e.g `windows`)
+    fileprivate static func from(_ condition: PackageInfo.PackageConditionDescription) throws -> Self {
+        let filters: [ProjectDescription.PlatformFilter] = condition.platformNames.compactMap { name in
+            switch name {
+            case "ios":
+                return .ios
+            case "maccatalyst":
+                return .catalyst
+            case "macos":
+                return .macos
+            case "tvos":
+                return .tvos
+            case "watchos":
+                return .watchos
+            case "visionos":
+                return .visionos
+            default:
+                return nil
+            }
         }
 
-        public func hash(into hasher: inout Hasher) {
-            hasher.combine(platforms)
+        if filters.isEmpty {
+            throw OnlyConditionsWithUnsupportedPlatforms()
         }
 
-        fileprivate static func from(
-            _ packageConditionDescription: PackageInfo.PackageConditionDescription
-        ) -> Self? {
-            let platforms = packageConditionDescription.platformNames.compactMap(ProjectDescription.Platform.init(rawValue:))
-
-            return platforms.isEmpty ? nil : Self(platforms: platforms)
-        }
+        return Set(filters)
     }
 }
 
