@@ -45,7 +45,7 @@ final class DumpServiceTests: TuistTestCase {
 
           ],
           "multiplatformTargets": [
-        
+
           ],
           "name": "tuist",
           "options": {

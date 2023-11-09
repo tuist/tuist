@@ -35,7 +35,11 @@ extension TuistGraph.TargetDependency {
         case let .target(name, platformFilters):
             return [.target(name: name, platformFilters: platformFilters.asGraphFilters)]
         case let .project(target, projectPath, platformFilters):
-            return [.project(target: target, path: try generatorPaths.resolve(path: projectPath), platformFilters: platformFilters.asGraphFilters)]
+            return [.project(
+                target: target,
+                path: try generatorPaths.resolve(path: projectPath),
+                platformFilters: platformFilters.asGraphFilters
+            )]
         case let .framework(frameworkPath, status, platformFilters):
             return [
                 .framework(
@@ -89,7 +93,7 @@ extension TuistGraph.TargetDependency {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name, platform: "Dont commit me")
             }
 
-            return dependencies.map({ $0.withFilters(filters.asGraphFilters) })
+            return dependencies.map { $0.withFilters(filters.asGraphFilters) }
         }
     }
 }
@@ -104,19 +108,19 @@ extension ProjectDescription.PlatformFilter {
     fileprivate var graphPlatformFilter: TuistGraph.PlatformFilter {
         switch self {
         case .ios:
-                .ios
+            .ios
         case .macos:
-                .macos
+            .macos
         case .tvos:
-                .tvos
+            .tvos
         case .catalyst:
-                .catalyst
+            .catalyst
         case .driverkit:
-                .driverkit
+            .driverkit
         case .watchos:
-                .watchos
+            .watchos
         case .visionos:
-                .visionos
+            .visionos
         }
     }
 }

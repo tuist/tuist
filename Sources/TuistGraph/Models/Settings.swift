@@ -3,7 +3,9 @@ import TSCBasic
 
 public typealias SettingsDictionary = [String: SettingValue]
 
-public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
+public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable,
+    Codable
+{
     case string(String)
     case array([String])
 

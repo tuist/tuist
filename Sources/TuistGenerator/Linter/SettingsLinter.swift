@@ -58,7 +58,10 @@ final class SettingsLinter: SettingsLinting {
         return []
     }
 
-    private func lintDestinations(for targetPlatforms: Set<Platform>, and deploymentTargets: DeploymentTargets) -> [LintingIssue] {
+    private func lintDestinations(
+        for targetPlatforms: Set<Platform>,
+        and deploymentTargets: DeploymentTargets
+    ) -> [LintingIssue] {
         var missingPlatforms: [Platform] = []
 
         for deploymentTarget in deploymentTargets.configuredVersions {

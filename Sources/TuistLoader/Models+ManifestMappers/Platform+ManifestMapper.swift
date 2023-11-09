@@ -21,7 +21,6 @@ extension TuistGraph.Platform {
             return .visionOS
         }
     }
-    
 }
 
 extension TuistGraph.PackagePlatform {
@@ -45,5 +44,4 @@ extension TuistGraph.PackagePlatform {
             return .visionOS
         }
     }
-    
 }

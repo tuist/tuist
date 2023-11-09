@@ -8,8 +8,6 @@ public protocol GraphLoading {
     func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph
 }
 
-
-
 // swiftlint:disable:next type_body_length
 public final class GraphLoader: GraphLoading {
     private let frameworkMetadataProvider: FrameworkMetadataProviding
@@ -103,7 +101,7 @@ public final class GraphLoader: GraphLoading {
         else {
             throw GraphLoadingError.targetNotFound(name, path)
         }
-        
+
         cache.add(target: target, path: path)
         let targetDependency = GraphDependency.target(name: name, path: path)
         let dependencies: [GraphDependency] = try target.dependencies.compactMap { dependency in

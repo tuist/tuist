@@ -16,7 +16,6 @@ public enum Platform: String, Codable, Equatable, CaseIterable {
     case visionOS = "visionos"
 }
 
-
 /// A supported platform representation.
 public enum PackagePlatform: String, Codable, Equatable, CaseIterable {
     /// The iOS platform

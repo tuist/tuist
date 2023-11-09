@@ -39,14 +39,11 @@ extension TuistGraph.Target {
         let deploymentTargets = manifest.deploymentTargets.map { TuistGraph.DeploymentTargets.from(manifest: $0) } ?? .empty()
 
         let dependencies = try manifest.dependencies.flatMap { dependency in
-            try destinations.map(\.platform).flatMap { platform in
-                try TuistGraph.TargetDependency.from(
-                    manifest: dependency,
-                    generatorPaths: generatorPaths,
-                    externalDependencies: externalDependencies
-//                    platform: platform
-                )
-            }
+            try TuistGraph.TargetDependency.from(
+                manifest: dependency,
+                generatorPaths: generatorPaths,
+                externalDependencies: externalDependencies
+            )
         }.uniqued()
 
         let infoPlist = try TuistGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)

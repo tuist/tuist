@@ -235,8 +235,14 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
                 fileHandler: fileHandler
             )
-            .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]))
-            .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]))
+            .merging(with: DependenciesGraph.aDependency(
+                spmFolder: spmFolder,
+                destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
+            ))
+            .merging(with: DependenciesGraph.anotherDependency(
+                spmFolder: spmFolder,
+                destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
+            ))
         )
     }
 
@@ -433,8 +439,14 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
                 fileHandler: fileHandler
             )
-            .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder, destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]))
-            .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder, destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]))
+            .merging(with: DependenciesGraph.aDependency(
+                spmFolder: spmFolder,
+                destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
+            ))
+            .merging(with: DependenciesGraph.anotherDependency(
+                spmFolder: spmFolder,
+                destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
+            ))
         )
     }
 
@@ -487,7 +499,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
 extension TuistCore.DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
         var mergedExternalDependencies: [String: [ProjectDescription.TargetDependency]] =
-        externalDependencies
+            externalDependencies
 
         other.externalDependencies.forEach { name, dependency in
             if let alreadyPresent = mergedExternalDependencies[name] {

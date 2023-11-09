@@ -34,8 +34,7 @@ extension TuistCore.DependenciesGraph {
     public static func testXCFramework(
         name: String = "Test",
         // swiftlint:disable:next force_try
-        path: Path = Path(AbsolutePath.root.appending(try! RelativePath(validating: "Test.xcframework")).pathString),
-        platforms: Set<Platform>
+        path: Path = Path(AbsolutePath.root.appending(try! RelativePath(validating: "Test.xcframework")).pathString)
     ) -> Self {
         let externalDependencies = [name: [TargetDependency.xcframework(path: path)]]
 
@@ -65,12 +64,12 @@ extension TuistCore.DependenciesGraph {
 
         let targets: [Multiplatform.Target] = [
             .init(
-                name:  "Tuist",
+                name: "Tuist",
                 destinations: destinations,
                 product: .staticFramework,
                 productName: "Tuist",
                 bundleId: "Tuist",
-                deploymentTargets: self.resolveDeploymentTargets(for: destinations),
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
                 infoPlist: .default,
                 sources: [
                     .glob(
@@ -89,11 +88,11 @@ extension TuistCore.DependenciesGraph {
                         platformFilters: [.ios]
                     ),
                     .project(
-                        target:  "ALibraryUtils",
+                        target: "ALibraryUtils",
                         path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency"),
                         platformFilters: [.ios]
                     ),
-                    .sdk(name: "WatchKit", type: .framework, status: .required, platformFilters: [.watchos])
+                    .sdk(name: "WatchKit", type: .framework, status: .required, platformFilters: [.watchos]),
                 ],
                 settings: Self.spmSettings(with: [
                     "HEADER_SEARCH_PATHS": [
@@ -113,7 +112,7 @@ extension TuistCore.DependenciesGraph {
                 product: .staticFramework,
                 productName: "TuistKit",
                 bundleId: "TuistKit",
-                deploymentTargets: self.resolveDeploymentTargets(for: destinations),
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
                 infoPlist: .default,
                 sources: [
                     "\(packageFolder.pathString)/Sources/TuistKit/**",
@@ -175,7 +174,6 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
-
         let targets: [Multiplatform.Target] = [
             .init(
                 name: "ALibrary",
@@ -183,7 +181,7 @@ extension TuistCore.DependenciesGraph {
                 product: .staticFramework,
                 productName: "ALibrary",
                 bundleId: "ALibrary",
-                deploymentTargets: self.resolveDeploymentTargets(for: destinations),
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
                 infoPlist: .default,
                 sources: [
                     "\(packageFolder.pathString)/Sources/ALibrary/**",
@@ -201,7 +199,7 @@ extension TuistCore.DependenciesGraph {
                 product: .staticFramework,
                 productName: "ALibraryUtils",
                 bundleId: "ALibraryUtils",
-                deploymentTargets: self.resolveDeploymentTargets(for: destinations),
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
                 infoPlist: .default,
                 sources: [
                     "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
@@ -244,12 +242,12 @@ extension TuistCore.DependenciesGraph {
         let externalDependencies: [String: [TargetDependency]] = [
             "AnotherLibrary": [
                 .project(
-                    target:  "AnotherLibrary",
+                    target: "AnotherLibrary",
                     path: packageFolder
                 ),
             ],
         ]
-        
+
         let targets: [Multiplatform.Target] = [
             .init(
                 name: "AnotherLibrary",
@@ -257,13 +255,13 @@ extension TuistCore.DependenciesGraph {
                 product: .staticFramework,
                 productName: "AnotherLibrary",
                 bundleId: "AnotherLibrary",
-                deploymentTargets: self.resolveDeploymentTargets(for: destinations),
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
                 infoPlist: .default,
                 sources: [
                     "\(packageFolder.pathString)/Sources/AnotherLibrary/**",
                 ],
                 settings: Self.spmSettings()
-            )
+            ),
         ]
 
         return .init(
@@ -318,10 +316,15 @@ extension TuistCore.DependenciesGraph {
                     "\(packageFolder.pathString)/Source/**",
                 ],
                 dependencies: [
-                    .sdk(name: "CFNetwork", type: .framework, status: .required, platformFilters: [.ios, .macos, .tvos, .watchos]),
+                    .sdk(
+                        name: "CFNetwork",
+                        type: .framework,
+                        status: .required,
+                        platformFilters: [.ios, .macos, .tvos, .watchos]
+                    ),
                 ],
                 settings: Self.spmSettings()
-            )
+            ),
         ]
 
         return .init(
@@ -366,92 +369,90 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
-
         let targets: [Multiplatform.Target] = [
-                .init(
-                    name: "GoogleAppMeasurementTarget",
-                    destinations: destinations,
-                    product: .staticFramework,
-                    productName: "GoogleAppMeasurementTarget",
-                    bundleId: "GoogleAppMeasurementTarget",
-                    deploymentTargets: self.resolveDeploymentTargets(for: destinations),
-                    infoPlist: .default,
-                    sources: [
-                        "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**",
-                    ],
-                    dependencies: [
-                        .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework"),
-                        .project(
-                            target: "GULAppDelegateSwizzler",
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
-                        ),
-                        .project(
-                            target: "GULMethodSwizzler",
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
-                        ),
-                        .project(
-                            target: "GULNSData",
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
-                        ),
-                        .project(
-                            target: "GULNetwork",
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
-                        ),
-                        .project(
-                            target: "nanopb",
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
-                        ),
-                        .sdk(name: "sqlite3", type: .library, status: .required),
-                        .sdk(name: "c++", type: .library, status: .required),
-                        .sdk(name: "z", type: .library, status: .required),
-                        .sdk(name: "StoreKit", type: .framework, status: .required),
-                    ],
-                    settings: Self.spmSettings()
-                ),
-                .init(
-                    name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
-                    destinations: destinations,
-                    product: .staticFramework,
-                    productName: "GoogleAppMeasurementWithoutAdIdSupportTarget",
-                    bundleId: "GoogleAppMeasurementWithoutAdIdSupportTarget",
-                    deploymentTargets: self.resolveDeploymentTargets(for: destinations),
-                    infoPlist: .default,
-                    sources: [
-                        "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**",
-                    ],
-                    dependencies: [
-                        .xcframework(
-                            path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"
-                        ),
-                        .project(
-                            target: "GULAppDelegateSwizzler",
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
-                        ),
-                        .project(
-                            target: "GULMethodSwizzler",
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
-                        ),
-                        .project(
-                            target: "GULNSData",
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
-                        ),
-                        .project(
-                            target: "GULNetwork",
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
-                        ),
-                        .project(
-                            target: "nanopb",
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
-                        ),
-                        .sdk(name: "sqlite3", type: .library, status: .required),
-                        .sdk(name: "c++", type: .library, status: .required),
-                        .sdk(name: "z", type: .library, status: .required),
-                        .sdk(name: "StoreKit", type: .framework, status: .required),
-                    ],
-                    settings: Self.spmSettings()
-                ),
-            ]
-        
+            .init(
+                name: "GoogleAppMeasurementTarget",
+                destinations: destinations,
+                product: .staticFramework,
+                productName: "GoogleAppMeasurementTarget",
+                bundleId: "GoogleAppMeasurementTarget",
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
+                infoPlist: .default,
+                sources: [
+                    "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**",
+                ],
+                dependencies: [
+                    .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework"),
+                    .project(
+                        target: "GULAppDelegateSwizzler",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                    ),
+                    .project(
+                        target: "GULMethodSwizzler",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                    ),
+                    .project(
+                        target: "GULNSData",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                    ),
+                    .project(
+                        target: "GULNetwork",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                    ),
+                    .project(
+                        target: "nanopb",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
+                    ),
+                    .sdk(name: "sqlite3", type: .library, status: .required),
+                    .sdk(name: "c++", type: .library, status: .required),
+                    .sdk(name: "z", type: .library, status: .required),
+                    .sdk(name: "StoreKit", type: .framework, status: .required),
+                ],
+                settings: Self.spmSettings()
+            ),
+            .init(
+                name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
+                destinations: destinations,
+                product: .staticFramework,
+                productName: "GoogleAppMeasurementWithoutAdIdSupportTarget",
+                bundleId: "GoogleAppMeasurementWithoutAdIdSupportTarget",
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
+                infoPlist: .default,
+                sources: [
+                    "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**",
+                ],
+                dependencies: [
+                    .xcframework(
+                        path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"
+                    ),
+                    .project(
+                        target: "GULAppDelegateSwizzler",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                    ),
+                    .project(
+                        target: "GULMethodSwizzler",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                    ),
+                    .project(
+                        target: "GULNSData",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                    ),
+                    .project(
+                        target: "GULNetwork",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                    ),
+                    .project(
+                        target: "nanopb",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
+                    ),
+                    .sdk(name: "sqlite3", type: .library, status: .required),
+                    .sdk(name: "c++", type: .library, status: .required),
+                    .sdk(name: "z", type: .library, status: .required),
+                    .sdk(name: "StoreKit", type: .framework, status: .required),
+                ],
+                settings: Self.spmSettings()
+            ),
+        ]
 
         return .init(
             externalDependencies: externalDependencies,
@@ -516,63 +517,61 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
+        let targets: [Multiplatform.Target] = [
+            .init(
+                name: "GULAppDelegateSwizzler",
+                destinations: destinations,
+                product: customProductTypes["GULAppDelegateSwizzler"] ?? .staticFramework,
+                productName: "GULAppDelegateSwizzler",
+                bundleId: "GULAppDelegateSwizzler",
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
+                infoPlist: .default,
+                sources: [
+                    "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**",
+                ],
+                settings: Self.spmSettings()
+            ),
+            .init(
+                name: "GULMethodSwizzler",
+                destinations: destinations,
+                product: customProductTypes["GULMethodSwizzler"] ?? .staticFramework,
+                productName: "GULMethodSwizzler",
+                bundleId: "GULMethodSwizzler",
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
+                infoPlist: .default,
+                sources: [
+                    "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**",
+                ],
+                settings: Self.spmSettings()
+            ),
 
-        let targets: [Multiplatform.Target] =  [
-                .init(
-                    name: "GULAppDelegateSwizzler",
-                    destinations: destinations,
-                    product: customProductTypes["GULAppDelegateSwizzler"] ?? .staticFramework,
-                    productName: "GULAppDelegateSwizzler",
-                    bundleId: "GULAppDelegateSwizzler",
-                    deploymentTargets: self.resolveDeploymentTargets(for: destinations),
-                    infoPlist: .default,
-                    sources: [
-                        "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**",
-                    ],
-                    settings: Self.spmSettings()
-                ),
-                .init(
-                    name: "GULMethodSwizzler",
-                    destinations: destinations,
-                    product: customProductTypes["GULMethodSwizzler"] ?? .staticFramework,
-                    productName: "GULMethodSwizzler",
-                    bundleId: "GULMethodSwizzler",
-                    deploymentTargets: self.resolveDeploymentTargets(for: destinations),
-                    infoPlist: .default,
-                    sources: [
-                        "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**",
-                    ],
-                    settings: Self.spmSettings()
-                ),
-
-                .init(
-                    name: "GULNSData",
-                    destinations: destinations,
-                    product: customProductTypes["GULNSData"] ?? .staticFramework,
-                    productName: "GULNSData",
-                    bundleId: "GULNSData",
-                    deploymentTargets: self.resolveDeploymentTargets(for: destinations),
-                    infoPlist: .default,
-                    sources: [
-                        "\(packageFolder.pathString)/Sources/GULNSData/**",
-                    ],
-                    settings: Self.spmSettings()
-                ),
-                .init(
-                    name: "GULNetwork",
-                    destinations: destinations,
-                    product: customProductTypes["GULNetwork"] ?? .staticFramework,
-                    productName: "GULNetwork",
-                    bundleId: "GULNetwork",
-                    deploymentTargets: self.resolveDeploymentTargets(for: destinations),
-                    infoPlist: .default,
-                    sources: [
-                        "\(packageFolder.pathString)/Sources/GULNetwork/**",
-                    ],
-                    settings: Self.spmSettings()
-                ),
-            ]
-        
+            .init(
+                name: "GULNSData",
+                destinations: destinations,
+                product: customProductTypes["GULNSData"] ?? .staticFramework,
+                productName: "GULNSData",
+                bundleId: "GULNSData",
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
+                infoPlist: .default,
+                sources: [
+                    "\(packageFolder.pathString)/Sources/GULNSData/**",
+                ],
+                settings: Self.spmSettings()
+            ),
+            .init(
+                name: "GULNetwork",
+                destinations: destinations,
+                product: customProductTypes["GULNetwork"] ?? .staticFramework,
+                productName: "GULNetwork",
+                bundleId: "GULNetwork",
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
+                infoPlist: .default,
+                sources: [
+                    "\(packageFolder.pathString)/Sources/GULNetwork/**",
+                ],
+                settings: Self.spmSettings()
+            ),
+        ]
 
         return .init(
             externalDependencies: externalDependencies,
@@ -620,13 +619,13 @@ extension TuistCore.DependenciesGraph {
                 product: .staticFramework,
                 productName: "nanopb",
                 bundleId: "nanopb",
-                deploymentTargets: self.resolveDeploymentTargets(for: destinations),
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
                 infoPlist: .default,
                 sources: [
                     "\(packageFolder.pathString)/Sources/nanopb/**",
                 ],
                 settings: Self.spmSettings()
-            )
+            ),
         ]
 
         return .init(
@@ -734,12 +733,14 @@ extension DependenciesGraph {
 extension DependenciesGraph {
     fileprivate static func resolveDeploymentTargets(for destinations: Destinations) -> DeploymentTargets {
         let platforms = destinations.platforms
-        let applicableVersions = PLATFORM_TEST_VERSION.filter( { platforms.contains($0.key) })
-        
-        return DeploymentTargets(iOS: applicableVersions[Platform.iOS],
-                                 macOS: applicableVersions[Platform.macOS],
-                                 watchOS: applicableVersions[Platform.watchOS],
-                                 tvOS: applicableVersions[Platform.tvOS],
-                                 visionOS: applicableVersions[Platform.visionOS])
+        let applicableVersions = PLATFORM_TEST_VERSION.filter { platforms.contains($0.key) }
+
+        return DeploymentTargets(
+            iOS: applicableVersions[Platform.iOS],
+            macOS: applicableVersions[Platform.macOS],
+            watchOS: applicableVersions[Platform.watchOS],
+            tvOS: applicableVersions[Platform.tvOS],
+            visionOS: applicableVersions[Platform.visionOS]
+        )
     }
 }

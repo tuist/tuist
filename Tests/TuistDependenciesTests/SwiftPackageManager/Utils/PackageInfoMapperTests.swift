@@ -1048,9 +1048,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ],
             platforms: [.iOS]
-            
         )
-        
+
         XCTAssertEqual(
             project,
             .testWithDefaultConfigs(
@@ -1540,10 +1539,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", 
-                          basePath: basePath,
-                          destinations: [.appleTv],
-                          deploymentTargets: .tvOS("11.0")),
+                    .test(
+                        "Target1",
+
+                        basePath: basePath,
+                        destinations: [.appleTv],
+                        deploymentTargets: .tvOS("11.0")
+                    ),
                 ]
             )
         )
@@ -1572,7 +1574,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ],
             platforms: [.iOS]
         )
-        
+
         let other = ProjectDescription.Project.testWithDefaultConfigs(
             name: "Package",
             targets: [
@@ -1583,16 +1585,16 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        
+
         dump(project?.multiplatformTargets.first?.destinations)
         dump(other.multiplatformTargets.first?.destinations)
-        
+
         XCTAssertEqual(
             project,
             other
         )
     }
-    
+
     func testMap_whenSettingsContainsCHeaderSearchPath_mapsToHeaderSearchPathsSetting() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
@@ -3207,7 +3209,7 @@ extension PackageInfoMapping {
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
         )
 
-        let destinations: ProjectDescription.Destinations = Set(platforms.flatMap({ platform -> ProjectDescription.Destinations in
+        let destinations: ProjectDescription.Destinations = Set(platforms.flatMap { platform -> ProjectDescription.Destinations in
             switch platform {
             case .iOS:
                 [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign]
@@ -3222,8 +3224,8 @@ extension PackageInfoMapping {
             case .visionOS:
                 [.appleVision]
             }
-        }))
-        
+        })
+
         return try map(
             packageInfo: packageInfos[package]!,
             packageInfos: packageInfos,
@@ -3308,7 +3310,6 @@ extension ProjectDescription.Project {
             targets: targets
         )
     }
-
 }
 
 extension ProjectDescription.Multiplatform.Target {
@@ -3320,7 +3321,7 @@ extension ProjectDescription.Multiplatform.Target {
     fileprivate static func test(
         _ name: String,
         basePath: AbsolutePath = "/",
-        destinations: ProjectDescription.Destinations =  [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
+        destinations: ProjectDescription.Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
         product: ProjectDescription.Product = .staticFramework,
         customProductName: String? = nil,
         customBundleID: String? = nil,

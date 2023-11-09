@@ -205,6 +205,7 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
+    // Filter based on edges
     public func directStaticDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         Set(
             graph.dependencies[.target(name: name, path: path)]?

@@ -26,7 +26,10 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
             .map { try FileHandler.shared.readFile($0) }
             .map { try jsonDecoder.decode(CarthageVersionFile.self, from: $0) }
 
-        return DependenciesGraph(externalDependencies: groupDependencies(products: products.flatMap(\.allProducts)), externalProjects: [:])
+        return DependenciesGraph(
+            externalDependencies: groupDependencies(products: products.flatMap(\.allProducts)),
+            externalProjects: [:]
+        )
     }
 }
 

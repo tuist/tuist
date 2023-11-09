@@ -26,7 +26,7 @@ public enum TargetDependency: Equatable, Hashable, Codable {
     case package(product: String, type: PackageType, platformFilters: PlatformFilters = [])
     case sdk(name: String, status: SDKStatus, platformFilters: PlatformFilters = [])
     case xctest
-    
+
     public var platformFilters: PlatformFilters {
         switch self {
         case .target(name: _, platformFilters: let platformFilters):
@@ -46,8 +46,8 @@ public enum TargetDependency: Equatable, Hashable, Codable {
         case .xctest: []
         }
     }
-    
-    // TODO needs tests
+
+    // TODO: needs tests
     public func withFilters(_ platformFilters: PlatformFilters) -> TargetDependency {
         switch self {
         case .target(name: let name, platformFilters: _):
@@ -60,10 +60,8 @@ public enum TargetDependency: Equatable, Hashable, Codable {
             return .xcframework(path: path, status: status, platformFilters: platformFilters)
         case .library(path: let path, publicHeaders: let headers, swiftModuleMap: let moduleMap, platformFilters: _):
             return .library(path: path, publicHeaders: headers, swiftModuleMap: moduleMap, platformFilters: platformFilters)
-        case .package(product: let product, platformFilters: _):
-            return .package(product: product, platformFilters: platformFilters)
-        case .packagePlugin(product: let product, platformFilters: _):
-            return .packagePlugin(product: product, platformFilters: platformFilters)
+        case .package(product: let product, type: let type, platformFilters: _):
+            return .package(product: product, type: type, platformFilters: platformFilters)
         case .sdk(name: let name, status: let status, platformFilters: _):
             return .sdk(name: name, status: status, platformFilters: platformFilters)
         case .xctest: return .xctest
