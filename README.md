@@ -52,7 +52,7 @@ You can use our [contribution docs](https://docs.tuist.io/contributors/get-start
 
 The financial sustainability of the project is possible thanks to the ongoing contributions from our [GitHub Sponsors](https://github.com/sponsors/tuist) and [Open Collective Backers](https://opencollective.com/tuistapp). From them, we'd like to give a special mention to the following sponsors:
 
-## Gold Sponsors
+### Gold Sponsors
 
 [Monday.com](https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist)  is a cloud-based work operating system (Work OS) that empowers teams to run projects and workflows with confidence. It's a versatile platform that combines features of project management, workflow automation, and team collaboration to streamline the way teams work together. 
 
