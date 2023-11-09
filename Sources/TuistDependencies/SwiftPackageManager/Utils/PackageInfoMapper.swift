@@ -941,7 +941,7 @@ extension ProjectDescription.Settings {
             }
             .sorted()
             
-        struct CustomSettingsMapper {
+        struct SettingsMapper {
             init(headerSearchPaths: [String], mainRelativePath: RelativePath, settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]) {
                 self.headerSearchPaths = headerSearchPaths
                 self.settings = settings
@@ -955,22 +955,15 @@ extension ProjectDescription.Settings {
             // `nil` means settings without a condition
             private func settingsForPlatform(_ platformName: String?) throws -> [PackageInfo.Target.TargetBuildSettingDescription.Setting] {
                 return settings.filter { setting in
-                    if let platformName {
+                    if let platformName, setting.hasConditions {
                         return setting.condition?.platformNames.contains(platformName) == true
                     } else {
-                        return setting.condition != nil && setting.condition?.platformNames.isEmpty == true
+                        return !setting.hasConditions
                     }
                 }
             }
             
             func settingsDictionaryForPlatform(_ platform: PackageInfo.Platform?) throws -> TuistGraph.SettingsDictionary {
-                func settingName(_ name: String) throws -> String {
-                    if let platform {
-                        return "\(name)[sdk=\(try platform.graphPlatform().xcodeSdkRoot)*]"
-                    } else {
-                        return name
-                    }
-                }
                 var headerSearchPaths = self.headerSearchPaths
                 var defines = ["SWIFT_PACKAGE": "1"]
                 var swiftDefines = "SWIFT_PACKAGE"
@@ -999,6 +992,8 @@ extension ProjectDescription.Settings {
                         swiftFlags.append(contentsOf: setting.value)
                     case (.swift, .enableUpcomingFeature):
                         swiftFlags.append("-enable-upcoming-feature \(setting.value[0])")
+                    case (.swift, .enableExperimentalFeature):
+                        swiftFlags.append("-enable-experimental-feature \(setting.value[0])")
                     case (.linker, .unsafeFlags):
                         linkerFlags.append(contentsOf: setting.value)
                     case (.linker, .linkedFramework), (.linker, .linkedLibrary):
@@ -1014,34 +1009,34 @@ extension ProjectDescription.Settings {
                 }
                 
                 if !headerSearchPaths.isEmpty {
-                    settingsDictionary[try settingName("HEADER_SEARCH_PATHS")] = .array(["$(inherited)"] + headerSearchPaths.map { $0 })
+                    settingsDictionary["HEADER_SEARCH_PATHS"] = .array(["$(inherited)"] + headerSearchPaths.map { $0 })
                 }
                 
                 if !defines.isEmpty {
                     let sortedDefines = defines.sorted { $0.key < $1.key }
-                    settingsDictionary[try settingName("GCC_PREPROCESSOR_DEFINITIONS")] = .array(["$(inherited)"] + sortedDefines.map { key, value in
+                    settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + sortedDefines.map { key, value in
                         "\(key)=\(value.spm_shellEscaped())"
                     })
                 }
                 
                 if !swiftDefines.isEmpty {
-                    settingsDictionary[try settingName("SWIFT_ACTIVE_COMPILATION_CONDITIONS")] = "$(inherited) \(swiftDefines)"
+                    settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "$(inherited) \(swiftDefines)"
                 }
                 
                 if !cFlags.isEmpty {
-                    settingsDictionary[try settingName("OTHER_CFLAGS")] = .array(["$(inherited)"] + cFlags)
+                    settingsDictionary["OTHER_CFLAGS"] = .array(["$(inherited)"] + cFlags)
                 }
                 
                 if !cxxFlags.isEmpty {
-                    settingsDictionary[try settingName("OTHER_CPLUSPLUSFLAGS")] = .array(["$(inherited)"] + cxxFlags)
+                    settingsDictionary["OTHER_CPLUSPLUSFLAGS"] = .array(["$(inherited)"] + cxxFlags)
                 }
                 
                 if !swiftFlags.isEmpty {
-                    settingsDictionary[try settingName("OTHER_SWIFT_FLAGS")] = .array(["$(inherited)"] + swiftFlags)
+                    settingsDictionary["OTHER_SWIFT_FLAGS"] = .array(["$(inherited)"] + swiftFlags)
                 }
                 
                 if !linkerFlags.isEmpty {
-                    settingsDictionary[try settingName("OTHER_LDFLAGS")] = .array(["$(inherited)"] + linkerFlags)
+                    settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
                 }
 
                 return settingsDictionary
@@ -1062,21 +1057,26 @@ extension ProjectDescription.Settings {
             "SWIFT_SUPPRESS_WARNINGS": "YES",
         ]
         
+        let mapper = SettingsMapper(headerSearchPaths: dependencyHeaderSearchPaths,
+                                    mainRelativePath: mainRelativePath,
+                                    settings: settings)
+        
+        var settingsForAllPlatforms =  try mapper.settingsDictionaryForPlatform(nil)
+
         if target.type.supportsCustomSettings {
-            let mapper = CustomSettingsMapper(headerSearchPaths: dependencyHeaderSearchPaths,
-                                              mainRelativePath: mainRelativePath,
-                                              settings: settings)
-            
-            var settingsForAllPlatforms =  try mapper.settingsDictionaryForPlatform(nil)
             
             for platform in platforms {
                 let platformSettings = try mapper.settingsDictionaryForPlatform(platform)
-                settingsForAllPlatforms.merge(platformSettings) { $1 }
+                try platformSettings.forEach { key, newValue in
+                    if settingsForAllPlatforms[key] != newValue {
+                        let newKey = "\(key)[sdk=\(try platform.graphPlatform().xcodeSdkRoot)*]"
+                        settingsForAllPlatforms[newKey] = newValue
+                    }
+                }
             }
-            
-            settingsDictionary.merge(settingsForAllPlatforms) { $1 }
         }
 
+        settingsDictionary.merge(settingsForAllPlatforms) { $1 }
 
         if let moduleMapPath = moduleMap?.path {
             settingsDictionary["MODULEMAP_FILE"] = .string("$(SRCROOT)/\(moduleMapPath.relative(to: packageFolder))")
@@ -1159,6 +1159,25 @@ extension PackageInfo.Platform {
             return .watchOS
         case "visionos":
             return .visionOS
+        default:
+            throw PackageInfoMapperError.unknownPlatform(platformName)
+        }
+    }
+
+    fileprivate func destinations() throws -> ProjectDescription.Destinations {
+        switch platformName {
+        case "ios":
+            return [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
+        case "maccatalyst":
+            return [.macCatalyst]
+        case "macos":
+            return [.mac]
+        case "tvos":
+            return [.appleTv]
+        case "watchos":
+            return [.appleWatch]
+        case "visionos":
+            return [.appleVision]
         default:
             throw PackageInfoMapperError.unknownPlatform(platformName)
         }
