@@ -62,7 +62,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
 
-        let expectedGraphManifest = TuistCore.DependenciesGraph.testXCFramework(name: "Name", platforms: [.iOS])
+        let expectedGraphManifest = TuistCore.DependenciesGraph.testXCFramework(name: "Name")
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -161,8 +161,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
         let swiftVersion = TSCUtility.Version(5, 4, 0)
-        let carthageGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Carthage", platforms: [.iOS])
-        let spmGraph = TuistCore.DependenciesGraph.testXCFramework(name: "SPM", platforms: [.iOS])
+        let carthageGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Carthage")
+        let spmGraph = TuistCore.DependenciesGraph.testXCFramework(name: "SPM")
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -189,9 +189,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             graphManifest,
             .init(
                 externalDependencies: [
-                    "Carthage": TuistCore.DependenciesGraph.testXCFramework(name: "Carthage", platforms: [.iOS])
+                    "Carthage": TuistCore.DependenciesGraph.testXCFramework(name: "Carthage")
                         .externalDependencies.values.first!,
-                    "SPM": TuistCore.DependenciesGraph.testXCFramework(name: "SPM", platforms: [.iOS])
+                    "SPM": TuistCore.DependenciesGraph.testXCFramework(name: "SPM")
                         .externalDependencies.values.first!,
                 ],
                 externalProjects: [:]
@@ -226,13 +226,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         )
         let carthageGraph = TuistCore.DependenciesGraph.testXCFramework(
             name: "Duplicated",
-            path: Path(rootPath.appending(component: "Carthage").pathString),
-            platforms: [.iOS]
+            path: Path(rootPath.appending(component: "Carthage").pathString)
         )
         let spmGraph = TuistCore.DependenciesGraph.testXCFramework(
             name: "Duplicated",
-            path: Path(rootPath.appending(component: "SPM").pathString),
-            platforms: [.iOS]
+            path: Path(rootPath.appending(component: "SPM").pathString)
         )
 
         carthageInteractor.installStub = { _, _, _, _ in
@@ -317,7 +315,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: platforms
         )
-        let expectedGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Name", platforms: [.iOS])
+        let expectedGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Name")
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -414,7 +412,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
         let swiftVersion = TSCUtility.Version(5, 4, 0)
-        let expectedGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Name", platforms: [.iOS])
+        let expectedGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Name")
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)

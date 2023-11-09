@@ -48,7 +48,6 @@ extension DependenciesGraph {
         name: String = "Test",
         // swiftlint:disable:next force_try
         path: AbsolutePath = AbsolutePath.root.appending(try! RelativePath(validating: "Test.xcframework")),
-        platforms: Set<Platform>,
         status: FrameworkStatus = .required
     ) -> DependenciesGraph {
         let externalDependencies = [name: [TargetDependency.xcframework(path: path, status: status)]]
@@ -60,8 +59,7 @@ extension DependenciesGraph {
     }
 
     public static func test(
-        packageFolder: AbsolutePath,
-        platforms: Set<Platform>
+        packageFolder: AbsolutePath
     ) -> Self {
         let externalDependencies = [
             "Tuist": [
@@ -79,8 +77,7 @@ extension DependenciesGraph {
     }
 
     public static func aDependency(
-        packageFolder: AbsolutePath,
-        platforms: Set<Platform>
+        packageFolder: AbsolutePath
     ) -> Self {
         let externalDependencies = [
             "ALibrary": [
@@ -91,7 +88,6 @@ extension DependenciesGraph {
             ],
         ]
 
-
         return .init(
             externalDependencies: externalDependencies,
             externalProjects: [:]
@@ -99,8 +95,7 @@ extension DependenciesGraph {
     }
 
     public static func anotherDependency(
-        packageFolder: AbsolutePath,
-        platforms: Set<Platform>
+        packageFolder: AbsolutePath
     ) -> Self {
         let externalDependencies = [
             "AnotherLibrary": [
@@ -118,8 +113,7 @@ extension DependenciesGraph {
     }
 
     public static func alamofire(
-        packageFolder: AbsolutePath,
-        platforms: Set<Platform>
+        packageFolder: AbsolutePath
     ) -> Self {
         let externalDependencies = [
             "Alamofire": [
@@ -130,7 +124,6 @@ extension DependenciesGraph {
             ],
         ]
 
-
         return .init(
             externalDependencies: externalDependencies,
             externalProjects: [:]
@@ -138,8 +131,7 @@ extension DependenciesGraph {
     }
 
     public static func googleAppMeasurement(
-        packageFolder: AbsolutePath,
-        platforms: Set<Platform>
+        packageFolder: AbsolutePath
     ) -> Self {
         let externalDependencies = [
             "GoogleAppMeasurement": [
@@ -156,7 +148,6 @@ extension DependenciesGraph {
             ],
         ]
 
-
         return .init(
             externalDependencies: externalDependencies,
             externalProjects: [:]
@@ -164,8 +155,7 @@ extension DependenciesGraph {
     }
 
     public static func googleUtilities(
-        packageFolder: AbsolutePath,
-        platforms: Set<Platform>
+        packageFolder: AbsolutePath
     ) -> Self {
         let externalDependencies = [
             "GULAppDelegateSwizzler": [
@@ -193,7 +183,6 @@ extension DependenciesGraph {
                 ),
             ],
         ]
-        
 
         return .init(
             externalDependencies: externalDependencies,
@@ -202,8 +191,7 @@ extension DependenciesGraph {
     }
 
     public static func nanopb(
-        packageFolder: AbsolutePath,
-        platforms: Set<Platform>
+        packageFolder: AbsolutePath
     ) -> Self {
         let externalDependencies = [
             "nanopb": [
@@ -220,4 +208,3 @@ extension DependenciesGraph {
         )
     }
 }
-
