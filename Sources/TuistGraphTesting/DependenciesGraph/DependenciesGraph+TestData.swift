@@ -7,20 +7,17 @@ extension DependenciesGraph {
     public static var testJson: String {
         """
         {
-          "externalDependencies": [
-            "ios",
-            {
+          "externalDependencies": {
               "RxSwift": [
                 {
                   "xcframework": {
-                    "platformFilters": [],
                     "path": "/Tuist/Dependencies/Carthage/RxSwift.xcframework",
+                    "platformFilters": [],
                     "status": "required"
                   }
                 }
               ]
-            }
-          ],
+            },
           "externalProjects": []
         }
         """
