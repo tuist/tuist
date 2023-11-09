@@ -49,12 +49,11 @@ extension TuistCore.DependenciesGraph {
     public static func test(
         spmFolder: Path,
         packageFolder: Path,
-        platforms: Set<Platform>,
+        destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
         fileHandler: FileHandler
     ) throws -> Self {
         try fileHandler.createFolder(try AbsolutePath(validating: "\(packageFolder.pathString)/customPath/resources"))
 
-        let addPlatfomSuffix = platforms.count != 1
         let externalDependencies: [String: [TargetDependency]] = [
             "Tuist": [
                 .project(
@@ -64,78 +63,70 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
-
-        let targets: [Target] = platforms.flatMap { platform in
-            [
-                .init(
-                    name: self.resolveTargetName(targetName: "Tuist", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
-                    product: .staticFramework,
-                    productName: "Tuist",
-                    bundleId: "Tuist",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
-                    infoPlist: .default,
-                    sources: [
-                        .glob(
-                            "\(packageFolder.pathString)/customPath/customSources/**",
-                            excluding: "\(packageFolder.pathString)/customPath/excluded/sources/**"
-                        ),
+        let targets: [Multiplatform.Target] = [
+            .init(
+                name:  "Tuist",
+                destinations: destinations,
+                product: .staticFramework,
+                productName: "Tuist",
+                bundleId: "Tuist",
+                deploymentTargets: self.resolveDeploymentTargets(for: destinations),
+                infoPlist: .default,
+                sources: [
+                    .glob(
+                        "\(packageFolder.pathString)/customPath/customSources/**",
+                        excluding: "\(packageFolder.pathString)/customPath/excluded/sources/**"
+                    ),
+                ],
+                resources: [
+                    .folderReference(path: "\(packageFolder.pathString)/customPath/resources", tags: []),
+                ],
+                dependencies: [
+                    .target(name: "TuistKit"),
+                    .project(
+                        target: "ALibrary",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency"),
+                        platformFilters: [.ios]
+                    ),
+                    .project(
+                        target:  "ALibraryUtils",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency"),
+                        platformFilters: [.ios]
+                    ),
+                    .sdk(name: "WatchKit", type: .framework, status: .required, platformFilters: [.watchos])
+                ],
+                settings: Self.spmSettings(with: [
+                    "HEADER_SEARCH_PATHS": [
+                        "$(SRCROOT)/customPath/cSearchPath",
+                        "$(SRCROOT)/customPath/cxxSearchPath",
                     ],
-                    resources: [
-                        .folderReference(path: "\(packageFolder.pathString)/customPath/resources", tags: []),
-                    ],
-                    dependencies: [
-                        .target(name: self.resolveTargetName(targetName: "TuistKit", for: platform, addSuffix: addPlatfomSuffix)),
-                        .project(
-                            target: self.resolveTargetName(targetName: "ALibrary", for: platform, addSuffix: addPlatfomSuffix),
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
-                        ),
-                        .project(
-                            target: self.resolveTargetName(
-                                targetName: "ALibraryUtils",
-                                for: platform,
-                                addSuffix: addPlatfomSuffix
-                            ),
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
-                        ),
-                    ],
-                    settings: Self.spmSettings(with: [
-                        "HEADER_SEARCH_PATHS": [
-                            "$(SRCROOT)/customPath/cSearchPath",
-                            "$(SRCROOT)/customPath/cxxSearchPath",
-                        ],
-                        "OTHER_CFLAGS": ["CUSTOM_C_FLAG"],
-                        "OTHER_CPLUSPLUSFLAGS": ["CUSTOM_CXX_FLAG"],
-                        "OTHER_SWIFT_FLAGS": ["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"],
-                        "GCC_PREPROCESSOR_DEFINITIONS": ["CXX_DEFINE=CXX_VALUE", "C_DEFINE=C_VALUE"],
-                        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "SWIFT_DEFINE",
-                    ])
-                ),
-                .init(
-                    name: self.resolveTargetName(targetName: "TuistKit", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
-                    product: .staticFramework,
-                    productName: "TuistKit",
-                    bundleId: "TuistKit",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
-                    infoPlist: .default,
-                    sources: [
-                        "\(packageFolder.pathString)/Sources/TuistKit/**",
-                    ],
-                    dependencies: [
-                        .project(
-                            target: self.resolveTargetName(
-                                targetName: "AnotherLibrary",
-                                for: platform,
-                                addSuffix: addPlatfomSuffix
-                            ),
-                            path: Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
-                        ),
-                    ],
-                    settings: Self.spmSettings()
-                ),
-            ]
-        }
+                    "OTHER_CFLAGS": ["CUSTOM_C_FLAG"],
+                    "OTHER_CPLUSPLUSFLAGS": ["CUSTOM_CXX_FLAG"],
+                    "OTHER_SWIFT_FLAGS": ["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"],
+                    "GCC_PREPROCESSOR_DEFINITIONS": ["CXX_DEFINE=CXX_VALUE", "C_DEFINE=C_VALUE"],
+                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "SWIFT_DEFINE",
+                ])
+            ),
+            .init(
+                name: "TuistKit",
+                destinations: destinations,
+                product: .staticFramework,
+                productName: "TuistKit",
+                bundleId: "TuistKit",
+                deploymentTargets: self.resolveDeploymentTargets(for: destinations),
+                infoPlist: .default,
+                sources: [
+                    "\(packageFolder.pathString)/Sources/TuistKit/**",
+                ],
+                dependencies: [
+                    .project(
+                        target: "AnotherLibrary",
+                        path: Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
+                    ),
+                ],
+                settings: Self.spmSettings()
+            ),
+        ]
 
         return .init(
             externalDependencies: externalDependencies,
@@ -157,7 +148,7 @@ extension TuistCore.DependenciesGraph {
                             .release(name: .release),
                         ]
                     ),
-                    targets: targets,
+                    multiplatformTargets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -167,11 +158,9 @@ extension TuistCore.DependenciesGraph {
     // swiftlint:disable:next function_body_length
     public static func aDependency(
         spmFolder: Path,
-        platforms: Set<Platform>
+        destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
     ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
-
-        let addPlatfomSuffix = platforms.count != 1
 
         let externalDependencies: [String: [TargetDependency]] = [
             "ALibrary": [
@@ -187,42 +176,39 @@ extension TuistCore.DependenciesGraph {
         ]
 
 
-        let targets: [Target] = platforms.flatMap { platform in
-            [
-                .init(
-                    name: resolveTargetName(targetName: "ALibrary", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
-                    product: .staticFramework,
-                    productName: "ALibrary",
-                    bundleId: "ALibrary",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
-                    infoPlist: .default,
-                    sources: [
-                        "\(packageFolder.pathString)/Sources/ALibrary/**",
-                    ],
-                    dependencies: [
-                        .target(
-                            name: self
-                                .resolveTargetName(targetName: "ALibraryUtils", for: platform, addSuffix: addPlatfomSuffix)
-                        ),
-                    ],
-                    settings: Self.spmSettings()
-                ),
-                .init(
-                    name: self.resolveTargetName(targetName: "ALibraryUtils", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
-                    product: .staticFramework,
-                    productName: "ALibraryUtils",
-                    bundleId: "ALibraryUtils",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
-                    infoPlist: .default,
-                    sources: [
-                        "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
-                    ],
-                    settings: Self.spmSettings()
-                ),
-            ]
-        }
+        let targets: [Multiplatform.Target] = [
+            .init(
+                name: "ALibrary",
+                destinations: destinations,
+                product: .staticFramework,
+                productName: "ALibrary",
+                bundleId: "ALibrary",
+                deploymentTargets: self.resolveDeploymentTargets(for: destinations),
+                infoPlist: .default,
+                sources: [
+                    "\(packageFolder.pathString)/Sources/ALibrary/**",
+                ],
+                dependencies: [
+                    .target(
+                        name: "ALibraryUtils"
+                    ),
+                ],
+                settings: Self.spmSettings()
+            ),
+            .init(
+                name: "ALibraryUtils",
+                destinations: destinations,
+                product: .staticFramework,
+                productName: "ALibraryUtils",
+                bundleId: "ALibraryUtils",
+                deploymentTargets: self.resolveDeploymentTargets(for: destinations),
+                infoPlist: .default,
+                sources: [
+                    "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
+                ],
+                settings: Self.spmSettings()
+            ),
+        ]
 
         return .init(
             externalDependencies: externalDependencies,
@@ -241,7 +227,7 @@ extension TuistCore.DependenciesGraph {
                             .release(name: .release),
                         ]
                     ),
-                    targets: targets,
+                    multiplatformTargets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -251,11 +237,10 @@ extension TuistCore.DependenciesGraph {
     // swiftlint:disable:next function_body_length
     public static func anotherDependency(
         spmFolder: Path,
-        platforms: Set<Platform>
+        destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
     ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
 
-        let addPlatfomSuffix = platforms.count != 1
         let externalDependencies: [String: [TargetDependency]] = [
             "AnotherLibrary": [
                 .project(
@@ -264,23 +249,22 @@ extension TuistCore.DependenciesGraph {
                 ),
             ],
         ]
-
-
-        let targets: [Target] = platforms.map { platform in
+        
+        let targets: [Multiplatform.Target] = [
             .init(
-                name: self.resolveTargetName(targetName: "AnotherLibrary", for: platform, addSuffix: addPlatfomSuffix),
-                platform: platform,
+                name: "AnotherLibrary",
+                destinations: destinations,
                 product: .staticFramework,
                 productName: "AnotherLibrary",
                 bundleId: "AnotherLibrary",
-                deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                deploymentTargets: self.resolveDeploymentTargets(for: destinations),
                 infoPlist: .default,
                 sources: [
                     "\(packageFolder.pathString)/Sources/AnotherLibrary/**",
                 ],
                 settings: Self.spmSettings()
             )
-        }
+        ]
 
         return .init(
             externalDependencies: externalDependencies,
@@ -299,7 +283,7 @@ extension TuistCore.DependenciesGraph {
                             .release(name: .release),
                         ]
                     ),
-                    targets: targets,
+                    multiplatformTargets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -308,11 +292,10 @@ extension TuistCore.DependenciesGraph {
 
     public static func alamofire(
         spmFolder: Path,
-        platforms: Set<Platform>
+        destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
     ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "Alamofire")
 
-        let addPlatfomSuffix = platforms.count != 1
         let externalDependencies: [String: [TargetDependency]] = [
             "Alamofire": [
                 .project(
@@ -322,24 +305,24 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
-        let targets: [Target] = platforms.map { platform in
+        let targets: [Multiplatform.Target] = [
             .init(
-                name: self.resolveTargetName(targetName: "Alamofire", for: platform, addSuffix: addPlatfomSuffix),
-                platform: platform,
+                name: "Alamofire",
+                destinations: destinations,
                 product: .staticFramework,
                 productName: "Alamofire",
                 bundleId: "Alamofire",
-                deploymentTarget: resolveDeploymentTarget(for: platform),
+                deploymentTargets: resolveDeploymentTargets(for: destinations),
                 infoPlist: .default,
                 sources: [
                     "\(packageFolder.pathString)/Source/**",
                 ],
                 dependencies: [
-                    .sdk(name: "CFNetwork", type: .framework, status: .required),
+                    .sdk(name: "CFNetwork", type: .framework, status: .required, platformFilters: [.ios, .macos, .tvos, .watchos]),
                 ],
                 settings: Self.spmSettings()
             )
-        }
+        ]
 
         return .init(
             externalDependencies: externalDependencies,
@@ -353,7 +336,7 @@ extension TuistCore.DependenciesGraph {
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
-                    targets: targets,
+                    multiplatformTargets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -363,12 +346,11 @@ extension TuistCore.DependenciesGraph {
     // swiftlint:disable:next function_body_length
     public static func googleAppMeasurement(
         spmFolder: Path,
-        platforms: Set<Platform>
+        destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
     ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
         let artifactsFolder = Self.artifactsFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
 
-        let addPlatfomSuffix = platforms.count != 1
         let externalDependencies = [
             "GoogleAppMeasurement": [
                 TargetDependency.project(
@@ -385,19 +367,14 @@ extension TuistCore.DependenciesGraph {
         ]
 
 
-        let targets: [Target] = platforms.flatMap { platform in
-            [
+        let targets: [Multiplatform.Target] = [
                 .init(
-                    name: self.resolveTargetName(
-                        targetName: "GoogleAppMeasurementTarget",
-                        for: platform,
-                        addSuffix: addPlatfomSuffix
-                    ),
-                    platform: platform,
+                    name: "GoogleAppMeasurementTarget",
+                    destinations: destinations,
                     product: .staticFramework,
                     productName: "GoogleAppMeasurementTarget",
                     bundleId: "GoogleAppMeasurementTarget",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: self.resolveDeploymentTargets(for: destinations),
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**",
@@ -405,31 +382,23 @@ extension TuistCore.DependenciesGraph {
                     dependencies: [
                         .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework"),
                         .project(
-                            target: self.resolveTargetName(
-                                targetName: "GULAppDelegateSwizzler",
-                                for: platform,
-                                addSuffix: addPlatfomSuffix
-                            ),
+                            target: "GULAppDelegateSwizzler",
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                         ),
                         .project(
-                            target: self.resolveTargetName(
-                                targetName: "GULMethodSwizzler",
-                                for: platform,
-                                addSuffix: addPlatfomSuffix
-                            ),
+                            target: "GULMethodSwizzler",
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                         ),
                         .project(
-                            target: self.resolveTargetName(targetName: "GULNSData", for: platform, addSuffix: addPlatfomSuffix),
+                            target: "GULNSData",
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                         ),
                         .project(
-                            target: self.resolveTargetName(targetName: "GULNetwork", for: platform, addSuffix: addPlatfomSuffix),
+                            target: "GULNetwork",
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                         ),
                         .project(
-                            target: self.resolveTargetName(targetName: "nanopb", for: platform, addSuffix: addPlatfomSuffix),
+                            target: "nanopb",
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
                         ),
                         .sdk(name: "sqlite3", type: .library, status: .required),
@@ -440,16 +409,12 @@ extension TuistCore.DependenciesGraph {
                     settings: Self.spmSettings()
                 ),
                 .init(
-                    name: self.resolveTargetName(
-                        targetName: "GoogleAppMeasurementWithoutAdIdSupportTarget",
-                        for: platform,
-                        addSuffix: addPlatfomSuffix
-                    ),
-                    platform: platform,
+                    name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
+                    destinations: destinations,
                     product: .staticFramework,
                     productName: "GoogleAppMeasurementWithoutAdIdSupportTarget",
                     bundleId: "GoogleAppMeasurementWithoutAdIdSupportTarget",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: self.resolveDeploymentTargets(for: destinations),
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**",
@@ -459,31 +424,23 @@ extension TuistCore.DependenciesGraph {
                             path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"
                         ),
                         .project(
-                            target: self.resolveTargetName(
-                                targetName: "GULAppDelegateSwizzler",
-                                for: platform,
-                                addSuffix: addPlatfomSuffix
-                            ),
+                            target: "GULAppDelegateSwizzler",
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                         ),
                         .project(
-                            target: self.resolveTargetName(
-                                targetName: "GULMethodSwizzler",
-                                for: platform,
-                                addSuffix: addPlatfomSuffix
-                            ),
+                            target: "GULMethodSwizzler",
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                         ),
                         .project(
-                            target: self.resolveTargetName(targetName: "GULNSData", for: platform, addSuffix: addPlatfomSuffix),
+                            target: "GULNSData",
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                         ),
                         .project(
-                            target: self.resolveTargetName(targetName: "GULNetwork", for: platform, addSuffix: addPlatfomSuffix),
+                            target: "GULNetwork",
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                         ),
                         .project(
-                            target: self.resolveTargetName(targetName: "nanopb", for: platform, addSuffix: addPlatfomSuffix),
+                            target: "nanopb",
                             path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
                         ),
                         .sdk(name: "sqlite3", type: .library, status: .required),
@@ -494,7 +451,7 @@ extension TuistCore.DependenciesGraph {
                     settings: Self.spmSettings()
                 ),
             ]
-        }
+        
 
         return .init(
             externalDependencies: externalDependencies,
@@ -517,7 +474,7 @@ extension TuistCore.DependenciesGraph {
                             .release(name: .release),
                         ]
                     ),
-                    targets: targets,
+                    multiplatformTargets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -528,11 +485,10 @@ extension TuistCore.DependenciesGraph {
     public static func googleUtilities(
         spmFolder: Path,
         customProductTypes: [String: Product] = [:],
-        platforms: Set<Platform>
+        destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
     ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
 
-        let addPlatfomSuffix = platforms.count != 1
         let externalDependencies: [String: [TargetDependency]] = [
             "GULAppDelegateSwizzler": [
                 .project(
@@ -561,19 +517,14 @@ extension TuistCore.DependenciesGraph {
         ]
 
 
-        let targets: [Target] = platforms.flatMap { platform in
-            [
+        let targets: [Multiplatform.Target] =  [
                 .init(
-                    name: self.resolveTargetName(
-                        targetName: "GULAppDelegateSwizzler",
-                        for: platform,
-                        addSuffix: addPlatfomSuffix
-                    ),
-                    platform: platform,
+                    name: "GULAppDelegateSwizzler",
+                    destinations: destinations,
                     product: customProductTypes["GULAppDelegateSwizzler"] ?? .staticFramework,
                     productName: "GULAppDelegateSwizzler",
                     bundleId: "GULAppDelegateSwizzler",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: self.resolveDeploymentTargets(for: destinations),
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**",
@@ -581,12 +532,12 @@ extension TuistCore.DependenciesGraph {
                     settings: Self.spmSettings()
                 ),
                 .init(
-                    name: self.resolveTargetName(targetName: "GULMethodSwizzler", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
+                    name: "GULMethodSwizzler",
+                    destinations: destinations,
                     product: customProductTypes["GULMethodSwizzler"] ?? .staticFramework,
                     productName: "GULMethodSwizzler",
                     bundleId: "GULMethodSwizzler",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: self.resolveDeploymentTargets(for: destinations),
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**",
@@ -595,12 +546,12 @@ extension TuistCore.DependenciesGraph {
                 ),
 
                 .init(
-                    name: self.resolveTargetName(targetName: "GULNSData", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
+                    name: "GULNSData",
+                    destinations: destinations,
                     product: customProductTypes["GULNSData"] ?? .staticFramework,
                     productName: "GULNSData",
                     bundleId: "GULNSData",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: self.resolveDeploymentTargets(for: destinations),
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/Sources/GULNSData/**",
@@ -608,12 +559,12 @@ extension TuistCore.DependenciesGraph {
                     settings: Self.spmSettings()
                 ),
                 .init(
-                    name: self.resolveTargetName(targetName: "GULNetwork", for: platform, addSuffix: addPlatfomSuffix),
-                    platform: platform,
+                    name: "GULNetwork",
+                    destinations: destinations,
                     product: customProductTypes["GULNetwork"] ?? .staticFramework,
                     productName: "GULNetwork",
                     bundleId: "GULNetwork",
-                    deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                    deploymentTargets: self.resolveDeploymentTargets(for: destinations),
                     infoPlist: .default,
                     sources: [
                         "\(packageFolder.pathString)/Sources/GULNetwork/**",
@@ -621,7 +572,7 @@ extension TuistCore.DependenciesGraph {
                     settings: Self.spmSettings()
                 ),
             ]
-        }
+        
 
         return .init(
             externalDependencies: externalDependencies,
@@ -640,7 +591,7 @@ extension TuistCore.DependenciesGraph {
                             .release(name: .release),
                         ]
                     ),
-                    targets: targets,
+                    multiplatformTargets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -649,11 +600,9 @@ extension TuistCore.DependenciesGraph {
 
     public static func nanopb(
         spmFolder: Path,
-        platforms: Set<Platform>
+        destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
     ) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
-
-        let addPlatfomSuffix = platforms.count != 1
 
         let externalDependencies = [
             "nanopb": [
@@ -664,22 +613,21 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
-
-        let targets: [Target] = platforms.map { platform in
+        let targets: [Multiplatform.Target] = [
             .init(
-                name: self.resolveTargetName(targetName: "nanopb", for: platform, addSuffix: addPlatfomSuffix),
-                platform: platform,
+                name: "nanopb",
+                destinations: destinations,
                 product: .staticFramework,
                 productName: "nanopb",
                 bundleId: "nanopb",
-                deploymentTarget: self.resolveDeploymentTarget(for: platform),
+                deploymentTargets: self.resolveDeploymentTargets(for: destinations),
                 infoPlist: .default,
                 sources: [
                     "\(packageFolder.pathString)/Sources/nanopb/**",
                 ],
                 settings: Self.spmSettings()
             )
-        }
+        ]
 
         return .init(
             externalDependencies: externalDependencies,
@@ -698,7 +646,7 @@ extension TuistCore.DependenciesGraph {
                             .release(name: .release),
                         ]
                     ),
-                    targets: targets,
+                    multiplatformTargets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -784,22 +732,14 @@ extension DependenciesGraph {
 // MARK: - Helpers
 
 extension DependenciesGraph {
-    fileprivate static func resolveTargetName(targetName: String, for platform: Platform, addSuffix: Bool) -> String {
-        addSuffix ? "\(targetName)_\(platform.rawValue)" : targetName
-    }
-
-    fileprivate static func resolveDeploymentTarget(for platform: Platform) -> DeploymentTarget {
-        switch platform {
-        case .iOS:
-            return .iOS(targetVersion: PLATFORM_TEST_VERSION[.iOS]!, devices: [.iphone, .ipad, .mac])
-        case .watchOS:
-            return .watchOS(targetVersion: PLATFORM_TEST_VERSION[.watchOS]!)
-        case .macOS:
-            return .macOS(targetVersion: PLATFORM_TEST_VERSION[.macOS]!)
-        case .tvOS:
-            return .tvOS(targetVersion: PLATFORM_TEST_VERSION[.tvOS]!)
-        case .visionOS:
-            return .visionOS(targetVersion: PLATFORM_TEST_VERSION[.visionOS]!)
-        }
+    fileprivate static func resolveDeploymentTargets(for destinations: Destinations) -> DeploymentTargets {
+        let platforms = destinations.platforms
+        let applicableVersions = PLATFORM_TEST_VERSION.filter( { platforms.contains($0.key) })
+        
+        return DeploymentTargets(iOS: applicableVersions[Platform.iOS],
+                                 macOS: applicableVersions[Platform.macOS],
+                                 watchOS: applicableVersions[Platform.watchOS],
+                                 tvOS: applicableVersions[Platform.tvOS],
+                                 visionOS: applicableVersions[Platform.visionOS])
     }
 }

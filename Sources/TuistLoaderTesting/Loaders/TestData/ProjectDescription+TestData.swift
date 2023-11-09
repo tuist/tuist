@@ -46,6 +46,7 @@ extension Project {
         organizationName: String? = nil,
         settings: Settings? = nil,
         targets: [Target] = [],
+        multiplatformTargets: [Multiplatform.Target] = [],
         additionalFiles: [FileElement] = []
     ) -> Project {
         Project(
@@ -53,6 +54,7 @@ extension Project {
             organizationName: organizationName,
             settings: settings,
             targets: targets,
+            multiplatformTargets: multiplatformTargets,
             additionalFiles: additionalFiles
         )
     }
