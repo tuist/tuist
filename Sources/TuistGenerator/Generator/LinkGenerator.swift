@@ -116,6 +116,23 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             fileElements: fileElements
         )
 
+        /**
+         Targets that depend on a Swift Macro have the following dependency graph:
+
+         Target -> MyMacro (Static framework) -> MyMacro (Executable)
+
+         The executable is compiled transitively through the static library, and we place it inside the framework to make it available to the target depending on the framework
+         to point it with the `-load-plugin-executable $BUILT_PRODUCTS_DIR/ExecutableName\#ExecutableName` build setting.
+         */
+        let directSwiftMacroExecutables = graphTraverser.directSwiftMacroExecutables(path: path, name: target.name).sorted()
+        try generateCopySwiftMacroExecutableScriptBuildPhase(
+            directSwiftMacroExecutables: directSwiftMacroExecutables,
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements
+        )
+
         try generatePackages(
             target: target,
             pbxTarget: pbxTarget,
@@ -482,6 +499,34 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             target: target,
             fileElements: fileElements
         )
+    }
+
+    private func generateCopySwiftMacroExecutableScriptBuildPhase(
+        directSwiftMacroExecutables: [GraphDependencyReference],
+        target _: Target,
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj,
+        fileElements _: ProjectFileElements
+    ) throws {
+        if directSwiftMacroExecutables.isEmpty { return }
+
+        let copySwiftMacrosBuildPhase = PBXShellScriptBuildPhase(name: "Copy Swift Macro executable into /Macros")
+
+        let filesToCopy = directSwiftMacroExecutables.compactMap {
+            switch $0 {
+            case let .product(_, productName, _):
+                return productName
+            default:
+                return nil
+            }
+        }.map { ("$BUILT_PRODUCTS_DIR/\($0)", "$BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME/Macros/\($0)") }
+
+        copySwiftMacrosBuildPhase.shellScript = filesToCopy.map { "cp \($0.0) \($0.1)" }.joined(separator: "\n")
+        copySwiftMacrosBuildPhase.inputPaths = filesToCopy.map(\.0)
+        copySwiftMacrosBuildPhase.outputPaths = filesToCopy.map(\.1)
+
+        pbxproj.add(object: copySwiftMacrosBuildPhase)
+        pbxTarget.buildPhases.append(copySwiftMacrosBuildPhase)
     }
 
     private func generateDependenciesBuildPhase(

@@ -523,4 +523,34 @@ final class MockGraphTraverser: GraphTraversing {
         invokedExtensionKitExtensionDependenciesParametersList.append((path, name))
         return stubbedExtensionKitExtensionDependenciesResult
     }
+
+    var invokedDirectSwiftMacroExecutables = false
+    var invokedDirectSwiftMacroExecutablesCount = 0
+    var invokedDirectSwiftMacroExecutablesParameters: (path: AbsolutePath, name: String)?
+    var invokedDirectSwiftMacroExecutablesParametersList =
+        [(path: AbsolutePath, name: String)]()
+    var stubbedDirectSwiftMacroExecutablesResult: Set<GraphDependencyReference>! = []
+
+    func directSwiftMacroExecutables(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistCore.GraphDependencyReference> {
+        invokedDirectSwiftMacroExecutables = true
+        invokedDirectSwiftMacroExecutablesCount += 1
+        invokedDirectSwiftMacroExecutablesParameters = (path, name)
+        invokedDirectSwiftMacroExecutablesParametersList.append((path, name))
+        return stubbedDirectSwiftMacroExecutablesResult
+    }
+
+    var invokedDirectSwiftMacroFrameworkTargets = false
+    var invokedDirectSwiftMacroFrameworkTargetsCount = 0
+    var invokedDirectSwiftMacroFrameworkTargetsParameters: (path: AbsolutePath, name: String)?
+    var invokedDirectSwiftMacroFrameworkTargetsParametersList =
+        [(path: AbsolutePath, name: String)]()
+    var stubbedDirectSwiftMacroFrameworkTargetsResult: Set<GraphTarget>! = []
+
+    func directSwiftMacroFrameworkTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<GraphTarget> {
+        invokedDirectSwiftMacroFrameworkTargets = true
+        invokedDirectSwiftMacroFrameworkTargetsCount += 1
+        invokedDirectSwiftMacroFrameworkTargetsParameters = (path, name)
+        invokedDirectSwiftMacroFrameworkTargetsParametersList.append((path, name))
+        return stubbedDirectSwiftMacroFrameworkTargetsResult
+    }
 }

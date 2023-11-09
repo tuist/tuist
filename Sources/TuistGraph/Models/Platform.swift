@@ -32,7 +32,7 @@ public enum Platform: String, CaseIterable, Codable, Comparable {
             return [
                 .iOS: "11.0",
                 .tvOS: "11.0",
-                .macOS: "10.15",
+                .macOS: "10.13",
                 .watchOS: "4.0",
                 .visionOS: "1.0",
             ]
@@ -40,7 +40,7 @@ public enum Platform: String, CaseIterable, Codable, Comparable {
             return [
                 .iOS: "12.0",
                 .tvOS: "12.0",
-                .macOS: "10.13",
+                .macOS: "10.15",
                 .watchOS: "4.0",
                 .visionOS: "1.0",
             ]

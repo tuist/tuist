@@ -10,7 +10,7 @@ let project = Project(
             bundleId: "io.tuist.FrameworkWithSwiftMacro",
             sources: ["Sources/**/*"],
             dependencies: [
-                .external(name: "StructBuilder")
+                .external(name: "StructBuilder"),
             ]
         ),
     ]

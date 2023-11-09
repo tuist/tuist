@@ -630,12 +630,11 @@ extension ProjectDescription.DeploymentTarget {
         platform: ProjectDescription.Platform,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         package: [PackageInfo.Platform],
-        packageName: String
+        packageName _: String
     ) throws -> Self {
         if type == .macro {
             return .macOS(
-                targetVersion: TuistGraph.Platform
-                    .oldestVersions(for: Version(5, 9, 0))[.macOS]!
+                targetVersion: TuistGraph.Platform.oldestVersions(for: Version(5, 9, 0))[.macOS]!
             )
         }
 
