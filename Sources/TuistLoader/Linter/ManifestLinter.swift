@@ -35,12 +35,14 @@ public class ManifestLinter: ManifestLinting {
 
         issues.append(contentsOf: lintDuplicates(project: project))
         issues.append(contentsOf: project.targets.flatMap(lint))
+        issues.append(contentsOf: project.multiplatformTargets.flatMap(lint))
 
         return issues
     }
 
     private func lintDuplicates(project: ProjectDescription.Project) -> [LintingIssue] {
-        let targetsNames = project.targets.map(\.name)
+        var targetsNames = project.targets.map(\.name)
+        targetsNames.append(contentsOf: project.multiplatformTargets.map(\.name))
 
         return targetsNames.spm_findDuplicates().map {
             LintingIssue(
@@ -62,6 +64,18 @@ public class ManifestLinter: ManifestLinting {
         return issues
     }
 
+    private func lint(target: ProjectDescription.Multiplatform.Target) -> [LintingIssue] {
+        var issues = [LintingIssue]()
+
+        if let settings = target.settings {
+            issues.append(contentsOf: lint(settings: settings, declarationLocation: target.name))
+        }
+
+        issues.append(contentsOf: lint(coredataModels: target.coreDataModels, declarationLocation: target.name))
+
+        return issues
+    }
+    
     private func lint(settings: ProjectDescription.Settings, declarationLocation: String) -> [LintingIssue] {
         let configurationNames = settings.configurations.map(\.name.rawValue)
 
