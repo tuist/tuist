@@ -690,14 +690,6 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
-    func targetProductReference(target: GraphTarget) -> GraphDependencyReference {
-        .product(
-            target: target.target.name,
-            productName: target.target.productNameWithExtension,
-            platformFilters: target.target.dependencyPlatformFilters
-        )
-    }
-
     func isDependencyPrecompiledLibrary(dependency: GraphDependency) -> Bool {
         switch dependency {
         case .xcframework: return true
