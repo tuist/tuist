@@ -1,4 +1,3 @@
-
 public typealias PlatformFilters = Set<PlatformFilter>
 
 public enum PlatformFilter: Comparable, Hashable, Codable {

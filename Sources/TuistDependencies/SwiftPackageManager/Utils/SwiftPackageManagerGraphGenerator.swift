@@ -138,7 +138,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
         )
 
-        let destinations: ProjectDescription.Destinations = Set(platforms.flatMap({ platform -> ProjectDescription.Destinations in
+        let destinations: ProjectDescription.Destinations = Set(platforms.flatMap { platform -> ProjectDescription.Destinations in
             switch platform {
             case .iOS:
                 [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign]
@@ -153,8 +153,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             case .visionOS:
                 [.appleVision]
             }
-        }))
-        
+        })
 
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(

@@ -193,7 +193,6 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         pbxTarget: PBXTarget,
         pbxproj: PBXProj
     ) throws {
-
         for dependency in target.dependencies {
             switch dependency {
             case let .package(product: product, type: type, platformFilters: platformFilters):

@@ -153,7 +153,7 @@ public final class CarthageController: CarthageControlling {
             commandComponents += [
                 "--platform",
                 platforms
-                    .filter({ $0 != .macCatalyst }) // Carthage does not support catalyst
+                    .filter { $0 != .macCatalyst } // Carthage does not support catalyst
                     .map(\.caseValue)
                     .sorted()
                     .joined(separator: ","),

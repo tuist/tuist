@@ -100,7 +100,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                 }
             }
         }
-        
+
         let multiplatformPaths: [AbsolutePath] = try project.targets.flatMap {
             try $0.dependencies.compactMap {
                 switch $0 {
@@ -111,7 +111,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                 }
             }
         }
-        
-        return (paths.uniqued() + multiplatformPaths.uniqued())
+
+        return paths.uniqued() + multiplatformPaths.uniqued()
     }
 }

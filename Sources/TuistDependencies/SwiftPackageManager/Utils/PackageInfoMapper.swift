@@ -262,7 +262,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                                 //   }
 
                                 // When multiple platforms are supported, add the platform name as a suffix to the target
-                                //                                    let targetName = platforms.count == 1 ? name : "\(name)_\(platform.rawValue)"
+                                //                                    let targetName = platforms.count == 1 ? name :
+                                //                                    "\(name)_\(platform.rawValue)"
                                 return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
                             case .externalTarget:
                                 throw PackageInfoMapperError.unknownProductTarget(
@@ -273,7 +274,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         }
                     }
                 }
-        }
+            }
 
         let version = try Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)
         let minDeploymentTargets = Platform.oldestVersions(for: version).reduce(
@@ -441,25 +442,22 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 guard let products = targetToProducts[target.name] else { return [] }
                 let addPlatformSuffix = platforms.count != 1
 
-                return try platforms.compactMap { platform in
-                    try ProjectDescription.Target.from(
-                        target: target,
-                        products: products,
-                        packageName: name,
-                        packageInfo: packageInfo,
-                        packageInfos: packageInfos,
-                        packageFolder: path,
-                        packageToProject: packageToProject,
-                        productTypes: productTypes,
-                        baseSettings: baseSettings,
-                        targetSettings: targetSettings,
-                        platform: platform,
-                        minDeploymentTargets: minDeploymentTargets,
-                        targetToResolvedDependencies: targetToResolvedDependencies,
-                        targetToModuleMap: targetToModuleMap,
-                        addPlatformSuffix: addPlatformSuffix
-                    )
-                }
+                return try ProjectDescription.Multiplatform.Target.from(
+                    target: target,
+                    products: products,
+                    packageName: name,
+                    packageInfo: packageInfo,
+                    packageInfos: packageInfos,
+                    packageFolder: path,
+                    packageToProject: packageToProject,
+                    productTypes: productTypes,
+                    baseSettings: baseSettings,
+                    targetSettings: targetSettings,
+                    packageDestinations: destinations,
+                    minDeploymentTargets: minDeploymentTargets,
+                    targetToResolvedDependencies: targetToResolvedDependencies,
+                    targetToModuleMap: targetToModuleMap
+                )
             }
 
         guard !targets.isEmpty else {
@@ -533,7 +531,8 @@ extension ProjectDescription.Target {
         let moduleMap = targetToModuleMap[target.name]
 
         // Use the intersection of destations from `Dependencies.swift` and the destinations supported by the package.
-        let destinations = packageDestinations.intersection(try ProjectDescription.Destinations.from(platforms: packageInfo.platforms))
+        let destinations = packageDestinations
+            .intersection(try ProjectDescription.Destinations.from(platforms: packageInfo.platforms))
 
         let deploymentTargets = try ProjectDescription.DeploymentTargets.from(
             type: target.type,
@@ -618,7 +617,36 @@ extension ProjectDescription.Target {
     }
 }
 
-extension ProjectDescription.DeploymentTarget {
+extension ProjectDescription.DeploymentTargets {
+    /// A dictionary that contains the oldest supported version of each platform
+    public static func oldestVersions(for swiftVersion: TSCUtility.Version) -> ProjectDescription.DeploymentTargets {
+        if swiftVersion < Version(5, 7, 0) {
+            return DeploymentTargets(
+                iOS: "9.0",
+                macOS: "10.10",
+                watchOS: "2.0",
+                tvOS: "9.0",
+                visionOS: "1.0"
+            )
+        } else if swiftVersion < Version(5, 9, 0) {
+            return DeploymentTargets(
+                iOS: "11.0",
+                macOS: "10.13",
+                watchOS: "4.0",
+                tvOS: "11.0",
+                visionOS: "1.0"
+            )
+        } else {
+            return DeploymentTargets(
+                iOS: "12.0",
+                macOS: "10.13",
+                watchOS: "4.0",
+                tvOS: "12.0",
+                visionOS: "1.0"
+            )
+        }
+    }
+
     fileprivate static func from(
         type: PackageInfo.Target.TargetType,
         platform: ProjectDescription.Platform,
@@ -638,7 +666,7 @@ extension ProjectDescription.DeploymentTarget {
             return (tuistPlatform, packagePlatform.version)
         }
         // maccatalyst and iOS will be the same, this chooses the first one defined, hopefully they dont disagree
-        let platformInfos = Dictionary(versionPairs) { (first, _) in first }
+        let platformInfos = Dictionary(versionPairs) { first, _ in first }
         let destinationPlatforms = destinations.platforms
 
         func versionFor(platform: ProjectDescription.Platform) throws -> String? {
@@ -646,11 +674,13 @@ extension ProjectDescription.DeploymentTarget {
             return try max(minDeploymentTargets[platform], platformInfos[platform])
         }
 
-        return .init(iOS: try versionFor(platform: .iOS),
-                     macOS: try versionFor(platform: .macOS),
-                     watchOS: try versionFor(platform: .watchOS),
-                     tvOS: try versionFor(platform: .tvOS),
-                     visionOS:  try versionFor(platform: .visionOS))
+        return .init(
+            iOS: try versionFor(platform: .iOS),
+            macOS: try versionFor(platform: .macOS),
+            watchOS: try versionFor(platform: .watchOS),
+            tvOS: try versionFor(platform: .tvOS),
+            visionOS: try versionFor(platform: .visionOS)
+        )
     }
 
     fileprivate static func max(_ lVersionString: String?, _ rVersionString: String?) throws -> String? {
@@ -824,6 +854,14 @@ extension ResourceFileElements {
     }
 }
 
+extension ProjectDescription.Destinations {
+    fileprivate static func from(platforms: [PackageInfo.Platform]) throws -> Self {
+        guard !platforms.isEmpty else { return Set(Destination.allCases) }
+
+        return Set(try platforms.flatMap { try $0.destinations() })
+    }
+}
+
 extension ProjectDescription.TargetDependency {
     fileprivate static func from(
         resolvedDependencies: [PackageInfoMapper.ResolvedDependency],
@@ -892,7 +930,7 @@ extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
         target: PackageInfo.Target,
-        targetDestinations: ProjectDescription.Destinations,
+        targetDestinations _: ProjectDescription.Destinations,
         packageFolder: AbsolutePath,
         packageName: String,
         packageInfos: [String: PackageInfo],
@@ -940,21 +978,27 @@ extension ProjectDescription.Settings {
                 }
             }
             .sorted()
-            
+
         struct SettingsMapper {
-            init(headerSearchPaths: [String], mainRelativePath: RelativePath, settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]) {
+            init(
+                headerSearchPaths: [String],
+                mainRelativePath: RelativePath,
+                settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
+            ) {
                 self.headerSearchPaths = headerSearchPaths
                 self.settings = settings
                 self.mainRelativePath = mainRelativePath
             }
-            
+
             private let headerSearchPaths: [String]
             private let mainRelativePath: RelativePath
             private let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
-            
+
             // `nil` means settings without a condition
-            private func settingsForPlatform(_ platformName: String?) throws -> [PackageInfo.Target.TargetBuildSettingDescription.Setting] {
-                return settings.filter { setting in
+            private func settingsForPlatform(_ platformName: String?) throws
+                -> [PackageInfo.Target.TargetBuildSettingDescription.Setting]
+            {
+                settings.filter { setting in
                     if let platformName, setting.hasConditions {
                         return setting.condition?.platformNames.contains(platformName) == true
                     } else {
@@ -962,19 +1006,19 @@ extension ProjectDescription.Settings {
                     }
                 }
             }
-            
+
             func settingsDictionaryForPlatform(_ platform: PackageInfo.Platform?) throws -> TuistGraph.SettingsDictionary {
-                var headerSearchPaths = self.headerSearchPaths
+                var headerSearchPaths = headerSearchPaths
                 var defines = ["SWIFT_PACKAGE": "1"]
                 var swiftDefines = "SWIFT_PACKAGE"
                 var cFlags: [String] = []
                 var cxxFlags: [String] = []
                 var swiftFlags: [String] = []
                 var linkerFlags: [String] = []
-                
+
                 var settingsDictionary = TuistGraph.SettingsDictionary()
                 let platformSettings = try settingsForPlatform(platform?.platformName)
-                
+
                 try platformSettings.forEach { setting in
                     switch (setting.tool, setting.name) {
                     case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
@@ -999,42 +1043,43 @@ extension ProjectDescription.Settings {
                     case (.linker, .linkedFramework), (.linker, .linkedLibrary):
                         // Handled as dependency
                         return
-                        
+
                     case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
-                        (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
-                        (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),
-                        (_, .enableExperimentalFeature):
+                         (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
+                         (.linker, .headerSearchPath), (.linker, .define), (_, .enableUpcomingFeature),
+                         (_, .enableExperimentalFeature):
                         throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
                     }
                 }
-                
+
                 if !headerSearchPaths.isEmpty {
                     settingsDictionary["HEADER_SEARCH_PATHS"] = .array(["$(inherited)"] + headerSearchPaths.map { $0 })
                 }
-                
+
                 if !defines.isEmpty {
                     let sortedDefines = defines.sorted { $0.key < $1.key }
-                    settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + sortedDefines.map { key, value in
-                        "\(key)=\(value.spm_shellEscaped())"
-                    })
+                    settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + sortedDefines
+                        .map { key, value in
+                            "\(key)=\(value.spm_shellEscaped())"
+                        })
                 }
-                
+
                 if !swiftDefines.isEmpty {
                     settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = "$(inherited) \(swiftDefines)"
                 }
-                
+
                 if !cFlags.isEmpty {
                     settingsDictionary["OTHER_CFLAGS"] = .array(["$(inherited)"] + cFlags)
                 }
-                
+
                 if !cxxFlags.isEmpty {
                     settingsDictionary["OTHER_CPLUSPLUSFLAGS"] = .array(["$(inherited)"] + cxxFlags)
                 }
-                
+
                 if !swiftFlags.isEmpty {
                     settingsDictionary["OTHER_SWIFT_FLAGS"] = .array(["$(inherited)"] + swiftFlags)
                 }
-                
+
                 if !linkerFlags.isEmpty {
                     settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
                 }
@@ -1042,7 +1087,7 @@ extension ProjectDescription.Settings {
                 return settingsDictionary
             }
         }
-        
+
         var settingsDictionary: TuistGraph.SettingsDictionary = [
             // Xcode settings configured by SPM by default
             "ALWAYS_SEARCH_USER_PATHS": "YES",
@@ -1056,15 +1101,16 @@ extension ProjectDescription.Settings {
             "GCC_WARN_INHIBIT_ALL_WARNINGS": "YES",
             "SWIFT_SUPPRESS_WARNINGS": "YES",
         ]
-        
-        let mapper = SettingsMapper(headerSearchPaths: dependencyHeaderSearchPaths,
-                                    mainRelativePath: mainRelativePath,
-                                    settings: settings)
-        
-        var settingsForAllPlatforms =  try mapper.settingsDictionaryForPlatform(nil)
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: dependencyHeaderSearchPaths,
+            mainRelativePath: mainRelativePath,
+            settings: settings
+        )
+
+        var settingsForAllPlatforms = try mapper.settingsDictionaryForPlatform(nil)
 
         if target.type.supportsCustomSettings {
-            
             for platform in platforms {
                 let platformSettings = try mapper.settingsDictionaryForPlatform(platform)
                 try platformSettings.forEach { key, newValue in
@@ -1081,7 +1127,7 @@ extension ProjectDescription.Settings {
         if let moduleMapPath = moduleMap?.path {
             settingsDictionary["MODULEMAP_FILE"] = .string("$(SRCROOT)/\(moduleMapPath.relative(to: packageFolder))")
         }
-        
+
         var mappedSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)
 
         if let settingsToOverride = targetSettings[target.name] {

@@ -16,7 +16,7 @@ public enum Platform: String, CaseIterable, Codable, Comparable {
         case .visionOS: return "visionOS"
         }
     }
-    
+
     public static func < (lhs: Platform, rhs: Platform) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
@@ -40,12 +40,11 @@ public enum PackagePlatform: String, CaseIterable, Codable, Comparable {
         case .visionOS: return "visionOS"
         }
     }
-    
+
     public static func < (lhs: PackagePlatform, rhs: PackagePlatform) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
 }
-
 
 extension Platform {
     public var xcodeSdkRoot: String {

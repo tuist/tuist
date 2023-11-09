@@ -75,7 +75,7 @@ public class ManifestLinter: ManifestLinting {
 
         return issues
     }
-    
+
     private func lint(settings: ProjectDescription.Settings, declarationLocation: String) -> [LintingIssue] {
         let configurationNames = settings.configurations.map(\.name.rawValue)
 
