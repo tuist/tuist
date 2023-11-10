@@ -183,6 +183,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_directStaticDependencies() {
         // Given
+        let project = Project.test()
         let path = AbsolutePath.root
         let framework = Target.test(name: "Framework", product: .framework)
         let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
@@ -199,6 +200,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given: Value Graph
         let graph = Graph.test(
             path: path,
+            projects: [path: project],
             targets: targets,
             dependencies: dependencies
         )
@@ -724,7 +726,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(appTestResults, [
-            .bundle(path: bundlePath),
+            .bundle(path: bundlePath, platformFilters: []),
         ])
         XCTAssertEqual(frameworkResults, [])
     }
@@ -784,7 +786,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(appResults, [
-            .bundle(path: bundlePath),
+            .bundle(path: bundlePath, platformFilters: []),
         ])
         XCTAssertEqual(frameworkResults, [])
     }
@@ -845,7 +847,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(appResults, [])
         XCTAssertEqual(frameworkResults, [
-            .bundle(path: bundlePath),
+            .bundle(path: bundlePath, platformFilters: []),
         ])
     }
 
@@ -902,8 +904,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(Set(got), Set([
-            .testProduct(target: bundle.name, productName: bundle.productNameWithExtension),
-            .testProduct(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension),
+            .testProduct(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: [.ios]),
+            .testProduct(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension, platformFilters: [.ios]),
         ]))
     }
 
@@ -2732,7 +2734,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 linking: .dynamic,
                 architectures: [.arm64],
                 product: .framework,
-                status: .required
+                status: .required,
+                platformFilters: []
             ),
         ])
     }
@@ -3110,7 +3113,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         .path
         XCTAssertEqual(
             got, [
-                .sdk(path: path, status: .required, source: .system),
+                .sdk(path: path, status: .required, source: .system, platformFilters: [.ios]),
             ]
         )
     }
@@ -4081,7 +4084,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 )]),
                 primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
                 binaryPath: "/xcframeworks/direct.xcframework/direct",
-                status: .required
+                status: .required,
+                platformFilters: []
             ),
             .xcframework(
                 path: "/xcframeworks/transitive.xcframework",
@@ -4092,7 +4096,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 )]),
                 primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
                 binaryPath: "/xcframeworks/transitive.xcframework/transitive",
-                status: .required
+                status: .required,
+                platformFilters: []
             ),
             .xcframework(
                 path: "/xcframeworks/framework-transitive.xcframework",
@@ -4103,7 +4108,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 )]),
                 primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
                 binaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
-                status: .required
+                status: .required,
+                platformFilters: []
             ),
         ].sorted())
     }
@@ -4293,7 +4299,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {
         switch dependency {
-        case let .sdk(path, status, _):
+        case let .sdk(path, status, _, _):
             return SDKPathAndStatus(name: path.basename, status: status)
         default:
             return nil

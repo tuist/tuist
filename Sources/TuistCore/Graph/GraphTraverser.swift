@@ -255,7 +255,7 @@ public class GraphTraverser: GraphTraversing {
         if target.target.mergedBinaryType != .disabled {
             otherTargetFrameworks = otherTargetFrameworks.filter(isDependencyDynamicNonMergeableTarget)
         }
-        references.formUnion(precompiledFrameworks.lazy.compactMap { self.dependencyReference(
+        references.formUnion(otherTargetFrameworks.lazy.compactMap { self.dependencyReference(
             to: $0,
             from: .target(name: name, path: path)
         ) })
@@ -301,8 +301,8 @@ public class GraphTraverser: GraphTraversing {
                         return .sdk(
                             path: path,
                             status: status,
-                            source: source
-                         //   platformFilters: platformFilters(from: targetGraphDependency, to: dependencyDependency)
+                            source: source,
+                            platformFilters: platformFilters(from: targetGraphDependency, to: dependencyDependency)
                         )
                     }
                 }
@@ -321,7 +321,8 @@ public class GraphTraverser: GraphTraversing {
             references.formUnion([GraphDependencyReference.sdk(
                 path: path,
                 status: .required,
-                source: .system
+                source: .system,
+                platformFilters: [.ios]
             )])
         }
 
@@ -329,7 +330,10 @@ public class GraphTraverser: GraphTraversing {
         let directSystemLibrariesAndFrameworks = graph.dependencies[targetGraphDependency, default: []]
             .compactMap { dependency -> GraphDependencyReference? in
                 guard case let GraphDependency.sdk(_, path, status, source) = dependency else { return nil }
-                return .sdk(path: path, status: status, source: source)
+                return .sdk(path: path,
+                            status: status,
+                            source: source,
+                            platformFilters: platformFilters(from: targetGraphDependency, to: dependency))
             }
         references.formUnion(directSystemLibrariesAndFrameworks)
 
@@ -459,7 +463,7 @@ public class GraphTraverser: GraphTraversing {
             shouldExcludeHostAppDependencies: false
         ).compactMap { dependency in
             switch dependency {
-            case let .library(path: path, linking: _, architectures: _, product: _):
+            case let .library(path: path, linking: _, architectures: _, product: _, platformFilters: _):
                 return path
             default:
                 return nil
@@ -828,31 +832,34 @@ public class GraphTraverser: GraphTraversing {
                 linking: linking,
                 architectures: architectures,
                 product: (linking == .static) ? .staticFramework : .framework,
-                status: status
+                status: status,
+                platformFilters: platformFilters
             )
         case let .library(path, _, linking, architectures, _):
             return .library(
                 path: path,
                 linking: linking,
                 architectures: architectures,
-                product: (linking == .static) ? .staticLibrary : .dynamicLibrary
+                product: (linking == .static) ? .staticLibrary : .dynamicLibrary,
+                platformFilters: platformFilters
             )
         case let .bundle(path):
-            return .bundle(path: path)
+            return .bundle(path: path, platformFilters: platformFilters)
         case .packageProduct:
             return nil
         case let .sdk(_, path, status, source):
             return .sdk(
                 path: path,
                 status: status,
-                source: source
+                source: source,
+                platformFilters: platformFilters
             )
         case let .target(name, path):
             guard let target = target(path: path, name: name) else { return nil }
             return .product(
                 target: target.target.name,
                 productName: target.target.productNameWithExtension,
-                platformFilters: target.target.dependencyPlatformFilters
+                platformFilters: target.target.dependencyPlatformFilters //This will be platformFilters when we 
             )
         case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, status):
             return .xcframework(
@@ -860,7 +867,8 @@ public class GraphTraverser: GraphTraversing {
                 infoPlist: infoPlist,
                 primaryBinaryPath: primaryBinaryPath,
                 binaryPath: primaryBinaryPath,
-                status: status
+                status: status,
+                platformFilters: platformFilters
             )
         }
     }
