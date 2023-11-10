@@ -28,7 +28,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
         let target = anyTarget(dependencies: [
-            .package(product: "Example"),
+            .package(product: "Example", type: .runtime),
         ])
         let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
         let project = Project.test(
@@ -41,7 +41,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             packages: [project.path: ["Test": package]],
-            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .sources): Set()]
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .runtime): Set()]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -70,7 +70,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
 
         let target = anyTarget(dependencies: [
-            .package(product: "Example"),
+            .package(product: "Example", type: .runtime),
         ])
         let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
         let project = Project.test(
@@ -111,7 +111,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
         let target = anyTarget(dependencies: [
-            .package(product: "Example"),
+            .package(product: "Example", type: .runtime),
         ])
         let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
         let project = Project.test(
@@ -126,7 +126,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             packages: [project.path: ["Test": package]],
-            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .sources): Set()]
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .runtime): Set()]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -195,7 +195,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         let spmPath = temporaryPath.appending(component: "spm")
         let target = anyTarget(dependencies: [
-            .package(product: "Example"),
+            .package(product: "Example", type: .runtime),
         ])
         let package = Package.remote(url: "http://some.remote/repo.git", requirement: .exact("branch"))
         let project = Project.test(
@@ -208,7 +208,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             packages: [project.path: ["Test": package]],
-            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .sources): Set()]
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .runtime): Set()]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 

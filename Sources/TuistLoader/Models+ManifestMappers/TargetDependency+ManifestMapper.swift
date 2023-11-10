@@ -52,12 +52,18 @@ extension TuistGraph.TargetDependency {
                     swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) }
                 ),
             ]
-        case let .package(product):
-            return [.package(product: product)]
+        case let .package(product, type):
+            switch type {
+            case .macro:
+                return [.package(product: product, type: .macro)]
+            case .runtime:
+                return [.package(product: product, type: .runtime)]
+            case .plugin:
+                return [.package(product: product, type: .plugin)]
+            }
         case let .packagePlugin(product):
-            return [.packagePlugin(product: product)]
-        case let .packageMacro(product):
-            return [.packageMacro(product: product)]
+            logger.warning(".packagePlugin is deprecated. Use .package(product:, type: .plugin) instead.")
+            return [.package(product: product, type: .plugin)]
         case let .sdk(name, type, status):
             return [
                 .sdk(

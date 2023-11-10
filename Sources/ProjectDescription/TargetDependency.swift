@@ -30,6 +30,19 @@ public enum SDKType: String, Codable, Hashable {
 
 /// A target dependency.
 public enum TargetDependency: Codable, Hashable {
+    public enum PackageType: Codable, Hashable {
+        /// A runtime package type represents a standard package whose sources are linked at runtime.
+        /// For example importing the framework and consuming from dependent targets.
+        case runtime
+
+        /// A plugin package represents a package that's loaded by the build system at compile-time to
+        /// extend the compilation process.
+        case plugin
+
+        /// A macro package represents a package that contains a Swift Macro.
+        case macro
+    }
+
     /// Dependency on another target within the same project
     ///
     /// - Parameters:
@@ -64,7 +77,8 @@ public enum TargetDependency: Codable, Hashable {
     /// - Parameters:
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
     ///              e.g. RxSwift
-    case package(product: String)
+    ///   - type: The type of package being integrated.
+    case package(product: String, type: PackageType = .runtime)
 
     /// Dependency on a swift package manager plugin product using Xcode native integration.
     ///
@@ -72,14 +86,6 @@ public enum TargetDependency: Codable, Hashable {
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
     ///              e.g. RxSwift
     case packagePlugin(product: String)
-
-    /// Dependency on a Swift Package Manager Swift Macro using Xcode native integration.
-    ///
-    /// - Parameters:
-    ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
-    ///              e.g. StructBuilder
-    ///
-    case packageMacro(product: String)
 
     /// Dependency on system library or framework
     ///
@@ -136,8 +142,6 @@ public enum TargetDependency: Codable, Hashable {
             return "package"
         case .packagePlugin:
             return "packagePlugin"
-        case .packageMacro:
-            return "packageMacro"
         case .sdk:
             return "sdk"
         case .xcframework:

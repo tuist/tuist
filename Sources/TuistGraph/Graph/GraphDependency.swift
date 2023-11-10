@@ -7,7 +7,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             rawValue
         }
 
-        case sources = "sources package product"
+        case runtime = "runtime package product"
         case plugin = "plugin package product"
         case macro = "macro package product"
 

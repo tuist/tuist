@@ -178,12 +178,8 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
     ) throws {
         for dependency in target.dependencies {
             switch dependency {
-            case let .package(product: product):
-                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: false, pbxproj: pbxproj)
-            case let .packagePlugin(product: product):
-                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: true, pbxproj: pbxproj)
-            case let .packageMacro(product: product):
-                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: false, pbxproj: pbxproj)
+            case let .package(product: product, type: type):
+                try pbxTarget.addSwiftPackageProduct(productName: product, isPlugin: type == .plugin, pbxproj: pbxproj)
             case .framework, .library, .project, .sdk, .target, .xcframework, .xctest:
                 break
             }

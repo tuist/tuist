@@ -175,15 +175,15 @@ public final class GraphLoader: GraphLoading {
                     source: .system
                 )
             }
-        case let .package(product):
-            return try loadPackage(fromPath: path, productName: product, type: .sources)
-
-        case let .packagePlugin(product):
-            return try loadPackage(fromPath: path, productName: product, type: .plugin)
-
-        case let .packageMacro(product):
-            return try loadPackage(fromPath: path, productName: product, type: .macro)
-
+        case let .package(product, type):
+            switch type {
+            case .macro:
+                return try loadPackage(fromPath: path, productName: product, type: .macro)
+            case .runtime:
+                return try loadPackage(fromPath: path, productName: product, type: .runtime)
+            case .plugin:
+                return try loadPackage(fromPath: path, productName: product, type: .plugin)
+            }
         case .xctest:
             return try platforms.map { platform in
                 try loadXCTestSDK(platform: platform)

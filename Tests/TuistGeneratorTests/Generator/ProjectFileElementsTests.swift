@@ -832,7 +832,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             ],
             dependencies: [
                 .target(name: graphTarget.target.name, path: graphTarget.path): [
-                    .packageProduct(path: project.path, product: "A", type: .sources),
+                    .packageProduct(path: project.path, product: "A", type: .runtime),
                 ],
             ]
         )
