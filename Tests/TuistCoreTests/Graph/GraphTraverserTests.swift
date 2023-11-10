@@ -905,11 +905,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(Set(got), Set([
-            .testProduct(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: [.ios]),
+            .testProduct(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: []),
             .testProduct(
                 target: staticLibrary.name,
                 productName: staticLibrary.productNameWithExtension,
-                platformFilters: [.ios]
+                platformFilters: []
             ),
         ]))
     }

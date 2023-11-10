@@ -177,7 +177,7 @@ public final class GraphLoader: GraphLoading {
                     source: .system
                 )
             }
-        case let .package(product, type):
+        case let .package(product, type, _):
             switch type {
             case .macro:
                 return try loadPackage(fromPath: path, productName: product, type: .macro)
