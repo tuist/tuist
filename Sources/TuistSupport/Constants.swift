@@ -10,7 +10,6 @@ public enum Constants {
     public static let communityURL = "https://github.com/tuist/tuist/discussions/categories/general"
     public static let version = "3.37.0"
     public static let bundleName: String = "tuist.zip"
-    public static let envBundleName: String = "tuistenv.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
 

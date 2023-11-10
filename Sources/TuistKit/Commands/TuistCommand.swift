@@ -29,12 +29,6 @@ public struct TuistCommand: AsyncParsableCommand {
         )
     }
 
-    @Flag(
-        name: [.customLong("help-env")],
-        help: "Display subcommands to manage the environment tuist versions."
-    )
-    var isTuistEnvHelp: Bool = false
-
     public static func main(
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot,
