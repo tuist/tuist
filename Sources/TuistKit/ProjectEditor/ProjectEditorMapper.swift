@@ -123,7 +123,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             projects: graphProjects,
             packages: [:],
             targets: Dictionary(uniqueKeysWithValues: graphTargets),
-            dependencies: Dictionary(uniqueKeysWithValues: graphDependencies)
+            dependencies: Dictionary(uniqueKeysWithValues: graphDependencies),
+            edges: [:] // What goes here?
         )
     }
 
