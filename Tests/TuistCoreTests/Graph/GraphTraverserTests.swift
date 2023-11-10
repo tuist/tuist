@@ -3073,21 +3073,28 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(path: "/path/a")
 
         // Given: Value Graph
+        let sdkDependency: GraphDependency = .sdk(
+            name: "AppClip.framework",
+            path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/AppClip.framework",
+            status: .required,
+            source: .system
+        )
+
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: target.name, path: project.path): [
-                .sdk(
-                    name: "AppClip.framework",
-                    path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/AppClip.framework",
-                    status: .required,
-                    source: .system
-                ),
+                sdkDependency,
             ],
         ]
+        var edges: [GraphEdge: PlatformFilters] = [:]
+        edges[(.target(name: target.name, path: project.path), sdkDependency)] = [.ios]
+
         let graph = Graph.test(
             projects: [project.path: project],
             targets: [project.path: [target.name: target]],
-            dependencies: dependencies
+            dependencies: dependencies,
+            edges: edges
         )
+
         let subject = GraphTraverser(graph: graph)
 
         // When
