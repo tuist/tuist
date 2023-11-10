@@ -244,7 +244,7 @@ public class GraphTraverser: GraphTraversing {
             to: $0,
             from: .target(name: name, path: path)
         ) })
-        
+
         /// Other targets' frameworks.
         var otherTargetFrameworks = filterDependencies(
             from: .target(name: name, path: path),
@@ -330,10 +330,12 @@ public class GraphTraverser: GraphTraversing {
         let directSystemLibrariesAndFrameworks = graph.dependencies[targetGraphDependency, default: []]
             .compactMap { dependency -> GraphDependencyReference? in
                 guard case let GraphDependency.sdk(_, path, status, source) = dependency else { return nil }
-                return .sdk(path: path,
-                            status: status,
-                            source: source,
-                            platformFilters: platformFilters(from: targetGraphDependency, to: dependency))
+                return .sdk(
+                    path: path,
+                    status: status,
+                    source: source,
+                    platformFilters: platformFilters(from: targetGraphDependency, to: dependency)
+                )
             }
         references.formUnion(directSystemLibrariesAndFrameworks)
 
@@ -625,7 +627,7 @@ public class GraphTraverser: GraphTraversing {
 
         return references
     }
-    
+
     /// Recursively find platform filters within transitive dependencies
     /// - Parameters:
     ///   - rootDependency: dependency whose platform filters we need when depending on `transitiveDependency`
@@ -654,7 +656,7 @@ public class GraphTraverser: GraphTraversing {
 
         return find(from: rootDependency, to: transitiveDependency)
     }
-    
+
     func allDependenciesSatisfy(from rootDependency: GraphDependency, meets: (GraphDependency) -> Bool) -> Bool {
         var allSatisfy = true
         _ = filterDependencies(from: rootDependency, test: { dependency in
@@ -859,7 +861,7 @@ public class GraphTraverser: GraphTraversing {
             return .product(
                 target: target.target.name,
                 productName: target.target.productNameWithExtension,
-                platformFilters: target.target.dependencyPlatformFilters //This will be platformFilters when we 
+                platformFilters: target.target.dependencyPlatformFilters // This will be platformFilters when we
             )
         case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, status):
             return .xcframework(

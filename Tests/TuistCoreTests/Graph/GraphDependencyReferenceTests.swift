@@ -98,8 +98,18 @@ private enum KnownGraphDependencyReference: CaseIterable {
             ]
         case .sdk:
             return [
-                .sdk(path: try! AbsolutePath(validating: "/sdks/\(name).framework"), status: .required, source: .system, platformFilters: []),
-                .sdk(path: try! AbsolutePath(validating: "/sdks/\(name).tbd"), status: .required, source: .system, platformFilters: []),
+                .sdk(
+                    path: try! AbsolutePath(validating: "/sdks/\(name).framework"),
+                    status: .required,
+                    source: .system,
+                    platformFilters: []
+                ),
+                .sdk(
+                    path: try! AbsolutePath(validating: "/sdks/\(name).tbd"),
+                    status: .required,
+                    source: .system,
+                    platformFilters: []
+                ),
             ]
         }
     }
