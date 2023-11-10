@@ -149,7 +149,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         case let .packageProduct(_, _, type):
             switch type {
             // Swift package products are currently assumed to be static
-            case .sources: return true
+            case .runtime: return true
             case .macro: return false
             case .plugin: return false
             }

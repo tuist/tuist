@@ -93,7 +93,7 @@ extension GraphDependency {
         .packageProduct(
             path: path,
             product: product,
-            type: .sources
+            type: .runtime
         )
     }
 }

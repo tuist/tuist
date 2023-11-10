@@ -114,7 +114,7 @@ public class CircularDependencyLinter: CircularDependencyLinting {
                 cache: cache,
                 cycleDetector: cycleDetector
             )
-        case .framework, .xcframework, .library, .package, .packagePlugin, .packageMacro, .sdk, .xctest:
+        case .framework, .xcframework, .library, .package, .sdk, .xctest:
             break
         }
     }
