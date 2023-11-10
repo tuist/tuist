@@ -96,7 +96,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let project = Project.test(
             path: temporaryPath,
             name: "Project",
-            targets: [.test(dependencies: [.package(product: "A")])],
+            targets: [.test(dependencies: [.package(product: "A", type: .runtime)])],
             packages: [.remote(url: "A", requirement: .exact("0.1"))]
         )
 
@@ -116,7 +116,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             ],
             dependencies: [
                 .target(name: graphTarget.target.name, path: graphTarget.path): [
-                    .packageProduct(path: project.path, product: "A", type: .sources),
+                    .packageProduct(path: project.path, product: "A", type: .runtime),
                 ],
             ]
         )
@@ -343,7 +343,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             path: projectPath,
             sourceRootPath: projectPath,
             name: "Project",
-            targets: [.test(dependencies: [.package(product: "A")])],
+            targets: [.test(dependencies: [.package(product: "A", type: .runtime)])],
             packages: [.local(path: localPackagePath)]
         )
 
@@ -363,7 +363,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             ],
             dependencies: [
                 .target(name: graphTarget.target.name, path: graphTarget.path): [
-                    .packageProduct(path: project.path, product: "A", type: .sources),
+                    .packageProduct(path: project.path, product: "A", type: .runtime),
                 ],
             ]
         )

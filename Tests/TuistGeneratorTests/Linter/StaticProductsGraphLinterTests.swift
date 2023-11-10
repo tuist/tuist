@@ -32,9 +32,9 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            appDependency: Set([frameworkDependency, .packageProduct(path: path, product: "Package", type: .sources)]),
-            frameworkDependency: Set([.packageProduct(path: path, product: "Package", type: .sources)]),
-            .packageProduct(path: path, product: "Package", type: .sources): Set(),
+            appDependency: Set([frameworkDependency, .packageProduct(path: path, product: "Package", type: .runtime)]),
+            frameworkDependency: Set([.packageProduct(path: path, product: "Package", type: .runtime)]),
+            .packageProduct(path: path, product: "Package", type: .runtime): Set(),
         ]
         let graph = Graph.test(
             path: path,
@@ -1091,7 +1091,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let watchAppDependency = GraphDependency.target(name: watchApp.name, path: path)
         let watchAppExtensionDependency = GraphDependency.target(name: watchAppExtension.name, path: path)
-        let swiftPackage = GraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage", type: .sources)
+        let swiftPackage = GraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage", type: .runtime)
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             // apps declare they bundle watch apps via dependencies
@@ -1132,7 +1132,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let watchAppDependency = GraphDependency.target(name: watchApp.name, path: path)
         let watchAppExtensionDependency = GraphDependency.target(name: watchAppExtension.name, path: path)
         let watchFrameworkDependency = GraphDependency.target(name: watchFramework.name, path: path)
-        let swiftPackage = GraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage", type: .sources)
+        let swiftPackage = GraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage", type: .runtime)
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             // apps declare they bundle watch apps via dependencies

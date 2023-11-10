@@ -495,13 +495,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
     func test_loadWorkspace_packages() throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [
-            .package(product: "PackageLibraryA1"),
+            .package(product: "PackageLibraryA1", type: .runtime),
         ])
         let targetB = Target.test(name: "B", dependencies: [
-            .package(product: "PackageLibraryA2"),
+            .package(product: "PackageLibraryA2", type: .runtime),
         ])
         let targetC = Target.test(name: "C", dependencies: [
-            .package(product: "PackageLibraryB"),
+            .package(product: "PackageLibraryB", type: .runtime),
         ])
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA], packages: [
             .local(path: "/Packages/PackageLibraryA"),
@@ -541,13 +541,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
         ])
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([
-                .packageProduct(path: "/A", product: "PackageLibraryA1", type: .sources),
+                .packageProduct(path: "/A", product: "PackageLibraryA1", type: .runtime),
             ]),
             .target(name: "B", path: "/B"): Set([
-                .packageProduct(path: "/B", product: "PackageLibraryA2", type: .sources),
+                .packageProduct(path: "/B", product: "PackageLibraryA2", type: .runtime),
             ]),
             .target(name: "C", path: "/C"): Set([
-                .packageProduct(path: "/C", product: "PackageLibraryB", type: .sources),
+                .packageProduct(path: "/C", product: "PackageLibraryB", type: .runtime),
             ]),
         ])
     }
@@ -555,7 +555,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
     func test_loadWorkspace_package_plugin() throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [
-            .packagePlugin(product: "PackagePlugin"),
+            .package(product: "PackagePlugin", type: .plugin),
         ])
 
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA], packages: [
