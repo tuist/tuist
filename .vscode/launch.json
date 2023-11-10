@@ -21,24 +21,6 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug tuistenv",
-      "program": "${workspaceFolder:tuist}/.build/debug/tuistenv",
-      "args": [],
-      "cwd": "${workspaceFolder:tuist}",
-      "preLaunchTask": "swift: Build Debug tuistenv"
-    },
-    {
-      "type": "lldb",
-      "request": "launch",
-      "name": "Release tuistenv",
-      "program": "${workspaceFolder:tuist}/.build/release/tuistenv",
-      "args": [],
-      "cwd": "${workspaceFolder:tuist}",
-      "preLaunchTask": "swift: Build Release tuistenv"
-    },
-    {
-      "type": "lldb",
-      "request": "launch",
       "name": "Test tuist",
       "program": "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "args": [
