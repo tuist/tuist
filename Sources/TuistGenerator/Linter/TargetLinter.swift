@@ -302,7 +302,7 @@ extension TargetDependency {
             return "framework"
         case .library:
             return "library"
-        case let .package(_, type):
+        case let .package(_, type, _):
             return "\(type.rawValue) package"
         case .sdk:
             return "sdk"
