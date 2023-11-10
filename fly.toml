@@ -22,6 +22,7 @@ console_command = "/rails/bin/rails console"
   auto_start_machines = true
   min_machines_running = 1
   processes = ["app"]
+  http_options = { h2_backend = true }
 
   [[services.ports]]
     port = 80
@@ -33,8 +34,8 @@ console_command = "/rails/bin/rails console"
     handlers = ["tls", "http"]
   [services.concurrency]
     type = "connections"
-    hard_limit = 60
-    soft_limit = 50
+    hard_limit = 500
+    soft_limit = 400
 
   [[services.tcp_checks]]
     interval = "15s"

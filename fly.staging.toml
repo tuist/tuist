@@ -22,6 +22,7 @@ console_command = "/rails/bin/rails console"
   auto_start_machines = true
   min_machines_running = 1
   processes = ["app"]
+  http_options = { h2_backend = true }
 
   [[services.ports]]
     port = 80

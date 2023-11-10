@@ -27,6 +27,7 @@ console_command = "/rails/bin/rails console"
     port = 80
     handlers = ["http"]
     force_https = true
+    http_options = { h2_backend = true }
 
   [[services.ports]]
     port = 443
