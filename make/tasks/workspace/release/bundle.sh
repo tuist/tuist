@@ -108,9 +108,6 @@ build_fat_release_binary "xcbeautify" $ROOT_DIR/vendor $BUILD_DIRECTORY/vendor
 echo "$(format_subsection "Building tuist executable")"
 build_fat_release_binary "tuist" $ROOT_DIR $BUILD_DIRECTORY
 
-echo "$(format_subsection "Building tuist executable")"
-build_fat_release_binary "tuistenv" $ROOT_DIR $BUILD_DIRECTORY
-
 echo "$(format_section "Copying assets")"
 
 echo "$(format_subsection "Copying Tuist's templates")"
@@ -123,8 +120,6 @@ echo "$(format_section "Bundling")"
 
 (
     cd $BUILD_DIRECTORY || exit 1
-    echo "$(format_subsection "Bundling tuistenv.zip")"
-    zip -q -r --symlinks tuistenv.zip tuistenv
     echo "$(format_subsection "Bundling tuist.zip")"
     zip -q -r --symlinks tuist.zip tuist libswift_Concurrency.dylib ProjectAutomation.xcframework ProjectAutomation.xcframework.dSYM ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor
     echo "$(format_subsection "Bundling ProjectDescription.framework.zip")"
@@ -132,7 +127,7 @@ echo "$(format_section "Bundling")"
     echo "$(format_subsection "Bundling ProjectAutomation.xcframework.zip")"
     zip -q -r --symlinks ProjectAutomation.xcframework.zip ProjectAutomation.xcframework ProjectAutomation.xcframework.dSYM
 
-    rm -rf tuist tuistenv ProjectAutomation.xcframework ProjectAutomation.xcframework.dSYM ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor
+    rm -rf tuist ProjectAutomation.xcframework ProjectAutomation.xcframework.dSYM ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor
 
     : > SHASUMS256.txt
     : > SHASUMS512.txt

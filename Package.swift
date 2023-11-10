@@ -131,27 +131,6 @@ var targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistEnvKit",
-        dependencies: [
-            argumentParserDependency,
-            swiftToolsSupportDependency,
-            "TuistSupport",
-        ]
-    ),
-    .testTarget(
-        name: "TuistEnvKitTests",
-        dependencies: [
-            "TuistEnvKit",
-            "TuistSupportTesting",
-        ]
-    ),
-    .executableTarget(
-        name: "tuistenv",
-        dependencies: [
-            "TuistEnvKit",
-        ]
-    ),
-    .target(
         name: "ProjectDescription",
         dependencies: []
     ),
@@ -553,7 +532,6 @@ let package = Package(
         .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
         .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
         .executable(name: "tuist", targets: ["tuist"]),
-        .executable(name: "tuistenv", targets: ["tuistenv"]),
         .library(
             name: "ProjectDescription",
             type: .dynamic,

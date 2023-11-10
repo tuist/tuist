@@ -16,13 +16,6 @@ func releaseSettings() -> SettingsDictionary {
 func targets() -> [Target] {
     let executableTargets = [
         Target.target(
-            name: "tuistenv",
-            product: .commandLineTool,
-            dependencies: [
-                .target(name: "TuistEnvKit"),
-            ]
-        ),
-        Target.target(
             name: "tuist",
             product: .commandLineTool,
             dependencies: [
@@ -133,16 +126,6 @@ func targets() -> [Target] {
                 .target(name: "ProjectAutomation"),
                 .target(name: "TuistLoaderTesting"),
                 .target(name: "TuistGraphTesting"),
-            ]
-        ),
-        Target.module(
-            name: "TuistEnvKit",
-            hasTesting: false,
-            dependencies: [
-                .target(name: "TuistSupport"),
-            ],
-            testDependencies: [
-                .target(name: "TuistSupportTesting"),
             ]
         ),
         Target.module(
