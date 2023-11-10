@@ -30,7 +30,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         status: FrameworkStatus,
         platformFilters: PlatformFilters
     )
-    case bundle(path: AbsolutePath, platformFilters: PlatformFilters )
+    case bundle(path: AbsolutePath, platformFilters: PlatformFilters)
     case product(target: String, productName: String, platformFilters: PlatformFilters)
     case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource, platformFilters: PlatformFilters)
 
@@ -145,4 +145,3 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         }
     }
 }
-

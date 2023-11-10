@@ -1,7 +1,6 @@
 import Foundation
 import TSCBasic
 
-
 /// A directed edge linking representing a dependent relationship
 public struct GraphEdge: Hashable, Codable {
     public let from: GraphDependency
@@ -47,7 +46,7 @@ public struct Graph: Equatable, Codable {
 
     /// A dictionary that contains the platform filters to apply to a dependency relationship
     public var edges: [GraphEdge: PlatformFilters]
-    
+
     public init(
         name: String,
         path: AbsolutePath,
