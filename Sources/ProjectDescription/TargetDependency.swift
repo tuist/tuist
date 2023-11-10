@@ -31,8 +31,15 @@ public enum SDKType: String, Codable, Hashable {
 /// A target dependency.
 public enum TargetDependency: Codable, Hashable {
     public enum PackageType: Codable, Hashable {
+        /// A runtime package type represents a standard package whose sources are linked at runtime.
+        /// For example importing the framework and consuming from dependent targets.
         case runtime
+        
+        /// A plugin package represents a package that's loaded by the build system at compile-time to
+        /// extend the compilation process.
         case plugin
+        
+        /// A macro package represents a package that contains a Swift Macro.
         case macro
     }
 
