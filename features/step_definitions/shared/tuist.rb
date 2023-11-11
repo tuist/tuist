@@ -6,7 +6,7 @@ Given(/tuist is available/) do
   # On CI we expect tuist to be built already by the previous job `release_build`, so we skip `swift build`
 
   if ENV["CI"].nil?
-    ["tuist", "ProjectDescription", "tuistenv"].each do |product|
+    ["tuist", "ProjectDescription"].each do |product|
       system(
         "swift",
         "build",
@@ -24,7 +24,6 @@ Given(/tuist is available/) do
   FileUtils.cp_r(File.join(project_root, "Templates"), File.join(project_root, ".build/release/Templates"))
 
   @tuist = File.join(project_root, ".build/release/tuist")
-  @tuistenv = File.join(project_root, ".build/release/tuistenv")
 end
 
 Then(/^tuist generates the project$/) do

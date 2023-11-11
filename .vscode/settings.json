@@ -23,9 +23,10 @@
   },
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "files.exclude": {
+    "**/.build/": true,
+    "**/.DS_Store": true,
     "**/.git": true,
-    "**/node_modules": true,
-    "**/.DS_Store": true
+    "**/node_modules": true
   },
   "spellright.language": [
     "en"
