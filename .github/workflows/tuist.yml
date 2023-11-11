@@ -28,6 +28,29 @@ env:
   TUIST_CONFIG_CLOUD_TOKEN: ${{ secrets.TUIST_CONFIG_CLOUD_TOKEN }}
 
 jobs:
+<<<<<<< HEAD
+=======
+  release_build:
+    name: Release build with Xcode
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        name: 'Cache Tuist .build folder'
+        with:
+          path: .build
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1
+      - name: Select Xcode for Tuist and Tuistenv
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Build Tuist for release
+        run: swift build -c release --product tuist
+      - name: Build ProjectDescription for release
+        run: swift build -c release --product ProjectDescription
+
+>>>>>>> f05122f20 (Fix the release pipeline)
   test:
     name: Test with Xcode
     runs-on: macos-13
