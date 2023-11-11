@@ -48,8 +48,6 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Build Tuist for release
         run: swift build -c release --product tuist
-      - name: Build Tuistenv for release
-        run: swift build -c release --product tuistenv
       - name: Build ProjectDescription for release
         run: swift build -c release --product ProjectDescription
 
