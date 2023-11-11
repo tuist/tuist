@@ -1,0 +1,4 @@
+% tuist edit
+Generating workspace Manifests.xcworkspace
+Generating project Manifests
+Opening Xcode to edit the project. Press CTRL + C once you are done editing
