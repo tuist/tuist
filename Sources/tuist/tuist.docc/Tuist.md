@@ -75,3 +75,11 @@ The choice is yours. By adding .xcodeproj and .xcworkspace files to your .gitign
 
 - <doc:Tuist-Cloud---What>
 - <doc:Tuist-Cloud-Tutorial>
+
+### Contributing
+
+- <doc:Contributing---Get-Started>
+- <doc:Contributing---Manifesto>
+- <doc:Contributing---Code-Reviews>
+- <doc:Contributing---Reporting-Bugs>
+- <doc:Contributing---Championing-Projects>
