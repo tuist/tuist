@@ -161,16 +161,14 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             isLegacy: isLegacy,
             packageManifestFolder: packageManifestPath.removingLastComponent()
         )
+        let content: String;
         switch manifest {
-        case let .content(content):
-            try fileHandler.write(content, path: packageManifestPath, atomically: true)
+        case let .content(inputContent):
+            content = inputContent
         case .manifest:
-            if fileHandler.exists(packageManifestPath) {
-                try fileHandler.replace(packageManifestPath, with: pathsProvider.sourcePackageSwiftPath)
-            } else {
-                try fileHandler.copy(from: pathsProvider.sourcePackageSwiftPath, to: packageManifestPath)
-            }
+            content = try fileHandler.readTextFile(packageManifestPath)
         }
+        try fileHandler.write(content, path: packageManifestPath, atomically: true)
 
         // set `swift-tools-version` in `Package.swift`
         try swiftPackageManagerController.setToolsVersion(
