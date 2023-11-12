@@ -39,7 +39,7 @@ let customAppScheme = Scheme(
     ),
     runAction: .runAction(
         executable: .project(path: "App", target: "App"),
-        arguments: Arguments(environment: ["path": "$(SRCROOT)"], launchArguments: []),
+        arguments: .init(environmentVariables: ["path": "$(SRCROOT)"], launchArguments: []),
         options: .options(
             storeKitConfigurationPath: "App/Config/ProjectStoreKitConfig.storekit"
         ),
