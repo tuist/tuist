@@ -274,21 +274,6 @@ extension SynthesizedResourceInterfaceTemplates {
       #endif
     }
 
-    {{accessModifier}} extension {{imageType}}.Image {
-      @available(macOS, deprecated,
-        message: "This initializer is unsafe on macOS, please use the {{imageType}}.image property")
-      convenience init?(asset: {{imageType}}) {
-        #if os(iOS) || os(tvOS)
-        let bundle = {{bundleToken}}.bundle
-        self.init(named: asset.name, in: bundle, compatibleWith: nil)
-        #elseif os(macOS)
-        self.init(named: NSImage.Name(asset.name))
-        #elseif os(watchOS)
-        self.init(named: asset.name)
-        #endif
-      }
-    }
-
     #if canImport(SwiftUI)
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, macOS 10.15, *)
     {{accessModifier}} extension SwiftUI.Image {

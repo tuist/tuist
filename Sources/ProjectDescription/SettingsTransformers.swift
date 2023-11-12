@@ -172,10 +172,3 @@ extension SettingsDictionary {
         merging(["DEBUG_INFORMATION_FORMAT": SettingValue(format)])
     }
 }
-
-extension SettingsDictionary {
-    @available(*, deprecated, renamed: "swiftObjcBridgingHeaderPath")
-    public func swiftObjcBridingHeaderPath(_ path: String) -> SettingsDictionary {
-        swiftObjcBridgingHeaderPath(path)
-    }
-}

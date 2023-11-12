@@ -4,14 +4,6 @@ import Foundation
 public struct Cloud: Codable, Equatable {
     /// Options for cloud configuration.
     public enum Option: String, Codable, Equatable {
-        /// Enables sending analytics to cloud dashboard.
-        @available(
-            *,
-            deprecated,
-            message: "Analytics are sent to the cloud backend by default. Use `disableAnalytics` to disable this feature."
-        )
-        case analytics
-
         /// Disables sending analytics to cloud dashboard.
         case disableAnalytics
 
