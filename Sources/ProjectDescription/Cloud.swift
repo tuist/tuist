@@ -4,9 +4,6 @@ import Foundation
 public struct Cloud: Codable, Equatable {
     /// Options for cloud configuration.
     public enum Option: String, Codable, Equatable {
-        /// Disables sending analytics to cloud dashboard.
-        case disableAnalytics
-
         /// Marks whether cloud connection is optional.
         /// If not present, tuist commands will fail regardless of whether an authentication token is available locally from
         /// `tuist cloud auth` or not.
