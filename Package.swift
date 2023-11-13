@@ -620,7 +620,7 @@ let package = Package(
         .library(
             name: "TuistSigning",
             targets: ["TuistSigning"]
-        )
+        ),
         .library(
             name: "TuistAcceptanceTesting",
             targets: ["TuistAcceptanceTesting"]

@@ -66,43 +66,50 @@ open class TuistAcceptanceTestCase: TuistTestCase {
             from: fixturesPath.appending(component: fixture),
             to: fixturePath
         )
-
-        try poisonCache()
-    }
-
-    /// We need to poison the cache when we start a given test as we share
-    private func poisonCache() throws {
-        let filePath = try XCTUnwrap(FileHandler.shared.glob(fixturePath, glob: "**/*.swift").first)
-        var contents = try FileHandler.shared.readTextFile(filePath)
-        contents += "\n"
-        try FileHandler.shared.write(contents, path: filePath, atomically: true)
     }
 
     public func run(_ command: (some AsyncParsableCommand).Type, _ arguments: [String] = []) async throws {
-        var arguments = arguments
+        let arguments = arguments + [
+            "--path", fixturePath.pathString,
+        ]
 
-        if String(describing: command) == "GenerateCommand" {
-            arguments.append("--no-open")
-        }
+        var parsedCommand = try command.parse(arguments)
+        try await parsedCommand.run()
+    }
 
-        if String(describing: command) == "TestCommand"
-            || String(describing: command) == "BuildCommand"
-        {
-            arguments.append(contentsOf: ["--derived-data-path", derivedDataPath.pathString])
-        }
+    public func run(_ command: TestCommand.Type, _ arguments: [String] = []) async throws {
+        let arguments = arguments + [
+            "--derived-data-path", derivedDataPath.pathString,
+            "--path", fixturePath.pathString,
+        ]
 
-        var parsedCommand = try command.parse(
-            arguments +
-                ["--path", fixturePath.pathString]
-        )
+        let parsedCommand = try command.parse(arguments)
+        try await parsedCommand.run()
+    }
+
+    public func run(_ command: BuildCommand.Type, _ arguments: [String] = []) async throws {
+        let arguments = arguments + [
+            "--derived-data-path", derivedDataPath.pathString,
+            "--path", fixturePath.pathString,
+        ]
+
+        let parsedCommand = try command.parse(arguments)
+        try await parsedCommand.run()
+    }
+
+    public func run(_ command: GenerateCommand.Type, _ arguments: [String] = []) async throws {
+        let arguments = arguments + [
+            "--no-open",
+            "--path", fixturePath.pathString,
+        ]
+
+        let parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()
 
-        if String(describing: command) == "GenerateCommand" {
-            xcodeprojPath = try FileHandler.shared.contentsOfDirectory(fixturePath)
-                .first(where: { $0.extension == "xcodeproj" })
-            workspacePath = try FileHandler.shared.contentsOfDirectory(fixturePath)
-                .first(where: { $0.extension == "xcworkspace" })
-        }
+        xcodeprojPath = try FileHandler.shared.contentsOfDirectory(fixturePath)
+            .first(where: { $0.extension == "xcodeproj" })
+        workspacePath = try FileHandler.shared.contentsOfDirectory(fixturePath)
+            .first(where: { $0.extension == "xcworkspace" })
     }
 
     public func run(_ command: (some AsyncParsableCommand).Type, _ arguments: String...) async throws {
@@ -120,10 +127,6 @@ open class TuistAcceptanceTestCase: TuistTestCase {
                 ["--path", fixturePath.pathString]
         )
         try parsedCommand.run()
-
-        if command == InitCommand.self {
-            try poisonCache()
-        }
     }
 
     public func run(_ command: (some ParsableCommand).Type, _ arguments: String...) throws {

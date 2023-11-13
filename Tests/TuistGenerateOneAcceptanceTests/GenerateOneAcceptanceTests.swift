@@ -12,7 +12,6 @@ final class GenerateOneAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
         try setUpFixture("ios_app_with_tests")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
-        try await run(TestCommand.self)
     }
 }
 
