@@ -56,29 +56,34 @@ final class TargetTests: TuistUnitTestCase {
         )
     }
 
-    func test_productName_when_staticLibrary() {
+    func test_productNameWithExtension_when_staticLibrary() {
         let target = Target.test(name: "Test", product: .staticLibrary)
         XCTAssertEqual(target.productNameWithExtension, "libTest.a")
     }
 
-    func test_productName_when_dynamicLibrary() {
+    func test_productNameWithExtension_when_dynamicLibrary() {
         let target = Target.test(name: "Test", product: .dynamicLibrary)
         XCTAssertEqual(target.productNameWithExtension, "libTest.dylib")
     }
 
-    func test_productName_when_nil() {
+    func test_productNameWithExtension_when_nil() {
         let target = Target.test(name: "Test-Module", productName: nil)
         XCTAssertEqual(target.productName, "Test_Module")
     }
 
-    func test_productName_when_app() {
+    func test_productNameWithExtension_when_app() {
         let target = Target.test(name: "Test", product: .app)
         XCTAssertEqual(target.productNameWithExtension, "Test.app")
     }
 
-    func test_productName_when_appClip() {
+    func test_productNameWithExtension_when_appClip() {
         let target = Target.test(name: "Test", product: .appClip)
         XCTAssertEqual(target.productNameWithExtension, "Test.app")
+    }
+
+    func test_productNameWithExtension_when_macro() {
+        let target = Target.test(name: "macro", product: .macro)
+        XCTAssertEqual(target.productNameWithExtension, "macro")
     }
 
     func test_sequence_testBundles() {

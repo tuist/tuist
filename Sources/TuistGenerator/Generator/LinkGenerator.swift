@@ -501,7 +501,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         )
     }
 
-    private func generateCopySwiftMacroExecutableScriptBuildPhase(
+    func generateCopySwiftMacroExecutableScriptBuildPhase(
         directSwiftMacroExecutables: [GraphDependencyReference],
         target _: Target,
         pbxTarget: PBXTarget,
