@@ -32,27 +32,6 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public let projectOptions: [String: ProjectDescription.Project.Options]
 
-    /// Creates `SwiftPackageManagerDependencies` instance.
-    /// - Parameter packages: List of packages that will be installed using Swift Package Manager.
-    /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
-    /// - Parameter baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-    /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-    /// - Parameter projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
-    @available(*, deprecated, message: "Use init without packages parameter instead")
-    public init(
-        _ packages: [Package],
-        productTypes: [String: Product] = [:],
-        baseSettings: Settings = .settings(),
-        targetSettings: [String: SettingsDictionary] = [:],
-        projectOptions: [String: ProjectDescription.Project.Options] = [:]
-    ) {
-        packagesOrManifest = .packages(packages)
-        self.productTypes = productTypes
-        self.baseSettings = baseSettings
-        self.targetSettings = targetSettings
-        self.projectOptions = projectOptions
-    }
-
     /// Creates `SwiftPackageManagerDependencies` instance using the package manifest at `Tuist/Package.swift`.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.

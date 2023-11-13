@@ -170,57 +170,6 @@ public struct Target: Codable, Equatable {
         self.mergedBinaryType = mergedBinaryType
         self.mergeable = mergeable
     }
-
-    @available(*, deprecated, message: "please use environmentVariables instead")
-    public init(
-        name: String,
-        platform: Platform,
-        product: Product,
-        productName: String? = nil,
-        bundleId: String,
-        deploymentTarget: DeploymentTarget? = nil,
-        infoPlist: InfoPlist? = .default,
-        sources: SourceFilesList? = nil,
-        resources: ResourceFileElements? = nil,
-        copyFiles: [CopyFilesAction]? = nil,
-        headers: Headers? = nil,
-        entitlements: Entitlements? = nil,
-        scripts: [TargetScript] = [],
-        dependencies: [TargetDependency] = [],
-        settings: Settings? = nil,
-        coreDataModels: [CoreDataModel] = [],
-        environment: [String: String],
-        launchArguments: [LaunchArgument] = [],
-        additionalFiles: [FileElement] = [],
-        buildRules: [BuildRule] = [],
-        mergedBinaryType: MergedBinaryType = .disabled,
-        mergeable: Bool = false
-    ) {
-        self.name = name
-        destinations = Destinations.from(platform: platform, deploymentTarget: deploymentTarget)
-        self.bundleId = bundleId
-        self.productName = productName
-        self.product = product
-        self.infoPlist = infoPlist
-        self.entitlements = entitlements
-        self.dependencies = dependencies
-        self.settings = settings
-        self.sources = sources
-        self.resources = resources
-        self.copyFiles = copyFiles
-        self.headers = headers
-        self.scripts = scripts
-        self.coreDataModels = coreDataModels
-        environmentVariables = environment.mapValues { value in
-            EnvironmentVariable(value: value, isEnabled: true)
-        }
-        self.launchArguments = launchArguments
-        deploymentTargets = DeploymentTargets.from(manifest: deploymentTarget)
-        self.additionalFiles = additionalFiles
-        self.buildRules = buildRules
-        self.mergedBinaryType = mergedBinaryType
-        self.mergeable = mergeable
-    }
 }
 
 extension Target {

@@ -44,10 +44,3 @@ extension InfoPlist: ExpressibleByStringInterpolation {
         self = .file(path: Path(value))
     }
 }
-
-// MARK: - InfoPlist API compatibility
-
-extension InfoPlist {
-    @available(*, deprecated, message: "InfoPlist.Value was renamed to Plist.Value")
-    public typealias Value = Plist.Value
-}
