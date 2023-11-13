@@ -608,6 +608,14 @@ let package = Package(
             name: "TuistAutomation",
             targets: ["TuistAutomation"]
         ),
+        .library(
+            name: "TuistLoader",
+            targets: ["TuistLoader"]
+        ),
+        .library(
+            name: "TuistSigning",
+            targets: ["TuistSigning"]
+        ),
         /// TuistGenerator
         ///
         /// A high level Xcode generator library
