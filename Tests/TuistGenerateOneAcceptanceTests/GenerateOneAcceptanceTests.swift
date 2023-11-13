@@ -7,38 +7,38 @@ import XCTest
 @testable import TuistKit
 
 /// Generate a new project using Tuist (suite 1)
- final class GenerateOneAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
+final class GenerateOneAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
     func test_ios_app_with_tests() async throws {
         try setUpFixture("ios_app_with_tests")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await run(TestCommand.self)
     }
- }
+}
 
- final class GenerateOneAcceptanceTestiOSAppWithFrameworks: TuistAcceptanceTestCase {
-     func test_ios_app_with_frameworks() async throws {
-         try setUpFixture("ios_app_with_frameworks")
-         try await run(GenerateCommand.self)
-         try await run(BuildCommand.self)
-         try await XCTAssertProductWithDestinationContainsInfoPlistKey(
+final class GenerateOneAcceptanceTestiOSAppWithFrameworks: TuistAcceptanceTestCase {
+    func test_ios_app_with_frameworks() async throws {
+        try setUpFixture("ios_app_with_frameworks")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        try await XCTAssertProductWithDestinationContainsInfoPlistKey(
             "Framework1.framework",
             destination: "Debug-iphonesimulator",
             key: "Test"
-         )
-     }
- }
+        )
+    }
+}
 
- final class GenerateOneAcceptanceTestiOSAppWithHeaders: TuistAcceptanceTestCase {
-     func test_ios_app_with_headers() async throws {
-         try setUpFixture("ios_app_with_headers")
-         try await run(GenerateCommand.self)
-         try await run(BuildCommand.self)
-     }
+final class GenerateOneAcceptanceTestiOSAppWithHeaders: TuistAcceptanceTestCase {
+    func test_ios_app_with_headers() async throws {
+        try setUpFixture("ios_app_with_headers")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
 }
 
 final class GenerateOneAcceptanceTestInvalidWorkspaceManifestName: TuistAcceptanceTestCase {
-    func test() async throws {
+    func test_invalid_workspace_manifest_name() async throws {
         try setUpFixture("invalid_workspace_manifest_name")
         do {
             try await run(GenerateCommand.self)

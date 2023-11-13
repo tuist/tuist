@@ -12,21 +12,19 @@ public enum Destination {
     case simulator, device
 }
 
-let cacheDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true).path
-var usedDevices: Set<String> = []
-var counter = 0
-
 open class TuistAcceptanceTestCase: TuistTestCase {
     public var xcodeprojPath: AbsolutePath!
     public var workspacePath: AbsolutePath!
     public var fixturePath: AbsolutePath!
     public var derivedDataPath: AbsolutePath!
+    public var cacheDirectory: AbsolutePath!
 
     private var sourceRootPath: AbsolutePath!
 
     override open func setUp() {
         super.setUp()
 
+        cacheDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true).path
         derivedDataPath = try! TemporaryDirectory(removeTreeOnDeinit: true).path
         setenv(
             Constants.EnvironmentVariables.forceConfigCacheDirectory,
@@ -48,15 +46,13 @@ open class TuistAcceptanceTestCase: TuistTestCase {
         DeveloperEnvironment.shared = DeveloperEnvironment()
     }
 
-    
-    open override func tearDown() async throws {
+    override open func tearDown() async throws {
         xcodeprojPath = nil
         workspacePath = nil
         fixturePath = nil
         derivedDataPath = nil
-        
-        try testingDevices.values.forEach { try System.shared.run(["/usr/bin/xcrun", "simctl", "delete", $0]) }
-        testingDevices = [:]
+        cacheDirectory = nil
+
         try await super.tearDown()
     }
 
