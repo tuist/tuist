@@ -4179,6 +4179,52 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: [.ios]),
         ])
     }
+    
+    func test_platformFilterResolution_when_targetHasTransitiveDependencies() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let project = Project.test(targets: [app])
+        let multiPlatformFramework = Target.test(name: "MultiplatformFramework", destinations: [.iPhone, .mac], product: .framework)
+        let macFramework = Target.test(name: "MacFramework", destinations: [.mac], product: .framework)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([
+                .target(name: multiPlatformFramework.name, path: project.path),
+                .target(name: macFramework.name, path: project.path) // I assumed this wasnt necessary because reasons.
+            ]),
+            .target(name: multiPlatformFramework.name, path: project.path): Set([
+                .target(name: macFramework.name, path: project.path)
+            ]),
+        ]
+        
+        let multiPlatformToMacEdge = GraphEdge(from: .target(name: multiPlatformFramework.name, path: project.path),
+                                               to: .target(name: macFramework.name, path: project.path))
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                app.name: app,
+                multiPlatformFramework.name: multiPlatformFramework,
+                macFramework.name: macFramework,
+            ]],
+            dependencies: dependencies,
+            edges: [
+                multiPlatformToMacEdge : [.macos]
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            .product(target: macFramework.name, productName: macFramework.productNameWithExtension, platformFilters: [.macos]),
+            .product(target: multiPlatformFramework.name, productName: multiPlatformFramework.productNameWithExtension, platformFilters: [.macos, .ios]),
+        ])
+    }
 
     func test_directSwiftMacroExecutables_when_targetHasDirectMacroDependencies() {
         // Given

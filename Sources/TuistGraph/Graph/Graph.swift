@@ -5,6 +5,10 @@ import TSCBasic
 public struct GraphEdge: Hashable, Codable {
     public let from: GraphDependency
     public let to: GraphDependency
+    public init(from: GraphDependency, to: GraphDependency) {
+        self.from = from
+        self.to = to
+    }
 }
 
 extension [GraphEdge: PlatformFilters] {
