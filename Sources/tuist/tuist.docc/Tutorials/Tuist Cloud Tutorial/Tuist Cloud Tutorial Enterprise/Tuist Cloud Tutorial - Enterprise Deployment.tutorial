@@ -30,6 +30,7 @@
 
         Subsequent sections provide examples of deployments using popular cloud providers.
         
+        > Important: If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response. 
         
         ### Fly
         
