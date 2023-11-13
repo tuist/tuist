@@ -604,6 +604,10 @@ let package = Package(
             name: "TuistAnalytics",
             targets: ["TuistAnalytics"]
         ),
+        .library(
+            name: "TuistAutomation",
+            targets: ["TuistAutomation"]
+        ),
         /// TuistGenerator
         ///
         /// A high level Xcode generator library
