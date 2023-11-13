@@ -24,7 +24,13 @@
   "rubyLsp.formatter": "auto",
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "files.exclude": {
-    "**/node_modules": true
+    "**/node_modules": true,
+    "**/sorbet": true
   },
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "search.exclude": {
+    "**/sorbet": true,
+    "node_modules/**": true,
+    "sorbet/**": true
+  }
 }

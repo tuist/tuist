@@ -33,6 +33,7 @@ Rails.application.routes.draw do
     get 'analytics/targets', to: 'analytics#analytics_targets'
   end
 
+  get "/ready", to: "application#ready"
   get "/auth/invitations/:token", to: "auth#accept_invitation"
   get "/auth/cli/success", to: "auth#cli_success"
   get "/auth", to: "auth#authenticate"
