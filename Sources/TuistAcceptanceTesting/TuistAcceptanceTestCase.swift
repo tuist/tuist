@@ -23,7 +23,6 @@ open class TuistAcceptanceTestCase: TuistTestCase {
     public var derivedDataPath: AbsolutePath!
 
     private var sourceRootPath: AbsolutePath!
-    private var testingDevices: [Platform: String] = [:]
 
     override open func setUp() {
         super.setUp()
@@ -94,32 +93,6 @@ open class TuistAcceptanceTestCase: TuistTestCase {
             || String(describing: command) == "BuildCommand"
         {
             arguments.append(contentsOf: ["--derived-data-path", derivedDataPath.pathString])
-        }
-
-        let platform = Platform.allCases
-            .first(where: { arguments.joined().contains($0.caseValue) }) ?? .iOS
-        if String(describing: command) == "TestCommand", platform != .macOS {
-            let testingDevice: String
-            if let testingDeviceName = testingDevices[platform] {
-                testingDevice = testingDeviceName
-            } else {
-                let devices = try await SimulatorController().findAvailableDevices(
-                    platform: platform,
-                    version: nil,
-                    minVersion: nil,
-                    deviceName: nil
-                )
-                let device = try XCTUnwrap(
-                    devices.first(
-                        where: { $0.device.isShutdown && !$0.device.name.contains("tuist-testing-device") }
-                    )
-                )
-                let testingDeviceName = "tuist-testing-device-\(UUID().uuidString)"
-                testingDevices[platform] = testingDeviceName
-                try System.shared.run(["/usr/bin/xcrun", "simctl", "clone", device.device.name, testingDeviceName])
-                testingDevice = testingDeviceName
-            }
-            arguments.append(contentsOf: ["--device", testingDevice])
         }
 
         var parsedCommand = try command.parse(
