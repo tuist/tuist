@@ -64,6 +64,11 @@ struct BuildCommand: AsyncParsableCommand {
     )
     var buildOutputPath: String?
 
+    @Option(
+        help: "Overrides the folder that should be used for derived data when building the project."
+    )
+    var derivedDataPath: String?
+
     func run() async throws {
         let absolutePath: AbsolutePath
         if let path {
@@ -78,6 +83,7 @@ struct BuildCommand: AsyncParsableCommand {
             clean: clean,
             configuration: configuration,
             buildOutputPath: buildOutputPath.map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) },
+            derivedDataPath: derivedDataPath,
             path: absolutePath,
             device: device,
             osVersion: os,

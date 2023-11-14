@@ -29,7 +29,12 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         let configuration = "Release"
 
         // WHEN
-        let path = try subject.locate(platform: .macOS, projectPath: projectPath, configuration: configuration)
+        let path = try subject.locate(
+            platform: .macOS,
+            projectPath: projectPath,
+            derivedDataPath: nil,
+            configuration: configuration
+        )
 
         // THEN
         let expectedPath = try AbsolutePath(validating: "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)")
@@ -45,7 +50,12 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         let sdk = "iphonesimulator"
 
         // WHEN
-        let path = try subject.locate(platform: .iOS, projectPath: projectPath, configuration: configuration)
+        let path = try subject.locate(
+            platform: .iOS,
+            projectPath: projectPath,
+            derivedDataPath: nil,
+            configuration: configuration
+        )
 
         // THEN
         let expectedPath =

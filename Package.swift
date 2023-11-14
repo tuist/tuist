@@ -203,6 +203,15 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistAcceptanceTesting",
+        dependencies: [
+            "TuistKit",
+            "TuistSupportTesting",
+            swiftToolsSupportDependency,
+        ],
+        linkerSettings: [.linkedFramework("XCTest")]
+    ),
+    .target(
         name: "TuistGenerator",
         dependencies: [
             "XcodeProj",
@@ -609,12 +618,12 @@ let package = Package(
             targets: ["TuistAutomation"]
         ),
         .library(
-            name: "TuistLoader",
-            targets: ["TuistLoader"]
-        ),
-        .library(
             name: "TuistSigning",
             targets: ["TuistSigning"]
+        ),
+        .library(
+            name: "TuistAcceptanceTesting",
+            targets: ["TuistAcceptanceTesting"]
         ),
         /// TuistGenerator
         ///

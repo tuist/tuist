@@ -26,8 +26,6 @@ concurrency:
 env:
   RUBY_VERSION: '3.0.3'
   TUIST_STATS_OPT_OUT: true
-  RAILS_ENV: development
-  RAILS_MASTER_KEY: ${{ secrets.CLOUD_RAILS_MASTER_KEY }}
   NODE_VERSION: 16.17.0
 
 jobs:
@@ -54,18 +52,51 @@ jobs:
         run: swift build -c release --product ProjectDescription
 
   acceptance_tests:
+    name: ${{ matrix.feature }} acceptance tests with Tuist
+    runs-on: macos-13
+    env:
+      TUIST_CONFIG_CLOUD_TOKEN: ${{ secrets.TUIST_CONFIG_CLOUD_TOKEN }}
+    strategy:
+      matrix:
+        feature:
+          [
+            'Build',
+            'GenerateOne',
+          ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: asdf-vm/actions/install@v2
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - uses: actions/cache@v3
+        name: 'Cache vendor .build folder'
+        with:
+          path: vendor/.build
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('vendor/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('vendor/Package.resolved') }}
+      - uses: actions/cache@v3
+        name: 'Cache fetched dependencies folder'
+        with:
+          path: Tuist/Dependencies/SwiftPackageManager/.build
+          key: spm-v1-${{ hashFiles('Tuist/Package.resolves') }}
+          restore-keys: spm-v1-${{ hashFiles('Tuist/Package.resolved') }}
+      - name: Fetch dependencies
+        run: tuist fetch
+      - name: Build xcbeautify
+        run: swift build --package-path vendor --product xcbeautify
+      - name: Run acceptance tests
+        run: tuist test Tuist${{ matrix.feature }}AcceptanceTests --no-cache
+      
+  cucumber_acceptance_tests:
     name: ${{ matrix.feature }} acceptance tests with Xcode
     runs-on: macos-13
     strategy:
       matrix:
         feature:
           [
-            'build',
-            # 'cache-frameworks',
-            # 'cache-xcframeworks',
             'dependencies',
             'edit',
-            'generate-1',
             'generate-2',
             'generate-3',
             'generate-4',
@@ -106,15 +137,14 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock', 'project/cloud/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - name: Bundle install
         run: |
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
-      - name: Run tests
-        if: ${{ (github.event.pull_request.head.repo.full_name == github.repository) }}
+      - name: Run cucumber tests
         run: FEATURE=features/${{ matrix.feature }}.feature make tuist/acceptance-test
 
   lint:

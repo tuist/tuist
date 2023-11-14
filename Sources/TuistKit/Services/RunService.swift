@@ -111,6 +111,7 @@ final class RunService {
             clean: clean,
             configuration: configuration,
             buildOutputPath: nil,
+            derivedDataPath: nil,
             device: device,
             osVersion: version?.version(),
             rosetta: rosetta,

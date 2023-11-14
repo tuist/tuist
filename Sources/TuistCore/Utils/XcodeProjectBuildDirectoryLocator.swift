@@ -11,10 +11,12 @@ public protocol XcodeProjectBuildDirectoryLocating {
     /// - Parameters:
     ///   - platform: The platform for the built scheme.
     ///   - projectPath: The path of the Xcode project or workspace.
+    ///   - derivedDataPath: The path of the derived data
     ///   - configuration: The configuration name, i.e. `Release`, `Debug`, or something custom.
     func locate(
         platform: Platform,
         projectPath: AbsolutePath,
+        derivedDataPath: AbsolutePath?,
         configuration: String
     ) throws -> AbsolutePath
 }
@@ -29,6 +31,7 @@ public final class XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectory
     public func locate(
         platform: Platform,
         projectPath: AbsolutePath,
+        derivedDataPath: AbsolutePath?,
         configuration: String
     ) throws -> AbsolutePath {
         let configSDKPathComponent: String = {
@@ -37,8 +40,10 @@ public final class XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectory
             }
             return "\(configuration)-\(platform.xcodeSimulatorSDK!)"
         }()
-
-        return try derivedDataLocator.locate(for: projectPath)
+        let derivedDataPath = try derivedDataPath ?? derivedDataLocator.locate(
+            for: projectPath
+        )
+        return derivedDataPath
             .appending(component: "Build")
             .appending(component: "Products")
             .appending(component: configSDKPathComponent)
