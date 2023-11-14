@@ -43,7 +43,7 @@ extension Target {
     ///     - integrationTestsDependencies: Dependencies for the integration tests.
     public static func module(
         name: String,
-        product: Product = .framework,
+        product: Product = .staticFramework,
         hasTests: Bool = true,
         hasTesting: Bool = true,
         hasIntegrationTests: Bool = false,
@@ -67,6 +67,8 @@ extension Target {
                     product: .unitTests,
                     dependencies: testDependencies + [
                         .target(name: name),
+                        .external(name: "SwiftToolsSupport"),
+                        .external(name: "SystemPackage"),
                     ]
                         + (hasTesting ? [.target(name: "\(name)Testing")] : [])
                 )
@@ -80,6 +82,8 @@ extension Target {
                     product: product,
                     dependencies: testingDependencies + [
                         .target(name: name),
+                        .external(name: "SwiftToolsSupport"),
+                        .external(name: "SystemPackage"),
                         .sdk(name: "XCTest", type: .framework, status: .optional),
                     ]
                 )
@@ -93,6 +97,8 @@ extension Target {
                     product: .unitTests,
                     dependencies: integrationTestsDependencies + [
                         .target(name: name),
+                        .external(name: "SwiftToolsSupport"),
+                        .external(name: "SystemPackage"),
                     ]
                         + (hasTesting ? [.target(name: "\(name)Testing")] : [])
                 )
