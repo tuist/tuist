@@ -83,6 +83,7 @@ final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDire
 final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMethod: TuistAcceptanceTestCase {
     func test() async throws {
         try setUpFixture("framework_with_swift_macro")
+        try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "Framework")
     }
 }
