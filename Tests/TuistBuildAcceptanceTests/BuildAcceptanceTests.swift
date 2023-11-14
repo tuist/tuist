@@ -80,10 +80,17 @@ final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDire
     }
 }
 
-// TODO: Enable this test and rewrite to Swift when we drop support for Xcode 14
-// Scenario: The project is a framework with a Swift Macro integrated through the standard method (framework_with_swift_macro)
-//   Given that tuist is available
-//   And I have a working directory
-//   Then I copy the fixture framework_with_swift_macro into the working directory
-//   Then tuist generates the project
-//   Then tuist builds the scheme Framework from the project
+final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMethod: TuistAcceptanceTestCase {
+    func test() async throws {
+        try setUpFixture("framework_with_swift_macro")
+        try await run(BuildCommand.self, "Framework")
+    }
+}
+
+final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives: TuistAcceptanceTestCase {
+    func test() async throws {
+        try setUpFixture("framework_with_native_swift_macro")
+        try await run(FetchCommand.self)
+        try await run(BuildCommand.self, "Framework")
+    }
+}

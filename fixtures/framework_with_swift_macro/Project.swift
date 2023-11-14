@@ -13,7 +13,7 @@ let project = Project(
             bundleId: "io.tuist.FrameworkWithSwiftMacro",
             sources: ["Sources/**/*"],
             dependencies: [
-                .packageMacro(product: "StructBuilder"),
+                .package(product: "StructBuilder", type: .macro),
             ]
         ),
     ]
