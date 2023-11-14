@@ -86,7 +86,6 @@ jobs:
       - name: Build xcbeautify
         run: swift build --package-path vendor --product xcbeautify
       - name: Run acceptance tests
-        if: ${{ (github.event.pull_request.head.repo.full_name == github.repository) }}
         run: tuist test Tuist${{ matrix.feature }}AcceptanceTests --no-cache
       
   cucumber_acceptance_tests:
@@ -146,7 +145,6 @@ jobs:
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
       - name: Run cucumber tests
-        if: ${{ (github.event.pull_request.head.repo.full_name == github.repository) }}
         run: FEATURE=features/${{ matrix.feature }}.feature make tuist/acceptance-test
 
   lint:
