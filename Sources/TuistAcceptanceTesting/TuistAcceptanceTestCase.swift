@@ -17,20 +17,13 @@ open class TuistAcceptanceTestCase: TuistTestCase {
     public var workspacePath: AbsolutePath!
     public var fixturePath: AbsolutePath!
     public var derivedDataPath: AbsolutePath!
-    public var cacheDirectory: AbsolutePath!
 
     private var sourceRootPath: AbsolutePath!
 
     override open func setUp() {
         super.setUp()
 
-        cacheDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true).path
         derivedDataPath = try! TemporaryDirectory(removeTreeOnDeinit: true).path
-        setenv(
-            Constants.EnvironmentVariables.forceConfigCacheDirectory,
-            cacheDirectory.pathString,
-            1
-        )
 
         sourceRootPath = try! AbsolutePath(
             validating: ProcessInfo.processInfo.environment[
@@ -51,7 +44,6 @@ open class TuistAcceptanceTestCase: TuistTestCase {
         workspacePath = nil
         fixturePath = nil
         derivedDataPath = nil
-        cacheDirectory = nil
 
         try await super.tearDown()
     }
