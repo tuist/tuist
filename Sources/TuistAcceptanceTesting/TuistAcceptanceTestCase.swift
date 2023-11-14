@@ -26,11 +26,6 @@ open class TuistAcceptanceTestCase: TuistTestCase {
 
         cacheDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true).path
         derivedDataPath = try! TemporaryDirectory(removeTreeOnDeinit: true).path
-        setenv(
-            Constants.EnvironmentVariables.forceConfigCacheDirectory,
-            cacheDirectory.pathString,
-            1
-        )
 
         sourceRootPath = try! AbsolutePath(
             validating: ProcessInfo.processInfo.environment[
