@@ -649,12 +649,12 @@ public class GraphTraverser: GraphTraversing {
             if dependencies.contains(other) {
                 // If we reach the end and there's no filters,
                 // return empty to signify the dependency has no filters
-                return graph.edges[(root, other)] ?? []
+                return graph.dependencyPlatformFilters[(root, other)] ?? []
             } else {
                 let filters = dependencies.map { node -> PlatformFilters? in
 
                     // If an intervening dependency has filters, we need to constrain downstream filters to a subset of those.
-                    if let currentDependencyPlatformFilters = graph.edges[(root, node)] {
+                    if let currentDependencyPlatformFilters = graph.dependencyPlatformFilters[(root, node)] {
                         guard let transitive = find(from: node, to: other) else {
                             return nil
                         }

@@ -124,7 +124,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             packages: [:],
             targets: Dictionary(uniqueKeysWithValues: graphTargets),
             dependencies: Dictionary(uniqueKeysWithValues: graphDependencies),
-            edges: [:] // What goes here?
+            dependencyPlatformFilters: [:] // What goes here?
         )
     }
 

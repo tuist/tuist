@@ -49,7 +49,7 @@ public struct Graph: Equatable, Codable {
     public var dependencies: [GraphDependency: Set<GraphDependency>]
 
     /// A dictionary that contains the platform filters to apply to a dependency relationship
-    public var edges: [GraphEdge: PlatformFilters]
+    public var dependencyPlatformFilters: [GraphEdge: PlatformFilters]
 
     public init(
         name: String,
@@ -59,7 +59,7 @@ public struct Graph: Equatable, Codable {
         packages: [AbsolutePath: [String: Package]],
         targets: [AbsolutePath: [String: Target]],
         dependencies: [GraphDependency: Set<GraphDependency>],
-        edges: [GraphEdge: PlatformFilters]
+        dependencyPlatformFilters: [GraphEdge: PlatformFilters]
     ) {
         self.name = name
         self.path = path
@@ -68,6 +68,6 @@ public struct Graph: Equatable, Codable {
         self.packages = packages
         self.targets = targets
         self.dependencies = dependencies
-        self.edges = edges
+        self.dependencyPlatformFilters = dependencyPlatformFilters
     }
 }

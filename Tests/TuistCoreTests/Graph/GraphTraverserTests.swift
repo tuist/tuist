@@ -3092,14 +3092,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 sdkDependency,
             ],
         ]
-        var edges: [GraphEdge: PlatformFilters] = [:]
-        edges[(.target(name: target.name, path: project.path), sdkDependency)] = [.ios]
+        var dependencyPlatformFilters: [GraphEdge: PlatformFilters] = [:]
+        dependencyPlatformFilters[(.target(name: target.name, path: project.path), sdkDependency)] = [.ios]
 
         let graph = Graph.test(
             projects: [project.path: project],
             targets: [project.path: [target.name: target]],
             dependencies: dependencies,
-            edges: edges
+            dependencyPlatformFilters: dependencyPlatformFilters
         )
 
         let subject = GraphTraverser(graph: graph)
@@ -4216,7 +4216,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 macFramework.name: macFramework,
             ]],
             dependencies: dependencies,
-            edges: [
+            dependencyPlatformFilters: [
                 multiPlatformToMacEdge: [.macos],
             ]
         )
@@ -4268,7 +4268,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     sdkGraphDependency,
                 ],
             ],
-            edges: [
+            dependencyPlatformFilters: [
                 GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): [.ios],
             ]
         )
@@ -4317,7 +4317,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     sdkGraphDependency,
                 ],
             ],
-            edges: [
+            dependencyPlatformFilters: [
                 GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): [.macos],
                 GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): [.ios],
             ]
@@ -4363,7 +4363,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                     sdkGraphDependency,
                 ],
             ],
-            edges: [
+            dependencyPlatformFilters: [
                 GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): [.ios],
             ]
         )
