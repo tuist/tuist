@@ -17,7 +17,7 @@
         
         ```bash
         echo $TOKEN | docker login ghcr.io -u USERNAME --password-stdin
-        docker pull ghcr.io/tuist/cloud:main
+        docker pull ghcr.io/tuist/tuist:latest
         ```
     }
     
@@ -29,8 +29,17 @@
         We recommend establishing a continuous deployment pipeline that operates daily, pulling and deploying fresh images. This ensures you consistently benefit from the latest improvements. If preferred, you can synchronize with Tuist Cloud's release schedule and deploy weekly, coinciding with each new official release.
 
         Subsequent sections provide examples of deployments using popular cloud providers.
-        
+
         > Important: If your deployment pipeline needs to validate that the server is up and running, you can send a `GET` HTTP request to `/ready` and assert a `200` status code in the response. 
+
+        ### Docker
+
+        You can deploy your app using docker directly. Firstly, set up a Postgres database and get the connection URL to it.
+
+        You can then deploy the actual Tuist Cloud app via:
+        ```sh
+        docker run -d ghcr.io/tuist/tuist:latest -e DATABASE_URL=****
+        ```
         
         ### Fly
         

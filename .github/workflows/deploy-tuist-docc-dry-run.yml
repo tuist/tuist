@@ -1,0 +1,24 @@
+name: Deploy Tuist Docc dry-run
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - Package.swift
+      - Package.resolved
+      - Sources/**/*.docc
+      - .github/workflows/deploy-tuist-docc-dry-run.yml
+
+jobs:
+  deploy:
+    name: Deploy Documentation
+    runs-on: macos-13
+    steps:
+      - name: Checkout Package
+        uses: actions/checkout@v3
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Build documentation
+        run: make docs/build
