@@ -726,7 +726,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(appTestResults, [
-            .bundle(path: bundlePath, platformFilters: []),
+            .bundle(path: bundlePath, platformFilters: .all),
         ])
         XCTAssertEqual(frameworkResults, [])
     }
@@ -786,7 +786,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(appResults, [
-            .bundle(path: bundlePath, platformFilters: []),
+            .bundle(path: bundlePath, platformFilters: .all),
         ])
         XCTAssertEqual(frameworkResults, [])
     }
@@ -847,7 +847,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(appResults, [])
         XCTAssertEqual(frameworkResults, [
-            .bundle(path: bundlePath, platformFilters: []),
+            .bundle(path: bundlePath, platformFilters: .all),
         ])
     }
 
@@ -2739,7 +2739,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 architectures: [.arm64],
                 product: .framework,
                 status: .required,
-                platformFilters: []
+                platformFilters: .all
             ),
         ])
     }
@@ -4089,7 +4089,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
                 binaryPath: "/xcframeworks/direct.xcframework/direct",
                 status: .required,
-                platformFilters: []
+                platformFilters: .all
             ),
             .xcframework(
                 path: "/xcframeworks/transitive.xcframework",
@@ -4101,7 +4101,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
                 binaryPath: "/xcframeworks/transitive.xcframework/transitive",
                 status: .required,
-                platformFilters: []
+                platformFilters: .all
             ),
             .xcframework(
                 path: "/xcframeworks/framework-transitive.xcframework",
@@ -4113,7 +4113,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
                 binaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
                 status: .required,
-                platformFilters: []
+                platformFilters: .all
             ),
         ].sorted())
     }

@@ -7,12 +7,14 @@ extension PlatformFilters: Comparable {
     public static func < (lhs: Set<Element>, rhs: Set<Element>) -> Bool {
         lhs.map(\.xcodeprojValue).sorted().joined() < rhs.map(\.xcodeprojValue).sorted().joined()
     }
+    
+    public static let all = Set(PlatformFilter.allCases)
 }
 
 /// Defines a set of platforms that can be used to limit where things
 /// like build files, resources, and dependencies are used.
 /// Context: https://github.com/tuist/tuist/pull/3152
-public enum PlatformFilter: Comparable, Hashable, Codable {
+public enum PlatformFilter: Comparable, Hashable, Codable, CaseIterable {
     case ios
     case macos
     case tvos

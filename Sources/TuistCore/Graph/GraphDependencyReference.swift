@@ -34,7 +34,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     case product(target: String, productName: String, platformFilters: PlatformFilters)
     case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource, platformFilters: PlatformFilters)
 
-    init(_ dependency: GraphDependency, filters: PlatformFilters = []) {
+    init(_ dependency: GraphDependency, filters: PlatformFilters = .all) {
         switch dependency {
         case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage, status):
             self = .framework(
