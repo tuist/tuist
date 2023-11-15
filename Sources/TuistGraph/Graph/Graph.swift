@@ -12,9 +12,9 @@ public struct GraphEdge: Hashable, Codable {
 }
 
 extension [GraphEdge: PlatformFilters] {
-    public subscript(_ edge: (GraphDependency, GraphDependency)) -> PlatformFilters? {
+    public subscript(_ edge: (GraphDependency, GraphDependency)) -> PlatformFilters {
         get {
-            self[GraphEdge(from: edge.0, to: edge.1)]
+            self[GraphEdge(from: edge.0, to: edge.1)] ?? .all
         }
         set {
             self[GraphEdge(from: edge.0, to: edge.1)] = newValue

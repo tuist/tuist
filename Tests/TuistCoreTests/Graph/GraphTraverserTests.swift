@@ -4448,8 +4448,77 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(appToStaticFilters?.sorted(), [])
-        XCTAssertEqual(appToSDKFilters?.sorted(), [.ios])
+        XCTAssertEqual(appToStaticFilters, .all)
+        XCTAssertEqual(appToSDKFilters, [.ios])
+    }
+
+    func test_platformFilters_transitivePlatformFilter_noFiltersHaveHigherPrecedence() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
+        let staticFrameworkA = Target.test(
+            name: "StaticFrameworkA",
+            destinations: [.iPad, .iPhone, .mac],
+            product: .staticLibrary
+        )
+
+        let staticFrameworkB = Target.test(
+            name: "StaticFrameworkB",
+            destinations: [.mac],
+            product: .staticLibrary
+        )
+
+        let staticFrameworkC = Target.test(
+            name: "StaticFrameworkC",
+            destinations: [.iPad, .iPhone, .mac],
+            product: .staticLibrary
+        )
+
+        let project = Project.test(targets: [
+            app,
+            staticFrameworkA,
+            staticFrameworkB,
+            staticFrameworkC,
+        ])
+
+        let appkGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
+        let staticFrameworkAGraphDependency: GraphDependency = .target(name: staticFrameworkA.name, path: project.path)
+        let staticFrameworkBGraphDependency: GraphDependency = .target(name: staticFrameworkB.name, path: project.path)
+        let staticFrameworkCGraphDependency: GraphDependency = .target(name: staticFrameworkC.name, path: project.path)
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFrameworkA.name: staticFrameworkA,
+                    staticFrameworkB.name: staticFrameworkB,
+                    staticFrameworkC.name: staticFrameworkC,
+                ],
+            ],
+            dependencies: [
+                appkGraphDependency: [
+                    staticFrameworkAGraphDependency,
+                    staticFrameworkBGraphDependency,
+                ],
+                staticFrameworkAGraphDependency: [
+                    staticFrameworkCGraphDependency,
+                ],
+                staticFrameworkBGraphDependency: [
+                    staticFrameworkCGraphDependency,
+                ],
+            ],
+            dependencyPlatformFilters: [
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkBGraphDependency): [.macos],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.platformFilters(from: appkGraphDependency, to: staticFrameworkCGraphDependency)
+
+        // Then
+        XCTAssertEqual(results, .all)
     }
 
     func test_directSwiftMacroExecutables_when_targetHasDirectMacroDependencies() {

@@ -47,7 +47,8 @@ extension PBXBuildFile {
 
     /// Apply platform filters either `platformFilter` or `platformFilters` depending on count
     public func applyPlatformFilters(_ filters: PlatformFilters) {
-        guard !filters.isEmpty else { return }
+        // Xcode expects no filters to be set if a `PBXBuildFile` applies to all platforms
+        guard !filters.isEmpty, filters != .all else { return }
 
         if filters.count == 1,
            let filter = filters.first,

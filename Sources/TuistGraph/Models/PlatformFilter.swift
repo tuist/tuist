@@ -7,7 +7,7 @@ extension PlatformFilters: Comparable {
     public static func < (lhs: Set<Element>, rhs: Set<Element>) -> Bool {
         lhs.map(\.xcodeprojValue).sorted().joined() < rhs.map(\.xcodeprojValue).sorted().joined()
     }
-    
+
     public static let all = Set(PlatformFilter.allCases)
 }
 
