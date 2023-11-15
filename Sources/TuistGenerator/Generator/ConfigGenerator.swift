@@ -220,6 +220,10 @@ final class ConfigGenerator: ConfigGenerating {
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
         settings
             .merge(watchTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) { $1 }
+        settings
+            .merge(swiftMacrosDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) {
+                $1
+            }
     }
 
     private func generalTargetDerivedSettings(
@@ -300,6 +304,31 @@ final class ConfigGenerator: ConfigGenerating {
             settings["BUNDLE_LOADER"] = "$(TEST_HOST)"
         }
 
+        return settings
+    }
+
+    private func swiftMacrosDerivedSettings(
+        target: Target,
+        graphTraverser: GraphTraversing,
+        projectPath: AbsolutePath
+    ) -> SettingsDictionary {
+        let targets = graphTraverser.directSwiftMacroFrameworkTargets(path: projectPath, name: target.name)
+        if targets.isEmpty { return [:] }
+        var settings: SettingsDictionary = [:]
+        settings["OTHER_SWIFT_FLAGS"] = .array(targets.flatMap { target in
+            let macroExecutables = graphTraverser.directSwiftMacroExecutables(path: target.path, name: target.target.name)
+            return macroExecutables.flatMap { macroExecutable in
+                switch macroExecutable {
+                case let .product(_, productName, _):
+                    return [
+                        "-load-plugin-executable",
+                        "$BUILT_PRODUCTS_DIR/\(target.target.productNameWithExtension)/Macros/\(productName)/#\(productName)",
+                    ]
+                default:
+                    return []
+                }
+            }
+        })
         return settings
     }
 

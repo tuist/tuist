@@ -26,7 +26,11 @@ extension Target {
         case .commandLineTool:
             return productName
         case _:
-            return "\(productName).\(product.xcodeValue.fileExtension!)"
+            if let fileExtension = product.xcodeValue.fileExtension {
+                return "\(productName).\(fileExtension)"
+            } else {
+                return productName
+            }
         }
     }
 
