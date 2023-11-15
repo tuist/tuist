@@ -639,7 +639,7 @@ public class GraphTraverser: GraphTraversing {
     /// set of platform filters.
     func platformFilters(from rootDependency: GraphDependency, to transitiveDependency: GraphDependency) -> PlatformFilters? {
         var visited: Set<GraphDependency> = []
-        
+
         func find(from root: GraphDependency, to other: GraphDependency) -> PlatformFilters? {
             guard !visited.contains(root) else { return nil }
             visited.insert(root)
