@@ -105,7 +105,8 @@ open class TuistTestCase: XCTestCase {
     override public static func setUp() {
         super.setUp()
         DispatchQueue.once(token: "io.tuist.test.logging") {
-            LoggingSystem.bootstrap(TestingLogHandler.init)
+            LogOutput.bootstrap()
+//            LoggingSystem.bootstrap(TestingLogHandler.init)
         }
     }
 
