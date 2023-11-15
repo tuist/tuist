@@ -635,51 +635,47 @@ public class GraphTraverser: GraphTraversing {
     /// - Parameters:
     ///   - rootDependency: dependency whose platform filters we need when depending on `transitiveDependency`
     ///   - transitiveDependency: target dependency
-    /// - Returns: PlatformFilters to apply to transitive dependency or `nil` if the path to a dependency results in a disjoint
-    /// set of platform filters.
+    /// - Returns: PlatformFilters to apply to transitive dependency or `nil` if there isnt a path or path to a dependency results
+    /// in a disjoint
+    /// set of platform filters
     func platformFilters(from rootDependency: GraphDependency, to transitiveDependency: GraphDependency) -> PlatformFilters? {
         var visited: Set<GraphDependency> = []
 
         func find(from root: GraphDependency, to other: GraphDependency) -> PlatformFilters? {
+            // Skip already visited nodes
             guard !visited.contains(root) else { return nil }
             visited.insert(root)
+
+            // if we're at a leaf dependency, there is nothing else to traverse.
             guard let dependencies = graph.dependencies[root] else { return nil }
 
+            // We've reached our destination, return the filters or `.all` if none are set
             if dependencies.contains(other) {
-                // If we reach the end and there's no filters,
-                // return empty to signify the dependency has no filters
-                return graph.dependencyPlatformFilters[(root, other)] ?? []
+                return graph.dependencyPlatformFilters[(root, other)]
             } else {
+                // We have more dependencies to traverse.
+                // Form the union of all set filters that reach our target.
                 let filters = dependencies.map { node -> PlatformFilters? in
-
-                    // If an intervening dependency has filters, we need to constrain downstream filters to a subset of those.
-                    if let currentDependencyPlatformFilters = graph.dependencyPlatformFilters[(root, node)] {
-                        guard let transitive = find(from: node, to: other) else {
-                            return nil
-                        }
-
-                        // If there are transitive filters, return the intersection with the current filters
-                        // If the intersection is empty, return `nil` to signify the dependency should be trimmed.
-                        if !transitive.isEmpty {
-                            let intersection = transitive.intersection(currentDependencyPlatformFilters)
-                            return intersection.isEmpty ? nil : intersection
-                        } else {
-                            return currentDependencyPlatformFilters
-                        }
-                    } else { // Otherwise, just find the filters for this
-                        return find(from: node, to: other)
+                    guard let transitive = find(from: node, to: other) else {
+                        return nil
                     }
+
+                    // Capture the filters that could be applied to intermediate dependencies
+                    // A --> (.ios) B --> C : C should have the .ios filter applied due to B
+                    let currentDependencyPlatformFilters = graph.dependencyPlatformFilters[(root, node)]
+                    return transitive.intersection(currentDependencyPlatformFilters)
                 }
 
-                let transitiveFilters = filters.reduce(Set<PlatformFilter>?(nil)) { result, otherFilters in
-                    if let result {
-                        return result.union(otherFilters ?? [])
-                    } else {
-                        return otherFilters
-                    }
+                // Union our filters because multiple paths could lead to the same dependency (e.g. AVFoundation)
+                //  A --> (.ios) B --> C
+                //  A --> (.macos) D --> C
+                // C should have `[.ios, .macos]` set for filters to satisfy both paths
+                let transitiveFilters = filters.compactMap { $0 }.reduce(Set<PlatformFilter>()) { result, otherFilters in
+                    result.union(otherFilters)
                 }
 
-                return transitiveFilters
+                //
+                return transitiveFilters.isEmpty ? nil : transitiveFilters
             }
         }
 
