@@ -9,6 +9,7 @@ struct WorkspaceStructure {
         case file(path: AbsolutePath)
         case folderReference(path: AbsolutePath)
         indirect case group(name: String, path: AbsolutePath, contents: [Element])
+        indirect case virtualGroup(name: String, contents: [Element])
         case project(path: AbsolutePath)
     }
 
@@ -58,6 +59,8 @@ final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
             )
         case let .folderReference(path):
             return .folderReference(path: path)
+        case let .virtualGroup(name, contents):
+            return .virtualGroup(name: name, contents: contents.nodes.compactMap(directoryGraphToWorkspaceStructureElement))
         }
     }
 }
@@ -95,22 +98,41 @@ private class DirectoryStructure {
         let filesIncludingContainers = files.filter(isFileOrFolderReference)
         let fileNodes = filesIncludingContainers.map(fileNode)
         let projectNodes = projects.map(projectNode)
-        let allNodes = (projectNodes + fileNodes).sorted(by: { $0.path < $1.path })
+        let nodesWitPaths = (projectNodes + fileNodes).filter { $0.path != nil }.sorted(by: { $0.path! < $1.path! })
 
-        let commonAncestor = allNodes.reduce(path) { $0.commonAncestor(with: $1.path) }
-        for node in allNodes {
-            let relativePath = node.path.relative(to: commonAncestor)
-            var currentNode = root
-            var absolutePath = commonAncestor
-            for component in relativePath.components.dropLast() {
-                absolutePath = absolutePath.appending(component: component)
-                currentNode = currentNode.add(.directory(absolutePath))
+        let dependenciesGraph = Graph()
+
+        let commonAncestor = nodesWitPaths.reduce(path) { $0.commonAncestor(with: $1.path!) }
+
+        for node in nodesWitPaths {
+            if !isDependencyProject(node) {
+                let relativePath = node.path!.relative(to: commonAncestor)
+
+                var currentNode = root
+                var absolutePath = commonAncestor
+                for component in relativePath.components.dropLast() {
+                    absolutePath = absolutePath.appending(component: component)
+                    currentNode = currentNode.add(.directory(absolutePath))
+                }
+
+                currentNode.add(node)
+            } else {
+                dependenciesGraph.add(node)
             }
+        }
 
-            currentNode.add(node)
+        if !dependenciesGraph.nodes.isEmpty {
+            root.add(.virtualGroup("Dependencies", dependenciesGraph))
         }
 
         return root
+    }
+
+    private func isDependencyProject(_ node: Node) -> Bool {
+        switch node {
+        case let .project(path): return path.pathString.contains(".build/checkouts")
+        case .directory, .file, .folderReference, .virtualGroup: return false
+        }
     }
 
     private func fileNode(from element: FileElement) -> Node {
@@ -159,7 +181,7 @@ extension DirectoryStructure {
         @discardableResult
         func add(_ node: Node) -> Graph {
             switch node {
-            case .file, .project, .folderReference:
+            case .file, .project, .folderReference, .virtualGroup:
                 nodes.append(node)
                 return self
             case let .directory(path, _):
@@ -190,12 +212,13 @@ extension DirectoryStructure {
         case project(AbsolutePath)
         case directory(AbsolutePath, DirectoryStructure.Graph)
         case folderReference(AbsolutePath)
+        case virtualGroup(String, DirectoryStructure.Graph)
 
         static func directory(_ path: AbsolutePath) -> Node {
             .directory(path, Graph())
         }
 
-        var path: AbsolutePath {
+        var path: AbsolutePath? {
             switch self {
             case let .file(path):
                 return path
@@ -205,6 +228,8 @@ extension DirectoryStructure {
                 return path
             case let .folderReference(path):
                 return path
+            case .virtualGroup:
+                return nil
             }
         }
     }
@@ -221,6 +246,8 @@ extension DirectoryStructure.Node: CustomDebugStringConvertible {
             return "directory: \(path.pathString) > \(graph.nodes)"
         case let .folderReference(path):
             return "folderReference: \(path.pathString)"
+        case let .virtualGroup(name):
+            return "virtualGroup: \(name)"
         }
     }
 }
