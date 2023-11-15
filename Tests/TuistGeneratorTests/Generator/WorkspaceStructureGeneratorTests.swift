@@ -285,6 +285,34 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
+    func test_generateStructure_addsDependenciesToADependenciesGroup() throws {
+        // Given
+        let xcodeProjPaths = try createFolders([
+            "/path/to/workspace/Tuist/Dependencies/SwiftPackageManager/.build/checkouts/AEXML/AEXML.xcodeproj",
+            "/path/to/workspace/Tuist/Dependencies/SwiftPackageManager/.build/checkouts/SwiftSyntax/SwiftSyntax.xcodeproj",
+        ])
+
+        let workspace = Workspace.test()
+
+        // When
+        let structure = subject.generateStructure(
+            path: "/path/to/workspace",
+            workspace: workspace,
+            xcodeProjPaths: xcodeProjPaths,
+            fileHandler: fileHandler
+        )
+
+        // Then
+        XCTAssertEqual(structure.contents, [
+            .virtualGroup(name: "Dependencies", contents: [
+                .project("/path/to/workspace/Tuist/Dependencies/SwiftPackageManager/.build/checkouts/AEXML/AEXML.xcodeproj"),
+                .project(
+                    "/path/to/workspace/Tuist/Dependencies/SwiftPackageManager/.build/checkouts/SwiftSyntax/SwiftSyntax.xcodeproj"
+                ),
+            ]),
+        ])
+    }
+
     // MARK: - Helpers
 
     @discardableResult

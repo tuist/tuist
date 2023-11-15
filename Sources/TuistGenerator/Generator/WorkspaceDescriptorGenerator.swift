@@ -238,7 +238,14 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             )
 
             return .group(groupReference)
-
+        case let .virtualGroup(name, contents):
+            return .group(.init(location: .container(""), name: name, children: try contents.map {
+                try recursiveChildElement(
+                    generatedProjects: generatedProjects,
+                    element: $0,
+                    path: path
+                )
+            }.sorted(by: workspaceDataElementSort)))
         case let .project(path: projectPath):
             guard generatedProjects[projectPath] != nil else {
                 throw WorkspaceDescriptorGeneratorError.projectNotFound(path: projectPath)
