@@ -639,12 +639,11 @@ public class GraphTraverser: GraphTraversing {
     /// set of platform filters.
     func platformFilters(from rootDependency: GraphDependency, to transitiveDependency: GraphDependency) -> PlatformFilters? {
         var visited: Set<GraphDependency> = []
-        struct NoSharedPlatforms: Error {}
-
+        
         func find(from root: GraphDependency, to other: GraphDependency) -> PlatformFilters? {
-            guard !visited.contains(root) else { return [] }
+            guard !visited.contains(root) else { return nil }
             visited.insert(root)
-            guard let dependencies = graph.dependencies[root] else { return [] }
+            guard let dependencies = graph.dependencies[root] else { return nil }
 
             if dependencies.contains(other) {
                 // If we reach the end and there's no filters,
