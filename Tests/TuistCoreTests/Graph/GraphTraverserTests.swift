@@ -213,7 +213,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             got,
-            [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension, platformFilters: [])]
+            [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension, platformFilters: .all)]
         )
     }
 
@@ -405,7 +405,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: []),
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: .all),
         ])
     }
 
@@ -468,7 +468,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: []),
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: .all),
         ])
     }
 
@@ -505,7 +505,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: []),
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: .all),
         ])
     }
 
@@ -547,7 +547,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: []),
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: .all),
         ])
     }
 
@@ -601,8 +601,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: bundle1.name, productName: bundle1.productNameWithExtension, platformFilters: []),
-            .product(target: bundle2.name, productName: bundle2.productNameWithExtension, platformFilters: []),
+            .product(target: bundle1.name, productName: bundle1.productNameWithExtension, platformFilters: .all),
+            .product(target: bundle2.name, productName: bundle2.productNameWithExtension, platformFilters: .all),
         ])
     }
 
@@ -666,7 +666,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(appResults, [])
         XCTAssertEqual(dynamicFrameworkResults, [
-            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: []),
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: .all),
         ])
         XCTAssertEqual(staticFramework1Results, [])
         XCTAssertEqual(staticFramework2Results, [])
@@ -905,11 +905,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(Set(got), Set([
-            .testProduct(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: []),
+            .testProduct(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: .all),
             .testProduct(
                 target: staticLibrary.name,
                 productName: staticLibrary.productNameWithExtension,
-                platformFilters: []
+                platformFilters: .all
             ),
         ]))
     }
@@ -1234,8 +1234,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             got, [
-                .product(target: "DependencyA", productName: "DependencyA.framework", platformFilters: []),
-                .product(target: "DependencyB", productName: "DependencyB.framework", platformFilters: []),
+                .product(target: "DependencyA", productName: "DependencyA.framework", platformFilters: .all),
+                .product(target: "DependencyB", productName: "DependencyB.framework", platformFilters: .all),
             ]
         )
     }
@@ -1267,7 +1267,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [.product(target: "DependencyA", productName: "DependencyA.framework", platformFilters: [])])
+        XCTAssertEqual(got, [.product(target: "DependencyA", productName: "DependencyA.framework", platformFilters: .all)])
     }
 
     func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
@@ -1470,7 +1470,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework", platformFilters: []),
+            GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework", platformFilters: .all),
             GraphDependencyReference(frameworkDependency),
         ])
     }
@@ -1541,8 +1541,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: "FrameworkA", productName: "FrameworkA.framework", platformFilters: []),
-            .product(target: "FrameworkB", productName: "FrameworkB.framework", platformFilters: []),
+            .product(target: "FrameworkA", productName: "FrameworkA.framework", platformFilters: .all),
+            .product(target: "FrameworkB", productName: "FrameworkB.framework", platformFilters: .all),
         ])
     }
 
@@ -1581,8 +1581,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: "FrameworkA", productName: "FrameworkA.framework", platformFilters: []),
-            .product(target: "FrameworkB", productName: "FrameworkB.framework", platformFilters: []),
+            .product(target: "FrameworkA", productName: "FrameworkA.framework", platformFilters: .all),
+            .product(target: "FrameworkB", productName: "FrameworkB.framework", platformFilters: .all),
         ])
     }
 
@@ -2128,7 +2128,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension,
-                platformFilters: []
+                platformFilters: .all
             ),
             GraphDependencyReference(precompiledStaticFrameworkA),
             GraphDependencyReference(precompiledStaticFrameworkB),
@@ -2157,7 +2157,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "libDependency.a", platformFilters: []))
+        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "libDependency.a", platformFilters: .all))
     }
 
     func test_linkableDependencies_whenAFrameworkTarget() throws {
@@ -2195,14 +2195,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.count, 1)
-        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "Dependency.framework", platformFilters: []))
+        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "Dependency.framework", platformFilters: .all))
 
         let frameworkGot = try subject.linkableDependencies(path: project.path, name: dependency.name)
 
         XCTAssertEqual(frameworkGot.count, 1)
         XCTAssertTrue(
             frameworkGot
-                .contains(.product(target: "StaticDependency", productName: "libStaticDependency.a", platformFilters: []))
+                .contains(.product(target: "StaticDependency", productName: "libStaticDependency.a", platformFilters: .all))
         )
     }
 
@@ -2252,11 +2252,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
             got,
             [
                 GraphDependencyReference
-                    .product(target: "DynamicFramework", productName: "DynamicFramework.framework", platformFilters: []),
+                    .product(target: "DynamicFramework", productName: "DynamicFramework.framework", platformFilters: .all),
                 GraphDependencyReference.product(
                     target: "StaticFramework",
                     productName: "StaticFramework.framework",
-                    platformFilters: []
+                    platformFilters: .all
                 ),
             ]
         )
@@ -2329,24 +2329,24 @@ final class GraphTraverserTests: TuistUnitTestCase {
             GraphDependencyReference.product(
                 target: "DynamicFramework1",
                 productName: "DynamicFramework1.framework",
-                platformFilters: []
+                platformFilters: .all
             ),
         ])
         XCTAssertEqual(dynamicFramework1Got, [
             GraphDependencyReference.product(
                 target: "DynamicFramework2",
                 productName: "DynamicFramework2.framework",
-                platformFilters: []
+                platformFilters: .all
             ),
             GraphDependencyReference.product(
                 target: "StaticFramework1",
                 productName: "libStaticFramework1.a",
-                platformFilters: []
+                platformFilters: .all
             ),
             GraphDependencyReference.product(
                 target: "StaticFramework2",
                 productName: "libStaticFramework2.a",
-                platformFilters: []
+                platformFilters: .all
             ),
         ])
     }
@@ -2429,7 +2429,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dynamicFramework1Got,
             [
                 GraphDependencyReference
-                    .product(target: "DynamicFramework2", productName: "DynamicFramework2.framework", platformFilters: []),
+                    .product(target: "DynamicFramework2", productName: "DynamicFramework2.framework", platformFilters: .all),
             ]
         )
     }
@@ -2731,7 +2731,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(result.sorted(), [
-            .product(target: "StaticFramework", productName: "StaticFramework.framework", platformFilters: []),
+            .product(target: "StaticFramework", productName: "StaticFramework.framework", platformFilters: .all),
             .framework(
                 path: "/path/to/frameworks/precompiled.framework",
                 binaryPath: "/path/to/frameworks/precompiled.framework/precompiled",
@@ -2787,7 +2787,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(result.sorted(), [
-            .product(target: "DynamicFramework", productName: "DynamicFramework.framework", platformFilters: []),
+            .product(target: "DynamicFramework", productName: "DynamicFramework.framework", platformFilters: .all),
         ])
     }
 
@@ -2836,8 +2836,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(result.sorted(), [
-            .product(target: "DynamicFramework", productName: "DynamicFramework.framework", platformFilters: []),
-            .product(target: "StaticFramework", productName: "StaticFramework.framework", platformFilters: []),
+            .product(target: "DynamicFramework", productName: "DynamicFramework.framework", platformFilters: .all),
+            .product(target: "StaticFramework", productName: "StaticFramework.framework", platformFilters: .all),
         ])
     }
 
@@ -2876,7 +2876,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: "FrameworkA", productName: "FrameworkA.framework", platformFilters: []),
+            .product(target: "FrameworkA", productName: "FrameworkA.framework", platformFilters: .all),
         ])
     }
 
@@ -2915,8 +2915,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: "FrameworkA", productName: "FrameworkA.framework", platformFilters: []),
-            .product(target: "FrameworkB", productName: "FrameworkB.framework", platformFilters: []),
+            .product(target: "FrameworkA", productName: "FrameworkA.framework", platformFilters: .all),
+            .product(target: "FrameworkB", productName: "FrameworkB.framework", platformFilters: .all),
         ])
     }
 
@@ -3038,7 +3038,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: "Framework", productName: "Framework.framework", platformFilters: []),
+            .product(target: "Framework", productName: "Framework.framework", platformFilters: .all),
         ])
     }
 
@@ -3159,7 +3159,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .product(
                 target: "MyFramework",
                 productName: "MyFramework.framework",
-                platformFilters: []
+                platformFilters: .all
             ),
         ])
     }
@@ -3294,7 +3294,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension,
-                platformFilters: []
+                platformFilters: .all
             ),
             GraphDependencyReference(precompiledStaticFramework),
         ])
@@ -3364,7 +3364,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension,
-                platformFilters: []
+                platformFilters: .all
             ),
             GraphDependencyReference(precompiledStaticXCFramework),
         ])
@@ -3443,7 +3443,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension,
-                platformFilters: []
+                platformFilters: .all
             ),
             GraphDependencyReference(precompiledStaticLibrary),
         ])
@@ -3498,7 +3498,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension,
-                platformFilters: []
+                platformFilters: .all
             ),
             GraphDependencyReference(precompiledStaticFramework),
         ])
@@ -3548,7 +3548,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension,
-                platformFilters: []
+                platformFilters: .all
             ),
             GraphDependencyReference(precompiledStaticFramework),
         ])
@@ -3556,7 +3556,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .product(
                 target: dynamicFramework.name,
                 productName: dynamicFramework.productNameWithExtension,
-                platformFilters: []
+                platformFilters: .all
             ),
         ])
     }
@@ -3643,7 +3643,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension,
-                platformFilters: []
+                platformFilters: .all
             ),
         ])
     }
@@ -3692,7 +3692,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .product(
                 target: staticFramework.name,
                 productName: staticFramework.productNameWithExtension,
-                platformFilters: []
+                platformFilters: .all
             ),
             GraphDependencyReference(precompiledStaticFramework),
         ])
@@ -4148,7 +4148,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.sorted(), [
-            .product(target: aDependency.name, productName: aDependency.productNameWithExtension, platformFilters: []),
+            .product(target: aDependency.name, productName: aDependency.productNameWithExtension, platformFilters: .all),
         ])
     }
 
@@ -4179,203 +4179,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.sorted(), [
-            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: []),
-        ])
-    }
-    
-    func test_platformFilterResolution_when_targetHasTransitiveDependencies() throws {
-        // Given
-        let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .mac], product: .app)
-        let project = Project.test(targets: [app])
-        let multiPlatformFramework = Target.test(name: "MultiplatformFramework", destinations: [.iPhone, .mac], product: .framework)
-        let macFramework = Target.test(name: "MacFramework", destinations: [.mac], product: .framework)
-
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set([
-                .target(name: multiPlatformFramework.name, path: project.path),
-                .target(name: macFramework.name, path: project.path) // I assumed this wasnt necessary because reasons.
-            ]),
-            .target(name: multiPlatformFramework.name, path: project.path): Set([
-                .target(name: macFramework.name, path: project.path)
-            ]),
-        ]
-        
-        let multiPlatformToMacEdge = GraphEdge(from: .target(name: multiPlatformFramework.name, path: project.path),
-                                               to: .target(name: macFramework.name, path: project.path))
-
-        // Given: Value Graph
-        let graph = Graph.test(
-            path: project.path,
-            projects: [project.path: project],
-            targets: [project.path: [
-                app.name: app,
-                multiPlatformFramework.name: multiPlatformFramework,
-                macFramework.name: macFramework,
-            ]],
-            dependencies: dependencies,
-            edges: [
-                multiPlatformToMacEdge : [.macos]
-            ]
-        )
-        let subject = GraphTraverser(graph: graph)
-
-        // When
-        let got = try subject.linkableDependencies(path: project.path, name: app.name)
-
-        // Then
-        XCTAssertEqual(got.sorted(), [
-            .product(target: macFramework.name, productName: macFramework.productNameWithExtension, platformFilters: [.macos]),
-            .product(target: multiPlatformFramework.name, productName: multiPlatformFramework.productNameWithExtension, platformFilters: [.macos, .ios]),
-        ])
-    }
-    
-    func test_platformFilters_transitiveDependencyInheritedPlatformFilter() throws {
-        // Given
-        let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
-        let staticFramework = Target.test(
-            name: "StaticFramework",
-            destinations: [.iPad, .iPhone],
-            product: .staticLibrary
-        )
-        
-        let project = Project.test(targets: [app, staticFramework])
-        
-        let appkGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
-        let staticFrameworkGraphDependency: GraphDependency = .target(name: staticFramework.name, path: project.path)
-        let sdkGraphDependency: GraphDependency = .testSDK(name: "CoreTelephony.framework")
-        
-        let graph = Graph.test(
-            path: project.path,
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                    staticFramework.name: staticFramework,
-                ]
-            ],
-            dependencies: [
-                appkGraphDependency: [
-                    staticFrameworkGraphDependency,
-                ],
-                staticFrameworkGraphDependency: [
-                    sdkGraphDependency,
-                ]
-            ],
-            edges: [
-                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): [.ios],
-            ]
-        )
-        let subject = GraphTraverser(graph: graph)
-        
-        // When
-        let results = try XCTUnwrap(subject.platformFilters(from: appkGraphDependency, to: sdkGraphDependency))
-        
-        // Then
-        XCTAssertEqual(results.sorted(), [
-            .ios
-        ])
-    }
-    
-    // Given A -> B -> C, if A -> B has a filter of [.ios], and B -> C has a filter of `[.macos]`, A->C should return `nil` for platform filters
-    func test_platformFilters_transitiveDependencyHasNilPlatformFilters_whenDependencyHasDisjointFilters() throws {
-        // Given
-        let app = Target.test(name: "App", destinations: [.mac], product: .app)
-        let staticFramework = Target.test(
-            name: "StaticFramework",
-            destinations: [.iPad, .iPhone, .mac],
-            product: .staticLibrary
-        )
-        
-        let project = Project.test(targets: [app, staticFramework])
-        
-        let appkGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
-        let staticFrameworkGraphDependency: GraphDependency = .target(name: staticFramework.name, path: project.path)
-        let sdkGraphDependency: GraphDependency = .testSDK(name: "CoreTelephony.framework")
-        
-        let graph = Graph.test(
-            path: project.path,
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                    staticFramework.name: staticFramework,
-                ]
-            ],
-            dependencies: [
-                appkGraphDependency: [
-                    staticFrameworkGraphDependency,
-                ],
-                staticFrameworkGraphDependency: [
-                    sdkGraphDependency,
-                ]
-            ],
-            edges: [
-                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): [.macos],
-                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): [.ios],
-            ]
-        )
-        let subject = GraphTraverser(graph: graph)
-        
-        // When
-        let results = subject.platformFilters(from: appkGraphDependency, to: sdkGraphDependency)
-        
-        // Then
-        XCTAssertNil(results)
-    }
-
-    func test_platformFilterResolution_when_targetHasTransitiveDependencies() throws {
-        // Given
-        let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .mac], product: .app)
-        let project = Project.test(targets: [app])
-        let multiPlatformFramework = Target.test(
-            name: "MultiplatformFramework",
-            destinations: [.iPhone, .mac],
-            product: .framework
-        )
-        let macFramework = Target.test(name: "MacFramework", destinations: [.mac], product: .framework)
-
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set([
-                .target(name: multiPlatformFramework.name, path: project.path),
-                .target(name: macFramework.name, path: project.path), // I assumed this wasnt necessary because reasons.
-            ]),
-            .target(name: multiPlatformFramework.name, path: project.path): Set([
-                .target(name: macFramework.name, path: project.path),
-            ]),
-        ]
-
-        let multiPlatformToMacEdge = GraphEdge(
-            from: .target(name: multiPlatformFramework.name, path: project.path),
-            to: .target(name: macFramework.name, path: project.path)
-        )
-
-        // Given: Value Graph
-        let graph = Graph.test(
-            path: project.path,
-            projects: [project.path: project],
-            targets: [project.path: [
-                app.name: app,
-                multiPlatformFramework.name: multiPlatformFramework,
-                macFramework.name: macFramework,
-            ]],
-            dependencies: dependencies,
-            dependencyPlatformFilters: [
-                multiPlatformToMacEdge: [.macos],
-            ]
-        )
-        let subject = GraphTraverser(graph: graph)
-
-        // When
-        let got = try subject.linkableDependencies(path: project.path, name: app.name)
-
-        // Then
-        XCTAssertEqual(got.sorted(), [
-            .product(target: macFramework.name, productName: macFramework.productNameWithExtension, platformFilters: [.macos]),
-            .product(
-                target: multiPlatformFramework.name,
-                productName: multiPlatformFramework.productNameWithExtension,
-                platformFilters: [.macos, .ios]
-            ),
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: .all),
         ])
     }
 
@@ -4472,53 +4276,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(results, .invalid)
-    }
-
-    func test_platformFilters_transitivePlatformFilter() throws {
-        // Given
-        let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
-        let staticFramework = Target.test(
-            name: "StaticFramework",
-            destinations: [.iPad, .iPhone, .mac],
-            product: .staticLibrary
-        )
-
-        let project = Project.test(targets: [app, staticFramework])
-
-        let appkGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
-        let staticFrameworkGraphDependency: GraphDependency = .target(name: staticFramework.name, path: project.path)
-        let sdkGraphDependency: GraphDependency = .testSDK(name: "CoreTelephony.framework")
-
-        let graph = Graph.test(
-            path: project.path,
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                    staticFramework.name: staticFramework,
-                ],
-            ],
-            dependencies: [
-                appkGraphDependency: [
-                    staticFrameworkGraphDependency,
-                ],
-                staticFrameworkGraphDependency: [
-                    sdkGraphDependency,
-                ],
-            ],
-            edges: [
-                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): [.ios],
-            ]
-        )
-        let subject = GraphTraverser(graph: graph)
-
-        // When
-        let results = subject.platformFilters(from: appkGraphDependency, to: sdkGraphDependency)
-
-        // Then
-        XCTAssertEqual(results?.sorted(), [
-            .ios,
-        ])
     }
 
     func test_platformFilters_transitivePlatformFilter() throws {

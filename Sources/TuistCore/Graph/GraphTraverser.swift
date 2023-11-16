@@ -345,7 +345,6 @@ public class GraphTraverser: GraphTraversing {
             .filter(isDependencyPrecompiledDynamicAndLinkable)
             .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
 
-
         references.formUnion(precompiledLibrariesAndFrameworks)
 
         // Static libraries and frameworks / Static libraries' dynamic libraries

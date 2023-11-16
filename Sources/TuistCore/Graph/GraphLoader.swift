@@ -111,7 +111,7 @@ public final class GraphLoader: GraphLoading {
                 dependency: dependency,
                 cache: cache
             ) else { return nil }
-            cache.edges[(targetDependency, graphDep)] = dependency.platformFilters
+            cache.dependencyPlatformFilters[(targetDependency, graphDep)] = dependency.platformFilters
             return graphDep
         }
 
