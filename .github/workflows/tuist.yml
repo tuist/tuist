@@ -68,7 +68,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: asdf-vm/actions/install@v2
       - name: Select Xcode
+        # Xcode accepts -skipMacroValidation
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - uses: actions/cache@v3
         name: 'Cache vendor .build folder'
         with:
