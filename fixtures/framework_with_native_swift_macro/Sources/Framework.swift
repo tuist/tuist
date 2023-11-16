@@ -1,7 +1,7 @@
+import CasePaths
+import ComposableArchitecture
 import Foundation
 import StructBuilder
-import ComposableArchitecture
-import CasePaths
 
 @Buildable
 public struct Person {
@@ -18,10 +18,10 @@ public struct Person {
 
 @Reducer
 struct Feature {
-    struct State {
-    }
-    enum Action {
-    }
+    struct State {}
+
+    enum Action {}
+
     var body: some ReducerOf<Self> {
         EmptyReducer()
     }

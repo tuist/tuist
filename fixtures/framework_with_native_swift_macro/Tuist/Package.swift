@@ -5,6 +5,6 @@ let package = Package(
     name: "FrameworkWithNativeSwiftMacro",
     dependencies: [
         .package(url: "https://github.com/alschmut/StructBuilderMacro", .exact("0.2.0")),
-        .package(url: "https://github.com/pointfreeco/swift-composable-architecture", .exact("1.4.0"))
+        .package(url: "https://github.com/pointfreeco/swift-composable-architecture", .exact("1.4.0")),
     ]
 )
