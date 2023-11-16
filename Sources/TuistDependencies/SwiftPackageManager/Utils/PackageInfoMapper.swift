@@ -203,6 +203,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         }
 
         let targetToProducts: [String: Set<PackageInfo.Product>] = packageInfos.values.reduce(into: [:]) { result, packageInfo in
+
             for product in packageInfo.products {
                 var targetsToProcess = Set(product.targets)
                 while !targetsToProcess.isEmpty {
@@ -211,8 +212,16 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     guard !alreadyProcessed else {
                         continue
                     }
-                    result[target, default: []].insert(product)
-                    let dependencies = packageInfo.targets.first(where: { $0.name == target })!.dependencies
+                    let targetInfo = packageInfo.targets.first(where: { $0.name == target })!
+                    if targetInfo.type == .macro {
+                        result[target, default: []].insert(.init(name: target,
+                                                                 type: .executable,
+                                                                 targets: [target]))
+                    } else {
+                        result[target, default: []].insert(product)
+                    }
+                    
+                    let dependencies = targetInfo.dependencies
                     for dependency in dependencies {
                         switch dependency {
                         case let .target(name, _):
@@ -388,6 +397,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
         for target in resolvedDependencies.keys.sorted() {
             visit(target: target, parentMacOS: false)
         }
+        
+        // TODO: Not hardcode values
+        targets.insert("SwiftRefactor")
+        targets.insert("_SwiftSyntaxTestSupport")
+        targets.insert("SwiftSyntaxMacrosTestSupport")
+        targets.insert("SwiftIDEUtils")
 
         return targets
     }
@@ -407,7 +422,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap],
-        macOSTargets _: Set<String>,
+        macOSTargets: Set<String>,
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project? {
@@ -449,6 +464,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         let targets: [ProjectDescription.Target] = try packageInfo.targets
             .flatMap { target -> [ProjectDescription.Target] in
+                let platforms: Set<ProjectDescription.Platform> = if macOSTargets.contains(target.name) {
+                    Set([.macOS])
+                } else {
+                    platforms
+                }
                 guard let products = targetToProducts[target.name] else { return [] }
                 let addPlatformSuffix = platforms.count != 1
 

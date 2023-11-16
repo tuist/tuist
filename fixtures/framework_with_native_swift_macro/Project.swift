@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: "Framework",
-            platform: .macOS,
+            platform: .iOS,
             product: .staticLibrary,
             bundleId: "io.tuist.FrameworkWithSwiftMacro",
             sources: ["Sources/**/*"],
