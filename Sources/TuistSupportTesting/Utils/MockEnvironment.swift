@@ -25,6 +25,7 @@ public class MockEnvironment: Environmenting {
     public var tuistConfigVariables: [String: String] = [:]
     public var manifestLoadingVariables: [String: String] = [:]
     public var isStatsEnabled: Bool = true
+    public var isGitHubActions: Bool = false
 
     public var versionsDirectory: AbsolutePath {
         directory.path.appending(component: "Versions")
