@@ -212,16 +212,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     guard !alreadyProcessed else {
                         continue
                     }
-                    let targetInfo = packageInfo.targets.first(where: { $0.name == target })!
-                    if targetInfo.type == .macro {
-                        result[target, default: []].insert(.init(name: target,
-                                                                 type: .executable,
-                                                                 targets: [target]))
-                    } else {
-                        result[target, default: []].insert(product)
-                    }
-                    
-                    let dependencies = targetInfo.dependencies
+                    result[target, default: []].insert(product)
+                    let dependencies = packageInfo.targets.first(where: { $0.name == target })!.dependencies
                     for dependency in dependencies {
                         switch dependency {
                         case let .target(name, _):
