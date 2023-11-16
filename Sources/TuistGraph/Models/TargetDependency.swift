@@ -22,7 +22,12 @@ public enum TargetDependency: Equatable, Hashable, Codable {
     case project(target: String, path: AbsolutePath, platformFilters: PlatformFilters = [])
     case framework(path: AbsolutePath, status: FrameworkStatus, platformFilters: PlatformFilters = [])
     case xcframework(path: AbsolutePath, status: FrameworkStatus, platformFilters: PlatformFilters = [])
-    case library(path: AbsolutePath, publicHeaders: AbsolutePath, swiftModuleMap: AbsolutePath?, platformFilters: PlatformFilters = [])
+    case library(
+        path: AbsolutePath,
+        publicHeaders: AbsolutePath,
+        swiftModuleMap: AbsolutePath?,
+        platformFilters: PlatformFilters = []
+    )
     case package(product: String, type: PackageType, platformFilters: PlatformFilters = [])
     case sdk(name: String, status: SDKStatus, platformFilters: PlatformFilters = [])
     case xctest
