@@ -46,7 +46,7 @@ class XcodeprojExtrasTests: XCTestCase {
         XCTAssertNil(buildFile.platformFilter)
         XCTAssertNil(buildFile.platformFilters)
     }
-    
+
     func test_platform_filter_application_when_empty() {
         // Given
         let buildFile = PBXBuildFile()
@@ -59,7 +59,7 @@ class XcodeprojExtrasTests: XCTestCase {
         XCTAssertNil(buildFile.platformFilter)
         XCTAssertNil(buildFile.platformFilters)
     }
-    
+
     func test_platform_filter_application_when_all() {
         // Given
         let buildFile = PBXBuildFile()
