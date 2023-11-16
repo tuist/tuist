@@ -105,9 +105,6 @@ build_xcframework_library "ProjectAutomation"
 echo "$(format_subsection "Building tuist executable")"
 build_fat_release_binary "tuist" $ROOT_DIR $BUILD_DIRECTORY
 
-echo "$(format_subsection "Building tuistenv executable")"
-build_fat_release_binary "tuistenv" $ROOT_DIR $BUILD_DIRECTORY
-
 echo "$(format_section "Copying assets")"
 
 echo "$(format_subsection "Copying Tuist's templates")"
