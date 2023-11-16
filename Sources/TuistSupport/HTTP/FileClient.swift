@@ -54,8 +54,19 @@ public class FileClient: FileClienting {
 
     // MARK: - Init
 
-    public init(session: URLSession = URLSession.shared) {
+    public convenience init() {
+        self.init(session: FileClient.defaultSession())
+    }
+
+    private init(session: URLSession) {
         self.session = session
+    }
+
+    private static func defaultSession() -> URLSession {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 180
+        return URLSession(configuration: configuration)
     }
 
     // MARK: - Public
