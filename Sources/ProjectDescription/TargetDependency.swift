@@ -47,21 +47,21 @@ public enum TargetDependency: Codable, Hashable {
     ///
     /// - Parameters:
     ///   - name: Name of the target to depend on
-    case target(name: String, platformFilters: PlatformFilters = [])
+    case target(name: String, platformFilters: PlatformFilters = .all)
 
     /// Dependency on a target within another project
     ///
     /// - Parameters:
     ///   - target: Name of the target to depend on
     ///   - path: Relative path to the other project directory
-    case project(target: String, path: Path, platformFilters: PlatformFilters = [])
+    case project(target: String, path: Path, platformFilters: PlatformFilters = .all)
 
     /// Dependency on a prebuilt framework
     ///
     /// - Parameters:
     ///   - path: Relative path to the prebuilt framework
     ///   - status: The dependency status (optional dependencies are weakly linked)
-    case framework(path: Path, status: FrameworkStatus = .required, platformFilters: PlatformFilters = [])
+    case framework(path: Path, status: FrameworkStatus = .required, platformFilters: PlatformFilters = .all)
 
     /// Dependency on prebuilt library
     ///
@@ -69,7 +69,7 @@ public enum TargetDependency: Codable, Hashable {
     ///   - path: Relative path to the prebuilt library
     ///   - publicHeaders: Relative path to the library's public headers directory
     ///   - swiftModuleMap: Relative path to the library's swift module map file
-    case library(path: Path, publicHeaders: Path, swiftModuleMap: Path?, platformFilters: PlatformFilters = [])
+    case library(path: Path, publicHeaders: Path, swiftModuleMap: Path?, platformFilters: PlatformFilters = .all)
 
     /// Dependency on a swift package manager product using Xcode native integration. It's recommended to use `external` instead.
     /// For more info, check the [external dependencies documentation](https://docs.tuist.io/guides/third-party-dependencies/).
@@ -78,14 +78,14 @@ public enum TargetDependency: Codable, Hashable {
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
     ///              e.g. RxSwift
     ///   - type: The type of package being integrated.
-    case package(product: String, type: PackageType = .runtime, platformFilters: PlatformFilters = [])
+    case package(product: String, type: PackageType = .runtime, platformFilters: PlatformFilters = .all)
 
     /// Dependency on a swift package manager plugin product using Xcode native integration.
     ///
     /// - Parameters:
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
     ///              e.g. RxSwift
-    case packagePlugin(product: String, platformFilters: PlatformFilters = [])
+    case packagePlugin(product: String, platformFilters: PlatformFilters = .all)
 
     /// Dependency on system library or framework
     ///
@@ -94,20 +94,20 @@ public enum TargetDependency: Codable, Hashable {
     ///            e.g. `ARKit`, `c++`
     ///   - type: The dependency type
     ///   - status: The dependency status (optional dependencies are weakly linked)
-    case sdk(name: String, type: SDKType, status: SDKStatus, platformFilters: PlatformFilters = [])
+    case sdk(name: String, type: SDKType, status: SDKStatus, platformFilters: PlatformFilters = .all)
 
     /// Dependency on a xcframework
     ///
     /// - Parameters:
     ///   - path: Relative path to the xcframework
     ///   - status: The dependency status (optional dependencies are weakly linked)
-    case xcframework(path: Path, status: FrameworkStatus = .required, platformFilters: PlatformFilters = [])
+    case xcframework(path: Path, status: FrameworkStatus = .required, platformFilters: PlatformFilters = .all)
 
     /// Dependency on XCTest.
     case xctest
 
     /// Dependency on an external dependency imported through `Dependencies.swift`.
-    case external(name: String, platformFilters: PlatformFilters = [])
+    case external(name: String, platformFilters: PlatformFilters = .all)
 
     /// Dependency on system library or framework
     ///
@@ -116,7 +116,7 @@ public enum TargetDependency: Codable, Hashable {
     ///            e.g. `ARKit.framework`, `libc++.tbd`
     ///
     /// Note: Defaults to using a `required` dependency status
-    public static func sdk(name: String, type: SDKType, platformFilters: PlatformFilters = []) -> TargetDependency {
+    public static func sdk(name: String, type: SDKType, platformFilters: PlatformFilters = .all) -> TargetDependency {
         .sdk(name: name, type: type, status: .required, platformFilters: platformFilters)
     }
 
@@ -124,7 +124,7 @@ public enum TargetDependency: Codable, Hashable {
     ///
     /// - Parameters:
     ///   - target: Instance of the target to depend on
-    public static func target(_ target: Target, platformFilters: PlatformFilters = []) -> TargetDependency {
+    public static func target(_ target: Target, platformFilters: PlatformFilters = .all) -> TargetDependency {
         .target(name: target.name, platformFilters: platformFilters)
     }
 

@@ -776,7 +776,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let sdkPath = try temporaryPath().appending(component: "ARKit.framework")
         let sdkStatus: SDKStatus = .required
         let sdkSource: SDKSource = .developer
-        let sdkDependency = GraphDependencyReference.sdk(path: sdkPath, status: sdkStatus, source: sdkSource, platformFilters: [])
+        let sdkDependency = GraphDependencyReference.sdk(
+            path: sdkPath,
+            status: sdkStatus,
+            source: sdkSource,
+            platformFilters: .all
+        )
 
         // When
         try subject.generate(

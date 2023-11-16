@@ -12,7 +12,29 @@ extension DependenciesGraph {
                 {
                   "xcframework": {
                     "path": "/Tuist/Dependencies/Carthage/RxSwift.xcframework",
-                    "platformFilters": [],
+                    "platformFilters": [
+                            {
+                              "catalyst" : { }
+                            },
+                            {
+                              "watchos" : { }
+                            },
+                            {
+                              "ios" : { }
+                            },
+                            {
+                              "driverkit" : { }
+                            },
+                            {
+                              "tvos" : { }
+                            },
+                            {
+                              "macos" : { }
+                            },
+                            {
+                              "visionos" : { }
+                            }
+                    ],
                     "status": "required"
                   }
                 }

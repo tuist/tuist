@@ -1,6 +1,10 @@
 public typealias PlatformFilters = Set<PlatformFilter>
 
-public enum PlatformFilter: Comparable, Hashable, Codable {
+extension PlatformFilters {
+    public static let all = Set(PlatformFilter.allCases)
+}
+
+public enum PlatformFilter: Comparable, Hashable, Codable, CaseIterable {
     case ios
     case macos
     case tvos

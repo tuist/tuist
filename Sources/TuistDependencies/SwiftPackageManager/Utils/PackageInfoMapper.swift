@@ -860,7 +860,7 @@ extension ProjectDescription.TargetDependency {
 
         let linkerDependencies: [ProjectDescription.TargetDependency] = settings.compactMap { setting in
             do {
-                let platformFilters = try setting.condition.map(ProjectDescription.PlatformFilters.from) ?? []
+                let platformFilters = try setting.condition.map(ProjectDescription.PlatformFilters.from) ?? .all
 
                 switch (setting.tool, setting.name) {
                 case (.linker, .linkedFramework):
@@ -1389,9 +1389,9 @@ extension PackageInfo.Target {
 
 extension PackageInfoMapper {
     public enum ResolvedDependency: Equatable, Hashable {
-        case target(name: String, platformFilters: ProjectDescription.PlatformFilters = [])
-        case xcframework(path: Path, platformFilters: ProjectDescription.PlatformFilters = [])
-        case externalTarget(package: String, target: String, platformFilters: ProjectDescription.PlatformFilters = [])
+        case target(name: String, platformFilters: ProjectDescription.PlatformFilters = .all)
+        case xcframework(path: Path, platformFilters: ProjectDescription.PlatformFilters = .all)
+        case externalTarget(package: String, target: String, platformFilters: ProjectDescription.PlatformFilters = .all)
 
         public func hash(into hasher: inout Hasher) {
             switch self {
@@ -1477,7 +1477,7 @@ extension PackageInfoMapper {
             condition packageConditionDescription: PackageInfo.PackageConditionDescription?
         ) -> [Self] {
             do {
-                let platformFilters = try packageConditionDescription.map(ProjectDescription.PlatformFilters.from) ?? []
+                let platformFilters = try packageConditionDescription.map(ProjectDescription.PlatformFilters.from) ?? .all
 
                 if let framework = targetDependencyToFramework[name] {
                     return [.xcframework(path: framework, platformFilters: platformFilters)]
@@ -1500,7 +1500,7 @@ extension PackageInfoMapper {
                 throw PackageInfoMapperError.unknownProductDependency(product, package)
             }
             do {
-                let platformFilters = try packageConditionDescription.map(ProjectDescription.PlatformFilters.from) ?? []
+                let platformFilters = try packageConditionDescription.map(ProjectDescription.PlatformFilters.from) ?? .all
 
                 return packageProduct.targets.map { name in
                     if let framework = targetDependencyToFramework[name] {
