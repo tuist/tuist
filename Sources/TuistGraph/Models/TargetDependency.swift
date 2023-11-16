@@ -18,18 +18,18 @@ public enum TargetDependency: Equatable, Hashable, Codable {
         case macro
     }
 
-    case target(name: String, platformFilters: PlatformFilters = [])
-    case project(target: String, path: AbsolutePath, platformFilters: PlatformFilters = [])
-    case framework(path: AbsolutePath, status: FrameworkStatus, platformFilters: PlatformFilters = [])
-    case xcframework(path: AbsolutePath, status: FrameworkStatus, platformFilters: PlatformFilters = [])
+    case target(name: String, platformFilters: PlatformFilters = .all)
+    case project(target: String, path: AbsolutePath, platformFilters: PlatformFilters = .all)
+    case framework(path: AbsolutePath, status: FrameworkStatus, platformFilters: PlatformFilters = .all)
+    case xcframework(path: AbsolutePath, status: FrameworkStatus, platformFilters: PlatformFilters = .all)
     case library(
         path: AbsolutePath,
         publicHeaders: AbsolutePath,
         swiftModuleMap: AbsolutePath?,
-        platformFilters: PlatformFilters = []
+        platformFilters: PlatformFilters = .all
     )
-    case package(product: String, type: PackageType, platformFilters: PlatformFilters = [])
-    case sdk(name: String, status: SDKStatus, platformFilters: PlatformFilters = [])
+    case package(product: String, type: PackageType, platformFilters: PlatformFilters = .all)
+    case sdk(name: String, status: SDKStatus, platformFilters: PlatformFilters = .all)
     case xctest
 
     public var platformFilters: PlatformFilters {

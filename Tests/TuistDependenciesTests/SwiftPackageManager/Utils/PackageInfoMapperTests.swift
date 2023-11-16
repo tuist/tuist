@@ -127,7 +127,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
-                "Target_1": [.externalTarget(package: "Package2", target: "Target_2", platformFilters: [])],
+                "Target_1": [.externalTarget(package: "Package2", target: "Target_2", platformFilters: .all)],
                 "Target_2": [],
             ]
         )
@@ -182,7 +182,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             preprocessInfo.targetToResolvedDependencies,
             [
                 "Target_1": [
-                    .externalTarget(package: "com.example.dep-1", target: "com_example_dep-1", platformFilters: []),
+                    .externalTarget(package: "com.example.dep-1", target: "com_example_dep-1", platformFilters: .all),
                 ],
                 "com.example.dep-1": [],
             ]
