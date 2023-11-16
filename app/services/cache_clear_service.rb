@@ -7,7 +7,7 @@ class CacheClearService < ApplicationService
         "You do not have a permission to clear this S3 bucket."
       end
 
-      def status
+      def status_code
         :unauthorized
       end
     end
