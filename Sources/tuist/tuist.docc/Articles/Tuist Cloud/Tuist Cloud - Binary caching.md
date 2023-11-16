@@ -45,7 +45,7 @@ After creating the project, modify your `Tuist/Config.swift` file to reference t
 ```swift
 import ProjectDescription
 
-let config = Config(cloud: .cloud(projectId: "my-organization/my-project", url: "https://cloud.tuist.io"))
+let config = Config(cloud: .cloud(projectId: "my-organization/my-project"))
 ```
 
 Developers on your team can access the cache if they are authenticated and added as members of the organization, which you can do using the Tuist CLI. For CI environments, authentication is managed differently; it's done using **project-scoped tokens**. These tokens possess restricted permissions compared to those of the organization, including the ability to warm the cache with binaries. To obtain this token, you can execute the following command:
