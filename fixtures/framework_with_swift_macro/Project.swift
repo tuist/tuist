@@ -8,8 +8,8 @@ let project = Project(
     targets: [
         Target(
             name: "Framework",
-            platform: .macOS,
-            product: .staticLibrary,
+            platform: .iOS,
+            product: .framework,
             bundleId: "io.tuist.FrameworkWithSwiftMacro",
             sources: ["Sources/**/*"],
             dependencies: [
