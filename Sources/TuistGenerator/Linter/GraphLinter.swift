@@ -38,13 +38,13 @@ public class GraphLinter: GraphLinting {
 
     public func lint(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-//        issues.append(contentsOf: graphTraverser.projects.flatMap { project -> [LintingIssue] in
-//            projectLinter.lint(project.value)
-//        })
-//        issues.append(contentsOf: lintDependencies(graphTraverser: graphTraverser))
-//        issues.append(contentsOf: lintMismatchingConfigurations(graphTraverser: graphTraverser))
-//        issues.append(contentsOf: lintWatchBundleIndentifiers(graphTraverser: graphTraverser))
-//        issues.append(contentsOf: lintCodeCoverageMode(graphTraverser: graphTraverser))
+        issues.append(contentsOf: graphTraverser.projects.flatMap { project -> [LintingIssue] in
+            projectLinter.lint(project.value)
+        })
+        issues.append(contentsOf: lintDependencies(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintMismatchingConfigurations(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintWatchBundleIndentifiers(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintCodeCoverageMode(graphTraverser: graphTraverser))
         return issues
     }
 
@@ -89,57 +89,56 @@ public class GraphLinter: GraphLinting {
 
     private func lintDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-//        let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, toDependencies -> [LintingIssue] in
-//            toDependencies.flatMap { toDependency -> [LintingIssue] in
-//                guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency else { return [] }
-//                guard case let GraphDependency.target(toTargetName, toTargetPath) = toDependency else { return [] }
-//                guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
-//                guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return [] }
-//                return lintDependency(from: fromTarget, to: toTarget)
-//            }
-//        }
-//
-//        issues.append(contentsOf: dependencyIssues)
-//        issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser))
-//        issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
-//        issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
-//        issues.append(contentsOf: lintAppClip(graphTraverser: graphTraverser))
+        let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, toDependencies -> [LintingIssue] in
+            toDependencies.flatMap { toDependency -> [LintingIssue] in
+                guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency else { return [] }
+                guard case let GraphDependency.target(toTargetName, toTargetPath) = toDependency else { return [] }
+                guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
+                guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return [] }
+                return lintDependency(from: fromTarget, to: toTarget)
+            }
+        }
+
+        issues.append(contentsOf: dependencyIssues)
+        issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
+        issues.append(contentsOf: lintAppClip(graphTraverser: graphTraverser))
 
         return issues
     }
 
     private func lintDependency(from: GraphTarget, to: GraphTarget) -> [LintingIssue] {
-//        return []
-//        let fromPlatforms = from.target.supportedPlatforms
-//        let toPlatforms = to.target.supportedPlatforms
-//
-//        var validLinksCount = 0
-//        for fromPlatform in fromPlatforms {
-//            let fromTarget = LintableTarget(
-//                platform: fromPlatform,
-//                product: from.target.product
-//            )
-//
-//            guard let supportedTargets = GraphLinter.validLinks[fromTarget] else {
-//                let reason =
-//                    "Target \(from.target.name) has platform '\(fromPlatform)' and product '\(from.target.product)' which is an invalid or not yet supported combination."
-//                return [LintingIssue(reason: reason, severity: .error)]
-//            }
-//
-//            let toLintTargets = toPlatforms.map {
-//                LintableTarget(platform: $0, product: to.target.product)
-//            }
-//
-//            let validLinks = Set(toLintTargets).intersection(supportedTargets)
-//            validLinksCount += validLinks.count
-//        }
-//
-//        // Need to have at least one valid link based on common platforms
-//        guard validLinksCount > 0 else {
-//            let reason =
-//                "Target \(from.target.name) has platforms '\(fromPlatforms.map(\.caseValue).listed())' and product '\(from.target.product)' and depends on target \(to.target.name) of type '\(to.target.product)' and platforms '\(toPlatforms.map(\.caseValue).listed())' which is an invalid or not yet supported combination."
-//            return [LintingIssue(reason: reason, severity: .error)]
-//        }
+        let fromPlatforms = from.target.supportedPlatforms
+        let toPlatforms = to.target.supportedPlatforms
+
+        var validLinksCount = 0
+        for fromPlatform in fromPlatforms {
+            let fromTarget = LintableTarget(
+                platform: fromPlatform,
+                product: from.target.product
+            )
+
+            guard let supportedTargets = GraphLinter.validLinks[fromTarget] else {
+                let reason =
+                    "Target \(from.target.name) has platform '\(fromPlatform)' and product '\(from.target.product)' which is an invalid or not yet supported combination."
+                return [LintingIssue(reason: reason, severity: .error)]
+            }
+
+            let toLintTargets = toPlatforms.map {
+                LintableTarget(platform: $0, product: to.target.product)
+            }
+
+            let validLinks = Set(toLintTargets).intersection(supportedTargets)
+            validLinksCount += validLinks.count
+        }
+
+        // Need to have at least one valid link based on common platforms
+        guard validLinksCount > 0 else {
+            let reason =
+                "Target \(from.target.name) has platforms '\(fromPlatforms.map(\.caseValue).listed())' and product '\(from.target.product)' and depends on target \(to.target.name) of type '\(to.target.product)' and platforms '\(toPlatforms.map(\.caseValue).listed())' which is an invalid or not yet supported combination."
+            return [LintingIssue(reason: reason, severity: .error)]
+        }
 
         return []
     }
