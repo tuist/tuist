@@ -9,6 +9,7 @@ extension PlatformFilters: Comparable {
     }
 
     public static let all = Set(PlatformFilter.allCases)
+    public static let invalid = Set<PlatformFilter>()
 }
 
 /// Defines a set of platforms that can be used to limit where things

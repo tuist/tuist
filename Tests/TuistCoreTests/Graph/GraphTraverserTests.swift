@@ -2582,7 +2582,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.compactMap(sdkDependency), [SDKPathAndStatus(name: "some.framework", status: .optional)])
+        XCTAssertEqual(got.compactMap(sdkDependency), [
+            SDKPathAndStatus(name: "some.framework", status: .optional),
+        ])
     }
 
     func test_linkableDependencies_transitiveSDKDependenciesImmediateDependencies() throws {
@@ -4328,7 +4330,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let results = subject.platformFilters(from: appkGraphDependency, to: sdkGraphDependency)
 
         // Then
-        XCTAssertNil(results)
+        XCTAssertEqual(results, .invalid)
     }
 
     func test_platformFilters_transitivePlatformFilter() throws {
@@ -4373,7 +4375,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let results = subject.platformFilters(from: appkGraphDependency, to: sdkGraphDependency)
 
         // Then
-        XCTAssertEqual(results?.sorted(), [
+        XCTAssertEqual(results.sorted(), [
             .ios,
         ])
     }

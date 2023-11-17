@@ -297,15 +297,8 @@ public class GraphTraverser: GraphTraversing {
                 .flatMap { dependency -> [GraphDependencyReference] in
                     let dependencies = self.graph.dependencies[dependency, default: []]
                     return dependencies.compactMap { dependencyDependency -> GraphDependencyReference? in
-                        guard case let GraphDependency.sdk(_, path, status, source) = dependencyDependency,
-                              let filters = platformFilters(from: targetGraphDependency, to: dependencyDependency)
-                        else { return nil }
-                        return .sdk(
-                            path: path,
-                            status: status,
-                            source: source,
-                            platformFilters: filters
-                        )
+                        guard case GraphDependency.sdk = dependencyDependency else { return nil }
+                        return dependencyReference(to: dependencyDependency, from: targetGraphDependency)
                     }
                 }
             references.formUnion(transitiveSystemLibraries)
@@ -331,14 +324,8 @@ public class GraphTraverser: GraphTraversing {
         // Direct system libraries and frameworks
         let directSystemLibrariesAndFrameworks = graph.dependencies[targetGraphDependency, default: []]
             .compactMap { dependency -> GraphDependencyReference? in
-                guard case let GraphDependency.sdk(_, path, status, source) = dependency,
-                      let filters = platformFilters(from: targetGraphDependency, to: dependency) else { return nil }
-                return .sdk(
-                    path: path,
-                    status: status,
-                    source: source,
-                    platformFilters: filters
-                )
+                guard case GraphDependency.sdk = dependency else { return nil }
+                return dependencyReference(to: dependency, from: targetGraphDependency)
             }
         references.formUnion(directSystemLibrariesAndFrameworks)
 
@@ -638,16 +625,16 @@ public class GraphTraverser: GraphTraversing {
     /// - Returns: PlatformFilters to apply to transitive dependency or `nil` if there isnt a path or path to a dependency results
     /// in a disjoint
     /// set of platform filters
-    func platformFilters(from rootDependency: GraphDependency, to transitiveDependency: GraphDependency) -> PlatformFilters? {
+    func platformFilters(from rootDependency: GraphDependency, to transitiveDependency: GraphDependency) -> PlatformFilters {
         var visited: Set<GraphDependency> = []
 
-        func find(from root: GraphDependency, to other: GraphDependency) -> PlatformFilters? {
+        func find(from root: GraphDependency, to other: GraphDependency) -> PlatformFilters {
             // Skip already visited nodes
-            guard !visited.contains(root) else { return nil }
+            guard !visited.contains(root) else { return .invalid }
             visited.insert(root)
 
             // if we're at a leaf dependency, there is nothing else to traverse.
-            guard let dependencies = graph.dependencies[root] else { return nil }
+            guard let dependencies = graph.dependencies[root] else { return .invalid }
 
             // We've reached our destination, return the filters or `.all` if none are set
             if dependencies.contains(other) {
@@ -655,10 +642,8 @@ public class GraphTraverser: GraphTraversing {
             } else {
                 // We have more dependencies to traverse.
                 // Form the union of all set filters that reach our target.
-                let filters = dependencies.map { node -> PlatformFilters? in
-                    guard let transitive = find(from: node, to: other) else {
-                        return nil
-                    }
+                let filters = dependencies.map { node -> PlatformFilters in
+                    let transitive = find(from: node, to: other)
 
                     // Capture the filters that could be applied to intermediate dependencies
                     // A --> (.ios) B --> C : C should have the .ios filter applied due to B
@@ -674,8 +659,7 @@ public class GraphTraverser: GraphTraversing {
                     result.union(otherFilters)
                 }
 
-                //
-                return transitiveFilters.isEmpty ? nil : transitiveFilters
+                return transitiveFilters
             }
         }
 
@@ -846,7 +830,10 @@ public class GraphTraverser: GraphTraversing {
         to toDependency: GraphDependency,
         from fromDependency: GraphDependency
     ) -> GraphDependencyReference? {
-        guard let platformFilters = platformFilters(from: fromDependency, to: toDependency) else { return nil }
+        let platformFilters = platformFilters(from: fromDependency, to: toDependency)
+        guard platformFilters != .invalid else {
+            return nil
+        }
 
         switch toDependency {
         case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage, status):
