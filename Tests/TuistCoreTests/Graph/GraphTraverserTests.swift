@@ -4277,7 +4277,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let results = try XCTUnwrap(subject.platformFilters(from: appkGraphDependency, to: sdkGraphDependency))
+        let results = try XCTUnwrap(subject.platformFilters(to: sdkGraphDependency, from: appkGraphDependency))
 
         // Then
         XCTAssertEqual(results.sorted(), [
@@ -4327,7 +4327,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.platformFilters(from: appkGraphDependency, to: sdkGraphDependency)
+        let results = subject.platformFilters(to: sdkGraphDependency, from: appkGraphDependency)
 
         // Then
         XCTAssertEqual(results, .invalid)
@@ -4372,7 +4372,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.platformFilters(from: appkGraphDependency, to: sdkGraphDependency)
+        let results = subject.platformFilters(to: sdkGraphDependency, from: appkGraphDependency)
 
         // Then
         XCTAssertEqual(results.sorted(), [
@@ -4440,13 +4440,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // When
         let appToStaticFilters = subject.platformFilters(
-            from: appkGraphDependency,
-            to: staticFrameworkCGraphDependency
+            to: staticFrameworkCGraphDependency,
+            from: appkGraphDependency
         )
 
         let appToSDKFilters = subject.platformFilters(
-            from: appkGraphDependency,
-            to: sdkGraphDependency
+            to: sdkGraphDependency,
+            from: appkGraphDependency
         )
 
         // Then
@@ -4517,7 +4517,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.platformFilters(from: appkGraphDependency, to: staticFrameworkCGraphDependency)
+        let results = subject.platformFilters(to: staticFrameworkCGraphDependency, from: appkGraphDependency)
 
         // Then
         XCTAssertEqual(results, .all)
