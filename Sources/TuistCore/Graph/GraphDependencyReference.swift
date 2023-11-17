@@ -3,6 +3,22 @@ import TSCBasic
 import TuistGraph
 
 public enum GraphDependencyReference: Equatable, Comparable, Hashable {
+    var platformFilters: PlatformFilters {
+        switch self {
+        case let .framework(_, _, _, _, _, _, _, _, _, platformFilters),
+             let .library(_, _, _, _, platformFilters),
+             let .xcframework(_, _, _, _, _, platformFilters),
+             let .bundle(_, platformFilters),
+             let .product(_, _, platformFilters),
+             let .sdk(_, _, _, platformFilters):
+            return platformFilters
+        }
+    }
+
+    var isValid: Bool {
+        platformFilters != .invalid
+    }
+
     case xcframework(
         path: AbsolutePath,
         infoPlist: XCFrameworkInfoPlist,
@@ -99,7 +115,6 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     private enum Synthesized: Comparable, Hashable {
         case sdk(path: AbsolutePath, platformFilters: PlatformFilters)
         case product(target: String, productName: String, platformFilters: PlatformFilters)
-        case productWithPlatformFilters(target: String, productName: String, platformFilters: PlatformFilters)
         case library(path: AbsolutePath, platformFilters: PlatformFilters)
         case framework(path: AbsolutePath, platformFilters: PlatformFilters)
         case xcframework(path: AbsolutePath, platformFilters: PlatformFilters)
@@ -134,11 +149,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             case let .bundle(path: path, platformFilters):
                 self = .bundle(path: path, platformFilters: platformFilters)
             case let .product(target: target, productName: productName, platformFilters: platformFilters):
-                if !platformFilters.isEmpty {
-                    self = .productWithPlatformFilters(target: target, productName: productName, platformFilters: platformFilters)
-                } else {
-                    self = .product(target: target, productName: productName, platformFilters: platformFilters)
-                }
+                self = .product(target: target, productName: productName, platformFilters: platformFilters)
             case .sdk(path: let path, status: _, source: _, platformFilters: let platformFilters):
                 self = .sdk(path: path, platformFilters: platformFilters)
             }
