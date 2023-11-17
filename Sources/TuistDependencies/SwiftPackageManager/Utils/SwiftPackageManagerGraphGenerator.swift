@@ -154,7 +154,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 [.appleVision]
             }
         })
-
+        
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
@@ -169,6 +169,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 destinations: destinations,
                 targetToProducts: preprocessInfo.targetToProducts,
                 targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
+                macroDependencies: preprocessInfo.macroDependencies,
                 targetToModuleMap: preprocessInfo.targetToModuleMap,
                 packageToProject: packageToProject,
                 swiftToolsVersion: swiftToolsVersion

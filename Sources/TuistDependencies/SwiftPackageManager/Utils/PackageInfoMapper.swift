@@ -138,6 +138,7 @@ public protocol PackageInfoMapping {
         destinations: ProjectDescription.Destinations,
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
+        macroDependencies: Set<PackageInfoMapper.ResolvedDependency>,
         targetToModuleMap: [String: ModuleMap],
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
@@ -152,6 +153,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let targetToProducts: [String: Set<PackageInfo.Product>]
         let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
         let targetToModuleMap: [String: ModuleMap]
+        let macroDependencies: Set<PackageInfoMapper.ResolvedDependency>
     }
 
     // Predefined source directories, in order of preference.
@@ -239,6 +241,31 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         )
                     }
             }
+        
+        var macroTargetsNames = Set(packageInfos.values.flatMap { $0.targets.filter({ $0.type == .macro}).map { $0.name } })
+//        let macroDependencies = resolvedDependencies.filter { macroTargetsNames.contains($0.key) }.flatMap({ $0.value })
+        var visited: Set<String> = []
+        var macroDependencies = Set<ResolvedDependency>()
+
+        while !macroTargetsNames.isEmpty {
+            guard let targetName = macroTargetsNames.popFirst() else {
+                continue
+            }
+            
+            if visited.contains(targetName) {
+                continue
+            }
+            
+            visited.insert(targetName)
+            
+            for dependency in resolvedDependencies[targetName] ?? [] {
+                macroDependencies.insert(dependency)
+                let dependencyTargetName = dependency.targetName
+                if let dependencyTargetName, !visited.contains(dependencyTargetName) {
+                    macroTargetsNames.insert(dependencyTargetName)
+                }
+            }
+        }
 
         var externalDependencies: [String: [ProjectDescription.TargetDependency]] = .init()
         externalDependencies = try packageInfos
@@ -310,7 +337,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
             productToExternalDependencies: externalDependencies,
             targetToProducts: targetToProducts,
             targetToResolvedDependencies: resolvedDependencies,
-            targetToModuleMap: targetToModuleMap
+            targetToModuleMap: targetToModuleMap,
+            macroDependencies: macroDependencies
         )
     }
 
@@ -377,6 +405,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         destinations: ProjectDescription.Destinations,
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
+        macroDependencies: Set<PackageInfoMapper.ResolvedDependency>,
         targetToModuleMap: [String: ModuleMap],
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
@@ -435,7 +464,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     packageDestinations: destinations,
                     minDeploymentTargets: minDeploymentTargets,
                     targetToResolvedDependencies: targetToResolvedDependencies,
-                    targetToModuleMap: targetToModuleMap
+                    targetToModuleMap: targetToModuleMap,
+                    macroDependencies: macroDependencies
                 )
             }
 
@@ -486,7 +516,8 @@ extension ProjectDescription.Target {
         packageDestinations: ProjectDescription.Destinations,
         minDeploymentTargets: ProjectDescription.DeploymentTargets,
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        targetToModuleMap: [String: ModuleMap]
+        targetToModuleMap: [String: ModuleMap],
+        macroDependencies: Set<PackageInfoMapper.ResolvedDependency>
     ) throws -> Self? {
         guard target.type.isSupported else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
@@ -509,8 +540,24 @@ extension ProjectDescription.Target {
         let moduleMap = targetToModuleMap[target.name]
 
         // Use the intersection of destations from `Dependencies.swift` and the destinations supported by the package.
-        let destinations = packageDestinations
-            .intersection(try ProjectDescription.Destinations.from(platforms: packageInfo.platforms))
+        
+        var destinations = if target.type == .macro {
+            Set<ProjectDescription.Destination>([.mac])
+        } else {
+            packageDestinations
+                .intersection(try ProjectDescription.Destinations.from(platforms: packageInfo.platforms))
+        }
+        
+        if macroDependencies.contains (where: { dependency in
+            switch dependency {
+            case .externalTarget(_, let targetName, _), .target(let targetName, platformFilters: _):
+                return target.name == targetName
+            default:
+                return false
+            }
+        }) {
+            destinations.insert(.mac)
+        }
 
         let deploymentTargets = try ProjectDescription.DeploymentTargets.from(
             minDeploymentTargets: minDeploymentTargets,
@@ -1287,6 +1334,15 @@ extension PackageInfoMapper {
                 return condition
             case let .externalTarget(_, _, condition):
                 return condition
+            }
+        }
+        
+        fileprivate var targetName: String? {
+            switch self {
+            case let .target(targetName, _), let .externalTarget(_, targetName, _):
+                return targetName
+            case .xcframework:
+                return nil
             }
         }
 
