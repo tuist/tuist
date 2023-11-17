@@ -625,7 +625,7 @@ public class GraphTraverser: GraphTraversing {
     /// - Returns: PlatformFilters to apply to transitive dependency or `nil` if there isnt a path or path to a dependency results
     /// in a disjoint
     /// set of platform filters
-    func platformFilters(from rootDependency: GraphDependency, to transitiveDependency: GraphDependency) -> PlatformFilters {
+    func platformFilters(to transitiveDependency: GraphDependency, from rootDependency: GraphDependency) -> PlatformFilters {
         var visited: Set<GraphDependency> = []
 
         func find(from root: GraphDependency, to other: GraphDependency) -> PlatformFilters {
@@ -830,7 +830,7 @@ public class GraphTraverser: GraphTraversing {
         to toDependency: GraphDependency,
         from fromDependency: GraphDependency
     ) -> GraphDependencyReference? {
-        let platformFilters = platformFilters(from: fromDependency, to: toDependency)
+        let platformFilters = platformFilters(to: toDependency, from: fromDependency)
         guard platformFilters != .invalid else {
             return nil
         }
