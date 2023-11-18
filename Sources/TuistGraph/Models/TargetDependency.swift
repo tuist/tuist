@@ -48,11 +48,10 @@ public enum TargetDependency: Equatable, Hashable, Codable {
             platformFilters
         case .sdk(name: _, status: _, platformFilters: let platformFilters):
             platformFilters
-        case .xctest: []
+        case .xctest: .all
         }
     }
 
-    // TODO: needs tests
     public func withFilters(_ platformFilters: PlatformFilters) -> TargetDependency {
         switch self {
         case .target(name: let name, platformFilters: _):
