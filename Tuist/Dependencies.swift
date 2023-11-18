@@ -8,7 +8,7 @@ let dependencies = Dependencies(
             "TSCUtility": .staticFramework,
             "TSCclibc": .staticFramework,
             "TSCLibc": .staticFramework,
-            "Checksum": .staticFramework,
+            "ArgumentParser": .staticFramework,
         ]
     ),
     platforms: [.macOS]

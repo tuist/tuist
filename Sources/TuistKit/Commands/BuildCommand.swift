@@ -4,8 +4,9 @@ import TSCBasic
 import TuistSupport
 
 /// Command that builds a target from the project in the current directory.
-struct BuildCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct BuildCommand: AsyncParsableCommand {
+    public init() {}
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build",
             abstract: "Builds a project"
@@ -69,7 +70,7 @@ struct BuildCommand: AsyncParsableCommand {
     )
     var derivedDataPath: String?
 
-    func run() async throws {
+    public func run() async throws {
         let absolutePath: AbsolutePath
         if let path {
             absolutePath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)

@@ -9,7 +9,13 @@ extension Target {
     public static func target(
         name: String,
         product: Product,
-        dependencies: [TargetDependency]
+        dependencies: [TargetDependency],
+        settings _: Settings = .settings(
+            configurations: [
+                .debug(name: "Debug", settings: [:], xcconfig: nil),
+                .release(name: "Release", settings: [:], xcconfig: nil),
+            ]
+        )
     ) -> Target {
         let rootFolder: String
         switch product {
@@ -26,13 +32,7 @@ extension Target {
             deploymentTarget: Constants.deploymentTarget,
             infoPlist: .default,
             sources: ["\(rootFolder)/\(name)/**/*.swift"],
-            dependencies: dependencies,
-            settings: .settings(
-                configurations: [
-                    .debug(name: "Debug", settings: [:], xcconfig: nil),
-                    .release(name: "Release", settings: [:], xcconfig: nil),
-                ]
-            )
+            dependencies: dependencies
         )
     }
 

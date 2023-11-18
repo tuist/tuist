@@ -4,8 +4,6 @@ import TuistSupport
 import TuistSupportTesting
 import XCTest
 
-@testable import TuistKit
-
 /// Generate a new project using Tuist (suite 1)
 final class GenerateOneAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
     func test_ios_app_with_tests() async throws {
@@ -42,10 +40,8 @@ final class GenerateOneAcceptanceTestInvalidWorkspaceManifestName: TuistAcceptan
         do {
             try await run(GenerateCommand.self)
             XCTFail("Generate command should have failed")
-        } catch let error as FatalError {
-            XCTAssertEqual(error.description, "Manifest not found at path \(fixturePath.pathString)")
         } catch {
-            XCTFail("Unexpected error thrown: \(error)")
+            XCTAssertEqual(String(describing: error), "Manifest not found at path \(fixturePath.pathString)")
         }
     }
 }

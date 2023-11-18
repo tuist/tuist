@@ -1,4 +1,4 @@
-import Checksum
+import CryptoKit
 import Foundation
 import TSCBasic
 import TuistSupport
@@ -17,18 +17,16 @@ public final class ContentHasher: ContentHashing {
 
     // MARK: - ContentHashing
 
-    public func hash(_ data: Data) throws -> String {
-        guard let hash = data.checksum(algorithm: .md5) else {
-            throw ContentHashingError.dataHashingFailed
-        }
-        return hash
+    public func hash(_ data: Data) -> String {
+        Insecure.MD5.hash(data: data)
+            .compactMap { String(format: "%02x", $0) }.joined()
     }
 
     public func hash(_ string: String) throws -> String {
-        guard let hash = string.checksum(algorithm: .md5) else {
+        guard let data = string.data(using: .utf8) else {
             throw ContentHashingError.stringHashingFailed(string)
         }
-        return hash
+        return hash(data)
     }
 
     public func hash(_ strings: [String]) throws -> String {
@@ -64,10 +62,7 @@ public final class ContentHasher: ContentHashing {
         guard let sourceData = try? fileHandler.readFile(filePath) else {
             throw ContentHashingError.failedToReadFile(filePath)
         }
-        guard let hash = sourceData.checksum(algorithm: .md5) else {
-            throw ContentHashingError.fileHashingFailed(filePath)
-        }
 
-        return hash
+        return hash(sourceData)
     }
 }
