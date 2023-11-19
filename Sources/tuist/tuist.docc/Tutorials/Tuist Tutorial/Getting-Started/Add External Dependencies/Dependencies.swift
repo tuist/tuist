@@ -1,9 +1,10 @@
 import ProjectDescription
 
 let dependencies = Dependencies(
-    swiftPackageManager: .init(),
+    swiftPackageManager: .init(
+        productTypes: [
+            "Alamofire": .framework, // default is .staticFramework
+        ]
+    ),
     platforms: [.iOS],
-    productTypes: [
-        "Alamofire": .framework, // default is .staticFramework
-    ]
 )

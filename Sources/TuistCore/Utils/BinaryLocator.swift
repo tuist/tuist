@@ -35,6 +35,10 @@ public final class BinaryLocator: BinaryLocating {
     public init() {}
 
     public func xcbeautifyExecutable() throws -> SwiftPackageExecutable {
+        try xcbeautifyExecutable(environment: Environment.shared)
+    }
+
+    public func xcbeautifyExecutable(environment: Environmenting) throws -> SwiftPackageExecutable {
         var bundlePath = try AbsolutePath(validating: Bundle(for: BinaryLocator.self).bundleURL.path)
         let candidatebinariesPath = [
             bundlePath,
@@ -65,18 +69,34 @@ public final class BinaryLocator: BinaryLocating {
             .removingLastComponent()
             .appending(try RelativePath(validating: "vendor"))
 
-        if FileHandler.shared.exists(bundlePath) {
+        if let xcbeautifyBinaryPath = Environment.shared
+            .tuistConfigVariables[Constants.EnvironmentVariables.xcbeautifyBinaryPath]
+        {
+            return SwiftPackageExecutable(compilation: nil, execution: [xcbeautifyBinaryPath])
+        } else if FileHandler.shared.exists(bundlePath) {
             let compilationCommand = [
                 "/usr/bin/xcrun", "swift", "build", "--configuration", "debug", "--package-path", bundlePath.pathString,
                 "--product", "xcbeautify",
             ]
-            let executionCommand = [
+
+            var executionCommand = [
                 // swiftlint:disable:next force_try
                 bundlePath.appending(try! RelativePath(validating: ".build/debug/xcbeautify")).pathString,
             ]
+            if let renderer = renderer(environment: environment) {
+                executionCommand.append(contentsOf: ["--renderer", "github-actions"])
+            }
+
             return SwiftPackageExecutable(compilation: compilationCommand, execution: executionCommand)
         } else {
             throw BinaryLocatorError.xcbeautifyNotFound
         }
+    }
+
+    private func renderer(environment: Environmenting) -> String? {
+        if environment.isGitHubActions {
+            return "github-actions"
+        }
+        return nil
     }
 }

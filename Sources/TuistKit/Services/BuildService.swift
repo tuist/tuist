@@ -55,6 +55,7 @@ final class BuildService {
         clean: Bool,
         configuration: String?,
         buildOutputPath: AbsolutePath?,
+        derivedDataPath: String?,
         path: AbsolutePath,
         device: String?,
         osVersion: String?,
@@ -74,6 +75,13 @@ final class BuildService {
 
         let graphTraverser = GraphTraverser(graph: graph)
         let buildableSchemes = buildGraphInspector.buildableSchemes(graphTraverser: graphTraverser)
+
+        let derivedDataPath = try derivedDataPath.map {
+            try AbsolutePath(
+                validating: $0,
+                relativeTo: FileHandler.shared.currentPath
+            )
+        }
 
         logger.log(
             level: .debug,
@@ -97,6 +105,7 @@ final class BuildService {
                 clean: clean,
                 configuration: configuration,
                 buildOutputPath: buildOutputPath,
+                derivedDataPath: derivedDataPath,
                 device: device,
                 osVersion: osVersion?.version(),
                 rosetta: rosetta,
@@ -119,6 +128,7 @@ final class BuildService {
                     clean: !cleaned && clean,
                     configuration: configuration,
                     buildOutputPath: buildOutputPath,
+                    derivedDataPath: derivedDataPath,
                     device: device,
                     osVersion: osVersion?.version(),
                     rosetta: rosetta,

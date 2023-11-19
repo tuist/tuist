@@ -156,6 +156,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             .tvTopShelfExtension,
             .systemExtension,
             .extensionKitExtension,
+            .macro,
         ].contains(product)
     }
 

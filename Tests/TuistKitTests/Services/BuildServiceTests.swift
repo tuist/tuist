@@ -97,7 +97,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _device, _osVersion, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
             XCTAssertEqual(_scheme, scheme)
             XCTAssertTrue(_clean)
@@ -144,7 +144,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
             XCTAssertEqual(_scheme, scheme)
             XCTAssertTrue(_clean)
@@ -190,7 +190,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _device, _osVersion, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
             XCTAssertNil(_device)
             XCTAssertNil(_osVersion)
@@ -246,7 +246,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _ in
             XCTAssertEqual(_workspacePath, workspacePath)
 
             if _scheme.name == "A" {
@@ -305,6 +305,7 @@ extension BuildService {
         clean: Bool = true,
         configuration: String? = nil,
         buildOutputPath: AbsolutePath? = nil,
+        derivedDataPath: String? = nil,
         path: AbsolutePath,
         device: String? = nil,
         osVersion: String? = nil,
@@ -316,6 +317,7 @@ extension BuildService {
             clean: clean,
             configuration: configuration,
             buildOutputPath: buildOutputPath,
+            derivedDataPath: derivedDataPath,
             path: path,
             device: device,
             osVersion: osVersion,

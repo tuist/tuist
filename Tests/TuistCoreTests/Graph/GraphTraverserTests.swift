@@ -4163,6 +4163,125 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_directSwiftMacroExecutables_when_targetHasDirectMacroDependencies() {
+        // Given
+        let framework = Target.test(name: "StaticFramework", destinations: [.iPhone], product: .staticFramework)
+        let macro = Target.test(name: "Macro", destinations: [.mac], product: .macro)
+        let project = Project.test(targets: [framework, macro])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: framework.name, path: project.path): Set([.target(name: macro.name, path: project.path)]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                framework.name: framework,
+                macro.name: macro,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.directSwiftMacroExecutables(path: project.path, name: framework.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            .product(target: macro.name, productName: macro.productNameWithExtension, platformFilters: [.macos]),
+        ])
+    }
+
+    func test_directSwiftMacroExecutables_returns_nothing_when_targetDoesntHaveDirectMacroDependencies() {
+        // Given
+        let framework = Target.test(name: "StaticFramework", destinations: [.iPhone], product: .staticFramework)
+        let project = Project.test(targets: [framework])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: framework.name, path: project.path): Set([]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                framework.name: framework,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.directSwiftMacroExecutables(path: project.path, name: framework.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [])
+    }
+
+    func test_directSwiftMacroFrameworkTargets_when_targetHasADirectMacroStaticFrameworkDependency() {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let macroFramework = Target.test(name: "StaticFramework", destinations: [.iPhone], product: .staticFramework)
+        let macro = Target.test(name: "Macro", destinations: [.mac], product: .macro)
+        let project = Project.test(targets: [app, macroFramework, macro])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
+            .target(name: macroFramework.name, path: project.path): Set([.target(name: macro.name, path: project.path)]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                app.name: app,
+                macroFramework.name: macroFramework,
+                macro.name: macro,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.directSwiftMacroFrameworkTargets(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            GraphTarget(path: project.path, target: macroFramework, project: project),
+        ])
+    }
+
+    func test_directSwiftMacroFrameworkTargets_doesntReturnAStaticFramework_when_theStaticFrameworkDoesntDependOnAMacroExecutable(
+    ) {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let macroFramework = Target.test(name: "StaticFramework", destinations: [.iPhone], product: .staticFramework)
+        let project = Project.test(targets: [app, macroFramework])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
+            .target(name: macroFramework.name, path: project.path): Set([]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                app.name: app,
+                macroFramework.name: macroFramework,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.directSwiftMacroFrameworkTargets(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [])
+    }
+
     // MARK: - Helpers
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {

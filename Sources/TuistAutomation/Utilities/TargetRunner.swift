@@ -92,6 +92,7 @@ public final class TargetRunner: TargetRunning {
         let xcodeBuildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
             platform: platform,
             projectPath: workspacePath,
+            derivedDataPath: nil,
             configuration: configuration
         )
         let runnablePath = xcodeBuildDirectory.appending(component: target.target.productNameWithExtension)

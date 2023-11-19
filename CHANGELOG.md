@@ -1,5 +1,33 @@
 # Changelog
 
+## 3.33.3 - 2023-11-18
+
+- no changes
+
+## 3.33.2 - 2023-11-17
+
+- no changes
+
+## 3.33.1 - 2023-11-17
+
+### Changed
+
+- Increase the timeout for uploading and downloading files [#5584](https://github.com/tuist/tuist/pull/5584) by [@pepicrft](https://github.com/pepicrft)
+
+### Added
+
+- Flatten the workspace groups hierarchy for dependencies [#5575](https://github.com/tuist/tuist/pull/5575) by [@pepicrft](https://github.com/pepicrft)
+- Automatically use the github-actions renderer [#5577](https://github.com/tuist/tuist/pull/5577) by [@pepicrft](https://github.com/pepicrft)
+- Config.swift defaults to `https://cloud.tuist.io` as the Tuist Cloud URL [#5581](https://github.com/tuist/tuist/pull/5581) by [@pepicrft](https://github.com/pepicrft)
+
+## 3.33.0 - 2023-11-15
+
+- no changes
+
+## 3.32.1 - 2023-11-14
+
+- no changes
+
 ## 3.32.0 - 2023-11-06
 
 ### Added

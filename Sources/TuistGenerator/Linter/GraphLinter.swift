@@ -340,28 +340,33 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .appClip),
 //            LintableTarget(platform: .watchOS, product: .watchApp),
             LintableTarget(platform: .iOS, product: .extensionKitExtension),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .staticLibrary): [
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .staticFramework): [
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .dynamicLibrary): [
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .framework): [
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .unitTests): [
             LintableTarget(platform: .iOS, product: .app),
@@ -371,6 +376,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .bundle),
             LintableTarget(platform: .iOS, product: .appClip),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .uiTests): [
             LintableTarget(platform: .iOS, product: .app),
@@ -380,41 +386,41 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .bundle),
             LintableTarget(platform: .iOS, product: .appClip),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .appExtension): [
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .framework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .appClip): [
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .extensionKitExtension): [
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
             LintableTarget(platform: .iOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
-        //        LintableTarget(platform: .iOS, product: .messagesApplication): [
-//            LintableTarget(platform: .iOS, product: .messagesExtension),
-//            LintableTarget(platform: .iOS, product: .staticLibrary),
-//            LintableTarget(platform: .iOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .iOS, product: .framework),
-//        ],
         LintableTarget(platform: .iOS, product: .messagesExtension): [
             LintableTarget(platform: .iOS, product: .staticFramework),
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .iOS, product: .stickerPackExtension): [
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         // macOS
         LintableTarget(platform: .macOS, product: .app): [
@@ -427,6 +433,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .commandLineTool),
             LintableTarget(platform: .macOS, product: .xpc),
             LintableTarget(platform: .macOS, product: .systemExtension),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .macOS, product: .staticLibrary): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
@@ -434,22 +441,26 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .staticFramework),
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .macOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .macOS, product: .staticFramework): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .staticFramework),
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .macOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .macOS, product: .dynamicLibrary): [
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .macOS, product: .framework): [
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .staticFramework),
             LintableTarget(platform: .macOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .macOS, product: .unitTests): [
             LintableTarget(platform: .macOS, product: .app),
@@ -457,6 +468,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .macOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .macOS, product: .uiTests): [
             LintableTarget(platform: .macOS, product: .app),
@@ -464,23 +476,27 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .macOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .macOS, product: .appExtension): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .framework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .macOS, product: .commandLineTool): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .staticFramework),
             LintableTarget(platform: .macOS, product: .framework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .macOS, product: .xpc): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .staticFramework),
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .framework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .tvOS, product: .app): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),
@@ -489,6 +505,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .tvOS, product: .staticFramework),
             LintableTarget(platform: .tvOS, product: .bundle),
             LintableTarget(platform: .tvOS, product: .tvTopShelfExtension),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .tvOS, product: .uiTests): [
             LintableTarget(platform: .tvOS, product: .app),
@@ -496,28 +513,33 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .tvOS, product: .dynamicLibrary),
             LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .tvOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .tvOS, product: .staticLibrary): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),
             LintableTarget(platform: .tvOS, product: .staticFramework),
             LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .tvOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .tvOS, product: .staticFramework): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),
             LintableTarget(platform: .tvOS, product: .staticFramework),
             LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .tvOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .tvOS, product: .dynamicLibrary): [
             LintableTarget(platform: .tvOS, product: .dynamicLibrary),
             LintableTarget(platform: .tvOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .tvOS, product: .framework): [
             LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .tvOS, product: .staticLibrary),
             LintableTarget(platform: .tvOS, product: .staticFramework),
             LintableTarget(platform: .tvOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .tvOS, product: .unitTests): [
             LintableTarget(platform: .tvOS, product: .app),
@@ -525,50 +547,51 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .tvOS, product: .dynamicLibrary),
             LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .tvOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .tvOS, product: .tvTopShelfExtension): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),
             LintableTarget(platform: .tvOS, product: .dynamicLibrary),
             LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .tvOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
-        // watchOS
-//        LintableTarget(platform: .watchOS, product: .watchApp): [
-//            LintableTarget(platform: .watchOS, product: .staticLibrary),
-//            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .watchOS, product: .framework),
-//            LintableTarget(platform: .watchOS, product: .watchExtension),
-//        ],
         LintableTarget(platform: .watchOS, product: .app): [
             LintableTarget(platform: .watchOS, product: .staticLibrary),
             LintableTarget(platform: .watchOS, product: .dynamicLibrary),
             LintableTarget(platform: .watchOS, product: .framework),
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .appExtension),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .watchOS, product: .watch2App): [
             LintableTarget(platform: .watchOS, product: .watch2Extension),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .watchOS, product: .staticLibrary): [
             LintableTarget(platform: .watchOS, product: .staticLibrary),
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .watchOS, product: .staticFramework): [
             LintableTarget(platform: .watchOS, product: .staticLibrary),
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .framework),
             LintableTarget(platform: .watchOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .watchOS, product: .dynamicLibrary): [
             LintableTarget(platform: .watchOS, product: .dynamicLibrary),
             LintableTarget(platform: .watchOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .watchOS, product: .framework): [
             LintableTarget(platform: .watchOS, product: .staticLibrary),
             LintableTarget(platform: .watchOS, product: .framework),
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .watchOS, product: .unitTests): [
             LintableTarget(platform: .watchOS, product: .staticLibrary),
@@ -576,6 +599,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .watch2Extension),
             LintableTarget(platform: .watchOS, product: .app),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .watchOS, product: .uiTests): [
             LintableTarget(platform: .watchOS, product: .staticLibrary),
@@ -583,18 +607,15 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .watch2App),
             LintableTarget(platform: .watchOS, product: .app),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
-        //        LintableTarget(platform: .watchOS, product: .watchExtension): [
-//            LintableTarget(platform: .watchOS, product: .staticLibrary),
-//            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .watchOS, product: .framework),
-//        ],
         LintableTarget(platform: .watchOS, product: .watch2Extension): [
             LintableTarget(platform: .watchOS, product: .staticLibrary),
             LintableTarget(platform: .watchOS, product: .dynamicLibrary),
             LintableTarget(platform: .watchOS, product: .framework),
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .appExtension),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
 
         LintableTarget(platform: .watchOS, product: .appExtension): [
@@ -602,12 +623,14 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .watchOS, product: .dynamicLibrary),
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .framework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .macOS, product: .systemExtension): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .macOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
 
         // visionOS products
@@ -619,28 +642,33 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .visionOS, product: .bundle),
             LintableTarget(platform: .visionOS, product: .appExtension),
             LintableTarget(platform: .visionOS, product: .extensionKitExtension),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .visionOS, product: .staticLibrary): [
             LintableTarget(platform: .visionOS, product: .staticLibrary),
             LintableTarget(platform: .visionOS, product: .staticFramework),
             LintableTarget(platform: .visionOS, product: .framework),
             LintableTarget(platform: .visionOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .visionOS, product: .staticFramework): [
             LintableTarget(platform: .visionOS, product: .staticLibrary),
             LintableTarget(platform: .visionOS, product: .staticFramework),
             LintableTarget(platform: .visionOS, product: .framework),
             LintableTarget(platform: .visionOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .visionOS, product: .dynamicLibrary): [
             LintableTarget(platform: .visionOS, product: .dynamicLibrary),
             LintableTarget(platform: .visionOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .visionOS, product: .framework): [
             LintableTarget(platform: .visionOS, product: .framework),
             LintableTarget(platform: .visionOS, product: .staticLibrary),
             LintableTarget(platform: .visionOS, product: .staticFramework),
             LintableTarget(platform: .visionOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .visionOS, product: .unitTests): [
             LintableTarget(platform: .visionOS, product: .app),
@@ -649,18 +677,26 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .visionOS, product: .framework),
             LintableTarget(platform: .visionOS, product: .staticFramework),
             LintableTarget(platform: .visionOS, product: .bundle),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .visionOS, product: .appExtension): [
             LintableTarget(platform: .visionOS, product: .staticLibrary),
             LintableTarget(platform: .visionOS, product: .dynamicLibrary),
             LintableTarget(platform: .visionOS, product: .staticFramework),
             LintableTarget(platform: .visionOS, product: .framework),
+            LintableTarget(platform: .macOS, product: .macro),
         ],
         LintableTarget(platform: .visionOS, product: .extensionKitExtension): [
             LintableTarget(platform: .visionOS, product: .staticLibrary),
             LintableTarget(platform: .visionOS, product: .dynamicLibrary),
             LintableTarget(platform: .visionOS, product: .framework),
             LintableTarget(platform: .visionOS, product: .staticFramework),
+            LintableTarget(platform: .macOS, product: .macro),
+        ],
+        // Swift Macro
+        LintableTarget(platform: .macOS, product: .macro): [
+            LintableTarget(platform: .macOS, product: .staticLibrary),
+            LintableTarget(platform: .macOS, product: .staticFramework),
         ],
     ]
 } // swiftlint:enable type_body_length

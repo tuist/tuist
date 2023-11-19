@@ -231,6 +231,7 @@ If you are interested in contributing to the project, our documentation has a se
     <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a><br /></td>
     <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/danyf90"><img src="https://avatars.githubusercontent.com/u/2794031?v=4" width="100px;" alt=""/><br /><sub><b>Daniele Formichelli</b></sub></a><br /></td>
+    <td align="center" valign="top" width="14.28%"><a href="https://github.com/waltflanagan"><img src="https://avatars.githubusercontent.com/u/398293?v=4" width="100px;" alt=""/><br /><sub><b>Mike Simons</b></sub></a></td>
   </tr>
 </table>
 
@@ -396,7 +397,7 @@ Thanks goes to these wonderful people:
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/MontakOleg"><img src="https://avatars.githubusercontent.com/u/1800899?v=4" width="100px;" alt=""/><br /><sub><b>MontakOleg</b></sub></a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/waltflanagan"><img src="https://avatars.githubusercontent.com/u/398293?v=4" width="100px;" alt=""/><br /><sub><b>Mike Simons</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://blog.jihoon.me"><img src="https://avatars.githubusercontent.com/u/68891494?v=4" width="100px;" alt=""/><br /><sub><b>안지훈</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/oozoofrog"><img src="https://avatars.githubusercontent.com/u/3011832?v=4" width="100px;" alt=""/><br /><sub><b>oozoofrog</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/MartinStrambach"><img src="https://avatars.githubusercontent.com/u/11178869?v=4" width="100px;" alt=""/><br /><sub><b>Martin Strambach</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/sh-a-n"><img src="https://avatars.githubusercontent.com/u/2219548?v=4" width="100px;" alt=""/><br /><sub><b>sh-a-n</b></sub></a></td>
@@ -434,7 +435,6 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="http://dc.wtf"><img src="https://avatars.githubusercontent.com/u/643865?v=4" width="100px;" alt=""/><br /><sub><b>dc</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/baekteun"><img src="https://avatars.githubusercontent.com/u/74440939?v=4" width="100px;" alt=""/><br /><sub><b>baegteun</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://vcoutasso.com"><img src="https://avatars.githubusercontent.com/u/44986513?v=4" width="100px;" alt=""/><br /><sub><b>Vinícius Couto Tasso</b></sub></a></td>
-      <td align="center" valign="top" width="14.28%"><a href="http://blog.jihoon.me"><img src="https://avatars.githubusercontent.com/u/68891494?v=4" width="100px;" alt=""/><br /><sub><b>안지훈</b></sub></a></td>
     </tr>
   </tbody>
 </table>
