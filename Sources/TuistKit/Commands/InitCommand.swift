@@ -12,15 +12,15 @@ import TuistSupport
 private typealias Platform = TuistGraph.Platform
 private typealias Product = TuistGraph.Product
 
-struct InitCommand: ParsableCommand, HasTrackableParameters {
-    static var configuration: CommandConfiguration {
+public struct InitCommand: ParsableCommand, HasTrackableParameters {
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "init",
             abstract: "Bootstraps a project"
         )
     }
 
-    static var analyticsDelegate: TrackableParametersDelegate?
+    public static var analyticsDelegate: TrackableParametersDelegate?
 
     @Option(
         help: "The platform (ios, tvos, visionos, watchos or macos) the product will be for (Default: ios)",
@@ -50,10 +50,10 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
     var requiredTemplateOptions: [String: String] = [:]
     var optionalTemplateOptions: [String: String?] = [:]
 
-    init() {}
+    public init() {}
 
     // Custom decoding to decode dynamic options
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         platform = try container.decodeIfPresent(Option<String>.self, forKey: .platform)?.wrappedValue
         name = try container.decodeIfPresent(Option<String>.self, forKey: .name)?.wrappedValue
@@ -73,7 +73,7 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
         }
     }
 
-    func run() throws {
+    public func run() throws {
         InitCommand.analyticsDelegate?.addParameters(
             [
                 "platform": AnyCodable(platform ?? "unknown"),
@@ -192,7 +192,7 @@ extension InitCommand {
 /// ArgumentParser library gets the list of options from a mirror
 /// Since we do not declare template's options in advance, we need to rewrite the mirror implementation and add them ourselves
 extension InitCommand: CustomReflectable {
-    var customMirror: Mirror {
+    public var customMirror: Mirror {
         let requiredTemplateChildren = InitCommand.requiredTemplateOptions
             .map { Mirror.Child(label: $0.name, value: $0.option) }
         let optionalTemplateChildren = InitCommand.optionalTemplateOptions

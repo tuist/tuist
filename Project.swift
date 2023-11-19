@@ -29,7 +29,20 @@ func targets() -> [Target] {
                 .target(name: "TuistKit"),
                 .target(name: "ProjectDescription"),
                 .target(name: "ProjectAutomation"),
-            ]
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
+                .external(name: "GraphViz"),
+                .external(name: "ArgumentParser"),
+            ],
+            settings: .settings(
+                base: [
+                    "LD_RUNPATH_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+                ],
+                configurations: [
+                    .debug(name: "Debug", settings: [:], xcconfig: nil),
+                    .release(name: "Release", settings: [:], xcconfig: nil),
+                ]
+            )
         ),
         Target.target(
             name: "tuistbenchmark",
@@ -37,6 +50,7 @@ func targets() -> [Target] {
             dependencies: [
                 .external(name: "ArgumentParser"),
                 .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
             ]
         ),
         Target.target(
@@ -45,6 +59,7 @@ func targets() -> [Target] {
             dependencies: [
                 .external(name: "ArgumentParser"),
                 .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
             ]
         ),
         Target.target(
@@ -57,6 +72,9 @@ func targets() -> [Target] {
                 .target(name: "TuistCoreTesting"),
                 .target(name: "TuistGraphTesting"),
                 .target(name: "TuistLoaderTesting"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
+                .external(name: "XcodeProj"),
             ]
         ),
     ]
@@ -65,23 +83,16 @@ func targets() -> [Target] {
             name: "TuistSupport",
             hasIntegrationTests: true,
             dependencies: [
-                .external(name: "AnyCodable"),
-                .external(name: "ArgumentParser"),
-                .external(name: "Checksum"),
-                .external(name: "CombineExt"),
-                .external(name: "CryptoSwift"),
-                .external(name: "GraphViz"),
-                .external(name: "KeychainAccess"),
-                .external(name: "Logging"),
-                .external(name: "PathKit"),
-                .external(name: "Queuer"),
-                .external(name: "Stencil"),
-                .external(name: "StencilSwiftKit"),
-                .external(name: "SwiftToolsSupport"),
-                .external(name: "Swifter"),
-                .external(name: "XcodeProj"),
-                .external(name: "ZIPFoundation"),
                 .target(name: "ProjectDescription"),
+                .external(name: "AnyCodable"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
+                .external(name: "XcodeProj"),
+                .external(name: "KeychainAccess"),
+                .external(name: "CombineExt"),
+                .external(name: "Logging"),
+                .external(name: "ZIPFoundation"),
+                .external(name: "Swifter"),
             ],
             testingDependencies: [
                 .target(name: "TuistCore"),
@@ -107,6 +118,11 @@ func targets() -> [Target] {
                 .target(name: "TuistAnalytics"),
                 .target(name: "TuistPlugin"),
                 .target(name: "TuistGraph"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
+                .external(name: "ArgumentParser"),
+                .external(name: "GraphViz"),
+                .external(name: "AnyCodable"),
             ],
             testDependencies: [
                 .target(name: "TuistAutomation"),
@@ -125,6 +141,9 @@ func targets() -> [Target] {
                 .target(name: "TuistGraphTesting"),
                 .target(name: "TuistPlugin"),
                 .target(name: "TuistPluginTesting"),
+                .external(name: "ArgumentParser"),
+                .external(name: "GraphViz"),
+                .external(name: "AnyCodable"),
             ],
             integrationTestsDependencies: [
                 .target(name: "TuistCoreTesting"),
@@ -133,6 +152,7 @@ func targets() -> [Target] {
                 .target(name: "ProjectAutomation"),
                 .target(name: "TuistLoaderTesting"),
                 .target(name: "TuistGraphTesting"),
+                .external(name: "XcodeProj"),
             ]
         ),
         Target.module(
@@ -140,6 +160,9 @@ func targets() -> [Target] {
             hasTesting: false,
             dependencies: [
                 .target(name: "TuistSupport"),
+                .external(name: "ArgumentParser"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
             ],
             testDependencies: [
                 .target(name: "TuistSupportTesting"),
@@ -150,16 +173,20 @@ func targets() -> [Target] {
             dependencies: [
                 .target(name: "TuistSupport"),
                 .external(name: "AnyCodable"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
             ],
             testDependencies: [
                 .target(name: "TuistCore"),
                 .target(name: "TuistCoreTesting"),
                 .target(name: "TuistSupport"),
                 .target(name: "TuistSupportTesting"),
+                .external(name: "XcodeProj"),
             ],
             testingDependencies: [
                 .target(name: "TuistSupport"),
                 .target(name: "TuistSupportTesting"),
+                .external(name: "XcodeProj"),
             ]
         ),
         Target.module(
@@ -169,6 +196,9 @@ func targets() -> [Target] {
                 .target(name: "ProjectDescription"),
                 .target(name: "TuistSupport"),
                 .target(name: "TuistGraph"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
+                .external(name: "XcodeProj"),
             ],
             testDependencies: [
                 .target(name: "TuistSupport"),
@@ -194,22 +224,32 @@ func targets() -> [Target] {
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupport"),
                 .external(name: "SwiftGenKit"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
+                .external(name: "PathKit"),
+                .external(name: "StencilSwiftKit"),
+                .external(name: "XcodeProj"),
+                .external(name: "GraphViz"),
             ],
             testDependencies: [
                 .target(name: "TuistCoreTesting"),
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistGraphTesting"),
+                .external(name: "XcodeProj"),
+                .external(name: "GraphViz"),
             ],
             testingDependencies: [
                 .target(name: "TuistCoreTesting"),
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistGraphTesting"),
+                .external(name: "XcodeProj"),
             ],
             integrationTestsDependencies: [
                 .target(name: "TuistCoreTesting"),
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistGraphTesting"),
                 .target(name: "TuistSigningTesting"),
+                .external(name: "XcodeProj"),
             ]
         ),
         Target.module(
@@ -219,6 +259,10 @@ func targets() -> [Target] {
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupport"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
+                .external(name: "PathKit"),
+                .external(name: "StencilSwiftKit"),
             ],
             testDependencies: [
                 .target(name: "TuistSupportTesting"),
@@ -241,6 +285,9 @@ func targets() -> [Target] {
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupport"),
                 .target(name: "ProjectDescription"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
+                .external(name: "XcodeProj"),
             ],
             testDependencies: [
                 .target(name: "TuistGraphTesting"),
@@ -265,11 +312,16 @@ func targets() -> [Target] {
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupport"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
+                .external(name: "Queuer"),
+                .external(name: "XcodeProj"),
             ],
             testDependencies: [
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistCoreTesting"),
                 .target(name: "TuistGraphTesting"),
+                .external(name: "Queuer"),
             ],
             testingDependencies: [
                 .target(name: "TuistGraphTesting"),
@@ -278,10 +330,13 @@ func targets() -> [Target] {
         Target.module(
             name: "TuistPlugin",
             dependencies: [
+                .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistLoader"),
                 .target(name: "TuistSupport"),
                 .target(name: "TuistScaffold"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
             ],
             testDependencies: [
                 .target(name: "ProjectDescription"),
@@ -299,6 +354,7 @@ func targets() -> [Target] {
         ),
         Target.module(
             name: "ProjectDescription",
+            product: .framework,
             hasTesting: false,
             testDependencies: [
                 .target(name: "TuistSupportTesting"),
@@ -307,6 +363,7 @@ func targets() -> [Target] {
         ),
         Target.module(
             name: "ProjectAutomation",
+            product: .framework,
             hasTests: false,
             hasTesting: false,
             dependencies: []
@@ -318,6 +375,9 @@ func targets() -> [Target] {
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupport"),
+                .external(name: "CryptoSwift"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
             ],
             testDependencies: [
                 .target(name: "TuistSupportTesting"),
@@ -337,8 +397,10 @@ func targets() -> [Target] {
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistLoader"),
-                .external(name: "AnyCodable"),
                 .target(name: "TuistSupport"),
+                .external(name: "AnyCodable"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
             ],
             testDependencies: [
                 .target(name: "TuistSupportTesting"),
@@ -353,6 +415,10 @@ func targets() -> [Target] {
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupport"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
+                .external(name: "PathKit"),
+                .external(name: "XcodeProj"),
             ],
             testDependencies: [
                 .target(name: "TuistSupportTesting"),
@@ -375,6 +441,8 @@ func targets() -> [Target] {
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupport"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
             ],
             testDependencies: [
                 .target(name: "TuistCoreTesting"),
@@ -384,6 +452,7 @@ func targets() -> [Target] {
             ],
             testingDependencies: [
                 .target(name: "TuistGraphTesting"),
+                .target(name: "ProjectDescription"),
             ]
         ),
         Target.module(
@@ -393,6 +462,9 @@ func targets() -> [Target] {
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupport"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
+                .external(name: "XcodeProj"),
             ],
             testDependencies: [
                 .target(name: "TuistSupportTesting"),
@@ -420,6 +492,8 @@ func targets() -> [Target] {
             dependencies: [
                 .target(name: "TuistKit"),
                 .target(name: "TuistSupportTesting"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
                 .sdk(name: "XCTest", type: .framework, status: .optional),
             ]
         ),
@@ -432,9 +506,11 @@ let acceptanceTests: [(target: Target, scheme: Scheme)] = ["Build", "GenerateOne
             name: "Tuist\($0)AcceptanceTests",
             product: .unitTests,
             dependencies: [
-                .target(name: "TuistKit"),
                 .target(name: "TuistAcceptanceTesting"),
                 .target(name: "TuistSupportTesting"),
+                .target(name: "TuistKit"),
+                .external(name: "SwiftToolsSupport"),
+                .external(name: "SystemPackage"),
             ]
         ),
         scheme: Scheme(
@@ -451,7 +527,10 @@ let acceptanceTests: [(target: Target, scheme: Scheme)] = ["Build", "GenerateOne
             ),
             runAction: .runAction(
                 arguments: Arguments(
-                    environmentVariables: ["TUIST_CONFIG_SRCROOT": "$(SRCROOT)"]
+                    environmentVariables: [
+                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
+                        "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
+                    ]
                 )
             )
         )

@@ -1,4 +1,4 @@
-import Checksum
+import CryptoKit
 import Foundation
 
 public protocol MachineEnvironmentRetrieving {
@@ -28,7 +28,8 @@ public class MachineEnvironment: MachineEnvironmentRetrieving {
             kCFAllocatorDefault,
             0
         ).takeRetainedValue() as! String // swiftlint:disable:this force_cast
-        return uuid.checksum(algorithm: .md5)!
+        return Insecure.MD5.hash(data: uuid.data(using: .utf8)!)
+            .compactMap { String(format: "%02x", $0) }.joined()
     }()
 
     /// The `macOSVersion` of the machine running Tuist, in the format major.minor.path, e.g: "10.15.7"

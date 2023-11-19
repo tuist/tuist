@@ -2,47 +2,57 @@
 import TSCBasic
 import TuistCore
 import TuistGraph
-import TuistSupportTesting
+@_exported import TuistKit
 import XCTest
 
-@testable import TuistKit
 @testable import TuistSupport
+@testable import TuistSupportTesting
 
 public enum Destination {
     case simulator, device
 }
 
-open class TuistAcceptanceTestCase: TuistTestCase {
+open class TuistAcceptanceTestCase: XCTestCase {
     public var xcodeprojPath: AbsolutePath!
     public var workspacePath: AbsolutePath!
     public var fixturePath: AbsolutePath!
     public var derivedDataPath: AbsolutePath!
+    public var environment: MockEnvironment!
 
     private var sourceRootPath: AbsolutePath!
+    private var fixtureTemporaryDirectory: TemporaryDirectory!
 
     override open func setUp() {
         super.setUp()
 
         derivedDataPath = try! TemporaryDirectory(removeTreeOnDeinit: true).path
+        fixtureTemporaryDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
 
         sourceRootPath = try! AbsolutePath(
             validating: ProcessInfo.processInfo.environment[
                 "TUIST_CONFIG_SRCROOT"
             ]!
         )
+
+        do {
+            // Environment
+            environment = try MockEnvironment()
+            Environment.shared = environment
+        } catch {
+            XCTFail("Failed to setup environment")
+        }
         environment.tuistConfigVariables[
             Constants.EnvironmentVariables.xcbeautifyBinaryPath
         ] = sourceRootPath
             .appending(components: ["vendor", ".build", "debug", "xcbeautify"])
             .pathString
-
-        DeveloperEnvironment.shared = DeveloperEnvironment()
     }
 
     override open func tearDown() async throws {
         xcodeprojPath = nil
         workspacePath = nil
         fixturePath = nil
+        fixtureTemporaryDirectory = nil
         derivedDataPath = nil
 
         try await super.tearDown()
@@ -52,7 +62,7 @@ open class TuistAcceptanceTestCase: TuistTestCase {
         let fixturesPath = sourceRootPath
             .appending(component: "fixtures")
 
-        fixturePath = FileHandler.shared.currentPath.appending(component: fixture)
+        fixturePath = fixtureTemporaryDirectory.path.appending(component: fixture)
 
         try FileHandler.shared.copy(
             from: fixturesPath.appending(component: fixture),
@@ -110,7 +120,7 @@ open class TuistAcceptanceTestCase: TuistTestCase {
 
     public func run(_ command: (some ParsableCommand).Type, _ arguments: [String] = []) throws {
         if String(describing: command) == "InitCommand" {
-            fixturePath = FileHandler.shared.currentPath.appending(
+            fixturePath = fixtureTemporaryDirectory.path.appending(
                 component: arguments[arguments.firstIndex(where: { $0 == "--name" })! + 1]
             )
         }

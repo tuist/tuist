@@ -49,7 +49,6 @@ var targets: [Target] = [
             "TuistSupport",
             "TuistGraph",
             "XcodeProj",
-            "Checksum",
         ]
     ),
     .target(
@@ -174,7 +173,6 @@ var targets: [Target] = [
             "KeychainAccess",
             swifterDependency,
             "ZIPFoundation",
-            "Checksum",
             "ProjectDescription",
         ]
     ),
@@ -653,7 +651,6 @@ let package = Package(
         .package(url: "https://github.com/httpswift/swifter.git", revision: "1e4f51c92d7ca486242d8bf0722b99de2c3531aa"),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess", from: "4.2.2"),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift", from: "1.8.0"),
-        .package(url: "https://github.com/rnine/Checksum", from: "1.0.2"),
         .package(url: "https://github.com/stencilproject/Stencil", exact: "0.15.1"),
         .package(url: "https://github.com/SwiftDocOrg/GraphViz", exact: "0.2.0"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),

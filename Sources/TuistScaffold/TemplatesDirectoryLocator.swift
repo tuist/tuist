@@ -31,12 +31,17 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
 
     public func locateTuistTemplates() -> AbsolutePath? {
         #if DEBUG
-            // Used only for debug purposes to find templates in your tuist working directory
-            // `bundlePath` points to tuist/Templates
-            let maybeBundlePath = try? AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
-                .removingLastComponent()
-                .removingLastComponent()
-                .removingLastComponent()
+            let maybeBundlePath: AbsolutePath?
+            if let sourceRoot = ProcessEnv.vars["TUIST_CONFIG_SRCROOT"] {
+                maybeBundlePath = try? AbsolutePath(validating: sourceRoot).appending(component: "Templates")
+            } else {
+                // Used only for debug purposes to find templates in your tuist working directory
+                // `bundlePath` points to tuist/Templates
+                maybeBundlePath = try? AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
+                    .removingLastComponent()
+                    .removingLastComponent()
+                    .removingLastComponent()
+            }
         #else
             let maybeBundlePath = try? AbsolutePath(validating: Bundle(for: TemplatesDirectoryLocator.self).bundleURL.path)
         #endif

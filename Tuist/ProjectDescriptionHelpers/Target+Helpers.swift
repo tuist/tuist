@@ -9,7 +9,13 @@ extension Target {
     public static func target(
         name: String,
         product: Product,
-        dependencies: [TargetDependency]
+        dependencies: [TargetDependency],
+        settings _: Settings = .settings(
+            configurations: [
+                .debug(name: "Debug", settings: [:], xcconfig: nil),
+                .release(name: "Release", settings: [:], xcconfig: nil),
+            ]
+        )
     ) -> Target {
         let rootFolder: String
         switch product {
@@ -26,13 +32,7 @@ extension Target {
             deploymentTarget: Constants.deploymentTarget,
             infoPlist: .default,
             sources: ["\(rootFolder)/\(name)/**/*.swift"],
-            dependencies: dependencies,
-            settings: .settings(
-                configurations: [
-                    .debug(name: "Debug", settings: [:], xcconfig: nil),
-                    .release(name: "Release", settings: [:], xcconfig: nil),
-                ]
-            )
+            dependencies: dependencies
         )
     }
 
@@ -43,7 +43,7 @@ extension Target {
     ///     - integrationTestsDependencies: Dependencies for the integration tests.
     public static func module(
         name: String,
-        product: Product = .framework,
+        product: Product = .staticFramework,
         hasTests: Bool = true,
         hasTesting: Bool = true,
         hasIntegrationTests: Bool = false,
@@ -67,6 +67,8 @@ extension Target {
                     product: .unitTests,
                     dependencies: testDependencies + [
                         .target(name: name),
+                        .external(name: "SwiftToolsSupport"),
+                        .external(name: "SystemPackage"),
                     ]
                         + (hasTesting ? [.target(name: "\(name)Testing")] : [])
                 )
@@ -80,6 +82,8 @@ extension Target {
                     product: product,
                     dependencies: testingDependencies + [
                         .target(name: name),
+                        .external(name: "SwiftToolsSupport"),
+                        .external(name: "SystemPackage"),
                         .sdk(name: "XCTest", type: .framework, status: .optional),
                     ]
                 )
@@ -93,6 +97,8 @@ extension Target {
                     product: .unitTests,
                     dependencies: integrationTestsDependencies + [
                         .target(name: name),
+                        .external(name: "SwiftToolsSupport"),
+                        .external(name: "SystemPackage"),
                     ]
                         + (hasTesting ? [.target(name: "\(name)Testing")] : [])
                 )
