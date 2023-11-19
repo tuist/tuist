@@ -52,6 +52,17 @@ jobs:
       - name: Build ProjectDescription for release
         run: swift build -c release --product ProjectDescription
 
+  test:
+    name: Test with Xcode
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v3
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Test
+        run: |
+          ARGS="--skip-test-targets TuistBuildAcceptanceTests TuistGenerateOneAcceptanceTests" make tuist/test
+
   acceptance_tests:
     name: ${{ matrix.feature }} acceptance tests with Tuist
     runs-on: macos-13
