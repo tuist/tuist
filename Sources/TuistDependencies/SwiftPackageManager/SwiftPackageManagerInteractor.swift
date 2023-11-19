@@ -161,7 +161,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             isLegacy: isLegacy,
             packageManifestFolder: packageManifestPath.removingLastComponent()
         )
-        let content: String;
+        let content: String
         switch manifest {
         case let .content(inputContent):
             content = inputContent
