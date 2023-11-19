@@ -160,6 +160,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
         rosetta: Bool,
         skipUITests: Bool,
         resultBundlePath: AbsolutePath?,
+        derivedDataPath: String?,
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
@@ -207,6 +208,13 @@ public final class TestService { // swiftlint:disable:this type_body_length
             "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
         )
 
+        let derivedDataPath = try derivedDataPath.map {
+            try AbsolutePath(
+                validating: $0,
+                relativeTo: FileHandler.shared.currentPath
+            )
+        }
+
         if let schemeName {
             guard let scheme = testableSchemes.first(where: { $0.name == schemeName })
             else {
@@ -239,6 +247,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     deviceName: deviceName,
                     rosetta: rosetta,
                     resultBundlePath: resultBundlePath,
+                    derivedDataPath: derivedDataPath,
                     retryCount: retryCount,
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
@@ -266,6 +275,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     deviceName: deviceName,
                     rosetta: rosetta,
                     resultBundlePath: resultBundlePath,
+                    derivedDataPath: derivedDataPath,
                     retryCount: retryCount,
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
@@ -307,6 +317,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
         deviceName: String?,
         rosetta: Bool,
         resultBundlePath: AbsolutePath?,
+        derivedDataPath: AbsolutePath?,
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
@@ -350,7 +361,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
             clean: clean,
             destination: destination,
             rosetta: rosetta,
-            derivedDataPath: nil,
+            derivedDataPath: derivedDataPath,
             resultBundlePath: resultBundlePath,
             arguments: buildGraphInspector.buildArguments(
                 project: buildableTarget.project,

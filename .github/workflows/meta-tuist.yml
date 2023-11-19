@@ -12,6 +12,7 @@ on:
       - Package.swift
       - Project.swift
       - Sources/**
+      - '!Sources/**/*.docc'
       - Tests/**
       - features/**
       - fixtures/**
@@ -21,11 +22,6 @@ on:
 concurrency:
   group: meta-tuist-${{ github.head_ref }}
   cancel-in-progress: true
-
-env:
-  RUBY_VERSION: '3.0.3'
-  TUIST_STATS_OPT_OUT: true
-  TUIST_CONFIG_CLOUD_TOKEN: ${{ secrets.TUIST_CONFIG_CLOUD_TOKEN }}
 
 jobs:
   build:
@@ -38,7 +34,7 @@ jobs:
       - name: Build
         run: |
           make tuist/build
-          
+
   generate:
     name: Generate with Xcode
     runs-on: macos-13
@@ -49,6 +45,7 @@ jobs:
       - name: Generate
         run: |
           ARGS="--no-open" make tuist/generate
+
   test:
     name: Test with Xcode
     runs-on: macos-13
@@ -58,4 +55,4 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Test
         run: |
-          make tuist/test
+          ARGS="--skip-test-targets TuistBuildAcceptanceTests TuistGenerateOneAcceptanceTests" make tuist/test

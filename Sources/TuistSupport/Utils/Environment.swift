@@ -36,6 +36,9 @@ public protocol Environmenting: AnyObject {
     /// Returns true unless the user specifically opted out from stats
     var isStatsEnabled: Bool { get }
 
+    /// Returns true if the environment is a GitHub Actions environment
+    var isGitHubActions: Bool { get }
+
     /// Sets up the local environment.
     func bootstrap() throws
 }
@@ -92,6 +95,15 @@ public class Environment: Environmenting {
             return Constants.trueValues.contains(coloredOutput)
         } else {
             return isStandardOutputInteractive
+        }
+    }
+
+    /// Returns true if the environment represents a GitHub Actions environment
+    public var isGitHubActions: Bool {
+        if let githubActions = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] {
+            return Constants.trueValues.contains(githubActions)
+        } else {
+            return false
         }
     }
 

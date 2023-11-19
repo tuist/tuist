@@ -703,6 +703,99 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateTargetConfig_addsTheLoadPluginExecutableSwiftFlag_when_tagetDependsOnMacroStaticFramework() throws {
+        // Given
+        let projectSettings = Settings.default
+        let app = Target.test(name: "app", platform: .iOS, product: .app)
+        let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
+        let macroExecutable = Target.test(name: "macro", platform: .macOS, product: .macro)
+        let project = Project.test(targets: [app, macroFramework, macroExecutable])
+
+        let graph = Graph.test(path: project.path, projects: [project.path: project], targets: [
+            project.path: [
+                app.name: app,
+                macroFramework.name: macroFramework,
+                macroExecutable.name: macroExecutable,
+            ],
+        ], dependencies: [
+            .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
+            .target(name: macroFramework.name, path: project.path): Set([.target(
+                name: macroExecutable.name,
+                path: project.path
+            )]),
+            .target(name: macroExecutable.name, path: project.path): Set([]),
+        ])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            app,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["OTHER_SWIFT_FLAGS"]
+        XCTAssertEqual(
+            targetSettingsResult,
+            .array([
+                "-load-plugin-executable",
+                "$BUILT_PRODUCTS_DIR/\(macroFramework.productNameWithExtension)/Macros/\(macroExecutable.productName)/#\(macroExecutable.productName)",
+            ])
+        )
+    }
+
+    func test_generateTargetConfig_doesntAddTheLoadPluginExecutableSwiftFlag_when_theTargetDependsOnAStaticFrameworkThatDoesntRepresentAMacro(
+    ) throws {
+        // Given
+        let projectSettings = Settings.default
+        let app = Target.test(name: "app", platform: .iOS, product: .app)
+        let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
+        let project = Project.test(targets: [app, macroFramework])
+
+        let graph = Graph.test(path: project.path, projects: [project.path: project], targets: [
+            project.path: [
+                app.name: app,
+                macroFramework.name: macroFramework,
+            ],
+        ], dependencies: [
+            .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
+            .target(name: macroFramework.name, path: project.path): Set([]),
+        ])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateTargetConfig(
+            app,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettingsResult = try pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()["OTHER_SWIFT_FLAGS"]
+        XCTAssertEqual(targetSettingsResult, nil)
+    }
+
     // MARK: - Helpers
 
     private func generateProjectConfig(config _: BuildConfiguration) throws {

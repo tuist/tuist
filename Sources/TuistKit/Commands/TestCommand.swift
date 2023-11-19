@@ -72,6 +72,11 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var resultBundlePath: String?
 
     @Option(
+        help: "Overrides the folder that should be used for derived data when testing a project."
+    )
+    var derivedDataPath: String?
+
+    @Option(
         name: .long,
         help: "Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times."
     )
@@ -120,7 +125,6 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         )
     }
 
-    // swiftlint:disable:next function_body_length
     public func run() async throws {
         let absolutePath: AbsolutePath
 
@@ -145,6 +149,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
                     relativeTo: FileHandler.shared.currentPath
                 )
             },
+            derivedDataPath: derivedDataPath,
             retryCount: retryCount,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,

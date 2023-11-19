@@ -406,6 +406,25 @@ public class GraphTraverser: GraphTraversing {
         return Set(dependencies)
     }
 
+    public func directSwiftMacroExecutables(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
+        let dependencies = directTargetDependencies(path: path, name: name)
+            .filter { $0.target.product == .macro }
+            .map { GraphDependencyReference.product(
+                target: $0.target.name,
+                productName: $0.target.productName,
+                platformFilters: [.macos]
+            ) }
+
+        return Set(dependencies)
+    }
+
+    public func directSwiftMacroFrameworkTargets(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+        let dependencies = directTargetDependencies(path: path, name: name)
+            .filter { $0.target.product == .staticFramework }
+            .filter { self.directSwiftMacroExecutables(path: $0.path, name: $0.target.name).count != 0 }
+        return Set(dependencies)
+    }
+
     public func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> Set<AbsolutePath> {
         let dependencies = graph.dependencies[.target(name: name, path: path), default: []]
         let libraryPublicHeaders = dependencies.compactMap { dependency -> AbsolutePath? in

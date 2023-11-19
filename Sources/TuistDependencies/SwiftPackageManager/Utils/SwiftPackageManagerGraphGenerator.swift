@@ -92,7 +92,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
             switch dependency.packageRef.kind {
-            case "remote", "remoteSourceControl":
+            case "registry", "remote", "remoteSourceControl":
                 packageFolder = checkoutsFolder.appending(component: dependency.subpath)
             case "local", "fileSystem", "localSourceControl":
                 // Depending on the swift version, the information is available either in `path` or in `location`

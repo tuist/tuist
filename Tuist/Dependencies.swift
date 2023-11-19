@@ -1,6 +1,10 @@
 import ProjectDescription
 
 let dependencies = Dependencies(
-    swiftPackageManager: .init(),
+    swiftPackageManager: .init(
+        productTypes: [
+            "ArgumentParser": .framework,
+        ]
+    ),
     platforms: [.macOS]
 )

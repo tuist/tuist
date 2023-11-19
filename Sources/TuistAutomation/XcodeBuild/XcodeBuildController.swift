@@ -39,6 +39,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         scheme: String,
         destination: XcodeBuildDestination?,
         rosetta: Bool,
+        derivedDataPath: AbsolutePath?,
         clean: Bool = false,
         arguments: [XcodeBuildArgument]
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
@@ -71,6 +72,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
             command.append(contentsOf: ["-destination", SimulatorController().macOSDestination()])
         case nil:
             break
+        }
+        
+        // Derived data path
+        if let derivedDataPath = derivedDataPath {
+            command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
 
         return try run(command: command, isVerbose: environment.isVerbose)

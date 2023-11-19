@@ -21,6 +21,7 @@ public protocol XcodeBuildControlling {
         scheme: String,
         destination: XcodeBuildDestination?,
         rosetta: Bool,
+        derivedDataPath: AbsolutePath?,
         clean: Bool,
         arguments: [XcodeBuildArgument]
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
