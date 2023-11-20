@@ -26,7 +26,7 @@ extension RootDirectoryLocating {
 
 public final class RootDirectoryLocator: RootDirectoryLocating {
     private let fileHandler: FileHandling = FileHandler.shared
-    internal var gitHandler: GitHandling = GitHandler()
+    private let gitHandler: GitHandling = GitHandler()
     /// This cache avoids having to traverse the directories hierarchy every time the locate method is called.
     @Atomic private var cache: [AbsolutePath: AbsolutePath] = [:]
     private let usingProjectManifest: Bool
