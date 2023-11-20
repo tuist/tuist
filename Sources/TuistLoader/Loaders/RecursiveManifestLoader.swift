@@ -101,17 +101,6 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             }
         }
 
-        let multiplatformPaths: [AbsolutePath] = try project.multiplatformTargets.flatMap {
-            try $0.dependencies.compactMap {
-                switch $0 {
-                case let .project(target: _, path: projectPath, _):
-                    return try generatorPaths.resolve(path: projectPath)
-                default:
-                    return nil
-                }
-            }
-        }
-
-        return paths.uniqued() + multiplatformPaths.uniqued()
+        return paths.uniqued()
     }
 }

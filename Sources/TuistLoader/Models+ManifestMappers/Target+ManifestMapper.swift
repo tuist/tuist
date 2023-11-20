@@ -22,108 +22,6 @@ public enum TargetManifestMapperError: FatalError {
 extension TuistGraph.Target {
     /// Maps a ProjectDescription.Target instance into a TuistGraph.Target instance.
     /// - Parameters:
-    ///   - manifest: Manifest representation of the multiplatform target.
-    ///   - generatorPaths: Generator paths.
-    ///   - externalDependencies: External dependencies graph.
-    static func from(
-        manifest: ProjectDescription.Multiplatform.Target,
-        generatorPaths: GeneratorPaths,
-        externalDependencies: [String: [TuistGraph.TargetDependency]]
-    ) throws -> TuistGraph.Target {
-        let name = manifest.name
-        let destinations = try TuistGraph.Destination.from(destinations: manifest.destinations)
-        let product = TuistGraph.Product.from(manifest: manifest.product)
-
-        let bundleId = manifest.bundleId
-        let productName = manifest.productName
-        let deploymentTargets = manifest.deploymentTargets.map { TuistGraph.DeploymentTargets.from(manifest: $0) } ?? .empty()
-
-        let dependencies = try manifest.dependencies.flatMap { dependency in
-            try TuistGraph.TargetDependency.from(
-                manifest: dependency,
-                generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies
-            )
-        }.uniqued()
-
-        let infoPlist = try TuistGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)
-        let entitlements = try TuistGraph.Entitlements.from(manifest: manifest.entitlements, generatorPaths: generatorPaths)
-
-        let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
-
-        let (sources, sourcesPlaygrounds) = try sourcesAndPlaygrounds(
-            manifest: manifest,
-            targetName: name,
-            generatorPaths: generatorPaths
-        )
-
-        let (resources, resourcesPlaygrounds, resourcesCoreDatas, invalidResourceGlobs) = try resourcesAndOthers(
-            manifest: manifest,
-            generatorPaths: generatorPaths
-        )
-
-        if !invalidResourceGlobs.isEmpty {
-            throw TargetManifestMapperError.invalidResourcesGlob(targetName: name, invalidGlobs: invalidResourceGlobs)
-        }
-
-        let copyFiles = try (manifest.copyFiles ?? []).map {
-            try TuistGraph.CopyFilesAction.from(manifest: $0, generatorPaths: generatorPaths)
-        }
-
-        let headers = try manifest.headers.map { try TuistGraph.Headers.from(
-            manifest: $0,
-            generatorPaths: generatorPaths,
-            productName: manifest.productName
-        ) }
-
-        let coreDataModels = try manifest.coreDataModels.map {
-            try TuistGraph.CoreDataModel.from(manifest: $0, generatorPaths: generatorPaths)
-        } + resourcesCoreDatas.map { try TuistGraph.CoreDataModel.from(path: $0) }
-
-        let scripts = try manifest.scripts.map {
-            try TuistGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
-        }
-
-        let environmentVariables = manifest.environmentVariables.mapValues(EnvironmentVariable.from)
-        let launchArguments = manifest.launchArguments.map(LaunchArgument.from)
-
-        let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
-
-        let additionalFiles = try manifest.additionalFiles
-            .flatMap { try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
-
-        let buildRules = manifest.buildRules.map {
-            TuistGraph.BuildRule.from(manifest: $0)
-        }
-
-        return TuistGraph.Target(
-            name: name,
-            destinations: destinations,
-            product: product,
-            productName: productName,
-            bundleId: bundleId,
-            deploymentTargets: deploymentTargets,
-            infoPlist: infoPlist,
-            entitlements: entitlements,
-            settings: settings,
-            sources: sources,
-            resources: resources,
-            copyFiles: copyFiles,
-            headers: headers,
-            coreDataModels: coreDataModels,
-            scripts: scripts,
-            environmentVariables: environmentVariables,
-            launchArguments: launchArguments,
-            filesGroup: .group(name: "Project"),
-            dependencies: dependencies,
-            playgrounds: playgrounds,
-            additionalFiles: additionalFiles,
-            buildRules: buildRules
-        )
-    }
-
-    /// Maps a ProjectDescription.Target instance into a TuistGraph.Target instance.
-    /// - Parameters:
     ///   - manifest: Manifest representation of  the target.
     ///   - generatorPaths: Generator paths.
     ///   - externalDependencies: External dependencies graph.
@@ -133,15 +31,13 @@ extension TuistGraph.Target {
         externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> TuistGraph.Target {
         let name = manifest.name
-        let destinations = try TuistGraph.Destination.from(
-            platform: manifest.platform,
-            deploymentTarget: manifest.deploymentTarget
-        )
+        let destinations = try TuistGraph.Destination.from(destinations: manifest.destinations)
+
         let product = TuistGraph.Product.from(manifest: manifest.product)
 
         let bundleId = manifest.bundleId
         let productName = manifest.productName
-        let deploymentTargets = TuistGraph.DeploymentTargets.from(manifest: manifest.deploymentTarget)
+        let deploymentTargets = manifest.deploymentTargets.map { TuistGraph.DeploymentTargets.from(manifest: $0) } ?? .empty()
 
         let dependencies = try manifest.dependencies.flatMap {
             try TuistGraph.TargetDependency.from(
@@ -234,7 +130,7 @@ extension TuistGraph.Target {
     // MARK: - Fileprivate
 
     fileprivate static func resourcesAndOthers(
-        manifest: MultiplatformCompatibilityTarget,
+        manifest: ProjectDescription.Target,
         generatorPaths: GeneratorPaths
         // swiftlint:disable:next large_tuple
     ) throws -> (
@@ -289,7 +185,7 @@ extension TuistGraph.Target {
     }
 
     fileprivate static func sourcesAndPlaygrounds(
-        manifest: MultiplatformCompatibilityTarget,
+        manifest: ProjectDescription.Target,
         targetName: String,
         generatorPaths: GeneratorPaths
     ) throws -> (sources: [TuistGraph.SourceFile], playgrounds: [AbsolutePath]) {

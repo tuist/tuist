@@ -29,21 +29,13 @@ extension TuistGraph.Project {
         let options = TuistGraph.Project.Options.from(manifest: manifest.options)
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
 
-        var targets = try manifest.targets.map {
+        let targets = try manifest.targets.map {
             try TuistGraph.Target.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 externalDependencies: externalDependencies
             )
         }
-
-        targets.append(contentsOf: try manifest.multiplatformTargets.map {
-            try TuistGraph.Target.from(
-                manifest: $0,
-                generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies
-            )
-        })
 
         let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
         let additionalFiles = try manifest.additionalFiles

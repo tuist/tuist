@@ -44,8 +44,7 @@ extension TuistTestCase {
         XCTAssertEqual(target.name, manifest.name, file: file, line: line)
         XCTAssertEqual(target.bundleId, manifest.bundleId, file: file, line: line)
         XCTAssertEqual(target.supportedPlatforms.count, 1)
-        let exclusivePlatform = try XCTUnwrap(target.supportedPlatforms.first)
-        XCTAssertTrue(exclusivePlatform == manifest.platform, file: file, line: line)
+        XCTAssertTrue(target.destinations == manifest.destinations, file: file, line: line)
         XCTAssertTrue(target.product == manifest.product, file: file, line: line)
         XCTAssertEqual(
             target.infoPlist?.path,
@@ -260,6 +259,13 @@ private func == (
         .tvOS: .tvOS,
     ]
     return map[lhs] == rhs
+}
+
+private func == (
+    _ lhs: TuistGraph.Destinations,
+    _ rhs: ProjectDescription.Destinations
+) -> Bool {
+    return lhs.map(\.rawValue).sorted() == rhs.map(\.rawValue).sorted()
 }
 
 private func == (

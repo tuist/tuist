@@ -413,11 +413,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         )
 
-        let targets: [ProjectDescription.Multiplatform.Target] = try packageInfo.targets
-            .compactMap { target -> ProjectDescription.Multiplatform.Target? in
+        let targets: [ProjectDescription.Target] = try packageInfo.targets
+            .compactMap { target -> ProjectDescription.Target? in
                 guard let products = targetToProducts[target.name] else { return nil }
 
-                return try ProjectDescription.Multiplatform.Target.from(
+                return try ProjectDescription.Target.from(
                     target: target,
                     products: products,
                     packageName: name,
@@ -456,7 +456,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 swiftToolsVersion: swiftToolsVersion,
                 buildConfigs: baseSettings.configurations.map { key, _ in key }
             ),
-            multiplatformTargets: targets,
+            targets: targets,
             resourceSynthesizers: .default
         )
     }
@@ -466,7 +466,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
     }
 }
 
-extension ProjectDescription.Multiplatform.Target {
+extension ProjectDescription.Target {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
         target: PackageInfo.Target,
@@ -566,7 +566,7 @@ extension ProjectDescription.Multiplatform.Target {
             targetSettings: targetSettings
         )
 
-        return ProjectDescription.Multiplatform.Target(
+        return ProjectDescription.Target(
             name: PackageInfoMapper.sanitize(targetName: target.name),
             destinations: destinations,
             product: product,

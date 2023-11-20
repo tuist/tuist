@@ -62,7 +62,7 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
-        let targets: [Multiplatform.Target] = [
+        let targets: [Target] = [
             .init(
                 name: "Tuist",
                 destinations: destinations,
@@ -147,7 +147,7 @@ extension TuistCore.DependenciesGraph {
                             .release(name: .release),
                         ]
                     ),
-                    multiplatformTargets: targets,
+                    targets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -174,7 +174,7 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
-        let targets: [Multiplatform.Target] = [
+        let targets: [Target] = [
             .init(
                 name: "ALibrary",
                 destinations: destinations,
@@ -225,7 +225,7 @@ extension TuistCore.DependenciesGraph {
                             .release(name: .release),
                         ]
                     ),
-                    multiplatformTargets: targets,
+                    targets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -248,7 +248,7 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
-        let targets: [Multiplatform.Target] = [
+        let targets: [Target] = [
             .init(
                 name: "AnotherLibrary",
                 destinations: destinations,
@@ -281,7 +281,7 @@ extension TuistCore.DependenciesGraph {
                             .release(name: .release),
                         ]
                     ),
-                    multiplatformTargets: targets,
+                    targets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -303,7 +303,7 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
-        let targets: [Multiplatform.Target] = [
+        let targets: [Target] = [
             .init(
                 name: "Alamofire",
                 destinations: destinations,
@@ -339,7 +339,7 @@ extension TuistCore.DependenciesGraph {
                         textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
-                    multiplatformTargets: targets,
+                    targets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -369,7 +369,7 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
-        let targets: [Multiplatform.Target] = [
+        let targets: [Target] = [
             .init(
                 name: "GoogleAppMeasurementTarget",
                 destinations: destinations,
@@ -475,7 +475,7 @@ extension TuistCore.DependenciesGraph {
                             .release(name: .release),
                         ]
                     ),
-                    multiplatformTargets: targets,
+                    targets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -517,7 +517,7 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
-        let targets: [Multiplatform.Target] = [
+        let targets: [Target] = [
             .init(
                 name: "GULAppDelegateSwizzler",
                 destinations: destinations,
@@ -590,7 +590,7 @@ extension TuistCore.DependenciesGraph {
                             .release(name: .release),
                         ]
                     ),
-                    multiplatformTargets: targets,
+                    targets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
@@ -612,7 +612,7 @@ extension TuistCore.DependenciesGraph {
             ],
         ]
 
-        let targets: [Multiplatform.Target] = [
+        let targets: [Target] = [
             .init(
                 name: "nanopb",
                 destinations: destinations,
@@ -645,7 +645,7 @@ extension TuistCore.DependenciesGraph {
                             .release(name: .release),
                         ]
                     ),
-                    multiplatformTargets: targets,
+                    targets: targets,
                     resourceSynthesizers: .default
                 ),
             ]
