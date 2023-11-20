@@ -57,7 +57,7 @@ public class ResourcesProjectMapper: ProjectMapping {
             )
             modifiedTarget.resources = []
             modifiedTarget.copyFiles = []
-            modifiedTarget.dependencies.append(.target(name: bundleName))
+            modifiedTarget.dependencies.append(.target(name: bundleName, platformFilters: target.dependencyPlatformFilters))
             additionalTargets.append(resourcesTarget)
         }
 
