@@ -78,7 +78,8 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),
-            path: path
+            path: path,
+            dependenciesOptions: nil
         ))
     }
 
@@ -119,7 +120,8 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),
-            path: "/project/Tuist/Config.swift"
+            path: "/project/Tuist/Config.swift",
+            dependenciesOptions: nil
         ))
     }
 

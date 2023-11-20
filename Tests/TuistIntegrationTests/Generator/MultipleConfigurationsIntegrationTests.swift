@@ -379,7 +379,8 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),
-            path: nil
+            path: nil,
+            dependenciesOptions: nil
         )
     }
 

@@ -20,7 +20,8 @@ extension Config {
             swiftVersion: swiftVersion,
             plugins: plugins,
             generationOptions: generationOptions,
-            path: path
+            path: path,
+            dependenciesOptions: nil
         )
     }
 }

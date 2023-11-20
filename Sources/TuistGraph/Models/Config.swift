@@ -26,6 +26,9 @@ public struct Config: Equatable, Hashable {
     /// The path of the config file.
     public let path: AbsolutePath?
 
+    /// Options for external dependencies. If not specified, the deprecated `Tuist/Dependencies.swift` is used.
+    public let dependenciesOptions: DependenciesOptions?
+
     /// Returns the default Tuist configuration.
     public static var `default`: Config {
         Config(
@@ -38,11 +41,12 @@ public struct Config: Equatable, Hashable {
                 resolveDependenciesWithSystemScm: false,
                 disablePackageVersionLocking: false
             ),
-            path: nil
+            path: nil,
+            dependenciesOptions: nil
         )
     }
 
-    /// Initializes the tuist cofiguration.
+    /// Initializes the tuist configuration.
     ///
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
@@ -59,7 +63,8 @@ public struct Config: Equatable, Hashable {
         swiftVersion: Version?,
         plugins: [PluginLocation],
         generationOptions: GenerationOptions,
-        path: AbsolutePath?
+        path: AbsolutePath?,
+        dependenciesOptions: DependenciesOptions?
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.cloud = cloud
@@ -68,15 +73,19 @@ public struct Config: Equatable, Hashable {
         self.plugins = plugins
         self.generationOptions = generationOptions
         self.path = path
+        self.dependenciesOptions = dependenciesOptions
     }
 
     // MARK: - Hashable
 
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(generationOptions)
+        hasher.combine(compatibleXcodeVersions)
         hasher.combine(cloud)
         hasher.combine(cache)
         hasher.combine(swiftVersion)
-        hasher.combine(compatibleXcodeVersions)
+        hasher.combine(plugins)
+        hasher.combine(generationOptions)
+        hasher.combine(path)
+        hasher.combine(dependenciesOptions)
     }
 }

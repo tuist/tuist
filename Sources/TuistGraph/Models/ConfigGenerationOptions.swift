@@ -1,5 +1,4 @@
 import TSCBasic
-import TSCUtility
 
 extension Config {
     /// Contains options related to the project generation.

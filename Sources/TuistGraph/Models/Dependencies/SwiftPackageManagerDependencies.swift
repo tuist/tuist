@@ -3,7 +3,7 @@ import TSCBasic
 
 public enum PackagesOrManifest: Equatable {
     case packages([Package])
-    case manifest
+    case manifest(AbsolutePath?)
 }
 
 /// Contains the description of a dependency that can be installed using Swift Package Manager.

@@ -58,7 +58,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                 ]
             ),
             swiftPackageManager: .init(
-                .manifest,
+                .manifest(nil),
                 productTypes: [:],
                 baseSettings: .init(configurations: [
                     .debug: .init(settings: [:], xcconfig: nil),

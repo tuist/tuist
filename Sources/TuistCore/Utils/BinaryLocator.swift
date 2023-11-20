@@ -84,7 +84,7 @@ public final class BinaryLocator: BinaryLocating {
                 bundlePath.appending(try! RelativePath(validating: ".build/debug/xcbeautify")).pathString,
             ]
             if let renderer = renderer(environment: environment) {
-                executionCommand.append(contentsOf: ["--renderer", "github-actions"])
+                executionCommand.append(contentsOf: ["--renderer", renderer])
             }
 
             return SwiftPackageExecutable(compilation: compilationCommand, execution: executionCommand)

@@ -20,7 +20,7 @@ extension TuistGraph.SwiftPackageManagerDependencies {
                 generatorPaths: generatorPaths
             ) })
         case .manifest:
-            packagesOrManifest = .manifest
+            packagesOrManifest = .manifest(nil)
         }
         let productTypes = manifest.productTypes.mapValues { TuistGraph.Product.from(manifest: $0) }
         let baseSettings = try TuistGraph.Settings.from(manifest: manifest.baseSettings, generatorPaths: generatorPaths)

@@ -66,7 +66,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(resolveDependenciesWithSystemScm: true),
-            path: nil
+            path: nil,
+            dependenciesOptions: nil
         )
 
         let target = anyTarget(dependencies: [
@@ -190,7 +191,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(clonedSourcePackagesDirPath: temporaryPath.appending(component: "spm")),
-            path: nil
+            path: nil,
+            dependenciesOptions: nil
         )
 
         let spmPath = temporaryPath.appending(component: "spm")

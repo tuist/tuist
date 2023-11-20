@@ -3,7 +3,7 @@ import TSCBasic
 
 public typealias SettingsDictionary = [String: SettingValue]
 
-public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
+public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Hashable, Codable {
     case string(String)
     case array([String])
 
@@ -28,7 +28,7 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
     }
 }
 
-public struct Configuration: Equatable, Codable {
+public struct Configuration: Hashable, Codable {
     // MARK: - Attributes
 
     public let settings: SettingsDictionary
@@ -53,7 +53,7 @@ public struct Configuration: Equatable, Codable {
     }
 }
 
-public enum DefaultSettings: Codable, Equatable {
+public enum DefaultSettings: Codable, Hashable {
     case recommended(excluding: Set<String> = [])
     case essential(excluding: Set<String> = [])
     case none
@@ -69,7 +69,7 @@ extension DefaultSettings {
     }
 }
 
-public struct Settings: Equatable, Codable {
+public struct Settings: Hashable, Codable {
     public static let `default` = Settings(
         configurations: [.release: nil, .debug: nil],
         defaultSettings: .recommended

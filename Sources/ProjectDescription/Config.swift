@@ -50,6 +50,9 @@ public struct Config: Codable, Equatable {
     /// or `Target.settings` as needed.
     public let swiftVersion: Version?
 
+    /// Options for external dependencies. If not specified, the deprecated `Tuist/Dependencies.swift` is used.
+    public let dependenciesOptions: DependenciesOptions?
+
     /// Creates a tuist configuration.
     ///
     /// - Parameters:
@@ -65,14 +68,16 @@ public struct Config: Codable, Equatable {
         cache: Cache? = nil,
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
-        generationOptions: GenerationOptions = .options()
+        generationOptions: GenerationOptions = .options(),
+        dependenciesOptions: DependenciesOptions? = nil
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
-        self.plugins = plugins
-        self.generationOptions = generationOptions
         self.cloud = cloud
         self.cache = cache
         self.swiftVersion = swiftVersion
+        self.plugins = plugins
+        self.dependenciesOptions = dependenciesOptions
+        self.generationOptions = generationOptions
         dumpIfNeeded(self)
     }
 }

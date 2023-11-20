@@ -943,7 +943,6 @@ final class LinkGeneratorTests: XCTestCase {
 
     func test_generateLinks_generatesAShellScriptBuildPhase_when_targetIsAMacroFramework() throws {
         // Given
-        let projectSettings = Settings.default
         let app = Target.test(name: "app", platform: .iOS, product: .app)
         let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
         let macroExecutable = Target.test(name: "macro", platform: .macOS, product: .macro)

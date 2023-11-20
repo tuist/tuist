@@ -68,10 +68,28 @@ final class FetchService {
     private func fetchDependencies(path: AbsolutePath, update: Bool, with plugins: TuistGraph.Plugins) throws {
         try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
 
-        guard FileHandler.shared.exists(
-            path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
-        ) else {
-            return
+        let config = try configLoader.loadConfig(path: path)
+
+        let dependencies: Dependencies
+        if let dependenciesConfig = config.dependenciesOptions {
+            dependencies = .init(
+                carthage: nil,
+                swiftPackageManager: .init(
+                    .manifest(dependenciesConfig.packagePath),
+                    productTypes: dependenciesConfig.productTypes,
+                    baseSettings: dependenciesConfig.baseSettings,
+                    targetSettings: dependenciesConfig.targetSettings
+                ),
+                platforms: dependenciesConfig.platforms
+            )
+        } else {
+            guard FileHandler.shared.exists(
+                path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
+            ) else {
+                return
+            }
+
+            dependencies = try dependenciesModelLoader.loadDependencies(at: path, with: plugins)
         }
 
         if update {
@@ -80,23 +98,18 @@ final class FetchService {
             logger.info("Resolving and fetching dependencies.", metadata: .section)
         }
 
-        let dependencies = try dependenciesModelLoader.loadDependencies(at: path, with: plugins)
-
-        let config = try configLoader.loadConfig(path: path)
-        let swiftVersion = config.swiftVersion
-
         let dependenciesManifest: TuistCore.DependenciesGraph
         if update {
             dependenciesManifest = try dependenciesController.update(
                 at: path,
                 dependencies: dependencies,
-                swiftVersion: swiftVersion
+                swiftVersion: config.swiftVersion
             )
         } else {
             dependenciesManifest = try dependenciesController.fetch(
                 at: path,
                 dependencies: dependencies,
-                swiftVersion: swiftVersion
+                swiftVersion: config.swiftVersion
             )
         }
 
