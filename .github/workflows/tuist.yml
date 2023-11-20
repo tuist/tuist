@@ -28,6 +28,7 @@ env:
   RUBY_VERSION: '3.0.3'
   TUIST_STATS_OPT_OUT: true
   NODE_VERSION: 16.17.0
+  TUIST_CONFIG_CLOUD_TOKEN: ${{ secrets.TUIST_CONFIG_CLOUD_TOKEN }}
 
 jobs:
   release_build:
@@ -51,6 +52,55 @@ jobs:
         run: swift build -c release --product tuistenv
       - name: Build ProjectDescription for release
         run: swift build -c release --product ProjectDescription
+
+  test:
+    name: Test with Xcode
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v3
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Test
+        run: |
+          ARGS="--skip-test-targets TuistBuildAcceptanceTests TuistGenerateOneAcceptanceTests" make tuist/test
+
+  cache-warm:
+    name: Cache warm with latest Tuist
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v3
+      - uses: asdf-vm/actions/install@v2
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - uses: actions/cache@v3
+        name: 'Cache fetched dependencies folder'
+        with:
+          path: Tuist/Dependencies/SwiftPackageManager/.build
+          key: spm-v1-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
+      - name: Fetch dependencies
+        run: tuist fetch
+      - name: Cache warm
+        run: tuist cache warm
+
+  cache-warm-silicon:
+    name: Cache warm with latest Tuist on Silicon
+    runs-on: macos-13-xlarge
+    steps:
+      - uses: actions/checkout@v3
+      - uses: asdf-vm/actions/install@v2
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - uses: actions/cache@v3
+        name: 'Cache fetched dependencies folder'
+        with:
+          path: Tuist/Dependencies/SwiftPackageManager/.build
+          key: spm-v1-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
+      - name: Fetch dependencies
+        run: tuist fetch
+      - name: Cache warm
+        run: tuist cache warm
 
   acceptance_tests:
     name: ${{ matrix.feature }} acceptance tests with Tuist
@@ -90,7 +140,7 @@ jobs:
       - name: Build xcbeautify
         run: swift build --package-path vendor --product xcbeautify
       - name: Run acceptance tests
-        run: tuist test Tuist${{ matrix.feature }}AcceptanceTests --no-cache
+        run: tuist test Tuist${{ matrix.feature }}AcceptanceTests
       
   cucumber_acceptance_tests:
     name: ${{ matrix.feature }} acceptance tests with Xcode

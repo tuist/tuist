@@ -2,11 +2,10 @@ import TSCBasic
 import TuistAcceptanceTesting
 import TuistSupport
 import XCTest
-@testable import TuistKit
 
 /// Build projects using Tuist build
 final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
-    func test() async throws {
+    func test_with_templates() async throws {
         try run(InitCommand.self, "--platform", "ios", "--name", "MyApp")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -16,7 +15,7 @@ final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
 }
 
 final class BuildAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase {
-    func test() async throws {
+    func test_with_framework_and_tests() async throws {
         try setUpFixture("app_with_framework_and_tests")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
@@ -40,7 +39,7 @@ final class BuildAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase
 // }
 
 final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDirectory: TuistAcceptanceTestCase {
-    func test() async throws {
+    func test_ios_app_with_custom_and_build_to_custom_directory() async throws {
         try setUpFixture("ios_app_with_custom_configuration")
         try await run(GenerateCommand.self)
         try await run(
@@ -49,9 +48,9 @@ final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDire
             "--configuration",
             "debug",
             "--build-output-path",
-            FileHandler.shared.currentPath.appending(component: "Builds").pathString
+            fixturePath.appending(component: "Builds").pathString
         )
-        let debugPath = FileHandler.shared.currentPath.appending(
+        let debugPath = fixturePath.appending(
             try RelativePath(validating: "Builds/debug-iphonesimulator")
         )
         try XCTAssertDirectoryContentEqual(debugPath, ["App.app", "App.swiftmodule", "FrameworkA.framework"])
@@ -61,10 +60,10 @@ final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDire
             "--configuration",
             "release",
             "--build-output-path",
-            FileHandler.shared.currentPath.appending(component: "Builds").pathString
+            fixturePath.appending(component: "Builds").pathString
         )
         try XCTAssertDirectoryContentEqual(debugPath, ["App.app", "App.swiftmodule", "FrameworkA.framework"])
-        let releasePath = FileHandler.shared.currentPath.appending(
+        let releasePath = fixturePath.appending(
             try RelativePath(validating: "Builds/release-iphonesimulator")
         )
         try XCTAssertDirectoryContentEqual(
@@ -81,7 +80,7 @@ final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDire
 }
 
 final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMethod: TuistAcceptanceTestCase {
-    func test() async throws {
+    func test_framework_with_swift_macro_integrated_with_standard_method() async throws {
         try setUpFixture("framework_with_swift_macro")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "Framework")
@@ -89,7 +88,7 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMeth
 }
 
 final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives: TuistAcceptanceTestCase {
-    func test() async throws {
+    func test_framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
         try setUpFixture("framework_with_native_swift_macro")
         try await run(FetchCommand.self)
         try await run(BuildCommand.self, "Framework")
