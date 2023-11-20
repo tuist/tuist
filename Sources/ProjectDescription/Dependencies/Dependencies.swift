@@ -17,6 +17,7 @@ import Foundation
 ///     platforms: [.iOS]
 /// )
 /// ```
+@available(*, deprecated, message: "Use Config.dependenciesOptions instead")
 public struct Dependencies: Codable, Equatable {
     /// The description of dependencies that can be installed using Carthage.
     public let carthage: CarthageDependencies?
