@@ -36,6 +36,13 @@ public protocol GitHandling {
     /// - Parameters:
     ///   - url: The `url` of the git repository.
     func remoteTaggedVersions(url: String) throws -> [Version]
+
+    /// Given a path that may be within a local copy, return the root path of that local copy.
+    /// If the path is not within a local copy, return `nil`.
+    ///
+    /// - Parameters:
+    ///   - path: A local path that may be part of a local copy
+    func locateTopLevel(from path: AbsolutePath) throws -> AbsolutePath?
 }
 
 /// An implementation of `GitHandling`.
@@ -72,6 +79,12 @@ public final class GitHandler: GitHandling {
 
     public func remoteTaggedVersions(url: String) throws -> [Version] {
         try parseVersions(lsRemote(url: url))
+    }
+
+    public func locateTopLevel(from path: AbsolutePath) throws -> AbsolutePath? {
+        try (try? capture(command: "git", "-C", path.dirname, "rev-parse", "--show-toplevel")).flatMap {
+            try AbsolutePath(validating: $0.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
     }
 
     private func run(command: String...) throws {

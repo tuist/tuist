@@ -25,4 +25,9 @@ public final class MockGitHandler: GitHandling {
     public func remoteTaggedVersions(url _: String) -> [Version] {
         remoteTaggedVersionsStub?.compactMap { Version($0) } ?? []
     }
+
+    public var locateTopLevelStub: ((AbsolutePath) -> AbsolutePath?)?
+    public func locateTopLevel(from path: AbsolutePath) throws -> AbsolutePath? {
+        locateTopLevelStub?(path)
+    }
 }

@@ -26,6 +26,7 @@ extension RootDirectoryLocating {
 
 public final class RootDirectoryLocator: RootDirectoryLocating {
     private let fileHandler: FileHandling = FileHandler.shared
+    internal var gitHandler: GitHandling = GitHandler()
     /// This cache avoids having to traverse the directories hierarchy every time the locate method is called.
     @Atomic private var cache: [AbsolutePath: AbsolutePath] = [:]
     private let usingProjectManifest: Bool
@@ -41,6 +42,8 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
     private func locate(from path: AbsolutePath, source: AbsolutePath) -> AbsolutePath? {
         if let cachedDirectory = cached(path: path) {
             return cachedDirectory
+        } else if let gitRoot = try? gitHandler.locateTopLevel(from: path) {
+            return gitRoot
         } else if (usingProjectManifest && fileHandler.exists(path.appending(component: "Project.swift"))) ||
             fileHandler.exists(path.appending(component: "Workspace.swift")) ||
             fileHandler.exists(path.appending(component: Constants.tuistDirectoryName)) ||

@@ -1,6 +1,6 @@
 import Foundation
 import TSCBasic
-import TuistCore
+@testable import TuistCore
 import TuistSupport
 import XCTest
 
@@ -150,6 +150,28 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
 
         // When
         let got = subject.locate(from: temporaryDirectory.appending(component: "Workspace.swift"))
+
+        // Then
+        XCTAssertEqual(got, temporaryDirectory)
+    }
+
+    func test_locate_when_multiple_workspaces_exist_but_git_can_return_top_level() throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        try createFolders([
+            "Nested",
+        ])
+        try createFiles([
+            "Workspace.swift",
+            "Nested/Workspace.swift",
+        ])
+
+        // When
+        let source = temporaryDirectory.appending(components: ["Nested", "Workspace.swift"])
+        let gitHandler = MockGitHandler()
+        gitHandler.locateTopLevelStub = { _ in temporaryDirectory }
+        subject.gitHandler = gitHandler
+        let got = subject.locate(from: source)
 
         // Then
         XCTAssertEqual(got, temporaryDirectory)
