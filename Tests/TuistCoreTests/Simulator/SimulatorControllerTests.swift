@@ -185,6 +185,31 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(device, expectedDeviceAndRuntime)
     }
+    
+    func test_findAvailableDevice_should_findVersionSpecified_when_lessThanMaxVersion() async throws {
+        // Given
+        let devicesAndRuntimes =
+            createSystemStubs(
+                devices: true,
+                runtimes: true,
+                versions: [
+                    .init(major: 16, minor: 0),
+                    .init(major: 17, minor: 0),
+                ]
+            )
+        let expectedDeviceAndRuntime = try XCTUnwrap(devicesAndRuntimes.first(where: { $0.runtime.version == "16.0" }))
+
+        // When
+        let device = try await subject.findAvailableDevice(
+            platform: .iOS,
+            version: .init(16, 0, 0),
+            minVersion: nil,
+            deviceName: nil
+        )
+
+        // Then
+        XCTAssertEqual(device, expectedDeviceAndRuntime)
+    }
 
     func test_installApp_should_bootSimulatorIfNotBooted() throws {
         // Given
