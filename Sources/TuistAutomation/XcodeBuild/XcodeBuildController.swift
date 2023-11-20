@@ -289,46 +289,26 @@ public final class XcodeBuildController: XcodeBuildControlling {
     }
 
     fileprivate func run(command: [String], isVerbose: Bool) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-        try run(command: command, isVerbose: isVerbose)
-            .mapAsXcodeBuildOutput()
+        System.shared.publisher(command)
+            .compactMap { [weak self] event -> SystemEvent<XcodeBuildOutput>? in
+                switch event {
+                case let .standardError(errorData):
+                    guard let line = String(data: errorData, encoding: .utf8) else { return nil }
+                    if Environment.shared.isVerbose {
+                        return SystemEvent.standardError(XcodeBuildOutput(raw: line))
+                    } else {
+                        return SystemEvent.standardError(XcodeBuildOutput(raw: self?.formatter.format(line) ?? ""))
+                    }
+                case let .standardOutput(outputData):
+                    guard let line = String(data: outputData, encoding: .utf8) else { return nil }
+                    if Environment.shared.isVerbose {
+                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: line))
+                    } else {
+                        return SystemEvent.standardOutput(XcodeBuildOutput(raw: self?.formatter.format(line) ?? ""))
+                    }
+                }
+            }
+            .eraseToAnyPublisher()
             .stream
-    }
-
-    fileprivate func run(command: [String], isVerbose: Bool) throws -> AnyPublisher<SystemEvent<Data>, Error> {
-        if isVerbose {
-            return System.shared.publisher(command)
-        } else {
-            let fomatterExecutable = try formatter.formatterExecutable()
-            let compilationPublisher: AnyPublisher<SystemEvent<Data>, Error>? = if let compilation = fomatterExecutable.compilation {
-                System.shared.publisher(compilation)
-            } else {
-                nil
-            }
-            if fomatterExecutable.compilation != nil {
-                logger.debug("We've detected xcbeautify as sources so we'll compile it to use it with xcodebuild")
-            }
-            let xcodebuildPublisher = System.shared.publisher(command, pipeTo: fomatterExecutable.execution)
-            
-            if let compilationPublisher = compilationPublisher {
-                return compilationPublisher.append(xcodebuildPublisher).eraseToAnyPublisher()
-            } else {
-                return xcodebuildPublisher
-            }
-        }
-    }
-}
-
-extension Publisher where Output == SystemEvent<Data>, Failure == Error {
-    fileprivate func mapAsXcodeBuildOutput() -> AnyPublisher<SystemEvent<XcodeBuildOutput>, Error> {
-        compactMap { event -> SystemEvent<XcodeBuildOutput>? in
-            switch event {
-            case let .standardError(errorData):
-                guard let line = String(data: errorData, encoding: .utf8) else { return nil }
-                return SystemEvent.standardError(XcodeBuildOutput(raw: line))
-            case let .standardOutput(outputData):
-                guard let line = String(data: outputData, encoding: .utf8) else { return nil }
-                return SystemEvent.standardOutput(XcodeBuildOutput(raw: line))
-            }
-        }.eraseToAnyPublisher()
     }
 }

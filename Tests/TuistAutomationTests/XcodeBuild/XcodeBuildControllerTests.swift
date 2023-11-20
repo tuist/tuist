@@ -7,13 +7,19 @@ import XCTest
 @testable import TuistAutomation
 @testable import TuistSupportTesting
 
+final class MockFormatter: Formatting {
+    func format(_ line: String) -> String? {
+        line
+    }
+}
+
 final class XcodeBuildControllerTests: TuistUnitTestCase {
     var subject: XcodeBuildController!
     var formatter: Formatting!
 
     override func setUp() {
         super.setUp()
-        formatter = Formatter()
+        formatter = MockFormatter()
         subject = XcodeBuildController(formatter: formatter, environment: Environment.shared)
     }
 
@@ -34,7 +40,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
 
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
-        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
 
         // When
@@ -63,7 +68,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
 
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
-        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
 
         // When
@@ -93,7 +97,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=this_is_a_udid"])
-        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
 
         // When
@@ -123,7 +126,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=this_is_a_udid,arch=x86_64"])
-        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
 
         // When
@@ -160,7 +162,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         ]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=device-id"])
-        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
 
         // When
@@ -202,7 +203,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         ]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=device-id,arch=x86_64"])
-        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
 
         // When
@@ -245,7 +245,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
 
-        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
         developerEnvironment.stubbedArchitecture = .x8664
 
@@ -289,7 +288,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
         command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
 
-        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
         developerEnvironment.stubbedArchitecture = .x8664
 
@@ -333,7 +331,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
         command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
 
-        system.succeedCommand((try formatter.formatterExecutable()).compilation ?? [])
         system.succeedCommand(command, output: "output")
         developerEnvironment.stubbedArchitecture = .x8664
 
