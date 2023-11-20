@@ -252,19 +252,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         )
                         .map {
                             switch $0 {
-                            case let .xcframework(path, _):
-                                return .xcframework(path: path)
-                            case let .target(name, _):
-                                // I Think this is no longer needed
-                                //   var platforms = platforms
-                                //   if macOSTargets.contains(product.name) {
-                                //       platforms.insert(.macOS)
-                                //   }
-
-                                // When multiple platforms are supported, add the platform name as a suffix to the target
-                                //                                    let targetName = platforms.count == 1 ? name :
-                                //                                    "\(name)_\(platform.rawValue)"
-                                return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
+                            case let .xcframework(path, platformFilters):
+                                return .xcframework(path: path, platformFilters: platformFilters)
+                            case let .target(name, filters):
+                                return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString), platformFilters: filters)
                             case .externalTarget:
                                 throw PackageInfoMapperError.unknownProductTarget(
                                     package: packageInfo.key,
