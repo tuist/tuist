@@ -239,7 +239,7 @@ private struct SwiftPackageManagerPathsProvider {
                 .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
                 .appending(component: Constants.DependenciesDirectory.packageResolvedName)
         case let .manifest(path):
-            sourcePackageSwiftPath = path ?? tuistDirectory.appending(component: Constants.DependenciesDirectory.packageSwiftName)
+            sourcePackageSwiftPath = path
             destinationPackageResolvedPath = sourcePackageSwiftPath
                 .removingLastComponent()
                 .appending(component: Constants.DependenciesDirectory.packageResolvedName)

@@ -38,7 +38,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                 ]
             ),
             swiftPackageManager: .init(
-                .manifest(nil),
+                .manifest(temporaryPath.appending(components: ["Tuist", "Package.swift"])),
                 productTypes: [:],
                 baseSettings: .init(configurations: [
                     .debug: .init(settings: [:], xcconfig: nil),
