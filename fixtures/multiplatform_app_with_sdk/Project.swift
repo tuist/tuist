@@ -26,9 +26,7 @@ let project = Project(
                 .target(name: "MyTestFramework"),
             ]
         ),
-    ],
-    multiplatformTargets: [
-        Multiplatform.Target(
+        Target(
             name: "App",
             destinations: [.iPhone, .iPad, .mac],
             product: .app,
@@ -42,7 +40,7 @@ let project = Project(
                 .sdk(name: "MobileCoreServices", type: .framework, status: .required, platformFilters: [.ios]),
             ]
         ),
-        Multiplatform.Target(
+        Target(
             name: "MultiPlatformFramework",
             destinations: [.iPad, .iPhone, .mac, .appleTv],
             product: .framework,
