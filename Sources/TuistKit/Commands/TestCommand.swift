@@ -42,7 +42,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var device: String?
 
     @Option(
-        name: .shortAndLong,
+        name: .long,
         help: "Test on a specific platform."
     )
     var platform: String?
