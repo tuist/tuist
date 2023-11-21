@@ -241,8 +241,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         )
                     }
             }
-        
-        var macroTargetsNames = Set(packageInfos.values.flatMap { $0.targets.filter({ $0.type == .macro}).map { $0.name } })
+
+        var macroTargetsNames = Set(packageInfos.values.flatMap { $0.targets.filter { $0.type == .macro }.map(\.name) })
 //        let macroDependencies = resolvedDependencies.filter { macroTargetsNames.contains($0.key) }.flatMap({ $0.value })
         var visited: Set<String> = []
         var macroDependencies = Set<ResolvedDependency>()
@@ -251,13 +251,13 @@ public final class PackageInfoMapper: PackageInfoMapping {
             guard let targetName = macroTargetsNames.popFirst() else {
                 continue
             }
-            
+
             if visited.contains(targetName) {
                 continue
             }
-            
+
             visited.insert(targetName)
-            
+
             for dependency in resolvedDependencies[targetName] ?? [] {
                 macroDependencies.insert(dependency)
                 let dependencyTargetName = dependency.targetName
@@ -540,17 +540,17 @@ extension ProjectDescription.Target {
         let moduleMap = targetToModuleMap[target.name]
 
         // Use the intersection of destations from `Dependencies.swift` and the destinations supported by the package.
-        
+
         var destinations = if target.type == .macro {
             Set<ProjectDescription.Destination>([.mac])
         } else {
             packageDestinations
                 .intersection(try ProjectDescription.Destinations.from(platforms: packageInfo.platforms))
         }
-        
-        if macroDependencies.contains (where: { dependency in
+
+        if macroDependencies.contains(where: { dependency in
             switch dependency {
-            case .externalTarget(_, let targetName, _), .target(let targetName, platformFilters: _):
+            case let .externalTarget(_, targetName, _), .target(let targetName, platformFilters: _):
                 return target.name == targetName
             default:
                 return false
@@ -1336,7 +1336,7 @@ extension PackageInfoMapper {
                 return condition
             }
         }
-        
+
         fileprivate var targetName: String? {
             switch self {
             case let .target(targetName, _), let .externalTarget(_, targetName, _):
