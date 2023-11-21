@@ -2988,7 +2988,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 .test(
                     "Dependency1",
                     basePath: basePath,
-                    destinations:  [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
+                    destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
                     customProductName: "Dependency1",
                     customBundleID: "Dependency1",
                     deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
@@ -3070,7 +3070,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 .test(
                     "Target1",
                     basePath: basePath,
-                    destinations:  [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
+                    destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
                     customProductName: "Target1",
                     customBundleID: "Target1",
                     deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),

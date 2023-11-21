@@ -65,7 +65,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
         XCTAssertNotNil(gotTarget.sources.first?.contentHash)
         XCTAssertEqual(gotTarget.dependencies.count, 1)
-        XCTAssertEqual(gotTarget.dependencies.first, TargetDependency.target(name: "\(project.name)_\(target.name)", platformFilters: [.ios]))
+        XCTAssertEqual(
+            gotTarget.dependencies.first,
+            TargetDependency.target(name: "\(project.name)_\(target.name)", platformFilters: [.ios])
+        )
 
         let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
         XCTAssertEqual(resourcesTarget.name, "\(project.name)_\(target.name)")
@@ -136,7 +139,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
         XCTAssertNotNil(gotTarget.sources.first?.contentHash)
         XCTAssertEqual(gotTarget.dependencies.count, 1)
-        XCTAssertEqual(gotTarget.dependencies.first, TargetDependency.target(name: "\(project.name)_\(target.name)", platformFilters: [.ios]))
+        XCTAssertEqual(
+            gotTarget.dependencies.first,
+            TargetDependency.target(name: "\(project.name)_\(target.name)", platformFilters: [.ios])
+        )
 
         let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
         XCTAssertEqual(resourcesTarget.name, "\(project.name)_\(target.name)")

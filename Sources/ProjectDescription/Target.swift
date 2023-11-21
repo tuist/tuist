@@ -7,7 +7,7 @@ public struct Target: Codable, Equatable {
 
     /// The destinations this target supports
     public let destinations: Destinations
-    
+
     /// The type of build product this target will output.
     public let product: Product
 
@@ -19,7 +19,7 @@ public struct Target: Codable, Equatable {
 
     /// The minimum deployment target your product will support.
     public let deploymentTargets: DeploymentTargets?
-    
+
     /// The Info.plist representation.
     public let infoPlist: InfoPlist?
 
@@ -144,7 +144,7 @@ public struct Target: Codable, Equatable {
         mergeable: Bool = false
     ) {
         self.name = name
-        self.destinations = Destinations.from(platform: platform, deploymentTarget: deploymentTarget)
+        destinations = Destinations.from(platform: platform, deploymentTarget: deploymentTarget)
         self.bundleId = bundleId
         self.productName = productName
         self.product = product
@@ -160,7 +160,7 @@ public struct Target: Codable, Equatable {
         self.coreDataModels = coreDataModels
         self.environmentVariables = environmentVariables
         self.launchArguments = launchArguments
-        self.deploymentTargets = DeploymentTargets.from(manifest: deploymentTarget)
+        deploymentTargets = DeploymentTargets.from(manifest: deploymentTarget)
         self.additionalFiles = additionalFiles
         self.buildRules = buildRules
         self.mergedBinaryType = mergedBinaryType
@@ -193,7 +193,7 @@ public struct Target: Codable, Equatable {
         mergeable: Bool = false
     ) {
         self.name = name
-        self.destinations = Destinations.from(platform: platform, deploymentTarget: deploymentTarget)
+        destinations = Destinations.from(platform: platform, deploymentTarget: deploymentTarget)
         self.bundleId = bundleId
         self.productName = productName
         self.product = product
@@ -211,7 +211,7 @@ public struct Target: Codable, Equatable {
             EnvironmentVariable(value: value, isEnabled: true)
         }
         self.launchArguments = launchArguments
-        self.deploymentTargets = DeploymentTargets.from(manifest: deploymentTarget)
+        deploymentTargets = DeploymentTargets.from(manifest: deploymentTarget)
         self.additionalFiles = additionalFiles
         self.buildRules = buildRules
         self.mergedBinaryType = mergedBinaryType
@@ -219,37 +219,45 @@ public struct Target: Codable, Equatable {
     }
 }
 
-
 extension Target {
     @available(*, deprecated, renamed: "Destinations", message: "Targets are no longer constrained to a single platform")
     var platform: Platform {
         destinations.platforms.first ?? .iOS
     }
 
-    @available(*, deprecated, renamed: "DeploymentTargets", message: "Device support is now defined in Destinations. Minimum Deployment Version is defined in DeploymentTargets")
+    @available(
+        *,
+        deprecated,
+        renamed: "DeploymentTargets",
+        message: "Device support is now defined in Destinations. Minimum Deployment Version is defined in DeploymentTargets"
+    )
     var deploymentTarget: DeploymentTarget? {
         switch platform {
         case .iOS:
             guard let version = deploymentTargets?.iOS else { return nil }
             var devices = DeploymentDevice()
-            
+
             if destinations.contains(.iPhone) {
                 devices.insert(.iphone)
             }
-            
+
             if destinations.contains(.iPad) {
                 devices.insert(.ipad)
             }
-            
+
             if destinations.contains(.macCatalyst) {
                 devices.insert(.mac)
             }
-            
+
             if destinations.contains(.appleVisionWithiPadDesign) {
                 devices.insert(.vision)
             }
-                
-            return .iOS(targetVersion: version, devices: devices, supportsMacDesignedForIOS: destinations.contains(.macWithiPadDesign))
+
+            return .iOS(
+                targetVersion: version,
+                devices: devices,
+                supportsMacDesignedForIOS: destinations.contains(.macWithiPadDesign)
+            )
         case .macOS:
             guard let version = deploymentTargets?.macOS else { return nil }
             return .macOS(targetVersion: version)
@@ -266,9 +274,7 @@ extension Target {
     }
 }
 
-
 extension Destinations {
-    
     /// Maps a ProjectDescription.Package instance into a TuistGraph.Package model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
@@ -282,27 +288,27 @@ extension Destinations {
             return [.mac]
         case let (.iOS, .some(.iOS(_, devices, supportsMacDesignedForIOS: supportsMacDesignedForIOS))):
             var destinations: [Destination] = []
-            
+
             if devices.contains(.iphone) {
                 destinations.append(.iPhone)
             }
-            
+
             if devices.contains(.ipad) {
                 destinations.append(.iPad)
             }
-            
+
             if devices.contains(.mac) {
                 destinations.append(.macCatalyst)
             }
-            
+
             if devices.contains(.vision) {
                 destinations.append(.appleVisionWithiPadDesign)
             }
-            
+
             if supportsMacDesignedForIOS {
                 destinations.append(.macWithiPadDesign)
             }
-            
+
             return Set(destinations)
         case (.iOS, _): // an iOS platform, but `nil` deployment target.
             return .iOS

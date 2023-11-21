@@ -231,7 +231,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             "WKExtensionDelegateClassName": "$(PRODUCT_MODULE_NAME).ExtensionDelegate",
         ]
     }
-    
+
     /// Given a dictionary, it extends it with another dictionary.
     ///
     /// - Parameters:
@@ -240,7 +240,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     fileprivate func extend(_ base: inout [String: Any], with: [String: Any]) {
         with.forEach { base[$0.key] = $0.value }
     }
-    
+
     private func hostTarget(for target: Target, in project: Project) -> Target? {
         project.targets.first {
             $0.dependencies.contains(where: { dependency in

@@ -6,9 +6,9 @@ import TuistGraphTesting
 import TuistSupport
 import XCTest
 
+@testable import ProjectDescription
 @testable import TuistLoader
 @testable import TuistSupportTesting
-@testable import ProjectDescription
 
 final class DeploymentTargetsManifestMapperTests: TuistUnitTestCase {
     func test_deploymentTarget() throws {

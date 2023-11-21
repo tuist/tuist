@@ -255,7 +255,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
                             case let .xcframework(path, platformFilters):
                                 return .xcframework(path: path, platformFilters: platformFilters)
                             case let .target(name, filters):
-                                return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString), platformFilters: filters)
+                                return .project(
+                                    target: name,
+                                    path: Path(packageToFolder[packageInfo.key]!.pathString),
+                                    platformFilters: filters
+                                )
                             case .externalTarget:
                                 throw PackageInfoMapperError.unknownProductTarget(
                                     package: packageInfo.key,

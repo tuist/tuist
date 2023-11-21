@@ -265,7 +265,7 @@ private func == (
     _ lhs: TuistGraph.Destinations,
     _ rhs: ProjectDescription.Destinations
 ) -> Bool {
-    return lhs.map(\.rawValue).sorted() == rhs.map(\.rawValue).sorted()
+    lhs.map(\.rawValue).sorted() == rhs.map(\.rawValue).sorted()
 }
 
 private func == (
