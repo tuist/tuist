@@ -60,9 +60,19 @@ jobs:
       - uses: actions/checkout@v3
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - uses: asdf-vm/actions/install@v2
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - uses: actions/cache@v3
+        name: 'Cache fetched dependencies folder'
+        with:
+          path: Tuist/Dependencies/SwiftPackageManager/.build
+          key: spm-v1-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
+      - name: Fetch dependencies
+        run: tuist fetch
       - name: Test
-        run: |
-          ARGS="--skip-test-targets TuistBuildAcceptanceTests TuistGenerateOneAcceptanceTests" make tuist/test
+        run: tuist test --no-cache --skip-test-targets TuistBuildAcceptanceTests TuistGenerateOneAcceptanceTests
 
   cache-warm:
     name: Cache warm with latest Tuist
@@ -122,13 +132,6 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-      - uses: actions/cache@v3
-        name: 'Cache vendor .build folder'
-        with:
-          path: vendor/.build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('vendor/Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('vendor/Package.resolved') }}
       - uses: actions/cache@v3
         name: 'Cache fetched dependencies folder'
         with:
@@ -204,6 +207,7 @@ jobs:
     runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
+      - uses: asdf-vm/actions/install@v2
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Run
