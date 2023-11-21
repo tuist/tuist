@@ -133,12 +133,10 @@ jobs:
         name: 'Cache fetched dependencies folder'
         with:
           path: Tuist/Dependencies/SwiftPackageManager/.build
-          key: spm-v1-${{ hashFiles('Tuist/Package.resolves') }}
+          key: spm-v1-${{ hashFiles('Tuist/Package.resolved') }}
           restore-keys: spm-v1-${{ hashFiles('Tuist/Package.resolved') }}
       - name: Fetch dependencies
         run: tuist fetch
-      - name: Build xcbeautify
-        run: swift build --package-path vendor --product xcbeautify
       - name: Run acceptance tests
         run: tuist test Tuist${{ matrix.feature }}AcceptanceTests
       

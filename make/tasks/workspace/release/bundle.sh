@@ -102,9 +102,6 @@ build_fat_release_library "ProjectDescription"
 echo "$(format_subsection "Building ProjectAutomation framework")"
 build_xcframework_library "ProjectAutomation"
 
-echo "$(format_subsection "Building xcbeautify executable")"
-build_fat_release_binary "xcbeautify" $ROOT_DIR/vendor $BUILD_DIRECTORY/vendor
-
 echo "$(format_subsection "Building tuist executable")"
 build_fat_release_binary "tuist" $ROOT_DIR $BUILD_DIRECTORY
 

@@ -35,7 +35,7 @@ var targets: [Target] = [
     .target(
         name: "TuistGraphTesting",
         dependencies: [
-            "TuistGraph", 
+            "TuistGraph",
             "TuistSupportTesting",
             swiftToolsSupportDependency,
             "AnyCodable",
@@ -55,8 +55,8 @@ var targets: [Target] = [
     .target(
         name: "TuistCoreTesting",
         dependencies: [
-            "TuistCore", 
-            "TuistSupportTesting", 
+            "TuistCore",
+            "TuistSupportTesting",
             "TuistGraphTesting",
             swiftToolsSupportDependency,
         ],
@@ -173,6 +173,7 @@ var targets: [Target] = [
         dependencies: [
             "XcodeProj",
             swiftToolsSupportDependency,
+            .product(name: "XcbeautifyLib", package: "xcbeautify"),
             "TuistCore",
             "TuistGraph",
             "TuistSupport",
@@ -369,6 +370,7 @@ let package = Package(
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
         .package(url: "https://github.com/tuist/XcodeProj", exact: "8.15.0"),
+        .package(url: "https://github.com/tuist/xcbeautify", from: "1.0.1"),
     ],
     targets: targets
 )
