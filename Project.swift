@@ -465,6 +465,7 @@ func targets() -> [Target] {
                 .external(name: "SwiftToolsSupport"),
                 .external(name: "SystemPackage"),
                 .external(name: "XcodeProj"),
+                .external(name: "XcbeautifyLib"),
             ],
             testDependencies: [
                 .target(name: "TuistSupportTesting"),
@@ -508,7 +509,6 @@ let acceptanceTests: [(target: Target, scheme: Scheme)] = ["Build", "GenerateOne
             dependencies: [
                 .target(name: "TuistAcceptanceTesting"),
                 .target(name: "TuistSupportTesting"),
-                .target(name: "TuistKit"),
                 .external(name: "SwiftToolsSupport"),
                 .external(name: "SystemPackage"),
             ]
