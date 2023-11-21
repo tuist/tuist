@@ -46,7 +46,7 @@ public struct BuildCommand: AsyncParsableCommand {
         help: "Build for a specific platform."
     )
     var platform: String?
-    
+
     @Option(
         name: .shortAndLong,
         help: "Build with a specific version of the OS."

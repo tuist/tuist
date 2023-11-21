@@ -348,13 +348,12 @@ public final class TestService { // swiftlint:disable:this type_body_length
         }
 
         let buildPlatform: TuistGraph.Platform
-        
+
         if let platform, let inputPlatform = TuistGraph.Platform(rawValue: platform) {
             buildPlatform = inputPlatform
         } else {
             buildPlatform = try buildableTarget.target.servicePlatform
         }
-
 
         let destination = try await XcodeBuildDestination.find(
             for: buildableTarget.target,

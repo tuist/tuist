@@ -320,7 +320,7 @@ extension BuildService {
             buildOutputPath: buildOutputPath,
             derivedDataPath: derivedDataPath,
             path: path,
-            device: device, 
+            device: device,
             platform: platform,
             osVersion: osVersion,
             rosetta: rosetta

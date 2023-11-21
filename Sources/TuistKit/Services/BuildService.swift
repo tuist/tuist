@@ -97,15 +97,15 @@ final class BuildService {
             guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
                 throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
             }
-            
+
             let buildPlatform: TuistGraph.Platform
-            
+
             if let platform, let inputPlatform = TuistGraph.Platform(rawValue: platform) {
                 buildPlatform = inputPlatform
             } else {
                 buildPlatform = try graphTarget.target.servicePlatform
             }
-                    
+
             try await targetBuilder.buildTarget(
                 graphTarget,
                 platform: buildPlatform,
@@ -128,9 +128,9 @@ final class BuildService {
                 guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
                     throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
                 }
-                
+
                 let buildPlatform: TuistGraph.Platform
-                
+
                 if let platform, let inputPlatform = TuistGraph.Platform(rawValue: platform) {
                     buildPlatform = inputPlatform
                 } else {
