@@ -156,6 +156,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
         configuration: String?,
         path: AbsolutePath,
         deviceName: String?,
+        platform: String?,
         osVersion: String?,
         rosetta: Bool,
         skipUITests: Bool,
@@ -245,6 +246,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     configuration: configuration,
                     version: version,
                     deviceName: deviceName,
+                    platform: platform,
                     rosetta: rosetta,
                     resultBundlePath: resultBundlePath,
                     derivedDataPath: derivedDataPath,
@@ -273,6 +275,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     configuration: configuration,
                     version: version,
                     deviceName: deviceName,
+                    platform: platform,
                     rosetta: rosetta,
                     resultBundlePath: resultBundlePath,
                     derivedDataPath: derivedDataPath,
@@ -315,6 +318,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
         configuration: String?,
         version: Version?,
         deviceName: String?,
+        platform: String?,
         rosetta: Bool,
         resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
@@ -343,11 +347,18 @@ public final class TestService { // swiftlint:disable:this type_body_length
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name, testPlan: testPlanConfiguration?.testPlan)
         }
 
-        let platform = try buildableTarget.target.servicePlatform
+        let buildPlatform: TuistGraph.Platform
+        
+        if let platform, let inputPlatform = TuistGraph.Platform(rawValue: platform) {
+            buildPlatform = inputPlatform
+        } else {
+            buildPlatform = try buildableTarget.target.servicePlatform
+        }
+
 
         let destination = try await XcodeBuildDestination.find(
             for: buildableTarget.target,
-            on: platform,
+            on: buildPlatform,
             scheme: scheme,
             version: version,
             deviceName: deviceName,
