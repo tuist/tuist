@@ -41,11 +41,6 @@ open class TuistAcceptanceTestCase: XCTestCase {
         } catch {
             XCTFail("Failed to setup environment")
         }
-        environment.tuistConfigVariables[
-            Constants.EnvironmentVariables.xcbeautifyBinaryPath
-        ] = sourceRootPath
-            .appending(components: ["vendor", ".build", "debug", "xcbeautify"])
-            .pathString
     }
 
     override open func tearDown() async throws {
