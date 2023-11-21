@@ -72,7 +72,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Test
-        run: tuist test --skip-test-targets TuistBuildAcceptanceTests TuistGenerateOneAcceptanceTests
+        run: tuist test --no-cache --skip-test-targets TuistBuildAcceptanceTests TuistGenerateOneAcceptanceTests
 
   cache-warm:
     name: Cache warm with latest Tuist
