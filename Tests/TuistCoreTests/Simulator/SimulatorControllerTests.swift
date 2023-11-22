@@ -185,7 +185,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(device, expectedDeviceAndRuntime)
     }
-    
+
     func test_findAvailableDevice_should_findVersionSpecified_when_lessThanMaxVersion() async throws {
         // Given
         let devicesAndRuntimes =
