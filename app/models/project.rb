@@ -54,15 +54,19 @@ end
 
 class DefaultS3Bucket
   def name
-    case Rails.env
-    when "production"
-      "tuist-cloud-production"
-    when "staging"
-      "tuist-cloud-staging"
-    when "canary"
-      "tuist-cloud-canary"
+    if Environment.tuist_hosted?
+      case Rails.env
+      when "production"
+        "tuist-cloud-production"
+      when "staging"
+        "tuist-cloud-staging"
+      when "canary"
+        "tuist-cloud-canary"
+      else
+        "tuist-debug"
+      end
     else
-      "tuist-debug"
+      Environment.aws_bucket_name
     end
   end
 

@@ -74,6 +74,10 @@ module Environment
       fetch(:aws, :endpoint)
     end
 
+    def aws_bucket_name
+      fetch(:aws, :bucket_name)
+    end
+
     def storage_configured?
       aws_configured?
     end
@@ -177,7 +181,8 @@ module Environment
     end
 
     def aws_configured?
-      aws_access_key_id.present? && aws_secret_access_key.present? && aws_region.present?
+      aws_access_key_id.present? && aws_secret_access_key.present? && aws_region.present? &&
+        (tuist_hosted? || aws_bucket_name.present?)
     end
 
     def app_url_configured?
