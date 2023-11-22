@@ -92,7 +92,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
             switch dependency.packageRef.kind {
-            case "registry", "remote", "remoteSourceControl":
+            case "remote", "remoteSourceControl":
                 packageFolder = checkoutsFolder.appending(component: dependency.subpath)
             case "local", "fileSystem", "localSourceControl":
                 // Depending on the swift version, the information is available either in `path` or in `location`
@@ -100,6 +100,9 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                     throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
                 }
                 packageFolder = try AbsolutePath(validating: path)
+            case "registry":
+                let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
+                packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
             default:
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }

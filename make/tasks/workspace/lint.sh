@@ -5,5 +5,5 @@ set -euo pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ROOT_DIR=$($SCRIPT_DIR/../../utilities/root_dir.sh)
 
-swift run --package-path $ROOT_DIR/vendor swiftformat $ROOT_DIR --lint
-swift run --package-path $ROOT_DIR/vendor swiftlint lint --quiet --config $ROOT_DIR/.swiftlint.yml $ROOT_DIR/Sources
+swiftformat $ROOT_DIR --lint
+swiftlint lint --quiet --config $ROOT_DIR/.swiftlint.yml $ROOT_DIR/Sources
