@@ -42,7 +42,7 @@ public enum TargetDependency: Codable, Hashable {
         /// A macro package represents a package that contains a Swift Macro.
         case macro
     }
-    
+
     public struct Condition: Codable, Hashable, Equatable {
         public let platformFilters: Set<PlatformFilter>
         private init(platformFilters: Set<PlatformFilter>) {

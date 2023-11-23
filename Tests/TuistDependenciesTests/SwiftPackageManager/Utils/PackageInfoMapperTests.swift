@@ -299,8 +299,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Target_2": [],
                 "Target_3": [],
                 "Target_1": [
-                    .externalTarget(package: "Package_2", target: "Target_2", condition:  .when([.ios])),
-                    .externalTarget(package: "Package_2", target: "Target_3", condition:  .when([.tvos])),
+                    .externalTarget(package: "Package_2", target: "Target_2", condition: .when([.ios])),
+                    .externalTarget(package: "Package_2", target: "Target_3", condition: .when([.tvos])),
                 ],
             ]
         )
