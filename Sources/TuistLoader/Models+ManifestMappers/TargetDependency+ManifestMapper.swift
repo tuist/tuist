@@ -33,19 +33,19 @@ extension TuistGraph.TargetDependency {
     ) throws -> [TuistGraph.TargetDependency] {
         switch manifest {
         case let .target(name, platformFilters):
-            return [.target(name: name, platformFilters: platformFilters.asGraphFilters)]
+            return [.target(name: name, platformFilters: platformFilters?.asGraphFilters ?? .all)]
         case let .project(target, projectPath, platformFilters):
             return [.project(
                 target: target,
                 path: try generatorPaths.resolve(path: projectPath),
-                platformFilters: platformFilters.asGraphFilters
+                platformFilters: platformFilters?.asGraphFilters ?? .all
             )]
         case let .framework(frameworkPath, status, platformFilters):
             return [
                 .framework(
                     path: try generatorPaths.resolve(path: frameworkPath),
                     status: .from(manifest: status),
-                    platformFilters: platformFilters.asGraphFilters
+                    platformFilters: platformFilters?.asGraphFilters ?? .all
                 ),
             ]
         case let .library(libraryPath, publicHeaders, swiftModuleMap, platformFilters):
@@ -54,27 +54,27 @@ extension TuistGraph.TargetDependency {
                     path: try generatorPaths.resolve(path: libraryPath),
                     publicHeaders: try generatorPaths.resolve(path: publicHeaders),
                     swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) },
-                    platformFilters: platformFilters.asGraphFilters
+                    platformFilters: platformFilters?.asGraphFilters ?? .all
                 ),
             ]
         case let .package(product, type, platformFilters):
             switch type {
             case .macro:
-                return [.package(product: product, type: .macro, platformFilters: platformFilters.asGraphFilters)]
+                return [.package(product: product, type: .macro, platformFilters: platformFilters?.asGraphFilters ?? .all)]
             case .runtime:
-                return [.package(product: product, type: .runtime, platformFilters: platformFilters.asGraphFilters)]
+                return [.package(product: product, type: .runtime, platformFilters: platformFilters?.asGraphFilters ?? .all)]
             case .plugin:
-                return [.package(product: product, type: .plugin, platformFilters: platformFilters.asGraphFilters)]
+                return [.package(product: product, type: .plugin, platformFilters: platformFilters?.asGraphFilters ?? .all)]
             }
         case let .packagePlugin(product, platformFilters):
             logger.warning(".packagePlugin is deprecated. Use .package(product:, type: .plugin) instead.")
-            return [.package(product: product, type: .plugin, platformFilters: platformFilters.asGraphFilters)]
+            return [.package(product: product, type: .plugin, platformFilters: platformFilters?.asGraphFilters ?? .all)]
         case let .sdk(name, type, status, platformFilters):
             return [
                 .sdk(
                     name: "\(type.filePrefix)\(name).\(type.fileExtension)",
                     status: .from(manifest: status),
-                    platformFilters: platformFilters.asGraphFilters
+                    platformFilters: platformFilters?.asGraphFilters ?? .all
                 ),
             ]
         case let .xcframework(path, status, platformFilters):
@@ -82,7 +82,7 @@ extension TuistGraph.TargetDependency {
                 .xcframework(
                     path: try generatorPaths.resolve(path: path),
                     status: .from(manifest: status),
-                    platformFilters: platformFilters.asGraphFilters
+                    platformFilters: platformFilters?.asGraphFilters ?? .all
                 ),
             ]
         case .xctest:
@@ -92,7 +92,7 @@ extension TuistGraph.TargetDependency {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name)
             }
 
-            return dependencies.map { $0.withFilters(filters.asGraphFilters) }
+            return dependencies.map { $0.withFilters(filters?.asGraphFilters ?? .all) }
         }
     }
 }
@@ -100,6 +100,12 @@ extension TuistGraph.TargetDependency {
 extension ProjectDescription.PlatformFilters {
     var asGraphFilters: TuistGraph.PlatformFilters {
         Set<TuistGraph.PlatformFilter>(map(\.graphPlatformFilter))
+    }
+}
+
+extension ProjectDescription.TargetDependency.Condition {
+    var asGraphFilters: TuistGraph.PlatformFilters {
+        Set<TuistGraph.PlatformFilter>(platformFilters.map(\.graphPlatformFilter))
     }
 }
 

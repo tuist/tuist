@@ -85,14 +85,14 @@ extension TuistCore.DependenciesGraph {
                     .project(
                         target: "ALibrary",
                         path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency"),
-                        platformFilters: [.ios]
+                        condition: .when([.ios])
                     ),
                     .project(
                         target: "ALibraryUtils",
                         path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency"),
-                        platformFilters: [.ios]
+                        condition: .when([.ios])
                     ),
-                    .sdk(name: "WatchKit", type: .framework, status: .required, platformFilters: [.watchos]),
+                    .sdk(name: "WatchKit", type: .framework, status: .required, condition: .when([.watchos])),
                 ],
                 settings: Self.spmSettings(with: [
                     "HEADER_SEARCH_PATHS": [
@@ -320,7 +320,7 @@ extension TuistCore.DependenciesGraph {
                         name: "CFNetwork",
                         type: .framework,
                         status: .required,
-                        platformFilters: [.ios, .macos, .tvos, .watchos]
+                        condition: .when([.ios, .macos, .tvos, .watchos])
                     ),
                 ],
                 settings: Self.spmSettings()

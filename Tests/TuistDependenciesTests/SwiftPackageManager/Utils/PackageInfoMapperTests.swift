@@ -127,7 +127,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
-                "Target_1": [.externalTarget(package: "Package2", target: "Target_2", platformFilters: .all)],
+                "Target_1": [.externalTarget(package: "Package2", target: "Target_2", condition: nil)],
                 "Target_2": [],
             ]
         )
@@ -182,7 +182,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             preprocessInfo.targetToResolvedDependencies,
             [
                 "Target_1": [
-                    .externalTarget(package: "com.example.dep-1", target: "com_example_dep-1", platformFilters: .all),
+                    .externalTarget(package: "com.example.dep-1", target: "com_example_dep-1", condition: nil),
                 ],
                 "com.example.dep-1": [],
             ]
@@ -228,8 +228,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             preprocessInfo.targetToResolvedDependencies,
             [
                 "Target_1": [
-                    .target(name: "Dependency_1", platformFilters: [.ios]),
-                    .target(name: "Dependency_2", platformFilters: [.tvos]),
+                    .target(name: "Dependency_1", condition: .when([.ios])),
+                    .target(name: "Dependency_2", condition: .when([.tvos])),
                 ],
                 "Dependency_1": [],
                 "Dependency_2": [],
@@ -299,8 +299,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Target_2": [],
                 "Target_3": [],
                 "Target_1": [
-                    .externalTarget(package: "Package_2", target: "Target_2", platformFilters: [.ios]),
-                    .externalTarget(package: "Package_2", target: "Target_3", platformFilters: [.tvos]),
+                    .externalTarget(package: "Package_2", target: "Target_2", condition:  .when([.ios])),
+                    .externalTarget(package: "Package_2", target: "Target_3", condition:  .when([.tvos])),
                 ],
             ]
         )
@@ -2981,8 +2981,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString,
                     ])),
                     dependencies: [
-                        .target(name: "Dependency1", platformFilters: [.ios]),
-                        .target(name: "Dependency2", platformFilters: [.tvos]),
+                        .target(name: "Dependency1", condition: .when([.ios])),
+                        .target(name: "Dependency2", condition: .when([.tvos])),
                     ]
                 ),
                 .test(
@@ -3081,12 +3081,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .project(
                             target: "Target2",
                             path: Path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
-                            platformFilters: [.ios]
+                            condition: .when([.ios])
                         ),
                         .project(
                             target: "Target3",
                             path: Path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
-                            platformFilters: [.ios]
+                            condition: .when([.ios])
                         ),
                     ]
                 ),

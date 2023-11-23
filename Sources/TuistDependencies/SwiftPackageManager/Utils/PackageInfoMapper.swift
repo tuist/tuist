@@ -252,13 +252,13 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         )
                         .map {
                             switch $0 {
-                            case let .xcframework(path, platformFilters):
-                                return .xcframework(path: path, platformFilters: platformFilters)
-                            case let .target(name, filters):
+                            case let .xcframework(path, condition):
+                                return .xcframework(path: path, condition: condition)
+                            case let .target(name, condition):
                                 return .project(
                                     target: name,
                                     path: Path(packageToFolder[packageInfo.key]!.pathString),
-                                    platformFilters: filters
+                                    condition: condition
                                 )
                             case .externalTarget:
                                 throw PackageInfoMapperError.unknownProductTarget(
@@ -840,28 +840,28 @@ extension ProjectDescription.TargetDependency {
     ) throws -> [Self] {
         let targetDependencies = resolvedDependencies.compactMap { dependency -> Self? in
             switch dependency {
-            case let .target(name, platformFilters):
-                return .target(name: name, platformFilters: platformFilters)
-            case let .xcframework(path, platformFilters):
-                return .xcframework(path: path, platformFilters: platformFilters)
-            case let .externalTarget(project, target, platformFilters):
+            case let .target(name, condition):
+                return .target(name: name, condition: condition)
+            case let .xcframework(path, condition):
+                return .xcframework(path: path, condition: condition)
+            case let .externalTarget(project, target, condition):
                 return .project(
                     target: target,
                     path: Path(packageToProject[project]!.pathString),
-                    platformFilters: platformFilters
+                    condition: condition
                 )
             }
         }
 
         let linkerDependencies: [ProjectDescription.TargetDependency] = settings.compactMap { setting in
             do {
-                let platformFilters = try setting.condition.map(ProjectDescription.PlatformFilters.from) ?? .all
+                let condition = try ProjectDescription.TargetDependency.Condition.from(setting.condition)
 
                 switch (setting.tool, setting.name) {
                 case (.linker, .linkedFramework):
-                    return .sdk(name: setting.value[0], type: .framework, status: .required, platformFilters: platformFilters)
+                    return .sdk(name: setting.value[0], type: .framework, status: .required, condition: condition)
                 case (.linker, .linkedLibrary):
-                    return .sdk(name: setting.value[0], type: .library, status: .required, platformFilters: platformFilters)
+                    return .sdk(name: setting.value[0], type: .library, status: .required, condition: condition)
                 case (.c, _), (.cxx, _), (_, .enableUpcomingFeature), (.swift, _), (.linker, .headerSearchPath), (
                     .linker,
                     .define
@@ -1263,29 +1263,29 @@ extension PackageInfo.Target {
 
 extension PackageInfoMapper {
     public enum ResolvedDependency: Equatable, Hashable {
-        case target(name: String, platformFilters: ProjectDescription.PlatformFilters = .all)
-        case xcframework(path: Path, platformFilters: ProjectDescription.PlatformFilters = .all)
-        case externalTarget(package: String, target: String, platformFilters: ProjectDescription.PlatformFilters = .all)
+        case target(name: String, condition: ProjectDescription.TargetDependency.Condition? = nil)
+        case xcframework(path: Path, condition: ProjectDescription.TargetDependency.Condition? = nil)
+        case externalTarget(package: String, target: String, condition: ProjectDescription.TargetDependency.Condition? = nil)
 
         public func hash(into hasher: inout Hasher) {
             switch self {
-            case let .target(name, platformFilters):
+            case let .target(name, condition):
                 hasher.combine("target")
                 hasher.combine(name)
-                hasher.combine(platformFilters)
-            case let .xcframework(path, platformFilters):
+                hasher.combine(condition)
+            case let .xcframework(path, condition):
                 hasher.combine("package")
                 hasher.combine(path)
-                hasher.combine(platformFilters)
-            case let .externalTarget(package, target, platformFilters):
+                hasher.combine(condition)
+            case let .externalTarget(package, target, condition):
                 hasher.combine("externalTarget")
                 hasher.combine(package)
                 hasher.combine(target)
-                hasher.combine(platformFilters)
+                hasher.combine(condition)
             }
         }
 
-        fileprivate var platformFilters: ProjectDescription.PlatformFilters {
+        fileprivate var condition: ProjectDescription.TargetDependency.Condition? {
             switch self {
             case let .target(_, condition):
                 return condition
@@ -1351,12 +1351,12 @@ extension PackageInfoMapper {
             condition packageConditionDescription: PackageInfo.PackageConditionDescription?
         ) -> [Self] {
             do {
-                let platformFilters = try packageConditionDescription.map(ProjectDescription.PlatformFilters.from) ?? .all
+                let condition = try ProjectDescription.TargetDependency.Condition.from(packageConditionDescription)
 
                 if let framework = targetDependencyToFramework[name] {
-                    return [.xcframework(path: framework, platformFilters: platformFilters)]
+                    return [.xcframework(path: framework, condition: condition)]
                 } else {
-                    return [.target(name: PackageInfoMapper.sanitize(targetName: name), platformFilters: platformFilters)]
+                    return [.target(name: PackageInfoMapper.sanitize(targetName: name), condition: condition)]
                 }
             } catch {
                 return []
@@ -1374,16 +1374,16 @@ extension PackageInfoMapper {
                 throw PackageInfoMapperError.unknownProductDependency(product, package)
             }
             do {
-                let platformFilters = try packageConditionDescription.map(ProjectDescription.PlatformFilters.from) ?? .all
+                let condition = try ProjectDescription.TargetDependency.Condition.from(packageConditionDescription)
 
                 return packageProduct.targets.map { name in
                     if let framework = targetDependencyToFramework[name] {
-                        return .xcframework(path: framework, platformFilters: platformFilters)
+                        return .xcframework(path: framework, condition: condition)
                     } else {
                         return .externalTarget(
                             package: package,
                             target: PackageInfoMapper.sanitize(targetName: name),
-                            platformFilters: platformFilters
+                            condition: condition
                         )
                     }
                 }
@@ -1394,15 +1394,16 @@ extension PackageInfoMapper {
     }
 }
 
-extension ProjectDescription.PlatformFilters {
+extension ProjectDescription.TargetDependency.Condition {
     struct OnlyConditionsWithUnsupportedPlatforms: Error {}
 
-    /// Map from a condition to platform filters.
+    /// Map from a package condition to ProjectDescription.TargetDependency.Condition
     /// - Parameter condition: condition representing platforms that a given dependency applies to
     /// - Returns: set of PlatformFilters to be used with `GraphDependencyRefrence`
     /// throws `OnlyConditionsWithUnsupportedPlatforms` if the condition only contains platforms not supported by Tuist (e.g
     /// `windows`)
-    fileprivate static func from(_ condition: PackageInfo.PackageConditionDescription) throws -> Self {
+    fileprivate static func from(_ condition: PackageInfo.PackageConditionDescription?) throws -> Self? {
+        guard let condition else { return nil }
         let filters: [ProjectDescription.PlatformFilter] = condition.platformNames.compactMap { name in
             switch name {
             case "ios":
@@ -1422,11 +1423,12 @@ extension ProjectDescription.PlatformFilters {
             }
         }
 
+        // If empty, we know there are no supported platforms and this dependency should not be included in the graph
         if filters.isEmpty {
             throw OnlyConditionsWithUnsupportedPlatforms()
         }
 
-        return Set(filters)
+        return .when(Set(filters))
     }
 }
 
