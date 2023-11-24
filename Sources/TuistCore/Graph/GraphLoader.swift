@@ -57,7 +57,7 @@ public final class GraphLoader: GraphLoading {
             packages: cache.packages,
             targets: cache.loadedTargets,
             dependencies: cache.dependencies,
-            dependencyPlatformFilters: cache.dependencyPlatformFilters
+            dependencyConditions: cache.dependencyConditions
         )
         return graph
     }
@@ -111,7 +111,7 @@ public final class GraphLoader: GraphLoading {
                 dependency: dependency,
                 cache: cache
             ) else { return nil }
-            cache.dependencyPlatformFilters[(targetDependency, graphDep)] = dependency.platformFilters
+            cache.dependencyConditions[(targetDependency, graphDep)] = dependency.condition
             return graphDep
         }
 
@@ -313,7 +313,7 @@ public final class GraphLoader: GraphLoading {
         var loadedProjects: [AbsolutePath: Project] = [:]
         var loadedTargets: [AbsolutePath: [String: Target]] = [:]
         var dependencies: [GraphDependency: Set<GraphDependency>] = [:]
-        var dependencyPlatformFilters: [GraphEdge: PlatformFilters] = [:]
+        var dependencyConditions: [GraphEdge: TargetDependency.Condition] = [:]
         var frameworks: [AbsolutePath: GraphDependency] = [:]
         var libraries: [AbsolutePath: GraphDependency] = [:]
         var xcframeworks: [AbsolutePath: GraphDependency] = [:]

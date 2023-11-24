@@ -18,56 +18,113 @@ public enum TargetDependency: Equatable, Hashable, Codable {
         case macro
     }
 
-    case target(name: String, platformFilters: PlatformFilters = .all)
-    case project(target: String, path: AbsolutePath, platformFilters: PlatformFilters = .all)
-    case framework(path: AbsolutePath, status: FrameworkStatus, platformFilters: PlatformFilters = .all)
-    case xcframework(path: AbsolutePath, status: FrameworkStatus, platformFilters: PlatformFilters = .all)
+    public struct Condition: Codable, Hashable, Equatable, Comparable {
+        public static func < (lhs: TargetDependency.Condition, rhs: TargetDependency.Condition) -> Bool {
+            lhs.platformFilters < rhs.platformFilters
+        }
+
+        public let platformFilters: PlatformFilters
+        private init(platformFilters: PlatformFilters) {
+            self.platformFilters = platformFilters
+        }
+
+        public static func when(_ platformFilters: Set<PlatformFilter>) -> Condition? {
+            guard !platformFilters.isEmpty else { return nil }
+            return Condition(platformFilters: platformFilters)
+        }
+
+        public func intersection(_ other: Condition?) -> CombinationResult {
+            guard let otherFilters = other?.platformFilters else { return .condition(self) }
+            let filters = platformFilters.intersection(otherFilters)
+
+            if filters.isEmpty {
+                return .incompatible
+            } else {
+                return .condition(Condition(platformFilters: filters))
+            }
+        }
+
+        public func union(_ other: Condition?) -> CombinationResult {
+            guard let otherFilters = other?.platformFilters else { return .condition(nil) }
+            let filters = platformFilters.union(otherFilters)
+
+            if filters.isEmpty {
+                return .condition(nil)
+            } else {
+                return .condition(Condition(platformFilters: filters))
+            }
+        }
+
+        public enum CombinationResult: Equatable {
+            case incompatible
+            case condition(Condition?)
+
+            public func combineWith(_ other: CombinationResult) -> CombinationResult {
+                switch (self, other) {
+                case (.incompatible, .incompatible):
+                    return .incompatible
+                case (_, .incompatible):
+                    return self
+                case (.incompatible, _):
+                    return other
+                case let (.condition(lhs), .condition(rhs)):
+                    guard let lhs, let rhs else { return .condition(nil) }
+                    return lhs.union(rhs)
+                }
+            }
+        }
+    }
+
+    case target(name: String, condition: Condition? = nil)
+    case project(target: String, path: AbsolutePath, condition: Condition? = nil)
+    case framework(path: AbsolutePath, status: FrameworkStatus, condition: Condition? = nil)
+    case xcframework(path: AbsolutePath, status: FrameworkStatus, condition: Condition? = nil)
     case library(
         path: AbsolutePath,
         publicHeaders: AbsolutePath,
         swiftModuleMap: AbsolutePath?,
-        platformFilters: PlatformFilters = .all
+        condition: Condition? = nil
     )
-    case package(product: String, type: PackageType, platformFilters: PlatformFilters = .all)
-    case sdk(name: String, status: SDKStatus, platformFilters: PlatformFilters = .all)
+    case package(product: String, type: PackageType, condition: Condition? = nil)
+    case sdk(name: String, status: SDKStatus, condition: Condition? = nil)
     case xctest
 
-    public var platformFilters: PlatformFilters {
+    public var condition: Condition? {
         switch self {
-        case .target(name: _, platformFilters: let platformFilters):
-            platformFilters
-        case .project(target: _, path: _, platformFilters: let platformFilters):
-            platformFilters
-        case .framework(path: _, status: _, platformFilters: let platformFilters):
-            platformFilters
-        case .xcframework(path: _, status: _, platformFilters: let platformFilters):
-            platformFilters
-        case .library(path: _, publicHeaders: _, swiftModuleMap: _, platformFilters: let platformFilters):
-            platformFilters
-        case .package(product: _, type: _, platformFilters: let platformFilters):
-            platformFilters
-        case .sdk(name: _, status: _, platformFilters: let platformFilters):
-            platformFilters
-        case .xctest: .all
+        case .target(name: _, condition: let condition):
+            condition
+        case .project(target: _, path: _, condition: let condition):
+            condition
+        case .framework(path: _, status: _, condition: let condition):
+            condition
+        case .xcframework(path: _, status: _, condition: let condition):
+            condition
+        case .library(path: _, publicHeaders: _, swiftModuleMap: _, condition: let condition):
+            condition
+        case .package(product: _, type: _, condition: let condition):
+            condition
+        case .sdk(name: _, status: _, condition: let condition):
+            condition
+        case .xctest: nil
         }
     }
 
-    public func withFilters(_ platformFilters: PlatformFilters) -> TargetDependency {
+    public func withCondition(_ condition: Condition?) -> TargetDependency {
         switch self {
-        case .target(name: let name, platformFilters: _):
-            return .target(name: name, platformFilters: platformFilters)
-        case .project(target: let target, path: let path, platformFilters: _):
-            return .project(target: target, path: path, platformFilters: platformFilters)
-        case .framework(path: let path, status: let status, platformFilters: _):
-            return .framework(path: path, status: status, platformFilters: platformFilters)
-        case .xcframework(path: let path, status: let status, platformFilters: _):
-            return .xcframework(path: path, status: status, platformFilters: platformFilters)
-        case .library(path: let path, publicHeaders: let headers, swiftModuleMap: let moduleMap, platformFilters: _):
-            return .library(path: path, publicHeaders: headers, swiftModuleMap: moduleMap, platformFilters: platformFilters)
-        case .package(product: let product, type: let type, platformFilters: _):
-            return .package(product: product, type: type, platformFilters: platformFilters)
-        case .sdk(name: let name, status: let status, platformFilters: _):
-            return .sdk(name: name, status: status, platformFilters: platformFilters)
+        case .target(name: let name, condition: _):
+            return .target(name: name, condition: condition)
+        case .project(target: let target, path: let path, condition: _):
+            return .project(target: target, path: path, condition: condition)
+        case .framework(path: let path, status: let status, condition: _):
+            return .framework(path: path, status: status, condition: condition)
+        case .xcframework(path: let path, status: let status, condition: _):
+            return .xcframework(path: path, status: status, condition: condition)
+        case .library(path: let path, publicHeaders: let headers, swiftModuleMap: let moduleMap, condition: _):
+            return .library(path: path, publicHeaders: headers, swiftModuleMap: moduleMap, condition: condition)
+        case .package(product: let product, type: let type, condition: _):
+            return .package(product: product, type: type, condition: condition)
+        case .sdk(name: let name, status: let status, condition: _):
+            return .sdk(name: name, status: status, condition: condition)
         case .xctest: return .xctest
         }
     }

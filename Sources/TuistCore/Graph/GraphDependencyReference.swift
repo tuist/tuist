@@ -3,15 +3,15 @@ import TSCBasic
 import TuistGraph
 
 public enum GraphDependencyReference: Equatable, Comparable, Hashable {
-    var platformFilters: PlatformFilters {
+    var condition: TargetDependency.Condition? {
         switch self {
-        case let .framework(_, _, _, _, _, _, _, _, _, platformFilters),
-             let .library(_, _, _, _, platformFilters),
-             let .xcframework(_, _, _, _, _, platformFilters),
-             let .bundle(_, platformFilters),
-             let .product(_, _, platformFilters),
-             let .sdk(_, _, _, platformFilters):
-            return platformFilters
+        case let .framework(_, _, _, _, _, _, _, _, _, condition),
+             let .library(_, _, _, _, condition),
+             let .xcframework(_, _, _, _, _, condition),
+             let .bundle(_, condition),
+             let .product(_, _, condition),
+             let .sdk(_, _, _, condition):
+            return condition
         }
     }
 
@@ -25,14 +25,14 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         primaryBinaryPath: AbsolutePath,
         binaryPath: AbsolutePath,
         status: FrameworkStatus,
-        platformFilters: PlatformFilters = .all
+        condition: TargetDependency.Condition? = nil
     )
     case library(
         path: AbsolutePath,
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
         product: Product,
-        platformFilters: PlatformFilters = .all
+        condition: TargetDependency.Condition? = nil
     )
     case framework(
         path: AbsolutePath,
@@ -44,13 +44,13 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         architectures: [BinaryArchitecture],
         product: Product,
         status: FrameworkStatus,
-        platformFilters: PlatformFilters = .all
+        condition: TargetDependency.Condition? = nil
     )
-    case bundle(path: AbsolutePath, platformFilters: PlatformFilters)
-    case product(target: String, productName: String, platformFilters: PlatformFilters)
-    case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource, platformFilters: PlatformFilters)
+    case bundle(path: AbsolutePath, condition: TargetDependency.Condition? = nil)
+    case product(target: String, productName: String, condition: TargetDependency.Condition? = nil)
+    case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource, condition: TargetDependency.Condition? = nil)
 
-    init(_ dependency: GraphDependency, filters: PlatformFilters = .all) {
+    init(_ dependency: GraphDependency, condition: TargetDependency.Condition? = nil) {
         switch dependency {
         case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage, status):
             self = .framework(
@@ -63,7 +63,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 architectures: architectures,
                 product: (linking == .static) ? .staticFramework : .framework,
                 status: status,
-                platformFilters: filters
+                condition: condition
             )
         case let .library(path, _, linking, architectures, _):
             self = .library(
@@ -71,7 +71,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 linking: linking,
                 architectures: architectures,
                 product: (linking == .static) ? .staticLibrary : .dynamicLibrary,
-                platformFilters: filters
+                condition: condition
             )
         case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, status):
             self = .xcframework(
@@ -80,7 +80,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 primaryBinaryPath: primaryBinaryPath,
                 binaryPath: primaryBinaryPath,
                 status: status,
-                platformFilters: filters
+                condition: condition
             )
         default:
             preconditionFailure("unsupported dependencies")
@@ -113,12 +113,12 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     // Private helper type to auto-synthesize the hashable & comparable implementations
     // where only the required subset of properties are used.
     private enum Synthesized: Comparable, Hashable {
-        case sdk(path: AbsolutePath, platformFilters: PlatformFilters)
-        case product(target: String, productName: String, platformFilters: PlatformFilters)
-        case library(path: AbsolutePath, platformFilters: PlatformFilters)
-        case framework(path: AbsolutePath, platformFilters: PlatformFilters)
-        case xcframework(path: AbsolutePath, platformFilters: PlatformFilters)
-        case bundle(path: AbsolutePath, platformFilters: PlatformFilters)
+        case sdk(path: AbsolutePath, condition: TargetDependency.Condition?)
+        case product(target: String, productName: String, condition: TargetDependency.Condition?)
+        case library(path: AbsolutePath, condition: TargetDependency.Condition?)
+        case framework(path: AbsolutePath, condition: TargetDependency.Condition?)
+        case xcframework(path: AbsolutePath, condition: TargetDependency.Condition?)
+        case bundle(path: AbsolutePath, condition: TargetDependency.Condition?)
 
         init(dependencyReference: GraphDependencyReference) {
             switch dependencyReference {
@@ -128,11 +128,11 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 primaryBinaryPath: _,
                 binaryPath: _,
                 status: _,
-                platformFilters: let platformFilters
+                condition: let condition
             ):
-                self = .xcframework(path: path, platformFilters: platformFilters)
-            case let .library(path: path, _, _, _, platformFilters):
-                self = .library(path: path, platformFilters: platformFilters)
+                self = .xcframework(path: path, condition: condition)
+            case let .library(path: path, _, _, _, condition):
+                self = .library(path: path, condition: condition)
             case .framework(
                 path: let path,
                 binaryPath: _,
@@ -143,16 +143,24 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 architectures: _,
                 product: _,
                 status: _,
-                platformFilters: let platformFilters
+                condition: let condition
             ):
-                self = .framework(path: path, platformFilters: platformFilters)
-            case let .bundle(path: path, platformFilters):
-                self = .bundle(path: path, platformFilters: platformFilters)
-            case let .product(target: target, productName: productName, platformFilters: platformFilters):
-                self = .product(target: target, productName: productName, platformFilters: platformFilters)
-            case .sdk(path: let path, status: _, source: _, platformFilters: let platformFilters):
-                self = .sdk(path: path, platformFilters: platformFilters)
+                self = .framework(path: path, condition: condition)
+            case let .bundle(path: path, condition):
+                self = .bundle(path: path, condition: condition)
+            case let .product(target: target, productName: productName, condition: condition):
+                self = .product(target: target, productName: productName, condition: condition)
+            case .sdk(path: let path, status: _, source: _, condition: let condition):
+                self = .sdk(path: path, condition: condition)
             }
         }
+    }
+}
+
+extension TargetDependency.Condition?: Comparable {
+    public static func < (lhs: Optional, rhs: Optional) -> Bool {
+        guard let lhs else { return false }
+        guard let rhs else { return true }
+        return lhs < rhs
     }
 }

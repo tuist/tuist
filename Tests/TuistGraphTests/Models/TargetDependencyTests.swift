@@ -37,28 +37,28 @@ final class TargetDependencyTests: TuistUnitTestCase {
     }
 
     func test_filtering() {
-        let expected: PlatformFilters = [.macos]
+        let expected: TargetDependency.Condition? = .when([.macos])
 
         let subjects: [TargetDependency] = [
-            .framework(path: "/", status: .required, platformFilters: expected),
-            .library(path: "/", publicHeaders: "/", swiftModuleMap: "/", platformFilters: expected),
-            .sdk(name: "", status: .required, platformFilters: expected),
-            .package(product: "", type: .plugin, platformFilters: expected),
-            .target(name: "", platformFilters: expected),
-            .xcframework(path: "/", status: .required, platformFilters: expected),
-            .project(target: "", path: "/", platformFilters: expected),
+            .framework(path: "/", status: .required, condition: expected),
+            .library(path: "/", publicHeaders: "/", swiftModuleMap: "/", condition: expected),
+            .sdk(name: "", status: .required, condition: expected),
+            .package(product: "", type: .plugin, condition: expected),
+            .target(name: "", condition: expected),
+            .xcframework(path: "/", status: .required, condition: expected),
+            .project(target: "", path: "/", condition: expected),
         ]
 
         for subject in subjects {
-            XCTAssertEqual(subject.platformFilters, expected)
-            XCTAssertEqual(subject.withFilters([.catalyst]).platformFilters, Set([.catalyst]))
+            XCTAssertEqual(subject.condition, expected)
+            XCTAssertEqual(subject.withCondition(.when([.catalyst])).condition, .when([.catalyst]))
         }
     }
 
     func test_xctest_platformFilters_alwaysReturnAll() {
         let subject = TargetDependency.xctest
 
-        XCTAssertEqual(subject.platformFilters, .all)
-        XCTAssertEqual(subject.withFilters([.catalyst]).platformFilters, PlatformFilters.all)
+        XCTAssertNil(subject.condition)
+        XCTAssertNil(subject.withCondition(.when([.catalyst])).condition)
     }
 }

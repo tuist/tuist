@@ -75,7 +75,7 @@ class ProjectFileElements {
 
         // Products
         let directProducts = project.targets.map {
-            GraphDependencyReference.product(target: $0.name, productName: $0.productNameWithExtension, platformFilters: .all)
+            GraphDependencyReference.product(target: $0.name, productName: $0.productNameWithExtension, condition: nil)
         }
 
         // Dependencies

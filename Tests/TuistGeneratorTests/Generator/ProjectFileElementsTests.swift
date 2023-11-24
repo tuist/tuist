@@ -779,8 +779,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let sdkDependency = GraphDependencyReference.sdk(
             path: sdkPath,
             status: sdkStatus,
-            source: sdkSource,
-            platformFilters: .all
+            source: sdkSource
         )
 
         // When

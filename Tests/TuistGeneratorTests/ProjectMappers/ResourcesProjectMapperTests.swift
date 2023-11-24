@@ -67,7 +67,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.dependencies.count, 1)
         XCTAssertEqual(
             gotTarget.dependencies.first,
-            TargetDependency.target(name: "\(project.name)_\(target.name)", platformFilters: [.ios])
+            TargetDependency.target(name: "\(project.name)_\(target.name)", condition: .when([.ios]))
         )
 
         let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
@@ -141,7 +141,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.dependencies.count, 1)
         XCTAssertEqual(
             gotTarget.dependencies.first,
-            TargetDependency.target(name: "\(project.name)_\(target.name)", platformFilters: [.ios])
+            TargetDependency.target(name: "\(project.name)_\(target.name)", condition: .when([.ios]))
         )
 
         let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
