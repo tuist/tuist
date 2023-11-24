@@ -1,11 +1,5 @@
 # Changelog
 
-## 3.33.4 - 2023-11-24
-
-### Fixed
-
-- Fix mapping of `registry` SwiftPackageManager dependencies [#5563](https://github.com/tuist/tuist/pull/5563) by [@danyf90](https://github.com/danyf90)
-
 ## 3.33.3 - 2023-11-18
 
 - no changes
