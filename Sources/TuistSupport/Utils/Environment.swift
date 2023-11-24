@@ -45,6 +45,24 @@ public protocol Environmenting: AnyObject {
 
 /// Local environment controller.
 public class Environment: Environmenting {
+    
+    private enum EnvFileFailure: Error, CustomDebugStringConvertible {
+        case malformedKeyValuePair
+        case contentsUnreadable
+        case fileMissing(path: String)
+        
+        fileprivate var debugDescription: String {
+            switch self {
+            case .malformedKeyValuePair:
+                return "key value pair was malformed: make sure they follow the format `KEY=VALUE`"
+            case .contentsUnreadable:
+                return "file contents unreadable"
+            case let .fileMissing(path):
+                return "file missing at path: \(path)"
+            }
+        }
+    }
+    
     public static var shared: Environmenting = Environment()
 
     /// Returns the default local directory.
@@ -82,6 +100,12 @@ public class Environment: Environmenting {
 
     /// Sets up the local environment.
     public func bootstrap() throws {
+        // load `.env` variables into `ProcessInfo.processInfo`
+        do {
+            try loadEnvironmentVariablesFromFile()
+        } catch {
+            logger.error("unable to load environment values from .env file with reason: \(String(describing: error))")
+        }
         try [directory, versionsDirectory].forEach {
             if !fileHandler.exists($0) {
                 try fileHandler.createFolder($0)
@@ -172,5 +196,27 @@ public class Environment: Environmenting {
     /// Settings path.
     public var settingsPath: AbsolutePath {
         directory.appending(component: "settings.json")
+    }
+    
+    private func loadEnvironmentVariablesFromFile() throws {
+        guard FileManager.default.fileExists(atPath: ".env") else {
+            throw EnvFileFailure.fileMissing(path: ".env")
+        }
+        guard let contents = try? String(contentsOf: URL(fileURLWithPath: ".env")) else {
+            throw EnvFileFailure.contentsUnreadable
+        }
+        let lines = contents.split(separator: "\n")
+        // skip comment lines
+        for line in lines where !line.hasPrefix("#") {
+            let pair = line.split(separator: "=")
+            guard let key = pair.first?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let value = pair.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  pair.count == 2,
+                  !key.isEmpty,
+                  !value.isEmpty else {
+                throw EnvFileFailure.malformedKeyValuePair
+            }
+            setenv(key, value, 1)
+        }
     }
 }
