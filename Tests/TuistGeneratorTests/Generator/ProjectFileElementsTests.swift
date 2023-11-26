@@ -653,7 +653,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         pbxproj.add(object: group)
 
         // When
-        subject.addFileElement(
+        subject.addFileElementRelativeToGroup(
             from: from,
             fileAbsolutePath: fileAbsolutePath,
             fileRelativePath: fileRelativePath,
@@ -704,7 +704,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let group = PBXGroup()
         let pbxproj = PBXProj()
         pbxproj.add(object: group)
-        subject.addFileElement(
+        subject.addFileElementRelativeToGroup(
             from: from,
             fileAbsolutePath: fileAbsolutePath,
             fileRelativePath: fileRelativePath,
@@ -792,7 +792,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(groups.frameworks.flattenedChildren, [
+        XCTAssertEqual(groups.compiled.flattenedChildren, [
             "ARKit.framework",
         ])
 
