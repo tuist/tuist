@@ -337,10 +337,11 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let writer = XcodeProjWriter()
         let linter = GraphLinter()
         let graphLoader = GraphLoader()
+        let config = Config.test()
 
         let graph = try graphLoader.loadWorkspace(workspace: models.workspace, projects: models.projects)
         let graphTraverser = GraphTraverser(graph: graph)
-        try linter.lint(graphTraverser: graphTraverser).printAndThrowErrorsIfNeeded()
+        try linter.lint(graphTraverser: graphTraverser, config: config).printAndThrowErrorsIfNeeded()
         let descriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
         try writer.write(workspace: descriptor)
     }
