@@ -9,17 +9,21 @@ import TuistGraph
 /// static products are linked multiple times.
 ///
 protocol StaticProductsGraphLinting {
-    func lint(graphTraverser: GraphTraversing) -> [LintingIssue]
+    func lint(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue]
 }
 
 class StaticProductsGraphLinter: StaticProductsGraphLinting {
-    func lint(graphTraverser: GraphTraversing) -> [LintingIssue] {
-        warnings(in: Array(graphTraverser.dependencies.keys), graphTraverser: graphTraverser)
+    func lint(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue] {
+        warnings(in: Array(graphTraverser.dependencies.keys), graphTraverser: graphTraverser, config: config)
             .sorted()
             .map(lintIssue)
     }
 
-    private func warnings(in dependencies: [GraphDependency], graphTraverser: GraphTraversing) -> Set<StaticDependencyWarning> {
+    private func warnings(
+        in dependencies: [GraphDependency],
+        graphTraverser: GraphTraversing,
+        config: Config
+    ) -> Set<StaticDependencyWarning> {
         var warnings = Set<StaticDependencyWarning>()
         let cache = Cache()
         dependencies.forEach { dependency in
@@ -30,11 +34,12 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             let results = buildStaticProductsMap(
                 visiting: dependency,
                 graphTraverser: graphTraverser,
-                cache: cache
+                cache: cache,
+                config: config
             )
 
             warnings.formUnion(results.linked.flatMap {
-                staticDependencyWarning(staticProduct: $0.key, linkedBy: $0.value, graphTraverser: graphTraverser)
+                staticDependencyWarning(staticProduct: $0.key, linkedBy: $0.value, graphTraverser: graphTraverser, config: config)
             })
         }
         return warnings
@@ -61,7 +66,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     private func buildStaticProductsMap(
         visiting dependency: GraphDependency,
         graphTraverser: GraphTraversing,
-        cache: Cache
+        cache: Cache,
+        config: Config
     ) -> StaticProducts {
         if let cachedResult = cache.results(for: dependency) {
             return cachedResult
@@ -69,7 +75,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 
         // Collect dependency results traversing the graph (dfs)
         var results = dependencies(for: dependency, graphTraverser: graphTraverser).reduce(StaticProducts()) { results, dep in
-            buildStaticProductsMap(visiting: dep, graphTraverser: graphTraverser, cache: cache).merged(with: results)
+            buildStaticProductsMap(visiting: dep, graphTraverser: graphTraverser, cache: cache, config: config)
+                .merged(with: results)
         }
 
         // Static node case
@@ -102,8 +109,13 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     private func staticDependencyWarning(
         staticProduct: GraphDependency,
         linkedBy: Set<GraphDependency>,
-        graphTraverser: GraphTraversing
+        graphTraverser: GraphTraversing,
+        config: Config
     ) -> [StaticDependencyWarning] {
+        if shouldSkipDependency(staticProduct, config: config) {
+            return []
+        }
+
         // Common dependencies between test bundles and their hosts are automatically omitted
         // during generation - as such those shouldn't be flagged
         //
@@ -134,6 +146,14 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
                 linkingDependencies: links.sorted()
             ),
         ]
+    }
+
+    private func shouldSkipDependency(_ dependency: GraphDependency, config: Config) -> Bool {
+        switch config.generationOptions.staticSideEffectsWarningTargets {
+        case .all: return true
+        case .none: return false
+        case let .only(names): return names.contains(dependency.name)
+        }
     }
 
     private func isStaticProduct(_ dependency: GraphDependency, graphTraverser: GraphTraversing) -> Bool {

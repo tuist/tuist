@@ -94,7 +94,7 @@ public class Generator: Generating {
         try environmentIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: environmentIssues)
 
-        let graphIssues = graphLinter.lint(graphTraverser: graphTraverser)
+        let graphIssues = graphLinter.lint(graphTraverser: graphTraverser, config: config)
         try graphIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: graphIssues)
     }

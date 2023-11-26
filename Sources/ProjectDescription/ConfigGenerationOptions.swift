@@ -10,7 +10,7 @@ extension Config {
             case none
             case only([String])
         }
-        
+
         /// When passed, Xcode will resolve its Package Manager dependencies using the system-defined
         /// accounts (for example, git) instead of the Xcode-defined accounts
         public let resolveDependenciesWithSystemScm: Bool
@@ -22,7 +22,7 @@ extension Config {
         /// Allows setting a custom directory to be used when resolving package dependencies
         /// This path is passed to `xcodebuild` via the `-clonedSourcePackagesDirPath` argument
         public let clonedSourcePackagesDirPath: Path?
-        
+
         /// Allows configuring which targets Tuist checks for potential side effects due multiple branches of the graph
         /// including the same static library of framework as a transitive dependency.
         public let staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets

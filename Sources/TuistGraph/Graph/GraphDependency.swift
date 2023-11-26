@@ -160,20 +160,39 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var description: String {
         switch self {
-        case let .xcframework(path, _, _, _, _, _):
-            return "xcframework '\(path.basename)'"
-        case let .framework(path, _, _, _, _, _, _, _):
-            return "framework '\(path.basename)'"
-        case let .library(path, _, _, _, _):
-            return "library '\(path.basename)'"
-        case let .bundle(path):
-            return "bundle '\(path.basename)'"
-        case let .packageProduct(_, product, _):
-            return "package '\(product)'"
-        case let .target(name, _):
+        case .xcframework:
+            return "xcframework '\(name)'"
+        case .framework:
+            return "framework '\(name)'"
+        case .library:
+            return "library '\(name)'"
+        case .bundle:
+            return "bundle '\(name)'"
+        case .packageProduct:
+            return "package '\(name)'"
+        case .target:
             return "target '\(name)'"
-        case let .sdk(name, _, _, _):
+        case .sdk:
             return "sdk '\(name)'"
+        }
+    }
+
+    public var name: String {
+        switch self {
+        case let .xcframework(path, _, _, _, _, _):
+            return path.basename
+        case let .framework(path, _, _, _, _, _, _, _):
+            return path.basename
+        case let .library(path, _, _, _, _):
+            return path.basename
+        case let .bundle(path):
+            return path.basename
+        case let .packageProduct(_, product, _):
+            return product
+        case let .target(name, _):
+            return name
+        case let .sdk(name, _, _, _):
+            return name
         }
     }
 

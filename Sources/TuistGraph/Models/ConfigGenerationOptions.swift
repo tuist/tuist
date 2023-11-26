@@ -8,7 +8,7 @@ extension Config {
             case none
             case only([String])
         }
-        
+
         public let resolveDependenciesWithSystemScm: Bool
         public let disablePackageVersionLocking: Bool
         public let clonedSourcePackagesDirPath: AbsolutePath?
