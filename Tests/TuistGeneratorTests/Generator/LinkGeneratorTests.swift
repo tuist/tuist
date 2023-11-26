@@ -751,8 +751,8 @@ final class LinkGeneratorTests: XCTestCase {
         let fileElements = ProjectFileElements()
         let requiredFile = PBXFileReference(name: "required")
         let optionalFile = PBXFileReference(name: "optional")
-        fileElements.sdks["/Strong/Foo.framework"] = requiredFile
-        fileElements.sdks["/Weak/Bar.framework"] = optionalFile
+        fileElements.compiled["/Strong/Foo.framework"] = requiredFile
+        fileElements.compiled["/Weak/Bar.framework"] = optionalFile
         let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraverser()
         graphTraverser.stubbedLinkableDependenciesResult = dependencies

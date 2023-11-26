@@ -38,7 +38,7 @@ class ProjectFileElements {
 
     var elements: [AbsolutePath: PBXFileElement] = [:]
     var products: [String: PBXFileReference] = [:]
-    var sdks: [AbsolutePath: PBXFileReference] = [:]
+    var compiled: [AbsolutePath: PBXFileReference] = [:]
     var knownRegions: Set<String> = Set([])
 
     // MARK: - Init
@@ -212,29 +212,37 @@ class ProjectFileElements {
         try sortedDependencies.forEach { dependency in
             switch dependency {
             case let .xcframework(path, _, _, _, _):
-                try generatePrecompiledDependency(path,
-                                        groups: groups,
-                                        pbxproj: pbxproj,
-                                        group: filesGroup,
-                                        sourceRootPath: sourceRootPath)
+                try generatePrecompiledDependency(
+                    path,
+                    groups: groups,
+                    pbxproj: pbxproj,
+                    group: filesGroup,
+                    sourceRootPath: sourceRootPath
+                )
             case let .framework(path, _, _, _, _, _, _, _, _):
-                try generatePrecompiledDependency(path,
-                                        groups: groups,
-                                        pbxproj: pbxproj,
-                                        group: filesGroup,
-                                        sourceRootPath: sourceRootPath)
+                try generatePrecompiledDependency(
+                    path,
+                    groups: groups,
+                    pbxproj: pbxproj,
+                    group: filesGroup,
+                    sourceRootPath: sourceRootPath
+                )
             case let .library(path, _, _, _):
-                try generatePrecompiledDependency(path,
-                                        groups: groups,
-                                        pbxproj: pbxproj,
-                                        group: filesGroup,
-                                        sourceRootPath: sourceRootPath)
+                try generatePrecompiledDependency(
+                    path,
+                    groups: groups,
+                    pbxproj: pbxproj,
+                    group: filesGroup,
+                    sourceRootPath: sourceRootPath
+                )
             case let .bundle(path):
-                try generatePrecompiledDependency(path,
-                                        groups: groups,
-                                        pbxproj: pbxproj,
-                                        group: filesGroup,
-                                        sourceRootPath: sourceRootPath)
+                try generatePrecompiledDependency(
+                    path,
+                    groups: groups,
+                    pbxproj: pbxproj,
+                    group: filesGroup,
+                    sourceRootPath: sourceRootPath
+                )
             case let .sdk(sdkNodePath, _, _):
                 generateSDKFileElement(
                     sdkNodePath: sdkNodePath,
@@ -251,20 +259,27 @@ class ProjectFileElements {
             }
         }
     }
-    
-    func generatePrecompiledDependency(_ path: AbsolutePath,
-                             groups: ProjectGroups,
-                             pbxproj: PBXProj,
-                             group: ProjectGroup,
-                             sourceRootPath: AbsolutePath) throws {
-        
+
+    func generatePrecompiledDependency(
+        _ path: AbsolutePath,
+        groups: ProjectGroups,
+        pbxproj: PBXProj,
+        group: ProjectGroup,
+        sourceRootPath: AbsolutePath
+    ) throws {
         // Pre-compiled artifact from the cache
         if path.pathString.contains(CacheCategory.builds.directoryName) {
-            addFileElementWithAbsolutePath(from: sourceRootPath,
-                           fileAbsolutePath: path,
-                           name: path.basename,
-                           toGroup: groups.compiled,
-                           pbxproj: pbxproj)
+            guard compiled[path] == nil else {
+                return
+            }
+            let fileElement = addFileElementWithAbsolutePath(
+                from: sourceRootPath,
+                fileAbsolutePath: path,
+                name: path.basename,
+                toGroup: groups.compiled,
+                pbxproj: pbxproj
+            )
+            compiled[path] = fileElement
         } else {
             let fileElement = GroupFileElement(path: path, group: group)
             try generate(
@@ -551,14 +566,15 @@ class ProjectFileElements {
         toGroup.children.append(file)
         elements[fileAbsolutePath] = file
     }
-    
+
+    @discardableResult
     func addFileElementWithAbsolutePath(
         from _: AbsolutePath,
         fileAbsolutePath: AbsolutePath,
         name: String?,
         toGroup: PBXGroup,
         pbxproj: PBXProj
-    ) {
+    ) -> PBXFileReference {
         let lastKnownFileType = fileAbsolutePath.extension.flatMap { Xcode.filetype(extension: $0) }
         let file = PBXFileReference(
             sourceTree: .absolute,
@@ -570,10 +586,11 @@ class ProjectFileElements {
         pbxproj.add(object: file)
         toGroup.children.append(file)
         elements[fileAbsolutePath] = file
+        return file
     }
-    
+
     private func xcLanguageSpecificationIdentifierFromLastKnownFileType(_ lastKnownFileType: String?) -> String? {
-        return lastKnownFileType == "file.playground" ? "xcode.lang.swift" : nil
+        lastKnownFileType == "file.playground" ? "xcode.lang.swift" : nil
     }
 
     private func generateSDKFileElement(
@@ -581,7 +598,7 @@ class ProjectFileElements {
         toGroup: PBXGroup,
         pbxproj: PBXProj
     ) {
-        guard sdks[sdkNodePath] == nil else {
+        guard compiled[sdkNodePath] == nil else {
             return
         }
 
@@ -605,7 +622,7 @@ class ProjectFileElements {
         )
         pbxproj.add(object: file)
         toGroup.children.append(file)
-        sdks[sdkNodePath] = file
+        compiled[sdkNodePath] = file
     }
 
     func group(path: AbsolutePath) -> PBXGroup? {
@@ -617,7 +634,7 @@ class ProjectFileElements {
     }
 
     func sdk(path: AbsolutePath) -> PBXFileReference? {
-        sdks[path]
+        compiled[path]
     }
 
     func file(path: AbsolutePath) -> PBXFileReference? {

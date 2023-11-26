@@ -796,11 +796,60 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             "ARKit.framework",
         ])
 
-        let sdkElement = subject.sdks[sdkPath]
+        let sdkElement = subject.compiled[sdkPath]
         XCTAssertNotNil(sdkElement)
         XCTAssertEqual(sdkElement?.sourceTree, .developerDir)
         XCTAssertEqual(sdkElement?.path, sdkPath.relative(to: "/").pathString)
         XCTAssertEqual(sdkElement?.name, sdkPath.basename)
+    }
+
+    func test_generateDependencies_when_cacheCompiledArtifacts() throws {
+        // Given
+        let pbxproj = PBXProj()
+        let sourceRootPath = try AbsolutePath(validating: "/a/project/")
+        let project = Project.test(
+            path: sourceRootPath,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: sourceRootPath.appending(component: "Project.xcodeproj")
+        )
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+
+        let frameworkPath = try temporaryPath().appending(component: CacheCategory.builds.directoryName)
+            .appending(component: "Test.framework")
+        let binaryPath = frameworkPath.appending(component: "Test")
+
+        let frameworkDependency = GraphDependencyReference.framework(
+            path: frameworkPath,
+            binaryPath: binaryPath,
+            isCarthage: false,
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64],
+            product: .framework,
+
+            status: .required
+        )
+
+        // When
+        try subject.generate(
+            dependencyReferences: [frameworkDependency],
+            groups: groups,
+            pbxproj: pbxproj,
+            sourceRootPath: sourceRootPath,
+            filesGroup: .group(name: "Project")
+        )
+
+        // Then
+        XCTAssertEqual(groups.compiled.flattenedChildren, [
+            "Test.framework",
+        ])
+
+        let frameworkElement = subject.compiled[frameworkPath]
+        XCTAssertNotNil(frameworkElement)
+        XCTAssertEqual(frameworkElement?.sourceTree, .absolute)
+        XCTAssertEqual(frameworkElement?.path, frameworkPath.pathString)
+        XCTAssertEqual(frameworkElement?.name, frameworkPath.basename)
     }
 
     func test_generateDependencies_remoteSwiftPackage_doNotGenerateElements() throws {
