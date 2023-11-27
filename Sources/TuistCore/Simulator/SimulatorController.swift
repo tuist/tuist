@@ -160,7 +160,7 @@ public final class SimulatorController: SimulatorControlling {
                     guard simulatorDeviceAndRuntime.device.name == deviceName else { return false }
                 }
 
-                if let maxRuntimeVersion {
+                if version == nil, let maxRuntimeVersion {
                     guard simulatorDeviceAndRuntime.runtime.version == maxRuntimeVersion else { return false }
                 }
 
