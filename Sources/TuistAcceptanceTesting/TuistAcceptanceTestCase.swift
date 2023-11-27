@@ -18,8 +18,8 @@ open class TuistAcceptanceTestCase: XCTestCase {
     public var fixturePath: AbsolutePath!
     public var derivedDataPath: AbsolutePath!
     public var environment: MockEnvironment!
+    public var sourceRootPath: AbsolutePath!
 
-    private var sourceRootPath: AbsolutePath!
     private var fixtureTemporaryDirectory: TemporaryDirectory!
 
     override open func setUp() {
