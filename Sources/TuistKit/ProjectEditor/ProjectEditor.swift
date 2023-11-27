@@ -148,7 +148,7 @@ final class ProjectEditor: ProjectEditing {
         let templateSources = templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.swift")
         } ?? []
-        
+
         let templateResources = templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
