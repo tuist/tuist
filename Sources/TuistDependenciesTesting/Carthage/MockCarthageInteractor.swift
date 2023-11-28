@@ -11,14 +11,14 @@ public final class MockCarthageInteractor: CarthageInteracting {
 
     var invokedInstall = false
     var installStub: (
-        (AbsolutePath, TuistGraph.CarthageDependencies, Set<TuistGraph.Platform>, Bool) throws -> TuistCore
+        (AbsolutePath, TuistGraph.CarthageDependencies, Set<TuistGraph.PackagePlatform>, Bool) throws -> TuistCore
             .DependenciesGraph
     )?
 
     public func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: TuistGraph.CarthageDependencies,
-        platforms: Set<TuistGraph.Platform>,
+        platforms: Set<TuistGraph.PackagePlatform>,
         shouldUpdate: Bool
     ) throws -> TuistCore.DependenciesGraph {
         invokedInstall = true

@@ -11,10 +11,10 @@ public struct GraphEdge: Hashable, Codable {
     }
 }
 
-extension [GraphEdge: PlatformFilters] {
-    public subscript(_ edge: (GraphDependency, GraphDependency)) -> PlatformFilters {
+extension [GraphEdge: TargetDependency.Condition] {
+    public subscript(_ edge: (GraphDependency, GraphDependency)) -> TargetDependency.Condition? {
         get {
-            self[GraphEdge(from: edge.0, to: edge.1)] ?? .all
+            self[GraphEdge(from: edge.0, to: edge.1)]
         }
         set {
             self[GraphEdge(from: edge.0, to: edge.1)] = newValue
@@ -48,8 +48,8 @@ public struct Graph: Equatable, Codable {
     /// A dictionary that contains the one-to-many dependencies that represent the graph.
     public var dependencies: [GraphDependency: Set<GraphDependency>]
 
-    /// A dictionary that contains the platform filters to apply to a dependency relationship
-    public var dependencyPlatformFilters: [GraphEdge: PlatformFilters]
+    /// A dictionary that contains the Conditions to apply to a dependency relationship
+    public var dependencyConditions: [GraphEdge: TargetDependency.Condition]
 
     public init(
         name: String,
@@ -59,7 +59,7 @@ public struct Graph: Equatable, Codable {
         packages: [AbsolutePath: [String: Package]],
         targets: [AbsolutePath: [String: Target]],
         dependencies: [GraphDependency: Set<GraphDependency>],
-        dependencyPlatformFilters: [GraphEdge: PlatformFilters]
+        dependencyConditions: [GraphEdge: TargetDependency.Condition]
     ) {
         self.name = name
         self.path = path
@@ -68,6 +68,6 @@ public struct Graph: Equatable, Codable {
         self.packages = packages
         self.targets = targets
         self.dependencies = dependencies
-        self.dependencyPlatformFilters = dependencyPlatformFilters
+        self.dependencyConditions = dependencyConditions
     }
 }

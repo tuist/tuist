@@ -46,7 +46,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let carthageBuildDirectory = carthageDirectory
             .appending(component: "Build")
 
-        let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
+        let platforms: Set<PackagePlatform> = [.iOS, .watchOS, .macOS, .tvOS]
         let stubbedDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
@@ -154,7 +154,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let carthageBuildDirectory = carthageDirectory
             .appending(component: "Build")
 
-        let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
+        let platforms: Set<PackagePlatform> = [.iOS, .watchOS, .macOS, .tvOS]
         let stubbedDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
@@ -260,7 +260,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ]
         )
-        let platforms: Set<Platform> = [.iOS]
+        let platforms: Set<PackagePlatform> = [.iOS]
 
         // When / Then
         XCTAssertThrowsSpecific(

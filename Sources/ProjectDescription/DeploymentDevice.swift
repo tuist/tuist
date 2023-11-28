@@ -3,6 +3,7 @@ import Foundation
 // MARK: - DeploymentDevice
 
 /// A supported deployment device.
+@available(*, deprecated)
 public struct DeploymentDevice: OptionSet, Codable, Hashable {
     /// An iPhone device.
     public static let iphone = DeploymentDevice(rawValue: 1 << 0)

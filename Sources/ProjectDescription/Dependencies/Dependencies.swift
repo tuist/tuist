@@ -25,7 +25,7 @@ public struct Dependencies: Codable, Equatable {
     public let swiftPackageManager: SwiftPackageManagerDependencies?
 
     /// List of platforms for which you want to install dependencies.
-    public let platforms: Set<Platform>
+    public let platforms: Set<PackagePlatform>
 
     /// Creates a new `Dependencies` manifest instance.
     /// - Parameters:
@@ -37,7 +37,7 @@ public struct Dependencies: Codable, Equatable {
     public init(
         carthage: CarthageDependencies? = nil,
         swiftPackageManager: SwiftPackageManagerDependencies? = nil,
-        platforms: Set<Platform> = Set(Platform.allCases)
+        platforms: Set<PackagePlatform> = Set(PackagePlatform.allCases)
     ) {
         self.carthage = carthage
         self.swiftPackageManager = swiftPackageManager

@@ -42,6 +42,12 @@ public struct BuildCommand: AsyncParsableCommand {
     var device: String?
 
     @Option(
+        name: .long,
+        help: "Build for a specific platform."
+    )
+    var platform: String?
+
+    @Option(
         name: .shortAndLong,
         help: "Build with a specific version of the OS."
     )
@@ -87,6 +93,7 @@ public struct BuildCommand: AsyncParsableCommand {
             derivedDataPath: derivedDataPath,
             path: absolutePath,
             device: device,
+            platform: platform,
             osVersion: os,
             rosetta: rosetta
         )

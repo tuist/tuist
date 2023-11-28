@@ -94,3 +94,12 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPri
         try await run(BuildCommand.self, "Framework")
     }
 }
+
+final class BuildAcceptanceTestMultiplatformAppWithSDK: TuistAcceptanceTestCase {
+    func test() async throws {
+        try setUpFixture("multiplatform_app_with_sdk")
+        try await run(FetchCommand.self)
+        try await run(BuildCommand.self, "App", "--platform", "macos")
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+    }
+}

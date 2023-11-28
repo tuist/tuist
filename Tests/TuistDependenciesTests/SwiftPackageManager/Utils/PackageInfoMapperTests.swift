@@ -51,8 +51,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageToTargetsToArtifactPaths: ["Package": [
                 "Target_1": try!
                     .init(validating: "/artifacts/Package/Target_1.xcframework"),
-            ]],
-            platforms: [.iOS]
+            ]]
         )
 
         XCTAssertEqual(
@@ -72,11 +71,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             preprocessInfo.productToExternalDependencies,
             [
-                .iOS: [
-                    "Product1": [
-                        .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
-                        .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
-                    ],
+                "Product1": [
+                    .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
+                    .project(target: "Target_2", path: .relativeToManifest(basePath.pathString)),
                 ],
             ]
         )
@@ -124,8 +121,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": basePath.appending(component: "Package"),
                 "Package2": basePath.appending(component: "Package2"),
             ],
-            packageToTargetsToArtifactPaths: [:],
-            platforms: [.iOS]
+            packageToTargetsToArtifactPaths: [:]
         )
 
         XCTAssertEqual(
@@ -179,8 +175,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": basePath.appending(component: "Package"),
                 "com.example.dep-1": basePath.appending(component: "com.example.dep-1"),
             ],
-            packageToTargetsToArtifactPaths: [:],
-            platforms: [.iOS]
+            packageToTargetsToArtifactPaths: [:]
         )
 
         XCTAssertEqual(
@@ -226,16 +221,15 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageToFolder: [
                 "Package": basePath.appending(component: "Package"),
             ],
-            packageToTargetsToArtifactPaths: [:],
-            platforms: [.iOS, .tvOS]
+            packageToTargetsToArtifactPaths: [:]
         )
 
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
                 "Target_1": [
-                    .target(name: "Dependency_1", condition: .init(platforms: [.iOS])),
-                    .target(name: "Dependency_2", condition: .init(platforms: [.tvOS])),
+                    .target(name: "Dependency_1", condition: .when([.ios])),
+                    .target(name: "Dependency_2", condition: .when([.tvos])),
                 ],
                 "Dependency_1": [],
                 "Dependency_2": [],
@@ -296,8 +290,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package_1": basePath.appending(component: "Package_1"),
                 "Package_2": basePath.appending(component: "Package_2"),
             ],
-            packageToTargetsToArtifactPaths: [:],
-            platforms: [.iOS]
+            packageToTargetsToArtifactPaths: [:]
         )
 
         XCTAssertEqual(
@@ -306,8 +299,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Target_2": [],
                 "Target_3": [],
                 "Target_1": [
-                    .externalTarget(package: "Package_2", target: "Target_2", condition: .init(platforms: [.iOS])),
-                    .externalTarget(package: "Package_2", target: "Target_3", condition: .init(platforms: [.tvOS])),
+                    .externalTarget(package: "Package_2", target: "Target_2", condition: .when([.ios])),
+                    .externalTarget(package: "Package_2", target: "Target_3", condition: .when([.tvos])),
                 ],
             ]
         )
@@ -382,7 +375,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        deploymentTarget: .iOS(targetVersion: "9.0", devices: [.iphone, .ipad, .mac])
+                        deploymentTargets: .iOS("9.0")
                     ),
                 ]
             )
@@ -410,7 +403,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-            ]
+            ],
+            platforms: [.macCatalyst]
         )
 
         XCTAssertEqual(
@@ -421,7 +415,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac])
+                        destinations: [.macCatalyst],
+                        deploymentTargets: .iOS("13.0")
                     ),
                 ]
             )
@@ -1051,8 +1046,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-            ]
+            ],
+            platforms: [.iOS]
         )
+
         XCTAssertEqual(
             project,
             .testWithDefaultConfigs(
@@ -1480,23 +1477,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             name: "Package",
             targets: [
                 .test(
-                    "Target1_tvos",
+                    "Target1",
                     basePath: basePath,
-                    platform: .tvOS,
+                    destinations: [.iPad, .iPhone, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
                     customProductName: "Target1",
                     customBundleID: "Target1",
-                    deploymentTarget: .tvOS(targetVersion: "11.0"),
-                    customSources: .custom(.init(globs: [
-                        basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**"))
-                            .pathString,
-                    ]))
-                ),
-                .test(
-                    "Target1_ios",
-                    basePath: basePath,
-                    platform: .iOS,
-                    customProductName: "Target1",
-                    customBundleID: "Target1",
+                    deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**"))
                             .pathString,
@@ -1507,9 +1493,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(project?.name, expected.name)
 
-        // Need to sort targets of projects, because internall a set is used to generate targets for different platforms
+        // Need to sort targets of projects, because internally a set is used to generate targets for different platforms
         // That could lead to mixed orders
-        let projectTargets = project!.targets.sorted(by: \.name)
+        let projectTargets = project?.targets.sorted(by: \.name)
         let expectedTargets = expected.targets.sorted(by: \.name)
         XCTAssertEqual(projectTargets, expectedTargets)
     }
@@ -1542,7 +1528,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .testWithDefaultConfigs(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, platform: .tvOS, deploymentTarget: .tvOS(targetVersion: "11.0")),
+                    .test(
+                        "Target1",
+
+                        basePath: basePath,
+                        destinations: [.appleTv],
+                        deploymentTargets: .tvOS("11.0")
+                    ),
                 ]
             )
         )
@@ -1571,19 +1563,24 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ],
             platforms: [.iOS]
         )
+
+        let other = ProjectDescription.Project.testWithDefaultConfigs(
+            name: "Package",
+            targets: [
+                .test(
+                    "Target1",
+                    basePath: basePath,
+                    deploymentTargets: .iOS("13.0")
+                ),
+            ]
+        )
+
+        dump(project?.targets.first?.destinations)
+        dump(other.targets.first?.destinations)
+
         XCTAssertEqual(
             project,
-            .testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        platform: .iOS,
-                        deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac])
-                    ),
-                ]
-            )
+            other
         )
     }
 
@@ -2180,7 +2177,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .init(
                                     tool: .c,
                                     name: .headerSearchPath,
-                                    condition: .init(platformNames: ["ios"], config: nil),
+                                    condition: nil,
                                     value: ["otherValue"]
                                 ),
                             ]
@@ -2974,70 +2971,38 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             name: "Package",
             targets: [
                 .test(
-                    "Target1_tvos",
+                    "Target1",
                     basePath: basePath,
-                    platform: .tvOS,
+                    destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
                     customProductName: "Target1",
                     customBundleID: "Target1",
-                    deploymentTarget: .tvOS(targetVersion: "11.0"),
+                    deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString,
                     ])),
                     dependencies: [
-                        .target(name: "Dependency2_tvos"),
+                        .target(name: "Dependency1", condition: .when([.ios])),
+                        .target(name: "Dependency2", condition: .when([.tvos])),
                     ]
                 ),
                 .test(
-                    "Target1_ios",
+                    "Dependency1",
                     basePath: basePath,
-                    platform: .iOS,
-                    customProductName: "Target1",
-                    customBundleID: "Target1",
-                    customSources: .custom(.init(globs: [
-                        basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString,
-                    ])),
-                    dependencies: [
-                        .target(name: "Dependency1_ios"),
-                    ]
-                ),
-                .test(
-                    "Dependency1_tvos",
-                    basePath: basePath,
-                    platform: .tvOS,
+                    destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
                     customProductName: "Dependency1",
                     customBundleID: "Dependency1",
-                    deploymentTarget: .tvOS(targetVersion: "11.0"),
+                    deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/**")).pathString,
                     ]))
                 ),
                 .test(
-                    "Dependency1_ios",
+                    "Dependency2",
                     basePath: basePath,
-                    platform: .iOS,
-                    customProductName: "Dependency1",
-                    customBundleID: "Dependency1",
-                    customSources: .custom(.init(globs: [
-                        basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/**")).pathString,
-                    ]))
-                ),
-                .test(
-                    "Dependency2_tvos",
-                    basePath: basePath,
-                    platform: .tvOS,
+                    destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
                     customProductName: "Dependency2",
                     customBundleID: "Dependency2",
-                    deploymentTarget: .tvOS(targetVersion: "11.0"),
-                    customSources: .custom(.init(globs: [
-                        basePath.appending(try RelativePath(validating: "Package/Sources/Dependency2/**")).pathString,
-                    ]))
-                ),
-                .test(
-                    "Dependency2_ios",
-                    basePath: basePath,
-                    platform: .iOS,
-                    customProductName: "Dependency2",
-                    customBundleID: "Dependency2",
+                    deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Dependency2/**")).pathString,
                     ]))
@@ -3103,36 +3068,27 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             name: "Package",
             targets: [
                 .test(
-                    "Target1_ios",
+                    "Target1",
                     basePath: basePath,
-                    platform: .iOS,
+                    destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
                     customProductName: "Target1",
                     customBundleID: "Target1",
+                    deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
                     customSources: .custom(.init(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString,
                     ])),
                     dependencies: [
                         .project(
-                            target: "Target2_ios",
-                            path: Path(basePath.appending(try RelativePath(validating: "Package2")).pathString)
+                            target: "Target2",
+                            path: Path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
+                            condition: .when([.ios])
                         ),
                         .project(
-                            target: "Target3_ios",
-                            path: Path(basePath.appending(try RelativePath(validating: "Package2")).pathString)
+                            target: "Target3",
+                            path: Path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
+                            condition: .when([.ios])
                         ),
                     ]
-                ),
-                .test(
-                    "Target1_tvos",
-                    basePath: basePath,
-                    platform: .tvOS,
-                    customProductName: "Target1",
-                    customBundleID: "Target1",
-                    deploymentTarget: .tvOS(targetVersion: "11.0"),
-                    customSources: .custom(.init(globs: [
-                        basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString,
-                    ])),
-                    dependencies: []
                 ),
             ]
         )
@@ -3171,7 +3127,7 @@ extension PackageInfoMapping {
         package: String,
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
-        platforms: Set<TuistGraph.Platform> = [.iOS],
+        platforms: Set<TuistGraph.PackagePlatform> = [.iOS],
         baseSettings: TuistGraph.Settings = .default,
         targetSettings: [String: TuistGraph.SettingsDictionary] = [:],
         swiftToolsVersion: TSCUtility.Version? = nil,
@@ -3198,9 +3154,25 @@ extension PackageInfoMapping {
             packageInfos: packageInfos,
             idToPackage: [:],
             packageToFolder: packageToFolder,
-            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
-            platforms: platforms
+            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
         )
+
+        let destinations: ProjectDescription.Destinations = Set(platforms.flatMap { platform -> ProjectDescription.Destinations in
+            switch platform {
+            case .iOS:
+                [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign]
+            case .macCatalyst:
+                [.macCatalyst]
+            case .macOS:
+                [.mac]
+            case .tvOS:
+                [.appleTv]
+            case .watchOS:
+                [.appleWatch]
+            case .visionOS:
+                [.appleVision]
+            }
+        })
 
         return try map(
             packageInfo: packageInfos[package]!,
@@ -3212,11 +3184,10 @@ extension PackageInfoMapping {
             targetSettings: targetSettings,
             projectOptions: projectOptions,
             minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
-            platforms: preprocessInfo.platforms,
+            destinations: destinations,
             targetToProducts: preprocessInfo.targetToProducts,
             targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
             targetToModuleMap: preprocessInfo.targetToModuleMap,
-            macOSTargets: preprocessInfo.macOSTargets,
             packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
                 ($0, basePath.appending(component: $0))
             }),
@@ -3298,11 +3269,11 @@ extension ProjectDescription.Target {
     fileprivate static func test(
         _ name: String,
         basePath: AbsolutePath = "/",
-        platform: ProjectDescription.Platform = .iOS,
+        destinations: ProjectDescription.Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
         product: ProjectDescription.Product = .staticFramework,
         customProductName: String? = nil,
         customBundleID: String? = nil,
-        deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "11.0", devices: [.iphone, .ipad, .mac]),
+        deploymentTargets: ProjectDescription.DeploymentTargets = DeploymentTargets(iOS: "11.0"),
         customSources: SourceFilesListType = .default,
         resources: [ProjectDescription.ResourceFileElement] = [],
         headers: ProjectDescription.Headers? = nil,
@@ -3323,11 +3294,11 @@ extension ProjectDescription.Target {
 
         return ProjectDescription.Target(
             name: name,
-            platform: platform,
+            destinations: destinations,
             product: product,
             productName: customProductName ?? name,
             bundleId: customBundleID ?? name,
-            deploymentTarget: deploymentTarget,
+            deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,
             resources: resources.isEmpty ? nil : ResourceFileElements(resources: resources),

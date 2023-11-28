@@ -28,10 +28,9 @@
 
 ### Configuration
 
-- ``Platform``
+- ``Destination``
 - ``Product``
-- ``DeploymentTarget``
-- ``DeploymentDevice``
+- ``DeploymentTargets``
 - ``Settings``
 
 ### Others

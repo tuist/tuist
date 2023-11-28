@@ -58,6 +58,7 @@ final class BuildService {
         derivedDataPath: String?,
         path: AbsolutePath,
         device: String?,
+        platform: String?,
         osVersion: String?,
         rosetta: Bool
     ) async throws {
@@ -97,9 +98,17 @@ final class BuildService {
                 throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
             }
 
+            let buildPlatform: TuistGraph.Platform
+
+            if let platform, let inputPlatform = TuistGraph.Platform(rawValue: platform) {
+                buildPlatform = inputPlatform
+            } else {
+                buildPlatform = try graphTarget.target.servicePlatform
+            }
+
             try await targetBuilder.buildTarget(
                 graphTarget,
-                platform: try graphTarget.target.servicePlatform,
+                platform: buildPlatform,
                 workspacePath: workspacePath,
                 scheme: scheme,
                 clean: clean,
@@ -120,9 +129,17 @@ final class BuildService {
                     throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
                 }
 
+                let buildPlatform: TuistGraph.Platform
+
+                if let platform, let inputPlatform = TuistGraph.Platform(rawValue: platform) {
+                    buildPlatform = inputPlatform
+                } else {
+                    buildPlatform = try graphTarget.target.servicePlatform
+                }
+
                 try await targetBuilder.buildTarget(
                     graphTarget,
-                    platform: try graphTarget.target.servicePlatform,
+                    platform: buildPlatform,
                     workspacePath: workspacePath,
                     scheme: scheme,
                     clean: !cleaned && clean,

@@ -308,6 +308,7 @@ extension BuildService {
         derivedDataPath: String? = nil,
         path: AbsolutePath,
         device: String? = nil,
+        platform: String? = nil,
         osVersion: String? = nil,
         rosetta: Bool = false
     ) async throws {
@@ -320,6 +321,7 @@ extension BuildService {
             derivedDataPath: derivedDataPath,
             path: path,
             device: device,
+            platform: platform,
             osVersion: osVersion,
             rosetta: rosetta
         )

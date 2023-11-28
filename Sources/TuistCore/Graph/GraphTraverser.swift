@@ -152,6 +152,7 @@ public class GraphTraverser: GraphTraversing {
             test: isDependencyResourceBundle,
             skip: canHostResources
         )
+
         return Set(bundles.compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) })
     }
 
@@ -204,6 +205,7 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
+    // Filter based on edges
     public func directStaticDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         Set(
             graph.dependencies[.target(name: name, path: path)]?
@@ -255,10 +257,12 @@ public class GraphTraverser: GraphTraversing {
         if target.target.mergedBinaryType != .disabled {
             otherTargetFrameworks = otherTargetFrameworks.filter(isDependencyDynamicNonMergeableTarget)
         }
+
         references.formUnion(otherTargetFrameworks.lazy.compactMap { self.dependencyReference(
             to: $0,
             from: .target(name: name, path: path)
         ) })
+
         // Exclude any products embed in unit test host apps
         if target.target.product == .unitTests {
             if let hostApp = unitTestHost(path: path, name: name) {
@@ -317,7 +321,7 @@ public class GraphTraverser: GraphTraversing {
                 path: path,
                 status: .required,
                 source: .system,
-                platformFilters: [.ios]
+                condition: .when([.ios])
             )])
         }
 
@@ -392,6 +396,7 @@ public class GraphTraverser: GraphTraversing {
         let dynamicLibrariesAndFrameworks = graph.dependencies[.target(name: name, path: path), default: []]
             .filter(or(isDependencyDynamicLibrary, isDependencyFramework))
             .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
+
         references.formUnion(dynamicLibrariesAndFrameworks)
 
         return references
@@ -418,7 +423,7 @@ public class GraphTraverser: GraphTraversing {
             .map { GraphDependencyReference.product(
                 target: $0.target.name,
                 productName: $0.target.productName,
-                platformFilters: [.macos]
+                condition: .when([.macos])
             ) }
 
         return Set(dependencies)
@@ -455,7 +460,7 @@ public class GraphTraverser: GraphTraversing {
             shouldExcludeHostAppDependencies: false
         ).compactMap { dependency in
             switch dependency {
-            case let .library(path: path, linking: _, architectures: _, product: _, platformFilters: _):
+            case let .library(path: path, linking: _, architectures: _, product: _, condition: _):
                 return path
             default:
                 return nil
@@ -622,42 +627,47 @@ public class GraphTraverser: GraphTraversing {
     /// - Parameters:
     ///   - rootDependency: dependency whose platform filters we need when depending on `transitiveDependency`
     ///   - transitiveDependency: target dependency
-    /// - Returns: PlatformFilters to apply to transitive dependency or `nil` if there isnt a path or path to a dependency results
-    /// in a disjoint
-    /// set of platform filters
-    func platformFilters(to transitiveDependency: GraphDependency, from rootDependency: GraphDependency) -> PlatformFilters {
+    /// - Returns: CombinationResult which represents a resolved condition or `.invalid` based on traversing
+    func combinedCondition(to transitiveDependency: GraphDependency, from rootDependency: GraphDependency) -> TargetDependency
+        .Condition.CombinationResult
+    {
         var visited: Set<GraphDependency> = []
 
-        func find(from root: GraphDependency, to other: GraphDependency) -> PlatformFilters {
+        func find(from root: GraphDependency, to other: GraphDependency) -> TargetDependency.Condition.CombinationResult {
             // Skip already visited nodes
-            guard !visited.contains(root) else { return .invalid }
+            guard !visited.contains(root) else { return .incompatible }
             visited.insert(root)
 
             // if we're at a leaf dependency, there is nothing else to traverse.
-            guard let dependencies = graph.dependencies[root] else { return .invalid }
+            guard let dependencies = graph.dependencies[root] else { return .incompatible }
 
             // We've reached our destination, return the filters or `.all` if none are set
             if dependencies.contains(other) {
-                return graph.dependencyPlatformFilters[(root, other)]
+                return .condition(graph.dependencyConditions[(root, other)])
             } else {
-                // We have more dependencies to traverse.
-                // Form the union of all set filters that reach our target.
-                let filters = dependencies.map { node -> PlatformFilters in
+                // Capture the filters that could be applied to intermediate dependencies
+                // A --> (.ios) B --> C : C should have the .ios filter applied due to B
+                let filters = dependencies.map { node -> TargetDependency.Condition.CombinationResult in
                     let transitive = find(from: node, to: other)
-
-                    // Capture the filters that could be applied to intermediate dependencies
-                    // A --> (.ios) B --> C : C should have the .ios filter applied due to B
-                    let currentDependencyPlatformFilters = graph.dependencyPlatformFilters[(root, node)]
-                    return transitive.intersection(currentDependencyPlatformFilters)
+                    let currentCondition = graph.dependencyConditions[(root, node)]
+                    switch transitive {
+                    case .incompatible:
+                        return .incompatible
+                    case let .condition(.some(condition)):
+                        return condition.intersection(currentCondition)
+                    case .condition:
+                        return .condition(currentCondition)
+                    }
                 }
 
                 // Union our filters because multiple paths could lead to the same dependency (e.g. AVFoundation)
                 //  A --> (.ios) B --> C
                 //  A --> (.macos) D --> C
                 // C should have `[.ios, .macos]` set for filters to satisfy both paths
-                let transitiveFilters = filters.compactMap { $0 }.reduce(Set<PlatformFilter>()) { result, otherFilters in
-                    result.union(otherFilters)
-                }
+                let transitiveFilters = filters.compactMap { $0 }
+                    .reduce(TargetDependency.Condition.CombinationResult.incompatible) { result, condition in
+                        result.combineWith(condition)
+                    }
 
                 return transitiveFilters
             }
@@ -682,14 +692,6 @@ public class GraphTraverser: GraphTraversing {
             from: dependency,
             test: isDependencyStatic,
             skip: canDependencyLinkStaticProducts
-        )
-    }
-
-    func targetProductReference(target: GraphTarget) -> GraphDependencyReference {
-        .product(
-            target: target.target.name,
-            productName: target.target.productNameWithExtension,
-            platformFilters: target.target.dependencyPlatformFilters
         )
     }
 
@@ -830,8 +832,7 @@ public class GraphTraverser: GraphTraversing {
         to toDependency: GraphDependency,
         from fromDependency: GraphDependency
     ) -> GraphDependencyReference? {
-        let platformFilters = platformFilters(to: toDependency, from: fromDependency)
-        guard platformFilters != .invalid else {
+        guard case let .condition(condition) = combinedCondition(to: toDependency, from: fromDependency) else {
             return nil
         }
 
@@ -847,7 +848,7 @@ public class GraphTraverser: GraphTraversing {
                 architectures: architectures,
                 product: (linking == .static) ? .staticFramework : .framework,
                 status: status,
-                platformFilters: platformFilters
+                condition: condition
             )
         case let .library(path, _, linking, architectures, _):
             return .library(
@@ -855,10 +856,10 @@ public class GraphTraverser: GraphTraversing {
                 linking: linking,
                 architectures: architectures,
                 product: (linking == .static) ? .staticLibrary : .dynamicLibrary,
-                platformFilters: platformFilters
+                condition: condition
             )
         case let .bundle(path):
-            return .bundle(path: path, platformFilters: platformFilters)
+            return .bundle(path: path, condition: condition)
         case .packageProduct:
             return nil
         case let .sdk(_, path, status, source):
@@ -866,14 +867,14 @@ public class GraphTraverser: GraphTraversing {
                 path: path,
                 status: status,
                 source: source,
-                platformFilters: platformFilters
+                condition: condition
             )
         case let .target(name, path):
             guard let target = target(path: path, name: name) else { return nil }
             return .product(
                 target: target.target.name,
                 productName: target.target.productNameWithExtension,
-                platformFilters: target.target.dependencyPlatformFilters // This will be platformFilters when we
+                condition: condition
             )
         case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, status):
             return .xcframework(
@@ -882,7 +883,7 @@ public class GraphTraverser: GraphTraversing {
                 primaryBinaryPath: primaryBinaryPath,
                 binaryPath: primaryBinaryPath,
                 status: status,
-                platformFilters: platformFilters
+                condition: condition
             )
         }
     }

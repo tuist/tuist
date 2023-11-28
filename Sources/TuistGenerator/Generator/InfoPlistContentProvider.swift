@@ -243,7 +243,13 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
 
     private func hostTarget(for target: Target, in project: Project) -> Target? {
         project.targets.first {
-            $0.dependencies.contains(.target(name: target.name))
+            $0.dependencies.contains(where: { dependency in
+                if case let .target(name, _) = dependency, name == target.name {
+                    return true
+                } else {
+                    return false
+                }
+            })
         }
     }
 }

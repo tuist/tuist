@@ -6,3 +6,4 @@
 
 - ``SDKStatus``
 - ``SDKType``
+- ``PlatformFilter``

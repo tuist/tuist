@@ -13,7 +13,7 @@ public protocol ManifestModelConverting {
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
         plugins: Plugins,
-        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]],
+        externalDependencies: [String: [TuistGraph.TargetDependency]],
         isExternal: Bool
     ) throws -> TuistGraph.Project
     func convert(manifest: TuistCore.DependenciesGraph, path: AbsolutePath) throws -> TuistGraph.DependenciesGraph
@@ -50,7 +50,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
         plugins: Plugins,
-        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]],
+        externalDependencies: [String: [TuistGraph.TargetDependency]],
         isExternal: Bool
     ) throws -> TuistGraph.Project {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
@@ -82,20 +82,16 @@ public final class ManifestModelConverter: ManifestModelConverting {
         manifest: TuistCore.DependenciesGraph,
         path: AbsolutePath
     ) throws -> TuistGraph.DependenciesGraph {
-        var externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]] = .init()
+        var externalDependencies: [String: [TuistGraph.TargetDependency]] = .init()
 
-        try manifest.externalDependencies.forEach { platform, targets in
-            let targetToDependencies = try targets.mapValues { targetDependencies in
-                try targetDependencies.flatMap { targetDependencyManifest in
-                    try TuistGraph.TargetDependency.from(
-                        manifest: targetDependencyManifest,
-                        generatorPaths: GeneratorPaths(manifestDirectory: path),
-                        externalDependencies: [:], // externalDependencies manifest can't contain other external dependencies,
-                        platform: TuistGraph.Platform.from(manifest: platform)
-                    )
-                }
+        externalDependencies = try manifest.externalDependencies.mapValues { targetDependencies in
+            try targetDependencies.flatMap { targetDependencyManifest in
+                try TuistGraph.TargetDependency.from(
+                    manifest: targetDependencyManifest,
+                    generatorPaths: GeneratorPaths(manifestDirectory: path),
+                    externalDependencies: [:] // externalDependencies manifest can't contain other external dependencies,
+                )
             }
-            externalDependencies[try TuistGraph.Platform.from(manifest: platform)] = targetToDependencies
         }
 
         let externalProjects = try [AbsolutePath: TuistGraph.Project](

@@ -19,15 +19,12 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [
-                .iOS: ["library": [.xcframework(path: "/path.xcframework", status: .required)]],
-            ],
-            platform: .iOS
+            externalDependencies: ["library": [.xcframework(path: "/path.xcframework", status: .required)]]
         )
 
         // Then
         XCTAssertEqual(got.count, 1)
-        guard case let .xcframework(path, status) = got[0] else {
+        guard case let .xcframework(path, status, _) = got[0] else {
             XCTFail("Dependency should be xcframework")
             return
         }
@@ -44,15 +41,12 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [
-                .iOS: ["library": [.project(target: "Target", path: "/Project")]],
-            ],
-            platform: .iOS
+            externalDependencies: ["library": [.project(target: "Target", path: "/Project")]]
         )
 
         // Then
         XCTAssertEqual(got.count, 1)
-        guard case let .project(target, path) = got[0] else {
+        guard case let .project(target, path, _) = got[0] else {
             XCTFail("Dependency should be project")
             return
         }
@@ -70,26 +64,23 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [
-                .iOS: [
-                    "library": [
-                        .xcframework(path: "/path.xcframework", status: .required),
-                        .project(target: "Target", path: "/Project"),
-                    ],
+                "library": [
+                    .xcframework(path: "/path.xcframework", status: .required),
+                    .project(target: "Target", path: "/Project"),
                 ],
-            ],
-            platform: .iOS
+            ]
         )
 
         // Then
         XCTAssertEqual(got.count, 2)
-        guard case let .xcframework(frameworkPath, status) = got[0] else {
+        guard case let .xcframework(frameworkPath, status, _) = got[0] else {
             XCTFail("First dependency should be xcframework")
             return
         }
         XCTAssertEqual(frameworkPath, "/path.xcframework")
         XCTAssertEqual(status, .required)
 
-        guard case let .project(target, path) = got[1] else {
+        guard case let .project(target, path, _) = got[1] else {
             XCTFail("Dependency should be project")
             return
         }
@@ -106,13 +97,12 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [:],
-            platform: .iOS
+            externalDependencies: [:]
         )
 
         // Then
         XCTAssertEqual(got.count, 1)
-        guard case let .sdk(name, status) = got[0] else {
+        guard case let .sdk(name, status, _) = got[0] else {
             XCTFail("Dependency should be sdk")
             return
         }
@@ -129,13 +119,12 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(
             manifest: dependency,
             generatorPaths: generatorPaths,
-            externalDependencies: [:],
-            platform: .iOS
+            externalDependencies: [:]
         )
 
         // Then
         XCTAssertEqual(got.count, 1)
-        guard case let .sdk(name, status) = got[0] else {
+        guard case let .sdk(name, status, _) = got[0] else {
             XCTFail("Dependency should be sdk")
             return
         }

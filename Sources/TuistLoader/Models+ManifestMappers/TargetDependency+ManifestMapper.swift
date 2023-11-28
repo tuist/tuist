@@ -8,14 +8,14 @@ import TuistSupport
 // MARK: - TargetDependency Mapper Error
 
 public enum TargetDependencyMapperError: FatalError {
-    case invalidExternalDependency(name: String, platform: String)
+    case invalidExternalDependency(name: String)
 
     public var type: ErrorType { .abort }
 
     public var description: String {
         switch self {
-        case let .invalidExternalDependency(name, platform):
-            return "`\(name)` is not a valid configured external dependency for platform \(platform)"
+        case let .invalidExternalDependency(name):
+            return "`\(name)` is not a valid configured external dependency"
         }
     }
 }
@@ -29,62 +29,103 @@ extension TuistGraph.TargetDependency {
     static func from(
         manifest: ProjectDescription.TargetDependency,
         generatorPaths: GeneratorPaths,
-        externalDependencies: [TuistGraph.Platform: [String: [TuistGraph.TargetDependency]]],
-        platform: TuistGraph.Platform
+        externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> [TuistGraph.TargetDependency] {
         switch manifest {
-        case let .target(name):
-            return [.target(name: name)]
-        case let .project(target, projectPath):
-            return [.project(target: target, path: try generatorPaths.resolve(path: projectPath))]
-        case let .framework(frameworkPath, status):
+        case let .target(name, condition):
+            return [.target(name: name, condition: condition?.asGraphCondition)]
+        case let .project(target, projectPath, condition):
+            return [.project(
+                target: target,
+                path: try generatorPaths.resolve(path: projectPath),
+                condition: condition?.asGraphCondition
+            )]
+        case let .framework(frameworkPath, status, condition):
             return [
                 .framework(
                     path: try generatorPaths.resolve(path: frameworkPath),
-                    status: .from(manifest: status)
+                    status: .from(manifest: status),
+                    condition: condition?.asGraphCondition
                 ),
             ]
-        case let .library(libraryPath, publicHeaders, swiftModuleMap):
+        case let .library(libraryPath, publicHeaders, swiftModuleMap, condition):
             return [
                 .library(
                     path: try generatorPaths.resolve(path: libraryPath),
                     publicHeaders: try generatorPaths.resolve(path: publicHeaders),
-                    swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) }
+                    swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) },
+                    condition: condition?.asGraphCondition
                 ),
             ]
-        case let .package(product, type):
+        case let .package(product, type, condition):
             switch type {
             case .macro:
-                return [.package(product: product, type: .macro)]
+                return [.package(product: product, type: .macro, condition: condition?.asGraphCondition)]
             case .runtime:
-                return [.package(product: product, type: .runtime)]
+                return [.package(product: product, type: .runtime, condition: condition?.asGraphCondition)]
             case .plugin:
-                return [.package(product: product, type: .plugin)]
+                return [.package(product: product, type: .plugin, condition: condition?.asGraphCondition)]
             }
-        case let .packagePlugin(product):
+        case let .packagePlugin(product, condition):
             logger.warning(".packagePlugin is deprecated. Use .package(product:, type: .plugin) instead.")
-            return [.package(product: product, type: .plugin)]
-        case let .sdk(name, type, status):
+            return [.package(product: product, type: .plugin, condition: condition?.asGraphCondition)]
+        case let .sdk(name, type, status, condition):
             return [
                 .sdk(
                     name: "\(type.filePrefix)\(name).\(type.fileExtension)",
-                    status: .from(manifest: status)
+                    status: .from(manifest: status),
+                    condition: condition?.asGraphCondition
                 ),
             ]
-        case let .xcframework(path, status):
+        case let .xcframework(path, status, condition):
             return [
                 .xcframework(
                     path: try generatorPaths.resolve(path: path),
-                    status: .from(manifest: status)
+                    status: .from(manifest: status),
+                    condition: condition?.asGraphCondition
                 ),
             ]
         case .xctest:
             return [.xctest]
-        case let .external(name):
-            guard let dependencies = externalDependencies[platform]?[name] else {
-                throw TargetDependencyMapperError.invalidExternalDependency(name: name, platform: platform.rawValue)
+        case let .external(name, condition):
+            guard let dependencies = externalDependencies[name] else {
+                throw TargetDependencyMapperError.invalidExternalDependency(name: name)
             }
-            return dependencies
+
+            return dependencies.map { $0.withCondition(condition?.asGraphCondition) }
+        }
+    }
+}
+
+extension ProjectDescription.PlatformFilters {
+    var asGraphFilters: TuistGraph.PlatformFilters {
+        Set<TuistGraph.PlatformFilter>(map(\.graphPlatformFilter))
+    }
+}
+
+extension ProjectDescription.TargetDependency.Condition {
+    var asGraphCondition: TuistGraph.TargetDependency.Condition? {
+        .when(Set(platformFilters.asGraphFilters))
+    }
+}
+
+extension ProjectDescription.PlatformFilter {
+    fileprivate var graphPlatformFilter: TuistGraph.PlatformFilter {
+        switch self {
+        case .ios:
+            .ios
+        case .macos:
+            .macos
+        case .tvos:
+            .tvos
+        case .catalyst:
+            .catalyst
+        case .driverkit:
+            .driverkit
+        case .watchos:
+            .watchos
+        case .visionos:
+            .visionos
         }
     }
 }

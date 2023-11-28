@@ -1,8 +1,8 @@
 import TuistGraph
-import TuistGraphTesting
 import XcodeProj
 import XCTest
 @testable import TuistGenerator
+@testable import TuistGraphTesting
 
 class XcodeprojExtrasTests: XCTestCase {
     func test_pbxFileElement_sort() {
@@ -33,14 +33,14 @@ class XcodeprojExtrasTests: XCTestCase {
         ])
     }
 
-    func test_platform_filter_application_when_matching() {
+    func test_platform_filter_application_when_matching() throws {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .mac])
         let buildFile = PBXBuildFile()
-        let dependencyFilters: PlatformFilters = [.ios, .macos]
+        let dependencyCondition: TargetDependency.Condition = try .test([.ios, .macos])
 
         // When
-        buildFile.applyPlatformFilters(dependencyFilters, applicableTo: target)
+        buildFile.applyCondition(dependencyCondition, applicableTo: target)
 
         // Then
         XCTAssertNil(buildFile.platformFilter)
@@ -60,69 +60,56 @@ class XcodeprojExtrasTests: XCTestCase {
         XCTAssertNil(buildFile.platformFilters)
     }
 
-    func test_platform_filter_application_when_all() {
-        // Given
-        let buildFile = PBXBuildFile()
-        let dependencyFilters: PlatformFilters = .all
-
-        // When
-        buildFile.applyPlatformFilters(dependencyFilters)
-
-        // Then
-        XCTAssertNil(buildFile.platformFilter)
-        XCTAssertNil(buildFile.platformFilters)
-    }
-
-    func test_platform_filter_application_when_target_has_less_than_dependency() {
+    func test_platform_filter_application_when_target_has_less_than_dependency() throws {
         // Given
         let target = Target.test(destinations: [.mac])
         let buildFile = PBXBuildFile()
-        let dependencyFilters: PlatformFilters = [.ios, .macos]
+        let dependencyCondition: TargetDependency.Condition = try .test([.ios, .macos])
 
         // When
-        buildFile.applyPlatformFilters(dependencyFilters, applicableTo: target)
+        buildFile.applyCondition(dependencyCondition, applicableTo: target)
 
         // Then
         XCTAssertNil(buildFile.platformFilter)
         XCTAssertNil(buildFile.platformFilters)
     }
 
-    func test_platform_filter_application_when_target_has_more_than_dependency() {
+    func test_platform_filter_application_when_target_has_more_than_dependency() throws {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .mac, .appleVision])
         let buildFile = PBXBuildFile()
-        let dependencyFilters: PlatformFilters = [.ios, .macos]
+        let dependencyCondition: TargetDependency.Condition = try .test([.ios, .macos])
 
         // When
-        buildFile.applyPlatformFilters(dependencyFilters, applicableTo: target)
+        buildFile.applyCondition(dependencyCondition, applicableTo: target)
 
         // Then
         XCTAssertNil(buildFile.platformFilter)
         XCTAssertEqual(buildFile.platformFilters, ["ios", "macos"])
     }
 
-    func test_platform_filter_application_when_target_has_single_intersection() {
+    func test_platform_filter_application_when_target_has_single_intersection() throws {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .appleVision])
         let buildFile = PBXBuildFile()
-        let dependencyFilters: PlatformFilters = [.ios, .macos]
+        let dependencyCondition: TargetDependency.Condition = try .test([.ios, .macos])
 
         // When
-        buildFile.applyPlatformFilters(dependencyFilters, applicableTo: target)
+        buildFile.applyCondition(dependencyCondition, applicableTo: target)
 
         // Then
         XCTAssertEqual(buildFile.platformFilter, "ios")
         XCTAssertNil(buildFile.platformFilters)
     }
 
-    func test_platform_filter_application_when_disjoint() {
+    func test_platform_filter_application_when_disjoint() throws {
         // Given
         let target = Target.test(destinations: [.appleVision])
         let buildFile = PBXBuildFile()
-        let dependencyFilters: PlatformFilters = [.macos]
+        let dependencyCondition: TargetDependency.Condition = try .test([.macos])
 
         // When
-        buildFile.applyPlatformFilters(dependencyFilters, applicableTo: target)
+        buildFile.applyCondition(dependencyCondition, applicableTo: target)
 
         // Then
         XCTAssertNil(buildFile.platformFilter)

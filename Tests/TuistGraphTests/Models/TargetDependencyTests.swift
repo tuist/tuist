@@ -35,4 +35,30 @@ final class TargetDependencyTests: TuistUnitTestCase {
         // Then
         XCTAssertCodable(subject)
     }
+
+    func test_filtering() {
+        let expected: TargetDependency.Condition? = .when([.macos])
+
+        let subjects: [TargetDependency] = [
+            .framework(path: "/", status: .required, condition: expected),
+            .library(path: "/", publicHeaders: "/", swiftModuleMap: "/", condition: expected),
+            .sdk(name: "", status: .required, condition: expected),
+            .package(product: "", type: .plugin, condition: expected),
+            .target(name: "", condition: expected),
+            .xcframework(path: "/", status: .required, condition: expected),
+            .project(target: "", path: "/", condition: expected),
+        ]
+
+        for subject in subjects {
+            XCTAssertEqual(subject.condition, expected)
+            XCTAssertEqual(subject.withCondition(.when([.catalyst])).condition, .when([.catalyst]))
+        }
+    }
+
+    func test_xctest_platformFilters_alwaysReturnAll() {
+        let subject = TargetDependency.xctest
+
+        XCTAssertNil(subject.condition)
+        XCTAssertNil(subject.withCondition(.when([.catalyst])).condition)
+    }
 }

@@ -8,8 +8,6 @@ public protocol GraphLoading {
     func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph
 }
 
-// MARK: - GraphLoader
-
 // swiftlint:disable:next type_body_length
 public final class GraphLoader: GraphLoading {
     private let frameworkMetadataProvider: FrameworkMetadataProviding
@@ -59,7 +57,7 @@ public final class GraphLoader: GraphLoading {
             packages: cache.packages,
             targets: cache.loadedTargets,
             dependencies: cache.dependencies,
-            dependencyPlatformFilters: cache.dependencyPlatformFilters
+            dependencyConditions: cache.dependencyConditions
         )
         return graph
     }
@@ -105,17 +103,20 @@ public final class GraphLoader: GraphLoading {
         }
 
         cache.add(target: target, path: path)
-        let dependencies = try target.dependencies.compactMap { dependency in
-            try loadDependency(
+        let targetDependency = GraphDependency.target(name: name, path: path)
+        let dependencies: [GraphDependency] = try target.dependencies.compactMap { dependency in
+            guard let graphDep = try loadDependency(
                 path: path,
                 forPlatforms: target.supportedPlatforms,
                 dependency: dependency,
                 cache: cache
-            )
+            ) else { return nil }
+            cache.dependencyConditions[(targetDependency, graphDep)] = dependency.condition
+            return graphDep
         }
 
         if !dependencies.isEmpty {
-            cache.dependencies[.target(name: name, path: path)] = Set(dependencies)
+            cache.dependencies[targetDependency] = Set(dependencies)
         }
     }
 
@@ -126,7 +127,7 @@ public final class GraphLoader: GraphLoading {
         cache: Cache
     ) throws -> GraphDependency? {
         switch dependency {
-        case let .target(toTarget):
+        case let .target(toTarget, _):
             // A target within the same project.
             try loadTarget(
                 path: path,
@@ -135,7 +136,7 @@ public final class GraphLoader: GraphLoading {
             )
             return .target(name: toTarget, path: path)
 
-        case let .project(toTarget, projectPath):
+        case let .project(toTarget, projectPath, _):
             // A target from another project
             try loadProject(path: projectPath, cache: cache)
             try loadTarget(
@@ -145,14 +146,14 @@ public final class GraphLoader: GraphLoading {
             )
             return .target(name: toTarget, path: projectPath)
 
-        case let .framework(frameworkPath, status):
+        case let .framework(frameworkPath, status, _):
             return try loadFramework(
                 path: frameworkPath,
                 cache: cache,
                 status: status
             )
 
-        case let .library(libraryPath, publicHeaders, swiftModuleMap):
+        case let .library(libraryPath, publicHeaders, swiftModuleMap, _):
             return try loadLibrary(
                 path: libraryPath,
                 publicHeaders: publicHeaders,
@@ -160,14 +161,14 @@ public final class GraphLoader: GraphLoading {
                 cache: cache
             )
 
-        case let .xcframework(frameworkPath, status):
+        case let .xcframework(frameworkPath, status, _):
             return try loadXCFramework(
                 path: frameworkPath,
                 cache: cache,
                 status: status
             )
 
-        case let .sdk(name, status):
+        case let .sdk(name, status, _):
             return try platforms.sorted().first.map { platform in
                 try loadSDK(
                     name: name,
@@ -176,7 +177,7 @@ public final class GraphLoader: GraphLoading {
                     source: .system
                 )
             }
-        case let .package(product, type):
+        case let .package(product, type, _):
             switch type {
             case .macro:
                 return try loadPackage(fromPath: path, productName: product, type: .macro)
@@ -312,7 +313,7 @@ public final class GraphLoader: GraphLoading {
         var loadedProjects: [AbsolutePath: Project] = [:]
         var loadedTargets: [AbsolutePath: [String: Target]] = [:]
         var dependencies: [GraphDependency: Set<GraphDependency>] = [:]
-        var dependencyPlatformFilters: [GraphEdge: PlatformFilters] = [:]
+        var dependencyConditions: [GraphEdge: TargetDependency.Condition] = [:]
         var frameworks: [AbsolutePath: GraphDependency] = [:]
         var libraries: [AbsolutePath: GraphDependency] = [:]
         var xcframeworks: [AbsolutePath: GraphDependency] = [:]

@@ -42,6 +42,12 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var device: String?
 
     @Option(
+        name: .long,
+        help: "Test on a specific platform."
+    )
+    var platform: String?
+
+    @Option(
         name: .shortAndLong,
         help: "Test with a specific version of the OS."
     )
@@ -140,6 +146,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             configuration: configuration,
             path: absolutePath,
             deviceName: device,
+            platform: platform,
             osVersion: os,
             rosetta: rosetta,
             skipUITests: skipUITests,

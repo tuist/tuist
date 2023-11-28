@@ -4,13 +4,13 @@ import ProjectDescription
 public struct DependenciesGraph: Equatable, Codable {
     /// A dictionary of Platforms to a dictionary where the keys are the names of dependencies, and the values are the
     /// dependencies themselves.
-    public let externalDependencies: [Platform: [String: [TargetDependency]]]
+    public let externalDependencies: [String: [TargetDependency]]
 
     /// A dictionary where the keys are the folder of external projects, and the values are the projects themselves.
     public let externalProjects: [Path: Project]
 
     /// Create an instance of `DependenciesGraph` model.
-    public init(externalDependencies: [Platform: [String: [TargetDependency]]], externalProjects: [Path: Project]) {
+    public init(externalDependencies: [String: [TargetDependency]], externalProjects: [Path: Project]) {
         self.externalDependencies = externalDependencies
         self.externalProjects = externalProjects
     }

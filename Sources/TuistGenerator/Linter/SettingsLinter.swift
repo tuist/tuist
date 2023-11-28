@@ -25,7 +25,7 @@ final class SettingsLinter: SettingsLinting {
             issues.append(contentsOf: lintConfigFilesExist(settings: settings))
         }
 
-        issues.append(contentsOf: lintDesinations(for: target.supportedPlatforms, and: target.deploymentTargets))
+        issues.append(contentsOf: lintDestinations(for: target.supportedPlatforms, and: target.deploymentTargets))
 
         return issues
     }
@@ -58,7 +58,10 @@ final class SettingsLinter: SettingsLinting {
         return []
     }
 
-    private func lintDesinations(for targetPlatforms: Set<Platform>, and deploymentTargets: DeploymentTargets) -> [LintingIssue] {
+    private func lintDestinations(
+        for targetPlatforms: Set<Platform>,
+        and deploymentTargets: DeploymentTargets
+    ) -> [LintingIssue] {
         var missingPlatforms: [Platform] = []
 
         for deploymentTarget in deploymentTargets.configuredVersions {

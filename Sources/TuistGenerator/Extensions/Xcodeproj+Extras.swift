@@ -29,7 +29,9 @@ extension PBXFileElement {
 
 extension PBXBuildFile {
     /// Apply platform filters either `platformFilter` or `platformFilters` depending on count
-    public func applyPlatformFilters(_ filters: PlatformFilters, applicableTo target: Target) {
+    /// With Xcode 15, we're seeing `platformFilter` not have the effects we expect
+    public func applyCondition(_ condition: TargetDependency.Condition?, applicableTo target: Target) {
+        guard let filters = condition?.platformFilters else { return }
         let dependingTargetPlatformFilters = target.dependencyPlatformFilters
 
         if dependingTargetPlatformFilters.isDisjoint(with: filters) {
@@ -46,9 +48,9 @@ extension PBXBuildFile {
     }
 
     /// Apply platform filters either `platformFilter` or `platformFilters` depending on count
-    public func applyPlatformFilters(_ filters: PlatformFilters) {
+    public func applyPlatformFilters(_ filters: PlatformFilters?) {
         // Xcode expects no filters to be set if a `PBXBuildFile` applies to all platforms
-        guard !filters.isEmpty, filters != .all else { return }
+        guard let filters, !filters.isEmpty else { return }
 
         if filters.count == 1,
            let filter = filters.first,

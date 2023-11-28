@@ -378,6 +378,10 @@ extension PackageInfo.Target {
             /// The condition at which the setting should be applied.
             public let condition: PackageInfo.PackageConditionDescription?
 
+            public var hasConditions: Bool {
+                condition != nil || condition?.platformNames.isEmpty == true
+            }
+
             /// The value of the setting.
             ///
             /// This is kind of like an "untyped" value since the length
