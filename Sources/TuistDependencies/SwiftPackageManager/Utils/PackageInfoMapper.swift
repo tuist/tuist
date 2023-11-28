@@ -550,7 +550,7 @@ extension ProjectDescription.Target {
 
         if macroDependencies.contains(where: { dependency in
             switch dependency {
-            case let .externalTarget(_, targetName, _), .target(let targetName, platformFilters: _):
+            case let .externalTarget(_, targetName, _), .target(let targetName, condition: _):
                 return target.name == targetName
             default:
                 return false
