@@ -52,11 +52,13 @@ class CacheService < ApplicationService
   def object_exists?
     s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
     begin
-      s3_client.head_object(
+      object = s3_client.get_object(
         bucket: project.remote_cache_storage.name,
         key: object_key,
       )
-      true
+      object.content_length > 0
+    rescue Aws::S3::Errors::NoSuchKey
+      false
     rescue Aws::S3::Errors::NotFound
       false
     rescue Aws::S3::Errors::Forbidden
