@@ -627,9 +627,6 @@ extension ProjectDescription.DeploymentTargets {
         destinations: ProjectDescription.Destinations,
         packageName _: String
     ) throws -> Self {
-        if type == .macro {
-            return .macOS(minDeploymentTargets[.macOS] ?? oldestVersions(for: Version(5, 9, 0)).macOS!)
-        }
 
         let versionPairs: [(ProjectDescription.Platform, String)] = package.compactMap { packagePlatform in
             guard let tuistPlatform = ProjectDescription.Platform(rawValue: packagePlatform.tuistPlatformName) else { return nil }
