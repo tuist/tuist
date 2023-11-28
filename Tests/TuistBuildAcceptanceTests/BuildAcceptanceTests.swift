@@ -91,7 +91,8 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPri
     func test_framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
         try setUpFixture("framework_with_native_swift_macro")
         try await run(FetchCommand.self)
-        try await run(BuildCommand.self, "Framework")
+        try await run(BuildCommand.self, "Framework", "--platform", "macos")
+        try await run(BuildCommand.self, "Framework", "--platform", "ios")
     }
 }
 
