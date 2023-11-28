@@ -15,10 +15,6 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         }
     }
 
-//    var isValid: Bool {
-//        platformFilters != .invalid
-//    }
-
     case xcframework(
         path: AbsolutePath,
         infoPlist: XCFrameworkInfoPlist,

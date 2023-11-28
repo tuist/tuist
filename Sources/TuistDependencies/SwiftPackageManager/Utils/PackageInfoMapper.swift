@@ -513,7 +513,6 @@ extension ProjectDescription.Target {
             .intersection(try ProjectDescription.Destinations.from(platforms: packageInfo.platforms))
 
         let deploymentTargets = try ProjectDescription.DeploymentTargets.from(
-            type: target.type,
             minDeploymentTargets: minDeploymentTargets,
             package: packageInfo.platforms,
             destinations: destinations,
@@ -621,13 +620,11 @@ extension ProjectDescription.DeploymentTargets {
     }
 
     fileprivate static func from(
-        type: PackageInfo.Target.TargetType,
         minDeploymentTargets: ProjectDescription.DeploymentTargets,
         package: [PackageInfo.Platform],
         destinations: ProjectDescription.Destinations,
         packageName _: String
     ) throws -> Self {
-
         let versionPairs: [(ProjectDescription.Platform, String)] = package.compactMap { packagePlatform in
             guard let tuistPlatform = ProjectDescription.Platform(rawValue: packagePlatform.tuistPlatformName) else { return nil }
             return (tuistPlatform, packagePlatform.version)
