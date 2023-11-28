@@ -43,12 +43,19 @@ public enum TargetDependency: Codable, Hashable {
         case macro
     }
 
+    
+    /// A condition applied to a `TargetDependency` allowing it to only be used in certain circumstances
     public struct Condition: Codable, Hashable, Equatable {
         public let platformFilters: Set<PlatformFilter>
+        /// For internal use only. use `.when` to ensure we can not have a `Condition` with an empty set of filters.
         private init(platformFilters: Set<PlatformFilter>) {
             self.platformFilters = platformFilters
         }
 
+        
+        /// Creates a condition using the specified set of filters.
+        /// - Parameter platformFilters: filters to define which platforms this condition supports
+        /// - Returns: a `Condition` with the given set of filters or `nil` if empty.
         public static func when(_ platformFilters: Set<PlatformFilter>) -> Condition? {
             guard !platformFilters.isEmpty else { return nil }
             return Condition(platformFilters: platformFilters)
@@ -59,6 +66,7 @@ public enum TargetDependency: Codable, Hashable {
     ///
     /// - Parameters:
     ///   - name: Name of the target to depend on
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case target(name: String, condition: Condition? = nil)
 
     /// Dependency on a target within another project
@@ -66,6 +74,7 @@ public enum TargetDependency: Codable, Hashable {
     /// - Parameters:
     ///   - target: Name of the target to depend on
     ///   - path: Relative path to the other project directory
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case project(target: String, path: Path, condition: Condition? = nil)
 
     /// Dependency on a prebuilt framework
@@ -73,6 +82,7 @@ public enum TargetDependency: Codable, Hashable {
     /// - Parameters:
     ///   - path: Relative path to the prebuilt framework
     ///   - status: The dependency status (optional dependencies are weakly linked)
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case framework(path: Path, status: FrameworkStatus = .required, condition: Condition? = nil)
 
     /// Dependency on prebuilt library
@@ -81,6 +91,7 @@ public enum TargetDependency: Codable, Hashable {
     ///   - path: Relative path to the prebuilt library
     ///   - publicHeaders: Relative path to the library's public headers directory
     ///   - swiftModuleMap: Relative path to the library's swift module map file
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case library(path: Path, publicHeaders: Path, swiftModuleMap: Path?, condition: Condition? = nil)
 
     /// Dependency on a swift package manager product using Xcode native integration. It's recommended to use `external` instead.
@@ -90,6 +101,7 @@ public enum TargetDependency: Codable, Hashable {
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
     ///              e.g. RxSwift
     ///   - type: The type of package being integrated.
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case package(product: String, type: PackageType = .runtime, condition: Condition? = nil)
 
     /// Dependency on a swift package manager plugin product using Xcode native integration.
@@ -97,6 +109,7 @@ public enum TargetDependency: Codable, Hashable {
     /// - Parameters:
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
     ///              e.g. RxSwift
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case packagePlugin(product: String, condition: Condition? = nil)
 
     /// Dependency on system library or framework
@@ -106,6 +119,7 @@ public enum TargetDependency: Codable, Hashable {
     ///            e.g. `ARKit`, `c++`
     ///   - type: The dependency type
     ///   - status: The dependency status (optional dependencies are weakly linked)
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case sdk(name: String, type: SDKType, status: SDKStatus, condition: Condition? = nil)
 
     /// Dependency on a xcframework
@@ -113,12 +127,17 @@ public enum TargetDependency: Codable, Hashable {
     /// - Parameters:
     ///   - path: Relative path to the xcframework
     ///   - status: The dependency status (optional dependencies are weakly linked)
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case xcframework(path: Path, status: FrameworkStatus = .required, condition: Condition? = nil)
 
     /// Dependency on XCTest.
     case xctest
 
     /// Dependency on an external dependency imported through `Dependencies.swift`.
+    ///
+    /// - Parameters:
+    ///   - name: Name of the external dependency
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case external(name: String, condition: Condition? = nil)
 
     /// Dependency on system library or framework
@@ -126,8 +145,8 @@ public enum TargetDependency: Codable, Hashable {
     /// - Parameters:
     ///   - name: Name of the system library or framework (including extension)
     ///            e.g. `ARKit.framework`, `libc++.tbd`
-    ///
-    /// Note: Defaults to using a `required` dependency status
+    ///   - type: Whether or not this dependecy is required. Defaults to `.required`
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     public static func sdk(name: String, type: SDKType, condition: Condition? = nil) -> TargetDependency {
         .sdk(name: name, type: type, status: .required, condition: condition)
     }
@@ -136,6 +155,7 @@ public enum TargetDependency: Codable, Hashable {
     ///
     /// - Parameters:
     ///   - target: Instance of the target to depend on
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     public static func target(_ target: Target, condition: Condition? = nil) -> TargetDependency {
         .target(name: target.name, condition: condition)
     }

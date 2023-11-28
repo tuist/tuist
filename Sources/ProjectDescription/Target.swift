@@ -5,7 +5,7 @@ public struct Target: Codable, Equatable {
     /// The name of the target. Also, the product name if not specified with ``productName``.
     public let name: String
 
-    /// The destinations this target supports
+    /// The destinations this target supports, e.g. iPhone, appleVision, macCatalyst
     public let destinations: Destinations
 
     /// The type of build product this target will output.
@@ -17,7 +17,7 @@ public struct Target: Codable, Equatable {
     /// The product bundle identifier.
     public let bundleId: String
 
-    /// The minimum deployment target your product will support.
+    /// The minimum deployment targets your product will support.
     public let deploymentTargets: DeploymentTargets?
 
     /// The Info.plist representation.
@@ -118,7 +118,7 @@ public struct Target: Codable, Equatable {
         self.mergeable = mergeable
     }
 
-    @available(*, deprecated)
+    @available(*, deprecated, message: "Use `Destinations` and `DeploymentTargets` to configure deployment devices and minimum platform versions.")
     public init(
         name: String,
         platform: Platform,
@@ -229,7 +229,7 @@ extension Target {
         *,
         deprecated,
         renamed: "DeploymentTargets",
-        message: "Device support is now defined in Destinations. Minimum Deployment Version is defined in DeploymentTargets"
+        message: "Device support is now defined in `Destinations`. Minimum Deployment Version is defined in `DeploymentTargets`"
     )
     var deploymentTarget: DeploymentTarget? {
         switch platform {
@@ -326,7 +326,7 @@ extension DeploymentTargets {
     /// Maps a ProjectDescription.DeploymentTarget instance into a TuistGraph.DeploymentTarget instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of deployment target model.
-    static func from(manifest: DeploymentTarget?) -> DeploymentTargets {
+    fileprivate static func from(manifest: DeploymentTarget?) -> DeploymentTargets {
         if let manifest {
             switch manifest {
             case let .iOS(version, _, _):
