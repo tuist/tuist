@@ -183,6 +183,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_directStaticDependencies() {
         // Given
+        let project = Project.test()
         let path = AbsolutePath.root
         let framework = Target.test(name: "Framework", product: .framework)
         let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
@@ -199,6 +200,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given: Value Graph
         let graph = Graph.test(
             path: path,
+            projects: [path: project],
             targets: targets,
             dependencies: dependencies
         )
@@ -724,7 +726,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(appTestResults, [
-            .bundle(path: bundlePath),
+            .bundle(path: bundlePath, platformFilters: .all),
         ])
         XCTAssertEqual(frameworkResults, [])
     }
@@ -784,7 +786,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(appResults, [
-            .bundle(path: bundlePath),
+            .bundle(path: bundlePath, platformFilters: .all),
         ])
         XCTAssertEqual(frameworkResults, [])
     }
@@ -845,7 +847,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(appResults, [])
         XCTAssertEqual(frameworkResults, [
-            .bundle(path: bundlePath),
+            .bundle(path: bundlePath, platformFilters: .all),
         ])
     }
 
@@ -902,8 +904,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(Set(got), Set([
-            .testProduct(target: bundle.name, productName: bundle.productNameWithExtension),
-            .testProduct(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension),
+            .testProduct(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: [.ios]),
+            .testProduct(
+                target: staticLibrary.name,
+                productName: staticLibrary.productNameWithExtension,
+                platformFilters: [.ios]
+            ),
         ]))
     }
 
@@ -2576,7 +2582,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.compactMap(sdkDependency), [SDKPathAndStatus(name: "some.framework", status: .optional)])
+        XCTAssertEqual(got.compactMap(sdkDependency), [
+            SDKPathAndStatus(name: "some.framework", status: .optional),
+        ])
     }
 
     func test_linkableDependencies_transitiveSDKDependenciesImmediateDependencies() throws {
@@ -2732,7 +2740,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 linking: .dynamic,
                 architectures: [.arm64],
                 product: .framework,
-                status: .required
+                status: .required,
+                platformFilters: .all
             ),
         ])
     }
@@ -3073,21 +3082,28 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(path: "/path/a")
 
         // Given: Value Graph
+        let sdkDependency: GraphDependency = .sdk(
+            name: "AppClip.framework",
+            path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/AppClip.framework",
+            status: .required,
+            source: .system
+        )
+
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: target.name, path: project.path): [
-                .sdk(
-                    name: "AppClip.framework",
-                    path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/AppClip.framework",
-                    status: .required,
-                    source: .system
-                ),
+                sdkDependency,
             ],
         ]
+        var dependencyPlatformFilters: [GraphEdge: PlatformFilters] = [:]
+        dependencyPlatformFilters[(.target(name: target.name, path: project.path), sdkDependency)] = [.ios]
+
         let graph = Graph.test(
             projects: [project.path: project],
             targets: [project.path: [target.name: target]],
-            dependencies: dependencies
+            dependencies: dependencies,
+            dependencyPlatformFilters: dependencyPlatformFilters
         )
+
         let subject = GraphTraverser(graph: graph)
 
         // When
@@ -3103,7 +3119,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         .path
         XCTAssertEqual(
             got, [
-                .sdk(path: path, status: .required, source: .system),
+                .sdk(path: path, status: .required, source: .system, platformFilters: [.ios]),
             ]
         )
     }
@@ -4074,7 +4090,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 )]),
                 primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
                 binaryPath: "/xcframeworks/direct.xcframework/direct",
-                status: .required
+                status: .required,
+                platformFilters: .all
             ),
             .xcframework(
                 path: "/xcframeworks/transitive.xcframework",
@@ -4085,7 +4102,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 )]),
                 primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
                 binaryPath: "/xcframeworks/transitive.xcframework/transitive",
-                status: .required
+                status: .required,
+                platformFilters: .all
             ),
             .xcframework(
                 path: "/xcframeworks/framework-transitive.xcframework",
@@ -4096,7 +4114,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 )]),
                 primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
                 binaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
-                status: .required
+                status: .required,
+                platformFilters: .all
             ),
         ].sorted())
     }
@@ -4161,6 +4180,347 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.sorted(), [
             .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilters: [.ios]),
         ])
+    }
+
+    func test_platformFilterResolution_when_targetHasTransitiveDependencies() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .mac], product: .app)
+        let project = Project.test(targets: [app])
+        let multiPlatformFramework = Target.test(
+            name: "MultiplatformFramework",
+            destinations: [.iPhone, .mac],
+            product: .framework
+        )
+        let macFramework = Target.test(name: "MacFramework", destinations: [.mac], product: .framework)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([
+                .target(name: multiPlatformFramework.name, path: project.path),
+                .target(name: macFramework.name, path: project.path), // I assumed this wasnt necessary because reasons.
+            ]),
+            .target(name: multiPlatformFramework.name, path: project.path): Set([
+                .target(name: macFramework.name, path: project.path),
+            ]),
+        ]
+
+        let multiPlatformToMacEdge = GraphEdge(
+            from: .target(name: multiPlatformFramework.name, path: project.path),
+            to: .target(name: macFramework.name, path: project.path)
+        )
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                app.name: app,
+                multiPlatformFramework.name: multiPlatformFramework,
+                macFramework.name: macFramework,
+            ]],
+            dependencies: dependencies,
+            dependencyPlatformFilters: [
+                multiPlatformToMacEdge: [.macos],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            .product(target: macFramework.name, productName: macFramework.productNameWithExtension, platformFilters: [.macos]),
+            .product(
+                target: multiPlatformFramework.name,
+                productName: multiPlatformFramework.productNameWithExtension,
+                platformFilters: [.macos, .ios]
+            ),
+        ])
+    }
+
+    func test_platformFilters_transitiveDependencyInheritedPlatformFilter() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            destinations: [.iPad, .iPhone],
+            product: .staticLibrary
+        )
+
+        let project = Project.test(targets: [app, staticFramework])
+
+        let appkGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
+        let staticFrameworkGraphDependency: GraphDependency = .target(name: staticFramework.name, path: project.path)
+        let sdkGraphDependency: GraphDependency = .testSDK(name: "CoreTelephony.framework")
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFramework.name: staticFramework,
+                ],
+            ],
+            dependencies: [
+                appkGraphDependency: [
+                    staticFrameworkGraphDependency,
+                ],
+                staticFrameworkGraphDependency: [
+                    sdkGraphDependency,
+                ],
+            ],
+            dependencyPlatformFilters: [
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): [.ios],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let results = try XCTUnwrap(subject.platformFilters(to: sdkGraphDependency, from: appkGraphDependency))
+
+        // Then
+        XCTAssertEqual(results.sorted(), [
+            .ios,
+        ])
+    }
+
+    // Given A -> B -> C, if A -> B has a filter of [.ios], and B -> C has a filter of `[.macos]`, A->C should return `nil` for
+    // platform filters
+    func test_platformFilters_transitiveDependencyHasNilPlatformFilters_whenDependencyHasDisjointFilters() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.mac], product: .app)
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            destinations: [.iPad, .iPhone, .mac],
+            product: .staticLibrary
+        )
+
+        let project = Project.test(targets: [app, staticFramework])
+
+        let appkGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
+        let staticFrameworkGraphDependency: GraphDependency = .target(name: staticFramework.name, path: project.path)
+        let sdkGraphDependency: GraphDependency = .testSDK(name: "CoreTelephony.framework")
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFramework.name: staticFramework,
+                ],
+            ],
+            dependencies: [
+                appkGraphDependency: [
+                    staticFrameworkGraphDependency,
+                ],
+                staticFrameworkGraphDependency: [
+                    sdkGraphDependency,
+                ],
+            ],
+            dependencyPlatformFilters: [
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkGraphDependency): [.macos],
+                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): [.ios],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.platformFilters(to: sdkGraphDependency, from: appkGraphDependency)
+
+        // Then
+        XCTAssertEqual(results, .invalid)
+    }
+
+    func test_platformFilters_transitivePlatformFilter() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            destinations: [.iPad, .iPhone, .mac],
+            product: .staticLibrary
+        )
+
+        let project = Project.test(targets: [app, staticFramework])
+
+        let appkGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
+        let staticFrameworkGraphDependency: GraphDependency = .target(name: staticFramework.name, path: project.path)
+        let sdkGraphDependency: GraphDependency = .testSDK(name: "CoreTelephony.framework")
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFramework.name: staticFramework,
+                ],
+            ],
+            dependencies: [
+                appkGraphDependency: [
+                    staticFrameworkGraphDependency,
+                ],
+                staticFrameworkGraphDependency: [
+                    sdkGraphDependency,
+                ],
+            ],
+            dependencyPlatformFilters: [
+                GraphEdge(from: staticFrameworkGraphDependency, to: sdkGraphDependency): [.ios],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.platformFilters(to: sdkGraphDependency, from: appkGraphDependency)
+
+        // Then
+        XCTAssertEqual(results.sorted(), [
+            .ios,
+        ])
+    }
+
+    func test_platformFilters_transitivePlatformFilter_siblingDependenciesDontImpactEachOther() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
+        let staticFrameworkA = Target.test(
+            name: "StaticFrameworkA",
+            destinations: [.iPad, .iPhone, .mac],
+            product: .staticLibrary
+        )
+
+        let staticFrameworkB = Target.test(
+            name: "StaticFrameworkB",
+            destinations: [.iPad, .iPhone, .mac],
+            product: .staticLibrary
+        )
+
+        let staticFrameworkC = Target.test(
+            name: "StaticFrameworkC",
+            destinations: [.iPad, .iPhone, .mac],
+            product: .staticLibrary
+        )
+
+        let project = Project.test(targets: [app, staticFrameworkA, staticFrameworkB, staticFrameworkC])
+
+        let appkGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
+        let staticFrameworkAGraphDependency: GraphDependency = .target(name: staticFrameworkA.name, path: project.path)
+        let staticFrameworkBGraphDependency: GraphDependency = .target(name: staticFrameworkB.name, path: project.path)
+        let staticFrameworkCGraphDependency: GraphDependency = .target(name: staticFrameworkC.name, path: project.path)
+        let sdkGraphDependency: GraphDependency = .testSDK(name: "CoreTelephony.framework")
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFrameworkA.name: staticFrameworkA,
+                    staticFrameworkB.name: staticFrameworkB,
+                    staticFrameworkC.name: staticFrameworkC,
+                ],
+            ],
+            dependencies: [
+                appkGraphDependency: [
+                    staticFrameworkAGraphDependency,
+                    staticFrameworkBGraphDependency,
+                ],
+                staticFrameworkAGraphDependency: [
+                    sdkGraphDependency,
+                ],
+                staticFrameworkBGraphDependency: [
+                    staticFrameworkCGraphDependency,
+                ],
+            ],
+            dependencyPlatformFilters: [
+                GraphEdge(from: staticFrameworkAGraphDependency, to: sdkGraphDependency): [.ios],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appToStaticFilters = subject.platformFilters(
+            to: staticFrameworkCGraphDependency,
+            from: appkGraphDependency
+        )
+
+        let appToSDKFilters = subject.platformFilters(
+            to: sdkGraphDependency,
+            from: appkGraphDependency
+        )
+
+        // Then
+        XCTAssertEqual(appToStaticFilters, .all)
+        XCTAssertEqual(appToSDKFilters, [.ios])
+    }
+
+    func test_platformFilters_transitivePlatformFilter_noFiltersHaveHigherPrecedence() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
+        let staticFrameworkA = Target.test(
+            name: "StaticFrameworkA",
+            destinations: [.iPad, .iPhone, .mac],
+            product: .staticLibrary
+        )
+
+        let staticFrameworkB = Target.test(
+            name: "StaticFrameworkB",
+            destinations: [.mac],
+            product: .staticLibrary
+        )
+
+        let staticFrameworkC = Target.test(
+            name: "StaticFrameworkC",
+            destinations: [.iPad, .iPhone, .mac],
+            product: .staticLibrary
+        )
+
+        let project = Project.test(targets: [
+            app,
+            staticFrameworkA,
+            staticFrameworkB,
+            staticFrameworkC,
+        ])
+
+        let appkGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
+        let staticFrameworkAGraphDependency: GraphDependency = .target(name: staticFrameworkA.name, path: project.path)
+        let staticFrameworkBGraphDependency: GraphDependency = .target(name: staticFrameworkB.name, path: project.path)
+        let staticFrameworkCGraphDependency: GraphDependency = .target(name: staticFrameworkC.name, path: project.path)
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    staticFrameworkA.name: staticFrameworkA,
+                    staticFrameworkB.name: staticFrameworkB,
+                    staticFrameworkC.name: staticFrameworkC,
+                ],
+            ],
+            dependencies: [
+                appkGraphDependency: [
+                    staticFrameworkAGraphDependency,
+                    staticFrameworkBGraphDependency,
+                ],
+                staticFrameworkAGraphDependency: [
+                    staticFrameworkCGraphDependency,
+                ],
+                staticFrameworkBGraphDependency: [
+                    staticFrameworkCGraphDependency,
+                ],
+            ],
+            dependencyPlatformFilters: [
+                GraphEdge(from: appkGraphDependency, to: staticFrameworkBGraphDependency): [.macos],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.platformFilters(to: staticFrameworkCGraphDependency, from: appkGraphDependency)
+
+        // Then
+        XCTAssertEqual(results, .all)
     }
 
     func test_directSwiftMacroExecutables_when_targetHasDirectMacroDependencies() {
@@ -4286,7 +4646,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {
         switch dependency {
-        case let .sdk(path, status, _):
+        case let .sdk(path, status, _, _):
             return SDKPathAndStatus(name: path.basename, status: status)
         default:
             return nil

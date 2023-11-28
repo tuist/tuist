@@ -75,7 +75,7 @@ class ProjectFileElements {
 
         // Products
         let directProducts = project.targets.map {
-            GraphDependencyReference.product(target: $0.name, productName: $0.productNameWithExtension)
+            GraphDependencyReference.product(target: $0.name, productName: $0.productNameWithExtension, platformFilters: [])
         }
 
         // Dependencies
@@ -221,15 +221,15 @@ class ProjectFileElements {
 
         try sortedDependencies.forEach { dependency in
             switch dependency {
-            case let .xcframework(path, _, _, _, _):
+            case let .xcframework(path, _, _, _, _, _):
                 try generatePrecompiled(path)
-            case let .framework(path, _, _, _, _, _, _, _, _):
+            case let .framework(path, _, _, _, _, _, _, _, _, _):
                 try generatePrecompiled(path)
-            case let .library(path, _, _, _):
+            case let .library(path, _, _, _, _):
                 try generatePrecompiled(path)
-            case let .bundle(path):
+            case let .bundle(path, _):
                 try generatePrecompiled(path)
-            case let .sdk(sdkNodePath, _, _):
+            case let .sdk(sdkNodePath, _, _, _):
                 generateSDKFileElement(
                     sdkNodePath: sdkNodePath,
                     toGroup: groups.frameworks,

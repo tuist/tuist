@@ -484,7 +484,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             .sorted()
         let fileReferences = bundles.compactMap { dependency -> PBXFileReference? in
             switch dependency {
-            case let .bundle(path: path):
+            case let .bundle(path: path, _):
                 return fileElements.file(path: path)
             case let .product(target: target, _, _):
                 return fileElements.product(target: target)
@@ -494,6 +494,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
 
         return fileReferences.map {
+            // Should we add platform filters here?
             PBXBuildFile(file: $0)
         }
     }

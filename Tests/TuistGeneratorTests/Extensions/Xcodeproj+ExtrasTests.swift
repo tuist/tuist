@@ -47,6 +47,32 @@ class XcodeprojExtrasTests: XCTestCase {
         XCTAssertNil(buildFile.platformFilters)
     }
 
+    func test_platform_filter_application_when_empty() {
+        // Given
+        let buildFile = PBXBuildFile()
+        let dependencyFilters: PlatformFilters = []
+
+        // When
+        buildFile.applyPlatformFilters(dependencyFilters)
+
+        // Then
+        XCTAssertNil(buildFile.platformFilter)
+        XCTAssertNil(buildFile.platformFilters)
+    }
+
+    func test_platform_filter_application_when_all() {
+        // Given
+        let buildFile = PBXBuildFile()
+        let dependencyFilters: PlatformFilters = .all
+
+        // When
+        buildFile.applyPlatformFilters(dependencyFilters)
+
+        // Then
+        XCTAssertNil(buildFile.platformFilter)
+        XCTAssertNil(buildFile.platformFilters)
+    }
+
     func test_platform_filter_application_when_target_has_less_than_dependency() {
         // Given
         let target = Target.test(destinations: [.mac])

@@ -227,7 +227,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             switch dependency {
             case .framework:
                 frameworkReferences.append(dependency)
-            case let .xcframework(path, _, _, _, _):
+            case let .xcframework(path, _, _, _, _, platformFilters: platformFilters):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }
@@ -236,6 +236,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                     settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
                 )
                 pbxproj.add(object: buildFile)
+                buildFile.applyPlatformFilters(platformFilters, applicableTo: target)
                 embedPhase.files?.append(buildFile)
             case let .product(dependencyTarget, _, platformFilters):
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
@@ -288,7 +289,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         let precompiledPaths = linkableModules.compactMap(\.precompiledPath)
             .map { LinkGeneratorPath.absolutePath($0.removingLastComponent()) }
         let sdkPaths = linkableModules.compactMap { (dependency: GraphDependencyReference) -> LinkGeneratorPath? in
-            if case let GraphDependencyReference.sdk(_, _, source) = dependency {
+            if case let GraphDependencyReference.sdk(_, _, source, _) = dependency {
                 return source.frameworkSearchPath.map { LinkGeneratorPath.string($0) }
             } else {
                 return nil
@@ -403,7 +404,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         pbxproj.add(object: buildPhase)
         pbxTarget.buildPhases.append(buildPhase)
 
-        func addBuildFile(_ path: AbsolutePath, status: FrameworkStatus = .required) throws {
+        func addBuildFile(_ path: AbsolutePath, platformFilters: PlatformFilters, status: FrameworkStatus = .required) throws {
             guard let fileRef = fileElements.file(path: path) else {
                 throw LinkGeneratorError.missingReference(path: path)
             }
@@ -412,6 +413,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 settings = ["ATTRIBUTES": ["Weak"]]
             }
             let buildFile = PBXBuildFile(file: fileRef, settings: settings)
+            buildFile.applyPlatformFilters(platformFilters, applicableTo: target)
             pbxproj.add(object: buildFile)
             buildPhase.files?.append(buildFile)
         }
@@ -419,12 +421,12 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         try linkableDependencies
             .forEach { dependency in
                 switch dependency {
-                case let .framework(path, _, _, _, _, _, _, _, status):
-                    try addBuildFile(path, status: status)
-                case let .library(path, _, _, _):
-                    try addBuildFile(path)
-                case let .xcframework(path, _, _, _, status):
-                    try addBuildFile(path, status: status)
+                case let .framework(path, _, _, _, _, _, _, _, status, platformFilters):
+                    try addBuildFile(path, platformFilters: platformFilters, status: status)
+                case let .library(path, _, _, _, platformFilters):
+                    try addBuildFile(path, platformFilters: platformFilters)
+                case let .xcframework(path, _, _, _, status, platformFilters):
+                    try addBuildFile(path, platformFilters: platformFilters, status: status)
                 case .bundle:
                     break
                 case let .product(dependencyTarget, _, platformFilters):
@@ -435,12 +437,13 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                     buildFile.applyPlatformFilters(platformFilters, applicableTo: target)
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
-                case let .sdk(sdkPath, sdkStatus, _):
+                case let .sdk(sdkPath, sdkStatus, _, platformFilters):
                     guard let fileRef = fileElements.sdk(path: sdkPath) else {
                         throw LinkGeneratorError.missingReference(path: sdkPath)
                     }
 
                     let buildFile = createSDKBuildFile(for: fileRef, status: sdkStatus)
+                    buildFile.applyPlatformFilters(platformFilters, applicableTo: target)
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
                 }
@@ -549,12 +552,13 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 buildFile.applyPlatformFilters(platformFilters, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 files.append(buildFile)
-            case let .framework(path: path, _, _, _, _, _, _, _, _),
-                 let .library(path: path, _, _, _):
+            case let .framework(path: path, _, _, _, _, _, _, _, _, platformFilters),
+                 let .library(path: path, _, _, _, platformFilters):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }
                 let buildFile = PBXBuildFile(file: fileRef)
+                buildFile.applyPlatformFilters(platformFilters, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 files.append(buildFile)
             default:
@@ -591,11 +595,12 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         for dependency in dependencies.sorted() {
             switch dependency {
-            case let .xcframework(path: path, _, _, _, _):
+            case let .xcframework(path: path, _, _, _, _, platformFilters: platformFilters):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }
                 let buildFile = PBXBuildFile(file: fileRef)
+                buildFile.applyPlatformFilters(platformFilters, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 files.append(buildFile)
             default:

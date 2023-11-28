@@ -61,7 +61,7 @@ final class LinkGeneratorTests: XCTestCase {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework())
-        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
+        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework", platformFilters: []))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
@@ -112,7 +112,7 @@ final class LinkGeneratorTests: XCTestCase {
     func test_generateEmbedPhaseWithNoEmbeddableFrameworks() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
-        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
+        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework", platformFilters: []))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
@@ -158,7 +158,11 @@ final class LinkGeneratorTests: XCTestCase {
 
             var dependencies: Set<GraphDependencyReference> = []
             dependencies.insert(GraphDependencyReference.testFramework())
-            dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
+            dependencies.insert(GraphDependencyReference.product(
+                target: "Test",
+                productName: "Test.framework",
+                platformFilters: []
+            ))
             let pbxproj = PBXProj()
             let (pbxTarget, target) = createTargets(product: product)
             let fileElements = ProjectFileElements()
@@ -199,7 +203,11 @@ final class LinkGeneratorTests: XCTestCase {
 
             var dependencies: Set<GraphDependencyReference> = []
             dependencies.insert(GraphDependencyReference.testFramework())
-            dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
+            dependencies.insert(GraphDependencyReference.product(
+                target: "Test",
+                productName: "Test.framework",
+                platformFilters: []
+            ))
             let pbxproj = PBXProj()
             let (pbxTarget, target) = createTargets(product: product)
             let fileElements = ProjectFileElements()
@@ -236,7 +244,7 @@ final class LinkGeneratorTests: XCTestCase {
 
     func test_generateEmbedPhase_throws_when_aProductIsMissing() throws {
         var dependencies: Set<GraphDependencyReference> = []
-        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
+        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework", platformFilters: []))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
@@ -597,7 +605,7 @@ final class LinkGeneratorTests: XCTestCase {
     func test_generateLinkingPhase() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
-        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
+        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework", platformFilters: []))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
@@ -632,7 +640,7 @@ final class LinkGeneratorTests: XCTestCase {
     func test_generateLinkingPhase_optionalFramework() throws {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework", status: .optional))
-        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
+        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework", platformFilters: []))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
@@ -689,7 +697,7 @@ final class LinkGeneratorTests: XCTestCase {
 
     func test_generateLinkingPhase_throws_whenProductIsMissing() throws {
         var dependencies: Set<GraphDependencyReference> = []
-        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
+        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework", platformFilters: []))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
@@ -712,8 +720,18 @@ final class LinkGeneratorTests: XCTestCase {
     func test_generateLinkingPhase_sdk() throws {
         // Given
         var dependencies: Set<GraphDependencyReference> = []
-        dependencies.insert(GraphDependencyReference.sdk(path: "/Strong/Foo.framework", status: .required, source: .developer))
-        dependencies.insert(GraphDependencyReference.sdk(path: "/Weak/Bar.framework", status: .optional, source: .developer))
+        dependencies.insert(GraphDependencyReference.sdk(
+            path: "/Strong/Foo.framework",
+            status: .required,
+            source: .developer,
+            platformFilters: []
+        ))
+        dependencies.insert(GraphDependencyReference.sdk(
+            path: "/Weak/Bar.framework",
+            status: .optional,
+            source: .developer,
+            platformFilters: []
+        ))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()

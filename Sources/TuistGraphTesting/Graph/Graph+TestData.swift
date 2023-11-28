@@ -10,7 +10,8 @@ extension Graph {
         projects: [AbsolutePath: Project] = [:],
         packages: [AbsolutePath: [String: Package]] = [:],
         targets: [AbsolutePath: [String: Target]] = [:],
-        dependencies: [GraphDependency: Set<GraphDependency>] = [:]
+        dependencies: [GraphDependency: Set<GraphDependency>] = [:],
+        dependencyPlatformFilters: [GraphEdge: PlatformFilters] = [:]
     ) -> Graph {
         Graph(
             name: name,
@@ -19,7 +20,8 @@ extension Graph {
             projects: projects,
             packages: packages,
             targets: targets,
-            dependencies: dependencies
+            dependencies: dependencies,
+            dependencyPlatformFilters: dependencyPlatformFilters
         )
     }
 }

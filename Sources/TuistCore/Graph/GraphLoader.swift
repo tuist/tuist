@@ -58,7 +58,8 @@ public final class GraphLoader: GraphLoading {
             projects: cache.loadedProjects,
             packages: cache.packages,
             targets: cache.loadedTargets,
-            dependencies: cache.dependencies
+            dependencies: cache.dependencies,
+            dependencyPlatformFilters: cache.dependencyPlatformFilters
         )
         return graph
     }
@@ -311,6 +312,7 @@ public final class GraphLoader: GraphLoading {
         var loadedProjects: [AbsolutePath: Project] = [:]
         var loadedTargets: [AbsolutePath: [String: Target]] = [:]
         var dependencies: [GraphDependency: Set<GraphDependency>] = [:]
+        var dependencyPlatformFilters: [GraphEdge: PlatformFilters] = [:]
         var frameworks: [AbsolutePath: GraphDependency] = [:]
         var libraries: [AbsolutePath: GraphDependency] = [:]
         var xcframeworks: [AbsolutePath: GraphDependency] = [:]

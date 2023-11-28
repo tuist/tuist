@@ -17,30 +17,30 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
             .testFramework(path: "/frameworks/B.framework"),
             .testLibrary(path: "/libraries/A.library"),
             .testLibrary(path: "/libraries/B.library"),
-            .product(target: "A", productName: "A.framework"),
-            .product(target: "B", productName: "B.framework"),
-            .sdk(path: "/A.framework", status: .required, source: .developer),
-            .sdk(path: "/B.framework", status: .optional, source: .developer),
-            .bundle(path: "/A.bundle"),
-            .bundle(path: "/B.bundle"),
+            .product(target: "A", productName: "A.framework", platformFilters: []),
+            .product(target: "B", productName: "B.framework", platformFilters: []),
+            .sdk(path: "/A.framework", status: .required, source: .developer, platformFilters: []),
+            .sdk(path: "/B.framework", status: .optional, source: .developer, platformFilters: []),
+            .bundle(path: "/A.bundle", platformFilters: []),
+            .bundle(path: "/B.bundle", platformFilters: []),
         ]
 
         // When
         let results = subject.shuffled().sorted()
 
         XCTAssertEqual(results, [
-            .sdk(path: "/A.framework", status: .required, source: .developer),
-            .sdk(path: "/B.framework", status: .optional, source: .developer),
-            .product(target: "A", productName: "A.framework"),
-            .product(target: "B", productName: "B.framework"),
+            .sdk(path: "/A.framework", status: .required, source: .developer, platformFilters: []),
+            .sdk(path: "/B.framework", status: .optional, source: .developer, platformFilters: []),
+            .product(target: "A", productName: "A.framework", platformFilters: []),
+            .product(target: "B", productName: "B.framework", platformFilters: []),
             .testLibrary(path: "/libraries/A.library"),
             .testLibrary(path: "/libraries/B.library"),
             .testFramework(path: "/frameworks/A.framework"),
             .testFramework(path: "/frameworks/B.framework"),
             .testXCFramework(path: "/xcframeworks/A.xcframework"),
             .testXCFramework(path: "/xcframeworks/B.xcframework"),
-            .bundle(path: "/A.bundle"),
-            .bundle(path: "/B.bundle"),
+            .bundle(path: "/A.bundle", platformFilters: []),
+            .bundle(path: "/B.bundle", platformFilters: []),
         ])
     }
 
@@ -84,7 +84,7 @@ private enum KnownGraphDependencyReference: CaseIterable {
         case .framework:
             return [.testFramework(path: try! AbsolutePath(validating: "/dependencies/\(name).framework"))]
         case .bundle:
-            return [.bundle(path: try! AbsolutePath(validating: "/dependencies/\(name).bundle"))]
+            return [.bundle(path: try! AbsolutePath(validating: "/dependencies/\(name).bundle"), platformFilters: [])]
         case .library:
             return [.testLibrary(path: try! AbsolutePath(validating: "/dependencies/lib\(name).a"))]
         case .product:
@@ -98,8 +98,18 @@ private enum KnownGraphDependencyReference: CaseIterable {
             ]
         case .sdk:
             return [
-                .sdk(path: try! AbsolutePath(validating: "/sdks/\(name).framework"), status: .required, source: .system),
-                .sdk(path: try! AbsolutePath(validating: "/sdks/\(name).tbd"), status: .required, source: .system),
+                .sdk(
+                    path: try! AbsolutePath(validating: "/sdks/\(name).framework"),
+                    status: .required,
+                    source: .system,
+                    platformFilters: []
+                ),
+                .sdk(
+                    path: try! AbsolutePath(validating: "/sdks/\(name).tbd"),
+                    status: .required,
+                    source: .system,
+                    platformFilters: []
+                ),
             ]
         }
     }
