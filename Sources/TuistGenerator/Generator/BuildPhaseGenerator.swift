@@ -482,21 +482,22 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let bundles = graphTraverser
             .resourceBundleDependencies(path: path, name: target.name)
             .sorted()
-        let fileReferences = bundles.compactMap { dependency -> PBXFileReference? in
+        let buildFiles = bundles.compactMap { dependency -> PBXBuildFile? in
             switch dependency {
-            case let .bundle(path: path, _):
-                return fileElements.file(path: path)
-            case let .product(target: target, _, _):
-                return fileElements.product(target: target)
+            case let .bundle(path: path, condition: condition):
+                let buildFile = PBXBuildFile(file: fileElements.file(path: path))
+                buildFile.applyCondition(condition, applicableTo: target)
+                return buildFile
+            case let .product(target: targetName, _, condition: condition):
+                let buildFile = PBXBuildFile(file: fileElements.product(target: targetName))
+                buildFile.applyCondition(condition, applicableTo: target)
+                return buildFile
             default:
                 return nil
             }
         }
 
-        return fileReferences.map {
-            // Should we add platform filters here?
-            PBXBuildFile(file: $0)
-        }
+        return buildFiles
     }
 
     func generateAppExtensionsBuildPhase(
