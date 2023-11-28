@@ -6,10 +6,10 @@ let project = Project(
     targets: [
         Target(
             name: "App",
-            platform: .iOS,
+            destinations: [.iPhone],
             product: .app,
             bundleId: "io.tuist.app",
-            deploymentTarget: .iOS(targetVersion: "13.0", devices: .iphone),
+            deploymentTargets: .iOS("13.0"),
             infoPlist: .default,
             sources: ["Targets/App/Sources/**"],
             dependencies: [
