@@ -242,17 +242,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     }
             }
 
-        var macroTargetsNames = Set(packageInfos.values.flatMap { $0.targets.filter { $0.type == .macro }.map(\.name) })
-//        let macroDependencies = resolvedDependencies.filter { macroTargetsNames.contains($0.key) }.flatMap({ $0.value })
+        var macroTargetsAndDescendants = Set(packageInfos.values.flatMap { $0.targets.filter { $0.type == .macro }.map(\.name) })
         var visited: Set<String> = []
         var macroDependencies = Set<ResolvedDependency>()
 
         while !macroTargetsNames.isEmpty {
-            guard let targetName = macroTargetsNames.popFirst() else {
-                continue
-            }
-
-            if visited.contains(targetName) {
+            guard let targetName = macroTargetsNames.popFirst(), !visited.contains(targetName) {
                 continue
             }
 
