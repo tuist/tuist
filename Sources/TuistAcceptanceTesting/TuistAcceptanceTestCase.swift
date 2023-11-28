@@ -25,6 +25,10 @@ open class TuistAcceptanceTestCase: XCTestCase {
     override open func setUp() {
         super.setUp()
 
+        DispatchQueue.once(token: "io.tuist.test.logging") {
+            LoggingSystem.bootstrap(AcceptanceTestCaseLogHandler.init)
+        }
+
         derivedDataPath = try! TemporaryDirectory(removeTreeOnDeinit: true).path
         fixtureTemporaryDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
 
