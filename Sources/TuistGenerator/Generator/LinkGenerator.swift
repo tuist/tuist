@@ -200,6 +200,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                     productName: product,
                     isPlugin: type == .plugin,
                     pbxproj: pbxproj,
+                    target: target,
                     condition: condition
                 )
             case .framework, .library, .project, .sdk, .target, .xcframework, .xctest:
@@ -663,7 +664,8 @@ extension PBXTarget {
         productName: String,
         isPlugin: Bool,
         pbxproj: PBXProj,
-        condition _: TargetDependency.Condition?
+        target: Target,
+        condition: TargetDependency.Condition?
     ) throws {
         let productDependency = XCSwiftPackageProductDependency(productName: productName, isPlugin: isPlugin)
         pbxproj.add(object: productDependency)
@@ -676,7 +678,7 @@ extension PBXTarget {
         } else {
             // Build file
             let buildFile = PBXBuildFile(product: productDependency)
-//            buildFile.applyPlatformFilters(platformFilters)
+            buildFile.applyCondition(condition, applicableTo: target)
             pbxproj.add(object: buildFile)
 
             packageProductDependencies.append(productDependency)
