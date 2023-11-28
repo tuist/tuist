@@ -51,7 +51,7 @@ extension XCTestCase {
     }
 
     public func XCTAssertStandardOutput(pattern: String, file: StaticString = #file, line: UInt = #line) {
-        let standardOutput = TestingLogHandler.collected[.warning, <=]
+        let standardOutput = TestingLogHandler.collected[.info, <=]
 
         let message = """
         The standard output:
