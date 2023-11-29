@@ -1,0 +1,18 @@
+name: Deployment
+on:
+  push:
+    tags:
+      - '*'
+env:
+  LOG_LEVEL: DEBUG
+  TARGET_REPO_NAME: tuist/homebrew-tuist
+  GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_ACCESS_TOKEN }}
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Dependencies
+        run: pip3 install -r requirements.txt
+      - name: Deploy new Homebrew formula
+        run: python3 -u make/tasks/homebrew/release-formulas.py
