@@ -25,25 +25,6 @@ let project = Project(
             ]
         ),
         Target(
-            name: "tvOSFramework",
-            platform: .tvOS,
-            product: .framework,
-            bundleId: "io.tuist.tvOSFramework",
-            infoPlist: .default,
-            sources: "Targets/tvOSFramework/Sources/**"
-        ),
-        Target(
-            name: "tvOSFrameworkTests",
-            platform: .tvOS,
-            product: .unitTests,
-            bundleId: "io.tuist.tvOSFrameworkTests",
-            infoPlist: .default,
-            sources: "Targets/tvOSFramework/Tests/**",
-            dependencies: [
-                .target(name: "tvOSFramework"),
-            ]
-        ),
-        Target(
             name: "MacFramework",
             platform: .macOS,
             product: .framework,
