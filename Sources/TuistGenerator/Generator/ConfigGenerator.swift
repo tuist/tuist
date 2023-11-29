@@ -322,7 +322,7 @@ final class ConfigGenerator: ConfigGenerating {
                 case let .product(_, productName, _):
                     return [
                         "-load-plugin-executable",
-                        "$BUILT_PRODUCTS_DIR/\(target.target.productNameWithExtension)/Macros/\(productName)/#\(productName)",
+                        "$BUILT_PRODUCTS_DIR/\(target.target.productNameWithExtension)/Macros/\(productName)#\(productName)",
                     ]
                 default:
                     return []
