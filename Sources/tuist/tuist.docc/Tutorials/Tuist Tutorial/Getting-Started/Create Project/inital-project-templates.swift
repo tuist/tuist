@@ -7,14 +7,14 @@ import ProjectDescription
 
 extension Project {
     /// Helper function to create the Project for this ExampleApp
-    public static func app(name: String, platform: Platform, additionalTargets: [String]) -> Project {
+    public static func app(name: String, destinations: Destinations, additionalTargets: [String]) -> Project {
         var targets = makeAppTargets(
             name: name,
-            platform: platform,
+            destinations: destinations,
             dependencies: additionalTargets.map { TargetDependency.target(name: $0) }
         )
         targets += additionalTargets.flatMap {
-            makeFrameworkTargets(name: $0, platform: platform)
+            makeFrameworkTargets(name: $0, destinations: destinations)
         }
         return Project(
             name: name,
@@ -26,10 +26,10 @@ extension Project {
     // MARK: - Private
 
     /// Helper function to create a framework target and an associated unit test target
-    private static func makeFrameworkTargets(name: String, platform: Platform) -> [Target] {
+    private static func makeFrameworkTargets(name: String, destinations: Destinations) -> [Target] {
         let sources = Target(
             name: name,
-            platform: platform,
+            destinations: destinations,
             product: .framework,
             bundleId: "io.tuist.\(name)",
             infoPlist: .default,
@@ -39,7 +39,7 @@ extension Project {
         )
         let tests = Target(
             name: "\(name)Tests",
-            platform: platform,
+            destinations: destinations,
             product: .unitTests,
             bundleId: "io.tuist.\(name)Tests",
             infoPlist: .default,
@@ -51,7 +51,7 @@ extension Project {
     }
 
     /// Helper function to create the application target and the unit test target.
-    private static func makeAppTargets(name: String, platform: Platform, dependencies: [TargetDependency]) -> [Target] {
+    private static func makeAppTargets(name: String, destinations: Destinations, dependencies: [TargetDependency]) -> [Target] {
         let platform: Platform = platform
         let infoPlist: [String: InfoPlist.Value] = [
             "CFBundleShortVersionString": "1.0",
@@ -62,7 +62,7 @@ extension Project {
 
         let mainTarget = Target(
             name: name,
-            platform: platform,
+            destinations: destinations,
             product: .app,
             bundleId: "io.tuist.\(name)",
             infoPlist: .extendingDefault(with: infoPlist),
@@ -73,7 +73,7 @@ extension Project {
 
         let testTarget = Target(
             name: "\(name)Tests",
-            platform: platform,
+            destinations: destinations,
             product: .unitTests,
             bundleId: "io.tuist.\(name)Tests",
             infoPlist: .default,

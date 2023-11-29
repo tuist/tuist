@@ -16,13 +16,13 @@ public enum Platform: String, Codable, Equatable, CaseIterable {
     case visionOS = "visionos"
 }
 
-/// A supported platform representation.
+/// A supported Swift Package Manager platform representation.
 public enum PackagePlatform: String, Codable, Equatable, CaseIterable {
     /// The iOS platform
     case iOS = "ios"
     /// The macOS platform
     case macOS = "macos"
-    /// The macOS platform
+    /// The Mac Catalyst platform
     case macCatalyst = "maccatalyst"
     /// The watchOS platform
     case watchOS = "watchos"
