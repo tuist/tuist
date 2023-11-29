@@ -207,11 +207,9 @@ class ProjectFileElements {
         sourceRootPath: AbsolutePath,
         filesGroup: ProjectGroup
     ) throws {
-        let sortedDependencies = dependencyReferences.sorted()
-
-        try sortedDependencies.forEach { dependency in
+        try dependencyReferences.sorted().forEach { (dependency: GraphDependencyReference) in
             switch dependency {
-            case let .xcframework(path, _, _, _, _):
+            case let .xcframework(path, _, _, _, _, _):
                 try generatePrecompiledDependency(
                     path,
                     groups: groups,
@@ -219,7 +217,7 @@ class ProjectFileElements {
                     group: filesGroup,
                     sourceRootPath: sourceRootPath
                 )
-            case let .framework(path, _, _, _, _, _, _, _, _):
+            case let .framework(path, _, _, _, _, _, _, _, _, _):
                 try generatePrecompiledDependency(
                     path,
                     groups: groups,
@@ -227,7 +225,7 @@ class ProjectFileElements {
                     group: filesGroup,
                     sourceRootPath: sourceRootPath
                 )
-            case let .library(path, _, _, _):
+            case let .library(path, _, _, _, _):
                 try generatePrecompiledDependency(
                     path,
                     groups: groups,
@@ -235,7 +233,7 @@ class ProjectFileElements {
                     group: filesGroup,
                     sourceRootPath: sourceRootPath
                 )
-            case let .bundle(path):
+            case let .bundle(path, _):
                 try generatePrecompiledDependency(
                     path,
                     groups: groups,
@@ -243,7 +241,7 @@ class ProjectFileElements {
                     group: filesGroup,
                     sourceRootPath: sourceRootPath
                 )
-            case let .sdk(sdkNodePath, _, _):
+            case let .sdk(sdkNodePath, _, _, _):
                 generateSDKFileElement(
                     sdkNodePath: sdkNodePath,
                     toGroup: groups.compiled,
