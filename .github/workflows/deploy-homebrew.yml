@@ -13,6 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Dependencies
-        run: pip3 install -r requirements.txt
+        run: pip3 install PyGithub==2.1.1
       - name: Deploy new Homebrew formula
         run: python3 -u make/tasks/homebrew/release-formulas.py
