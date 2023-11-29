@@ -25,8 +25,7 @@ tuist_package_repo_url = "https://github.com/tuist/tuist"
 
 def _set_logging():
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
-    print("LOG_LEVEL = {}".format(LOG_LEVEL))
-
+    print(f"LOG_LEVEL = {LOG_LEVEL}")
     if LOG_LEVEL == "DEBUG":
         logging.basicConfig(level=logging.DEBUG)
     else:
