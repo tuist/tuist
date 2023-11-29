@@ -246,8 +246,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         var visited: Set<String> = []
         var macroDependencies = Set<ResolvedDependency>()
 
-        while !macroTargetsNames.isEmpty {
-            guard let targetName = macroTargetsNames.popFirst(), !visited.contains(targetName) {
+        while !macroTargetsAndDescendants.isEmpty {
+            guard let targetName = macroTargetsAndDescendants.popFirst(), !visited.contains(targetName) else {
                 continue
             }
 
@@ -257,7 +257,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 macroDependencies.insert(dependency)
                 let dependencyTargetName = dependency.targetName
                 if let dependencyTargetName, !visited.contains(dependencyTargetName) {
-                    macroTargetsNames.insert(dependencyTargetName)
+                    macroTargetsAndDescendants.insert(dependencyTargetName)
                 }
             }
         }
