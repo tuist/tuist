@@ -3,7 +3,11 @@ import Foundation
 // MARK: - DeploymentTarget
 
 /// A supported minimum deployment target.
-@available(*, deprecated, message: "Use `DeploymentTargets` to specify minimum OS Versions, and `Destinations` to define supported OSes")
+@available(
+    *,
+    deprecated,
+    message: "Use `DeploymentTargets` to specify minimum OS Versions, and `Destinations` to define supported OSes"
+)
 public enum DeploymentTarget: Codable, Hashable {
     /// The minimum iOS version, the list of devices your product will support, and whether or not the target should run on mac
     /// devices.

@@ -118,7 +118,11 @@ public struct Target: Codable, Equatable {
         self.mergeable = mergeable
     }
 
-    @available(*, deprecated, message: "Use `Destinations` and `DeploymentTargets` to configure deployment devices and minimum platform versions.")
+    @available(
+        *,
+        deprecated,
+        message: "Use `Destinations` and `DeploymentTargets` to configure deployment devices and minimum platform versions."
+    )
     public init(
         name: String,
         platform: Platform,

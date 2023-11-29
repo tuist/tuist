@@ -43,7 +43,6 @@ public enum TargetDependency: Codable, Hashable {
         case macro
     }
 
-    
     /// A condition applied to a `TargetDependency` allowing it to only be used in certain circumstances
     public struct Condition: Codable, Hashable, Equatable {
         public let platformFilters: Set<PlatformFilter>
@@ -52,7 +51,6 @@ public enum TargetDependency: Codable, Hashable {
             self.platformFilters = platformFilters
         }
 
-        
         /// Creates a condition using the specified set of filters.
         /// - Parameter platformFilters: filters to define which platforms this condition supports
         /// - Returns: a `Condition` with the given set of filters or `nil` if empty.
