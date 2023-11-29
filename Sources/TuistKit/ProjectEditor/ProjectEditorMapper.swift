@@ -17,7 +17,8 @@ protocol ProjectEditorMapping: AnyObject {
         editablePluginManifests: [EditablePluginManifest],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
-        templates: [AbsolutePath],
+        templateSources: [AbsolutePath],
+        templateResources: [AbsolutePath],
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
@@ -38,7 +39,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         editablePluginManifests: [EditablePluginManifest],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
-        templates: [AbsolutePath],
+        templateSources: [AbsolutePath],
+        templateResources: [AbsolutePath],
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
@@ -62,7 +64,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             destinationDirectory: destinationDirectory,
             tuistPath: tuistPath,
             helpers: helpers,
-            templates: templates,
+            templateSources: templateSources,
+            templateResources: templateResources,
             resourceSynthesizers: resourceSynthesizers,
             stencils: stencils,
             configPath: configPath,
@@ -137,7 +140,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         destinationDirectory: AbsolutePath,
         tuistPath: AbsolutePath,
         helpers: [AbsolutePath],
-        templates: [AbsolutePath],
+        templateSources: [AbsolutePath],
+        templateResources: [AbsolutePath],
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         configPath: AbsolutePath?,
@@ -193,12 +197,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         }()
 
         let templatesTarget: Target? = {
-            guard !templates.isEmpty else { return nil }
+            let generateTemplateTarget = !templateSources.isEmpty || !templateResources.isEmpty
+            guard generateTemplateTarget else { return nil }
             return editorHelperTarget(
                 name: Constants.templatesDirectoryName,
                 filesGroup: manifestsFilesGroup,
                 targetSettings: baseTargetSettings,
-                sourcePaths: templates,
+                sourcePaths: templateSources,
+                additionalFilePaths: templateResources,
                 dependencies: helpersTarget.flatMap { [TargetDependency.target(name: $0.name)] } ?? []
             )
         }()
@@ -209,7 +215,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 name: Constants.resourceSynthesizersDirectoryName,
                 filesGroup: manifestsFilesGroup,
                 targetSettings: baseTargetSettings,
-                sourcePaths: resourceSynthesizers,
+                sourcePaths: [],
+                additionalFilePaths: resourceSynthesizers,
                 dependencies: helpersTarget.flatMap { [TargetDependency.target(name: $0.name)] } ?? []
             )
         }()
@@ -446,6 +453,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         filesGroup: ProjectGroup,
         targetSettings: Settings,
         sourcePaths: [AbsolutePath],
+        additionalFilePaths: [AbsolutePath] = [],
         dependencies: [TargetDependency] = []
     ) -> Target {
         Target(
@@ -457,7 +465,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             settings: targetSettings,
             sources: sourcePaths.map { SourceFile(path: $0, compilerFlags: nil) },
             filesGroup: filesGroup,
-            dependencies: dependencies
+            dependencies: dependencies,
+            additionalFiles: additionalFilePaths.map { .file(path: $0) }
         )
     }
 
