@@ -330,7 +330,7 @@ extension DeploymentTargets {
     /// Maps a ProjectDescription.DeploymentTarget instance into a TuistGraph.DeploymentTarget instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of deployment target model.
-    fileprivate static func from(manifest: DeploymentTarget?) -> DeploymentTargets {
+    static func from(manifest: DeploymentTarget?) -> DeploymentTargets {
         if let manifest {
             switch manifest {
             case let .iOS(version, _, _):
