@@ -231,6 +231,58 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
     }
 
+    func test_generate_sets_local_source_packages_dir_path() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let config = Config(
+            compatibleXcodeVersions: .all,
+            cloud: nil,
+            cache: nil,
+            swiftVersion: nil,
+            plugins: [],
+            generationOptions: .test(clonedSourcePackagesDirPath: temporaryPath.appending(component: "spm")),
+            path: nil
+        )
+
+        let spmPath = temporaryPath.appending(component: "spm")
+        let target = anyTarget(dependencies: [
+            .package(product: "Example", type: .runtime),
+        ])
+        let package = Package.local(path: "/some/local/package")
+        let project = Project.test(
+            path: temporaryPath,
+            name: "Test",
+            settings: .default,
+            targets: [target],
+            packages: [package]
+        )
+        let graph = Graph.test(
+            path: project.path,
+            packages: [project.path: ["Test": package]],
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test", type: .runtime): Set()]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
+        system.succeedCommand([
+            "xcodebuild",
+            "-resolvePackageDependencies",
+            "-clonedSourcePackagesDirPath",
+            "\(spmPath.pathString)/\(project.name)",
+            "-workspace",
+            workspacePath.pathString,
+            "-list",
+        ])
+        try createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
+
+        // When
+        try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename, config: config)
+
+        // Then
+        XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
+    }
+
+
     // MARK: - Helpers
 
     func anyTarget(dependencies: [TargetDependency] = []) -> Target {
