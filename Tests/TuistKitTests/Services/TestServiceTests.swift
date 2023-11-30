@@ -74,6 +74,13 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_validateParameters_with_testTargets_and_no_skipTestTargets() throws {
+        try subject.validateParameters(
+            testTargets: [TestIdentifier(target: "TestTarget", class: "TestClass")],
+            skipTestTargets: []
+        )
+    }
+
     func test_validateParameters_nonConflictingParameters_targetClass() throws {
         try subject.validateParameters(
             testTargets: [TestIdentifier(string: "test1/class1")],
