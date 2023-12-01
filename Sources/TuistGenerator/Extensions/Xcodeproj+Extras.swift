@@ -31,8 +31,8 @@ extension PBXBuildFile: PlatformFilterable {}
 extension PBXTargetDependency: PlatformFilterable {}
 
 protocol PlatformFilterable: AnyObject {
-    var platformFilters: [String]? {get set}
-    var platformFilter: String? {get set}
+    var platformFilters: [String]? { get set }
+    var platformFilter: String? { get set }
 }
 
 extension PlatformFilterable {
@@ -84,4 +84,3 @@ extension PlatformFilterable {
         }
     }
 }
-

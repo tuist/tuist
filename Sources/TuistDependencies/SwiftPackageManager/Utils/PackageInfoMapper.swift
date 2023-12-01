@@ -541,7 +541,10 @@ extension ProjectDescription.Target {
         if target.type == .macro {
             destinations = Set<ProjectDescription.Destination>([.mac])
         } else if packageName == "Firebase" {
-            let supportedPlatforms = try ProjectDescription.Destinations.fromFirebase(platforms: packageInfo.platforms, forTargetNamed: target.name)
+            let supportedPlatforms = try ProjectDescription.Destinations.fromFirebase(
+                platforms: packageInfo.platforms,
+                forTargetNamed: target.name
+            )
             destinations = packageDestinations.intersection(supportedPlatforms)
         } else {
             let supportedPlatforms = try ProjectDescription.Destinations.from(platforms: packageInfo.platforms)
@@ -869,28 +872,30 @@ extension ProjectDescription.Destinations {
     fileprivate static func fromFirebase(platforms: [PackageInfo.Platform], forTargetNamed name: String) throws -> Self {
         guard !platforms.isEmpty else { return Set(Destination.allCases) }
 
-        return Set(try platforms.filter({ platform in
-            switch name {
-            case "FirebaseAnalyticsWrapper",
-                "FirebaseAnalyticsSwift",
-                "FirebaseAnalyticsWithoutAdIdSupportWrapper",
-                "FirebaseFirestoreSwift",
-                "FirebaseFirestore": // These dont support watchOS
-                platform.platform != .watchOS
-            case "FirebaseAppDistribution",
-                "FirebaseDynamicLinks": // iOS only
-                platform.platform == .iOS
-            case "FirebaseInAppMessaging":
-                platform.platform == .iOS ||
-                platform.platform == .tvOS ||
-                platform.platform == .visionOS
-            case "FirebasePerformance":
-                platform.platform != .macOS &&
-                platform.platform != .watchOS
-            default: true
+        return Set(
+            try platforms.filter { platform in
+                switch name {
+                case "FirebaseAnalyticsWrapper",
+                     "FirebaseAnalyticsSwift",
+                     "FirebaseAnalyticsWithoutAdIdSupportWrapper",
+                     "FirebaseFirestoreSwift",
+                     "FirebaseFirestore": // These dont support watchOS
+                    platform.platform != .watchOS
+                case "FirebaseAppDistribution",
+                     "FirebaseDynamicLinks": // iOS only
+                    platform.platform == .iOS
+                case "FirebaseInAppMessaging":
+                    platform.platform == .iOS ||
+                        platform.platform == .tvOS ||
+                        platform.platform == .visionOS
+                case "FirebasePerformance":
+                    platform.platform != .macOS &&
+                        platform.platform != .watchOS
+                default: true
+                }
             }
-        })
-            .flatMap { try $0.destinations() })
+            .flatMap { try $0.destinations() }
+        )
     }
 
     fileprivate static func from(platforms: [PackageInfo.Platform]) throws -> Self {

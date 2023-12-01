@@ -138,11 +138,14 @@ public class GraphTraverser: GraphTraversing {
             return [GraphTarget(path: path, target: dependencyTarget, project: project)]
         })
     }
-    
-    public func directLocalTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, TargetDependency.Condition?)] {
+
+    public func directLocalTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(
+        GraphTarget,
+        TargetDependency.Condition?
+    )] {
         let sorted = directLocalTargetDependencies(path: path, name: name).sorted()
         let from = GraphDependency.target(name: name, path: path)
-        
+
         return sorted.map { dependency in
             let condition = graph.dependencyConditions[GraphEdge(
                 from: from,
