@@ -282,7 +282,6 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
     }
 
-
     // MARK: - Helpers
 
     func anyTarget(dependencies: [TargetDependency] = []) -> Target {
