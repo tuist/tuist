@@ -86,6 +86,8 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
+    func combinedCondition(to transitiveDependency: GraphDependency, from rootDependency: GraphDependency) -> TargetDependency.Condition.CombinationResult
+
     /// Given a project directory and a target name, it returns all the dependencies that are extensions.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
