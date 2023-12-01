@@ -37,6 +37,7 @@ let project = Project(
                 .sdk(name: "CloudKit", type: .framework, status: .required),
                 .sdk(name: "ARKit", type: .framework, status: .required, condition: .when([.ios])),
                 .external(name: "FirebaseAnalytics"),
+                .external(name: "FirebasePerformance", condition: .when([.ios])),
                 .sdk(name: "MobileCoreServices", type: .framework, status: .required, condition: .when([.ios])),
             ]
         ),
