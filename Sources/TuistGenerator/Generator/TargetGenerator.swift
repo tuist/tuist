@@ -153,10 +153,7 @@ final class TargetGenerator: TargetGenerating {
                 let nativeTarget = nativeTargets[targetSpec.name]!
                 let nativeDependency = nativeTargets[dependency.target.name]!
                 let pbxTargetDependency = try nativeTarget.addDependency(target: nativeDependency)
-
-                if let condition {
-                    pbxTargetDependency?.platformFilters = condition.platformFilters.xcodeprojValue
-                }
+                pbxTargetDependency?.applyCondition(condition, applicableTo: dependency.target)
             }
         }
     }

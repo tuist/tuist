@@ -541,10 +541,10 @@ extension ProjectDescription.Target {
         if target.type == .macro {
             destinations = Set<ProjectDescription.Destination>([.mac])
         } else if packageName == "Firebase" {
-            var supportedPlatforms = try ProjectDescription.Destinations.fromFirebase(platforms: packageInfo.platforms, forTargetNamed: target.name)
+            let supportedPlatforms = try ProjectDescription.Destinations.fromFirebase(platforms: packageInfo.platforms, forTargetNamed: target.name)
             destinations = packageDestinations.intersection(supportedPlatforms)
         } else {
-            var supportedPlatforms = try ProjectDescription.Destinations.from(platforms: packageInfo.platforms)
+            let supportedPlatforms = try ProjectDescription.Destinations.from(platforms: packageInfo.platforms)
             destinations = packageDestinations.intersection(supportedPlatforms)
         }
 

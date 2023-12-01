@@ -27,7 +27,15 @@ extension PBXFileElement {
     }
 }
 
-extension PBXBuildFile {
+extension PBXBuildFile: PlatformFilterable {}
+extension PBXTargetDependency: PlatformFilterable {}
+
+protocol PlatformFilterable: AnyObject {
+    var platformFilters: [String]? {get set}
+    var platformFilter: String? {get set}
+}
+
+extension PlatformFilterable {
     /// Apply platform filters either `platformFilter` or `platformFilters` depending on count
     /// With Xcode 15, we're seeing `platformFilter` not have the effects we expect
     public func applyCondition(_ condition: TargetDependency.Condition?, applicableTo target: Target) {
@@ -76,3 +84,4 @@ extension PBXBuildFile {
         }
     }
 }
+
