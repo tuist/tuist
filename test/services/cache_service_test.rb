@@ -130,6 +130,35 @@ class CacheServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "fetch returns presigned url for uploading file" do
+    # Given
+    Aws::S3::Client.any_instance.stubs(:get_object)
+    Aws::S3::Presigner.any_instance.stubs(:presigned_url).returns("download url")
+    CacheEvent.create!(
+      name: "my-project/tuist/artifact-hash/MyFramework",
+      event_type: :upload,
+      size: 10,
+      project_id: @project.id,
+    )
+
+    # When
+    got = CacheService.new(
+      project_slug: "my-project/tuist",
+      hash: "artifact-hash",
+      name: "MyFramework",
+      subject: @user,
+    )
+      .fetch
+
+    # Then
+    assert_equal CacheEvent.count, 2
+    assert_equal CacheEvent.last.name, "my-project/tuist/artifact-hash/MyFramework"
+    assert_equal CacheEvent.last.event_type, "download"
+    assert_equal CacheEvent.last.size, 10
+    assert_equal CacheEvent.last.project, @project
+    assert_equal "download url", got
+  end
+
   test "upload returns presigned url for uploading file" do
     # Given
     Aws::S3::Client.any_instance.stubs(:put_object)
@@ -164,6 +193,11 @@ class CacheServiceTest < ActiveSupport::TestCase
       .verify_upload
 
     # Then
+    assert_equal CacheEvent.count, 1
+    assert_equal CacheEvent.first.name, "my-project/tuist/artifact-hash/MyFramework"
+    assert_equal CacheEvent.first.event_type, "upload"
+    assert_equal CacheEvent.first.size, 5
+    assert_equal CacheEvent.first.project, @project
     assert_equal got, 5
   end
 

@@ -74,6 +74,15 @@ class CacheService < ApplicationService
       bucket: project.remote_cache_storage.name,
       key: object_key,
     )
+    upload_event = CacheEvent.where(name: object_key, event_type: :upload).first
+    unless upload_event.nil?
+      CacheEvent.create!(
+        name: object_key,
+        event_type: :download,
+        size: upload_event.size,
+        project_id: project.id,
+      )
+    end
     url
   end
 
@@ -97,6 +106,12 @@ class CacheService < ApplicationService
     object = s3_client.get_object(
       bucket: project.remote_cache_storage.name,
       key: object_key,
+    )
+    CacheEvent.create!(
+      name: object_key,
+      event_type: :upload,
+      size: object.content_length,
+      project_id: project.id,
     )
     object.content_length
   end

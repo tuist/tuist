@@ -268,6 +268,40 @@ CREATE TABLE public.ar_internal_metadata (
 
 
 --
+-- Name: cache_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cache_events (
+    id bigint NOT NULL,
+    name character varying NOT NULL,
+    event_type integer NOT NULL,
+    size integer NOT NULL,
+    project_id bigint NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: cache_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.cache_events_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: cache_events_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.cache_events_id_seq OWNED BY public.cache_events.id;
+
+
+--
 -- Name: command_events; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -607,6 +641,13 @@ ALTER TABLE ONLY public.accounts ALTER COLUMN id SET DEFAULT nextval('public.acc
 
 
 --
+-- Name: cache_events id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cache_events ALTER COLUMN id SET DEFAULT nextval('public.cache_events_id_seq'::regclass);
+
+
+--
 -- Name: command_events id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -676,6 +717,14 @@ ALTER TABLE ONLY public.accounts
 
 ALTER TABLE ONLY public.ar_internal_metadata
     ADD CONSTRAINT ar_internal_metadata_pkey PRIMARY KEY (key);
+
+
+--
+-- Name: cache_events cache_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cache_events
+    ADD CONSTRAINT cache_events_pkey PRIMARY KEY (id);
 
 
 --
@@ -792,6 +841,13 @@ CREATE INDEX index_accounts_on_owner ON public.accounts USING btree (owner_type,
 --
 
 CREATE UNIQUE INDEX index_accounts_on_owner_id_and_owner_type ON public.accounts USING btree (owner_id, owner_type);
+
+
+--
+-- Name: index_cache_events_on_project_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_cache_events_on_project_id ON public.cache_events USING btree (project_id);
 
 
 --
@@ -1007,26 +1063,26 @@ ALTER TABLE ONLY public.users
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
-('20210819110244'),
-('20210819111422'),
-('20211022081531'),
-('20211022082200'),
-('20211022083530'),
-('20211124155026'),
-('20211222143721'),
-('20220123191852'),
-('20220311074508'),
-('20220323204451'),
-('20220410132610'),
-('20220505193115'),
-('20220626091301'),
-('20230115112317'),
-('20230601202210'),
-('20230731104741'),
-('20230818092024'),
-('20230829211134'),
-('20230919143833'),
+('20231113224031'),
+('20231014204217'),
 ('20230919143930'),
-('20231014204217');
-
+('20230919143833'),
+('20230829211134'),
+('20230818092024'),
+('20230731104741'),
+('20230601202210'),
+('20230115112317'),
+('20220626091301'),
+('20220505193115'),
+('20220410132610'),
+('20220323204451'),
+('20220311074508'),
+('20220123191852'),
+('20211222143721'),
+('20211124155026'),
+('20211022083530'),
+('20211022082200'),
+('20211022081531'),
+('20210819111422'),
+('20210819110244');
 
