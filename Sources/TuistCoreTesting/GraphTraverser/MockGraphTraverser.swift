@@ -265,7 +265,10 @@ final class MockGraphTraverser: GraphTraversing {
         [(path: AbsolutePath, name: String)]()
     var stubbedDirectLocalTargetDependenciesWithConditionsResult: [(GraphTarget, TargetDependency.Condition?)]! = []
 
-    func directLocalTargetDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(TuistGraph.GraphTarget, TuistGraph.TargetDependency.Condition?)] {
+    func directLocalTargetDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(
+        TuistGraph.GraphTarget,
+        TuistGraph.TargetDependency.Condition?
+    )] {
         invokedDirectLocalTargetDependenciesWithConditions = true
         invokedDirectLocalTargetDependenciesWithConditionsCount += 1
         invokedDirectLocalTargetDependenciesWithConditionsParameters = (path, name)
