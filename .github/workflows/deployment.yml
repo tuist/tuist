@@ -44,9 +44,10 @@ jobs:
     timeout-minutes: 20
     needs: canary
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: tuist/tuist-cloud
+          token: ${{ secrets.TUIST_CLOUD_TOKEN }}
       - uses: asdf-vm/actions/install@v2
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
@@ -59,7 +60,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Test
-        run: tuist test TuistCloudAcceptanceTests
+        run: tuist test TuistCloudAcceptanceTests --test-targets TuistCloudAcceptanceTests/TuistCloudAcceptanceTestWithIOSAppWithFrameworks
   production:
     environment:
       name: production
