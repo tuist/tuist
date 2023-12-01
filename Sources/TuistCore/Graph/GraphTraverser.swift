@@ -138,6 +138,19 @@ public class GraphTraverser: GraphTraversing {
             return [GraphTarget(path: path, target: dependencyTarget, project: project)]
         })
     }
+    
+    public func directLocalTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, TargetDependency.Condition?)] {
+        let sorted = directLocalTargetDependencies(path: path, name: name).sorted()
+        let from = GraphDependency.target(name: name, path: path)
+        
+        return sorted.map { dependency in
+            let condition = graph.dependencyConditions[GraphEdge(
+                from: from,
+                to: GraphDependency.target(name: dependency.target.name, path: dependency.path)
+            )]
+            return (dependency, condition)
+        }
+    }
 
     public func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         guard let target = graph.targets[path]?[name] else { return [] }
@@ -628,7 +641,7 @@ public class GraphTraverser: GraphTraversing {
     ///   - rootDependency: dependency whose platform filters we need when depending on `transitiveDependency`
     ///   - transitiveDependency: target dependency
     /// - Returns: CombinationResult which represents a resolved condition or `.invalid` based on traversing
-    public func combinedCondition(to transitiveDependency: GraphDependency, from rootDependency: GraphDependency) -> TargetDependency
+    func combinedCondition(to transitiveDependency: GraphDependency, from rootDependency: GraphDependency) -> TargetDependency
         .Condition.CombinationResult
     {
         var visited: Set<GraphDependency> = []

@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 
 /// A directed edge linking representing a dependent relationship
+/// e.g. `from` (MainApp) depends on `to` (UIKit)
 public struct GraphEdge: Hashable, Codable {
     public let from: GraphDependency
     public let to: GraphDependency
