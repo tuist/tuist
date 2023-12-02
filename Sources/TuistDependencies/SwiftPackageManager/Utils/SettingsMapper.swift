@@ -143,7 +143,7 @@ extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
 
 extension PackageInfo.Platform {
     fileprivate func graphPlatform() throws -> TuistGraph.Platform {
-        switch platformName {
+        switch platformName.lowercased() {
         case "ios", "maccatalyst":
             return .iOS
         case "macos":

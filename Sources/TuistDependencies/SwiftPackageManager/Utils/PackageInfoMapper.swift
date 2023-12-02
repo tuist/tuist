@@ -1078,7 +1078,7 @@ extension ProjectDescription.Settings {
 
 extension PackageInfo.Platform {
     fileprivate func graphPlatform() throws -> TuistGraph.Platform {
-        switch platformName {
+        switch platformName.lowercased() {
         case "ios", "maccatalyst":
             return .iOS
         case "macos":
@@ -1095,7 +1095,7 @@ extension PackageInfo.Platform {
     }
 
     fileprivate func destinations() throws -> ProjectDescription.Destinations {
-        switch platformName {
+        switch platformName.lowercased() {
         case "ios":
             return [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
         case "maccatalyst":
