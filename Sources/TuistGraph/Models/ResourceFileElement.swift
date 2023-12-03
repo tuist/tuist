@@ -4,15 +4,15 @@ import TSCBasic
 public enum ResourceFileElement: Equatable, Hashable, Codable {
     /// A file path (or glob pattern) to include, a list of file paths (or glob patterns) to exclude, and ODR tags list. For
     /// convenience, a string literal can be used as an alternate way to specify this option.
-    case file(path: AbsolutePath, tags: [String] = [])
+    case file(path: AbsolutePath, tags: [String] = [], condition: TargetDependency.Condition? = nil)
     /// A directory path to include as a folder reference and ODR tags list.
-    case folderReference(path: AbsolutePath, tags: [String] = [])
+    case folderReference(path: AbsolutePath, tags: [String] = [], condition: TargetDependency.Condition? = nil)
 
     public var path: AbsolutePath {
         switch self {
-        case let .file(path, _):
+        case let .file(path, _, _):
             return path
-        case let .folderReference(path, _):
+        case let .folderReference(path, _, _):
             return path
         }
     }
@@ -28,10 +28,19 @@ public enum ResourceFileElement: Equatable, Hashable, Codable {
 
     public var tags: [String] {
         switch self {
-        case let .file(_, tags):
+        case let .file(_, tags, _):
             return tags
-        case let .folderReference(_, tags):
+        case let .folderReference(_, tags, _):
             return tags
+        }
+    }
+
+    public var condition: TargetDependency.Condition? {
+        switch self {
+        case let .file(_, _, condition):
+            return condition
+        case let .folderReference(_, _, condition):
+            return condition
         }
     }
 
