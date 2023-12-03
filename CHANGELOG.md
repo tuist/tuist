@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.34.0 - 2023-11-30
+
+### Fixed
+
+- Only filter test devices by MaxRuntime if Version is nil [#5596](https://github.com/tuist/tuist/pull/5596) by [@regularberry](https://github.com/regularberry)
+- Fix warnings with including `.stencil` files when running `tuist edit`. Fixes #5603 [#5609](https://github.com/tuist/tuist/pull/5609) by [@waltflanagan](https://github.com/waltflanagan)
+- Fix usage of --test-targets [#5615](https://github.com/tuist/tuist/pull/5615) by [@fortmarek](https://github.com/fortmarek)
+
 ## 3.33.4 - 2023-11-24
 
 ### Fixed
@@ -204,10 +212,10 @@
 
 ### Breaking
 
-- Multi-platform / Multi-destination prep work will cause the following build settings to no longer be overridable in xcconfigs. This is to ensure the upcoming feature can be more predictable and reliable. The `.deploymentTarget()` API can be used to control those settings in the interim, please report any issues you may encounter related to this.   
-  - `SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD`   
-  - `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD`   
-  - `SUPPORTS_MACCATALYST`   
+- Multi-platform / Multi-destination prep work will cause the following build settings to no longer be overridable in xcconfigs. This is to ensure the upcoming feature can be more predictable and reliable. The `.deploymentTarget()` API can be used to control those settings in the interim, please report any issues you may encounter related to this.
+  - `SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD`
+  - `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD`
+  - `SUPPORTS_MACCATALYST`
   
 
 ## 3.22.0 - 2023-07-31

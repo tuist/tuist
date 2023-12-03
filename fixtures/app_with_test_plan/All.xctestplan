@@ -30,13 +30,6 @@
         "identifier" : "3A196401860CE777FF5FBA54",
         "name" : "MacFrameworkTests"
       }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:App.xcodeproj",
-        "identifier" : "9BCE1287E7C8C0C664664A7E",
-        "name" : "tvOSFrameworkTests"
-      }
     }
   ],
   "version" : 1

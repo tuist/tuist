@@ -115,7 +115,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
             let skipTestTargetsOnly = try Set(skipTestTargets.map { try TestIdentifier(target: $0.target) })
             let testTargetsOnly = try testTargets.map { try TestIdentifier(target: $0.target) }
             let targetsOnlyIntersection = skipTestTargetsOnly.intersection(testTargetsOnly)
-            if targetsOnlyIntersection.isEmpty {
+            if !skipTestTargets.isEmpty, targetsOnlyIntersection.isEmpty {
                 throw TestServiceError.nothingToSkip(
                     skipped: try skipTestTargets
                         .filter { skipTarget in try !testTargetsOnly.contains(TestIdentifier(target: skipTarget.target)) },
@@ -128,7 +128,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
             let testTargetsClasses = try testTargets.lazy.filter { $0.class != nil }
                 .map { try TestIdentifier(target: $0.target, class: $0.class) }
             let targetsClassesIntersection = skipTestTargetsClasses.intersection(testTargetsClasses)
-            if !testTargetsClasses.isEmpty, targetsClassesIntersection.isEmpty {
+            if !testTargetsClasses.isEmpty, !skipTestTargetsClasses.isEmpty, targetsClassesIntersection.isEmpty {
                 throw TestServiceError.nothingToSkip(
                     skipped: try skipTestTargets
                         .filter { skipTarget in
@@ -143,7 +143,9 @@ public final class TestService { // swiftlint:disable:this type_body_length
             let skipTestTargetsClassesMethods = Set(skipTestTargets)
             let testTargetsClassesMethods = testTargets.lazy.filter { $0.class != nil && $0.method != nil }
             let targetsClassesMethodsIntersection = skipTestTargetsClassesMethods.intersection(testTargetsClasses)
-            if !testTargetsClassesMethods.isEmpty, targetsClassesMethodsIntersection.isEmpty {
+            if !testTargetsClassesMethods.isEmpty, targetsClassesMethodsIntersection.isEmpty,
+               !skipTestTargetsClassesMethods.isEmpty
+            {
                 throw TestServiceError.nothingToSkip(skipped: skipTestTargets, included: testTargets)
             }
         }

@@ -21,7 +21,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         editablePluginManifests: [EditablePluginManifest],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
-        templates: [AbsolutePath],
+        templateSources: [AbsolutePath],
+        templateResources: [AbsolutePath],
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         projectDescriptionPath: AbsolutePath
@@ -38,7 +39,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         editablePluginManifests: [EditablePluginManifest],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
-        templates: [AbsolutePath],
+        templateSources: [AbsolutePath],
+        templateResources: [AbsolutePath],
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
@@ -54,7 +56,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: pluginProjectDescriptionHelpersModule,
             helpers: helpers,
-            templates: templates,
+            templateSources: templateSources,
+            templateResources: templateResources,
             resourceSynthesizers: resourceSynthesizers,
             stencils: stencils,
             projectDescriptionPath: projectDescriptionSearchPath

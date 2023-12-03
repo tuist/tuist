@@ -17,4 +17,21 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
 
     /// The manifests cache
     case manifests
+
+    public var directoryName: String {
+        switch self {
+        case .plugins:
+            return "Plugins"
+        case .builds:
+            return "BuildCache"
+        case .tests:
+            return "TestsCache"
+        case .generatedAutomationProjects:
+            return "Projects"
+        case .projectDescriptionHelpers:
+            return "ProjectDescriptionHelpers"
+        case .manifests:
+            return "Manifests"
+        }
+    }
 }

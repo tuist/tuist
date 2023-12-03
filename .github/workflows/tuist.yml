@@ -72,7 +72,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Test
-        run: tuist test --no-cache --skip-test-targets TuistBuildAcceptanceTests TuistGenerateOneAcceptanceTests
+        run: tuist test --no-cache --skip-test-targets TuistBuildAcceptanceTests TuistGenerateOneAcceptanceTests TuistTestAcceptanceTests
 
   cache-warm:
     name: Cache warm with latest Tuist
@@ -123,6 +123,7 @@ jobs:
           [
             'Build',
             'GenerateOne',
+            'Test',
           ]
     steps:
       - uses: actions/checkout@v4
@@ -167,7 +168,6 @@ jobs:
             'run',
             'scaffold',
             'tasks',
-            'test',
             'plugin',
           ]
     needs: release_build

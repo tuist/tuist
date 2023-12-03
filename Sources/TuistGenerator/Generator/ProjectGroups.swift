@@ -28,7 +28,7 @@ class ProjectGroups {
 
     @SortedPBXGroup var sortedMain: PBXGroup
     let products: PBXGroup
-    let frameworks: PBXGroup
+    let compiled: PBXGroup
 
     private let pbxproj: PBXProj
     private let projectGroups: [String: PBXGroup]
@@ -39,21 +39,21 @@ class ProjectGroups {
         main: PBXGroup,
         projectGroups: [(name: String, group: PBXGroup)],
         products: PBXGroup,
-        frameworks: PBXGroup,
+        compiled: PBXGroup,
         pbxproj: PBXProj
     ) {
         sortedMain = main
         self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
-        self.frameworks = frameworks
+        self.compiled = compiled
         self.pbxproj = pbxproj
     }
 
     func targetFrameworks(target: String) throws -> PBXGroup {
-        if let group = frameworks.group(named: target) {
+        if let group = compiled.group(named: target) {
             return group
         } else {
-            return try frameworks.addGroup(named: target, options: .withoutFolder).last!
+            return try compiled.addGroup(named: target, options: .withoutFolder).last!
         }
     }
 
@@ -93,10 +93,10 @@ class ProjectGroups {
             projectGroups.append(($0, projectGroup))
         }
 
-        /// Frameworks
-        let frameworksGroup = PBXGroup(children: [], sourceTree: .group, name: "Frameworks")
-        pbxproj.add(object: frameworksGroup)
-        mainGroup.children.append(frameworksGroup)
+        /// Compiled
+        let compiledGroup = PBXGroup(children: [], sourceTree: .group, name: "Compiled")
+        pbxproj.add(object: compiledGroup)
+        mainGroup.children.append(compiledGroup)
 
         /// Products
         let productsGroup = PBXGroup(children: [], sourceTree: .group, name: "Products")
@@ -107,7 +107,7 @@ class ProjectGroups {
             main: mainGroup,
             projectGroups: projectGroups,
             products: productsGroup,
-            frameworks: frameworksGroup,
+            compiled: compiledGroup,
             pbxproj: pbxproj
         )
     }

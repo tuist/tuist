@@ -9,3 +9,11 @@ final class FrameworkTests: XCTestCase {
         print("Framework tests example")
     }
 }
+
+final class FrameworkAnotherTests: XCTestCase {
+    var subject = FrameworkClass()
+
+    func testAnotherExample() {
+        print("Framework tests another example")
+    }
+}

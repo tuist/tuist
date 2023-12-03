@@ -145,8 +145,12 @@ final class ProjectEditor: ProjectEditing {
             ].flatMap { $0 }
         } ?? []
 
-        let templates = templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
-            FileHandler.shared.glob($0, glob: "**/*.swift") + FileHandler.shared.glob($0, glob: "**/*.stencil")
+        let templateSources = templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
+            FileHandler.shared.glob($0, glob: "**/*.swift")
+        } ?? []
+
+        let templateResources = templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
+            FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
 
         let resourceSynthesizers = resourceSynthesizersDirectoryLocator.locate(at: editingPath).map {
@@ -171,7 +175,7 @@ final class ProjectEditor: ProjectEditing {
         )
 
         /// We error if the user tries to edit a project in a directory where there are no editable files.
-        if projectManifests.isEmpty, editablePluginManifests.isEmpty, helpers.isEmpty, templates.isEmpty,
+        if projectManifests.isEmpty, editablePluginManifests.isEmpty, helpers.isEmpty, templateSources.isEmpty,
            resourceSynthesizers.isEmpty, stencils.isEmpty
         {
             throw ProjectEditorError.noEditableFiles(editingPath)
@@ -192,7 +196,8 @@ final class ProjectEditor: ProjectEditing {
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: builtPluginHelperModules,
             helpers: helpers,
-            templates: templates,
+            templateSources: templateSources,
+            templateResources: templateResources,
             resourceSynthesizers: resourceSynthesizers,
             stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath.parentDirectory

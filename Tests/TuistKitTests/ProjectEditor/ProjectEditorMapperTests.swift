@@ -33,6 +33,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let dependenciesPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Dependencies.swift")
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
         let templates = [sourceRootPath].map { $0.appending(component: "template") }
+        let templateResource = [sourceRootPath].map { $0.appending(component: "template.stencil") }
         let resourceSynthesizers = [sourceRootPath].map { $0.appending(component: "resourceSynthesizer") }
         let stencils = [sourceRootPath].map { $0.appending(component: "Stencil") }
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
@@ -56,7 +57,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             editablePluginManifests: pluginPaths,
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
-            templates: templates,
+            templateSources: templates,
+            templateResources: templateResource,
             resourceSynthesizers: resourceSynthesizers,
             stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
@@ -122,6 +124,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
         XCTAssertEqual(templatesTarget.sources.map(\.path), templates)
+        XCTAssertEqual(templatesTarget.additionalFiles.map(\.path), templateResource)
         XCTAssertEqual(templatesTarget.filesGroup, projectsGroup)
         XCTAssertEqual(Set(templatesTarget.dependencies), Set([
             .target(name: "ProjectDescriptionHelpers"),
@@ -138,7 +141,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             resourceSynthesizersTarget.settings,
             expectedSettings(includePaths: [projectDescriptionPath, projectDescriptionPath.parentDirectory])
         )
-        XCTAssertEqual(resourceSynthesizersTarget.sources.map(\.path), resourceSynthesizers)
+        XCTAssertEqual(resourceSynthesizersTarget.additionalFiles.map(\.path), resourceSynthesizers)
         XCTAssertEqual(resourceSynthesizersTarget.filesGroup, projectsGroup)
         XCTAssertEqual(Set(resourceSynthesizersTarget.dependencies), Set([
             .target(name: "ProjectDescriptionHelpers"),
@@ -244,7 +247,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             editablePluginManifests: [],
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
-            templates: templates,
+            templateSources: templates,
+            templateResources: [],
             resourceSynthesizers: resourceSynthesizers,
             stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
@@ -327,7 +331,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             editablePluginManifests: [],
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
-            templates: templates,
+            templateSources: templates,
+            templateResources: [],
             resourceSynthesizers: resourceSynthesizers,
             stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
@@ -436,7 +441,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
-            templates: templates,
+            templateSources: templates,
+            templateResources: [],
             resourceSynthesizers: resourceSynthesizers,
             stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
@@ -517,7 +523,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
-            templates: templates,
+            templateSources: templates,
+            templateResources: [],
             resourceSynthesizers: resourceSynthesizers,
             stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
@@ -632,7 +639,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
-            templates: templates,
+            templateSources: templates,
+            templateResources: [],
             resourceSynthesizers: resourceSynthesizers,
             stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath
@@ -677,7 +685,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             editablePluginManifests: [localPlugin],
             pluginProjectDescriptionHelpersModule: [remotePlugin],
             helpers: helperPaths,
-            templates: templates,
+            templateSources: templates,
+            templateResources: [],
             resourceSynthesizers: resourceSynthesizers,
             stencils: stencils,
             projectDescriptionSearchPath: projectDescriptionPath

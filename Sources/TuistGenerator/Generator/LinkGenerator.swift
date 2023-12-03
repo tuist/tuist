@@ -532,7 +532,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             default:
                 return nil
             }
-        }.map { ("$BUILT_PRODUCTS_DIR/\($0)", "$BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME/Macros/\($0)") }
+        }.map { ("$SYMROOT/$CONFIGURATION/\($0)", "$BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME/Macros/\($0)") }
 
         copySwiftMacrosBuildPhase.shellScript = filesToCopy.map { "cp \($0.0) \($0.1)" }.joined(separator: "\n")
         copySwiftMacrosBuildPhase.inputPaths = filesToCopy.map(\.0)
