@@ -14,6 +14,9 @@ public struct SourceFileGlob: Codable, Equatable {
     /// The source file attribute to be set in the build phase.
     public let codeGen: FileCodeGen?
 
+    /// Source file condition for platform filters
+    public let condition: TargetDependency.Condition?
+
     /// Returns a source glob pattern configuration.
     ///
     /// - Parameters:
@@ -25,25 +28,27 @@ public struct SourceFileGlob: Codable, Equatable {
         _ glob: Path,
         excluding: [Path] = [],
         compilerFlags: String? = nil,
-        codeGen: FileCodeGen? = nil
+        codeGen: FileCodeGen? = nil,
+        condition: TargetDependency.Condition? = nil
     ) -> Self {
-        .init(glob: glob, excluding: excluding, compilerFlags: compilerFlags, codeGen: codeGen)
+        .init(glob: glob, excluding: excluding, compilerFlags: compilerFlags, codeGen: codeGen, condition: condition)
     }
 
     public static func glob(
         _ glob: Path,
         excluding: Path?,
         compilerFlags: String? = nil,
-        codeGen: FileCodeGen? = nil
+        codeGen: FileCodeGen? = nil,
+        condition: TargetDependency.Condition? = nil
     ) -> Self {
         let paths: [Path] = excluding.flatMap { [$0] } ?? []
-        return .init(glob: glob, excluding: paths, compilerFlags: compilerFlags, codeGen: codeGen)
+        return .init(glob: glob, excluding: paths, compilerFlags: compilerFlags, codeGen: codeGen, condition: condition)
     }
 }
 
 extension SourceFileGlob: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self.init(glob: Path(value), excluding: [], compilerFlags: nil, codeGen: nil)
+        self.init(glob: Path(value), excluding: [], compilerFlags: nil, codeGen: nil, condition: nil)
     }
 }
 

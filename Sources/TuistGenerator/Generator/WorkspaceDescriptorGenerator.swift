@@ -37,7 +37,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         /// descriptors for each project within the workspace / graph
         var projectGenerationContext: ExecutionContext
         static var `default`: Config {
-            Config(projectGenerationContext: .concurrent)
+            Config(projectGenerationContext: .serial)
         }
     }
 

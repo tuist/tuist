@@ -75,6 +75,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             try generateSourcesBuildPhase(
                 files: target.sources,
                 coreDataModels: target.coreDataModels,
+                target: target,
                 pbxTarget: pbxTarget,
                 fileElements: fileElements,
                 pbxproj: pbxproj
@@ -217,6 +218,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     func generateSourcesBuildPhase(
         files: [SourceFile],
         coreDataModels: [CoreDataModel],
+        target: Target,
         pbxTarget: PBXTarget,
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
@@ -267,6 +269,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
             if buildFilesCache.contains(element.path) == false {
                 let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings)
+                pbxBuildFile.applyCondition(buildFile.condition, applicableTo: target)
                 pbxBuildFiles.append(pbxBuildFile)
                 buildFilesCache.insert(element.path)
             }
