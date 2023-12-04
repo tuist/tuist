@@ -40,9 +40,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateSourcesBuildPhase() throws {
         // Given
-        let target = PBXNativeTarget(name: "Test")
+        let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
-        pbxproj.add(object: target)
+        pbxproj.add(object: pbxTarget)
 
         let sources: [SourceFile] = [
             SourceFile(path: "/test/file1.swift", compilerFlags: "flag"),
@@ -53,19 +53,22 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             SourceFile(path: "/test/file6.swift", codeGen: .disabled),
         ]
 
+        let target = Target.test(sources: sources)
+
         let fileElements = createFileElements(for: sources.map(\.path))
 
         // When
         try subject.generateSourcesBuildPhase(
             files: sources,
             coreDataModels: [],
-            pbxTarget: target,
+            target: target,
+            pbxTarget: pbxTarget,
             fileElements: fileElements,
             pbxproj: pbxproj
         )
 
         // Then
-        let buildPhase = try target.sourcesBuildPhase()
+        let buildPhase = try pbxTarget.sourcesBuildPhase()
         let buildFiles = buildPhase?.files ?? []
         let buildFilesNames = buildFiles.map {
             $0.file?.name
@@ -154,15 +157,18 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
         let path = try! AbsolutePath(validating: "/test/file.swift")
-        let target = PBXNativeTarget(name: "Test")
+        let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
-        pbxproj.add(object: target)
+        pbxproj.add(object: pbxTarget)
+
+        let target = Target.test()
         let fileElements = ProjectFileElements()
 
         XCTAssertThrowsError(try subject.generateSourcesBuildPhase(
             files: [SourceFile(path: path, compilerFlags: nil)],
             coreDataModels: [],
-            pbxTarget: target,
+            target: target,
+            pbxTarget: pbxTarget,
             fileElements: fileElements,
             pbxproj: pbxproj
         )) {
@@ -172,14 +178,15 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateSourcesBuildPhase_withDocCArchive() throws {
         // Given
-        let target = PBXNativeTarget(name: "Test")
+        let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
-        pbxproj.add(object: target)
+        pbxproj.add(object: pbxTarget)
 
         let sources: [SourceFile] = [
             SourceFile(path: "/path/sources/Foo.swift", compilerFlags: nil),
             SourceFile(path: "/path/sources/Doc.docc", compilerFlags: nil),
         ]
+        let target = Target.test(sources: sources)
 
         let fileElements = createFileElements(for: sources.map(\.path))
 
@@ -187,13 +194,14 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         try subject.generateSourcesBuildPhase(
             files: sources,
             coreDataModels: [],
-            pbxTarget: target,
+            target: target,
+            pbxTarget: pbxTarget,
             fileElements: fileElements,
             pbxproj: pbxproj
         )
 
         // Then
-        let buildPhase = try target.sourcesBuildPhase()
+        let buildPhase = try pbxTarget.sourcesBuildPhase()
         let buildFiles = buildPhase?.files ?? []
         let buildFilesNames = buildFiles.map {
             $0.file?.name
@@ -204,14 +212,15 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateSourcesBuildPhase_whenLocalizedFile() throws {
         // Given
-        let target = PBXNativeTarget(name: "Test")
+        let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
-        pbxproj.add(object: target)
+        pbxproj.add(object: pbxTarget)
 
         let sources: [SourceFile] = [
             SourceFile(path: "/path/sources/Base.lproj/OTTSiriExtension.intentdefinition", compilerFlags: nil),
             SourceFile(path: "/path/sources/en.lproj/OTTSiriExtension.intentdefinition", compilerFlags: nil),
         ]
+        let target = Target.test(sources: sources)
 
         let fileElements = createLocalizedResourceFileElements(for: [
             "/path/sources/OTTSiriExtension.intentdefinition",
@@ -221,13 +230,14 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         try subject.generateSourcesBuildPhase(
             files: sources,
             coreDataModels: [],
-            pbxTarget: target,
+            target: target,
+            pbxTarget: pbxTarget,
             fileElements: fileElements,
             pbxproj: pbxproj
         )
 
         // Then
-        let buildPhase = try target.sourcesBuildPhase()
+        let buildPhase = try pbxTarget.sourcesBuildPhase()
         let buildFiles = buildPhase?.files ?? []
 
         XCTAssertEqual(buildFiles.map(\.file), [
@@ -237,15 +247,18 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() {
         let path = try! AbsolutePath(validating: "/test/Base.lproj/file.intentdefinition")
-        let target = PBXNativeTarget(name: "Test")
+        let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
-        pbxproj.add(object: target)
+        pbxproj.add(object: pbxTarget)
+
+        let target = Target.test()
         let fileElements = ProjectFileElements()
 
         XCTAssertThrowsError(try subject.generateSourcesBuildPhase(
             files: [SourceFile(path: path, compilerFlags: nil)],
             coreDataModels: [],
-            pbxTarget: target,
+            target: target,
+            pbxTarget: pbxTarget,
             fileElements: fileElements,
             pbxproj: pbxproj
         )) {
@@ -540,6 +553,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         try subject.generateSourcesBuildPhase(
             files: target.sources,
             coreDataModels: target.coreDataModels,
+            target: target,
             pbxTarget: nativeTarget,
             fileElements: fileElements,
             pbxproj: pbxproj
