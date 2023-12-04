@@ -6,7 +6,7 @@ extension Config {
         public enum StaticSideEffectsWarningTargets: Codable, Hashable, Equatable {
             case all
             case none
-            case only([String])
+            case excluding([String])
         }
 
         public let resolveDependenciesWithSystemScm: Bool

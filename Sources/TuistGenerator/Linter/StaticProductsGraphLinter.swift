@@ -150,9 +150,9 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 
     private func shouldSkipDependency(_ dependency: GraphDependency, config: Config) -> Bool {
         switch config.generationOptions.staticSideEffectsWarningTargets {
-        case .all: return true
-        case .none: return false
-        case let .only(names): return names.contains(dependency.name)
+        case .all: return false
+        case .none: return true
+        case let .excluding(names): return names.contains(dependency.name)
         }
     }
 

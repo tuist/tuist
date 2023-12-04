@@ -8,7 +8,7 @@ extension Config {
         public enum StaticSideEffectsWarningTargets: Codable, Equatable {
             case all
             case none
-            case only([String])
+            case excluding([String])
         }
 
         /// When passed, Xcode will resolve its Package Manager dependencies using the system-defined
