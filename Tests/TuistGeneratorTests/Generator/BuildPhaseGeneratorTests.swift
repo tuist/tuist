@@ -105,6 +105,66 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateSourcesBuildPhase_whenMultiPlatformSourceFiles() throws {
+        // Given
+        let pbxTarget = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: pbxTarget)
+
+        let sourceFiles: [SourceFile] = [
+            SourceFile(path: "/test/file1.swift"),
+            SourceFile(path: "/test/file2.swift", condition: .when([.ios])),
+            SourceFile(path: "/test/file3.swift", condition: .when([.watchos])),
+            SourceFile(path: "/test/file4.swift", condition: .when([.visionos])),
+            SourceFile(path: "/test/file5.swift", condition: .when([.macos])),
+            SourceFile(path: "/test/file6.swift", condition: .when([.tvos])),
+        ]
+
+        let target = Target.test(sources: sourceFiles)
+
+        let fileElements = createFileElements(for: sourceFiles.map(\.path))
+
+        // When
+        try subject.generateSourcesBuildPhase(
+            files: sourceFiles,
+            coreDataModels: [],
+            target: target,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try pbxTarget.sourcesBuildPhase()
+        let buildFiles = buildPhase?.files ?? []
+        let buildFilesNames = buildFiles.map {
+            $0.file?.name
+        }
+
+        let buildFilesPlatformFilters = buildFiles.map {
+            $0.platformFilters
+        }
+
+        XCTAssertEqual(buildFilesNames, [
+            "file1.swift",
+            "file2.swift",
+            "file3.swift",
+            "file4.swift",
+            "file5.swift",
+            "file6.swift",
+        ])
+
+        XCTAssertEqual(buildFilesPlatformFilters, [
+            nil, // No platform filter applied, because none request
+            nil, // No platform filter applied, because the test target is an iOS target, so no filter necessary
+            ["watchos"],
+            ["xros"],
+            ["macos"],
+            ["tvos"],
+        ])
+    }
+
+
     func test_generateScripts() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
@@ -643,6 +703,70 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(allFileSettings, [
             ["ASSET_TAGS": ["fileTag"]],
             ["ASSET_TAGS": ["folderTag"]],
+        ])
+    }
+
+    func test_generateResourcesBuildPhase_whenMultiPlatformResourceFiles() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let resources: [ResourceFileElement] = [
+            .file(path: "/Shared.type"),
+            .file(path: "/iOS.type", condition: .when([.ios])),
+            .file(path: "/macOS.type", condition: .when([.macos])),
+            .file(path: "/tvOS.type", condition: .when([.tvos])),
+            .file(path: "/visionOS.type" ,condition: .when([.visionos])),
+            .file(path: "/watchOS.type", condition: .when([.watchos])),
+        ]
+        let target = Target.test(resources: resources)
+        let fileElements = ProjectFileElements()
+        let pbxproj = PBXProj()
+
+        resources.forEach {
+            let ref = PBXFileReference()
+            pbxproj.add(object: ref)
+            fileElements.elements[$0.path] = ref
+        }
+        let nativeTarget = PBXNativeTarget(name: "Test")
+
+        let graph = Graph.test(path: temporaryPath)
+        let graphTraverser = GraphTraverser(graph: graph)
+        // When
+        try subject.generateResourcesBuildPhase(
+            path: "/path",
+            target: target,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
+        XCTAssertNotNil(pbxBuildPhase)
+        XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
+
+        let resourceBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
+        var buildFiles = try XCTUnwrap(resourceBuildPhase.files)
+
+        // sorting to get some determinism in, sort alphabetically, ascending, (uppercase before lowercase)
+        try buildFiles.sort { prev, suc in
+            let prevFileElement = try XCTUnwrap(fileElements.elements.first(where: { $0.value == prev.file }))
+            let sucFileElement = try XCTUnwrap(fileElements.elements.first(where: { $0.value == suc.file }))
+
+            return prevFileElement.key < sucFileElement.key
+        }
+
+        let buildFilesPlatformFilters = buildFiles.map {
+            $0.platformFilters
+        }
+
+        XCTAssertEqual(buildFilesPlatformFilters, [
+            nil, // No platform filter applied, because none request
+            nil, // No platform filter applied, because the test target is an iOS target, so no filter necessary
+            ["macos"],
+            ["tvos"],
+            ["xros"],
+            ["watchos"],
         ])
     }
 
