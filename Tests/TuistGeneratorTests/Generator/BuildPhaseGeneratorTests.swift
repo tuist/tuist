@@ -141,9 +141,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             $0.file?.name
         }
 
-        let buildFilesPlatformFilters = buildFiles.map {
-            $0.platformFilters
-        }
+        let buildFilesPlatformFilters = buildFiles.map(\.platformFilters)
 
         XCTAssertEqual(buildFilesNames, [
             "file1.swift",
@@ -163,7 +161,6 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             ["tvos"],
         ])
     }
-
 
     func test_generateScripts() throws {
         // Given
@@ -714,7 +711,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             .file(path: "/iOS.type", condition: .when([.ios])),
             .file(path: "/macOS.type", condition: .when([.macos])),
             .file(path: "/tvOS.type", condition: .when([.tvos])),
-            .file(path: "/visionOS.type" ,condition: .when([.visionos])),
+            .file(path: "/visionOS.type", condition: .when([.visionos])),
             .file(path: "/watchOS.type", condition: .when([.watchos])),
         ]
         let target = Target.test(resources: resources)
@@ -756,9 +753,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             return prevFileElement.key < sucFileElement.key
         }
 
-        let buildFilesPlatformFilters = buildFiles.map {
-            $0.platformFilters
-        }
+        let buildFilesPlatformFilters = buildFiles.map(\.platformFilters)
 
         XCTAssertEqual(buildFilesPlatformFilters, [
             nil, // No platform filter applied, because none request

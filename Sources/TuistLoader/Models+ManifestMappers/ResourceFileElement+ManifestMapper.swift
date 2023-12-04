@@ -62,10 +62,18 @@ extension TuistGraph.ResourceFileElement {
         case let .glob(pattern, excluding, tags, condition):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
             let excluding: [String] = try excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
-            return try globFiles(resolvedPath, excluding: excluding).map { ResourceFileElement.file(path: $0, tags: tags, condition: condition?.asGraphCondition) }
+            return try globFiles(resolvedPath, excluding: excluding).map { ResourceFileElement.file(
+                path: $0,
+                tags: tags,
+                condition: condition?.asGraphCondition
+            ) }
         case let .folderReference(folderReferencePath, tags, condition):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
-            return folderReferences(resolvedPath).map { ResourceFileElement.folderReference(path: $0, tags: tags, condition: condition?.asGraphCondition) }
+            return folderReferences(resolvedPath).map { ResourceFileElement.folderReference(
+                path: $0,
+                tags: tags,
+                condition: condition?.asGraphCondition
+            ) }
         }
     }
 }
