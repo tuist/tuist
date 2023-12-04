@@ -528,7 +528,6 @@ let acceptanceTests: [(target: Target, scheme: Scheme)] = ["Build", "GenerateOne
             runAction: .runAction(
                 arguments: Arguments(
                     environmentVariables: [
-                        "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
                         "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
                     ]
                 )

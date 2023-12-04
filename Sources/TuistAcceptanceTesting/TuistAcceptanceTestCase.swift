@@ -32,11 +32,10 @@ open class TuistAcceptanceTestCase: XCTestCase {
         derivedDataPath = try! TemporaryDirectory(removeTreeOnDeinit: true).path
         fixtureTemporaryDirectory = try! TemporaryDirectory(removeTreeOnDeinit: true)
 
-        sourceRootPath = try! AbsolutePath(
-            validating: ProcessInfo.processInfo.environment[
-                "TUIST_CONFIG_SRCROOT"
-            ]!
-        )
+        sourceRootPath = try! AbsolutePath(validating: #file.replacingOccurrences(of: "file://", with: ""))
+            .removingLastComponent()
+            .removingLastComponent()
+            .removingLastComponent()
 
         do {
             // Environment
