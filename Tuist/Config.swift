@@ -7,6 +7,4 @@ let config = Config(
         options: [.optional]
     ),
     swiftVersion: .init("5.8")
-    // TODO: Enable after https://github.com/tuist/tuist/pull/5632 is merged
-    // generationOptions: .options(staticSideEffectsWarningTargets: .none)
 )
