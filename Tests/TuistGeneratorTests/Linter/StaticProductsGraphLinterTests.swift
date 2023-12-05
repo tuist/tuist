@@ -46,10 +46,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -83,10 +84,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertTrue(results.isEmpty)
@@ -120,10 +122,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -158,10 +161,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -213,10 +217,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -268,10 +273,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -318,10 +324,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -357,10 +364,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertFalse(results.isEmpty)
@@ -410,10 +418,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertTrue(results.isEmpty)
@@ -446,10 +455,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertTrue(results.isEmpty)
@@ -486,10 +496,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -524,10 +535,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertTrue(results.isEmpty)
@@ -618,10 +630,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertTrue(results.isEmpty)
@@ -654,10 +667,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertTrue(results.isEmpty)
@@ -728,10 +742,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -776,10 +791,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -819,10 +835,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
 
@@ -864,10 +881,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -908,10 +926,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -948,10 +967,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertTrue(results.isEmpty)
@@ -989,10 +1009,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -1028,10 +1049,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertTrue(results.isEmpty)
@@ -1069,10 +1091,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
@@ -1110,10 +1133,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertTrue(results.isEmpty)
@@ -1153,15 +1177,74 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
+        let config = Config.test()
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let results = subject.lint(graphTraverser: graphTraverser)
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
 
         // Then
         XCTAssertEqual(results, [
             warning(product: "LocalPackage", type: "Package", linkedBy: [watchAppExtensionDependency, watchFrameworkDependency]),
         ])
+    }
+
+    func test_lint_whenStaticProductLinkedTwice_and_productExcluded() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let staticFrameworkA = Target.test(name: "StaticFrameworkA", product: .staticFramework)
+        let staticFrameworkB = Target.test(name: "StaticFrameworkB", product: .staticFramework)
+        let staticFrameworkC = Target.test(name: "StaticFrameworkC", product: .staticFramework)
+        let frameworkA = Target.test(name: "FrameworkA", product: .framework)
+        let frameworkB = Target.test(name: "FrameworkB", product: .framework)
+        let frameworkC = Target.test(name: "FrameworkC", product: .framework)
+        let project = Project
+            .test(targets: [app, staticFrameworkA, staticFrameworkB, staticFrameworkC, frameworkA, frameworkB, frameworkC])
+
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let staticFrameworkAdependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
+        let staticFrameworkBdependency = GraphDependency.target(name: staticFrameworkB.name, path: path)
+        let staticFrameworkCdependency = GraphDependency.target(name: staticFrameworkC.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let frameworkBDependency = GraphDependency.target(name: frameworkB.name, path: path)
+        let frameworkCDependency = GraphDependency.target(name: frameworkC.name, path: path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            appDependency: Set([staticFrameworkCdependency, frameworkADependency]),
+            frameworkADependency: Set([frameworkBDependency, frameworkCDependency]),
+            frameworkBDependency: Set([frameworkCDependency]),
+            frameworkCDependency: Set([staticFrameworkAdependency]),
+            staticFrameworkAdependency: Set([staticFrameworkBdependency]),
+            staticFrameworkBdependency: Set([staticFrameworkCdependency]),
+            staticFrameworkCdependency: Set([]),
+        ]
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [
+                app.name: app,
+                staticFrameworkA.name: staticFrameworkA,
+                staticFrameworkB.name: staticFrameworkB,
+                staticFrameworkC.name: staticFrameworkC,
+                frameworkA.name: frameworkA,
+                frameworkB.name: frameworkB,
+                frameworkC.name: frameworkC,
+            ]],
+            dependencies: dependencies
+        )
+        let config = Config
+            .test(
+                generationOptions: Config.GenerationOptions
+                    .test(staticSideEffectsWarningTargets: .excluding(["StaticFrameworkC"]))
+            )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertEqual(results, [])
     }
 
     // MARK: - Helpers

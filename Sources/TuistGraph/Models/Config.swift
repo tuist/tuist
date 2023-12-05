@@ -36,7 +36,8 @@ public struct Config: Equatable, Hashable {
             plugins: [],
             generationOptions: .init(
                 resolveDependenciesWithSystemScm: false,
-                disablePackageVersionLocking: false
+                disablePackageVersionLocking: false,
+                staticSideEffectsWarningTargets: .all
             ),
             path: nil
         )

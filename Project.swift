@@ -489,7 +489,7 @@ func targets() -> [Target] {
     return executableTargets + moduleTargets + acceptanceTests.map(\.target) + [
         .target(
             name: "TuistAcceptanceTesting",
-            product: .framework,
+            product: .staticFramework,
             dependencies: [
                 .target(name: "TuistKit"),
                 .target(name: "TuistSupportTesting"),
