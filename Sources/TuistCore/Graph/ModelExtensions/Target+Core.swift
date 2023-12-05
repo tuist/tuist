@@ -91,7 +91,7 @@ extension Target {
                     compilerFlags: source.compilerFlags,
                     codeGen: source.codeGen,
                     condition: source.condition
-                )}
+                ) }
         }
 
         if !invalidGlobs.isEmpty {
