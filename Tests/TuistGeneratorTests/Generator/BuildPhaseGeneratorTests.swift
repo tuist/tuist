@@ -738,6 +738,15 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
+        let expectedPlatformFilters: [String: [String]?] = [
+            "/Shared.type": nil,
+            "/iOS.type": nil,
+            "/macOS.type": ["macos"],
+            "/tvOS.type": ["tvos"],
+            "/visionOS.type": ["xros"],
+            "/watchOS.type": ["watchos"],
+        ]
+
         let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
@@ -745,24 +754,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let resourceBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
         var buildFiles = try XCTUnwrap(resourceBuildPhase.files)
 
-        // sorting to get some determinism in, sort alphabetically, ascending, (uppercase before lowercase)
-        try buildFiles.sort { prev, suc in
-            let prevFileElement = try XCTUnwrap(fileElements.elements.first(where: { $0.value == prev.file }))
-            let sucFileElement = try XCTUnwrap(fileElements.elements.first(where: { $0.value == suc.file }))
-
-            return prevFileElement.key < sucFileElement.key
+        try buildFiles.forEach { buildFile in
+            let path = try XCTUnwrap(fileElements.elements.first(where: { $0.value === buildFile.file })).key
+            XCTAssertEqual(expectedPlatformFilters[path.pathString], buildFile.platformFilters)
         }
-
-        let buildFilesPlatformFilters = buildFiles.map(\.platformFilters)
-
-        XCTAssertEqual(buildFilesPlatformFilters, [
-            nil, // No platform filter applied, because none request
-            nil, // No platform filter applied, because the test target is an iOS target, so no filter necessary
-            ["macos"],
-            ["tvos"],
-            ["xros"],
-            ["watchos"],
-        ])
     }
 
     func test_generateResourceBundle() throws {
