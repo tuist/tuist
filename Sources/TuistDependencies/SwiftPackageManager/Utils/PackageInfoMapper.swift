@@ -1440,7 +1440,7 @@ extension PackageInfoMapper {
 extension ProjectDescription.PlatformCondition {
     struct OnlyConditionsWithUnsupportedPlatforms: Error {}
 
-    /// Map from a package condition to ProjectDescription.InclusionCondition
+    /// Map from a package condition to ProjectDescription.PlatformCondition
     /// - Parameter condition: condition representing platforms that a given dependency applies to
     /// - Returns: set of PlatformFilters to be used with `GraphDependencyRefrence`
     /// throws `OnlyConditionsWithUnsupportedPlatforms` if the condition only contains platforms not supported by Tuist (e.g
