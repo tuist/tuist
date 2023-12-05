@@ -1,0 +1,16 @@
+name: Project Description Deployment
+on:
+  push:
+    tags:
+      - '*'
+
+env:
+  GITHUB_ACCESS_TOKEN: ${{ secrets.DEPLOY_GITHUB_ACCESS_TOKEN }}
+  TARGET_REPO_NAME: tuist/ProjectDescription
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Deploy Project Description
+        run: ./make/tasks/tuist/release-project-description.sh
