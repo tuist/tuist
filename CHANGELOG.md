@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.35.2 - 2023-12-05
+
+### Fixed
+
+- Fix for package platform parsing to be case insensitive [#5627](https://github.com/tuist/tuist/pull/5627) by [@ladislas](https://github.com/ladislas)
+
 ## 3.35.1 - 2023-12-04
 
 - no changes
