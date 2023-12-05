@@ -628,7 +628,8 @@ public class GraphTraverser: GraphTraversing {
     ///   - rootDependency: dependency whose platform filters we need when depending on `transitiveDependency`
     ///   - transitiveDependency: target dependency
     /// - Returns: CombinationResult which represents a resolved condition or `.invalid` based on traversing
-    func combinedCondition(to transitiveDependency: GraphDependency, from rootDependency: GraphDependency) -> PlatformCondition.CombinationResult
+    func combinedCondition(to transitiveDependency: GraphDependency, from rootDependency: GraphDependency) -> PlatformCondition
+        .CombinationResult
     {
         var visited: Set<GraphDependency> = []
 

@@ -32,7 +32,13 @@ public struct SourceFileGlob: Codable, Equatable {
         codeGen: FileCodeGen? = nil,
         compilationCondition: PlatformCondition? = nil
     ) -> Self {
-        .init(glob: glob, excluding: excluding, compilerFlags: compilerFlags, codeGen: codeGen, compilationCondition: compilationCondition)
+        .init(
+            glob: glob,
+            excluding: excluding,
+            compilerFlags: compilerFlags,
+            codeGen: codeGen,
+            compilationCondition: compilationCondition
+        )
     }
 
     public static func glob(
@@ -43,7 +49,13 @@ public struct SourceFileGlob: Codable, Equatable {
         compilationCondition: PlatformCondition? = nil
     ) -> Self {
         let paths: [Path] = excluding.flatMap { [$0] } ?? []
-        return .init(glob: glob, excluding: paths, compilerFlags: compilerFlags, codeGen: codeGen, compilationCondition: compilationCondition)
+        return .init(
+            glob: glob,
+            excluding: paths,
+            compilerFlags: compilerFlags,
+            codeGen: codeGen,
+            compilationCondition: compilationCondition
+        )
     }
 }
 

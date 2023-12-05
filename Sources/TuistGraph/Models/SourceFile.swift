@@ -19,7 +19,7 @@ public struct SourceFile: ExpressibleByStringLiteral, Equatable, Codable {
     public let codeGen: FileCodeGen?
 
     /// Source file condition for platform filters
-    public let compilationCondition:  PlatformCondition?
+    public let compilationCondition: PlatformCondition?
 
     public init(
         path: AbsolutePath,
