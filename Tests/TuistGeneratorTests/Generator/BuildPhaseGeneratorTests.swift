@@ -755,7 +755,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         var buildFiles = try XCTUnwrap(resourceBuildPhase.files)
 
         try buildFiles.forEach { buildFile in
+            // Explicitly exctracting the original path because it gets lost in translation for resource files
             let path = try XCTUnwrap(fileElements.elements.first(where: { $0.value === buildFile.file })).key
+
+            // Actual comparison of platform filters for the given buildFile
             XCTAssertEqual(expectedPlatformFilters[path.pathString], buildFile.platformFilters)
         }
     }
