@@ -76,6 +76,12 @@ public struct BuildCommand: AsyncParsableCommand {
     )
     var derivedDataPath: String?
 
+    @Flag(
+        name: [.customLong("raw-xcodebuild-logs"), .customShort("P")],
+        help: "When passed, it outputs the raw xcodebuild logs without formatting them."
+    )
+    var rawXcodebuildLogs: Bool = false
+
     public func run() async throws {
         let absolutePath: AbsolutePath
         if let path {
@@ -95,7 +101,8 @@ public struct BuildCommand: AsyncParsableCommand {
             device: device,
             platform: platform,
             osVersion: os,
-            rosetta: rosetta
+            rosetta: rosetta,
+            rawXcodebuildLogs: rawXcodebuildLogs
         )
     }
 }

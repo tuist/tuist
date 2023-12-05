@@ -82,7 +82,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
             buildArguments
         }
 
-        xcodeBuildController.buildStub = { _workspace, _scheme, _destination, _rosetta, _, _clean, _buildArguments in
+        xcodeBuildController.buildStub = { _workspace, _scheme, _destination, _rosetta, _, _clean, _buildArguments, _ in
             XCTAssertEqual(_workspace.path, workspacePath)
             XCTAssertEqual(_scheme, scheme.name)
             XCTAssertEqual(_destination, destination)
@@ -105,7 +105,8 @@ final class TargetBuilderTests: TuistUnitTestCase {
             device: device,
             osVersion: version,
             rosetta: rosetta,
-            graphTraverser: MockGraphTraverser()
+            graphTraverser: MockGraphTraverser(),
+            rawXcodebuildLogs: false
         )
     }
 
@@ -117,7 +118,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
         let graphTraverser = MockGraphTraverser()
 
-        xcodeBuildController.buildStub = { _, _, _, _, _, _, _ in
+        xcodeBuildController.buildStub = { _, _, _, _, _, _, _, _ in
             [.standardOutput(.init(raw: "success"))]
         }
 
@@ -141,7 +142,8 @@ final class TargetBuilderTests: TuistUnitTestCase {
             device: nil,
             osVersion: nil,
             rosetta: false,
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            rawXcodebuildLogs: false
         )
 
         // Then
@@ -168,7 +170,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
         let graphTraverser = MockGraphTraverser()
 
-        xcodeBuildController.buildStub = { _, _, _, _, _, _, _ in
+        xcodeBuildController.buildStub = { _, _, _, _, _, _, _, _ in
             [.standardOutput(.init(raw: "success"))]
         }
 
@@ -192,7 +194,8 @@ final class TargetBuilderTests: TuistUnitTestCase {
             device: nil,
             osVersion: nil,
             rosetta: false,
-            graphTraverser: graphTraverser
+            graphTraverser: graphTraverser,
+            rawXcodebuildLogs: false
         )
 
         // Then
