@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.35.1 - 2023-12-04
+
+- no changes
+
+## 3.35.0 - 2023-12-04
+
+### Changed
+
+- Improve the group hierarchy for cache binaries [#5617](https://github.com/tuist/tuist/pull/5617) by [@pepicrft](https://github.com/pepicrft)
+
 ## 3.34.0 - 2023-11-30
 
 ### Fixed

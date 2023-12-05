@@ -140,22 +140,3 @@ extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
         }
     }
 }
-
-extension PackageInfo.Platform {
-    fileprivate func graphPlatform() throws -> TuistGraph.Platform {
-        switch platformName {
-        case "ios", "maccatalyst":
-            return .iOS
-        case "macos":
-            return .macOS
-        case "tvos":
-            return .tvOS
-        case "watchos":
-            return .watchOS
-        case "visionos":
-            return .visionOS
-        default:
-            throw PackageInfoMapperError.unknownPlatform(platformName)
-        }
-    }
-}
