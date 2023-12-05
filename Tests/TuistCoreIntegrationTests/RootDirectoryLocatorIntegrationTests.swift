@@ -140,18 +140,4 @@ final class RootDirectoryLocatorIntegrationTests: TuistTestCase {
             "APlugin/",
         ].map { temporaryDirectory.appending(try RelativePath(validating: $0)) })
     }
-
-    func test_locate_when_only_workspace_manifest_exists() throws {
-        // Given
-        let temporaryDirectory = try temporaryPath()
-        try createFiles([
-            "Workspace.swift",
-        ])
-
-        // When
-        let got = subject.locate(from: temporaryDirectory.appending(component: "Workspace.swift"))
-
-        // Then
-        XCTAssertEqual(got, temporaryDirectory)
-    }
 }

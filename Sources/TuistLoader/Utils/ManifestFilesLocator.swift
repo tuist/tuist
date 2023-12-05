@@ -43,7 +43,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
     /// Utility to locate the root directory of the project
     let rootDirectoryLocator: RootDirectoryLocating
 
-    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(usingProjectManifest: true)) {
+    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
