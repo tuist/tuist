@@ -141,7 +141,7 @@ public class GraphTraverser: GraphTraversing {
 
     public func directLocalTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(
         GraphTarget,
-        TargetDependency.Condition?
+        PlatformCondition?
     )] {
         let sorted = directLocalTargetDependencies(path: path, name: name).sorted()
         let from = GraphDependency.target(name: name, path: path)
