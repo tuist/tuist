@@ -14,7 +14,7 @@ public struct SourceFileGlob: Codable, Equatable {
     /// The source file attribute to be set in the build phase.
     public let codeGen: FileCodeGen?
 
-    /// Source file condition for platform filters
+    /// Condition to specify under which condition this file is included.
     public let condition: TargetDependency.Condition?
 
     /// Returns a source glob pattern configuration.
@@ -24,6 +24,7 @@ public struct SourceFileGlob: Codable, Equatable {
     ///   - excluding: Glob patterns for source files that will be excluded.
     ///   - compilerFlags: The compiler flags to be set to the source files in the sources build phase.
     ///   - codeGen: The source file attribute to be set in the build phase.
+    ///   - condition: Condition for file inclusion.
     public static func glob(
         _ glob: Path,
         excluding: [Path] = [],

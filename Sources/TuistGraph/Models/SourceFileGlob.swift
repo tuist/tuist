@@ -5,16 +5,16 @@ public struct SourceFileGlob: Equatable {
     /// Glob pattern to unfold all the source files.
     public let glob: String
 
-    /// Glob pattern used for filtering out files
+    /// Glob pattern used for filtering out files.
     public let excluding: [String]
 
     /// Compiler flags.
     public let compilerFlags: String?
 
-    /// Source file code generation attribute
+    /// Source file code generation attribute.
     public let codeGen: FileCodeGen?
 
-    /// Source file condition for platform filters
+    /// Condition to specify under which condition this file is included.
     public let condition: TargetDependency.Condition?
 
     /// Initializes the source file glob.
@@ -22,7 +22,8 @@ public struct SourceFileGlob: Equatable {
     ///   - glob: Glob pattern to unfold all the source files.
     ///   - excluding: Glob pattern used for filtering out files.
     ///   - compilerFlags: Compiler flags.
-    ///   - codeGen: Source file code generation attribute
+    ///   - codeGen: Source file code generation attribute.
+    ///   - condition: Condition for file inclusion.
     public init(
         glob: String,
         excluding: [String] = [],
