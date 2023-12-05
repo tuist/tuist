@@ -67,7 +67,25 @@ extension TuistGraph.Config.GenerationOptions {
         return .init(
             resolveDependenciesWithSystemScm: manifest.resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: manifest.disablePackageVersionLocking,
-            clonedSourcePackagesDirPath: clonedSourcePackagesDirPath
+            clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+            staticSideEffectsWarningTargets: TuistGraph.Config.GenerationOptions.StaticSideEffectsWarningTargets
+                .from(manifest: manifest.staticSideEffectsWarningTargets)
         )
+    }
+}
+
+extension TuistGraph.Config.GenerationOptions.StaticSideEffectsWarningTargets {
+    /// Maps a ProjectDescription.Config.GenerationOptions.StaticSideEffectsWarningTargets instance into a
+    /// TuistGraph.Config.GenerationOptions.StaticSideEffectsWarningTargets model.
+    /// - Parameters:
+    ///   - manifest: Manifest representation of Tuist config static side effects warning targets option
+    static func from(
+        manifest: ProjectDescription.Config.GenerationOptions.StaticSideEffectsWarningTargets
+    ) -> TuistGraph.Config.GenerationOptions.StaticSideEffectsWarningTargets {
+        switch manifest {
+        case .all: return .all
+        case .none: return .none
+        case let .excluding(excludedTargets): return .excluding(excludedTargets)
+        }
     }
 }
