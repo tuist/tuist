@@ -79,6 +79,10 @@ extension PackageInfo {
             self.version = version
             self.options = options
         }
+
+        public var platform: PackagePlatform? {
+            PackagePlatform(rawValue: platformName)
+        }
     }
 }
 
