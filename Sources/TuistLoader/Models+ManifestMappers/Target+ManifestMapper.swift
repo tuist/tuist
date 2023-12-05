@@ -202,7 +202,7 @@ extension TuistGraph.Target {
                 excluding: excluding,
                 compilerFlags: glob.compilerFlags,
                 codeGen: mappedCodeGen,
-                condition: glob.condition?.asGraphCondition
+                compilationCondition: glob.compilationCondition?.asGraphCondition
             )
         } ?? [])
 

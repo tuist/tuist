@@ -628,12 +628,11 @@ public class GraphTraverser: GraphTraversing {
     ///   - rootDependency: dependency whose platform filters we need when depending on `transitiveDependency`
     ///   - transitiveDependency: target dependency
     /// - Returns: CombinationResult which represents a resolved condition or `.invalid` based on traversing
-    func combinedCondition(to transitiveDependency: GraphDependency, from rootDependency: GraphDependency) -> TargetDependency
-        .Condition.CombinationResult
+    func combinedCondition(to transitiveDependency: GraphDependency, from rootDependency: GraphDependency) -> PlatformCondition.CombinationResult
     {
         var visited: Set<GraphDependency> = []
 
-        func find(from root: GraphDependency, to other: GraphDependency) -> TargetDependency.Condition.CombinationResult {
+        func find(from root: GraphDependency, to other: GraphDependency) -> PlatformCondition.CombinationResult {
             // Skip already visited nodes
             guard !visited.contains(root) else { return .incompatible }
             visited.insert(root)
@@ -647,7 +646,7 @@ public class GraphTraverser: GraphTraversing {
             } else {
                 // Capture the filters that could be applied to intermediate dependencies
                 // A --> (.ios) B --> C : C should have the .ios filter applied due to B
-                let filters = dependencies.map { node -> TargetDependency.Condition.CombinationResult in
+                let filters = dependencies.map { node -> PlatformCondition.CombinationResult in
                     let transitive = find(from: node, to: other)
                     let currentCondition = graph.dependencyConditions[(root, node)]
                     switch transitive {
@@ -665,7 +664,7 @@ public class GraphTraverser: GraphTraversing {
                 //  A --> (.macos) D --> C
                 // C should have `[.ios, .macos]` set for filters to satisfy both paths
                 let transitiveFilters = filters.compactMap { $0 }
-                    .reduce(TargetDependency.Condition.CombinationResult.incompatible) { result, condition in
+                    .reduce(PlatformCondition.CombinationResult.incompatible) { result, condition in
                         result.combineWith(condition)
                     }
 

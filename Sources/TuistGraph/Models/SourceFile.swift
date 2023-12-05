@@ -19,20 +19,20 @@ public struct SourceFile: ExpressibleByStringLiteral, Equatable, Codable {
     public let codeGen: FileCodeGen?
 
     /// Source file condition for platform filters
-    public let condition: TargetDependency.Condition?
+    public let compilationCondition:  PlatformCondition?
 
     public init(
         path: AbsolutePath,
         compilerFlags: String? = nil,
         contentHash: String? = nil,
         codeGen: FileCodeGen? = nil,
-        condition: TargetDependency.Condition? = nil
+        compilationCondition: PlatformCondition? = nil
     ) {
         self.path = path
         self.compilerFlags = compilerFlags
         self.contentHash = contentHash
         self.codeGen = codeGen
-        self.condition = condition
+        self.compilationCondition = compilationCondition
     }
 
     // MARK: - ExpressibleByStringLiteral
@@ -42,6 +42,6 @@ public struct SourceFile: ExpressibleByStringLiteral, Equatable, Codable {
         compilerFlags = nil
         contentHash = nil
         codeGen = nil
-        condition = nil
+        compilationCondition = nil
     }
 }

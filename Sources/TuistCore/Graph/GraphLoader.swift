@@ -313,7 +313,7 @@ public final class GraphLoader: GraphLoading {
         var loadedProjects: [AbsolutePath: Project] = [:]
         var loadedTargets: [AbsolutePath: [String: Target]] = [:]
         var dependencies: [GraphDependency: Set<GraphDependency>] = [:]
-        var dependencyConditions: [GraphEdge: TargetDependency.Condition] = [:]
+        var dependencyConditions: [GraphEdge: PlatformCondition] = [:]
         var frameworks: [AbsolutePath: GraphDependency] = [:]
         var libraries: [AbsolutePath: GraphDependency] = [:]
         var xcframeworks: [AbsolutePath: GraphDependency] = [:]

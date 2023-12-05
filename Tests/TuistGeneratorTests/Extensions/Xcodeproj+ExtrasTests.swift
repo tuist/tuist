@@ -37,7 +37,7 @@ class XcodeprojExtrasTests: XCTestCase {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .mac])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: TargetDependency.Condition = try .test([.ios, .macos])
+        let dependencyCondition: PlatformCondition = try .test([.ios, .macos])
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)
@@ -64,7 +64,7 @@ class XcodeprojExtrasTests: XCTestCase {
         // Given
         let target = Target.test(destinations: [.mac])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: TargetDependency.Condition = try .test([.ios, .macos])
+        let dependencyCondition: PlatformCondition = try .test([.ios, .macos])
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)
@@ -78,7 +78,7 @@ class XcodeprojExtrasTests: XCTestCase {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .mac, .appleVision])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: TargetDependency.Condition = try .test([.ios, .macos])
+        let dependencyCondition: PlatformCondition = try .test([.ios, .macos])
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)
@@ -92,7 +92,7 @@ class XcodeprojExtrasTests: XCTestCase {
         // Given
         let target = Target.test(destinations: [.iPhone, .iPad, .appleVision])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: TargetDependency.Condition = try .test([.ios, .macos])
+        let dependencyCondition: PlatformCondition = try .test([.ios, .macos])
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)
@@ -106,7 +106,7 @@ class XcodeprojExtrasTests: XCTestCase {
         // Given
         let target = Target.test(destinations: [.appleVision])
         let buildFile = PBXBuildFile()
-        let dependencyCondition: TargetDependency.Condition = try .test([.macos])
+        let dependencyCondition: PlatformCondition = try .test([.macos])
 
         // When
         buildFile.applyCondition(dependencyCondition, applicableTo: target)

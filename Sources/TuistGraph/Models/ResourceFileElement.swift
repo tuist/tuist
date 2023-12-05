@@ -5,9 +5,9 @@ public enum ResourceFileElement: Equatable, Hashable, Codable {
     /// A file path (or glob pattern) to include, a list of file paths (or glob patterns) to exclude, ODR tags list and inclusion
     /// condition.
     /// For convenience, a string literal can be used as an alternate way to specify this option.
-    case file(path: AbsolutePath, tags: [String] = [], condition: TargetDependency.Condition? = nil)
+    case file(path: AbsolutePath, tags: [String] = [], inclusionCondition: PlatformCondition? = nil)
     /// A directory path to include as a folder reference, ODR tags list and inclusion condition.
-    case folderReference(path: AbsolutePath, tags: [String] = [], condition: TargetDependency.Condition? = nil)
+    case folderReference(path: AbsolutePath, tags: [String] = [], inclusionCondition: PlatformCondition? = nil)
 
     public var path: AbsolutePath {
         switch self {
@@ -36,7 +36,7 @@ public enum ResourceFileElement: Equatable, Hashable, Codable {
         }
     }
 
-    public var condition: TargetDependency.Condition? {
+    public var inclusionCondition: PlatformCondition? {
         switch self {
         case let .file(_, _, condition):
             return condition

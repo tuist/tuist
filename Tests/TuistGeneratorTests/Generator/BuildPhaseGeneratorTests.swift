@@ -113,11 +113,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         let sourceFiles: [SourceFile] = [
             SourceFile(path: "/test/file1.swift"),
-            SourceFile(path: "/test/file2.swift", condition: .when([.ios])),
-            SourceFile(path: "/test/file3.swift", condition: .when([.watchos])),
-            SourceFile(path: "/test/file4.swift", condition: .when([.visionos])),
-            SourceFile(path: "/test/file5.swift", condition: .when([.macos])),
-            SourceFile(path: "/test/file6.swift", condition: .when([.tvos])),
+            SourceFile(path: "/test/file2.swift", compilationCondition: .when([.ios])),
+            SourceFile(path: "/test/file3.swift", compilationCondition: .when([.watchos])),
+            SourceFile(path: "/test/file4.swift", compilationCondition: .when([.visionos])),
+            SourceFile(path: "/test/file5.swift", compilationCondition: .when([.macos])),
+            SourceFile(path: "/test/file6.swift", compilationCondition: .when([.tvos])),
         ]
 
         let target = Target.test(sources: sourceFiles)
@@ -708,11 +708,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         let resources: [ResourceFileElement] = [
             .file(path: "/Shared.type"),
-            .file(path: "/iOS.type", condition: .when([.ios])),
-            .file(path: "/macOS.type", condition: .when([.macos])),
-            .file(path: "/tvOS.type", condition: .when([.tvos])),
-            .file(path: "/visionOS.type", condition: .when([.visionos])),
-            .file(path: "/watchOS.type", condition: .when([.watchos])),
+            .file(path: "/iOS.type", inclusionCondition: .when([.ios])),
+            .file(path: "/macOS.type", inclusionCondition: .when([.macos])),
+            .file(path: "/tvOS.type", inclusionCondition: .when([.tvos])),
+            .file(path: "/visionOS.type", inclusionCondition: .when([.visionos])),
+            .file(path: "/watchOS.type", inclusionCondition: .when([.watchos])),
         ]
         let target = Target.test(resources: resources)
         let fileElements = ProjectFileElements()

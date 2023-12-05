@@ -14,8 +14,8 @@ public struct SourceFileGlob: Equatable {
     /// Source file code generation attribute.
     public let codeGen: FileCodeGen?
 
-    /// Condition to specify under which condition this file is included.
-    public let condition: TargetDependency.Condition?
+    /// Compilation condition the source file.
+    public let compilationCondition: PlatformCondition?
 
     /// Initializes the source file glob.
     /// - Parameters:
@@ -23,18 +23,18 @@ public struct SourceFileGlob: Equatable {
     ///   - excluding: Glob pattern used for filtering out files.
     ///   - compilerFlags: Compiler flags.
     ///   - codeGen: Source file code generation attribute.
-    ///   - condition: Condition for file inclusion.
+    ///   - compilationCondition: Condition for file compilation.
     public init(
         glob: String,
         excluding: [String] = [],
         compilerFlags: String? = nil,
         codeGen: FileCodeGen? = nil,
-        condition: TargetDependency.Condition? = nil
+        compilationCondition: PlatformCondition? = nil
     ) {
         self.glob = glob
         self.excluding = excluding
         self.compilerFlags = compilerFlags
         self.codeGen = codeGen
-        self.condition = condition
+        self.compilationCondition = compilationCondition
     }
 }

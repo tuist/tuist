@@ -9,10 +9,10 @@ import Foundation
 ///       `"some/pattern/**"` is the equivalent of `ResourceFileElement.glob(pattern: "some/pattern/**")`
 public enum ResourceFileElement: Codable, Equatable {
     /// A glob pattern of files to include and ODR tags
-    case glob(pattern: Path, excluding: [Path] = [], tags: [String] = [], condition: TargetDependency.Condition? = nil)
+    case glob(pattern: Path, excluding: [Path] = [], tags: [String] = [], inclusionCondition: PlatformCondition? = nil)
 
     /// Relative path to a directory to include as a folder reference and ODR tags
-    case folderReference(path: Path, tags: [String] = [], condition: TargetDependency.Condition? = nil)
+    case folderReference(path: Path, tags: [String] = [], inclusionCondition: PlatformCondition? = nil)
 
     private enum TypeName: String, Codable {
         case glob

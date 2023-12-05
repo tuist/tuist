@@ -3087,7 +3087,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 sdkDependency,
             ],
         ]
-        var dependencyConditions: [GraphEdge: TargetDependency.Condition] = [:]
+        var dependencyConditions: [GraphEdge: PlatformCondition] = [:]
         dependencyConditions[(.target(name: target.name, path: project.path), sdkDependency)] = .when([.ios])
 
         let graph = Graph.test(

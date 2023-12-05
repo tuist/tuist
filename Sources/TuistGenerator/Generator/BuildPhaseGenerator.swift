@@ -269,7 +269,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
             if buildFilesCache.contains(element.path) == false {
                 let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings)
-                pbxBuildFile.applyCondition(buildFile.condition, applicableTo: target)
+                pbxBuildFile.applyCondition(buildFile.compilationCondition, applicableTo: target)
                 pbxBuildFiles.append(pbxBuildFile)
                 buildFilesCache.insert(element.path)
             }
@@ -439,7 +439,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 let settings: [String: Any]? = !tags.isEmpty ? ["ASSET_TAGS": tags] : nil
 
                 let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings)
-                pbxBuildFile.applyCondition(resource.condition, applicableTo: target)
+                pbxBuildFile.applyCondition(resource.inclusionCondition, applicableTo: target)
                 pbxBuildFiles.append(pbxBuildFile)
                 buildFilesCache.insert(element.path)
             }

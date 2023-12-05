@@ -65,14 +65,14 @@ extension TuistGraph.ResourceFileElement {
             return try globFiles(resolvedPath, excluding: excluding).map { ResourceFileElement.file(
                 path: $0,
                 tags: tags,
-                condition: condition?.asGraphCondition
+                inclusionCondition: condition?.asGraphCondition
             ) }
         case let .folderReference(folderReferencePath, tags, condition):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
             return folderReferences(resolvedPath).map { ResourceFileElement.folderReference(
                 path: $0,
                 tags: tags,
-                condition: condition?.asGraphCondition
+                inclusionCondition: condition?.asGraphCondition
             ) }
         }
     }

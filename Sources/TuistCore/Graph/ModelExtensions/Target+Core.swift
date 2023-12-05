@@ -90,7 +90,7 @@ extension Target {
                     path: $0,
                     compilerFlags: source.compilerFlags,
                     codeGen: source.codeGen,
-                    condition: source.condition
+                    compilationCondition: source.compilationCondition
                 ) }
         }
 

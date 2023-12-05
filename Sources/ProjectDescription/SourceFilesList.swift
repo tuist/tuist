@@ -14,8 +14,8 @@ public struct SourceFileGlob: Codable, Equatable {
     /// The source file attribute to be set in the build phase.
     public let codeGen: FileCodeGen?
 
-    /// Condition to specify under which condition this file is included.
-    public let condition: TargetDependency.Condition?
+    /// Source file condition for compilation
+    public let compilationCondition: PlatformCondition?
 
     /// Returns a source glob pattern configuration.
     ///
@@ -24,15 +24,15 @@ public struct SourceFileGlob: Codable, Equatable {
     ///   - excluding: Glob patterns for source files that will be excluded.
     ///   - compilerFlags: The compiler flags to be set to the source files in the sources build phase.
     ///   - codeGen: The source file attribute to be set in the build phase.
-    ///   - condition: Condition for file inclusion.
+    ///   - compilationCondition: Condition for file compilation.
     public static func glob(
         _ glob: Path,
         excluding: [Path] = [],
         compilerFlags: String? = nil,
         codeGen: FileCodeGen? = nil,
-        condition: TargetDependency.Condition? = nil
+        compilationCondition: PlatformCondition? = nil
     ) -> Self {
-        .init(glob: glob, excluding: excluding, compilerFlags: compilerFlags, codeGen: codeGen, condition: condition)
+        .init(glob: glob, excluding: excluding, compilerFlags: compilerFlags, codeGen: codeGen, compilationCondition: compilationCondition)
     }
 
     public static func glob(
@@ -40,16 +40,16 @@ public struct SourceFileGlob: Codable, Equatable {
         excluding: Path?,
         compilerFlags: String? = nil,
         codeGen: FileCodeGen? = nil,
-        condition: TargetDependency.Condition? = nil
+        compilationCondition: PlatformCondition? = nil
     ) -> Self {
         let paths: [Path] = excluding.flatMap { [$0] } ?? []
-        return .init(glob: glob, excluding: paths, compilerFlags: compilerFlags, codeGen: codeGen, condition: condition)
+        return .init(glob: glob, excluding: paths, compilerFlags: compilerFlags, codeGen: codeGen, compilationCondition: compilationCondition)
     }
 }
 
 extension SourceFileGlob: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self.init(glob: Path(value), excluding: [], compilerFlags: nil, codeGen: nil, condition: nil)
+        self.init(glob: Path(value), excluding: [], compilerFlags: nil, codeGen: nil, compilationCondition: nil)
     }
 }
 
