@@ -49,9 +49,9 @@ let project = Project(
             infoPlist: "Support/Framework-Info.plist",
             sources: [
                 .glob("Framework/Shared/**"),
-                .glob("Framework/tvOS/**", condition: .when([.tvos])),
-                .glob("Framework/macOS/**", condition: .when([.macos])),
-                .glob("Framework/iOS/**", condition: .when([.ios])),
+                .glob("Framework/tvOS/**", compilationCondition: .when([.tvos])),
+                .glob("Framework/macOS/**", compilationCondition: .when([.macos])),
+                .glob("Framework/iOS/**", compilationCondition: .when([.ios])),
             ],
             dependencies: [
                 .sdk(name: "CloudKit", type: .framework, status: .optional),
