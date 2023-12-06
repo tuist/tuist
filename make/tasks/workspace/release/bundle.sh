@@ -23,7 +23,7 @@ XCODE_PATH=/Applications/Xcode_15.0.app
 # and causes the line below to output a non-existing path. Once they've installed 15.0.1
 # in the CI environments, the hardcoded path should not be necessary.
 # That will happen when this PR is merged and deployed: https://github.com/actions/runner-images/pull/8601
-# XCODE_PATH=$($XCODE_PATH_SCRIPT_PATH --version $XCODE_VERSION)
+XCODE_PATH=$($XCODE_PATH_SCRIPT_PATH --version $XCODE_VERSION)
 XCODE_LIBRARIES_PATH=$($XCODE_PATH_SCRIPT_PATH --version $LIBRARIES_XCODE_VERSION)
 
 echo "Static executables will be built with $XCODE_PATH"
