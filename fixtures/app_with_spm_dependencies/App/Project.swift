@@ -42,7 +42,7 @@ let project = Project(
                 .external(name: "Stripe"),
                 .external(name: "StripeCardScan"),
                 .external(name: "TYStatusBarView"),
-                .external(name: "Auth0")
+                .external(name: "Auth0"),
             ],
             settings: .targetSettings
         ),

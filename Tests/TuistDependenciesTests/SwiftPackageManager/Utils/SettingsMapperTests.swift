@@ -241,7 +241,6 @@ final class SettingsMapperTests: XCTestCase {
             .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
         )
 
-
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
             .string("$(inherited) SWIFT_PACKAGE Define1")
