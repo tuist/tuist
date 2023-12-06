@@ -253,6 +253,10 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                     "@executable_path/Frameworks",
                 ],
             ]
+        } else if target.product == .macro {
+            return [
+                "SKIP_INSTALL": "YES",
+            ]
         } else {
             return [:]
         }
