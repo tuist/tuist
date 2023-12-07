@@ -90,6 +90,8 @@ jobs:
           restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
       - name: Fetch dependencies
         run: tuist fetch
+      - name: Print hashes
+        run: tuist cache print-hashes
       - name: Cache warm
         run: tuist cache warm
 
@@ -109,6 +111,8 @@ jobs:
           restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
       - name: Fetch dependencies
         run: tuist fetch
+      - name: Print hashes
+        run: tuist cache print-hashes
       - name: Cache warm
         run: tuist cache warm
 
