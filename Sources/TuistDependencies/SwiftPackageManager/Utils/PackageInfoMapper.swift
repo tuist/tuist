@@ -927,7 +927,7 @@ extension ProjectDescription.TargetDependency {
 
         let linkerDependencies: [ProjectDescription.TargetDependency] = settings.compactMap { setting in
             do {
-                let condition = try ProjectDescription.TargetDependency.Condition.from(setting.condition)
+                let condition = try ProjectDescription.PlatformCondition.from(setting.condition)
 
                 switch (setting.tool, setting.name) {
                 case (.linker, .linkedFramework):
@@ -1297,9 +1297,9 @@ extension PackageInfo.Target {
 
 extension PackageInfoMapper {
     public enum ResolvedDependency: Equatable, Hashable {
-        case target(name: String, condition: ProjectDescription.TargetDependency.Condition? = nil)
-        case xcframework(path: Path, condition: ProjectDescription.TargetDependency.Condition? = nil)
-        case externalTarget(package: String, target: String, condition: ProjectDescription.TargetDependency.Condition? = nil)
+        case target(name: String, condition: ProjectDescription.PlatformCondition? = nil)
+        case xcframework(path: Path, condition: ProjectDescription.PlatformCondition? = nil)
+        case externalTarget(package: String, target: String, condition: ProjectDescription.PlatformCondition? = nil)
 
         public func hash(into hasher: inout Hasher) {
             switch self {
@@ -1319,7 +1319,7 @@ extension PackageInfoMapper {
             }
         }
 
-        fileprivate var condition: ProjectDescription.TargetDependency.Condition? {
+        fileprivate var condition: ProjectDescription.PlatformCondition? {
             switch self {
             case let .target(_, condition):
                 return condition
@@ -1394,7 +1394,7 @@ extension PackageInfoMapper {
             condition packageConditionDescription: PackageInfo.PackageConditionDescription?
         ) -> [Self] {
             do {
-                let condition = try ProjectDescription.TargetDependency.Condition.from(packageConditionDescription)
+                let condition = try ProjectDescription.PlatformCondition.from(packageConditionDescription)
 
                 if let framework = targetDependencyToFramework[name] {
                     return [.xcframework(path: framework, condition: condition)]
@@ -1417,7 +1417,7 @@ extension PackageInfoMapper {
                 throw PackageInfoMapperError.unknownProductDependency(product, package)
             }
             do {
-                let condition = try ProjectDescription.TargetDependency.Condition.from(packageConditionDescription)
+                let condition = try ProjectDescription.PlatformCondition.from(packageConditionDescription)
 
                 return packageProduct.targets.map { name in
                     if let framework = targetDependencyToFramework[name] {
@@ -1437,10 +1437,10 @@ extension PackageInfoMapper {
     }
 }
 
-extension ProjectDescription.TargetDependency.Condition {
+extension ProjectDescription.PlatformCondition {
     struct OnlyConditionsWithUnsupportedPlatforms: Error {}
 
-    /// Map from a package condition to ProjectDescription.TargetDependency.Condition
+    /// Map from a package condition to ProjectDescription.PlatformCondition
     /// - Parameter condition: condition representing platforms that a given dependency applies to
     /// - Returns: set of PlatformFilters to be used with `GraphDependencyRefrence`
     /// throws `OnlyConditionsWithUnsupportedPlatforms` if the condition only contains platforms not supported by Tuist (e.g

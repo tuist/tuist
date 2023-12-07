@@ -92,7 +92,7 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func directLocalTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(
         GraphTarget,
-        TargetDependency.Condition?
+        PlatformCondition?
     )]
 
     /// Given a project directory and a target name, it returns all the dependencies that are extensions.

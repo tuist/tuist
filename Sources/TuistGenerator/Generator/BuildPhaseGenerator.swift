@@ -75,6 +75,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             try generateSourcesBuildPhase(
                 files: target.sources,
                 coreDataModels: target.coreDataModels,
+                target: target,
                 pbxTarget: pbxTarget,
                 fileElements: fileElements,
                 pbxproj: pbxproj
@@ -217,6 +218,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     func generateSourcesBuildPhase(
         files: [SourceFile],
         coreDataModels: [CoreDataModel],
+        target: Target,
         pbxTarget: PBXTarget,
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
@@ -267,6 +269,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
             if buildFilesCache.contains(element.path) == false {
                 let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings)
+                pbxBuildFile.applyCondition(buildFile.compilationCondition, applicableTo: target)
                 pbxBuildFiles.append(pbxBuildFile)
                 buildFilesCache.insert(element.path)
             }
@@ -323,6 +326,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         var pbxBuildFiles = [PBXBuildFile]()
 
         pbxBuildFiles.append(contentsOf: try generateResourcesBuildFile(
+            target: target,
             files: target.resources,
             fileElements: fileElements
         ))
@@ -395,6 +399,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     }
 
     private func generateResourcesBuildFile(
+        target: Target,
         files: [ResourceFileElement],
         fileElements: ProjectFileElements
     ) throws -> [PBXBuildFile] {
@@ -434,6 +439,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 let settings: [String: Any]? = !tags.isEmpty ? ["ASSET_TAGS": tags] : nil
 
                 let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings)
+                pbxBuildFile.applyCondition(resource.inclusionCondition, applicableTo: target)
                 pbxBuildFiles.append(pbxBuildFile)
                 buildFilesCache.insert(element.path)
             }

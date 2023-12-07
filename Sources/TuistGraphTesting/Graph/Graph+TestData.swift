@@ -11,7 +11,7 @@ extension Graph {
         packages: [AbsolutePath: [String: Package]] = [:],
         targets: [AbsolutePath: [String: Target]] = [:],
         dependencies: [GraphDependency: Set<GraphDependency>] = [:],
-        dependencyConditions: [GraphEdge: TargetDependency.Condition] = [:]
+        dependencyConditions: [GraphEdge: PlatformCondition] = [:]
     ) -> Graph {
         Graph(
             name: name,

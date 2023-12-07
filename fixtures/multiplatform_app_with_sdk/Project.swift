@@ -47,7 +47,12 @@ let project = Project(
             product: .framework,
             bundleId: "io.tuist.MacFramework",
             infoPlist: "Support/Framework-Info.plist",
-            sources: "Framework/**",
+            sources: [
+                .glob("Framework/Shared/**"),
+                .glob("Framework/tvOS/**", compilationCondition: .when([.tvos])),
+                .glob("Framework/macOS/**", compilationCondition: .when([.macos])),
+                .glob("Framework/iOS/**", compilationCondition: .when([.ios])),
+            ],
             dependencies: [
                 .sdk(name: "CloudKit", type: .framework, status: .optional),
                 .sdk(name: "sqlite3", type: .library),

@@ -103,8 +103,8 @@ extension ProjectDescription.PlatformFilters {
     }
 }
 
-extension ProjectDescription.TargetDependency.Condition {
-    var asGraphCondition: TuistGraph.TargetDependency.Condition? {
+extension ProjectDescription.PlatformCondition {
+    var asGraphCondition: TuistGraph.PlatformCondition? {
         .when(Set(platformFilters.asGraphFilters))
     }
 }

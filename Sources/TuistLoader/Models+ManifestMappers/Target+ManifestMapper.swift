@@ -165,7 +165,7 @@ extension TuistGraph.Target {
             .forEach { fileElement in
                 switch fileElement {
                 case .folderReference: filteredResources.append(fileElement)
-                case let .file(path, _):
+                case let .file(path, _, _):
                     if path.extension == "playground" {
                         playgrounds.insert(path)
                     } else if path.extension == "xcdatamodeld" {
@@ -201,7 +201,8 @@ extension TuistGraph.Target {
                 glob: globPath,
                 excluding: excluding,
                 compilerFlags: glob.compilerFlags,
-                codeGen: mappedCodeGen
+                codeGen: mappedCodeGen,
+                compilationCondition: glob.compilationCondition?.asGraphCondition
             )
         } ?? [])
 
