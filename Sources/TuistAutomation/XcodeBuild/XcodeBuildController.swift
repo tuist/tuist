@@ -17,15 +17,18 @@ public final class XcodeBuildController: XcodeBuildControlling {
     )
 
     private let formatter: Formatting
-
+    private let environment: Environmenting
+    
     public convenience init() {
-        self.init(formatter: Formatter())
+        self.init(formatter: Formatter(), environment: Environment.shared)
     }
 
     init(
-        formatter: Formatting
+        formatter: Formatting,
+        environment: Environmenting
     ) {
         self.formatter = formatter
+        self.environment = environment
     }
 
     public func build(
@@ -292,14 +295,14 @@ public final class XcodeBuildController: XcodeBuildControlling {
                 switch event {
                 case let .standardError(errorData):
                     guard let line = String(data: errorData, encoding: .utf8) else { return nil }
-                    if rawXcodebuildLogs {
+                    if rawXcodebuildLogs || self?.environment.isVerbose == true {
                         return SystemEvent.standardError(XcodeBuildOutput(raw: line))
                     } else {
                         return SystemEvent.standardError(XcodeBuildOutput(raw: self?.formatter.format(line) ?? ""))
                     }
                 case let .standardOutput(outputData):
                     guard let line = String(data: outputData, encoding: .utf8) else { return nil }
-                    if rawXcodebuildLogs {
+                    if rawXcodebuildLogs || self?.environment.isVerbose == true {
                         return SystemEvent.standardOutput(XcodeBuildOutput(raw: line))
                     } else {
                         return SystemEvent.standardOutput(XcodeBuildOutput(raw: self?.formatter.format(line) ?? ""))
