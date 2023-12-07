@@ -18,16 +18,21 @@ public struct SourceFile: ExpressibleByStringLiteral, Equatable, Codable {
     /// Source file code generation attribute
     public let codeGen: FileCodeGen?
 
+    /// Source file condition for platform filters
+    public let compilationCondition: PlatformCondition?
+
     public init(
         path: AbsolutePath,
         compilerFlags: String? = nil,
         contentHash: String? = nil,
-        codeGen: FileCodeGen? = nil
+        codeGen: FileCodeGen? = nil,
+        compilationCondition: PlatformCondition? = nil
     ) {
         self.path = path
         self.compilerFlags = compilerFlags
         self.contentHash = contentHash
         self.codeGen = codeGen
+        self.compilationCondition = compilationCondition
     }
 
     // MARK: - ExpressibleByStringLiteral
@@ -37,5 +42,6 @@ public struct SourceFile: ExpressibleByStringLiteral, Equatable, Codable {
         compilerFlags = nil
         contentHash = nil
         codeGen = nil
+        compilationCondition = nil
     }
 }

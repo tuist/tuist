@@ -412,7 +412,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         func addBuildFile(
             _ path: AbsolutePath,
-            condition: TargetDependency.Condition?,
+            condition: PlatformCondition?,
             status: FrameworkStatus = .required
         ) throws {
             guard let fileRef = fileElements.file(path: path) else {
@@ -665,7 +665,7 @@ extension PBXTarget {
         isPlugin: Bool,
         pbxproj: PBXProj,
         target: Target,
-        condition: TargetDependency.Condition?
+        condition: PlatformCondition?
     ) throws {
         let productDependency = XCSwiftPackageProductDependency(productName: productName, isPlugin: isPlugin)
         pbxproj.add(object: productDependency)

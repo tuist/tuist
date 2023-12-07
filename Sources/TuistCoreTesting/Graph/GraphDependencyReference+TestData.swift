@@ -16,7 +16,7 @@ extension GraphDependencyReference {
         architectures: [BinaryArchitecture] = [.arm64],
         product: Product = .framework,
         status: FrameworkStatus = .required,
-        condition: TargetDependency.Condition? = nil
+        condition: PlatformCondition? = nil
     ) -> GraphDependencyReference {
         GraphDependencyReference.framework(
             path: path,
@@ -39,7 +39,7 @@ extension GraphDependencyReference {
         binaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist",
         linking _: BinaryLinking = .dynamic,
         status: FrameworkStatus = .required,
-        condition: TargetDependency.Condition? = nil
+        condition: PlatformCondition? = nil
     ) -> GraphDependencyReference {
         GraphDependencyReference.xcframework(
             path: path,
@@ -56,7 +56,7 @@ extension GraphDependencyReference {
         linking: BinaryLinking = .static,
         architectures: [BinaryArchitecture] = [BinaryArchitecture.arm64],
         product: Product = .staticLibrary,
-        condition: TargetDependency.Condition? = nil
+        condition: PlatformCondition? = nil
     ) -> GraphDependencyReference {
         GraphDependencyReference.library(
             path: path,
@@ -71,7 +71,7 @@ extension GraphDependencyReference {
         path: AbsolutePath = "/path/CoreData.framework",
         status: SDKStatus = .required,
         source: SDKSource = .system,
-        condition: TargetDependency.Condition? = nil
+        condition: PlatformCondition? = nil
     ) -> GraphDependencyReference {
         GraphDependencyReference.sdk(
             path: path,
@@ -84,7 +84,7 @@ extension GraphDependencyReference {
     public static func testProduct(
         target: String = "Target",
         productName: String = "Target.framework",
-        condition: TargetDependency.Condition? = nil
+        condition: PlatformCondition? = nil
     ) -> GraphDependencyReference {
         GraphDependencyReference.product(
             target: target,
