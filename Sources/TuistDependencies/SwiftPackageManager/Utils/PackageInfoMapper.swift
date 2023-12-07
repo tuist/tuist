@@ -1040,19 +1040,7 @@ extension ProjectDescription.Settings {
             settings: settings
         )
 
-        var resolvedSettings = try mapper.settingsDictionaryForPlatform(nil)
-
-        if target.type.supportsCustomSettings {
-            for platform in platforms {
-                let platformSettings = try mapper.settingsDictionaryForPlatform(platform)
-                try platformSettings.forEach { key, newValue in
-                    if resolvedSettings[key] != newValue {
-                        let newKey = "\(key)[sdk=\(try platform.graphPlatform().xcodeSdkRoot)*]"
-                        resolvedSettings[newKey] = newValue
-                    }
-                }
-            }
-        }
+        let resolvedSettings = try mapper.settingsForPlatforms(platforms)
 
         settingsDictionary.merge(resolvedSettings) { $1 }
 

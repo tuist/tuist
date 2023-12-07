@@ -14,5 +14,6 @@ let package = Package(
         .package(path: "../../../LocalSwiftPackage"),
         .package(url: "https://github.com/groue/GRDB.swift", from: "6.16.0"),
         .package(path: "../../../StringifyMacro"),
+        .package(url: "https://github.com/auth0/Auth0.swift", from: "2.5.0"),
     ]
 )

@@ -194,7 +194,7 @@ final class SettingsMapperTests: XCTestCase {
             .init(
                 tool: .swift,
                 name: .define,
-                condition: PackageInfo.PackageConditionDescription(platformNames: ["ios"], config: nil),
+                condition: PackageInfo.PackageConditionDescription(platformNames: ["ios", "tvos"], config: nil),
                 value: ["Define2"]
             ),
         ]
@@ -219,10 +219,25 @@ final class SettingsMapperTests: XCTestCase {
             .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
         )
 
-        let combinedSettings = try mapper.settingsForPlatforms([.ios, .macos])
+        let combinedSettings = try mapper.settingsForPlatforms([.ios, .macos, .tvos])
 
         XCTAssertEqual(
             combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos*]"],
+            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+        )
+
+        XCTAssertEqual(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator*]"],
+            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+        )
+
+        XCTAssertEqual(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvos*]"],
+            .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
+        )
+
+        XCTAssertEqual(
+            combinedSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=appletvsimulator*]"],
             .string("$(inherited) SWIFT_PACKAGE Define1 Define2")
         )
 
