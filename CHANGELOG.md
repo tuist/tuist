@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.35.3 - 2023-12-07
+
+### Added
+
+- [Multiplatform] Add support for multi platform conditions for source and resource files [#5628](https://github.com/tuist/tuist/pull/5628) by [@alexanderwe](https://github.com/alexanderwe)
+- Add flag to opt out from beautifying `xcodebuild` logs [#5635](https://github.com/tuist/tuist/pull/5635) by [@pepicrft](https://github.com/pepicrft)
+
+### Fixed
+
+- Add SKIP_INSTALL=YES to build settings for macro targets [#5641](https://github.com/tuist/tuist/pull/5641) by [@roanutil](https://github.com/roanutil)
+- Revert using `Workspace.swift` to detect the root directory [#5637](https://github.com/tuist/tuist/pull/5637) by [@pepicrft](https://github.com/pepicrft)
+- Fix regression in platform specific settings mapping [#5643](https://github.com/tuist/tuist/pull/5643) by [@waltflanagan](https://github.com/waltflanagan)
+
 ## 3.35.2 - 2023-12-05
 
 ### Fixed
