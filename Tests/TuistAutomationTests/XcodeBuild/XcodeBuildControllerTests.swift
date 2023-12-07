@@ -20,7 +20,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         formatter = MockFormatter()
-        subject = XcodeBuildController(formatter: formatter)
+        subject = XcodeBuildController(formatter: formatter, environment: environment)
     }
 
     override func tearDown() {
