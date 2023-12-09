@@ -158,6 +158,14 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistGeneratorTesting",
+        dependencies: [
+            "TuistGenerator",
+            swiftToolsSupportDependency,
+        ],
+        linkerSettings: [.linkedFramework("XCTest")]
+    ),
+    .target(
         name: "TuistScaffold",
         dependencies: [
             swiftToolsSupportDependency,
