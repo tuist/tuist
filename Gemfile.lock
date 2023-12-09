@@ -129,7 +129,7 @@ GEM
       railties (>= 4.1.0)
       responders
       warden (~> 1.2.3)
-    dockerfile-rails (1.5.12)
+    dockerfile-rails (1.5.14)
       rails (>= 3.0.0)
     drb (2.1.1)
       ruby2_keywords
@@ -192,7 +192,7 @@ GEM
     msgpack (1.7.2)
     multi_xml (0.6.0)
     mutex_m (0.1.2)
-    net-imap (0.4.4)
+    net-imap (0.4.7)
       date
       net-protocol
     net-pop (0.1.2)
@@ -203,13 +203,13 @@ GEM
       net-protocol
     netrc (0.11.0)
     nio4r (2.5.9)
-    nokogiri (1.15.4-aarch64-linux)
+    nokogiri (1.15.5-aarch64-linux)
       racc (~> 1.4)
-    nokogiri (1.15.4-arm64-darwin)
+    nokogiri (1.15.5-arm64-darwin)
       racc (~> 1.4)
-    nokogiri (1.15.4-x86_64-darwin)
+    nokogiri (1.15.5-x86_64-darwin)
       racc (~> 1.4)
-    nokogiri (1.15.4-x86_64-linux)
+    nokogiri (1.15.5-x86_64-linux)
       racc (~> 1.4)
     oauth2 (2.0.9)
       faraday (>= 0.17.3, < 3.0)
@@ -256,7 +256,7 @@ GEM
       rack
     rack-proxy (0.7.7)
       rack
-    rack-session (1.0.1)
+    rack-session (1.0.2)
       rack (< 3)
     rack-test (2.1.0)
       rack (>= 1.3)
