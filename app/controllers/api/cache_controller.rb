@@ -44,6 +44,7 @@ module API
     def cache_artifact_upload_service
       CacheService.new(
         project_slug: params[:project_id],
+        cache_category: params[:cache_category],
         hash: params[:hash],
         name: params[:name],
         subject: current_subject,

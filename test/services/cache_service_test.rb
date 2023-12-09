@@ -34,6 +34,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       subject: @user,
+      cache_category: "builds",
     )
       .object_exists?
 
@@ -54,6 +55,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       subject: @project,
+      cache_category: "builds",
     )
       .object_exists?
 
@@ -73,6 +75,27 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       subject: @project,
+      cache_category: "builds",
+    )
+      .object_exists?
+
+    # Then
+    assert_equal true, got
+  end
+
+  test "object exists when cache_category is not specified" do
+    # Given
+    bucket_object = mock
+    bucket_object.stubs(:content_length).returns(5)
+    Aws::S3::Client.any_instance.stubs(:get_object).returns(bucket_object)
+
+    # When
+    got = CacheService.new(
+      project_slug: "my-project/tuist",
+      hash: "artifact-hash",
+      name: "MyFramework",
+      subject: @project,
+      cache_category: "builds",
     )
       .object_exists?
 
@@ -90,6 +113,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       subject: @user,
+      cache_category: "builds",
     )
       .object_exists?
 
@@ -107,6 +131,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       subject: @user,
+      cache_category: "builds",
     )
       .object_exists?
 
@@ -125,6 +150,7 @@ class CacheServiceTest < ActiveSupport::TestCase
         hash: "artifact-hash",
         name: "MyFramework",
         subject: @project,
+        cache_category: "builds",
       )
         .object_exists?
     end
@@ -135,7 +161,7 @@ class CacheServiceTest < ActiveSupport::TestCase
     Aws::S3::Client.any_instance.stubs(:get_object)
     Aws::S3::Presigner.any_instance.stubs(:presigned_url).returns("download url")
     CacheEvent.create!(
-      name: "my-project/tuist/artifact-hash/MyFramework",
+      name: "my-project/tuist/builds/artifact-hash/MyFramework",
       event_type: :upload,
       size: 10,
       project_id: @project.id,
@@ -147,12 +173,43 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       subject: @user,
+      cache_category: "builds",
     )
       .fetch
 
     # Then
     assert_equal CacheEvent.count, 2
-    assert_equal CacheEvent.last.name, "my-project/tuist/artifact-hash/MyFramework"
+    assert_equal CacheEvent.last.name, "my-project/tuist/builds/artifact-hash/MyFramework"
+    assert_equal CacheEvent.last.event_type, "download"
+    assert_equal CacheEvent.last.size, 10
+    assert_equal CacheEvent.last.project, @project
+    assert_equal "download url", got
+  end
+
+  test "fetch returns presigned url for uploading file for tests cache_category" do
+    # Given
+    Aws::S3::Client.any_instance.stubs(:get_object)
+    Aws::S3::Presigner.any_instance.stubs(:presigned_url).returns("download url")
+    CacheEvent.create!(
+      name: "my-project/tuist/tests/artifact-hash/MyFramework",
+      event_type: :upload,
+      size: 10,
+      project_id: @project.id,
+    )
+
+    # When
+    got = CacheService.new(
+      project_slug: "my-project/tuist",
+      hash: "artifact-hash",
+      name: "MyFramework",
+      subject: @user,
+      cache_category: "tests",
+    )
+      .fetch
+
+    # Then
+    assert_equal CacheEvent.count, 2
+    assert_equal CacheEvent.last.name, "my-project/tuist/tests/artifact-hash/MyFramework"
     assert_equal CacheEvent.last.event_type, "download"
     assert_equal CacheEvent.last.size, 10
     assert_equal CacheEvent.last.project, @project
@@ -170,6 +227,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       subject: @user,
+      cache_category: "builds",
     )
       .upload
 
@@ -189,12 +247,13 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       subject: @user,
+      cache_category: "builds",
     )
       .verify_upload
 
     # Then
     assert_equal CacheEvent.count, 1
-    assert_equal CacheEvent.first.name, "my-project/tuist/artifact-hash/MyFramework"
+    assert_equal CacheEvent.first.name, "my-project/tuist/builds/artifact-hash/MyFramework"
     assert_equal CacheEvent.first.event_type, "upload"
     assert_equal CacheEvent.first.size, 5
     assert_equal CacheEvent.first.project, @project
@@ -245,6 +304,7 @@ class CacheServiceTest < ActiveSupport::TestCase
       hash: "artifact-hash",
       name: "MyFramework",
       subject: project,
+      cache_category: "builds",
     )
       .object_exists?
 

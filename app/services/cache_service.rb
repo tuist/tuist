@@ -35,16 +35,21 @@ class CacheService < ApplicationService
     end
   end
 
-  attr_reader :account_name, :project_name, :project_slug, :hash, :name, :object_key, :subject
+  attr_reader :account_name, :project_name, :project_slug, :hash, :name, :object_key, :subject, :cache_category
 
-  def initialize(project_slug:, hash:, name:, subject:)
+  def initialize(project_slug:, cache_category: nil, hash:, name:, subject:)
     super()
     split_project_slug = project_slug.split("/")
     @account_name = split_project_slug.first
     @project_name = split_project_slug.last
     @project_slug = project_slug
     @hash = hash
-    @object_key = "#{project_slug}/#{hash}/#{name}"
+    @object_key = if cache_category.nil? || cache_category.empty?
+      "#{project_slug}/#{hash}/#{name}"
+    else
+      "#{project_slug}/#{cache_category}/#{hash}/#{name}"
+    end
+
     @name = name
     @subject = subject
   end
