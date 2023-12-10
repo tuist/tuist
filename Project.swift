@@ -495,6 +495,7 @@ func targets() -> [Target] {
             dependencies: [
                 .target(name: "TuistKit"),
                 .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCore"),
                 .external(name: "SwiftToolsSupport"),
                 .external(name: "SystemPackage"),
                 .sdk(name: "XCTest", type: .framework, status: .optional),
