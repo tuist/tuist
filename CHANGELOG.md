@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.35.5 - 2023-12-10
+
+### Fixed
+
+- Fixed archival with swift macro [#5655](https://github.com/tuist/tuist/pull/5655) by [@kevinrandrup](https://github.com/kevinrandrup)
+- Fix missing SPM platforms [#5640](https://github.com/tuist/tuist/pull/5640) by [@waltflanagan](https://github.com/waltflanagan)
+
 ## 3.35.4 - 2023-12-07
 
 ### Added
