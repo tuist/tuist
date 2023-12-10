@@ -65,7 +65,7 @@ struct RunCommand: AsyncParsableCommand {
     var arguments: [String] = []
 
     @Flag(
-        name: [.customLong("raw-xcodebuild-logs"), .customShort("P")],
+        name: [.customLong("raw-xcodebuild-logs")],
         help: "When passed, it outputs the raw xcodebuild logs without formatting them."
     )
     var rawXcodebuildLogs: Bool = false
