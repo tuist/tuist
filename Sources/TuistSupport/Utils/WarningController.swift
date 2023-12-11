@@ -27,7 +27,7 @@ public final class WarningController: WarningControlling {
 
     public static var shared: WarningControlling = WarningController()
 
-    private init() {}
+    init() {}
 
     public func append(warning: String) {
         var warnings = warnings
