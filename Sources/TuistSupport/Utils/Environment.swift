@@ -1,7 +1,6 @@
-import Darwin.C
+import Darwin
 import Foundation
 import TSCBasic
-
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
 public protocol Environmenting: AnyObject {
@@ -91,10 +90,23 @@ public class Environment: Environmenting {
 
     /// Returns true if the output of Tuist should be coloured.
     public var shouldOutputBeColoured: Bool {
-        if let coloredOutput = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.colouredOutput] {
-            return Constants.trueValues.contains(coloredOutput)
+        let noColor = if let noColorEnvVariable = ProcessInfo.processInfo.environment["NO_COLOR"] {
+            Constants.trueValues.contains(noColorEnvVariable)
         } else {
-            return isStandardOutputInteractive
+            false
+        }
+        let ciColorForce = if let ciColorForceEnvVariable = ProcessInfo.processInfo.environment["CLICOLOR_FORCE"] {
+            Constants.trueValues.contains(ciColorForceEnvVariable)
+        } else {
+            false
+        }
+        if noColor {
+            return false
+        } else if ciColorForce {
+            return true
+        } else {
+            let isPiped = isatty(fileno(stdout)) == 0
+            return !isPiped
         }
     }
 
