@@ -4,7 +4,7 @@ Learn how to install Tuist in your environment
 
 ## Overview
 
-Tuist is a [command-line application](https://en.wikipedia.org/wiki/Command-line_interface) that you need to install in your environment before you can use it. The installation consists of an executable, dynamic frameworks, and a set of resources (e.g., templates). Although you could manually build Tuist from the sources, we recommend using one of the following installation methods to ensure a valid installation.
+Tuist is a [command-line application](https://en.wikipedia.org/wiki/Command-line_interface) that you need to install in your environment before you can use it. The installation consists of an executable, dynamic frameworks, and a set of resources (for example, templates). Although you could manually build Tuist from the sources, we recommend using one of the following installation methods to ensure a valid installation.
 
 ### Recommended: [rtx](https://github.com/jdx/rtx)
 
