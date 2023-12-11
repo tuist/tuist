@@ -64,6 +64,12 @@ struct RunCommand: AsyncParsableCommand {
     )
     var arguments: [String] = []
 
+    @Flag(
+        name: [.customLong("raw-xcodebuild-logs")],
+        help: "When passed, it outputs the raw xcodebuild logs without formatting them."
+    )
+    var rawXcodebuildLogs: Bool = false
+
     func run() async throws {
         try await RunService().run(
             path: path,
@@ -74,7 +80,8 @@ struct RunCommand: AsyncParsableCommand {
             device: device,
             version: os,
             rosetta: rosetta,
-            arguments: arguments
+            arguments: arguments,
+            rawXcodebuildLogs: rawXcodebuildLogs
         )
     }
 }

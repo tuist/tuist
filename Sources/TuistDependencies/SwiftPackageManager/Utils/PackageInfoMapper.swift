@@ -534,21 +534,18 @@ extension ProjectDescription.Target {
 
         let moduleMap = targetToModuleMap[target.name]
 
-        // Use the intersection of destations from `Dependencies.swift` and the destinations supported by the package.
-
         var destinations: ProjectDescription.Destinations
-
         if target.type == .macro {
             destinations = Set<ProjectDescription.Destination>([.mac])
         } else if packageName == "Firebase" {
+            // Some firebase targets need certain platforms removed in order for caching to work corractly
             let supportedPlatforms = try ProjectDescription.Destinations.fromFirebase(
-                platforms: packageInfo.platforms,
-                forTargetNamed: target.name
+                targetNamed: target.name
             )
             destinations = packageDestinations.intersection(supportedPlatforms)
         } else {
-            let supportedPlatforms = try ProjectDescription.Destinations.from(platforms: packageInfo.platforms)
-            destinations = packageDestinations.intersection(supportedPlatforms)
+            // All packages implicitly support all platforms, we constrain this with the platforms defined in `Dependencies.swift`
+            destinations = packageDestinations.intersection(Set(Destination.allCases))
         }
 
         if macroDependencies.contains(where: { dependency in
@@ -869,9 +866,8 @@ extension ResourceFileElements {
 }
 
 extension ProjectDescription.Destinations {
-    fileprivate static func fromFirebase(platforms: [PackageInfo.Platform], forTargetNamed name: String) throws -> Self {
-        guard !platforms.isEmpty else { return Set(Destination.allCases) }
-
+    fileprivate static func fromFirebase(targetNamed name: String) throws -> Self {
+        let platforms = ProjectDescription.PackagePlatform.allCases
         return Set(
             try platforms.filter { platform in
                 switch name {
@@ -880,27 +876,22 @@ extension ProjectDescription.Destinations {
                      "FirebaseAnalyticsWithoutAdIdSupportWrapper",
                      "FirebaseFirestoreSwift",
                      "FirebaseFirestore": // These dont support watchOS
-                    platform.platform != .watchOS
+                    platform != .watchOS
                 case "FirebaseAppDistribution",
                      "FirebaseDynamicLinks": // iOS only
-                    platform.platform == .iOS
+                    platform == .iOS
                 case "FirebaseInAppMessaging":
-                    platform.platform == .iOS ||
-                        platform.platform == .tvOS ||
-                        platform.platform == .visionOS
+                    platform == .iOS ||
+                        platform == .tvOS ||
+                        platform == .visionOS
                 case "FirebasePerformance":
-                    platform.platform != .macOS &&
-                        platform.platform != .watchOS
+                    platform != .macOS &&
+                        platform != .watchOS
                 default: true
                 }
             }
             .flatMap { try $0.destinations() }
         )
-    }
-
-    fileprivate static func from(platforms: [PackageInfo.Platform]) throws -> Self {
-        guard !platforms.isEmpty else { return Set(Destination.allCases) }
-        return Set(try platforms.flatMap { try $0.destinations() })
     }
 }
 
@@ -927,7 +918,7 @@ extension ProjectDescription.TargetDependency {
 
         let linkerDependencies: [ProjectDescription.TargetDependency] = settings.compactMap { setting in
             do {
-                let condition = try ProjectDescription.TargetDependency.Condition.from(setting.condition)
+                let condition = try ProjectDescription.PlatformCondition.from(setting.condition)
 
                 switch (setting.tool, setting.name) {
                 case (.linker, .linkedFramework):
@@ -1040,19 +1031,7 @@ extension ProjectDescription.Settings {
             settings: settings
         )
 
-        var resolvedSettings = try mapper.settingsDictionaryForPlatform(nil)
-
-        if target.type.supportsCustomSettings {
-            for platform in platforms {
-                let platformSettings = try mapper.settingsDictionaryForPlatform(platform)
-                try platformSettings.forEach { key, newValue in
-                    if resolvedSettings[key] != newValue {
-                        let newKey = "\(key)[sdk=\(try platform.graphPlatform().xcodeSdkRoot)*]"
-                        resolvedSettings[newKey] = newValue
-                    }
-                }
-            }
-        }
+        let resolvedSettings = try mapper.settingsForPlatforms(platforms)
 
         settingsDictionary.merge(resolvedSettings) { $1 }
 
@@ -1109,6 +1088,25 @@ extension ProjectDescription.Settings {
             }
         )
         return result
+    }
+}
+
+extension ProjectDescription.PackagePlatform {
+    fileprivate func destinations() throws -> ProjectDescription.Destinations {
+        switch self {
+        case .iOS:
+            return [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
+        case .macCatalyst:
+            return [.macCatalyst]
+        case .macOS:
+            return [.mac]
+        case .tvOS:
+            return [.appleTv]
+        case .watchOS:
+            return [.appleWatch]
+        case .visionOS:
+            return [.appleVision]
+        }
     }
 }
 
@@ -1297,9 +1295,9 @@ extension PackageInfo.Target {
 
 extension PackageInfoMapper {
     public enum ResolvedDependency: Equatable, Hashable {
-        case target(name: String, condition: ProjectDescription.TargetDependency.Condition? = nil)
-        case xcframework(path: Path, condition: ProjectDescription.TargetDependency.Condition? = nil)
-        case externalTarget(package: String, target: String, condition: ProjectDescription.TargetDependency.Condition? = nil)
+        case target(name: String, condition: ProjectDescription.PlatformCondition? = nil)
+        case xcframework(path: Path, condition: ProjectDescription.PlatformCondition? = nil)
+        case externalTarget(package: String, target: String, condition: ProjectDescription.PlatformCondition? = nil)
 
         public func hash(into hasher: inout Hasher) {
             switch self {
@@ -1319,7 +1317,7 @@ extension PackageInfoMapper {
             }
         }
 
-        fileprivate var condition: ProjectDescription.TargetDependency.Condition? {
+        fileprivate var condition: ProjectDescription.PlatformCondition? {
             switch self {
             case let .target(_, condition):
                 return condition
@@ -1394,7 +1392,7 @@ extension PackageInfoMapper {
             condition packageConditionDescription: PackageInfo.PackageConditionDescription?
         ) -> [Self] {
             do {
-                let condition = try ProjectDescription.TargetDependency.Condition.from(packageConditionDescription)
+                let condition = try ProjectDescription.PlatformCondition.from(packageConditionDescription)
 
                 if let framework = targetDependencyToFramework[name] {
                     return [.xcframework(path: framework, condition: condition)]
@@ -1417,7 +1415,7 @@ extension PackageInfoMapper {
                 throw PackageInfoMapperError.unknownProductDependency(product, package)
             }
             do {
-                let condition = try ProjectDescription.TargetDependency.Condition.from(packageConditionDescription)
+                let condition = try ProjectDescription.PlatformCondition.from(packageConditionDescription)
 
                 return packageProduct.targets.map { name in
                     if let framework = targetDependencyToFramework[name] {
@@ -1437,10 +1435,10 @@ extension PackageInfoMapper {
     }
 }
 
-extension ProjectDescription.TargetDependency.Condition {
+extension ProjectDescription.PlatformCondition {
     struct OnlyConditionsWithUnsupportedPlatforms: Error {}
 
-    /// Map from a package condition to ProjectDescription.TargetDependency.Condition
+    /// Map from a package condition to ProjectDescription.PlatformCondition
     /// - Parameter condition: condition representing platforms that a given dependency applies to
     /// - Returns: set of PlatformFilters to be used with `GraphDependencyRefrence`
     /// throws `OnlyConditionsWithUnsupportedPlatforms` if the condition only contains platforms not supported by Tuist (e.g

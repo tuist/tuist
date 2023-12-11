@@ -125,6 +125,7 @@ var targets: [Target] = [
         name: "TuistAcceptanceTesting",
         dependencies: [
             "TuistKit",
+            "TuistCore",
             "TuistSupportTesting",
             swiftToolsSupportDependency,
         ],
@@ -142,6 +143,14 @@ var targets: [Target] = [
             swiftGenKitDependency,
             "StencilSwiftKit",
         ]
+    ),
+    .target(
+        name: "TuistGeneratorTesting",
+        dependencies: [
+            "TuistGenerator",
+            swiftToolsSupportDependency,
+        ],
+        linkerSettings: [.linkedFramework("XCTest")]
     ),
     .target(
         name: "TuistScaffold",

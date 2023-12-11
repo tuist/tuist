@@ -251,6 +251,7 @@ func targets() -> [Target] {
             ],
             testingDependencies: [
                 .target(name: "TuistGraphTesting"),
+                .target(name: "TuistGraph"),
             ],
             integrationTestsDependencies: [
                 .target(name: "TuistSupportTesting"),
@@ -279,6 +280,7 @@ func targets() -> [Target] {
                 .target(name: "ProjectDescription"),
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistGraphTesting"),
+                .target(name: "TuistGraph"),
             ],
             integrationTestsDependencies: [
                 .target(name: "TuistGraphTesting"),
@@ -473,6 +475,7 @@ func targets() -> [Target] {
             dependencies: [
                 .target(name: "TuistKit"),
                 .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCore"),
                 .external(name: "SwiftToolsSupport"),
                 .external(name: "SystemPackage"),
                 .sdk(name: "XCTest", type: .framework, status: .optional),

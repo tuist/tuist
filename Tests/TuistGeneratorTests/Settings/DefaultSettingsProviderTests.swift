@@ -860,6 +860,91 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
     }
 }
 
+final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
+    private var subject: DefaultSettingsProvider!
+
+    private let macroTargetEssentialDebugSettings: [String: SettingValue] = [
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG",
+        "SKIP_INSTALL": "YES",
+        "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
+        "SWIFT_VERSION": "5.0",
+        "SDKROOT": "macosx",
+        "CODE_SIGN_IDENTITY": "-",
+    ]
+
+    private let macroTargetEssentialReleaseSettings: [String: SettingValue] = [
+        "SKIP_INSTALL": "YES",
+        "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
+        "SWIFT_VERSION": "5.0",
+        "SDKROOT": "macosx",
+        "CODE_SIGN_IDENTITY": "-",
+    ]
+
+    override func setUp() {
+        super.setUp()
+        subject = DefaultSettingsProvider(
+            xcodeController: xcodeController
+        )
+    }
+
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
+    }
+
+    func testTargetSettings_whenEssentialDebug_Macro() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .debug
+        let settings = Settings(
+            base: [:],
+            configurations: [buildConfiguration: nil],
+            defaultSettings: .essential
+        )
+        let project = Project.test()
+        let target = Target.test(
+            destinations: [.mac],
+            product: .macro,
+            settings: settings
+        )
+
+        // When
+        let got = try subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+
+        // Then
+        XCTAssertEqual(got, macroTargetEssentialDebugSettings)
+    }
+
+    func testTargetSettings_whenEssentialRelease_Macro() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let settings = Settings(
+            base: [:],
+            configurations: [buildConfiguration: nil],
+            defaultSettings: .essential
+        )
+        let project = Project.test()
+        let target = Target.test(
+            destinations: [.mac],
+            product: .macro,
+            settings: settings
+        )
+
+        // When
+        let got = try subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+
+        // Then
+        XCTAssertEqual(got, macroTargetEssentialReleaseSettings)
+    }
+}
+
 final class DictionaryStringAnyExtensionTests: XCTestCase {
     func testToSettings_whenOnlyStrings() throws {
         // Given

@@ -13,6 +13,8 @@ tuist/build:
 	./make/tasks/tuist/build.sh $(ARGS)
 tuist/test:
 	./make/tasks/tuist/test.sh $(ARGS)
+tuist/run:
+	./make/tasks/tuist/run.sh $(ARGS)
 tuist/acceptance-test:
 	./make/tasks/tuist/acceptance-test.sh
 	
