@@ -64,6 +64,17 @@ The financial sustainability of the project is possible thanks to the ongoing co
   </a>
 </div>
 
+[Lapse](https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist) is an app designed to reclaim how we take and share memories. A camera for living in the moment and a private photo journal for friends, not followers.
+
+<div >
+  <a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
+    <picture>
+      <img width="200" src="assets/companies/lapse.svg"/>
+    </picture>
+  </a>
+</div>
+
+
 ### Silver sponsors
 
 [Stream](https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist) helps build scalable in-app chat or activity feeds in days. Product teams trust Stream to launch faster, iterate more often, and ship a better user experience.
