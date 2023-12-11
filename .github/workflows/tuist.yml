@@ -157,7 +157,6 @@ jobs:
           [
             'dependencies',
             'edit',
-            'generate-3',
             'generate-4',
             'generate-5',
             'generate-6',
