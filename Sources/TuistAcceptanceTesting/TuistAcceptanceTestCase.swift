@@ -81,6 +81,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
     public func run(_ command: TestCommand.Type, _ arguments: [String] = []) async throws {
         let arguments = arguments + [
             "--derived-data-path", derivedDataPath.pathString,
+            "--raw-xcodebuild-logs",
             "--path", fixturePath.pathString,
         ]
 
@@ -91,6 +92,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
     public func run(_ command: BuildCommand.Type, _ arguments: [String] = []) async throws {
         let arguments = arguments + [
             "--derived-data-path", derivedDataPath.pathString,
+            "--raw-xcodebuild-logs",
             "--path", fixturePath.pathString,
         ]
 
