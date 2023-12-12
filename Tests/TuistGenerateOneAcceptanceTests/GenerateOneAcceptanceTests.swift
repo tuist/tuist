@@ -2,6 +2,7 @@ import TSCBasic
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistSupportTesting
+import XcodeProj
 import XCTest
 
 /// Generate a new project using Tuist (suite 1)
@@ -284,6 +285,153 @@ final class GenerateOneAcceptanceTestiOSAppWithMultiConfigs: TuistAcceptanceTest
     }
 }
 
+final class GenerateOneAcceptanceTestiOSAppWithIncompatibleXcode: TuistAcceptanceTestCase {
+    func test_ios_app_with_incompatible_xcode() async throws {
+        try setUpFixture("ios_app_with_incompatible_xcode")
+        do {
+            try await run(GenerateCommand.self)
+            XCTFail("Generate should have failed")
+        } catch {
+            XCTAssertStandardError(
+                pattern: "which is not compatible with this project's Xcode version requirement of 3.2.1."
+            )
+            XCTAssertEqual(
+                (error as? FatalError)?.description,
+                "Fatal linting issues found"
+            )
+        }
+    }
+}
+
+final class GenerateOneAcceptanceTestiOSAppWithActions: TuistAcceptanceTestCase {
+    func test_ios_app_with_actions() async throws {
+        try setUpFixture("ios_app_with_actions")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "App", "App.xcodeproj").pathString
+        )
+        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let buildPhases = target.buildPhases
+
+        XCTAssertEqual(
+            buildPhases.first?.name(),
+            "Tuist"
+        )
+        XCTAssertEqual(
+            buildPhases.last?.name(),
+            "Rocks"
+        )
+        let phaseWithDependency = try XCTUnwrap(
+            buildPhases
+                .first(where: { $0.name() == "PhaseWithDependency" })
+        ) as! PBXShellScriptBuildPhase
+        XCTAssertEqual(phaseWithDependency.dependencyFile, "$TEMP_DIR/dependencies.d")
+
+        let appWithSpaceXcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "App With Space", "AppWithSpace.xcodeproj").pathString
+        )
+        let appWithSpaceTarget = try XCTUnwrapTarget("AppWithSpace", in: appWithSpaceXcodeproj)
+        XCTAssertEqual(
+            appWithSpaceTarget.buildPhases.first?.name(),
+            "Run script"
+        )
+    }
+}
+
+final class GenerateOneAcceptanceTestiOSAppWithBuildVariables: TuistAcceptanceTestCase {
+    func test_ios_app_with_build_variables() async throws {
+        try setUpFixture("ios_app_with_build_variables")
+        try await run(GenerateCommand.self)
+        let xcodeproj = try XcodeProj(
+            pathString: fixturePath.appending(components: "App", "App.xcodeproj").pathString
+        )
+        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let buildPhases = target.buildPhases
+
+        XCTAssertEqual(
+            buildPhases.first?.name(),
+            "Tuist"
+        )
+        XCTAssertEqual(
+            (buildPhases.first as? PBXShellScriptBuildPhase)?.outputPaths,
+            ["$(DERIVED_FILE_DIR)/output.txt"]
+        )
+        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateOneAcceptanceTestiOSAppWithRemoteSwiftPackage: TuistAcceptanceTestCase {
+    func test_ios_app_with_remote_swift_package() async throws {
+        try setUpFixture("ios_app_with_remote_swift_package")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateOneAcceptanceTestVisionOSAppWithRemoteSwiftPackage: TuistAcceptanceTestCase {
+    func test_visionos_app() async throws {
+        try setUpFixture("visionos_app")
+        try await run(GenerateCommand.self)
+//        TODO: Fix
+//        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateOneAcceptanceTestiOSAppWithLocalBinarySwiftPackage: TuistAcceptanceTestCase {
+    func test_ios_app_with_local_binary_swift_package() async throws {
+        try setUpFixture("ios_app_with_local_binary_swift_package")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateOneAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase {
+    func test_ios_app_with_extensions() async throws {
+        try setUpFixture("ios_app_with_extensions")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+
+        try await XCTAssertProductWithDestinationContainsExtension(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            extension: "StickersPackExtension"
+        )
+        try await XCTAssertProductWithDestinationContainsExtension(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            extension: "NotificationServiceExtension"
+        )
+        try await XCTAssertProductWithDestinationContainsExtensionKitExtension(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            extension: "AppIntentExtension"
+        )
+        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+            "App.app",
+            destination: "Debug-iphonesimulator"
+        )
+    }
+}
+
+final class GenerateOneAcceptanceTestTvOSAppWithExtensions: TuistAcceptanceTestCase {
+    func test_tvos_app_with_extensions() async throws {
+        try setUpFixture("tvos_app_with_extensions")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        try await XCTAssertProductWithDestinationContainsExtension(
+            "App.app",
+            destination: "Debug-appletvsimulator",
+            extension: "TopShelfExtension"
+        )
+        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+            "App.app",
+            destination: "Debug-appletvsimulator"
+        )
+    }
+}
+
 extension TuistAcceptanceTestCase {
     private func headers(
         for productName: String,
@@ -316,6 +464,26 @@ extension TuistAcceptanceTestCase {
         }
     }
 
+    func XCTUnwrapTarget(
+        _ targetName: String,
+        in xcodeproj: XcodeProj,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws -> PBXTarget {
+        let targets = xcodeproj.pbxproj.projects.flatMap(\.targets)
+        guard let target = targets.first(where: { $0.name == targetName })
+        else {
+            XCTFail(
+                "Target \(targetName) doesn't exist in any of the projects' targets of the workspace",
+                file: file,
+                line: line
+            )
+            throw XCTUnwrapError.nilValueDetected
+        }
+
+        return target
+    }
+
     func XCTAssertSchemeContainsBuildSettings(
         _ scheme: String,
         configuration: String,
@@ -341,6 +509,54 @@ extension TuistAcceptanceTestCase {
         else {
             XCTFail(
                 "Couldn't find \(buildSettingKey) = \(buildSettingValue) for scheme \(scheme) and configuration \(configuration)",
+                file: file,
+                line: line
+            )
+            return
+        }
+    }
+
+    func XCTAssertProductWithDestinationContainsExtension(
+        _ product: String,
+        destination: String,
+        extension: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) async throws {
+        let productPath = try productPath(
+            for: product,
+            destination: destination
+        )
+
+        guard let extensionPath = FileHandler.shared.glob(productPath, glob: "Plugins/\(`extension`).appex").first,
+              FileHandler.shared.exists(extensionPath)
+        else {
+            XCTFail(
+                "Extension \(`extension`) not found for product \(product) and destination \(destination)",
+                file: file,
+                line: line
+            )
+            return
+        }
+    }
+
+    func XCTAssertProductWithDestinationContainsExtensionKitExtension(
+        _ product: String,
+        destination: String,
+        extension: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) async throws {
+        let productPath = try productPath(
+            for: product,
+            destination: destination
+        )
+
+        guard let extensionPath = FileHandler.shared.glob(productPath, glob: "Extensions/\(`extension`).appex").first,
+              FileHandler.shared.exists(extensionPath)
+        else {
+            XCTFail(
+                "ExtensionKit \(`extension`) not found for product \(product) and destination \(destination)",
                 file: file,
                 line: line
             )

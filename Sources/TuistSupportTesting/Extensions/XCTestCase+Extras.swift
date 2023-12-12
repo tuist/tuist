@@ -66,6 +66,22 @@ extension XCTestCase {
         XCTAssertTrue(standardOutput.contains(pattern), message, file: file, line: line)
     }
 
+    public func XCTAssertStandardError(pattern: String, file: StaticString = #file, line: UInt = #line) {
+        let standardError = TestingLogHandler.collected[.error, ==]
+
+        let message = """
+        The standard error:
+        ===========
+        \(standardError)
+
+        Doesn't contain the expected output:
+        ===========
+        \(pattern)
+        """
+
+        XCTAssertTrue(standardError.contains(pattern), message, file: file, line: line)
+    }
+
     public func XCTTry<T>(_ closure: @autoclosure @escaping () throws -> T, file: StaticString = #file, line: UInt = #line) -> T {
         var value: T!
         do {
