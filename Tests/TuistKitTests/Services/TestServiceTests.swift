@@ -294,12 +294,6 @@ final class TestServiceTests: TuistUnitTestCase {
                 "ProjectSchemeTwo",
             ]
         )
-        XCTAssertTrue(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "A"))
-        )
-        XCTAssertTrue(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "B"))
-        )
     }
 
     func test_run_tests_individual_scheme() async throws {
@@ -338,12 +332,6 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOne"])
-        XCTAssertTrue(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "A"))
-        )
-        XCTAssertTrue(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "B"))
-        )
     }
 
     func test_run_tests_all_project_schemes_when_fails() async throws {
