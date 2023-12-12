@@ -51,6 +51,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
     func `default`() -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(UpdateWorkspaceProjectsGraphMapper())
+        mappers.append(PruneOrphanExternalTargetsGraphMapper())
         mappers.append(ExternalProjectsPlatformTreeShakerGraphMapper())
         return mappers
     }

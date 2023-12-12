@@ -593,4 +593,13 @@ final class MockGraphTraverser: GraphTraversing {
         invokedDirectSwiftMacroFrameworkTargetsParametersList.append((path, name))
         return stubbedDirectSwiftMacroFrameworkTargetsResult
     }
+
+    var invokedOrphanExternalDependencies = false
+    var invokedOrphanExternalDependenciesCount = 0
+    var stubbedOrphanExternalDependenciesResult: Set<GraphDependency>! = []
+    func orphanExternalDependencies() -> Set<GraphDependency> {
+        invokedOrphanExternalDependencies = true
+        invokedOrphanExternalDependenciesCount += 1
+        return stubbedOrphanExternalDependenciesResult
+    }
 }

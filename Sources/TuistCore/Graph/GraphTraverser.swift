@@ -603,6 +603,39 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
+    public func orphanExternalDependencies() -> Set<GraphDependency> {
+        let directDependencies = Set(
+            graph.dependencies
+                .flatMap { fromDependency, toDependencies -> [GraphDependency] in
+                    guard case let GraphDependency.target(_, fromProjectPath) = fromDependency,
+                          !graph.projects[fromProjectPath]!.isExternal
+                    else {
+                        return []
+                    }
+                    return toDependencies.compactMap { toDependency -> GraphDependency? in
+                        switch toDependency {
+                        case let .target(name, toProjectPath):
+                            guard self.graph.projects[toProjectPath]!.isExternal else { return nil }
+                            return .target(name: name, path: toProjectPath)
+                        default:
+                            return nil
+                        }
+                    }
+                }
+        )
+        let directAndTransitiveExternalDependencies = directDependencies.union(filterDependencies(from: directDependencies))
+
+        let allExternalDependencies = Set(graph.targets.flatMap { projectPath, targets in
+            let project = graph.projects[projectPath]!
+            guard project.isExternal else { return [GraphDependency]() }
+            return targets.map { targetName, _ in
+                .target(name: targetName, path: projectPath)
+            }
+        })
+
+        return allExternalDependencies.subtracting(directAndTransitiveExternalDependencies)
+    }
+
     // MARK: - Internal
 
     /// The method collects the dependencies that are selected by the provided test closure.
@@ -616,9 +649,23 @@ public class GraphTraverser: GraphTraversing {
         test: (GraphDependency) -> Bool = { _ in true },
         skip: (GraphDependency) -> Bool = { _ in false }
     ) -> Set<GraphDependency> {
+        filterDependencies(from: [rootDependency], test: test, skip: skip)
+    }
+
+    /// The method collects the dependencies that are selected by the provided test closure.
+    /// The skip closure allows skipping the traversing of a specific dependendency branch.
+    /// - Parameters:
+    ///   - from: Dependencies from which the traverse is done.
+    ///   - test: If the closure returns true, the dependency is included.
+    ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
+    func filterDependencies(
+        from rootDependencies: Set<GraphDependency>,
+        test: (GraphDependency) -> Bool = { _ in true },
+        skip: (GraphDependency) -> Bool = { _ in false }
+    ) -> Set<GraphDependency> {
         var stack = Stack<GraphDependency>()
 
-        stack.push(rootDependency)
+        stack.push(Array(rootDependencies))
 
         var visited: Set<GraphDependency> = .init()
         var references = Set<GraphDependency>()
@@ -634,11 +681,11 @@ public class GraphTraverser: GraphTraversing {
 
             visited.insert(node)
 
-            if node != rootDependency, test(node) {
+            if !rootDependencies.contains(node), test(node) {
                 references.insert(node)
             }
 
-            if node != rootDependency, skip(node) {
+            if !rootDependencies.contains(node), skip(node) {
                 continue
             }
 

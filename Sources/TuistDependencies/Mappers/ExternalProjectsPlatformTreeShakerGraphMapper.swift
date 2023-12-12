@@ -25,13 +25,14 @@ public final class ExternalProjectsPlatformTreeShakerGraphMapper: GraphMapping {
             let projectTargets = Dictionary(uniqueKeysWithValues: projectTargets.map { targetName, target in
                 let graphTarget = GraphTarget(path: projectPath, target: target, project: project)
                 var target = target
-                let targetFilteredPlatforms = targetsToPlatformsDictionary[graphTarget, default: Set()]
 
                 /**
                  We only include the destinations whose platform is included in the list of the target supported platforms.
                  */
-                target.destinations = target.destinations.filter { destination in
-                    targetFilteredPlatforms.contains(destination.platform)
+                if let targetFilteredPlatforms = targetsToPlatformsDictionary[graphTarget] {
+                    target.destinations = target.destinations.filter { destination in
+                        targetFilteredPlatforms.contains(destination.platform)
+                    }
                 }
                 return (targetName, target)
             })
@@ -72,7 +73,7 @@ public final class ExternalProjectsPlatformTreeShakerGraphMapper: GraphMapping {
             {
                 switch platformIntersection {
                 case .incompatible:
-                    return
+                    break
                 case let .condition(condition):
                     if let condition {
                         let dependencyPlatforms: [Platform] = condition.platformFilters
@@ -81,6 +82,7 @@ public final class ExternalProjectsPlatformTreeShakerGraphMapper: GraphMapping {
                             .map { $0! }
                         var existingDependencyPlatforms = platforms[dependencyTarget, default: Set()]
                         existingDependencyPlatforms.formUnion(dependencyPlatforms)
+                        platforms[dependencyTarget] = existingDependencyPlatforms
                     }
                 }
             } else {
@@ -95,14 +97,13 @@ public final class ExternalProjectsPlatformTreeShakerGraphMapper: GraphMapping {
                     dependencyPlatforms.formUnion(dependencyTarget.target.supportedPlatforms)
                 }
                 platforms[dependencyTarget] = dependencyPlatforms
-                traverse(
-                    target: dependencyTarget,
-                    parentPlatforms: dependencyTarget.project.isExternal ? parentPlatforms : dependencyTarget.target
-                        .supportedPlatforms,
-                    graphTraverser: graphTraverser,
-                    platforms: &platforms
-                )
             }
+            traverse(
+                target: dependencyTarget,
+                parentPlatforms: platforms[dependencyTarget, default: Set()],
+                graphTraverser: graphTraverser,
+                platforms: &platforms
+            )
         }
     }
 

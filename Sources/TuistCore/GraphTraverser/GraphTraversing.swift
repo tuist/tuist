@@ -225,6 +225,11 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
     func directSwiftMacroFrameworkTargets(path: AbsolutePath, name: String) -> Set<GraphTarget>
+
+    /// It returns a set containing the external dependencies that are not referenced by the projects either directly nor
+    /// transitively.
+    /// - Returns: The list of dependencies.
+    func orphanExternalDependencies() -> Set<GraphDependency>
 }
 
 extension GraphTraversing {

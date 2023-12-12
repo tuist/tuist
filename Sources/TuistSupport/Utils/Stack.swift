@@ -16,6 +16,10 @@ public struct Stack<T> {
         array.append(element)
     }
 
+    public mutating func push(_ elements: [T]) {
+        array.append(contentsOf: elements)
+    }
+
     public mutating func pop() -> T? {
         array.popLast()
     }
