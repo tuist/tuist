@@ -138,7 +138,7 @@ jobs:
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
-        run:  defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+        run:  defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
       - uses: actions/cache@v3
         name: 'Cache fetched dependencies folder'
         with:
@@ -159,7 +159,6 @@ jobs:
           [
             'dependencies',
             'edit',
-            'generate-5',
             'generate-6',
             'generate-7',
             'generate-8',

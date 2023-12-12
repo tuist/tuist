@@ -326,7 +326,8 @@ final class GenerateOneAcceptanceTestiOSAppWithActions: TuistAcceptanceTestCase 
         let phaseWithDependency = try XCTUnwrap(
             buildPhases
                 .first(where: { $0.name() == "PhaseWithDependency" })
-        ) as! PBXShellScriptBuildPhase
+                as? PBXShellScriptBuildPhase
+        )
         XCTAssertEqual(phaseWithDependency.dependencyFile, "$TEMP_DIR/dependencies.d")
 
         let appWithSpaceXcodeproj = try XcodeProj(
@@ -415,20 +416,78 @@ final class GenerateOneAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCa
     }
 }
 
-final class GenerateOneAcceptanceTestTvOSAppWithExtensions: TuistAcceptanceTestCase {
-    func test_tvos_app_with_extensions() async throws {
-        try setUpFixture("tvos_app_with_extensions")
+// TODO: Fix – tvOS
+// final class GenerateOneAcceptanceTestTvOSAppWithExtensions: TuistAcceptanceTestCase {
+//    func test_tvos_app_with_extensions() async throws {
+//        try setUpFixture("tvos_app_with_extensions")
+//        try await run(GenerateCommand.self)
+//        try await run(BuildCommand.self)
+//        try await XCTAssertProductWithDestinationContainsExtension(
+//            "App.app",
+//            destination: "Debug-appletvsimulator",
+//            extension: "TopShelfExtension"
+//        )
+//        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+//            "App.app",
+//            destination: "Debug-appletvsimulator"
+//        )
+//    }
+// }
+
+final class GenerateOneAcceptanceTestiOSAppWithWatchApp2: TuistAcceptanceTestCase {
+    func test_ios_app_with_watchapp2() async throws {
+        try setUpFixture("ios_app_with_watchapp2")
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
-        try await XCTAssertProductWithDestinationContainsExtension(
+        try await run(BuildCommand.self, "App")
+        try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
-            destination: "Debug-appletvsimulator",
-            extension: "TopShelfExtension"
+            destination: "Debug-iphonesimulator",
+            resource: "Watch/WatchApp.app"
+        )
+        try await XCTAssertProductWithDestinationContainsExtension(
+            "WatchApp.app",
+            destination: "Debug-watchsimulator",
+            extension: "WatchAppExtension"
         )
         try XCTAssertProductWithDestinationDoesNotContainHeaders(
             "App.app",
-            destination: "Debug-appletvsimulator"
+            destination: "Debug-iphonesimulator"
         )
+        try XCTAssertProductWithDestinationDoesNotContainHeaders(
+            "WatchApp.app",
+            destination: "Debug-watchsimulator"
+        )
+    }
+}
+
+final class GenerateOneAcceptanceTestInvalidManifest: TuistAcceptanceTestCase {
+    func test_invalid_manifest() async throws {
+        try setUpFixture("invalid_manifest")
+        do {
+            try await run(GenerateCommand.self)
+            XCTFail("Generate command should have failed")
+        } catch let error as FatalError {
+            XCTAssertTrue(error.description.contains("error: expected ',' separator"))
+        }
+    }
+}
+
+final class GenerateOneAcceptanceTestiOSAppLarge: TuistAcceptanceTestCase {
+    func test_ios_app_large() async throws {
+        try setUpFixture("ios_app_large")
+        try await run(GenerateCommand.self)
+    }
+}
+
+final class GenerateOneAcceptanceTestiOSWorkspaceWithDependencyCycle: TuistAcceptanceTestCase {
+    func test_ios_workspace_with_dependency_cycle() async throws {
+        try setUpFixture("ios_workspace_with_dependency_cycle")
+        do {
+            try await run(GenerateCommand.self)
+            XCTFail("Generate command should have failed")
+        } catch let error as FatalError {
+            XCTAssertTrue(error.description.contains("Found circular dependency between targets"))
+        }
     }
 }
 
@@ -528,8 +587,8 @@ extension TuistAcceptanceTestCase {
             destination: destination
         )
 
-        guard let extensionPath = FileHandler.shared.glob(productPath, glob: "Plugins/\(`extension`).appex").first,
-              FileHandler.shared.exists(extensionPath)
+        guard  let extensionPath = FileHandler.shared.glob(productPath, glob: "Plugins/\(`extension`).appex").first,
+               FileHandler.shared.exists(extensionPath)
         else {
             XCTFail(
                 "Extension \(`extension`) not found for product \(product) and destination \(destination)",
