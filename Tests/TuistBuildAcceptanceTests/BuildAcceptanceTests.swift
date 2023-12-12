@@ -104,3 +104,11 @@ final class BuildAcceptanceTestMultiplatformAppWithSDK: TuistAcceptanceTestCase 
         try await run(BuildCommand.self, "App", "--platform", "ios")
     }
 }
+
+final class BuildAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
+    func test() async throws {
+        try setUpFixture("app_with_spm_dependencies")
+        try await run(FetchCommand.self)
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+    }
+}

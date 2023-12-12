@@ -13,6 +13,11 @@ public final class ExternalProjectsPlatformTreeShakerGraphMapper: GraphMapping {
     public init() {}
 
     public func map(graph: Graph) async throws -> (Graph, [TuistCore.SideEffectDescriptor]) {
+        // If the project has no external dependencies we skip this.
+        if graph.projects.values.first(where: { $0.isExternal }) == nil {
+            return (graph, [])
+        }
+
         var graph = graph
 
         /**
