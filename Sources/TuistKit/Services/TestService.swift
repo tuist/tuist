@@ -194,7 +194,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
                 testsCacheDirectory: testsCacheTemporaryDirectory.path,
                 testPlan: testPlanConfiguration?.testPlan,
                 includedTargets: Set(testTargets.map(\.target)),
-                excludedTargets: Set(skipTestTargets.map(\.target)),
+                excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
                 skipUITests: skipUITests
             )
         }
