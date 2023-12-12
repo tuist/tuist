@@ -334,6 +334,34 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOne"])
     }
 
+    func test_run_tests_with_skipped_targets() async throws {
+        // Given
+        buildGraphInspector.testableSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectSchemeOneTests"),
+            ]
+        }
+        generator.generateWithGraphStub = { path in
+            (path, Graph.test())
+        }
+        var testedSchemes: [String] = []
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
+            testedSchemes.append(scheme)
+            return [.standardOutput(.init(raw: "success"))]
+        }
+
+        // When
+        try await subject.testRun(
+            schemeName: "ProjectSchemeOneTests",
+            path: try temporaryPath(),
+            skipTestTargets: [.init(target: "ProjectSchemeOnTests", class: "TestClass")]
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["ProjectSchemeOneTests"])
+        XCTAssertEqual(generatorFactory.invokedTestParameters?.excludedTargets, [])
+    }
+
     func test_run_tests_all_project_schemes_when_fails() async throws {
         // Given
         buildGraphInspector.workspaceSchemesStub = { _ in
