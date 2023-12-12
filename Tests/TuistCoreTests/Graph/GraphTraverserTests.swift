@@ -4563,6 +4563,44 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.sorted(), [])
     }
 
+    func test_directTargetDependenciesWithConditions() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let framework = Target.test(name: "Framework", destinations: [.iPhone], product: .framework)
+        let project = Project.test(targets: [app, framework])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: project.path)
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            appDependency: Set([frameworkDependency]),
+            frameworkDependency: Set([]),
+        ]
+        let platformCondition = try PlatformCondition.test([.ios])
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                app.name: app,
+                framework.name: framework,
+            ]],
+            dependencies: dependencies,
+            dependencyConditions: [
+                GraphEdge(from: appDependency, to: frameworkDependency): platformCondition,
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.directTargetDependenciesWithConditions(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(got.count, 1)
+        let result = try XCTUnwrap(got.first)
+        XCTAssertEqual(result.0, GraphTarget(path: project.path, target: framework, project: project))
+        XCTAssertEqual(result.1, platformCondition)
+    }
+
     // MARK: - Helpers
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {

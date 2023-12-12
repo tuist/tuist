@@ -155,6 +155,19 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
+    public func directTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, PlatformCondition?)] {
+        let sorted = directTargetDependencies(path: path, name: name).sorted()
+        let from = GraphDependency.target(name: name, path: path)
+
+        return sorted.map { dependency in
+            let condition = graph.dependencyConditions[GraphEdge(
+                from: from,
+                to: GraphDependency.target(name: dependency.target.name, path: dependency.path)
+            )]
+            return (dependency, condition)
+        }
+    }
+
     public func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         guard let target = graph.targets[path]?[name] else { return [] }
         guard target.supportsResources else { return [] }

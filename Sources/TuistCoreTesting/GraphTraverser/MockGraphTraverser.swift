@@ -276,6 +276,24 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedDirectLocalTargetDependenciesWithConditionsResult
     }
 
+    var invokedDirectTargetDependenciesWithConditions = false
+
+    var invokedDirectTargetDependenciesWithConditionsCount = 0
+    var invokedDirectTargetDependenciesWithConditionsParameters: (
+        path: AbsolutePath,
+        name: String
+    )?
+    var invokedDirectTargetDependenciesWithConditionsParametersList =
+        [(path: AbsolutePath, name: String)]()
+    var stubbedDirectTargetDependenciesWithConditionsResult: [(GraphTarget, PlatformCondition?)]! = []
+    func directTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, PlatformCondition?)] {
+        invokedDirectTargetDependenciesWithConditions = true
+        invokedDirectTargetDependenciesWithConditionsCount += 1
+        invokedDirectTargetDependenciesWithConditionsParameters = (path, name)
+        invokedDirectTargetDependenciesWithConditionsParametersList.append((path, name))
+        return stubbedDirectTargetDependenciesWithConditionsResult
+    }
+
     var invokedDirectTargetDependencies = false
     var invokedDirectTargetDependenciesCount = 0
     var invokedDirectTargetDependenciesParameters: (path: AbsolutePath, name: String)?
