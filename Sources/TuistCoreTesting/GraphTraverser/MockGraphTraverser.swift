@@ -602,4 +602,20 @@ final class MockGraphTraverser: GraphTraversing {
         invokedOrphanExternalDependenciesCount += 1
         return stubbedOrphanExternalDependenciesResult
     }
+
+    func targetsWithExternalDependencies() -> Set<GraphTarget> {
+        Set()
+    }
+
+    func externalTargets() -> Set<GraphTarget> {
+        Set()
+    }
+
+    func combinedCondition(to _: GraphDependency, from _: GraphDependency) -> PlatformCondition.CombinationResult {
+        .incompatible
+    }
+
+    func externalTargetsSupportedPlatforms() -> [GraphTarget: Set<Platform>] {
+        [:]
+    }
 }

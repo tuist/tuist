@@ -52,7 +52,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
         var mappers: [GraphMapping] = []
         mappers.append(UpdateWorkspaceProjectsGraphMapper())
         mappers.append(PruneOrphanExternalTargetsGraphMapper())
-        mappers.append(ExternalProjectsPlatformTreeShakerGraphMapper())
+        mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
         return mappers
     }
 }

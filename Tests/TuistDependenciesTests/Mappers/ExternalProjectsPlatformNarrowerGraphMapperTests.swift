@@ -7,12 +7,12 @@ import XCTest
 @testable import TuistDependenciesTesting
 @testable import TuistSupportTesting
 
-final class ExternalProjectsPlatformTreeShakerGraphMapperTests: TuistUnitTestCase {
-    var subject: ExternalProjectsPlatformTreeShakerGraphMapper!
+final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase {
+    var subject: ExternalProjectsPlatformNarrowerGraphMapper!
 
     override func setUp() {
         super.setUp()
-        subject = ExternalProjectsPlatformTreeShakerGraphMapper()
+        subject = ExternalProjectsPlatformNarrowerGraphMapper()
     }
 
     override func tearDown() {

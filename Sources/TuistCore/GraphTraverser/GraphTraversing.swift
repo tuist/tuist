@@ -230,6 +230,16 @@ public protocol GraphTraversing {
     /// transitively.
     /// - Returns: The list of dependencies.
     func orphanExternalDependencies() -> Set<GraphDependency>
+
+    /// Returns all the non-external targets of the graph that depend on a external target.
+    /// - Returns: A set containing all the targets.
+    func targetsWithExternalDependencies() -> Set<GraphTarget>
+
+    /// Returns all the targets that are part of external projects.
+    /// - Returns: A set containing all the external project targets
+    func externalTargets() -> Set<GraphTarget>
+
+    func externalTargetsSupportedPlatforms() -> [GraphTarget: Set<Platform>]
 }
 
 extension GraphTraversing {
