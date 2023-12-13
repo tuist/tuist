@@ -41,7 +41,7 @@ let project = Project(
                 .pre(script: "echo 'Hello World'", name: "Embedded script"),
             ],
             dependencies: [
-                .packagePlugin(product: "SwiftLintPlugin"),
+                .package(product: "SwiftLintPlugin", type: .plugin),
             ]
         ),
     ]
