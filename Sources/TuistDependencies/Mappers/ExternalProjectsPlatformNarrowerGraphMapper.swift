@@ -19,7 +19,7 @@ public final class ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping {
         }
 
         var graph = graph
-        let externalTargetSupportedPlatforms = GraphTraverser(graph: graph).externalTargetsSupportedPlatforms()
+        let externalTargetSupportedPlatforms = GraphTraverser(graph: graph).externalTargetSupportedPlatforms()
 
         graph.targets = Dictionary(uniqueKeysWithValues: graph.targets.map { projectPath, projectTargets in
             let project = graph.projects[projectPath]!

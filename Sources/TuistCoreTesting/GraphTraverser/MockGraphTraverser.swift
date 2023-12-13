@@ -585,7 +585,6 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedDirectSwiftMacroFrameworkTargetsParametersList =
         [(path: AbsolutePath, name: String)]()
     var stubbedDirectSwiftMacroFrameworkTargetsResult: Set<GraphTarget>! = []
-
     func directSwiftMacroFrameworkTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<GraphTarget> {
         invokedDirectSwiftMacroFrameworkTargets = true
         invokedDirectSwiftMacroFrameworkTargetsCount += 1
@@ -603,19 +602,30 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedOrphanExternalDependenciesResult
     }
 
+    var invokedTargetsWithExternalDependencies = false
+    var invokedTargetsWithExternalDependenciesCount = 0
+    var stubbedTargetsWithExternalDependenciesResult: Set<GraphTarget>! = []
     func targetsWithExternalDependencies() -> Set<GraphTarget> {
-        Set()
+        invokedTargetsWithExternalDependencies = true
+        invokedTargetsWithExternalDependenciesCount += 1
+        return stubbedTargetsWithExternalDependenciesResult
     }
 
+    var invokedExternalTargets = false
+    var invokedExternalTargetsCount = 0
+    var stubbedExternalTargetsResult: Set<GraphTarget>! = []
     func externalTargets() -> Set<GraphTarget> {
-        Set()
+        invokedExternalTargets = true
+        invokedExternalTargetsCount += 1
+        return stubbedExternalTargetsResult
     }
 
-    func combinedCondition(to _: GraphDependency, from _: GraphDependency) -> PlatformCondition.CombinationResult {
-        .incompatible
-    }
-
-    func externalTargetsSupportedPlatforms() -> [GraphTarget: Set<Platform>] {
-        [:]
+    var invokedExternalTargetSupportedPlatforms = false
+    var invokedExternalTargetSupportedPlatformsCount = 0
+    var stubbedExternalTargetSupportedPlatformsResult: [GraphTarget: Set<Platform>]! = [:]
+    func externalTargetSupportedPlatforms() -> [GraphTarget: Set<Platform>] {
+        invokedExternalTargetSupportedPlatforms = true
+        invokedExternalTargetSupportedPlatformsCount += 1
+        return stubbedExternalTargetSupportedPlatformsResult
     }
 }

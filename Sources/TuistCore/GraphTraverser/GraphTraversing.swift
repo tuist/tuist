@@ -239,7 +239,7 @@ public protocol GraphTraversing {
     /// - Returns: A set containing all the external project targets
     func externalTargets() -> Set<GraphTarget>
 
-    func externalTargetsSupportedPlatforms() -> [GraphTarget: Set<Platform>]
+    func externalTargetSupportedPlatforms() -> [GraphTarget: Set<Platform>]
 }
 
 extension GraphTraversing {

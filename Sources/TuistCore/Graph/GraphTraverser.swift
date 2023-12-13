@@ -794,7 +794,7 @@ public class GraphTraverser: GraphTraversing {
         return find(from: rootDependency, to: transitiveDependency)
     }
 
-    public func externalTargetsSupportedPlatforms() -> [GraphTarget: Set<Platform>] {
+    public func externalTargetSupportedPlatforms() -> [GraphTarget: Set<Platform>] {
         let targetsWithExternalDependencies = targetsWithExternalDependencies()
         var platforms: [GraphTarget: Set<Platform>] = [:]
 

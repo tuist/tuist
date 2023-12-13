@@ -60,8 +60,11 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let (mappedGraph, _) = try await subject.map(graph: graph)
 
         // Then
-        XCTAssertEqual(mappedGraph.targets[project.path]![appTarget.name]!.supportedPlatforms, Set([.iOS]))
-        XCTAssertEqual(mappedGraph.targets[externalProject.path]![externalPackage.name]!.supportedPlatforms, Set([.iOS]))
+        XCTAssertEqual(try XCTUnwrap(mappedGraph.targets[project.path]?[appTarget.name]?.supportedPlatforms), Set([.iOS]))
+        XCTAssertEqual(
+            try XCTUnwrap(mappedGraph.targets[externalProject.path]![externalPackage.name]?.supportedPlatforms),
+            Set([.iOS])
+        )
     }
 
     func test_map_when_external_transitive_dependency_without_platform_filter() async throws {
@@ -119,10 +122,13 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let (mappedGraph, _) = try await subject.map(graph: graph)
 
         // Then
-        XCTAssertEqual(mappedGraph.targets[project.path]![appTarget.name]!.supportedPlatforms, Set([.iOS]))
-        XCTAssertEqual(mappedGraph.targets[externalProject.path]![directExternalPackage.name]!.supportedPlatforms, Set([.iOS]))
+        XCTAssertEqual(try XCTUnwrap(mappedGraph.targets[project.path]?[appTarget.name]?.supportedPlatforms), Set([.iOS]))
         XCTAssertEqual(
-            mappedGraph.targets[externalProject.path]![transitiveExternalPackage.name]!.supportedPlatforms,
+            try XCTUnwrap(mappedGraph.targets[externalProject.path]?[directExternalPackage.name]?.supportedPlatforms),
+            Set([.iOS])
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(mappedGraph.targets[externalProject.path]?[transitiveExternalPackage.name]?.supportedPlatforms),
             Set([.iOS])
         )
     }
@@ -181,10 +187,13 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let (mappedGraph, _) = try await subject.map(graph: graph)
 
         // Then
-        XCTAssertEqual(mappedGraph.targets[project.path]![appTarget.name]!.supportedPlatforms, Set([.iOS]))
-        XCTAssertEqual(mappedGraph.targets[externalProject.path]![externalMacroFramework.name]!.supportedPlatforms, Set([.iOS]))
+        XCTAssertEqual(try XCTUnwrap(mappedGraph.targets[project.path]?[appTarget.name]?.supportedPlatforms), Set([.iOS]))
         XCTAssertEqual(
-            mappedGraph.targets[externalProject.path]![externalMacroExecutable.name]!.supportedPlatforms,
+            try XCTUnwrap(mappedGraph.targets[externalProject.path]?[externalMacroFramework.name]?.supportedPlatforms),
+            Set([.iOS])
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(mappedGraph.targets[externalProject.path]?[externalMacroExecutable.name]?.supportedPlatforms),
             Set([.macOS])
         )
     }
