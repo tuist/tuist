@@ -6,7 +6,7 @@ import XcodeProj
 import XCTest
 
 /// Generate a new project using Tuist (suite 1)
-final class GenerateOneAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
     func test_ios_app_with_tests() async throws {
         try setUpFixture("ios_app_with_tests")
         try await run(GenerateCommand.self)
@@ -14,7 +14,7 @@ final class GenerateOneAcceptanceTestiOSAppWithTests: TuistAcceptanceTestCase {
     }
 }
 
-final class GenerateOneAcceptanceTestiOSAppWithFrameworks: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithFrameworks: TuistAcceptanceTestCase {
     func test_ios_app_with_frameworks() async throws {
         try setUpFixture("ios_app_with_frameworks")
         try await run(GenerateCommand.self)
@@ -27,7 +27,7 @@ final class GenerateOneAcceptanceTestiOSAppWithFrameworks: TuistAcceptanceTestCa
     }
 }
 
-final class GenerateOneAcceptanceTestiOSAppWithHeaders: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithHeaders: TuistAcceptanceTestCase {
     func test_ios_app_with_headers() async throws {
         try setUpFixture("ios_app_with_headers")
         try await run(GenerateCommand.self)
@@ -35,7 +35,7 @@ final class GenerateOneAcceptanceTestiOSAppWithHeaders: TuistAcceptanceTestCase 
     }
 }
 
-final class GenerateOneAcceptanceTestInvalidWorkspaceManifestName: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestInvalidWorkspaceManifestName: TuistAcceptanceTestCase {
     func test_invalid_workspace_manifest_name() async throws {
         try setUpFixture("invalid_workspace_manifest_name")
         do {
@@ -48,7 +48,7 @@ final class GenerateOneAcceptanceTestInvalidWorkspaceManifestName: TuistAcceptan
 }
 
 // TODO: Fix (this test has an issue in GitHub actions due to a missing tvOS platform)
-// final class GenerateOneAcceptanceTestiOSAppWithSDK: TuistAcceptanceTestCase {
+// final class GenerateAcceptanceTestiOSAppWithSDK: TuistAcceptanceTestCase {
 //    func test_ios_app_with_sdk() async throws {
 //        try setUpFixture("ios_app_with_sdk")
 //        try await run(GenerateCommand.self)
@@ -58,7 +58,7 @@ final class GenerateOneAcceptanceTestInvalidWorkspaceManifestName: TuistAcceptan
 //    }
 // }
 
-final class GenerateOneAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptanceTestCase {
     func test_ios_app_with_framework_and_resources() async throws {
         try setUpFixture("ios_app_with_framework_and_resources")
         try await run(GenerateCommand.self)
@@ -132,7 +132,7 @@ final class GenerateOneAcceptanceTestiOSAppWithFrameworkAndResources: TuistAccep
     }
 }
 
-final class GenerateOneAcceptanceTestIosAppWithCustomDevelopmentRegion: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestIosAppWithCustomDevelopmentRegion: TuistAcceptanceTestCase {
     func test_ios_app_with_custom_development_region() async throws {
         try setUpFixture("ios_app_with_custom_development_region")
         try await run(GenerateCommand.self)
@@ -161,7 +161,7 @@ final class GenerateOneAcceptanceTestIosAppWithCustomDevelopmentRegion: TuistAcc
     }
 }
 
-final class GenerateOneAcceptanceTestiOSAppWithCustomResourceParserOptions: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithCustomResourceParserOptions: TuistAcceptanceTestCase {
     func test_ios_app_with_custom_resource_parser_options() async throws {
         try setUpFixture("ios_app_with_custom_resource_parser_options")
         try await run(GenerateCommand.self)
@@ -200,7 +200,7 @@ final class GenerateOneAcceptanceTestiOSAppWithCustomResourceParserOptions: Tuis
     }
 }
 
-final class GenerateOneAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework: TuistAcceptanceTestCase {
     func test_ios_app_with_framework_linking_static_framework() async throws {
         try setUpFixture("ios_app_with_framework_linking_static_framework")
         try await run(BuildCommand.self)
@@ -225,7 +225,7 @@ final class GenerateOneAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework: 
     }
 }
 
-final class GenerateOneAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTestCase {
     func test_ios_app_with_custom_scheme() async throws {
         try setUpFixture("ios_app_with_custom_scheme")
         try await run(BuildCommand.self)
@@ -235,14 +235,14 @@ final class GenerateOneAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTes
     }
 }
 
-final class GenerateOneAcceptanceTestiOSAppWithLocalSwiftPackage: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithLocalSwiftPackage: TuistAcceptanceTestCase {
     func test_ios_app_with_local_swift_package() async throws {
         try setUpFixture("ios_app_with_local_swift_package")
         try await run(BuildCommand.self)
     }
 }
 
-final class GenerateOneAcceptanceTestiOSAppWithMultiConfigs: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithMultiConfigs: TuistAcceptanceTestCase {
     func test_ios_app_with_multi_configs() async throws {
         try setUpFixture("ios_app_with_multi_configs")
         try await run(GenerateCommand.self)
@@ -285,7 +285,7 @@ final class GenerateOneAcceptanceTestiOSAppWithMultiConfigs: TuistAcceptanceTest
     }
 }
 
-final class GenerateOneAcceptanceTestiOSAppWithIncompatibleXcode: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithIncompatibleXcode: TuistAcceptanceTestCase {
     func test_ios_app_with_incompatible_xcode() async throws {
         try setUpFixture("ios_app_with_incompatible_xcode")
         do {
@@ -303,45 +303,46 @@ final class GenerateOneAcceptanceTestiOSAppWithIncompatibleXcode: TuistAcceptanc
     }
 }
 
-final class GenerateOneAcceptanceTestiOSAppWithActions: TuistAcceptanceTestCase {
-    func test_ios_app_with_actions() async throws {
-        try setUpFixture("ios_app_with_actions")
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+// TODO: Find a different build tool plugin. SwiftLintPlugin imports swift-syntax that takes a _very_ long time to build
+// final class GenerateAcceptanceTestiOSAppWithActions: TuistAcceptanceTestCase {
+//    func test_ios_app_with_actions() async throws {
+//        try setUpFixture("ios_app_with_actions")
+//        try await run(GenerateCommand.self)
+//        try await run(BuildCommand.self)
+//
+//        let xcodeproj = try XcodeProj(
+//            pathString: fixturePath.appending(components: "App", "App.xcodeproj").pathString
+//        )
+//        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+//        let buildPhases = target.buildPhases
+//
+//        XCTAssertEqual(
+//            buildPhases.first?.name(),
+//            "Tuist"
+//        )
+//        XCTAssertEqual(
+//            buildPhases.last?.name(),
+//            "Rocks"
+//        )
+//        let phaseWithDependency = try XCTUnwrap(
+//            buildPhases
+//                .first(where: { $0.name() == "PhaseWithDependency" })
+//                as? PBXShellScriptBuildPhase
+//        )
+//        XCTAssertEqual(phaseWithDependency.dependencyFile, "$TEMP_DIR/dependencies.d")
+//
+//        let appWithSpaceXcodeproj = try XcodeProj(
+//            pathString: fixturePath.appending(components: "App With Space", "AppWithSpace.xcodeproj").pathString
+//        )
+//        let appWithSpaceTarget = try XCTUnwrapTarget("AppWithSpace", in: appWithSpaceXcodeproj)
+//        XCTAssertEqual(
+//            appWithSpaceTarget.buildPhases.first?.name(),
+//            "Run script"
+//        )
+//    }
+// }
 
-        let xcodeproj = try XcodeProj(
-            pathString: fixturePath.appending(components: "App", "App.xcodeproj").pathString
-        )
-        let target = try XCTUnwrapTarget("App", in: xcodeproj)
-        let buildPhases = target.buildPhases
-
-        XCTAssertEqual(
-            buildPhases.first?.name(),
-            "Tuist"
-        )
-        XCTAssertEqual(
-            buildPhases.last?.name(),
-            "Rocks"
-        )
-        let phaseWithDependency = try XCTUnwrap(
-            buildPhases
-                .first(where: { $0.name() == "PhaseWithDependency" })
-                as? PBXShellScriptBuildPhase
-        )
-        XCTAssertEqual(phaseWithDependency.dependencyFile, "$TEMP_DIR/dependencies.d")
-
-        let appWithSpaceXcodeproj = try XcodeProj(
-            pathString: fixturePath.appending(components: "App With Space", "AppWithSpace.xcodeproj").pathString
-        )
-        let appWithSpaceTarget = try XCTUnwrapTarget("AppWithSpace", in: appWithSpaceXcodeproj)
-        XCTAssertEqual(
-            appWithSpaceTarget.buildPhases.first?.name(),
-            "Run script"
-        )
-    }
-}
-
-final class GenerateOneAcceptanceTestiOSAppWithBuildVariables: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithBuildVariables: TuistAcceptanceTestCase {
     func test_ios_app_with_build_variables() async throws {
         try setUpFixture("ios_app_with_build_variables")
         try await run(GenerateCommand.self)
@@ -363,7 +364,7 @@ final class GenerateOneAcceptanceTestiOSAppWithBuildVariables: TuistAcceptanceTe
     }
 }
 
-final class GenerateOneAcceptanceTestiOSAppWithRemoteSwiftPackage: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithRemoteSwiftPackage: TuistAcceptanceTestCase {
     func test_ios_app_with_remote_swift_package() async throws {
         try setUpFixture("ios_app_with_remote_swift_package")
         try await run(GenerateCommand.self)
@@ -371,7 +372,7 @@ final class GenerateOneAcceptanceTestiOSAppWithRemoteSwiftPackage: TuistAcceptan
     }
 }
 
-final class GenerateOneAcceptanceTestVisionOSAppWithRemoteSwiftPackage: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestVisionOSAppWithRemoteSwiftPackage: TuistAcceptanceTestCase {
     func test_visionos_app() async throws {
         try setUpFixture("visionos_app")
         try await run(GenerateCommand.self)
@@ -380,7 +381,7 @@ final class GenerateOneAcceptanceTestVisionOSAppWithRemoteSwiftPackage: TuistAcc
     }
 }
 
-final class GenerateOneAcceptanceTestiOSAppWithLocalBinarySwiftPackage: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithLocalBinarySwiftPackage: TuistAcceptanceTestCase {
     func test_ios_app_with_local_binary_swift_package() async throws {
         try setUpFixture("ios_app_with_local_binary_swift_package")
         try await run(GenerateCommand.self)
@@ -388,7 +389,7 @@ final class GenerateOneAcceptanceTestiOSAppWithLocalBinarySwiftPackage: TuistAcc
     }
 }
 
-final class GenerateOneAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCase {
     func test_ios_app_with_extensions() async throws {
         try setUpFixture("ios_app_with_extensions")
         try await run(GenerateCommand.self)
@@ -417,7 +418,7 @@ final class GenerateOneAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCa
 }
 
 // TODO: Fix – tvOS
-// final class GenerateOneAcceptanceTestTvOSAppWithExtensions: TuistAcceptanceTestCase {
+// final class GenerateAcceptanceTestTvOSAppWithExtensions: TuistAcceptanceTestCase {
 //    func test_tvos_app_with_extensions() async throws {
 //        try setUpFixture("tvos_app_with_extensions")
 //        try await run(GenerateCommand.self)
@@ -434,7 +435,7 @@ final class GenerateOneAcceptanceTestiOSAppWithExtensions: TuistAcceptanceTestCa
 //    }
 // }
 
-final class GenerateOneAcceptanceTestiOSAppWithWatchApp2: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppWithWatchApp2: TuistAcceptanceTestCase {
     func test_ios_app_with_watchapp2() async throws {
         try setUpFixture("ios_app_with_watchapp2")
         try await run(GenerateCommand.self)
@@ -460,7 +461,7 @@ final class GenerateOneAcceptanceTestiOSAppWithWatchApp2: TuistAcceptanceTestCas
     }
 }
 
-final class GenerateOneAcceptanceTestInvalidManifest: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestInvalidManifest: TuistAcceptanceTestCase {
     func test_invalid_manifest() async throws {
         try setUpFixture("invalid_manifest")
         do {
@@ -472,14 +473,14 @@ final class GenerateOneAcceptanceTestInvalidManifest: TuistAcceptanceTestCase {
     }
 }
 
-final class GenerateOneAcceptanceTestiOSAppLarge: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSAppLarge: TuistAcceptanceTestCase {
     func test_ios_app_large() async throws {
         try setUpFixture("ios_app_large")
         try await run(GenerateCommand.self)
     }
 }
 
-final class GenerateOneAcceptanceTestiOSWorkspaceWithDependencyCycle: TuistAcceptanceTestCase {
+final class GenerateAcceptanceTestiOSWorkspaceWithDependencyCycle: TuistAcceptanceTestCase {
     func test_ios_workspace_with_dependency_cycle() async throws {
         try setUpFixture("ios_workspace_with_dependency_cycle")
         do {
@@ -488,6 +489,244 @@ final class GenerateOneAcceptanceTestiOSWorkspaceWithDependencyCycle: TuistAccep
         } catch let error as FatalError {
             XCTAssertTrue(error.description.contains("Found circular dependency between targets"))
         }
+    }
+}
+
+final class GenerateAcceptanceTestFrameworkWithEnvironmentVariables: TuistAcceptanceTestCase {
+    func test_framework_with_environment_variables() async throws {
+        try setUpFixture("framework_with_environment_variables")
+        environment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkA"
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "FrameworkA")
+        environment.manifestLoadingVariables["TUIST_FRAMEWORK_NAME"] = "FrameworkB"
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "FrameworkB")
+    }
+}
+
+final class GenerateAcceptanceTestiOSAppWithCoreData: TuistAcceptanceTestCase {
+    func test_ios_app_with_coredata() async throws {
+        try setUpFixture("ios_app_with_coredata")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        for resource in [
+            "Users.momd",
+            "Unversioned.momd",
+            "UsersAutoDetect.momd",
+            "1_2.cdm",
+        ] {
+            try await XCTAssertProductWithDestinationContainsResource(
+                "App.app",
+                destination: "Debug-iphonesimulator",
+                resource: resource
+            )
+        }
+    }
+}
+
+final class GenerateAcceptanceTestiOSAppWithAppClip: TuistAcceptanceTestCase {
+    func test_ios_app_with_appclip() async throws {
+        try setUpFixture("ios_app_with_appclip")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        try await XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            appClip: "AppClip1",
+            architecture: "x86_64"
+        )
+        try XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
+    }
+}
+
+final class GenerateAcceptanceTestCommandLineToolBase: TuistAcceptanceTestCase {
+    func test_command_line_tool_basic() async throws {
+        try setUpFixture("command_line_tool_basic")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "CommandLineTool")
+    }
+}
+
+final class GenerateAcceptanceTestCommandLineToolWithStaticLibrary: TuistAcceptanceTestCase {
+    func test_command_line_tool_with_static_library() async throws {
+        try setUpFixture("command_line_tool_with_static_library")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "CommandLineTool")
+    }
+}
+
+final class GenerateAcceptanceTestCommandLineToolWithDynamicLibrary: TuistAcceptanceTestCase {
+    func test_command_line_tool_with_dynamic_library() async throws {
+        try setUpFixture("command_line_tool_with_dynamic_library")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "CommandLineTool")
+    }
+}
+
+final class GenerateAcceptanceTestCommandLineToolWithDynamicFramework: TuistAcceptanceTestCase {
+    func test_command_line_tool_with_dynamic_framework() async throws {
+        try setUpFixture("command_line_tool_with_dynamic_framework")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "CommandLineTool")
+    }
+}
+
+final class GenerateAcceptanceTestmacOSAppWithCopyFiles: TuistAcceptanceTestCase {
+    func test_macos_app_with_copy_files() async throws {
+        try setUpFixture("macos_app_with_copy_files")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+
+        let xcodeproj = try XcodeProj(
+            pathString: xcodeprojPath.pathString
+        )
+        let target = try XCTUnwrapTarget("App", in: xcodeproj)
+        let buildPhases = target.buildPhases
+
+        XCTAssertTrue(
+            buildPhases.contains(where: { $0.name() == "Copy Templates" })
+        )
+    }
+}
+
+final class GenerateAcceptanceTestManifestWithLogs: TuistAcceptanceTestCase {
+    func test_manifest_with_logs() async throws {
+        try setUpFixture("manifest_with_logs")
+        try await run(GenerateCommand.self)
+        XCTAssertStandardOutput(pattern: "Target name - App")
+    }
+}
+
+final class GenerateAcceptanceTestProjectWithFileHeaderTemplate: TuistAcceptanceTestCase {
+    func test_project_with_file_header_template() async throws {
+        try setUpFixture("project_with_file_header_template")
+        try await run(GenerateCommand.self)
+        XCTAssertTrue(
+            FileHandler.shared.exists(
+                xcodeprojPath.appending(
+                    components: [
+                        "xcshareddata",
+                        "IDETemplateMacros.plist",
+                    ]
+                )
+            )
+        )
+    }
+}
+
+final class GenerateAcceptanceTestProjectWithInlineFileHeaderTemplate: TuistAcceptanceTestCase {
+    func test_project_with_inline_file_header_template() async throws {
+        try setUpFixture("project_with_inline_file_header_template")
+        try await run(GenerateCommand.self)
+        XCTAssertTrue(
+            FileHandler.shared.exists(
+                xcodeprojPath.appending(
+                    components: [
+                        "xcshareddata",
+                        "IDETemplateMacros.plist",
+                    ]
+                )
+            )
+        )
+    }
+}
+
+final class GenerateAcceptanceTestWorkspaceWithFileHeaderTemplate: TuistAcceptanceTestCase {
+    func test_workspace_with_file_header_template() async throws {
+        try setUpFixture("workspace_with_file_header_template")
+        try await run(GenerateCommand.self)
+        XCTAssertTrue(
+            FileHandler.shared.exists(
+                workspacePath.appending(
+                    components: [
+                        "xcshareddata",
+                        "IDETemplateMacros.plist",
+                    ]
+                )
+            )
+        )
+    }
+}
+
+final class GenerateAcceptanceTestWorkspaceWithInlineFileHeaderTemplate: TuistAcceptanceTestCase {
+    func test_workspace_with_inline_file_header_template() async throws {
+        try setUpFixture("workspace_with_inline_file_header_template")
+        try await run(GenerateCommand.self)
+        XCTAssertTrue(
+            FileHandler.shared.exists(
+                workspacePath.appending(
+                    components: [
+                        "xcshareddata",
+                        "IDETemplateMacros.plist",
+                    ]
+                )
+            )
+        )
+    }
+}
+
+final class GenerateAcceptanceTestiOSAppWithFrameworkAndDisabledResources: TuistAcceptanceTestCase {
+    func test_ios_app_with_framework_and_disabled_resources() async throws {
+        try setUpFixture("ios_app_with_framework_and_disabled_resources")
+        try await run(GenerateCommand.self)
+        XCTAssertFalse(
+            FileHandler.shared.exists(
+                fixturePath.appending(
+                    components: [
+                        "App",
+                        "Derived",
+                        "Sources",
+                        "TuistBundle+App.swift",
+                    ]
+                )
+            )
+        )
+        XCTAssertFalse(
+            FileHandler.shared.exists(
+                fixturePath.appending(
+                    components: [
+                        "Framework1",
+                        "Derived",
+                        "Sources",
+                        "TuistBundle+Framework1.swift",
+                    ]
+                )
+            )
+        )
+        XCTAssertFalse(
+            FileHandler.shared.exists(
+                fixturePath.appending(
+                    components: [
+                        "StaticFramework",
+                        "Derived",
+                        "Sources",
+                        "TuistBundle+StaticFramework.swift",
+                    ]
+                )
+            )
+        )
+    }
+}
+
+final class GenerateAcceptanceTestmacOSAppWithExtensions: TuistAcceptanceTestCase {
+    func test_macos_app_with_extensions() async throws {
+        try setUpFixture("macos_app_with_extensions")
+        let sdkPkgPath = sourceRootPath
+            .appending(
+                components: [
+                    "features",
+                    "resources",
+                    "WorkflowExtensionsSDK.pkg",
+                ]
+            )
+        if try !FileHandler.shared.exists(
+            AbsolutePath(validating: "/Library/Developer/SDKs/WorkflowExtensionSDK.sdk")
+        ) {
+            try System.shared.run(["sudo", "installer", "-package", sdkPkgPath.pathString, "-target", "/"])
+        }
+
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
     }
 }
 
@@ -543,6 +782,33 @@ extension TuistAcceptanceTestCase {
         return target
     }
 
+    func XCTAssertFrameworkEmbedded(
+        _ framework: String,
+        by targetName: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try XCTUnwrapTarget(targetName, in: xcodeproj)
+
+        let xcframeworkDependencies = target.embedFrameworksBuildPhases()
+            .filter { $0.dstSubfolderSpec == .frameworks }
+            .map(\.files)
+            .compactMap { $0 }
+            .flatMap { $0 }
+            .compactMap(\.file?.nameOrPath)
+            .filter { $0.contains(".framework") }
+        guard xcframeworkDependencies.contains("\(framework).framework")
+        else {
+            XCTFail(
+                "Target \(targetName) doesn't link the framework \(framework)",
+                file: file,
+                line: line
+            )
+            return
+        }
+    }
+
     func XCTAssertSchemeContainsBuildSettings(
         _ scheme: String,
         configuration: String,
@@ -575,6 +841,39 @@ extension TuistAcceptanceTestCase {
         }
     }
 
+    func XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
+        _ product: String,
+        destination: String,
+        appClip: String,
+        architecture: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) async throws {
+        let productPath = try productPath(
+            for: product,
+            destination: destination
+        )
+
+        guard  let appClipPath = FileHandler.shared.glob(productPath, glob: "AppClips/\(appClip).app").first,
+               FileHandler.shared.exists(appClipPath)
+        else {
+            XCTFail(
+                "App clip \(appClip) not found for product \(product) and destination \(destination)",
+                file: file,
+                line: line
+            )
+            return
+        }
+
+        let fileInfo = try await System.shared.runAndCollectOutput(
+            [
+                "file",
+                appClipPath.appending(component: appClip).pathString,
+            ]
+        )
+        XCTAssertTrue(fileInfo.standardOutput.contains(architecture))
+    }
+
     func XCTAssertProductWithDestinationContainsExtension(
         _ product: String,
         destination: String,
@@ -587,8 +886,8 @@ extension TuistAcceptanceTestCase {
             destination: destination
         )
 
-        guard  let extensionPath = FileHandler.shared.glob(productPath, glob: "Plugins/\(`extension`).appex").first,
-               FileHandler.shared.exists(extensionPath)
+        guard let extensionPath = FileHandler.shared.glob(productPath, glob: "Plugins/\(`extension`).appex").first,
+              FileHandler.shared.exists(extensionPath)
         else {
             XCTFail(
                 "Extension \(`extension`) not found for product \(product) and destination \(destination)",
