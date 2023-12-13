@@ -854,8 +854,8 @@ extension TuistAcceptanceTestCase {
             destination: destination
         )
 
-        guard  let appClipPath = FileHandler.shared.glob(productPath, glob: "AppClips/\(appClip).app").first,
-               FileHandler.shared.exists(appClipPath)
+        guard let appClipPath = FileHandler.shared.glob(productPath, glob: "AppClips/\(appClip).app").first,
+              FileHandler.shared.exists(appClipPath)
         else {
             XCTFail(
                 "App clip \(appClip) not found for product \(product) and destination \(destination)",
