@@ -25,8 +25,8 @@ enum ScaffoldCommandError: FatalError, Equatable {
     }
 }
 
-struct ScaffoldCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct ScaffoldCommand: AsyncParsableCommand {
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "scaffold",
             abstract: "Generates new project based on a template",
@@ -53,11 +53,11 @@ struct ScaffoldCommand: AsyncParsableCommand {
 
     var requiredTemplateOptions: [String: String] = [:]
     var optionalTemplateOptions: [String: String?] = [:]
-
-    init() {}
+    
+    public init() {}
 
     // Custom decoding to decode dynamic options
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         template = try container.decode(Argument<String>.self, forKey: .template).wrappedValue
         json = try container.decodeIfPresent(Option<Bool>.self, forKey: .json)?.wrappedValue ?? false
@@ -76,7 +76,7 @@ struct ScaffoldCommand: AsyncParsableCommand {
         }
     }
 
-    func run() async throws {
+    public func run() async throws {
         // Currently, @Argument and subcommand clashes, so we need to handle that ourselves
         if template == ListCommand.configuration.commandName {
             let format: ListService.OutputFormat = json ? .json : .table
@@ -95,11 +95,11 @@ struct ScaffoldCommand: AsyncParsableCommand {
 // MARK: - Preprocessing
 
 extension ScaffoldCommand {
-    static var requiredTemplateOptions: [(name: String, option: Option<String>)] = []
-    static var optionalTemplateOptions: [(name: String, option: Option<String?>)] = []
+    public static var requiredTemplateOptions: [(name: String, option: Option<String>)] = []
+    public static var optionalTemplateOptions: [(name: String, option: Option<String?>)] = []
 
     /// We do not know template's option in advance -> we need to dynamically add them
-    static func preprocess(_ arguments: [String]? = nil) async throws {
+    public static func preprocess(_ arguments: [String]? = nil) async throws {
         guard let arguments,
               arguments.count >= 2
         else { throw ScaffoldCommandError.templateNotProvided }
@@ -184,7 +184,7 @@ extension ScaffoldCommand {
 /// ArgumentParser library gets the list of options from a mirror
 /// Since we do not declare template's options in advance, we need to rewrite the mirror implementation and add them ourselves
 extension ScaffoldCommand: CustomReflectable {
-    var customMirror: Mirror {
+    public var customMirror: Mirror {
         let requiredTemplateChildren = ScaffoldCommand.requiredTemplateOptions
             .map { Mirror.Child(label: $0.name, value: $0.option) }
         let optionalTemplateChildren = ScaffoldCommand.optionalTemplateOptions
