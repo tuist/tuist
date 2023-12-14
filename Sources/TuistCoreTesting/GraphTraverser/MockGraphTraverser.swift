@@ -611,13 +611,13 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedTargetsWithExternalDependenciesResult
     }
 
-    var invokedExternalTargets = false
-    var invokedExternalTargetsCount = 0
-    var stubbedExternalTargetsResult: Set<GraphTarget>! = []
-    func externalTargets() -> Set<GraphTarget> {
-        invokedExternalTargets = true
-        invokedExternalTargetsCount += 1
-        return stubbedExternalTargetsResult
+    var invokedAllExternalTargets = false
+    var invokedAllExternalTargetsCount = 0
+    var stubbedAllExternalTargetsResult: Set<GraphTarget>! = []
+    func allExternalTargets() -> Set<GraphTarget> {
+        invokedAllExternalTargets = true
+        invokedAllExternalTargetsCount += 1
+        return stubbedAllExternalTargetsResult
     }
 
     var invokedExternalTargetSupportedPlatforms = false
@@ -627,5 +627,19 @@ final class MockGraphTraverser: GraphTraversing {
         invokedExternalTargetSupportedPlatforms = true
         invokedExternalTargetSupportedPlatformsCount += 1
         return stubbedExternalTargetSupportedPlatformsResult
+    }
+
+    var invokedDirectTargetExternalDependencies = false
+    var invokedDirectTargetExternalDependenciesCount = 0
+    var invokedDirectTargetExternalDependenciesParameters: (path: AbsolutePath, name: String)?
+    var invokedDirectTargetExternalDependenciesParametersList =
+        [(path: AbsolutePath, name: String)]()
+    var stubbedDirectTargetExternalDependenciesResult: Set<GraphTarget>! = []
+    func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+        invokedDirectTargetExternalDependencies = true
+        invokedDirectTargetExternalDependenciesCount += 1
+        invokedDirectTargetExternalDependenciesParameters = (path, name)
+        invokedDirectTargetExternalDependenciesParametersList.append((path, name))
+        return stubbedDirectTargetExternalDependenciesResult
     }
 }

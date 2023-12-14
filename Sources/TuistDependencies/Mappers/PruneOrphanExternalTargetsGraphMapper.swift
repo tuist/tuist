@@ -7,7 +7,7 @@ import TuistGraph
  that are not necessary when the dependencies are consumed downstream by Tuist projects.
  This graph mappers detects and prunes those targets
  */
-public final class PruneOrphanExternalTargetsGraphMapper: GraphMapping {
+public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
     public init() {}
 
     public func map(graph: TuistGraph.Graph) async throws -> (TuistGraph.Graph, [TuistCore.SideEffectDescriptor]) {

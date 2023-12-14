@@ -604,35 +604,14 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func targetsWithExternalDependencies() -> Set<GraphTarget> {
-        Set(graph.dependencies.compactMap { fromDependency, toDependencies in
-            let fromNonExternalTarget: GraphTarget
-            switch fromDependency {
-            case let .target(targetName, projectPath):
-                let project = graph.projects[projectPath]!
-                if project.isExternal {
-                    return nil
-                } else {
-                    let target = graph.targets[projectPath]![targetName]!
-                    fromNonExternalTarget = GraphTarget(path: projectPath, target: target, project: project)
-                }
-            case .bundle, .framework, .library, .packageProduct, .sdk, .xcframework:
-                return nil
-            }
-
-            let dependsOnExternalDependency = toDependencies.first { toDependency in
-                switch toDependency {
-                case let .target(_, projectPath):
-                    graph.projects[projectPath]!.isExternal
-                case .bundle, .framework, .library, .packageProduct, .sdk, .xcframework:
-                    false
-                }
-            } != nil
-
-            return dependsOnExternalDependency ? fromNonExternalTarget : nil
-        })
+        allInternalTargets().filter { directTargetExternalDependencies(path: $0.path, name: $0.target.name).count != 0 }
     }
 
-    public func externalTargets() -> Set<GraphTarget> {
+    public func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+        directTargetDependencies(path: path, name: name).filter(\.project.isExternal)
+    }
+
+    public func allExternalTargets() -> Set<GraphTarget> {
         Set(graph.projects.compactMap { path, project in
             project.isExternal ? (path, project) : nil
         }.flatMap { projectPath, project in
