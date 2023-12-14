@@ -620,37 +620,24 @@ public class GraphTraverser: GraphTraversing {
         })
     }
 
-    public func orphanExternalDependencies() -> Set<GraphDependency> {
-        let directDependencies = Set(
-            graph.dependencies
-                .flatMap { fromDependency, toDependencies -> [GraphDependency] in
-                    guard case let GraphDependency.target(_, fromProjectPath) = fromDependency,
-                          !graph.projects[fromProjectPath]!.isExternal
-                    else {
-                        return []
-                    }
-                    return toDependencies.compactMap { toDependency -> GraphDependency? in
-                        switch toDependency {
-                        case let .target(name, toProjectPath):
-                            guard self.graph.projects[toProjectPath]!.isExternal else { return nil }
-                            return .target(name: name, path: toProjectPath)
-                        default:
-                            return nil
-                        }
-                    }
-                }
+    public func allOrphanExternalTargets() -> Set<GraphTarget> {
+        let graphDependenciesWithExternalDependencies = Set(
+            targetsWithExternalDependencies()
+                .map { GraphDependency.target(name: $0.target.name, path: $0.project.path) }
         )
-        let directAndTransitiveExternalDependencies = directDependencies.union(filterDependencies(from: directDependencies))
 
-        let allExternalDependencies = Set(graph.targets.flatMap { projectPath, targets in
-            let project = graph.projects[projectPath]!
-            guard project.isExternal else { return [GraphDependency]() }
-            return targets.map { targetName, _ in
-                .target(name: targetName, path: projectPath)
+        let allTargetExternalDependendedUponTargets = filterDependencies(from: graphDependenciesWithExternalDependencies)
+            .compactMap { graphDependency -> GraphTarget? in
+                if case let GraphDependency.target(name, path) = graphDependency {
+                    let target = graph.targets[path]![name]!
+                    let project = graph.projects[path]!
+                    return GraphTarget(path: path, target: target, project: project)
+                } else {
+                    return nil
+                }
             }
-        })
-
-        return allExternalDependencies.subtracting(directAndTransitiveExternalDependencies)
+        let allExternalTargets = allExternalTargets()
+        return allExternalTargets.subtracting(allTargetExternalDependendedUponTargets)
     }
 
     // MARK: - Internal

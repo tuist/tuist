@@ -4620,7 +4620,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
             name: transitivePackageProduct.name,
             path: packageProject.path
         )
-        let packageDevProductDependency = GraphDependency.target(name: packageDevProduct.name, path: packageProject.path)
 
         let graph = Graph.test(
             path: project.path,
@@ -4639,10 +4638,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
 
         // When
-        let got = GraphTraverser(graph: graph).orphanExternalDependencies()
+        let got = GraphTraverser(graph: graph).allOrphanExternalTargets()
 
         // Then
-        XCTAssertEqual(got, Set([packageDevProductDependency]))
+        XCTAssertEqual(got, Set([GraphTarget(path: packageProject.path, target: packageDevProduct, project: packageProject)]))
     }
 
     func test_targetsWithExternalDependencies() {

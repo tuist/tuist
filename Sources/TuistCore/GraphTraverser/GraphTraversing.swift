@@ -229,7 +229,7 @@ public protocol GraphTraversing {
     /// It returns a set containing the external dependencies that are not referenced by the projects either directly nor
     /// transitively.
     /// - Returns: The list of dependencies.
-    func orphanExternalDependencies() -> Set<GraphDependency>
+    func allOrphanExternalTargets() -> Set<GraphTarget>
 
     /// Returns all the non-external targets of the graph that depend on a external target.
     /// - Returns: A set containing all the targets.

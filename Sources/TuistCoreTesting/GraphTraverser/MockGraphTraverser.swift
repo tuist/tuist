@@ -593,13 +593,13 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedDirectSwiftMacroFrameworkTargetsResult
     }
 
-    var invokedOrphanExternalDependencies = false
-    var invokedOrphanExternalDependenciesCount = 0
-    var stubbedOrphanExternalDependenciesResult: Set<GraphDependency>! = []
-    func orphanExternalDependencies() -> Set<GraphDependency> {
-        invokedOrphanExternalDependencies = true
-        invokedOrphanExternalDependenciesCount += 1
-        return stubbedOrphanExternalDependenciesResult
+    var invokedAllOrphanExternalTargets = false
+    var invokedAllOrphanExternalTargetsCount = 0
+    var stubbedAllOrphanExternalTargetsResult: Set<GraphTarget>! = []
+    func allOrphanExternalTargets() -> Set<GraphTarget> {
+        invokedAllOrphanExternalTargets = true
+        invokedAllOrphanExternalTargetsCount += 1
+        return stubbedAllOrphanExternalTargetsResult
     }
 
     var invokedTargetsWithExternalDependencies = false

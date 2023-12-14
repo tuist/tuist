@@ -12,12 +12,14 @@ public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
 
     public func map(graph: TuistGraph.Graph) async throws -> (TuistGraph.Graph, [TuistCore.SideEffectDescriptor]) {
         let graphTraverser = GraphTraverser(graph: graph)
-        let orphanExternalDependencies = graphTraverser.orphanExternalDependencies()
+        let orphanExternalTargets = graphTraverser.allOrphanExternalTargets()
 
         var graph = graph
         graph.targets = Dictionary(uniqueKeysWithValues: graph.targets.map { projectPath, targets in
             let targets = Dictionary(uniqueKeysWithValues: targets.compactMap { targetName, target -> (String, Target)? in
-                if orphanExternalDependencies.contains(.target(name: targetName, path: projectPath)) {
+                let project = graph.projects[projectPath]!
+                let graphTarget = GraphTarget(path: projectPath, target: target, project: project)
+                if orphanExternalTargets.contains(graphTarget) {
                     return nil
                 } else {
                     return (targetName, target)
