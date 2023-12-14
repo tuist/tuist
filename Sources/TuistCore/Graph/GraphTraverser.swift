@@ -605,20 +605,19 @@ public class GraphTraverser: GraphTraversing {
 
     public func targetsWithExternalDependencies() -> Set<GraphTarget> {
         Set(graph.dependencies.compactMap { fromDependency, toDependencies in
-            let fromNonExternalTarget: GraphTarget?
+            let fromNonExternalTarget: GraphTarget
             switch fromDependency {
             case let .target(targetName, projectPath):
                 let project = graph.projects[projectPath]!
                 if project.isExternal {
-                    fromNonExternalTarget = nil
+                    return nil
                 } else {
                     let target = graph.targets[projectPath]![targetName]!
                     fromNonExternalTarget = GraphTarget(path: projectPath, target: target, project: project)
                 }
             case .bundle, .framework, .library, .packageProduct, .sdk, .xcframework:
-                fromNonExternalTarget = nil
+                return nil
             }
-            guard fromNonExternalTarget != nil else { return nil }
 
             let dependsOnExternalDependency = toDependencies.first { toDependency in
                 switch toDependency {
