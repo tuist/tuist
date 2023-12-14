@@ -258,8 +258,12 @@ extension FileHandle {
         seek(toFileOffset: offset)
     }
 
-    fileprivate func read<T>() -> T {
-        readData(ofLength: MemoryLayout<T>.size).withUnsafeBytes { $0.load(as: T.self) }
+    fileprivate func read<T>() -> T? {
+        let data = readData(ofLength: MemoryLayout<T>.size)
+        guard data.count == MemoryLayout<T>.size else {
+            return nil
+        }
+        return data.withUnsafeBytes { $0.load(as: T.self) }
     }
 
     fileprivate func readString(ofLength length: Int) -> String? {
