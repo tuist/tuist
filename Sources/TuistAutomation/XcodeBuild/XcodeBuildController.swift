@@ -18,7 +18,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
     private let formatter: Formatting
     private let environment: Environmenting
-    
+
     public convenience init() {
         self.init(formatter: Formatter(), environment: Environment.shared)
     }
@@ -71,9 +71,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
         case nil:
             break
         }
-        
+
         // Derived data path
-        if let derivedDataPath = derivedDataPath {
+        if let derivedDataPath {
             command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
 
@@ -130,12 +130,12 @@ public final class XcodeBuildController: XcodeBuildControlling {
         }
 
         // Derived data path
-        if let derivedDataPath = derivedDataPath {
+        if let derivedDataPath {
             command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
 
         // Result bundle path
-        if let resultBundlePath = resultBundlePath {
+        if let resultBundlePath {
             command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
         }
 
@@ -205,7 +205,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
                 // It's workaround for Xcode 15 RC bug
                 // remove it since bug will be fixed
                 // more details here: https://github.com/tuist/tuist/issues/5354
-                pathString.hasPrefix("/var/") ? pathString.replacingOccurrences(of: "/var/", with: "/private/var/") : pathString
+                pathString.hasPrefix("/var/") ? pathString.replacingOccurrences(of: "/var/", with: "/private/var/") : pathString,
             ]
         })
         command.append(contentsOf: ["-output", output.pathString])
@@ -250,7 +250,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             var currentTarget: String?
 
             let flushTarget = { () in
-                if let currentTarget = currentTarget {
+                if let currentTarget {
                     let buildSettings = XcodeBuildSettings(
                         currentSettings,
                         target: currentTarget,
@@ -289,7 +289,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return buildSettingsByTargetName
     }
 
-    fileprivate func run(command: [String], rawXcodebuildLogs: Bool) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+    fileprivate func run(
+        command: [String],
+        rawXcodebuildLogs: Bool
+    ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         System.shared.publisher(command)
             .compactMap { [weak self] event -> SystemEvent<XcodeBuildOutput>? in
                 switch event {

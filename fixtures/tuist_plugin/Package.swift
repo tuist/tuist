@@ -24,14 +24,14 @@ let package = Package(
         .target(
             name: "CreateFile",
             dependencies: [
-                .product(name: "ProjectAutomation", package: "tuist")
+                .product(name: "ProjectAutomation", package: "tuist"),
             ]
         ),
         .testTarget(name: "CreateFileTests"),
         .target(
             name: "InspectGraph",
             dependencies: [
-                .product(name: "ProjectAutomation", package: "tuist")
+                .product(name: "ProjectAutomation", package: "tuist"),
             ]
         ),
     ]
