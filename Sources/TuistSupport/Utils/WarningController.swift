@@ -15,8 +15,8 @@ public protocol WarningControlling {
 
 public final class WarningController: WarningControlling {
     private let warningsQueue = DispatchQueue(label: "io.tuist.TuistSupport.WarningController")
-    private var _warnings: [String] = []
-    private var warnings: [String] {
+    private var _warnings: Set<String> = Set()
+    private var warnings: Set<String> {
         get {
             warningsQueue.sync { _warnings }
         }
@@ -27,11 +27,11 @@ public final class WarningController: WarningControlling {
 
     public static var shared: WarningControlling = WarningController()
 
-    private init() {}
+    init() {}
 
     public func append(warning: String) {
         var warnings = warnings
-        warnings.append(warning)
+        warnings.insert(warning)
         self.warnings = warnings
     }
 

@@ -86,7 +86,7 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
-    /// Given a project directory and a target name, it returns all direct dependencies with their conditions
+    /// Given a project directory and a target name, it returns all direct local dependencies with their conditions
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
@@ -94,6 +94,12 @@ public protocol GraphTraversing {
         GraphTarget,
         PlatformCondition?
     )]
+
+    /// Given a project directory and a target name, it returns all direct dependencies with their conditions
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func directTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, PlatformCondition?)]
 
     /// Given a project directory and a target name, it returns all the dependencies that are extensions.
     /// - Parameters:

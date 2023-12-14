@@ -294,12 +294,6 @@ final class TestServiceTests: TuistUnitTestCase {
                 "ProjectSchemeTwo",
             ]
         )
-        XCTAssertTrue(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "A"))
-        )
-        XCTAssertTrue(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "B"))
-        )
     }
 
     func test_run_tests_individual_scheme() async throws {
@@ -338,12 +332,34 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(testedSchemes, ["ProjectSchemeOne"])
-        XCTAssertTrue(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "A"))
+    }
+
+    func test_run_tests_with_skipped_targets() async throws {
+        // Given
+        buildGraphInspector.testableSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectSchemeOneTests"),
+            ]
+        }
+        generator.generateWithGraphStub = { path in
+            (path, Graph.test())
+        }
+        var testedSchemes: [String] = []
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _, _, _, _, _, _ in
+            testedSchemes.append(scheme)
+            return [.standardOutput(.init(raw: "success"))]
+        }
+
+        // When
+        try await subject.testRun(
+            schemeName: "ProjectSchemeOneTests",
+            path: try temporaryPath(),
+            skipTestTargets: [.init(target: "ProjectSchemeOnTests", class: "TestClass")]
         )
-        XCTAssertTrue(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "B"))
-        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["ProjectSchemeOneTests"])
+        XCTAssertEqual(generatorFactory.invokedTestParameters?.excludedTargets, [])
     }
 
     func test_run_tests_all_project_schemes_when_fails() async throws {

@@ -194,7 +194,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
                 testsCacheDirectory: testsCacheTemporaryDirectory.path,
                 testPlan: testPlanConfiguration?.testPlan,
                 includedTargets: Set(testTargets.map(\.target)),
-                excludedTargets: Set(skipTestTargets.map(\.target)),
+                excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
                 skipUITests: skipUITests
             )
         }
@@ -291,25 +291,6 @@ public final class TestService { // swiftlint:disable:this type_body_length
                 )
             }
         }
-
-        // Saving hashes from `testsCacheTemporaryDirectory` to `testsCacheDirectory` after all the tests have run successfully
-
-        if !FileHandler.shared.exists(
-            cacheDirectoriesProvider.cacheDirectory(for: .tests)
-        ) {
-            try FileHandler.shared.createFolder(cacheDirectoriesProvider.cacheDirectory(for: .tests))
-        }
-
-        try FileHandler.shared
-            .contentsOfDirectory(testsCacheTemporaryDirectory.path)
-            .forEach { hashPath in
-                let destination = cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: hashPath.basename)
-                guard !FileHandler.shared.exists(destination) else { return }
-                try FileHandler.shared.move(
-                    from: hashPath,
-                    to: destination
-                )
-            }
 
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
     }

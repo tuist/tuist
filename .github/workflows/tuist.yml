@@ -70,7 +70,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Test
-        run: tuist test --no-cache --skip-test-targets TuistBuildAcceptanceTests TuistGenerateOneAcceptanceTests TuistTestAcceptanceTests
+        run: tuist test --no-cache --skip-test-targets TuistBuildAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests
 
   cache-warm:
     name: Cache warm with latest Tuist
@@ -124,7 +124,7 @@ jobs:
         feature:
           [
             'Build',
-            'GenerateOne',
+            'Generate',
             'Test',
           ]
     steps:
@@ -135,6 +135,8 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run:  defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
       - uses: actions/cache@v3
         name: 'Cache fetched dependencies folder'
         with:
@@ -155,12 +157,6 @@ jobs:
           [
             'dependencies',
             'edit',
-            'generate-3',
-            'generate-4',
-            'generate-5',
-            'generate-6',
-            'generate-7',
-            'generate-8',
             'graph',
             'init',
             'list-targets',
