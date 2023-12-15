@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistDependencies
 import TuistGenerator
 import TuistGraph
 import TuistSigning
@@ -47,9 +48,11 @@ public final class GraphMapperFactory: GraphMapperFactorying {
         return mappers
     }
 
-    func `default`() -> [GraphMapping] {
+    public func `default`() -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(UpdateWorkspaceProjectsGraphMapper())
+        mappers.append(PruneOrphanExternalTargetsGraphMapper())
+        mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
         return mappers
     }
 }
