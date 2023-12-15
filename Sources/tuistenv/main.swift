@@ -12,6 +12,8 @@ Please, uninstall it by running:
     curl -Ls https://uninstall.tuist.io | bash
 
 And follow the new installation instructions at https://github.com/tuist/tuist#recommended-rtx
+
+Read more about the rationale at https://tuist.io/blog/2023/12/15/rtx-default/
 """)
 
 TuistCommand.main()
