@@ -8,8 +8,8 @@
         
         @Image(source: "Logo.png", alt: "An illustration that shows the Tuist logo.")
         
-        @TutorialReference(tutorial: "doc:Tuist-Tutorial---Install-Uninstall-Tuist")
-        @TutorialReference(tutorial: "doc:Tuist-Tutorial---Create-Project")
-        @TutorialReference(tutorial: "doc:Tuist-Tutorial---Add-External-Dependencies")
+        @TutorialReference(tutorial: "doc:install")
+        @TutorialReference(tutorial: "doc:create-project")
+        @TutorialReference(tutorial: "doc:external-dependencies")
     }
 }
