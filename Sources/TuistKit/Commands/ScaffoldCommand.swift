@@ -53,7 +53,7 @@ public struct ScaffoldCommand: AsyncParsableCommand {
 
     var requiredTemplateOptions: [String: String] = [:]
     var optionalTemplateOptions: [String: String?] = [:]
-    
+
     public init() {}
 
     // Custom decoding to decode dynamic options

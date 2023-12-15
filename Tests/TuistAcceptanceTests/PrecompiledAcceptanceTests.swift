@@ -100,20 +100,3 @@ extension TuistAcceptanceTestCase {
         XCTAssertTrue(fileInfo.standardOutput.contains(architecture))
     }
 }
-
-//Scenario: The project is an iOS application with a target dependency and transitive framework dependency (ios_app_with_transitive_framework)
-//  Given that tuist is available
-//  And I have a working directory
-//  Then I copy the fixture ios_app_with_transitive_framework into the working directory
-//  Then tuist generates the project
-//  Then I should be able to build for iOS the scheme App
-//  Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the framework 'Framework1' with architecture 'x86_64'
-//  Then the product 'App.app' with destination 'Debug-iphonesimulator' contains the framework 'Framework2' without architecture 'arm64'
-//  Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers
-//  Then I should be able to build for iOS the scheme App
-//  Then the product 'AppUITests-Runner.app' with destination 'Debug-iphonesimulator' does not contain the framework 'Framework2'
-//  Then I should be able to build for iOS the scheme Framework1-iOS
-//  Then I should be able to build for macOS the scheme Framework1-macOS
-//  Then I should be able to build for iOS the scheme Framework1Tests-iOS
-//  Then I should be able to build for macOS the scheme Framework1Tests-macOS
-//  Then I should be able to build for iOS the scheme StaticFramework1

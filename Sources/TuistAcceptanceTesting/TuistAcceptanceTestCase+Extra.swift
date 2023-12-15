@@ -11,7 +11,7 @@ extension TuistAcceptanceTestCase {
         let productPath = try productPath(for: productName, destination: destination)
         return FileHandler.shared.glob(productPath, glob: "**/*.h")
     }
-    
+
     public func productPath(
         for name: String,
         destination: String
@@ -20,7 +20,7 @@ extension TuistAcceptanceTestCase {
             FileHandler.shared.glob(derivedDataPath, glob: "**/Build/**/Products/\(destination)/\(name)/").first
         )
     }
-    
+
     public func XCTUnwrapTarget(
         _ targetName: String,
         in xcodeproj: XcodeProj,
@@ -37,10 +37,10 @@ extension TuistAcceptanceTestCase {
             )
             throw XCTUnwrapError.nilValueDetected
         }
-        
+
         return target
     }
-    
+
     public func XCTAssertProductWithDestinationDoesNotContainHeaders(
         _ product: String,
         destination: String,
@@ -51,7 +51,7 @@ extension TuistAcceptanceTestCase {
             XCTFail("Product with name \(product) and destination \(destination) contains headers", file: file, line: line)
         }
     }
-    
+
     public func XCTAssertFrameworkEmbedded(
         _ framework: String,
         by targetName: String,
@@ -60,7 +60,7 @@ extension TuistAcceptanceTestCase {
     ) throws {
         let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
         let target = try XCTUnwrapTarget(targetName, in: xcodeproj)
-        
+
         let xcframeworkDependencies = target.embedFrameworksBuildPhases()
             .filter { $0.dstSubfolderSpec == .frameworks }
             .map(\.files)

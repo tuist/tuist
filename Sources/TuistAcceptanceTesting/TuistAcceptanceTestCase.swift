@@ -74,18 +74,45 @@ open class TuistAcceptanceTestCase: XCTestCase {
             "--path", fixturePath.pathString,
         ]
 
-        print(command, arguments)
         var parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()
     }
-    
+
     public func run(_ command: RunCommand.Type, _ arguments: [String] = []) async throws {
         let arguments = [
             "--path", fixturePath.pathString,
         ] + arguments
 
-        var parsedCommand = try command.parse(arguments)
+        let parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()
+    }
+
+    public func run(_ command: EditCommand.Type, _ arguments: String...) async throws {
+        try await run(command, arguments)
+    }
+
+    public func run(_ command: EditCommand.Type, _ arguments: [String] = []) async throws {
+        let arguments = arguments + [
+            "--path", fixturePath.pathString,
+            "--permanent",
+        ]
+
+        let parsedCommand = try command.parse(arguments)
+        try await parsedCommand.run()
+
+        xcodeprojPath = try FileHandler.shared.contentsOfDirectory(fixturePath)
+            .first(where: { $0.basename == "Manifests.xcodeproj" })
+        workspacePath = try FileHandler.shared.contentsOfDirectory(fixturePath)
+            .first(where: { $0.basename == "Manifests.xcworkspace" })
+    }
+
+    public func run(_ command: MigrationTargetsByDependenciesCommand.Type, _ arguments: String...) throws {
+        try run(command, arguments)
+    }
+
+    public func run(_ command: MigrationTargetsByDependenciesCommand.Type, _ arguments: [String] = []) throws {
+        let parsedCommand = try command.parse(arguments)
+        try parsedCommand.run()
     }
 
     public func run(_ command: TestCommand.Type, _ arguments: [String] = []) async throws {

@@ -5,7 +5,7 @@ import TuistSupport
 
 public struct RunCommand: AsyncParsableCommand {
     public init() {}
-    
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "run",
