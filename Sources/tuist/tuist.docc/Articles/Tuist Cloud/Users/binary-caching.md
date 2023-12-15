@@ -30,6 +30,8 @@ tuist generate Search Settings # Dependencies, and Search and Settings dependenc
 tuist generate --no-cache # No cache at all
 ```
 
+> Warning: Binary caching is a feature designed for development workflows such as running the app on a simulator or device, or running tests. It is not intended for release builds. When archiving the app, generate a project with the sources by using the `--no-cache` flag.
+
 ### Sharing binaries across environments
 
 To facilitate the sharing of binaries across different environments, you'll require a [Tuist Cloud](https://tuist.io/cloud) account and a designated project. You have the option to create this project directly under your personal account, or alternatively, you can establish an organization. Creating an organization allows you to invite your team members to collaborate within a unified framework:

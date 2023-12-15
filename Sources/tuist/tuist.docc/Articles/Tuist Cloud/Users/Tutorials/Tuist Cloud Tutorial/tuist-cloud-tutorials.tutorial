@@ -1,5 +1,5 @@
-@Tutorials(name: "Tuist Cloud Tutorial") {
-    @Intro(title: "Tutorials") {
+@Tutorials(name: "Tuist Cloud") {
+    @Intro(title: "Tuist Cloud Tutorials") {
         Through these tutorials you will learn all about Tuist Cloud, from the basics like using the managed service to more advanced concepts like self-hosting a tuist cloud instance in your infrastructure.
     }
         
@@ -8,9 +8,9 @@
         
         @Image(source: "Tuist Cloud Enterprise Server.png", alt: "An illustration that shows the icon of a server")
         
-        @TutorialReference(tutorial: "doc:Tuist-Cloud-Tutorial---Enterprise-Infrastructure-Requirements")
-        @TutorialReference(tutorial: "doc:Tuist-Cloud-Tutorial---Enterprise-Environment")
-        @TutorialReference(tutorial: "doc:Tuist-Cloud-Tutorial---Enterprise-Deployment")
+        @TutorialReference(tutorial: "doc:enterprise-infrastructure-requirements")
+        @TutorialReference(tutorial: "doc:enterprise-environment")
+        @TutorialReference(tutorial: "doc:enterprise-deployment")
     }
 }
 
