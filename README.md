@@ -24,10 +24,12 @@ It's open source and written in Swift.
 
 ## Install ⬇️
 
-### Running script (Recommended)
+### Recommended: [rtx](https://github.com/jdx/rtx)
 
-```shell
-curl -Ls https://install.tuist.io | bash
+Install [rtx](https://github.com/jdx/rtx#installation) and then run the following command to install Tuist:
+
+```bash
+rtx install tuist
 ```
 
 ## Bootstrap your first project 🌀
