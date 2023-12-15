@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.36.0 - 2023-12-15
+
+### Tuist
+
+#### Fixed
+
+- Prevent duplicated warnings [#5662](https://github.com/tuist/tuist/pull/5662) by [@pepicrft](https://github.com/pepicrft)
+- Fix --skip-test-targets with a test class [#5673](https://github.com/tuist/tuist/pull/5673) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.35.5 - 2023-12-10
 
 ### Fixed
