@@ -432,6 +432,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "TempuraTesting", // https://github.com/BendingSpoons/tempura-swift
                     "TSCTestSupport", // https://github.com/apple/swift-tools-support-core
                     "ViewInspector", // https://github.com/nalexn/ViewInspector
+                    "XCTVapor", // https://github.com/vapor/vapor
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }
