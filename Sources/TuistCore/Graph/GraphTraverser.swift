@@ -204,6 +204,14 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
+    public func appExtensionDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, PlatformCondition?)] {
+        let validProducts: [Product] = [
+            .appExtension, .stickerPackExtension, .watch2Extension, .tvTopShelfExtension, .messagesExtension,
+        ]
+
+        return directLocalTargetDependenciesWithConditions(path: path, name: name).filter { validProducts.contains($0.0.target.product) }
+    }
+
     public func extensionKitExtensionDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistGraph.GraphTarget> {
         let validProducts: [Product] = [
             .extensionKitExtension,

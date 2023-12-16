@@ -514,20 +514,21 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
     ) throws {
-        let appExtensions = graphTraverser.appExtensionDependencies(path: path, name: target.name).sorted()
+        let appExtensions = graphTraverser.appExtensionDependenciesWithConditions(path: path, name: target.name)//.sorted()
         guard !appExtensions.isEmpty else { return }
-        var pbxBuildFiles = [PBXBuildFile]()
 
         let appExtensionsBuildPhase = PBXCopyFilesBuildPhase(dstSubfolderSpec: .plugins, name: "Embed Foundation Extensions")
         pbxproj.add(object: appExtensionsBuildPhase)
         pbxTarget.buildPhases.append(appExtensionsBuildPhase)
 
-        let refs = appExtensions.compactMap { fileElements.product(target: $0.target.name) }
+        let pbxBuildFiles: [PBXBuildFile] = appExtensions.compactMap { graphTarget, condition in
+            guard let fileReference = fileElements.product(target: graphTarget.target.name) else { return nil }
 
-        refs.forEach {
-            let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
-            pbxBuildFiles.append(pbxBuildFile)
+            let pbxBuildFile = PBXBuildFile(file: fileReference, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
+            pbxBuildFile.applyCondition(condition, applicableTo: target)
+            return pbxBuildFile
         }
+
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         appExtensionsBuildPhase.files = pbxBuildFiles
     }
@@ -540,10 +541,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
     ) throws {
-        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: path, name: target.name).sorted()
-        let watchApps = targetDependencies.filter { $0.target.isEmbeddableWatchApplication() }
+        let targetDependencies = graphTraverser.directLocalTargetDependenciesWithConditions(path: path, name: target.name)//.sorted()
+        let watchApps = targetDependencies.filter { $0.0.target.isEmbeddableWatchApplication() }
         guard !watchApps.isEmpty else { return }
-        var pbxBuildFiles = [PBXBuildFile]()
 
         let embedWatchAppBuildPhase = PBXCopyFilesBuildPhase(
             dstPath: "$(CONTENTS_FOLDER_PATH)/Watch",
@@ -553,12 +553,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj.add(object: embedWatchAppBuildPhase)
         pbxTarget.buildPhases.append(embedWatchAppBuildPhase)
 
-        let refs = watchApps.compactMap { fileElements.product(target: $0.target.name) }
+        let pbxBuildFiles: [PBXBuildFile] = watchApps.compactMap { graphTarget, condition in
+            guard let fileReference = fileElements.product(target: graphTarget.target.name) else { return nil }
 
-        refs.forEach {
-            let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
-            pbxBuildFiles.append(pbxBuildFile)
+            let pbxBuildFile = PBXBuildFile(file: fileReference, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
+            pbxBuildFile.applyCondition(condition, applicableTo: target)
+            return pbxBuildFile
         }
+
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         embedWatchAppBuildPhase.files = pbxBuildFiles
     }

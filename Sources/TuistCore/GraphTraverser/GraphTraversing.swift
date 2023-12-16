@@ -107,6 +107,12 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func appExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
+    /// Given a project directory and a target name, it returns all the dependencies that are extensions with ther condition
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func appExtensionDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, PlatformCondition?)]
+
     /// Returns the transitive resource bundle dependencies for the given target.
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
