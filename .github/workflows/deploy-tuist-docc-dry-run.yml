@@ -1,9 +1,6 @@
 name: Deploy Tuist Docc dry-run
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     paths:
       - Package.swift
