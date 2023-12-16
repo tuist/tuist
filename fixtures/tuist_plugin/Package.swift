@@ -5,7 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "LocalPlugin",
-    platforms: [.macOS(.v10_15)],
+    platforms: [.macOS(.v11)],
     products: [
         .executable(
             name: "tuist-create-file",
@@ -18,20 +18,20 @@ let package = Package(
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/tuist/tuist", .revision("cc762b1d4")),
+        .package(url: "https://github.com/tuist/ProjectAutomation", .branch("main")),
     ],
     targets: [
         .target(
             name: "CreateFile",
             dependencies: [
-                .product(name: "ProjectAutomation", package: "tuist")
+                .product(name: "ProjectAutomation", package: "ProjectAutomation")
             ]
         ),
         .testTarget(name: "CreateFileTests"),
         .target(
             name: "InspectGraph",
             dependencies: [
-                .product(name: "ProjectAutomation", package: "tuist")
+                .product(name: "ProjectAutomation", package: "ProjectAutomation")
             ]
         ),
     ]

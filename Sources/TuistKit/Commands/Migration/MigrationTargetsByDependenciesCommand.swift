@@ -3,8 +3,10 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-struct MigrationTargetsByDependenciesCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct MigrationTargetsByDependenciesCommand: ParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list-targets",
             _superCommandName: "migration",
@@ -19,7 +21,7 @@ struct MigrationTargetsByDependenciesCommand: ParsableCommand {
     )
     var xcodeprojPath: String
 
-    func run() throws {
+    public func run() throws {
         try MigrationTargetsByDependenciesService()
             .run(xcodeprojPath: try AbsolutePath(validating: xcodeprojPath, relativeTo: FileHandler.shared.currentPath))
     }
