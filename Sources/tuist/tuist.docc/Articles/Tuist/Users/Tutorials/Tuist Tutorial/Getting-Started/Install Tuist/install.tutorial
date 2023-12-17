@@ -1,5 +1,5 @@
 @Tutorial(time: 2) {
-    @Intro(title: "Install/Uninstall Tuist") {
+    @Intro(title: "Install Tuist") {
         Learn how to install tuist and manage it.
         
         @Image(source: "Logo-Blurred.png", alt: "Blurred Tuist Logo.")
