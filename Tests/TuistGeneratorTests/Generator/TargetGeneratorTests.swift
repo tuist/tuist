@@ -107,10 +107,14 @@ final class TargetGeneratorTests: XCTestCase {
 
     func test_generateTargetDependencies() throws {
         // Given
-        let targetA = Target.test(name: "TargetA",
-                                  destinations: [.mac, .iPhone])
-        let targetB = Target.test(name: "TargetB",
-                                  destinations: [.mac, .iPhone])
+        let targetA = Target.test(
+            name: "TargetA",
+            destinations: [.mac, .iPhone]
+        )
+        let targetB = Target.test(
+            name: "TargetB",
+            destinations: [.mac, .iPhone]
+        )
         let targetC = Target.test(name: "TargetC")
         let nativeTargetA = createNativeTarget(for: targetA)
         let nativeTargetB = createNativeTarget(for: targetB)
@@ -127,13 +131,15 @@ final class TargetGeneratorTests: XCTestCase {
             dependencies: [
                 .target(name: targetA.name, path: path): [
                     .target(name: targetB.name, path: path),
-                    .target(name: targetC.name, path: path)
+                    .target(name: targetC.name, path: path),
                 ],
             ],
             dependencyConditions: [
-            GraphEdge(from: .target(name: targetA.name, path: path),
-                      to: .target(name: targetC.name, path: path)) :
-                    try XCTUnwrap(.when([.ios]))
+                GraphEdge(
+                    from: .target(name: targetA.name, path: path),
+                    to: .target(name: targetC.name, path: path)
+                ):
+                    try XCTUnwrap(.when([.ios])),
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
