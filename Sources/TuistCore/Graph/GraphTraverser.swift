@@ -311,6 +311,29 @@ public class GraphTraverser: GraphTraversing {
         if target.target.mergedBinaryType != .disabled {
             otherTargetFrameworks = otherTargetFrameworks.filter(isDependencyDynamicNonMergeableTarget)
         }
+        
+        for innerTarget in otherTargetFrameworks {
+            guard let target = self.target(from: innerTarget) else {
+                continue
+            }
+
+            let mergeableFrameworks = filterDependencies(
+                from: innerTarget,
+                test: isDependencyDynamicMergeableTarget,
+                skip: canDependencyEmbedProducts
+            )
+            switch target.target.mergedBinaryType {
+            case .automatic:
+                otherTargetFrameworks = otherTargetFrameworks.subtracting(mergeableFrameworks)
+            case let .manual(mergeableDependencies):
+                let selectedMergeableFrameworks = mergeableFrameworks.filter {
+                    mergeableDependencies.contains($0.name)
+                }
+                otherTargetFrameworks = otherTargetFrameworks.subtracting(selectedMergeableFrameworks)
+            case .disabled:
+                break
+            }
+        }
 
         references.formUnion(otherTargetFrameworks.lazy.compactMap { self.dependencyReference(
             to: $0,
@@ -886,6 +909,12 @@ public class GraphTraverser: GraphTraversing {
         guard case let GraphDependency.target(name, path) = dependency,
               let target = target(path: path, name: name) else { return false }
         return !target.target.mergeable
+    }
+    
+    func isDependencyDynamicMergeableTarget(dependency: GraphDependency) -> Bool {
+        guard case let GraphDependency.target(name, path) = dependency,
+              let target = target(path: path, name: name) else { return false }
+        return target.target.mergeable
     }
 
     func isDependencyStaticTarget(dependency: GraphDependency) -> Bool {
