@@ -1,0 +1,4 @@
+framework module MergeableXCFramework {
+  header "MergeableXCFramework-Swift.h"
+  requires objc
+}

@@ -1,0 +1,147 @@
+{
+  "ABIRoot": {
+    "kind": "Root",
+    "name": "TopLevel",
+    "printedName": "TopLevel",
+    "children": [
+      {
+        "kind": "Import",
+        "name": "Foundation",
+        "printedName": "Foundation",
+        "declKind": "Import",
+        "moduleName": "MergeableXCFramework"
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "MergeableXCFramework",
+        "printedName": "MergeableXCFramework",
+        "children": [
+          {
+            "kind": "Var",
+            "name": "name",
+            "printedName": "name",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:20MergeableXCFrameworkAAC4nameSSvp",
+            "mangledName": "$s20MergeableXCFrameworkAAC4nameSSvp",
+            "moduleName": "MergeableXCFramework",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:20MergeableXCFrameworkAAC4nameSSvg",
+                "mangledName": "$s20MergeableXCFrameworkAAC4nameSSvg",
+                "moduleName": "MergeableXCFramework",
+                "implicit": true,
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:20MergeableXCFrameworkAAC4nameSSvs",
+                "mangledName": "$s20MergeableXCFrameworkAAC4nameSSvs",
+                "moduleName": "MergeableXCFramework",
+                "implicit": true,
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:20MergeableXCFrameworkAAC4nameSSvM",
+                "mangledName": "$s20MergeableXCFrameworkAAC4nameSSvM",
+                "moduleName": "MergeableXCFramework",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MergeableXCFramework",
+                "printedName": "MergeableXCFramework.MergeableXCFramework",
+                "usr": "s:20MergeableXCFrameworkAAC"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "s:20MergeableXCFrameworkAACABycfc",
+            "mangledName": "$s20MergeableXCFrameworkAACABycfc",
+            "moduleName": "MergeableXCFramework",
+            "declAttributes": [
+              "AccessControl"
+            ],
+            "init_kind": "Designated"
+          }
+        ],
+        "declKind": "Class",
+        "usr": "s:20MergeableXCFrameworkAAC",
+        "mangledName": "$s20MergeableXCFrameworkAAC",
+        "moduleName": "MergeableXCFramework",
+        "declAttributes": [
+          "AccessControl"
+        ]
+      }
+    ],
+    "json_format_version": 8
+  },
+  "ConstValues": [
+    {
+      "filePath": "\/Users\/roman.tysiachnik\/Projects\/tuist\/fixtures\/ios_app_with_shared_mergeable_framework\/XCFrameworks\/MergeableXCFramework\/Sources\/MergeableXCFramework.swift",
+      "kind": "StringLiteral",
+      "offset": 77,
+      "length": 22,
+      "value": "\"MergeableXCFramework\""
+    }
+  ]
+}
