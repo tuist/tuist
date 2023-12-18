@@ -492,7 +492,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         )
 
         // For static framewor/library XCFrameworks, we need Xcode to process it to extract the
-        // the relevant product within it within it based on the architecture and place in
+        // the relevant product within it based on the architecture and place in
         // the products directory. This allows the current target to see the symbols from the XCFramework.
         //
         // Copying to products is not a nop like it is for regular static targets due to the processing step,
