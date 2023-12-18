@@ -80,6 +80,7 @@ The choice is yours. By adding .xcodeproj and .xcworkspace files to your .gitign
 
 - <doc:tuist-cloud>
 - <doc:binary-caching>
+- <doc:selective-testing>
 - <doc:tuist-cloud-tutorials>
 
 ### For Tuist Contributors
