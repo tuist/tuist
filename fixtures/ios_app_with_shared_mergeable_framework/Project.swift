@@ -12,7 +12,7 @@ let project = Project(
             sources: ["App/Sources/**"],
             dependencies: [
                 .project(target: "SharedDependenciesFramework", path: "Modules/SharedDependenciesFramework"),
-                .target(name: "AppExtension", condition: .when([.ios]))
+                .target(name: "AppExtension", condition: .when([.ios])),
             ],
             settings: .settings(base: [
                 "OTHER_LDFLAGS": [

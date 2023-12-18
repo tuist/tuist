@@ -291,16 +291,6 @@ public class GraphTraverser: GraphTraversing {
             test: isDependencyPrecompiledDynamicAndLinkable,
             skip: canDependencyEmbedProducts
         )
-        // Skip merged precompiled libraries from merging into the runnable binary
-        if case let .manual(dependenciesToMerge) = target.target.mergedBinaryType {
-            precompiledFrameworks = precompiledFrameworks
-                .filter { !isXCFrameworkMerged(dependency: $0, expectedMergedBinaries: dependenciesToMerge) }
-        }
-        references.formUnion(precompiledFrameworks.lazy.compactMap { self.dependencyReference(
-            to: $0,
-            from: .target(name: name, path: path)
-        ) })
-
         /// Other targets' frameworks.
         var otherTargetFrameworks = filterDependencies(
             from: .target(name: name, path: path),
@@ -308,24 +298,50 @@ public class GraphTraverser: GraphTraversing {
             skip: canDependencyEmbedProducts
         )
 
+        // Skip merged precompiled libraries from merging into the runnable binary first
+        switch target.target.mergedBinaryType {
+        case .automatic:
+            precompiledFrameworks = precompiledFrameworks
+                .filter { !isXCFrameworkMerged(dependency: $0) }
+        case let .manual(dependenciesToMerge):
+            precompiledFrameworks = precompiledFrameworks
+                .filter { !isXCFrameworkMerged(dependency: $0, expectedMergedBinaries: dependenciesToMerge) }
+        case .disabled:
+            break
+        }
+
+        // If runnable binary is a merged binary, keep only non-mergeable targets
         if target.target.mergedBinaryType != .disabled {
             otherTargetFrameworks = otherTargetFrameworks.filter(isDependencyDynamicNonMergeableTarget)
         }
-        
+
+        // Search for merged non-runnable binaries
         for innerTarget in otherTargetFrameworks {
-            guard let target = self.target(from: innerTarget) else {
+            guard let graphTarget = self.target(from: innerTarget),
+                  graphTarget.target.mergedBinaryType != .disabled
+            else {
                 continue
             }
 
+            // Take all mergeable dependencies
             let mergeableFrameworks = filterDependencies(
                 from: innerTarget,
                 test: isDependencyDynamicMergeableTarget,
                 skip: canDependencyEmbedProducts
             )
-            switch target.target.mergedBinaryType {
+            switch graphTarget.target.mergedBinaryType {
             case .automatic:
+                // Filter all dependencies from lists of precompiled binaries and local targets
+                precompiledFrameworks = precompiledFrameworks
+                    .filter { !isXCFrameworkMerged(dependency: $0) }
+
                 otherTargetFrameworks = otherTargetFrameworks.subtracting(mergeableFrameworks)
             case let .manual(mergeableDependencies):
+                // Filter only those dependencies that are specified to be merged
+                // from lists of precompiled binaries and local targets
+                precompiledFrameworks = precompiledFrameworks
+                    .filter { !isXCFrameworkMerged(dependency: $0, expectedMergedBinaries: mergeableDependencies) }
+
                 let selectedMergeableFrameworks = mergeableFrameworks.filter {
                     mergeableDependencies.contains($0.name)
                 }
@@ -334,6 +350,11 @@ public class GraphTraverser: GraphTraversing {
                 break
             }
         }
+
+        references.formUnion(precompiledFrameworks.lazy.compactMap { self.dependencyReference(
+            to: $0,
+            from: .target(name: name, path: path)
+        ) })
 
         references.formUnion(otherTargetFrameworks.lazy.compactMap { self.dependencyReference(
             to: $0,
@@ -905,12 +926,20 @@ public class GraphTraverser: GraphTraversing {
         return mergeable
     }
 
+    func isXCFrameworkMerged(dependency: GraphDependency) -> Bool {
+        guard case let .xcframework(_, _, _, _, mergeable, _) = dependency
+        else {
+            return false
+        }
+        return mergeable
+    }
+
     func isDependencyDynamicNonMergeableTarget(dependency: GraphDependency) -> Bool {
         guard case let GraphDependency.target(name, path) = dependency,
               let target = target(path: path, name: name) else { return false }
         return !target.target.mergeable
     }
-    
+
     func isDependencyDynamicMergeableTarget(dependency: GraphDependency) -> Bool {
         guard case let GraphDependency.target(name, path) = dependency,
               let target = target(path: path, name: name) else { return false }

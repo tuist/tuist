@@ -1,6 +1,6 @@
-import MergeableXCFramework // XCFramework (dynamic framework)
 import DynamicFrameworkA // Xcode target (dynamic framework)
 import DynamicFrameworkB // Xcode target (dynamic framework)
+import MergeableXCFramework // XCFramework (dynamic framework)
 import UIKit
 
 @main

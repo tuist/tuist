@@ -1,8 +1,8 @@
-import SwiftUI
-import WidgetKit
-import MergeableXCFramework // XCFramework (dynamic framework)
 import DynamicFrameworkA // Xcode target (dynamic framework)
 import DynamicFrameworkB // Xcode target (dynamic framework)
+import MergeableXCFramework // XCFramework (dynamic framework)
+import SwiftUI
+import WidgetKit
 
 @main
 struct AppWidgetsBundle: WidgetBundle {
@@ -15,6 +15,7 @@ struct AppWidget: Widget {
     var name: String {
         "\(MergeableXCFramework().name) > \(DynamicFrameworkAComponent().composedName()) \(DynamicFrameworkBComponent().composedName())"
     }
+
     var body: some WidgetConfiguration {
         StaticConfiguration(
             kind: "AppWidget",
@@ -29,21 +30,21 @@ struct AppWidget: Widget {
 
 struct AppWidgetProvider: TimelineProvider {
     let title: String
-    
+
     struct Entry: TimelineEntry {
         let date: Date
         let title: String
     }
 
-    func placeholder(in context: Context) -> AppWidgetProvider.Entry {
+    func placeholder(in _: Context) -> AppWidgetProvider.Entry {
         Entry(date: Date(), title: title)
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (AppWidgetProvider.Entry) -> Void) {
+    func getSnapshot(in _: Context, completion: @escaping (AppWidgetProvider.Entry) -> Void) {
         completion(Entry(date: Date(), title: title))
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<AppWidgetProvider.Entry>) -> Void) {
+    func getTimeline(in _: Context, completion: @escaping (Timeline<AppWidgetProvider.Entry>) -> Void) {
         completion(.init(entries: [Entry(date: Date(), title: title)], policy: .never))
     }
 }
