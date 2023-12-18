@@ -50,6 +50,48 @@ Note that every dependency type accepts a `condition` option to conditionally li
 
 Tuist also allows you to declare external dependencies in your project.
 
+### Swift Packages
+
+Swift Packages are our recommended way of declaring dependencies in your project.
+You can integrate them using Xcode's default integration mechanism or using Tuist's XcodeProj-based integration.
+
+#### Tuist's XcodeProj-based integration
+
+Xcode's default integration while being the most convenient one,
+lacks flexibility and control that's required for medium and large projects.
+To overcome this, Tuist offers an XcodeProj-based integration that allows you to integrate Swift Packages in your project using XcodeProj's targets.
+Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like binary caching (<doc:binary-caching>) and selective testing (<doc:selective-testing>).
+
+XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
+
+You can follow the <doc:external-dependencies> tutorial to learn more about how to integrate Swift Packages in your project.
+
+> Note: The **schemes** are not automatically created for Swift Package projects to keep the schemes list clean. You can create them via Xcode's UI.
+
+> Note: The **product type** defaults to static framework when none is specified.
+
+> Note: The **module maps** are not automatically generated for packages containing Objective-C code. You can override the `HEADER_SEARCH_PATHS` build setting to point to the headers directory ([details](https://github.com/tuist/tuist/issues/4180)).
+
+#### Xcode's default integration
+
+If you want to use Xcode's default integration mechanism, you can pass the list `packages` when instantiating a project:
+
+```swift
+let project = Project(name: "MyProject", packages: [
+    .remote(url: "https://github.com/krzyzanowskim/CryptoSwift", requirement: .exact("1.8.0"))
+])
+```
+
+And then reference them from your targets:
+
+```swift
+let target = Target(name: "MyTarget", dependencies: [
+    .package(product: "CryptoSwift", type: .runtime)
+])
+```
+
+For Swift Macros and Build Tool Plugins, you'll need to use the types `.macro` and `.plugin` respectively.
+
 ### Carthage
 
 Since [Carthage](https://github.com/carthage/carthage) outputs `frameworks` or `xcframeworks`, you can run `carthage update` to output the dependencies in the `Carthage/Build` directory and then use the `.framework` or `.xcframework` target dependency type to declare the dependency in your target. You can wrap this in a script that you can run before generating the project.
@@ -75,96 +117,3 @@ pod install
 ```
 
 > Warning: CocoaPods dependencies are not compatible with workflows like `build` or `test` that run `xcodebuild` right after generating the project. They are also incompatible with binary caching and selective testing since the fingerprinting logic doesn't account for the Pods dependencies.
-
-### Swift Packages
-
-Swift Packages are our recommended way of declaring dependencies in your project.
-You can integrate them using Xcode's default integration mechanism or using Tuist's XcodeProj-based integration.
-
-#### Xcode's default integration
-
-If you want to use Xcode's default integration mechanism, you can pass the list `packages` when instantiating a project:
-
-```swift
-let project = Project(name: "MyProject", packages: [
-    .remote(url: "https://github.com/krzyzanowskim/CryptoSwift", requirement: .exact("1.8.0"))
-])
-```
-
-And then reference them from your targets:
-
-```swift
-let target = Target(name: "MyTarget", dependencies: [
-    .package(product: "CryptoSwift", type: .runtime)
-])
-```
-
-For Swift Macros and Build Tool Plugins, you'll need to use the types `.macro` and `.plugin` respectively.
-
-#### Tuist's XcodeProj-based integration
-
-Xcode's default integration while being the most convenient one,
-lacks flexibility and control that's required for medium and large projects.
-To overcome this, Tuist offers an XcodeProj-based integration that allows you to integrate Swift Packages in your project using XcodeProj's targets.
-Thanks to that, we can not only give you more control over the integration but also make it compatible with workflows like binary caching (<doc:binary-caching>) and selective testing (<doc:selective-testing>).
-
-> Note: XcodeProj's integration is more likely to take more time to support new Swift Package features or handle more package configurations. However, the mapping logic between Swift Packages and XcodeProj targets is open-source and can be contributed to by the community. This is contrary to Xcode's default integration, which is closed-source and maintained by Apple.
-
-To integrate Swift Packages using XcodeProj projects, declare the dependencies in a `Tuist/Package.swift` file:
-
-```swift
-// swift-tools-version: 5.9
-// Tuist/Package.swift
-import PackageDescription
-
-let package = Package(
-    name: "MyProject",
-    dependencies: [
-        .package(url: "https://github.com/krzyzanowskim/CryptoSwift", from: "1.8.0"),
-    ]
-)
-```
-
-Then create a `Tuist/Dependencies.swift` file with the following content:
-
-```swift
-// swift-tools-version:5.7
-import ProjectDescription
-import ProjectDescriptionHelpers
-
-let dependencies = Dependencies(
-    swiftPackageManager: SwiftPackageManagerDependencies(),
-    platforms: [.iOS]
-)
-```
-
-The `SwiftPackageManagerDependencies` instance allows you to configure the integration. For example, you can set a product type for a particular product, or override build settings.
-
-Then you can reference the package from your target by using the `.external` target dependency type:
-
-```swift
-let target = Target(name: "MyTarget", dependencies: [
-    .external(name: "CryptoSwift")
-])
-```
-
-Unlike Xcode's default integration, which resolves the dependencies at launch time or whenever Xcode thinks resolution is necessary, we resolve them through the `tuist fetch` command:
-
-```bash
-tuist fetch
-```
-
-The command resolves the dependencies using the Swift Package Manager under `Tuist/Dependencies` and then the generation can use them to generate the project.
-
-Don't forget to ignore the following directories and files from your version control system:
-
-```bash
-Tuist/Dependencies/graph.json # Avoid checking in the serialized dependencies graph generated by Tuist.
-Tuist/Dependencies/SwiftPackageManager # Avoid checking in build artifacts from Swift Package Manager dependencies.
-```
-
-> Note: The **schemes** are not automatically created for Swift Package projects to keep the schemes list clean. You can create them via Xcode's UI.
-
-> Note: The **product type** defaults to static framework when none is specified.
-
-> Note: The **module maps** are not automatically generated for packages containing Objective-C code. You can override the `HEADER_SEARCH_PATHS` build setting to point to the headers directory ([details](https://github.com/tuist/tuist/issues/4180)).
