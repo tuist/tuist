@@ -140,6 +140,12 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func appClipDependencies(path: AbsolutePath, name: String) -> GraphTarget?
 
+    /// Given a project directory and a target name, it returns an appClips dependency with its conditions.
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func appClipDependenciesWithConditions(path: AbsolutePath, name: String) -> (GraphTarget, PlatformCondition?)?
+
     /// Given a project directory and a target name, it returns the list of dependencies that need to be embedded into the target
     /// product.
     /// - Parameters:
@@ -217,6 +223,16 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
     func extensionKitExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
+
+    /// Given a project directory and a target name, it returns all the dependencies that are ExtensionKit extensions with their
+    /// conditions.
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func extensionKitExtensionDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(
+        GraphTarget,
+        PlatformCondition?
+    )]
 
     /// Given a project and a target name, it returns all the direct target dependencies of the target that represent Swift Macro
     /// executables.

@@ -1,6 +1,6 @@
 import ProjectDescription
 
-let appTarget =  Target(
+let appTarget = Target(
     name: "App",
     destinations: [.iPhone, .iPad, .appleVision],
     product: .app,
@@ -9,10 +9,9 @@ let appTarget =  Target(
     sources: "App/Sources/**",
     dependencies: [
         .target(name: "WidgetExtension", condition: .when([.ios])),
-        .target(name: "WatchApp", condition: .when([.ios]))
+        .target(name: "WatchApp", condition: .when([.ios])),
     ]
 )
-
 
 let widgetExtensionTarget = Target(
     name: "WidgetExtension",
@@ -29,7 +28,7 @@ let widgetExtensionTarget = Target(
     resources: "Extensions/WidgetExtension/Resources/**"
 )
 
-let watchApp =  Target(
+let watchApp = Target(
     name: "WatchApp",
     destinations: [.appleWatch],
     product: .app,
@@ -52,9 +51,7 @@ let watchApp =  Target(
     )
 )
 
-
 let project = Project(
     name: "App",
     targets: [appTarget, widgetExtensionTarget, watchApp]
-
 )

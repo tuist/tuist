@@ -252,14 +252,14 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// Determines if the target is able to embed a watch application
     /// i.e. a product that can be bundled with a watchOS application
     public func canEmbedWatchApplications() -> Bool {
-        //isExclusiveTo(.iOS) && product == .app
+        // isExclusiveTo(.iOS) && product == .app
         supports(.iOS) && product == .app
     }
 
     /// Determines if the target is able to embed an system extension
     /// i.e. a product that can be bundled with a macOS application
     public func canEmbedSystemExtensions() -> Bool {
-        //isExclusiveTo(.macOS) && product == .app
+        // isExclusiveTo(.macOS) && product == .app
         supports(.macOS) && product == .app
     }
 
