@@ -5,6 +5,7 @@ import TuistCore
 import TuistSupport
 
 public final class XcodeBuildController: XcodeBuildControlling {
+
     // MARK: - Attributes
 
     /// Matches lines of the forms:
@@ -39,7 +40,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
         derivedDataPath: AbsolutePath?,
         clean: Bool = false,
         arguments: [XcodeBuildArgument],
-        rawXcodebuildLogs: Bool
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -77,7 +79,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
 
-        return try run(command: command, rawXcodebuildLogs: rawXcodebuildLogs)
+        return try run(command: command, rawXcodebuildLogs: rawXcodebuildLogs, rawXcodebuildLogsPath: rawXcodebuildLogsPath)
     }
 
     public func test(
@@ -93,7 +95,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
-        rawXcodebuildLogs: Bool
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -158,7 +161,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             }
         }
 
-        return try run(command: command, rawXcodebuildLogs: rawXcodebuildLogs)
+        return try run(command: command, rawXcodebuildLogs: rawXcodebuildLogs, rawXcodebuildLogsPath: rawXcodebuildLogsPath)
     }
 
     public func archive(
@@ -167,7 +170,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
         clean: Bool,
         archivePath: AbsolutePath,
         arguments: [XcodeBuildArgument],
-        rawXcodebuildLogs: Bool
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -189,13 +193,14 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
-        return try run(command: command, rawXcodebuildLogs: rawXcodebuildLogs)
+        return try run(command: command, rawXcodebuildLogs: rawXcodebuildLogs, rawXcodebuildLogsPath: rawXcodebuildLogsPath)
     }
 
     public func createXCFramework(
         frameworks: [AbsolutePath],
         output: AbsolutePath,
-        rawXcodebuildLogs: Bool
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
         command.append(contentsOf: frameworks.flatMap {
@@ -210,7 +215,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         })
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
-        return try run(command: command, rawXcodebuildLogs: rawXcodebuildLogs)
+        return try run(command: command, rawXcodebuildLogs: rawXcodebuildLogs, rawXcodebuildLogsPath: rawXcodebuildLogsPath)
     }
 
     enum ShowBuildSettingsError: Error {
@@ -289,7 +294,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return buildSettingsByTargetName
     }
 
-    fileprivate func run(command: [String], rawXcodebuildLogs: Bool) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+    fileprivate func run(command: [String], rawXcodebuildLogs: Bool, rawXcodebuildLogsPath: AbsolutePath?) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         System.shared.publisher(command)
             .compactMap { [weak self] event -> SystemEvent<XcodeBuildOutput>? in
                 switch event {

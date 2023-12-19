@@ -19,7 +19,8 @@ public final class MockTargetBuilder: TargetBuilding {
         Version?,
         Bool,
         GraphTraversing,
-        Bool
+        Bool,
+        AbsolutePath?
     ) throws -> Void)?
 
     public func buildTarget(
@@ -35,7 +36,8 @@ public final class MockTargetBuilder: TargetBuilding {
         osVersion: Version?,
         rosetta: Bool,
         graphTraverser: GraphTraversing,
-        rawXcodebuildLogs: Bool
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) throws {
         try buildTargetStub?(
             target,
@@ -49,7 +51,8 @@ public final class MockTargetBuilder: TargetBuilding {
             osVersion,
             rosetta,
             graphTraverser,
-            rawXcodebuildLogs
+            rawXcodebuildLogs,
+            rawXcodebuildLogsPath
         )
     }
 }
