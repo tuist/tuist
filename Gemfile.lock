@@ -148,7 +148,7 @@ GEM
     graphiql-rails (1.9.0)
       railties
       sprockets-rails
-    graphql (2.1.7)
+    graphql (2.2.0)
       racc (~> 1.4)
     graphql-schema_comparator (1.2.1)
       bundler (>= 1.14)
@@ -465,7 +465,7 @@ DEPENDENCIES
   faker (~> 3.0)
   foreman (~> 0.87.2)
   graphiql-rails
-  graphql (~> 2.1.0)
+  graphql (~> 2.2.0)
   graphql-schema_comparator (~> 1.0)
   groupdate (~> 6.1)
   httpx (~> 1.2.0)

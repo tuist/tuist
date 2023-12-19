@@ -28,7 +28,7 @@ gem 'tapioca', require: false, :group => :development
 gem "turbo-rails", "~> 1.4"
 
 # GraphQL
-gem "graphql", "~> 2.1.0"
+gem "graphql", "~> 2.2.0"
 gem "graphiql-rails", group: :development
 gem "graphql-schema_comparator", "~> 1.0"
 
