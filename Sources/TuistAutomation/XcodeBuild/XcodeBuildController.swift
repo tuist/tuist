@@ -294,12 +294,21 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return buildSettingsByTargetName
     }
 
-    fileprivate func run(command: [String], rawXcodebuildLogs: Bool, rawXcodebuildLogsPath: AbsolutePath?) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-        System.shared.publisher(command)
+    fileprivate func run(command: [String], 
+                         rawXcodebuildLogs: Bool,
+                         rawXcodebuildLogsPath: AbsolutePath?) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+        
+        var rawXcodebuildFileLogger: FileLogger? = if let rawXcodebuildLogsPath = rawXcodebuildLogsPath {
+            try FileLogger(path: rawXcodebuildLogsPath)
+        } else {
+            nil
+        }
+        return System.shared.publisher(command)
             .compactMap { [weak self] event -> SystemEvent<XcodeBuildOutput>? in
                 switch event {
                 case let .standardError(errorData):
                     guard let line = String(data: errorData, encoding: .utf8) else { return nil }
+                    rawXcodebuildFileLogger?.write(line)
                     if rawXcodebuildLogs || self?.environment.isVerbose == true {
                         return SystemEvent.standardError(XcodeBuildOutput(raw: line))
                     } else {
@@ -307,6 +316,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
                     }
                 case let .standardOutput(outputData):
                     guard let line = String(data: outputData, encoding: .utf8) else { return nil }
+                    rawXcodebuildFileLogger?.write(line)
                     if rawXcodebuildLogs || self?.environment.isVerbose == true {
                         return SystemEvent.standardOutput(XcodeBuildOutput(raw: line))
                     } else {
