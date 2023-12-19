@@ -343,6 +343,10 @@ let package = Package(
             targets: ["TuistSigning"]
         ),
         .library(
+            name: "TuistDependencies",
+            targets: ["TuistDependencies"]
+        ),
+        .library(
             name: "TuistAcceptanceTesting",
             targets: ["TuistAcceptanceTesting"]
         ),
