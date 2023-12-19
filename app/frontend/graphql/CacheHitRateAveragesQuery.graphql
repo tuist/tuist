@@ -1,5 +1,0 @@
-query CacheHitRateAverages($projectId: ID!, $commandName: String!) {
-  cacheHitRateAverages(projectId: $projectId, commandName: $commandName) {
-    ...CacheHitRateAverage
-  }
-}

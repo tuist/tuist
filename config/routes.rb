@@ -41,11 +41,6 @@ Rails.application.routes.draw do
   resources :projects, path: '/:account_name', param: :project_name, only: [:show]
   get "/get-started", to: "application#get_started"
   post "/create-customer-portal-session/:account_id", to: "organizations#billing_plan"
-  post "/graphql", to: "graphql#execute"
-
-  if Rails.env.development?
-    mount GraphiQL::Rails::Engine, at: "/graphiql", graphql_path: "/graphql"
-  end
 
   get "/(*all)", to: "application#app"
 end

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 bundle install
-npm install
 brew install postgresql@14
 brew services restart postgresql
 bin/rails db:create

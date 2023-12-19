@@ -37,13 +37,9 @@ RUN apt-get install --no-install-recommends -y build-essential git libpq-dev lib
 
 # Install application gems
 COPY Gemfile Gemfile.lock ./
-COPY package.json package-lock.json ./
 RUN bundle install && \
     rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
     bundle exec bootsnap precompile --gemfile
-
-# Install application NPM packages
-RUN npm install
 
 # Copy application code
 COPY . .

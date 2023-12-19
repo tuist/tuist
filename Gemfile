@@ -13,7 +13,6 @@ gem "puma", "~> 6.0"
 gem "rails", "~> 7.1.0"
 gem "redis", "~> 4.0"
 gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
-gem "vite_rails", "~> 3.0.3"
 gem "faker", "~> 3.0"
 gem "appsignal", "~> 3.4"
 gem "aws-sdk-s3", "~> 1.112"
@@ -26,11 +25,6 @@ gem "httpx", "~> 1.2.0"
 gem 'sorbet-static-and-runtime'
 gem 'tapioca', require: false, :group => :development
 gem "turbo-rails", "~> 1.4"
-
-# GraphQL
-gem "graphql", "~> 2.2.0"
-gem "graphiql-rails", group: :development
-gem "graphql-schema_comparator", "~> 1.0"
 
 # Authentication / Authorization
 gem "devise", "~> 4.8"
