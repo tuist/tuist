@@ -63,7 +63,6 @@ public enum Constants {
     /// But only eg. for acceptance tests and other cases needed internally
     public enum EnvironmentVariables {
         public static let verbose = "TUIST_CONFIG_VERBOSE"
-        public static let colouredOutput = "TUIST_CONFIG_COLOURED_OUTPUT"
         public static let versionsDirectory = "TUIST_CONFIG_VERSIONS_DIRECTORY"
         public static let forceConfigCacheDirectory = "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"
         public static let automationPath = "TUIST_CONFIG_AUTOMATION_PATH"
