@@ -331,7 +331,10 @@ final class MockGraphTraverser: GraphTraversing {
         [(path: AbsolutePath, name: String)]()
     var stubbedAppExtensionDependenciesWithConditionsResult: [(GraphTarget, PlatformCondition?)]! = []
 
-    func appExtensionDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(TuistGraph.GraphTarget, TuistGraph.PlatformCondition?)] {
+    func appExtensionDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(
+        TuistGraph.GraphTarget,
+        TuistGraph.PlatformCondition?
+    )] {
         invokedAppExtensionDependenciesWithConditions = true
         invokedAppExtensionDependenciesWithConditionsCount += 1
         invokedAppExtensionDependenciesWithConditionsParameters = (path, name)
@@ -600,7 +603,10 @@ final class MockGraphTraverser: GraphTraversing {
         [(path: AbsolutePath, name: String)]()
     var stubbedExtensionKitExtensionDependenciesWithConditionsResult: [(GraphTarget, PlatformCondition?)]! = []
 
-    func extensionKitExtensionDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(TuistGraph.GraphTarget, TuistGraph.PlatformCondition?)] {
+    func extensionKitExtensionDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(
+        TuistGraph.GraphTarget,
+        TuistGraph.PlatformCondition?
+    )] {
         invokedExtensionKitExtensionDependenciesWithConditions = true
         invokedExtensionKitExtensionDependenciesWithConditionsCount += 1
         invokedExtensionKitExtensionDependenciesWithConditionsParameters = (path, name)
