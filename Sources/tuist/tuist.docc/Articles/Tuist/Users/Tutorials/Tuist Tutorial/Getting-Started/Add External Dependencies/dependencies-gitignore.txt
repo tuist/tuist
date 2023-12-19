@@ -1,0 +1,2 @@
+Tuist/Dependencies/graph.json
+Tuist/Dependencies/SwiftPackageManager
