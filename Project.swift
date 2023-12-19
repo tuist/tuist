@@ -484,7 +484,7 @@ func targets() -> [Target] {
     ]
 }
 
-let acceptanceTests: [(target: Target, scheme: Scheme)] = ["Build", "Generate", "Test"].map {
+let acceptanceTests: [(target: Target, scheme: Scheme)] = ["", "Build", "Generate", "Test"].map {
     (
         target: .target(
             name: "Tuist\($0)AcceptanceTests",

@@ -1,0 +1,41 @@
+@Tutorial(time: 2) {
+    @Intro(title: "Install Tuist") {
+        Learn how to install tuist and manage it.
+        
+        @Image(source: "Logo-Blurred.png", alt: "Blurred Tuist Logo.")
+    }
+    
+    @Section(title: "Install Tuist") {
+        @ContentAndMedia {
+            The first thing that we need to do to get started is install tuist.
+        }
+            
+        @Steps {
+            
+            @Step {
+                Install [rtx](https://github.com/jdx/rtx#quickstart) a tool to install, manage, and activate versions of Tuist in your environment.
+                @Code(name: "console", file: "install-rtx.sh")
+            }
+            
+            @Step {
+                Hook `rtx` into your shell to activate the right version of Tuist based on the current working directory.
+                @Code(name: "console", file: "rtx-shell.sh")
+            }
+            
+            @Step {
+                Install Tuist by running the following command
+                @Code(name: "console", file: "rtx-install-tuist.sh")                
+            }
+            
+            @Step {
+                You can check if tuist has been installed correctly by getting its version.
+                @Code(name: "console", file: "tuist-version.sh")
+            }
+            
+            @Step {
+                You can also see the list of available commands, if you are curious.
+                @Code(name: "console", file: "tuist-help.sh")
+            }
+        }
+    }
+}

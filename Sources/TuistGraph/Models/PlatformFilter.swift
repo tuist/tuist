@@ -39,6 +39,25 @@ public enum PlatformFilter: Comparable, Hashable, Codable, CaseIterable {
             return "xros"
         }
     }
+
+    /// It returns the platform that the filter is filtering for
+    public var platform: Platform? {
+        switch self {
+        case .ios, .catalyst:
+            return .iOS
+        case .macos:
+            return .macOS
+        case .tvos:
+            return .tvOS
+        case .watchos:
+            return .watchOS
+        case .visionos:
+            return .visionOS
+        case .driverkit:
+            // TODO: Add support for it
+            return nil
+        }
+    }
 }
 
 extension PlatformFilters {

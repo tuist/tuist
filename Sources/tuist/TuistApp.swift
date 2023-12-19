@@ -5,7 +5,7 @@ import TuistLoader
 import TuistSupport
 
 @main
-@_documentation(visibility: internal)
+@_documentation(visibility: private)
 private enum TuistApp {
     static func main() async throws {
         if CommandLine.arguments.contains("--verbose") {

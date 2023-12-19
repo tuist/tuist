@@ -2873,6 +2873,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             "TempuraTesting",
             "TSCTestSupport",
             "ViewInspector",
+            "XCTVapor",
         ]
         let allTargets = ["RxSwift"] + testTargets
         try allTargets

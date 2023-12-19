@@ -603,6 +603,43 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
+    public func targetsWithExternalDependencies() -> Set<GraphTarget> {
+        allInternalTargets().filter { directTargetExternalDependencies(path: $0.path, name: $0.target.name).count != 0 }
+    }
+
+    public func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+        directTargetDependencies(path: path, name: name).filter(\.project.isExternal)
+    }
+
+    public func allExternalTargets() -> Set<GraphTarget> {
+        Set(graph.projects.compactMap { path, project in
+            project.isExternal ? (path, project) : nil
+        }.flatMap { projectPath, project in
+            let targets = graph.targets[projectPath, default: [:]].values
+            return targets.map { GraphTarget(path: projectPath, target: $0, project: project) }
+        })
+    }
+
+    public func allOrphanExternalTargets() -> Set<GraphTarget> {
+        let graphDependenciesWithExternalDependencies = Set(
+            targetsWithExternalDependencies()
+                .map { GraphDependency.target(name: $0.target.name, path: $0.project.path) }
+        )
+
+        let allTargetExternalDependendedUponTargets = filterDependencies(from: graphDependenciesWithExternalDependencies)
+            .compactMap { graphDependency -> GraphTarget? in
+                if case let GraphDependency.target(name, path) = graphDependency {
+                    let target = graph.targets[path]![name]!
+                    let project = graph.projects[path]!
+                    return GraphTarget(path: path, target: target, project: project)
+                } else {
+                    return nil
+                }
+            }
+        let allExternalTargets = allExternalTargets()
+        return allExternalTargets.subtracting(allTargetExternalDependendedUponTargets)
+    }
+
     // MARK: - Internal
 
     /// The method collects the dependencies that are selected by the provided test closure.
@@ -616,9 +653,23 @@ public class GraphTraverser: GraphTraversing {
         test: (GraphDependency) -> Bool = { _ in true },
         skip: (GraphDependency) -> Bool = { _ in false }
     ) -> Set<GraphDependency> {
+        filterDependencies(from: [rootDependency], test: test, skip: skip)
+    }
+
+    /// The method collects the dependencies that are selected by the provided test closure.
+    /// The skip closure allows skipping the traversing of a specific dependendency branch.
+    /// - Parameters:
+    ///   - from: Dependencies from which the traverse is done.
+    ///   - test: If the closure returns true, the dependency is included.
+    ///   - skip: If the closure returns false, the traversing logic doesn't traverse the dependencies from that dependency.
+    func filterDependencies(
+        from rootDependencies: Set<GraphDependency>,
+        test: (GraphDependency) -> Bool = { _ in true },
+        skip: (GraphDependency) -> Bool = { _ in false }
+    ) -> Set<GraphDependency> {
         var stack = Stack<GraphDependency>()
 
-        stack.push(rootDependency)
+        stack.push(Array(rootDependencies))
 
         var visited: Set<GraphDependency> = .init()
         var references = Set<GraphDependency>()
@@ -634,11 +685,11 @@ public class GraphTraverser: GraphTraversing {
 
             visited.insert(node)
 
-            if node != rootDependency, test(node) {
+            if !rootDependencies.contains(node), test(node) {
                 references.insert(node)
             }
 
-            if node != rootDependency, skip(node) {
+            if !rootDependencies.contains(node), skip(node) {
                 continue
             }
 
@@ -657,7 +708,10 @@ public class GraphTraverser: GraphTraversing {
     ///   - rootDependency: dependency whose platform filters we need when depending on `transitiveDependency`
     ///   - transitiveDependency: target dependency
     /// - Returns: CombinationResult which represents a resolved condition or `.invalid` based on traversing
-    func combinedCondition(to transitiveDependency: GraphDependency, from rootDependency: GraphDependency) -> PlatformCondition
+    public func combinedCondition(
+        to transitiveDependency: GraphDependency,
+        from rootDependency: GraphDependency
+    ) -> PlatformCondition
         .CombinationResult
     {
         var visited: Set<GraphDependency> = []
@@ -703,6 +757,48 @@ public class GraphTraverser: GraphTraversing {
         }
 
         return find(from: rootDependency, to: transitiveDependency)
+    }
+
+    public func externalTargetSupportedPlatforms() -> [GraphTarget: Set<Platform>] {
+        let targetsWithExternalDependencies = targetsWithExternalDependencies()
+        var platforms: [GraphTarget: Set<Platform>] = [:]
+
+        func traverse(target: GraphTarget, parentPlatforms: Set<Platform>) {
+            let dependencies = directTargetDependenciesWithConditions(path: target.path, name: target.target.name)
+
+            dependencies.forEach { dependencyTarget, dependencyCondition in
+                if let dependencyCondition,
+                   let platformIntersection = PlatformCondition.when(target.target.dependencyPlatformFilters)?
+                   .intersection(dependencyCondition)
+                {
+                    switch platformIntersection {
+                    case .incompatible:
+                        break
+                    case let .condition(condition):
+                        if let condition {
+                            let dependencyPlatforms: [Platform] = condition.platformFilters.map(\.platform).filter { $0 != nil }
+                                .map { $0! }
+                            var existingDependencyPlatforms = platforms[dependencyTarget, default: Set()]
+                            existingDependencyPlatforms.formUnion(dependencyPlatforms)
+                            platforms[dependencyTarget] = existingDependencyPlatforms
+                        }
+                    }
+                } else {
+                    /**
+                     When there are no conditions, the platforms are inherited from the parent.
+                     */
+                    var dependencyPlatforms = platforms[dependencyTarget, default: Set()]
+                    let inheritedPlatforms = dependencyTarget.target.product == .macro ? Set<Platform>([.macOS]) : parentPlatforms
+                    dependencyPlatforms.formUnion(inheritedPlatforms.intersection(dependencyTarget.target.supportedPlatforms))
+                    platforms[dependencyTarget] = dependencyPlatforms
+                }
+
+                traverse(target: dependencyTarget, parentPlatforms: platforms[dependencyTarget, default: Set()])
+            }
+        }
+
+        targetsWithExternalDependencies.forEach { traverse(target: $0, parentPlatforms: $0.target.supportedPlatforms) }
+        return platforms
     }
 
     func allDependenciesSatisfy(from rootDependency: GraphDependency, meets: (GraphDependency) -> Bool) -> Bool {

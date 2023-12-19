@@ -24,11 +24,15 @@ It's open source and written in Swift.
 
 ## Install ⬇️
 
-### Running script (Recommended)
+### Recommended: [rtx](https://github.com/jdx/rtx)
 
-```shell
-curl -Ls https://install.tuist.io | bash
+Install [rtx](https://github.com/jdx/rtx#installation) and then run the following command to install Tuist:
+
+```bash
+rtx install tuist
 ```
+
+You can check out [the documentation]([https://docs.next.tuist.io/documentation/tuist/tuist---installation](https://docs.next.tuist.io/documentation/tuist/installation)) to learn more about the rationale behind our installation approach and alternative approaches.
 
 ## Bootstrap your first project 🌀
 
@@ -213,6 +217,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
   </a>
   <a href="https://telepass.com/" target="_blank">
     <img src="assets/companies/telepass.svg" style="width: 112px;" hspace="8"/>
+  </a>
+  <a href="https://crunchyroll.com/" target="_blank">
+    <img src="assets/companies/crunchyroll_logo_vertical.svg" style="width: 50px;" hspace="8"/>
   </a>
 </div>
 

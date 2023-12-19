@@ -585,12 +585,61 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedDirectSwiftMacroFrameworkTargetsParametersList =
         [(path: AbsolutePath, name: String)]()
     var stubbedDirectSwiftMacroFrameworkTargetsResult: Set<GraphTarget>! = []
-
     func directSwiftMacroFrameworkTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<GraphTarget> {
         invokedDirectSwiftMacroFrameworkTargets = true
         invokedDirectSwiftMacroFrameworkTargetsCount += 1
         invokedDirectSwiftMacroFrameworkTargetsParameters = (path, name)
         invokedDirectSwiftMacroFrameworkTargetsParametersList.append((path, name))
         return stubbedDirectSwiftMacroFrameworkTargetsResult
+    }
+
+    var invokedAllOrphanExternalTargets = false
+    var invokedAllOrphanExternalTargetsCount = 0
+    var stubbedAllOrphanExternalTargetsResult: Set<GraphTarget>! = []
+    func allOrphanExternalTargets() -> Set<GraphTarget> {
+        invokedAllOrphanExternalTargets = true
+        invokedAllOrphanExternalTargetsCount += 1
+        return stubbedAllOrphanExternalTargetsResult
+    }
+
+    var invokedTargetsWithExternalDependencies = false
+    var invokedTargetsWithExternalDependenciesCount = 0
+    var stubbedTargetsWithExternalDependenciesResult: Set<GraphTarget>! = []
+    func targetsWithExternalDependencies() -> Set<GraphTarget> {
+        invokedTargetsWithExternalDependencies = true
+        invokedTargetsWithExternalDependenciesCount += 1
+        return stubbedTargetsWithExternalDependenciesResult
+    }
+
+    var invokedAllExternalTargets = false
+    var invokedAllExternalTargetsCount = 0
+    var stubbedAllExternalTargetsResult: Set<GraphTarget>! = []
+    func allExternalTargets() -> Set<GraphTarget> {
+        invokedAllExternalTargets = true
+        invokedAllExternalTargetsCount += 1
+        return stubbedAllExternalTargetsResult
+    }
+
+    var invokedExternalTargetSupportedPlatforms = false
+    var invokedExternalTargetSupportedPlatformsCount = 0
+    var stubbedExternalTargetSupportedPlatformsResult: [GraphTarget: Set<Platform>]! = [:]
+    func externalTargetSupportedPlatforms() -> [GraphTarget: Set<Platform>] {
+        invokedExternalTargetSupportedPlatforms = true
+        invokedExternalTargetSupportedPlatformsCount += 1
+        return stubbedExternalTargetSupportedPlatformsResult
+    }
+
+    var invokedDirectTargetExternalDependencies = false
+    var invokedDirectTargetExternalDependenciesCount = 0
+    var invokedDirectTargetExternalDependenciesParameters: (path: AbsolutePath, name: String)?
+    var invokedDirectTargetExternalDependenciesParametersList =
+        [(path: AbsolutePath, name: String)]()
+    var stubbedDirectTargetExternalDependenciesResult: Set<GraphTarget>! = []
+    func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+        invokedDirectTargetExternalDependencies = true
+        invokedDirectTargetExternalDependenciesCount += 1
+        invokedDirectTargetExternalDependenciesParameters = (path, name)
+        invokedDirectTargetExternalDependenciesParametersList.append((path, name))
+        return stubbedDirectTargetExternalDependenciesResult
     }
 }

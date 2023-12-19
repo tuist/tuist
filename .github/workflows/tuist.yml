@@ -15,7 +15,6 @@ on:
       - '!Sources/**/*.docc'
       - Templates/**
       - Tests/**
-      - features/**
       - fixtures/**
       - .package.resolved
       - .github/workflows/tuist.yml
@@ -25,32 +24,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RUBY_VERSION: '3.0.3'
-  TUIST_STATS_OPT_OUT: true
-  NODE_VERSION: 16.17.0
   TUIST_CONFIG_CLOUD_TOKEN: ${{ secrets.TUIST_CONFIG_CLOUD_TOKEN }}
 
 jobs:
-  release_build:
-    name: Release build with Xcode
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
-        name: 'Cache Tuist .build folder'
-        with:
-          path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1
-      - name: Select Xcode for Tuist and Tuistenv
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Build Tuist for release
-        run: swift build -c release --product tuist
-      - name: Build ProjectDescription for release
-        run: swift build -c release --product ProjectDescription
-
   test:
     name: Test with Xcode
     runs-on: macos-13
@@ -70,7 +46,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Test
-        run: tuist test --no-cache --skip-test-targets TuistBuildAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests
+        run: tuist test --no-cache --skip-test-targets TuistBuildAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests
 
   cache-warm:
     name: Cache warm with latest Tuist
@@ -115,7 +91,7 @@ jobs:
         run: tuist cache warm
 
   acceptance_tests:
-    name: ${{ matrix.feature }} acceptance tests with Tuist
+    name: Run ${{ matrix.feature }}
     runs-on: macos-13
     env:
       TUIST_CONFIG_CLOUD_TOKEN: ${{ secrets.TUIST_CONFIG_CLOUD_TOKEN }}
@@ -123,9 +99,10 @@ jobs:
       matrix:
         feature:
           [
-            'Build',
-            'Generate',
-            'Test',
+            'TuistAcceptanceTests',
+            'TuistBuildAcceptanceTests',
+            'TuistGenerateAcceptanceTests',
+            'TuistTestAcceptanceTests',
           ]
     steps:
       - uses: actions/checkout@v4
@@ -146,59 +123,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Run acceptance tests
-        run: tuist test Tuist${{ matrix.feature }}AcceptanceTests
-      
-  cucumber_acceptance_tests:
-    name: ${{ matrix.feature }} acceptance tests with Xcode
-    runs-on: macos-13
-    strategy:
-      matrix:
-        feature:
-          [
-            'dependencies',
-            'edit',
-            'graph',
-            'init',
-            'list-targets',
-            'plugins',
-            'precompiled',
-            'run',
-            'scaffold',
-            'tasks',
-            'plugin',
-          ]
-    needs: release_build
-    steps:
-      - uses: actions/checkout@v3
-      - name: Initialize submodules
-        run: |
-          git submodule update --init fixtures/tuist_plugin
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: actions/cache@v3
-        name: 'Cache Tuist .build folder'
-        with:
-          path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1-${{ hashFiles('Package.resolved') }}
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-v1
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v3
-        with:
-          path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
-      - name: Bundle install
-        run: |
-          bundle config path vendor/bundle
-          bundle install --jobs 4 --retry 3
-      - name: Run cucumber tests
-        run: FEATURE=features/${{ matrix.feature }}.feature make tuist/acceptance-test
-
+        run: tuist test ${{ matrix.feature }}
   lint:
     name: Lint
     runs-on: macos-13

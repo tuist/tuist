@@ -432,6 +432,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "TempuraTesting", // https://github.com/BendingSpoons/tempura-swift
                     "TSCTestSupport", // https://github.com/apple/swift-tools-support-core
                     "ViewInspector", // https://github.com/nalexn/ViewInspector
+                    "XCTVapor", // https://github.com/vapor/vapor
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }
@@ -537,12 +538,6 @@ extension ProjectDescription.Target {
         var destinations: ProjectDescription.Destinations
         if target.type == .macro {
             destinations = Set<ProjectDescription.Destination>([.mac])
-        } else if packageName == "Firebase" {
-            // Some firebase targets need certain platforms removed in order for caching to work corractly
-            let supportedPlatforms = try ProjectDescription.Destinations.fromFirebase(
-                targetNamed: target.name
-            )
-            destinations = packageDestinations.intersection(supportedPlatforms)
         } else {
             // All packages implicitly support all platforms, we constrain this with the platforms defined in `Dependencies.swift`
             destinations = packageDestinations.intersection(Set(Destination.allCases))
@@ -862,36 +857,6 @@ extension ResourceFileElements {
         ResourceFileElements.defaultSpmResourceFileExtensions.flatMap {
             FileHandler.shared.glob(path, glob: "**/*.\($0)")
         }
-    }
-}
-
-extension ProjectDescription.Destinations {
-    fileprivate static func fromFirebase(targetNamed name: String) throws -> Self {
-        let platforms = ProjectDescription.PackagePlatform.allCases
-        return Set(
-            try platforms.filter { platform in
-                switch name {
-                case "FirebaseAnalyticsWrapper",
-                     "FirebaseAnalyticsSwift",
-                     "FirebaseAnalyticsWithoutAdIdSupportWrapper",
-                     "FirebaseFirestoreSwift",
-                     "FirebaseFirestore": // These dont support watchOS
-                    platform != .watchOS
-                case "FirebaseAppDistribution",
-                     "FirebaseDynamicLinks": // iOS only
-                    platform == .iOS
-                case "FirebaseInAppMessaging":
-                    platform == .iOS ||
-                        platform == .tvOS ||
-                        platform == .visionOS
-                case "FirebasePerformance":
-                    platform != .macOS &&
-                        platform != .watchOS
-                default: true
-                }
-            }
-            .flatMap { try $0.destinations() }
-        )
     }
 }
 
