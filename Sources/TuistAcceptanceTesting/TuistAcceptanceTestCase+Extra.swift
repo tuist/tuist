@@ -17,7 +17,7 @@ extension TuistAcceptanceTestCase {
         destination: String
     ) throws -> AbsolutePath {
         try XCTUnwrap(
-            FileHandler.shared.glob(derivedDataPath, glob: "**/Build/**/Products/\(destination)/\(name)/").first
+            FileHandler.shared.glob(derivedDataPath, glob: "**/Build/**/Products/\(destination)/\(name)/\(name)/").first
         )
     }
 
