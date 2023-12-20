@@ -140,6 +140,7 @@ var targets: [Target] = [
         dependencies: [
             "TuistKit",
             "TuistCore",
+            "TuistSupport",
             "TuistSupportTesting",
             swiftToolsSupportDependency,
         ],
