@@ -61,7 +61,8 @@ final class BuildService {
         platform: String?,
         osVersion: String?,
         rosetta: Bool,
-        rawXcodebuildLogs: Bool
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) async throws {
         let graph: Graph
         let generator = generatorFactory.default()
@@ -120,7 +121,8 @@ final class BuildService {
                 osVersion: osVersion?.version(),
                 rosetta: rosetta,
                 graphTraverser: graphTraverser,
-                rawXcodebuildLogs: rawXcodebuildLogs
+                rawXcodebuildLogs: rawXcodebuildLogs,
+                rawXcodebuildLogsPath: rawXcodebuildLogsPath
             )
         } else {
             var cleaned = false
@@ -152,7 +154,8 @@ final class BuildService {
                     osVersion: osVersion?.version(),
                     rosetta: rosetta,
                     graphTraverser: graphTraverser,
-                    rawXcodebuildLogs: rawXcodebuildLogs
+                    rawXcodebuildLogs: rawXcodebuildLogs,
+                    rawXcodebuildLogsPath: rawXcodebuildLogsPath
                 )
                 cleaned = true
             }

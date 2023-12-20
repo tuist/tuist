@@ -19,6 +19,7 @@ public protocol TargetBuilding {
     ///   - osVersion: An optional OS number to use when building the scheme.
     ///   - graphTraverser: The Graph traverser.
     ///   - rawXcodebuildLogs: When true, it outputs the raw xcodebuild logs.
+    ///   - rawXcodebuildLogsPath: When passed, it outputs the raw xcodebuild logs to that file.
     func buildTarget(
         _ target: GraphTarget,
         platform: TuistGraph.Platform,
@@ -32,7 +33,8 @@ public protocol TargetBuilding {
         osVersion: Version?,
         rosetta: Bool,
         graphTraverser: GraphTraversing,
-        rawXcodebuildLogs: Bool
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) async throws
 }
 
@@ -90,7 +92,8 @@ public final class TargetBuilder: TargetBuilding {
         osVersion: Version?,
         rosetta: Bool,
         graphTraverser: GraphTraversing,
-        rawXcodebuildLogs: Bool
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) async throws {
         logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
 
@@ -120,7 +123,8 @@ public final class TargetBuilder: TargetBuilding {
                 derivedDataPath: derivedDataPath,
                 clean: clean,
                 arguments: buildArguments,
-                rawXcodebuildLogs: rawXcodebuildLogs
+                rawXcodebuildLogs: rawXcodebuildLogs,
+                rawXcodebuildLogsPath: rawXcodebuildLogsPath
             )
             .printFormattedOutput()
 
