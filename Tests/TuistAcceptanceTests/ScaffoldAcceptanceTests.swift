@@ -13,7 +13,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_ios_app_with_templates_custom() async throws {
-        try setUpFixture("ios_app_with_templates")
+        try setUpFixture(.iosAppWithTemplates)
         try await run(FetchCommand.self)
         try await ScaffoldCommand.preprocess([
             "scaffold",
@@ -39,7 +39,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_ios_app_with_templates_custom_using_filters() async throws {
-        try setUpFixture("ios_app_with_templates")
+        try setUpFixture(.iosAppWithTemplates)
         try await run(FetchCommand.self)
         try await ScaffoldCommand.preprocess([
             "scaffold",
@@ -58,7 +58,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_ios_app_with_templates_custom_using_copy_folder() async throws {
-        try setUpFixture("ios_app_with_templates")
+        try setUpFixture(.iosAppWithTemplates)
         try await run(FetchCommand.self)
         try await ScaffoldCommand.preprocess([
             "scaffold",
@@ -98,7 +98,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_app_with_plugins_local_plugin() async throws {
-        try setUpFixture("app_with_plugins")
+        try setUpFixture(.appWithPlugins)
         try await run(FetchCommand.self)
         try await ScaffoldCommand.preprocess(["scaffold", "custom", "--name", "PluginTemplate", "--path", fixturePath.pathString])
         try await run(ScaffoldCommand.self, "custom", "--name", "PluginTemplate")
@@ -117,7 +117,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_app_with_plugins_remote_plugin() async throws {
-        try setUpFixture("app_with_plugins")
+        try setUpFixture(.appWithPlugins)
         try await run(FetchCommand.self)
         try await ScaffoldCommand.preprocess([
             "scaffold",
