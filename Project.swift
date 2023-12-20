@@ -499,6 +499,7 @@ func targets() -> [Target] {
                 .target(name: "TuistCore"),
                 .external(name: "SwiftToolsSupport"),
                 .external(name: "SystemPackage"),
+                .external(name: "XcodeProj"),
                 .sdk(name: "XCTest", type: .framework, status: .optional),
             ]
         ),

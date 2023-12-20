@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.36.1 - 2023-12-20
+
+### Tuist
+
+#### Added
+
+- Export the `TuistDependencies` product [#5697](https://github.com/tuist/tuist/pull/5697) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- Include `XCTVapor` in a predefined list of testing packages [#5687](https://github.com/tuist/tuist/pull/5687) by [@danielmoro](https://github.com/danielmoro)
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.36.0 - 2023-12-15
 
 ### Tuist

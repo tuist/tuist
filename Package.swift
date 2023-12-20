@@ -1,4 +1,4 @@
-// swift-tools-version:5.8
+// swift-tools-version:5.7
 
 import PackageDescription
 
@@ -142,6 +142,7 @@ var targets: [Target] = [
             "TuistCore",
             "TuistSupport",
             "TuistSupportTesting",
+            "XcodeProj",
             swiftToolsSupportDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
@@ -342,6 +343,10 @@ let package = Package(
         .library(
             name: "TuistSigning",
             targets: ["TuistSigning"]
+        ),
+        .library(
+            name: "TuistDependencies",
+            targets: ["TuistDependencies"]
         ),
         .library(
             name: "TuistAcceptanceTesting",
