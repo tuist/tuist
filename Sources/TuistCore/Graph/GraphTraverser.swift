@@ -44,7 +44,7 @@ public class GraphTraverser: GraphTraversing {
         try topologicalSort(
             Array(allTargets()),
             successors: {
-                Array(directTargetDependencies(path: $0.path, name: $0.target.name))
+                Array(directTargetDependencies(path: $0.path, name: $0.target.name).map(\.graphTarget))
             }
         ).reversed()
     }
@@ -113,73 +113,60 @@ public class GraphTraverser: GraphTraversing {
                     path: target.path,
                     name: target.target.name
                 )
-            )
+            ).map(\.graphTarget)
         }
     }
 
-    public func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+    public func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference> {
+        let target = GraphDependency.target(name: name, path: path)
         guard let dependencies = graph.dependencies[.target(name: name, path: path)]
         else { return [] }
 
         let targetDependencies = dependencies
             .compactMap(\.targetDependency)
 
-        return Set(targetDependencies.flatMap { dependencyName, dependencyPath -> [GraphTarget] in
-            guard let projectDependencies = graph.targets[dependencyPath],
-                  let dependencyTarget = projectDependencies[dependencyName],
-                  let dependencyProject = graph.projects[dependencyPath]
-            else {
-                return []
-            }
-            return [GraphTarget(path: dependencyPath, target: dependencyTarget, project: dependencyProject)]
-        })
+        return Set(convertToGraphTargetReferences(targetDependencies, for: target))
     }
 
-    public func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
-        guard let dependencies = graph.dependencies[.target(name: name, path: path)] else { return [] }
-        guard let project = graph.projects[path] else { return Set() }
+    public func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference> {
+        let target = GraphDependency.target(name: name, path: path)
+        guard let dependencies = graph.dependencies[target],
+              graph.projects[path] != nil
+        else { return [] }
 
         let localTargetDependencies = dependencies
             .compactMap(\.targetDependency)
             .filter { $0.path == path }
-        return Set(localTargetDependencies.flatMap { dependencyName, dependencyPath -> [GraphTarget] in
+
+        return Set(convertToGraphTargetReferences(localTargetDependencies, for: target))
+    }
+
+    func convertToGraphTargetReferences(
+        _ dependencies: [(name: String, path: AbsolutePath)],
+        for target: GraphDependency
+    ) -> [GraphTargetReference] {
+        dependencies.compactMap { dependencyName, dependencyPath -> GraphTargetReference? in
             guard let projectDependencies = graph.targets[dependencyPath],
-                  let dependencyTarget = projectDependencies[dependencyName]
+                  let dependencyTarget = projectDependencies[dependencyName],
+                  let dependencyProject = graph.projects[dependencyPath]
             else {
-                return []
+                return nil
             }
-            return [GraphTarget(path: path, target: dependencyTarget, project: project)]
-        })
-    }
-
-    public func directLocalTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(
-        GraphTarget,
-        PlatformCondition?
-    )] {
-        let sorted = directLocalTargetDependencies(path: path, name: name).sorted()
-        let from = GraphDependency.target(name: name, path: path)
-
-        return sorted.map { dependency in
-            let condition = graph.dependencyConditions[GraphEdge(
-                from: from,
-                to: GraphDependency.target(name: dependency.target.name, path: dependency.path)
-            )]
-            return (dependency, condition)
+            let condition = graph.dependencyConditions[(target, .target(name: dependencyTarget.name, path: dependencyPath))]
+            let graphTarget = GraphTarget(path: dependencyPath, target: dependencyTarget, project: dependencyProject)
+            return GraphTargetReference(target: graphTarget, condition: condition)
         }
     }
 
-    public func directTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, PlatformCondition?)] {
-        let sorted = directTargetDependencies(path: path, name: name).sorted()
-        let from = GraphDependency.target(name: name, path: path)
-
-        return sorted.map { dependency in
-            let condition = graph.dependencyConditions[GraphEdge(
-                from: from,
-                to: GraphDependency.target(name: dependency.target.name, path: dependency.path)
-            )]
-            return (dependency, condition)
-        }
-    }
+//    func conditionalize(_ target: GraphDependency, dependencies: [GraphTarget]) -> [GraphTargetReference] {
+//        return dependencies.map { dependency in
+//            let condition = graph.dependencyConditions[GraphEdge(
+//                from: target,
+//                to: dependency
+//            )]
+//            return dependency.withCondition(condition)
+//        }
+//    }
 
     public func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         guard let target = graph.targets[path]?[name] else { return [] }
@@ -207,7 +194,7 @@ public class GraphTraverser: GraphTraversing {
         return GraphTarget(path: path, target: target, project: project)
     }
 
-    public func appExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+    public func appExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference> {
         let validProducts: [Product] = [
             .appExtension, .stickerPackExtension, .watch2Extension, .tvTopShelfExtension, .messagesExtension,
         ]
@@ -217,16 +204,7 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
-    public func appExtensionDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, PlatformCondition?)] {
-        let validProducts: [Product] = [
-            .appExtension, .stickerPackExtension, .watch2Extension, .tvTopShelfExtension, .messagesExtension,
-        ]
-
-        return directLocalTargetDependenciesWithConditions(path: path, name: name)
-            .filter { validProducts.contains($0.0.target.product) }
-    }
-
-    public func extensionKitExtensionDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistGraph.GraphTarget> {
+    public func extensionKitExtensionDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<GraphTargetReference> {
         let validProducts: [Product] = [
             .extensionKitExtension,
         ]
@@ -236,25 +214,9 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
-    public func extensionKitExtensionDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(
-        GraphTarget,
-        PlatformCondition?
-    )] {
-        let validProducts: [Product] = [
-            .extensionKitExtension,
-        ]
-        return directLocalTargetDependenciesWithConditions(path: path, name: name)
-            .filter { validProducts.contains($0.0.target.product) }
-    }
-
-    public func appClipDependencies(path: AbsolutePath, name: String) -> GraphTarget? {
+    public func appClipDependencies(path: AbsolutePath, name: String) -> GraphTargetReference? {
         directLocalTargetDependencies(path: path, name: name)
             .first { $0.target.product == .appClip }
-    }
-
-    public func appClipDependenciesWithConditions(path: AbsolutePath, name: String) -> (GraphTarget, PlatformCondition?)? {
-        directLocalTargetDependenciesWithConditions(path: path, name: name)
-            .first { $0.0.target.product == .appClip }
     }
 
     public func buildsForMacCatalyst(path: AbsolutePath, name: String) -> Bool {
@@ -497,10 +459,10 @@ public class GraphTraverser: GraphTraversing {
         return Set(dependencies)
     }
 
-    public func directSwiftMacroTargets(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+    public func directSwiftMacroTargets(path: AbsolutePath, name: String) -> Set<GraphTargetReference> {
         let dependencies = directTargetDependencies(path: path, name: name)
             .filter { [.staticFramework, .framework, .dynamicLibrary, .staticLibrary].contains($0.target.product) }
-            .filter { self.directSwiftMacroExecutables(path: $0.path, name: $0.target.name).count != 0 }
+            .filter { self.directSwiftMacroExecutables(path: $0.graphTarget.path, name: $0.graphTarget.target.name).count != 0 }
         return Set(dependencies)
     }
 
@@ -654,8 +616,8 @@ public class GraphTraverser: GraphTraversing {
         allInternalTargets().filter { directTargetExternalDependencies(path: $0.path, name: $0.target.name).count != 0 }
     }
 
-    public func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
-        directTargetDependencies(path: path, name: name).filter(\.project.isExternal)
+    public func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference> {
+        directTargetDependencies(path: path, name: name).filter(\.graphTarget.project.isExternal)
     }
 
     public func allExternalTargets() -> Set<GraphTarget> {
@@ -861,12 +823,13 @@ public class GraphTraverser: GraphTraversing {
         var platforms: [GraphTarget: Set<Platform>] = [:]
 
         func traverse(target: GraphTarget, parentPlatforms: Set<Platform>) {
-            let dependencies = directTargetDependenciesWithConditions(path: target.path, name: target.target.name)
+            let dependencies = directTargetDependencies(path: target.path, name: target.target.name)
 
-            for (dependencyTarget, dependencyCondition) in dependencies {
+            for dependencyTargetReference in dependencies {
                 var platformsToInsert: Set<Platform>?
 
-                if let dependencyCondition,
+                let dependencyTarget = dependencyTargetReference.graphTarget
+                if let dependencyCondition = dependencyTargetReference.condition,
                    let platformIntersection = PlatformCondition.when(target.target.dependencyPlatformFilters)?
                    .intersection(dependencyCondition)
                 {
@@ -1040,7 +1003,7 @@ public class GraphTraverser: GraphTraversing {
 
     func unitTestHost(path: AbsolutePath, name: String) -> GraphTarget? {
         directLocalTargetDependencies(path: path, name: name)
-            .first(where: { $0.target.product.canHostTests() })
+            .first(where: { $0.target.product.canHostTests() })?.graphTarget
     }
 
     func canEmbedProducts(target: Target) -> Bool {

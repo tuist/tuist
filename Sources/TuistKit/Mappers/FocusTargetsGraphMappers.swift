@@ -34,7 +34,7 @@ public final class FocusTargetsGraphMappers: GraphMapping {
 
         let filteredTargets = Set(try topologicalSort(
             Array(userSpecifiedSourceTargets),
-            successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)) }
+            successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)).map(\.graphTarget) }
         ))
 
         for graphTarget in graphTraverser.allTargets() {

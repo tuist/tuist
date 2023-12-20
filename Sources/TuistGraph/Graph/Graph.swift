@@ -1,28 +1,6 @@
 import Foundation
 import TSCBasic
 
-/// A directed edge linking representing a dependent relationship
-/// e.g. `from` (MainApp) depends on `to` (UIKit)
-public struct GraphEdge: Hashable, Codable {
-    public let from: GraphDependency
-    public let to: GraphDependency
-    public init(from: GraphDependency, to: GraphDependency) {
-        self.from = from
-        self.to = to
-    }
-}
-
-extension [GraphEdge: PlatformCondition] {
-    public subscript(_ edge: (GraphDependency, GraphDependency)) -> PlatformCondition? {
-        get {
-            self[GraphEdge(from: edge.0, to: edge.1)]
-        }
-        set {
-            self[GraphEdge(from: edge.0, to: edge.1)] = newValue
-        }
-    }
-}
-
 /// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
 public struct Graph: Equatable, Codable {
     /// The name of the graph
@@ -70,5 +48,26 @@ public struct Graph: Equatable, Codable {
         self.targets = targets
         self.dependencies = dependencies
         self.dependencyConditions = dependencyConditions
+    }
+}
+
+/// Convenience accessors to work with `GraphTarget` and `GraphDependency` types while traversing the graph
+extension [GraphEdge: PlatformCondition] {
+    public subscript(_ edge: (GraphDependency, GraphDependency)) -> PlatformCondition? {
+        get {
+            self[GraphEdge(from: edge.0, to: edge.1)]
+        }
+        set {
+            self[GraphEdge(from: edge.0, to: edge.1)] = newValue
+        }
+    }
+
+    public subscript(_ edge: (GraphDependency, GraphTarget)) -> PlatformCondition? {
+        get {
+            self[GraphEdge(from: edge.0, to: edge.1)]
+        }
+        set {
+            self[GraphEdge(from: edge.0, to: edge.1)] = newValue
+        }
     }
 }
