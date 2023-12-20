@@ -141,6 +141,7 @@ var targets: [Target] = [
             "TuistKit",
             "TuistCore",
             "TuistSupportTesting",
+            "XcodeProj",
             swiftToolsSupportDependency,
         ],
         linkerSettings: [.linkedFramework("XCTest")]
