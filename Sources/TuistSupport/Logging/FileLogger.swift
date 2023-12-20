@@ -10,10 +10,11 @@ public struct FileLogger: TextOutputStream {
     let encoding: String.Encoding
 
     public init(path: AbsolutePath, encoding: String.Encoding = .utf8) throws {
-        if !FileManager.default.fileExists(atPath: path.url.path) {
-            guard FileManager.default.createFile(atPath: path.url.path, contents: nil, attributes: nil) else {
-                throw FileHandlerOutputStream.couldNotCreateFile
+        if !FileHandler.shared.exists(path) {
+            if !FileHandler.shared.exists(path.parentDirectory) {
+                try FileHandler.shared.createFolder(path.parentDirectory)
             }
+            try FileHandler.shared.touch(path)
         }
 
         let fileHandle = try FileHandle(forWritingTo: path.url)
@@ -22,7 +23,7 @@ public struct FileLogger: TextOutputStream {
         self.encoding = encoding
     }
 
-    public mutating func write(_ string: String) {
+    public func write(_ string: String) {
         if let data = string.data(using: encoding) {
             fileHandle.write(data)
         }

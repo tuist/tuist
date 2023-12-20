@@ -298,7 +298,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
                          rawXcodebuildLogs: Bool,
                          rawXcodebuildLogsPath: AbsolutePath?) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         
-        var rawXcodebuildFileLogger: FileLogger? = if let rawXcodebuildLogsPath = rawXcodebuildLogsPath {
+        let rawXcodebuildFileLogger: FileLogger? = if let rawXcodebuildLogsPath = rawXcodebuildLogsPath {
             try FileLogger(path: rawXcodebuildLogsPath)
         } else {
             nil
