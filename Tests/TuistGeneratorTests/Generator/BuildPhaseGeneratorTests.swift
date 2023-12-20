@@ -913,7 +913,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let projectA = Project.test(path: "/path/a")
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
         let stickerPackExtension = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
-        let app = Target.test(name: "App", product: .app)
+        let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .mac], product: .app)
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
         let fileElements = createProductFileElements(for: [appExtension, stickerPackExtension])
@@ -925,19 +925,28 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                 app.name: app,
             ],
         ]
+        let appGraphDependency: GraphDependency = .target(name: app.name, path: projectA.path)
+        let stickerPackGraphDependency: GraphDependency = .target(name: stickerPackExtension.name, path: projectA.path)
+        let appExtensionGraphDependency: GraphDependency = .target(name: appExtension.name, path: projectA.path)
+
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: appExtension.name, path: projectA.path): Set(),
-            .target(name: stickerPackExtension.name, path: projectA.path): Set(),
-            .target(name: app.name, path: projectA.path): Set([
-                .target(name: appExtension.name, path: projectA.path),
-                .target(name: stickerPackExtension.name, path: projectA.path),
+            appExtensionGraphDependency: Set(),
+            stickerPackGraphDependency: Set(),
+            appGraphDependency: Set([
+                appExtensionGraphDependency,
+                stickerPackGraphDependency,
             ]),
         ]
+        let dependencyConditions: [GraphEdge: PlatformCondition] = [
+            .init(from: appGraphDependency, to: stickerPackGraphDependency): .when([.ios])!,
+        ]
+
         let graph = Graph.test(
             path: path,
             projects: [projectA.path: projectA],
             targets: targets,
-            dependencies: dependencies
+            dependencies: dependencies,
+            dependencyConditions: dependencyConditions
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -958,6 +967,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath }, [
             "AppExtension",
             "StickerPackExtension",
+        ])
+        XCTAssertEqual(pbxBuildPhase?.files?.map(\.platformFilter), [
+            nil,
+            "ios",
         ])
         XCTAssertEqual(
             pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
@@ -1006,7 +1019,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateWatchBuildPhase() throws {
         // Given
-        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let app = Target.test(name: "App", destinations: [.iPad, .iPhone, .mac], product: .app)
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .watch2App)
         let project = Project.test()
         let pbxproj = PBXProj()
@@ -1016,15 +1029,25 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let targets: [AbsolutePath: [String: Target]] = [
             project.path: [app.name: app, watchApp.name: watchApp],
         ]
+
+        let appGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
+        let watchAppGraphDependency: GraphDependency = .target(name: watchApp.name, path: project.path)
+
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: watchApp.name, path: project.path): Set(),
-            .target(name: app.name, path: project.path): Set([.target(name: watchApp.name, path: project.path)]),
+            watchAppGraphDependency: Set(),
+            appGraphDependency: Set([watchAppGraphDependency]),
         ]
+
+        let dependencyConditions: [GraphEdge: PlatformCondition] = [
+            .init(from: appGraphDependency, to: watchAppGraphDependency): .when([.ios])!,
+        ]
+
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
             targets: targets,
-            dependencies: dependencies
+            dependencies: dependencies,
+            dependencyConditions: dependencyConditions
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1042,6 +1065,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
             "WatchApp",
         ])
+        XCTAssertEqual(pbxBuildPhase.files?.first?.platformFilter, "ios")
         XCTAssertEqual(
             pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
@@ -1050,7 +1074,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateWatchBuildPhase_watchApplication() throws {
         // Given
-        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .mac], product: .app)
         let watchApp = Target.test(name: "WatchApp", platform: .watchOS, product: .app)
         let project = Project.test()
         let pbxproj = PBXProj()
@@ -1060,15 +1084,24 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let targets: [AbsolutePath: [String: Target]] = [
             project.path: [app.name: app, watchApp.name: watchApp],
         ]
+        let appGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
+        let watchAppGraphDependency: GraphDependency = .target(name: watchApp.name, path: project.path)
+
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: watchApp.name, path: project.path): Set(),
-            .target(name: app.name, path: project.path): Set([.target(name: watchApp.name, path: project.path)]),
+            watchAppGraphDependency: Set(),
+            appGraphDependency: Set([watchAppGraphDependency]),
         ]
+
+        let dependencyConditions: [GraphEdge: PlatformCondition] = [
+            .init(from: appGraphDependency, to: watchAppGraphDependency): .when([.ios])!,
+        ]
+
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
             targets: targets,
-            dependencies: dependencies
+            dependencies: dependencies,
+            dependencyConditions: dependencyConditions
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -1087,6 +1120,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
             "WatchApp",
         ])
+        XCTAssertEqual(pbxBuildPhase.files?.first?.platformFilter, "ios")
         XCTAssertEqual(
             pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
@@ -1391,7 +1425,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateEmbedAppClipsBuildPhase() throws {
         // Given
-        let app = Target.test(name: "App", product: .app)
+        let app = Target.test(name: "App", destinations: [.iPhone, .iPad, .mac], product: .app)
         let appClip = Target.test(name: "AppClip", product: .appClip)
         let project = Project.test()
         let pbxproj = PBXProj()
@@ -1401,15 +1435,24 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let targets: [AbsolutePath: [String: Target]] = [
             project.path: [app.name: app, appClip.name: appClip],
         ]
+        let appGraphDependency: GraphDependency = .target(name: app.name, path: project.path)
+        let appClipGraphDependency: GraphDependency = .target(name: appClip.name, path: project.path)
+
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: appClip.name, path: project.path): Set(),
-            .target(name: app.name, path: project.path): Set([.target(name: appClip.name, path: project.path)]),
+            appClipGraphDependency: Set(),
+            appGraphDependency: Set([appClipGraphDependency]),
         ]
+
+        let dependencyConditions: [GraphEdge: PlatformCondition] = [
+            .init(from: appGraphDependency, to: appClipGraphDependency): .when([.ios])!,
+        ]
+
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
             targets: targets,
-            dependencies: dependencies
+            dependencies: dependencies,
+            dependencyConditions: dependencyConditions
         )
         let graphTraverser = GraphTraverser(graph: graph)
         // When
@@ -1427,6 +1470,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXCopyFilesBuildPhase)
         XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath }, ["AppClip"])
+        XCTAssertEqual(pbxBuildPhase?.files?.first?.platformFilter, "ios")
         XCTAssertEqual(
             pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
