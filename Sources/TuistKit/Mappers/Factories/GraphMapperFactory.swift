@@ -53,6 +53,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
         mappers.append(UpdateWorkspaceProjectsGraphMapper())
         mappers.append(PruneOrphanExternalTargetsGraphMapper())
         mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
+        mappers.append(ExplicitDependencyGraphMapper())
         return mappers
     }
 }

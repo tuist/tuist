@@ -79,8 +79,6 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
 
         // Signing
         mappers.append(SigningMapper())
-        
-        mappers.append(TargetProjectMapper(mapper: ExplicitDependencyTargetMapper()))
 
         return mappers
     }
