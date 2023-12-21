@@ -75,8 +75,9 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone, .appleWatch, .appleTv, .mac])
         let externalPackage = Target.test(
             name: "Package",
-            destinations: [.iPhone, .iPad],
-            product: .framework
+            destinations: [.iPhone, .iPad, .appleWatch],
+            product: .framework,
+            deploymentTargets: .init(iOS: "16.0", macOS: nil, watchOS: "9.0", tvOS: nil, visionOS: nil)
         )
 
         let project = Project.test(path: directory, targets: [appTarget])
@@ -84,6 +85,8 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
 
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
         let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
+
+        // Only use the external target on iOS
         let dependencyCondition = try XCTUnwrap(PlatformCondition.when([.ios]))
 
         let graph = Graph.test(
@@ -118,6 +121,10 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         XCTAssertEqual(
             try XCTUnwrap(mappedGraph.targets[externalProject.path]![externalPackage.name]?.supportedPlatforms),
             Set([.iOS])
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(mappedGraph.targets[externalProject.path]![externalPackage.name]?.deploymentTargets),
+            .iOS("16.0")
         )
     }
 
