@@ -1,10 +1,3 @@
-//
-//  TuistAcceptanceFixtures.swift
-//  TuistAcceptanceTesting
-//
-//  Created by Daniele Formichelli on 20/12/23.
-//
-
 import Foundation
 
 public enum TuistAcceptanceFixtures {
