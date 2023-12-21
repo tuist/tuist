@@ -60,7 +60,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         }
         
         if graphTarget.target.product == .app {
-            additionalSettings["DEPLOYMENT_LOCATION"] = "YES"
+//            additionalSettings["DEPLOYMENT_LOCATION"] = "YES"
         }
         
         var target = graphTarget.target.with(
@@ -95,7 +95,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                     do
                         for FILE in $CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$MOVED_PRODUCT/*
                         do
-                            DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$(basename $FILE)"
+                            DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$(basename $FILE)"
                             if [[ -d "$FILE" && ! -d "$DESTINATION_FILE" ]]; then
                                 ln -s "$FILE" "$DESTINATION_FILE"
                             fi
@@ -112,7 +112,12 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                     TargetScript(
                         name: "Copy Build Products",
                         order: .pre,
-                        script: .embedded(copyProductsScript)
+                        script: .embedded(copyProductsScript),
+                        inputPaths: allDependencies
+                            .map(\.target.productName)
+                            .map {
+                                "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\($0)"
+                            }
                     )
                 ]
             )
