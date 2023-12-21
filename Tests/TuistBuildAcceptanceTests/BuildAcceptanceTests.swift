@@ -98,7 +98,7 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPri
 
 final class BuildAcceptanceTestMultiplatformAppWithExtensions: TuistAcceptanceTestCase {
     func test() async throws {
-        try setUpFixture("multiplatform_app_with_extension")
+        try setUpFixture(.multiplatformAppWithExtensions)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")
     }

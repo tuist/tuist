@@ -55,6 +55,7 @@ public enum TuistAcceptanceFixtures {
     case macosAppWithCopyFiles
     case macosAppWithExtensions
     case manifestWithLogs
+    case multiplatformAppWithExtensions
     case multiplatformAppWithSdk
     case plugin
     case projectWithFileHeaderTemplate
@@ -161,6 +162,8 @@ public enum TuistAcceptanceFixtures {
             return "macos_app_with_extensions"
         case .manifestWithLogs:
             return "manifest_with_logs"
+        case .multiplatformAppWithExtensions:
+            return "multiplatform_app_with_extension"
         case .multiplatformAppWithSdk:
             return "multiplatform_app_with_sdk"
         case .plugin:
