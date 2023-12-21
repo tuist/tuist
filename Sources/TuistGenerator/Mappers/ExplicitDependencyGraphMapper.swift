@@ -41,7 +41,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
 //            return target.target
 //        }
 
-        let frameworkSearchPaths = graphTraverser.directTargetDependencies(
+        let frameworkSearchPaths = graphTraverser.allTargetDependencies(
             path: graphTarget.path,
             name: graphTarget.target.name
         )
