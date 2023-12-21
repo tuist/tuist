@@ -30,7 +30,7 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping {
                 /**
                  We only include the destinations whose platform is included in the list of the target supported platforms.
                  */
-                if let targetFilteredPlatforms = externalTargetSupportedPlatforms[graphTarget] {
+                if project.isExternal, let targetFilteredPlatforms = externalTargetSupportedPlatforms[graphTarget] {
                     target.destinations = target.destinations.filter { destination in
                         targetFilteredPlatforms.contains(destination.platform)
                     }
