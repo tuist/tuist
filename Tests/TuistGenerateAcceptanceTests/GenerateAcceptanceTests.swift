@@ -526,7 +526,7 @@ final class GenerateAcceptanceTestiOSAppWithCoreData: TuistAcceptanceTestCase {
 
 final class GenerateAcceptanceTestiOSAppWithAppClip: TuistAcceptanceTestCase {
     func test_ios_app_with_appclip() async throws {
-        try setUpFixture(.iosAppWithAppclip)
+        try setUpFixture(.iosAppWithAppClip)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await XCTAssertProductWithDestinationContainsAppClipWithArchitecture(

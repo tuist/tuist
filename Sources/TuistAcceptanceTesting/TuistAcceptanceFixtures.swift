@@ -2,7 +2,7 @@ import Foundation
 
 public enum TuistAcceptanceFixtures {
     case appWithBuildRules
-    case appWithFrameworkAndTest
+    case appWithFrameworkAndTests
     case appWithPlugins
     case appWithSpmDependencies
     case appWithTestPlan
@@ -16,7 +16,7 @@ public enum TuistAcceptanceFixtures {
     case invalidManifest
     case invalidWorkspaceManifestName
     case iosAppLarge
-    case iosAppWithAppclip
+    case iosAppWithAppClip
     case iosAppWithBuildVariables
     case iosAppWithCoreData
     case iosAppWithCustomConfiguration
@@ -49,7 +49,7 @@ public enum TuistAcceptanceFixtures {
     case macosAppWithCopyFiles
     case macosAppWithExtensions
     case manifestWithLogs
-    case multiplatformAppWithExtensions
+    case multiplatformAppWithExtension
     case multiplatformAppWithSdk
     case plugin
     case projectWithFileHeaderTemplate
@@ -64,7 +64,7 @@ public enum TuistAcceptanceFixtures {
         switch self {
         case .appWithBuildRules:
             return "app_with_build_rules"
-        case .appWithFrameworkAndTest:
+        case .appWithFrameworkAndTests:
             return "app_with_framework_and_tests"
         case .appWithPlugins:
             return "app_with_plugins"
@@ -92,7 +92,7 @@ public enum TuistAcceptanceFixtures {
             return "invalid_workspace_manifest_name"
         case .iosAppLarge:
             return "ios_app_large"
-        case .iosAppWithAppclip:
+        case .iosAppWithAppClip:
             return "ios_app_with_appclip"
         case .iosAppWithBuildVariables:
             return "ios_app_with_build_variables"
@@ -158,7 +158,7 @@ public enum TuistAcceptanceFixtures {
             return "macos_app_with_extensions"
         case .manifestWithLogs:
             return "manifest_with_logs"
-        case .multiplatformAppWithExtensions:
+        case .multiplatformAppWithExtension:
             return "multiplatform_app_with_extension"
         case .multiplatformAppWithSdk:
             return "multiplatform_app_with_sdk"

@@ -16,7 +16,7 @@ final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
 
 final class BuildAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase {
     func test_with_framework_and_tests() async throws {
-        try setUpFixture(.appWithFrameworkAndTest)
+        try setUpFixture(.appWithFrameworkAndTests)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await run(BuildCommand.self, "App")
@@ -98,7 +98,7 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPri
 
 final class BuildAcceptanceTestMultiplatformAppWithExtensions: TuistAcceptanceTestCase {
     func test() async throws {
-        try setUpFixture(.multiplatformAppWithExtensions)
+        try setUpFixture(.multiplatformAppWithExtension)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")
     }

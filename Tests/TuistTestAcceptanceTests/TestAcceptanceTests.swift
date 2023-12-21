@@ -6,7 +6,7 @@ import XCTest
 /// Test projects using tuist test
 final class TestAcceptanceTests: TuistAcceptanceTestCase {
     func test_with_app_with_framework_and_tests() async throws {
-        try setUpFixture(.appWithFrameworkAndTest)
+        try setUpFixture(.appWithFrameworkAndTests)
         try await run(TestCommand.self)
         try await run(TestCommand.self, "App")
         try await run(TestCommand.self, "--test-targets", "FrameworkTests/FrameworkTests")
