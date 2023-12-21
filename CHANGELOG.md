@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.36.2 - 2023-12-21
+
+### Tuist
+
+#### Added
+
+- [Multiplatform] Enhance build phases to account for platform conditions [#5691](https://github.com/tuist/tuist/pull/5691) by [@alexanderwe](https://github.com/alexanderwe)
+
+#### Fixed
+
+- Fix a bug that causes platform from being wrongly stripped [#5704](https://github.com/tuist/tuist/pull/5704) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.36.1 - 2023-12-20
 
 ### Tuist
