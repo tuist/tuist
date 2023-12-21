@@ -134,7 +134,7 @@ public enum TuistAcceptanceFixtures {
         case .iosAppWithStaticLibraries:
             return "ios_app_with_static_libraries"
         case .iosAppWithStaticLibraryAndPackage:
-            return "ios_app_with_static_libraryAndPackage"
+            return "ios_app_with_static_library_and_package"
         case .iosAppWithTemplates:
             return "ios_app_with_templates"
         case .iosAppWithTests:
