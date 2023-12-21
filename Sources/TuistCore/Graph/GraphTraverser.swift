@@ -104,6 +104,17 @@ public class GraphTraverser: GraphTraversing {
         allTestPlans().first { $0.name == name }
     }
 
+    public func allTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+        transitiveClosure([target(path: path, name: name)!]) { target in
+            Array(
+                directTargetDependencies(
+                    path: target.path,
+                    name: target.target.name
+                )
+            )
+        }
+    }
+
     public func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
         guard let dependencies = graph.dependencies[.target(name: name, path: path)]
         else { return [] }

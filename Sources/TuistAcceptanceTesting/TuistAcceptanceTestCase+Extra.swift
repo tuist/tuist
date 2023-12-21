@@ -20,13 +20,15 @@ extension TuistAcceptanceTestCase {
             return try XCTUnwrap(
                 FileHandler.shared.glob(
                     derivedDataPath,
-                    glob: "**/Build/**/Products/\(destination)/\(name.components(separatedBy: ".").first ?? name)/\(name)/").first
+                    glob: "**/Build/**/Products/\(destination)/\(name.components(separatedBy: ".").first ?? name)/\(name)/"
+                ).first
             )
         } else {
             return try XCTUnwrap(
                 FileHandler.shared.glob(
                     derivedDataPath,
-                    glob: "**/Build/**/Products/\(destination)/\(name)/").first
+                    glob: "**/Build/**/Products/\(destination)/\(name)/"
+                ).first
             )
         }
     }

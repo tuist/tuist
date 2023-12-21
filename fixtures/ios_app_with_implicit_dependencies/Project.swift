@@ -1,6 +1,6 @@
 import ProjectDescription
 
-let project =  Project(
+let project = Project(
     name: "App",
     organizationName: "tuist.io",
     targets: [

@@ -71,13 +71,13 @@ public struct TargetScript: Equatable, Codable {
     }
 
     /// List of input file paths
-    public let inputPaths: [AbsolutePath]
+    public let inputPaths: [String]
 
     /// List of input filelist paths
     public let inputFileListPaths: [AbsolutePath]
 
     /// List of output file paths
-    public let outputPaths: [AbsolutePath]
+    public let outputPaths: [String]
 
     /// List of output filelist paths
     public let outputFileListPaths: [AbsolutePath]
@@ -116,9 +116,9 @@ public struct TargetScript: Equatable, Codable {
         name: String,
         order: Order,
         script: Script = .embedded(""),
-        inputPaths: [AbsolutePath] = [],
+        inputPaths: [String] = [],
         inputFileListPaths: [AbsolutePath] = [],
-        outputPaths: [AbsolutePath] = [],
+        outputPaths: [String] = [],
         outputFileListPaths: [AbsolutePath] = [],
         showEnvVarsInLog: Bool = true,
         basedOnDependencyAnalysis: Bool? = nil,

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct FrameworkB {
+public enum FrameworkB {
     public static func frameworkB() {
         print("frameworkB")
     }
