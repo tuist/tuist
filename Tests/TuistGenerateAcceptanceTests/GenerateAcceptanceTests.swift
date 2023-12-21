@@ -366,7 +366,7 @@ final class GenerateAcceptanceTestiOSAppWithBuildVariables: TuistAcceptanceTestC
 
 final class GenerateAcceptanceTestiOSAppWithRemoteSwiftPackage: TuistAcceptanceTestCase {
     func test_ios_app_with_remote_swift_package() async throws {
-        try setUpFixture(.iosAppWithRemoteBinarySwiftPackage)
+        try setUpFixture(.iosAppWithRemoteSwiftPackage)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
