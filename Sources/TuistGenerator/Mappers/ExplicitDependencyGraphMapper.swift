@@ -36,18 +36,16 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
     }
     
     private func map(_ graphTarget: GraphTarget, graphTraverser: GraphTraversing) -> Target {
-        let builtTargets = graphTraverser.directTargetDependencies(
-            path: graphTarget.path,
-            name: graphTarget.target.name
-        )
-            .filter(\.isBuilt)
-        
         // Do not create the script, though
 //        if movedProductNames.isEmpty {
 //            return target.target
 //        }
         
-        let frameworkSearchPaths = builtTargets.map(\.target.productName).map {
+        let frameworkSearchPaths = graphTraverser.directTargetDependencies(
+            path: graphTarget.path,
+            name: graphTarget.target.name
+        )
+            .map(\.target.productName).map {
             "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\($0)"
         }
         
@@ -55,15 +53,21 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             "FRAMEWORK_SEARCH_PATHS": .array(frameworkSearchPaths)
         ]
 
-        additionalSettings["TARGET_BUILD_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
+        if graphTarget.isExplicitnessEnforced {
+            additionalSettings["TARGET_BUILD_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
 
-        additionalSettings["BUILT_PRODUCTS_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
+            additionalSettings["BUILT_PRODUCTS_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
+        }
+        
+        if graphTarget.target.product == .app {
+            additionalSettings["DEPLOYMENT_LOCATION"] = "YES"
+        }
         
         var target = graphTarget.target.with(
             additionalSettings: additionalSettings
         )
         
-        if !graphTarget.isBuilt {
+        if !graphTarget.isExplicitnessEnforced {
             let allDependencies = transitiveClosure([graphTarget]) { target in
                 Array(
                     graphTraverser
@@ -73,38 +77,11 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                         )
                 )
             }
-            let movedFrameworkProductNames = allDependencies
-                .filter { $0.target.product.isFramework }
-                .map(\.target.productName)
-            
-            let movedLibraryProductNames = allDependencies
-                .filter { $0.target.product == .staticLibrary || $0.target.product == .dynamicLibrary || $0.target.product == .app }
-                .map(\.target.productName)
-            
-            let movedStaticLibraryProductNames = allDependencies
-                .filter { $0.target.product == .staticLibrary }
-                .map(\.target.productName)
-            
-            let moveBundleScript = moveScript(
-                productNames: allDependencies
-                    .filter { $0.target.product == .bundle }
-                    .map(\.target.productName),
-                extensionName: "bundle"
-            )
             
             func moveScript(productNames: [String], extensionName: String, prefix: String = "", isDirectory: Bool = true) -> String {
                 let existenceCheck = isDirectory ? "-d" : "-f"
                 return """
-                MOVED_PRODUCT_NAMES=( \(productNames.joined(separator: " ")) )
 
-                for MOVED_PRODUCT in "${MOVED_PRODUCT_NAMES[@]}"
-                do
-                    BUILT_FRAMEWORK_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$MOVED_PRODUCT/\(prefix)$MOVED_PRODUCT.\(extensionName)"
-                    DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/\(prefix)$MOVED_PRODUCT.\(extensionName)"
-                    if [[ \(existenceCheck) "$BUILT_FRAMEWORK_FILE" && ! \(existenceCheck) "$DESTINATION_FILE" ]]; then
-                        ln -s "$BUILT_FRAMEWORK_FILE" "$DESTINATION_FILE"
-                    fi
-                done
                 """
             }
             
@@ -112,10 +89,22 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                     """
                     #!/bin/bash
                     
-                    \(moveScript(productNames: movedFrameworkProductNames, extensionName: "framework"))
-                    \(moveScript(productNames: movedLibraryProductNames, extensionName: "swiftmodule"))
-                    \(moveScript(productNames: movedStaticLibraryProductNames, extensionName: "a", prefix: "lib", isDirectory: false))
-                    \(moveBundleScript)
+                    MOVED_PRODUCT_NAMES=( \(allDependencies.map(\.target.productName).joined(separator: " ")) )
+
+                    for MOVED_PRODUCT in "${MOVED_PRODUCT_NAMES[@]}"
+                    do
+                        for FILE in $CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$MOVED_PRODUCT/*
+                        do
+                            DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$(basename $FILE)"
+                            if [[ -d "$FILE" && ! -d "$DESTINATION_FILE" ]]; then
+                                ln -s "$FILE" "$DESTINATION_FILE"
+                            fi
+                        
+                            if [[ -f "$FILE" && ! -f "$DESTINATION_FILE" ]]; then
+                                ln -s "$FILE" "$DESTINATION_FILE"
+                            fi
+                        done
+                    done
                     """
             
             target = target.with(
@@ -134,7 +123,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
 }
 
 extension GraphTarget {
-    fileprivate var isBuilt: Bool {
+    fileprivate var isExplicitnessEnforced: Bool {
         switch target.product {
         case .dynamicLibrary, .staticLibrary, .framework, .staticFramework, .bundle:
             return true
