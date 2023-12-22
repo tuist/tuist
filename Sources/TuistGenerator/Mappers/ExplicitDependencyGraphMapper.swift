@@ -36,31 +36,23 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
     }
 
     private func map(_ graphTarget: GraphTarget, graphTraverser: GraphTraversing) -> Target {
-        // Do not create the script, though
-//        if movedProductNames.isEmpty {
-//            return target.target
-//        }
-
         let allTargetDependencies = graphTraverser.allTargetDependencies(
             path: graphTarget.path,
             name: graphTarget.target.name
         )
         var frameworkSearchPaths = allTargetDependencies
-            .filter { !$0.project.isExternal }
             .map(\.target.productName).map {
                 "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\($0)"
             }
         
-        if allTargetDependencies.contains(where: { $0.project.isExternal }) {
-            frameworkSearchPaths.append(
-                "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/External"
-            )
-        }
-        
 
-        var additionalSettings: SettingsDictionary = [
-            "FRAMEWORK_SEARCH_PATHS": .array(frameworkSearchPaths),
-        ]
+        var additionalSettings: SettingsDictionary = [:]
+        
+        if graphTarget.project.isExternal {
+            additionalSettings["FRAMEWORK_SEARCH_PATHS"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)"
+        } else {
+            additionalSettings["FRAMEWORK_SEARCH_PATHS"] = .array(frameworkSearchPaths)
+        }
 
         if !graphTarget.isExplicitnessEnforced {
             return graphTarget.target
@@ -68,9 +60,9 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         
         let isExternal = graphTarget.project.isExternal
         let subpath = isExternal ? "External" : "$(PRODUCT_NAME)"
-        additionalSettings["TARGET_BUILD_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(subpath)"
+        additionalSettings["TARGET_BUILD_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
         
-        additionalSettings["BUILT_PRODUCTS_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(subpath)"
+        additionalSettings["BUILT_PRODUCTS_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
         
         var target = graphTarget.target.with(
             additionalSettings: additionalSettings
@@ -134,10 +126,8 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         extensionName: String,
         prefix: String = ""
     ) -> (String, [String], [String]) {
-        let scriptSubpath = isExternal ? "External" : "$PRODUCT_NAME"
-        let inputFileSubpath = isExternal ? "External" : "$(PRODUCT_NAME)"
         let script = """
-        FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/\(scriptSubpath)/\(prefix)$PRODUCT_NAME.\(extensionName)"
+        FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/\(prefix)$PRODUCT_NAME.\(extensionName)"
         DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/\(prefix)$PRODUCT_NAME.\(extensionName)"
         if [[ -d "$FILE" && ! -d "$DESTINATION_FILE" ]]; then
             ln -s "$FILE" "$DESTINATION_FILE"
@@ -150,7 +140,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
 
         return (
             script,
-            ["$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(inputFileSubpath)/\(prefix)$(PRODUCT_NAME).\(extensionName)"],
+            ["$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/\(prefix)$(PRODUCT_NAME).\(extensionName)"],
             ["$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(prefix)$(PRODUCT_NAME).\(extensionName)"]
         )
     }
