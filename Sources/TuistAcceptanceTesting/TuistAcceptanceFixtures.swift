@@ -179,6 +179,5 @@ public enum TuistAcceptanceFixtures {
         case let .custom(path):
             return path
         }
-
     }
 }
