@@ -41,22 +41,26 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
 //            return target.target
 //        }
 
-        let frameworkSearchPaths = graphTraverser.allTargetDependencies(
+        let frameworkSearchPaths =  [
+            "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/External"
+        ] + graphTraverser.allTargetDependencies(
             path: graphTarget.path,
             name: graphTarget.target.name
         )
         .map(\.target.productName).map {
             "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\($0)"
         }
+        
 
         var additionalSettings: SettingsDictionary = [
             "FRAMEWORK_SEARCH_PATHS": .array(frameworkSearchPaths),
         ]
 
         if graphTarget.isExplicitnessEnforced {
-            additionalSettings["TARGET_BUILD_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
+            let subpath = graphTarget.project.isExternal ? "External" : "$(PRODUCT_NAME)"
+            additionalSettings["TARGET_BUILD_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(subpath)"
 
-            additionalSettings["BUILT_PRODUCTS_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
+            additionalSettings["BUILT_PRODUCTS_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(subpath)"
         }
 
         if graphTarget.target.product == .app {
@@ -67,25 +71,18 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             additionalSettings: additionalSettings
         )
 
-        if !graphTarget.isExplicitnessEnforced {
+        if !graphTarget.isExplicitnessEnforced && graphTarget.target.product != .unitTests && graphTarget.target.product != .uiTests {
             let allDependencies = graphTraverser.allTargetDependencies(
                 path: graphTarget.path,
                 name: graphTarget.target.name
             )
             .subtracting(
                 graphTraverser
-                    .directTargetDependencies(
+                    .allTargetDependencies(
                         path: graphTarget.path,
                         name: graphTarget.target.name
                     )
                     .filter { !$0.isExplicitnessEnforced }
-                    .flatMap {
-                        graphTraverser
-                            .directTargetDependencies(
-                                path: $0.path,
-                                name: $0.target.name
-                            )
-                    }
             )
 
             func explicitProducts(
@@ -95,6 +92,12 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             ) -> (String, [String], [String]) {
                 let productNames = allDependencies
                     .filter(filterProduct)
+                    .filter { !$0.project.isExternal }
+                    .map(\.target.productName)
+                
+                let externalProductNames = allDependencies
+                    .filter(filterProduct)
+                    .filter { $0.project.isExternal }
                     .map(\.target.productName)
 
                 let script = """
@@ -103,6 +106,21 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 for MOVED_PRODUCT in "${MOVED_PRODUCT_NAMES[@]}"
                 do
                     FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$MOVED_PRODUCT/\(prefix)$MOVED_PRODUCT.\(extensionName)"
+                    DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/\(prefix)$MOVED_PRODUCT.\(extensionName)"
+                    if [[ -d "$FILE" && ! -d "$DESTINATION_FILE" ]]; then
+                        ln -s "$FILE" "$DESTINATION_FILE"
+                    fi
+
+                    if [[ -f "$FILE" && ! -f "$DESTINATION_FILE" ]]; then
+                        ln -s "$FILE" "$DESTINATION_FILE"
+                    fi
+                done
+                
+                MOVED_PRODUCT_NAMES=( \(externalProductNames.joined(separator: " ")) )
+
+                for MOVED_PRODUCT in "${MOVED_PRODUCT_NAMES[@]}"
+                do
+                    FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/External/\(prefix)$MOVED_PRODUCT.\(extensionName)"
                     DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/\(prefix)$MOVED_PRODUCT.\(extensionName)"
                     if [[ -d "$FILE" && ! -d "$DESTINATION_FILE" ]]; then
                         ln -s "$FILE" "$DESTINATION_FILE"
