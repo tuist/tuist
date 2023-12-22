@@ -41,14 +41,20 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
 //            return target.target
 //        }
 
-        let frameworkSearchPaths =  [
-            "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/External"
-        ] + graphTraverser.allTargetDependencies(
+        let allTargetDependencies = graphTraverser.allTargetDependencies(
             path: graphTarget.path,
             name: graphTarget.target.name
         )
-        .map(\.target.productName).map {
-            "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\($0)"
+        var frameworkSearchPaths = allTargetDependencies
+            .filter { !$0.project.isExternal }
+            .map(\.target.productName).map {
+                "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\($0)"
+            }
+        
+        if allTargetDependencies.contains(where: { $0.project.isExternal }) {
+            frameworkSearchPaths.append(
+                "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/External"
+            )
         }
         
 
@@ -56,146 +62,97 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             "FRAMEWORK_SEARCH_PATHS": .array(frameworkSearchPaths),
         ]
 
-        if graphTarget.isExplicitnessEnforced {
-            let subpath = graphTarget.project.isExternal ? "External" : "$(PRODUCT_NAME)"
-            additionalSettings["TARGET_BUILD_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(subpath)"
-
-            additionalSettings["BUILT_PRODUCTS_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(subpath)"
+        if !graphTarget.isExplicitnessEnforced {
+            return graphTarget.target
         }
-
-        if graphTarget.target.product == .app {
-//            additionalSettings["DEPLOYMENT_LOCATION"] = "YES"
-        }
-
+        
+        let isExternal = graphTarget.project.isExternal
+        let subpath = isExternal ? "External" : "$(PRODUCT_NAME)"
+        additionalSettings["TARGET_BUILD_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(subpath)"
+        
+        additionalSettings["BUILT_PRODUCTS_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(subpath)"
+        
         var target = graphTarget.target.with(
             additionalSettings: additionalSettings
         )
-
-        if !graphTarget.isExplicitnessEnforced && graphTarget.target.product != .unitTests && graphTarget.target.product != .uiTests {
-            let allDependencies = graphTraverser.allTargetDependencies(
-                path: graphTarget.path,
-                name: graphTarget.target.name
-            )
-            .subtracting(
-                graphTraverser
-                    .allTargetDependencies(
-                        path: graphTarget.path,
-                        name: graphTarget.target.name
-                    )
-                    .filter { !$0.isExplicitnessEnforced }
-            )
-
-            func explicitProducts(
-                _ filterProduct: (GraphTarget) -> Bool,
-                extensionName: String,
-                prefix: String = ""
-            ) -> (String, [String], [String]) {
-                let productNames = allDependencies
-                    .filter(filterProduct)
-                    .filter { !$0.project.isExternal }
-                    .map(\.target.productName)
-                
-                let externalProductNames = allDependencies
-                    .filter(filterProduct)
-                    .filter { $0.project.isExternal }
-                    .map(\.target.productName)
-
-                let script = """
-                MOVED_PRODUCT_NAMES=( \(productNames.joined(separator: " ")) )
-
-                for MOVED_PRODUCT in "${MOVED_PRODUCT_NAMES[@]}"
-                do
-                    FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$MOVED_PRODUCT/\(prefix)$MOVED_PRODUCT.\(extensionName)"
-                    DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/\(prefix)$MOVED_PRODUCT.\(extensionName)"
-                    if [[ -d "$FILE" && ! -d "$DESTINATION_FILE" ]]; then
-                        ln -s "$FILE" "$DESTINATION_FILE"
-                    fi
-
-                    if [[ -f "$FILE" && ! -f "$DESTINATION_FILE" ]]; then
-                        ln -s "$FILE" "$DESTINATION_FILE"
-                    fi
-                done
-                
-                MOVED_PRODUCT_NAMES=( \(externalProductNames.joined(separator: " ")) )
-
-                for MOVED_PRODUCT in "${MOVED_PRODUCT_NAMES[@]}"
-                do
-                    FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/External/\(prefix)$MOVED_PRODUCT.\(extensionName)"
-                    DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/\(prefix)$MOVED_PRODUCT.\(extensionName)"
-                    if [[ -d "$FILE" && ! -d "$DESTINATION_FILE" ]]; then
-                        ln -s "$FILE" "$DESTINATION_FILE"
-                    fi
-
-                    if [[ -f "$FILE" && ! -f "$DESTINATION_FILE" ]]; then
-                        ln -s "$FILE" "$DESTINATION_FILE"
-                    fi
-                done
-                """
-
-                return (
-                    script,
-                    productNames
-                        .map {
-                            "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\($0)/\(prefix)\($0).\(extensionName)"
-                        },
-                    productNames
-                        .map {
-                            "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(prefix)\($0).\(extensionName)"
-                        }
-                )
-            }
-
-            let (bundleScript, bundleInputPaths, bundleOutputPaths) = explicitProducts(
-                { $0.target.product == .bundle },
-                extensionName: "bundle"
-            )
-
-            let (frameworkScript, frameworkInputPaths, frameworkOutputPaths) = explicitProducts(
-                { $0.target.product == .framework },
-                extensionName: "framework"
-            )
-
-            let (libraryScript, libraryInputPaths, libraryOutputPaths) = explicitProducts(
-                { $0.target.product == .staticLibrary || $0.target.product == .dynamicLibrary },
-                extensionName: "swiftmodule"
-            )
-
-            let (staticLibraryScript, staticLibraryInputPaths, staticLibraryOutputPaths) = explicitProducts(
-                { $0.target.product == .staticLibrary },
+        
+        let copyBuiltProductsScript: String
+        let builtProductsScriptInputPaths: [String]
+        let builtProductsScriptOutputPaths: [String]
+        
+        switch target.product {
+        case .staticLibrary:
+            let (libScript, libInputPaths, libOutputPaths) = copyBuiltProductsToSharedDirectory(
+                isExternal: isExternal,
                 extensionName: "a",
                 prefix: "lib"
             )
-
-            let copyProductsScript =
-                """
-                #!/bin/bash
-
-                \(bundleScript)
-                \(frameworkScript)
-                \(libraryScript)
-                \(staticLibraryScript)
-                """
-
-            let inputPaths = bundleInputPaths + frameworkInputPaths + libraryInputPaths + staticLibraryInputPaths
-
-            if inputPaths.isEmpty {
-                return target
-            }
-
-            target = target.with(
-                scripts: target.scripts + [
-                    TargetScript(
-                        name: "Copy Build Products",
-                        order: .pre,
-                        script: .embedded(copyProductsScript),
-                        inputPaths: inputPaths,
-                        outputPaths: bundleOutputPaths + frameworkOutputPaths + libraryOutputPaths + staticLibraryOutputPaths
-                    ),
-                ]
+            let (moduleScript, moduleInputPaths, moduleOutputPaths) = copyBuiltProductsToSharedDirectory(
+                isExternal: isExternal,
+                extensionName: "swiftmodule"
             )
+            copyBuiltProductsScript = [libScript, moduleScript].joined(separator: "\n")
+            
+            builtProductsScriptInputPaths = libInputPaths + moduleInputPaths
+            builtProductsScriptOutputPaths = libOutputPaths + moduleOutputPaths
+        case .dynamicLibrary:
+            (copyBuiltProductsScript, builtProductsScriptInputPaths, builtProductsScriptOutputPaths) = copyBuiltProductsToSharedDirectory(
+                isExternal: isExternal,
+                extensionName: "swiftmodule"
+            )
+        case .bundle:
+            (copyBuiltProductsScript, builtProductsScriptInputPaths, builtProductsScriptOutputPaths) = copyBuiltProductsToSharedDirectory(
+                isExternal: isExternal,
+                extensionName: "bundle"
+            )
+        case .framework, .staticFramework:
+            (copyBuiltProductsScript, builtProductsScriptInputPaths, builtProductsScriptOutputPaths) = copyBuiltProductsToSharedDirectory(
+                isExternal: isExternal,
+                extensionName: "framework"
+            )
+        default:
+            return graphTarget.target
         }
-
+        
+        target = target.with(
+            scripts: target.scripts + [
+                TargetScript(
+                    name: "Copy Built Products",
+                    order: .post,
+                    script: .embedded(copyBuiltProductsScript),
+                    inputPaths: builtProductsScriptInputPaths,
+                    outputPaths: builtProductsScriptOutputPaths
+                ),
+            ]
+        )
+        
         return target
+    }
+    
+    private func copyBuiltProductsToSharedDirectory(
+        isExternal: Bool,
+        extensionName: String,
+        prefix: String = ""
+    ) -> (String, [String], [String]) {
+        let scriptSubpath = isExternal ? "External" : "$PRODUCT_NAME"
+        let inputFileSubpath = isExternal ? "External" : "$(PRODUCT_NAME)"
+        let script = """
+        FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/\(scriptSubpath)/\(prefix)$PRODUCT_NAME.\(extensionName)"
+        DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/\(prefix)$PRODUCT_NAME.\(extensionName)"
+        if [[ -d "$FILE" && ! -d "$DESTINATION_FILE" ]]; then
+            ln -s "$FILE" "$DESTINATION_FILE"
+        fi
+
+        if [[ -f "$FILE" && ! -f "$DESTINATION_FILE" ]]; then
+            ln -s "$FILE" "$DESTINATION_FILE"
+        fi
+        """
+
+        return (
+            script,
+            ["$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(inputFileSubpath)/\(prefix)$(PRODUCT_NAME).\(extensionName)"],
+            ["$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(prefix)$(PRODUCT_NAME).\(extensionName)"]
+        )
     }
 }
 
