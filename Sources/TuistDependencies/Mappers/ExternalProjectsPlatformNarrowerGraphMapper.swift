@@ -62,6 +62,16 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping {
             target.destinations = target.destinations.filter { destination in
                 targetFilteredPlatforms.contains(destination.platform)
             }
+
+            // By changing the destinations we also need to adapt the deployment targets accordingly to account for possibly
+            // removed destinations
+            target.deploymentTargets = .init(
+                iOS: targetFilteredPlatforms.contains(.iOS) ? target.deploymentTargets.iOS : nil,
+                macOS: targetFilteredPlatforms.contains(.macOS) ? target.deploymentTargets.macOS : nil,
+                watchOS: targetFilteredPlatforms.contains(.watchOS) ? target.deploymentTargets.watchOS : nil,
+                tvOS: targetFilteredPlatforms.contains(.tvOS) ? target.deploymentTargets.tvOS : nil,
+                visionOS: targetFilteredPlatforms.contains(.visionOS) ? target.deploymentTargets.visionOS : nil
+            )
         }
         return target
     }
