@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.36.3 - 2023-12-22
+
+### Tuist
+
+#### Fixed
+
+- Fix deployment targets on tree shake [#5705](https://github.com/tuist/tuist/pull/5705) by [@alexanderwe](https://github.com/alexanderwe)
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.36.2 - 2023-12-21
 
 ### Tuist
