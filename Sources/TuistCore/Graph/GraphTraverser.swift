@@ -303,49 +303,44 @@ public class GraphTraverser: GraphTraversing {
         // Skip mergeable precompiled libraries from being embedded into the runnable binary:
         switch target.target.mergedBinaryType {
         case .automatic:
-            // all that are mergeable
+            // all mergeable precompiled frameworks
             precompiledFrameworks = precompiledFrameworks
                 .filter { !isXCFrameworkMergeable(dependency: $0) }
         case let .manual(dependenciesToMerge):
-            // those that are specified by the target
+            // mergeable precompiled frameworks specified by the target.
             precompiledFrameworks = precompiledFrameworks
                 .filter { !isXCFrameworkMergeable(dependency: $0, expectedMergedBinaries: dependenciesToMerge) }
         case .disabled:
             break
         }
 
-        // If runnable binary is a merged binary, keep only non-mergeable targets for embedding
+        // If a runnable binary is a merged binary, keep only non-mergeable targets for embedding.
         if target.target.mergedBinaryType != .disabled {
             embeddableTargetFrameworks = embeddableTargetFrameworks.filter(isDependencyDynamicNonMergeableTarget)
         }
 
-        // Search for merged non-runnable binaries among inner targets
+        // Search for merged non-runnable binaries among inner targets.
         for innerTarget in embeddableTargetFrameworks {
-            guard let graphTarget = self.target(from: innerTarget),
-                  graphTarget.target.mergedBinaryType != .disabled
-            else {
+            guard let graphTarget = self.target(from: innerTarget) else {
                 continue
             }
 
-            // Take all mergeable dependencies
-            let mergeableFrameworks = filterDependencies(
-                from: innerTarget,
-                test: isDependencyDynamicMergeableTarget,
-                skip: canDependencyEmbedProducts
-            )
             switch graphTarget.target.mergedBinaryType {
             case .automatic:
-                // Filter all dependencies from lists of precompiled binaries and local targets
+                // Filter all mergeable precompiled dependencies.
                 precompiledFrameworks = precompiledFrameworks
                     .filter { !isXCFrameworkMergeable(dependency: $0) }
 
+                // Take all mergeable dependencies and filter mergeable.
+                let mergeableFrameworks = mergeableFrameworks(from: innerTarget)
                 embeddableTargetFrameworks = embeddableTargetFrameworks.subtracting(mergeableFrameworks)
             case let .manual(mergeableDependencies):
-                // Filter only those dependencies that are specified to be merged
-                // from lists of precompiled binaries and local targets
+                // Filter only those mergeable precompiled dependencies specified by the merged binary.
                 precompiledFrameworks = precompiledFrameworks
                     .filter { !isXCFrameworkMergeable(dependency: $0, expectedMergedBinaries: mergeableDependencies) }
 
+                // Take all mergeable dependencies and filter those specified by the merged binary.
+                let mergeableFrameworks = mergeableFrameworks(from: innerTarget)
                 let selectedMergeableFrameworks = mergeableFrameworks.filter {
                     mergeableDependencies.contains($0.name)
                 }
@@ -365,7 +360,7 @@ public class GraphTraverser: GraphTraversing {
             from: .target(name: name, path: path)
         ) })
 
-        // Exclude any products embed in unit test host apps
+        // Exclude any products embed in unit test host apps.
         if target.target.product == .unitTests {
             if let hostApp = unitTestHost(path: path, name: name) {
                 references.subtract(embeddableFrameworks(path: hostApp.path, name: hostApp.target.name))
@@ -1161,6 +1156,15 @@ public class GraphTraverser: GraphTraversing {
         )
         return Set(dependencies)
             .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
+    }
+    
+    /// Returns mergeable dynamic frameworks for the target.
+    private func mergeableFrameworks(from target: GraphDependency) -> Set<GraphDependency> {
+        filterDependencies(
+            from: target,
+            test: isDependencyDynamicMergeableTarget,
+            skip: canDependencyEmbedProducts
+        )
     }
 }
 
