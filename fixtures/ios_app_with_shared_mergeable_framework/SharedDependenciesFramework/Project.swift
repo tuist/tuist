@@ -13,7 +13,7 @@ let project = Project(
             dependencies: [
                 .project(target: "DynamicFrameworkA", path: "../DynamicFrameworkA"),
                 .project(target: "DynamicFrameworkB", path: "../DynamicFrameworkB"),
-                .xcframework(path: "../../XCFrameworks/MergeableXCFramework/prebuilt/MergeableXCFramework.xcframework"),
+                .xcframework(path: "../XCFrameworks/MergeableXCFramework/prebuilt/MergeableXCFramework.xcframework"),
             ],
             mergedBinaryType: .automatic
         ),
