@@ -22,7 +22,6 @@ public struct TuistCommand: AsyncParsableCommand {
                 PluginCommand.self,
                 RunCommand.self,
                 ScaffoldCommand.self,
-                SigningCommand.self,
                 TestCommand.self,
                 VersionCommand.self,
             ]
