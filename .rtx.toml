@@ -1,0 +1,43 @@
+[tools]
+tuist = "3.36.5"
+swiftlint = "0.54.0"
+swiftformat = "0.52.10"
+
+[plugins]
+python = 'https://github.com/asdf-community/asdf-tuist'
+
+[tasks."docs:preview"]
+description = 'Preview the documentation'
+run = "./make/tasks/docs/preview.sh"
+
+[tasks."docs:build"]
+description = "Build the documentation"
+run = "./make/tasks/docs/build.sh"
+
+[tasks."tuist:edit"]
+description = "Edit the project using Tuist"
+run = "./make/tasks/tuist/edit.sh"
+
+[tasks."tuist:generate"]
+description = "Generate the project using Tuist"
+run = "./make/tasks/tuist/generate.sh"
+
+[tasks."tuist:build"]
+description = "Build the project using Tuist"
+run = "./make/tasks/tuist/build.sh"
+
+[tasks."tuist:test"]
+description = "Test the project using Tuist"
+run = "./make/tasks/tuist/test.sh"
+
+[tasks."tuist:run"]
+description = "Run the project using Tuist"
+run = "./make/tasks/tuist/run.sh"
+	
+[tasks."lint"]
+description = "Lint the workspace"
+run = "./make/tasks/workspace/lint.sh"
+
+[tasks."lint:fix"]
+description = "Lint the workspace fixing the issues"
+run = "./make/tasks/workspace/lint-fix.sh"

@@ -31,8 +31,9 @@ jobs:
           fetch-depth: 0
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - uses: jdx/rtx-action@v1
       - name: Build documentation
-        run: make docs/build
+        run: rtx run docs:build
       - name: Fix permissions
         run: 'sudo chown -R $USER .build/documentation'
       - name: Deploy production to Netlify
