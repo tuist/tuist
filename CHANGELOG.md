@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.36.5 - 2023-12-24
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.36.4 - 2023-12-23
 
 ### Tuist
