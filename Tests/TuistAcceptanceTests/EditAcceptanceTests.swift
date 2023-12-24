@@ -7,7 +7,7 @@ import XCTest
 
 final class EditAcceptanceTestiOSAppWithHelpers: TuistAcceptanceTestCase {
     func test_ios_app_with_helpers() async throws {
-        try setUpFixture("ios_app_with_helpers")
+        try setUpFixture(.iosAppWithHelpers)
         try await run(EditCommand.self)
         try build(scheme: "Manifests")
     }
@@ -15,7 +15,7 @@ final class EditAcceptanceTestiOSAppWithHelpers: TuistAcceptanceTestCase {
 
 final class EditAcceptanceTestPlugin: TuistAcceptanceTestCase {
     func test_plugin() async throws {
-        try setUpFixture("plugin")
+        try setUpFixture(.plugin)
         try await run(EditCommand.self)
         try build(scheme: "Plugins")
     }
@@ -23,7 +23,7 @@ final class EditAcceptanceTestPlugin: TuistAcceptanceTestCase {
 
 final class EditAcceptanceTestAppWithPlugins: TuistAcceptanceTestCase {
     func test_app_with_plugins() async throws {
-        try setUpFixture("app_with_plugins")
+        try setUpFixture(.appWithPlugins)
         try await run(FetchCommand.self)
         try await run(EditCommand.self)
         try build(scheme: "Manifests")
