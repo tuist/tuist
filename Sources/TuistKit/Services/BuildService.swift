@@ -62,7 +62,8 @@ final class BuildService {
         osVersion: String?,
         rosetta: Bool,
         rawXcodebuildLogs: Bool,
-        rawXcodebuildLogsPath: AbsolutePath?
+        rawXcodebuildLogsPath: AbsolutePath?,
+        onlyGenerate: Bool
     ) async throws {
         let graph: Graph
         let generator = generatorFactory.default()
@@ -70,6 +71,10 @@ final class BuildService {
             graph = try await generator.generateWithGraph(path: path).1
         } else {
             graph = try await generator.load(path: path)
+        }
+
+        if onlyGenerate {
+            return
         }
 
         guard let workspacePath = try buildGraphInspector.workspacePath(directory: path) else {
