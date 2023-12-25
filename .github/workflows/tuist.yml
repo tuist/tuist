@@ -35,6 +35,8 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: jdx/rtx-action@v1
+        with:
+          experimental: true
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v3
@@ -54,6 +56,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: jdx/rtx-action@v1
+        with:
+          experimental: true
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v3
@@ -75,6 +79,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: jdx/rtx-action@v1
+        with:
+          experimental: true
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v3
@@ -107,6 +113,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/rtx-action@v1
+        with:
+          experimental: true
       - name: Select Xcode
         # Xcode accepts -skipMacroValidation
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
@@ -130,6 +138,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: jdx/rtx-action@v1
+        with:
+          experimental: true
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Run
