@@ -88,6 +88,72 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(path, "/Project")
     }
 
+    func test_from_when_package_runtime() throws {
+        // Given
+        let dependency = ProjectDescription.TargetDependency.package(product: "RuntimePackageProduct", type: .runtime)
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+        
+        // When
+        let got = try TuistGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: generatorPaths,
+            externalDependencies: [:]
+        )
+        
+        // Then
+        XCTAssertEqual(got.count, 1)
+        guard case let .package(product, type, _) = got[0] else {
+            XCTFail("Dependency should be package")
+            return
+        }
+        XCTAssertEqual(product, "RuntimePackageProduct")
+        XCTAssertEqual(type, .runtime)
+    }
+    
+    func test_from_when_package_macro() throws {
+        // Given
+        let dependency = ProjectDescription.TargetDependency.package(product: "MacroPackageProduct", type: .macro)
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+        
+        // When
+        let got = try TuistGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: generatorPaths,
+            externalDependencies: [:]
+        )
+        
+        // Then
+        XCTAssertEqual(got.count, 1)
+        guard case let .package(product, type, _) = got[0] else {
+            XCTFail("Dependency should be package")
+            return
+        }
+        XCTAssertEqual(product, "MacroPackageProduct")
+        XCTAssertEqual(type, .macro)
+    }
+    
+    func test_from_when_package_plugin() throws {
+        // Given
+        let dependency = ProjectDescription.TargetDependency.package(product: "PluginPackageProduct", type: .plugin)
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"))
+        
+        // When
+        let got = try TuistGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: generatorPaths,
+            externalDependencies: [:]
+        )
+        
+        // Then
+        XCTAssertEqual(got.count, 1)
+        guard case let .package(product, type, _) = got[0] else {
+            XCTFail("Dependency should be package")
+            return
+        }
+        XCTAssertEqual(product, "PluginPackageProduct")
+        XCTAssertEqual(type, .plugin)
+    }
+    
     func test_from_when_sdkLibrary() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.sdk(name: "c++", type: .library, status: .required)
