@@ -6,6 +6,7 @@ on:
       - main
   pull_request:
     paths:
+      - .xcode-version
       - Tuist/**
       - Package.resolved
       - Gemfile*
