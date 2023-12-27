@@ -104,7 +104,6 @@ func targets() -> [Target] {
                 .target(name: "ProjectAutomation"),
                 .target(name: "TuistLoader"),
                 .target(name: "TuistScaffold"),
-                .target(name: "TuistSigning"),
                 .target(name: "TuistDependencies"),
                 .target(name: "TuistMigration"),
                 .target(name: "TuistAsyncQueue"),
@@ -127,7 +126,6 @@ func targets() -> [Target] {
                 .target(name: "TuistGeneratorTesting"),
                 .target(name: "TuistScaffoldTesting"),
                 .target(name: "TuistAutomationTesting"),
-                .target(name: "TuistSigningTesting"),
                 .target(name: "TuistDependenciesTesting"),
                 .target(name: "TuistMigrationTesting"),
                 .target(name: "TuistAsyncQueueTesting"),
@@ -228,7 +226,6 @@ func targets() -> [Target] {
                 .target(name: "TuistCoreTesting"),
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistGraphTesting"),
-                .target(name: "TuistSigningTesting"),
                 .external(name: "XcodeProj"),
             ]
         ),
@@ -349,26 +346,6 @@ func targets() -> [Target] {
             hasTests: false,
             hasTesting: false,
             dependencies: []
-        ),
-        Target.module(
-            name: "TuistSigning",
-            hasIntegrationTests: false,
-            dependencies: [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
-                .external(name: "CryptoSwift"),
-                .external(name: "SwiftToolsSupport"),
-                .external(name: "SystemPackage"),
-            ],
-            testDependencies: [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
-            ],
-            testingDependencies: [
-                .target(name: "TuistGraphTesting"),
-            ]
         ),
         Target.module(
             name: "TuistAnalytics",

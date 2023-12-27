@@ -4,7 +4,6 @@ import TuistCore
 import TuistDependencies
 import TuistGenerator
 import TuistGraph
-import TuistSigning
 
 /// The GraphMapperFactorying describes the interface of a factory of graph mappers.
 /// Methods in the interface map with workflows exposed to the user.

@@ -4,7 +4,6 @@ import TuistAutomation
 import TuistCoreTesting
 import TuistGraph
 import TuistLoader
-import TuistSigning
 import XCTest
 @testable import TuistCore
 @testable import TuistGenerator
@@ -66,14 +65,6 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
         // Then
         XCTAssertContainsElementOfType(got, IDETemplateMacrosMapper.self)
-    }
-
-    func test_default_contains_the_signing_mapper() {
-        // When
-        let got = subject.default()
-
-        // Then
-        XCTAssertContainsElementOfType(got, SigningMapper.self)
     }
 
     func test_automation_contains_the_source_root_path_project_mapper() {
