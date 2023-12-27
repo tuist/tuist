@@ -75,7 +75,6 @@ var targets: [Target] = [
             "ProjectAutomation",
             "TuistLoader",
             "TuistScaffold",
-            "TuistSigning",
             "TuistDependencies",
             "GraphViz",
             "TuistMigration",
@@ -174,16 +173,6 @@ var targets: [Target] = [
             "TuistCore",
             "TuistGraph",
             "TuistSupport",
-        ]
-    ),
-    .target(
-        name: "TuistSigning",
-        dependencies: [
-            "TuistCore",
-            "TuistGraph",
-            "TuistSupport",
-            "CryptoSwift",
-            swiftToolsSupportDependency,
         ]
     ),
     .target(
@@ -326,6 +315,7 @@ let package = Package(
             targets: ["TuistAutomation"]
         ),
         .library(
+<<<<<<< HEAD
             name: "TuistSigning",
             targets: ["TuistSigning"]
         ),
@@ -334,6 +324,8 @@ let package = Package(
             targets: ["TuistDependencies"]
         ),
         .library(
+=======
+>>>>>>> e77e49ac5 (Eliminate signing capabilities (#5716))
             name: "TuistAcceptanceTesting",
             targets: ["TuistAcceptanceTesting"]
         ),
@@ -364,7 +356,6 @@ let package = Package(
         .package(url: "https://github.com/weichsel/ZIPFoundation", from: "0.9.17"),
         .package(url: "https://github.com/httpswift/swifter.git", revision: "1e4f51c92d7ca486242d8bf0722b99de2c3531aa"),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess", from: "4.2.2"),
-        .package(url: "https://github.com/krzyzanowskim/CryptoSwift", from: "1.8.0"),
         .package(url: "https://github.com/stencilproject/Stencil", exact: "0.15.1"),
         .package(url: "https://github.com/SwiftDocOrg/GraphViz", exact: "0.2.0"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),

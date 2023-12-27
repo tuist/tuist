@@ -4,7 +4,6 @@ import TSCUtility
 import TuistCoreTesting
 import TuistGraph
 import TuistLoader
-import TuistSigning
 import XCTest
 @testable import TuistAutomation
 @testable import TuistCore

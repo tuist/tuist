@@ -9,7 +9,6 @@ import XCTest
 
 @testable import TuistCore
 @testable import TuistKit
-@testable import TuistSigning
 @testable import TuistSupportTesting
 
 final class UpdateWorkspaceProjectsGraphMapperTests: TuistUnitTestCase {
