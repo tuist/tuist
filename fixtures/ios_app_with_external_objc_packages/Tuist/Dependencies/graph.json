@@ -1,0 +1,3201 @@
+{
+  "externalProjects" : [
+    "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth",
+    {
+      "additionalFiles" : [
+
+      ],
+      "name" : "GTMAppAuth",
+      "filesGroup" : {
+        "group" : {
+          "name" : "Project"
+        }
+      },
+      "isExternal" : true,
+      "sourceRootPath" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth",
+      "targets" : [
+        {
+          "productName" : "GTMAppAuth",
+          "dependencies" : [
+            {
+              "project" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher",
+                "target" : "GTMSessionFetcherCore"
+              }
+            },
+            {
+              "project" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS",
+                "target" : "AppAuthCore"
+              }
+            },
+            {
+              "sdk" : {
+                "name" : "Security.framework",
+                "status" : "required"
+              }
+            }
+          ],
+          "playgrounds" : [
+
+          ],
+          "sources" : [
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth\/GTMAppAuth\/Sources\/GTMAppAuthFetcherAuthorization+Keychain.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth\/GTMAppAuth\/Sources\/GTMAppAuthFetcherAuthorization.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth\/GTMAppAuth\/Sources\/GTMKeychain.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth\/GTMAppAuth\/Sources\/GTMOAuth2KeychainCompatibility.m"
+            }
+          ],
+          "deploymentTargets" : {
+            "iOS" : "12.0"
+          },
+          "additionalFiles" : [
+
+          ],
+          "infoPlist" : {
+            "extendingDefault" : {
+              "with" : {
+
+              }
+            }
+          },
+          "mergeable" : false,
+          "resources" : [
+
+          ],
+          "environmentVariables" : {
+
+          },
+          "mergedBinaryType" : {
+            "disabled" : {
+
+            }
+          },
+          "coreDataModels" : [
+
+          ],
+          "filesGroup" : {
+            "group" : {
+              "name" : "Project"
+            }
+          },
+          "prune" : false,
+          "launchArguments" : [
+
+          ],
+          "name" : "GTMAppAuth",
+          "headers" : {
+            "project" : [
+
+            ],
+            "private" : [
+
+            ],
+            "public" : [
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth\/GTMAppAuth\/Sources\/Public\/GTMAppAuth\/GTMOAuth2KeychainCompatibility.h",
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth\/GTMAppAuth\/Sources\/Public\/GTMAppAuth\/GTMAppAuthFetcherAuthorization+Keychain.h",
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth\/GTMAppAuth\/Sources\/Public\/GTMAppAuth\/GTMAppAuthFetcherAuthorization.h",
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth\/GTMAppAuth\/Sources\/Public\/GTMAppAuth\/GTMKeychain.h",
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth\/GTMAppAuth\/Sources\/Public\/GTMAppAuth\/GTMAppAuth.h"
+            ]
+          },
+          "bundleId" : "GTMAppAuth",
+          "buildRules" : [
+
+          ],
+          "rawScriptBuildPhases" : [
+
+          ],
+          "copyFiles" : [
+
+          ],
+          "settings" : {
+            "defaultSettings" : {
+              "recommended" : {
+                "excluding" : [
+
+                ]
+              }
+            },
+            "base" : {
+              "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "ALWAYS_SEARCH_USER_PATHS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "SWIFT_SUPPRESS_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "GCC_WARN_INHIBIT_ALL_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "ENABLE_STRICT_OBJC_MSGSEND" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_NO_COMMON_BLOCKS" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "CLANG_ENABLE_OBJC_WEAK" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "SWIFT_ACTIVE_COMPILATION_CONDITIONS" : {
+                "string" : {
+                  "_0" : "$(inherited) SWIFT_PACKAGE"
+                }
+              },
+              "FRAMEWORK_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(PLATFORM_DIR)\/Developer\/Library\/Frameworks"
+                  ]
+                }
+              },
+              "USE_HEADERMAP" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_PREPROCESSOR_DEFINITIONS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "SWIFT_PACKAGE=1"
+                  ]
+                }
+              },
+              "HEADER_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(SRCROOT)\/GTMAppAuth\/Sources\/Public",
+                    "$(SRCROOT)\/..\/AppAuth-iOS\/Source\/AppAuthCore",
+                    "$(SRCROOT)\/..\/gtm-session-fetcher\/Sources\/Core\/Public",
+                    "$(SRCROOT)\/GTMAppAuth\/Sources\/..\/..\/"
+                  ]
+                }
+              }
+            },
+            "configurations" : [
+              {
+                "variant" : "release",
+                "name" : "Release"
+              },
+              {
+                "settings" : {
+
+                }
+              },
+              {
+                "variant" : "debug",
+                "name" : "Debug"
+              },
+              {
+                "settings" : {
+
+                }
+              }
+            ]
+          },
+          "destinations" : [
+            "macWithiPadDesign",
+            "iPad",
+            "appleVisionWithiPadDesign",
+            "iPhone"
+          ],
+          "scripts" : [
+
+          ],
+          "product" : "staticFramework"
+        }
+      ],
+      "schemes" : [
+
+      ],
+      "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth",
+      "settings" : {
+        "defaultSettings" : {
+          "recommended" : {
+            "excluding" : [
+
+            ]
+          }
+        },
+        "base" : {
+
+        },
+        "configurations" : [
+          {
+            "name" : "Release",
+            "variant" : "release"
+          },
+          {
+            "settings" : {
+
+            }
+          },
+          {
+            "name" : "Debug",
+            "variant" : "debug"
+          },
+          {
+            "settings" : {
+
+            }
+          }
+        ]
+      },
+      "resourceSynthesizers" : [
+        {
+          "extensions" : [
+            "strings",
+            "stringsdict"
+          ],
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Strings"
+            }
+          },
+          "parser" : "strings",
+          "parserOptions" : {
+
+          }
+        },
+        {
+          "extensions" : [
+            "xcassets"
+          ],
+          "parser" : "assets",
+          "parserOptions" : {
+
+          },
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Assets"
+            }
+          }
+        },
+        {
+          "parser" : "plists",
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Plists"
+            }
+          },
+          "parserOptions" : {
+
+          },
+          "extensions" : [
+            "plist"
+          ]
+        },
+        {
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Fonts"
+            }
+          },
+          "parser" : "fonts",
+          "parserOptions" : {
+
+          },
+          "extensions" : [
+            "ttf",
+            "ttc",
+            "otf"
+          ]
+        }
+      ],
+      "options" : {
+        "disableSynthesizedResourceAccessors" : true,
+        "disableBundleAccessors" : false,
+        "disableShowEnvironmentVarsInScriptPhases" : false,
+        "textSettings" : {
+
+        },
+        "automaticSchemesOptions" : {
+          "disabled" : {
+
+          }
+        }
+      },
+      "packages" : [
+
+      ],
+      "lastUpgradeCheck" : "99.9.9",
+      "xcodeProjPath" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth\/GTMAppAuth.xcodeproj"
+    },
+    "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS",
+    {
+      "isExternal" : true,
+      "resourceSynthesizers" : [
+        {
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Strings"
+            }
+          },
+          "extensions" : [
+            "stringsdict",
+            "strings"
+          ],
+          "parserOptions" : {
+
+          },
+          "parser" : "strings"
+        },
+        {
+          "parserOptions" : {
+
+          },
+          "extensions" : [
+            "xcassets"
+          ],
+          "parser" : "assets",
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Assets"
+            }
+          }
+        },
+        {
+          "parserOptions" : {
+
+          },
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Plists"
+            }
+          },
+          "parser" : "plists",
+          "extensions" : [
+            "plist"
+          ]
+        },
+        {
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Fonts"
+            }
+          },
+          "parser" : "fonts",
+          "extensions" : [
+            "ttf",
+            "ttc",
+            "otf"
+          ],
+          "parserOptions" : {
+
+          }
+        }
+      ],
+      "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS",
+      "schemes" : [
+
+      ],
+      "sourceRootPath" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS",
+      "packages" : [
+
+      ],
+      "options" : {
+        "disableSynthesizedResourceAccessors" : true,
+        "textSettings" : {
+
+        },
+        "disableBundleAccessors" : false,
+        "disableShowEnvironmentVarsInScriptPhases" : false,
+        "automaticSchemesOptions" : {
+          "disabled" : {
+
+          }
+        }
+      },
+      "lastUpgradeCheck" : "99.9.9",
+      "xcodeProjPath" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn.xcodeproj",
+      "settings" : {
+        "base" : {
+
+        },
+        "configurations" : [
+          {
+            "name" : "Debug",
+            "variant" : "debug"
+          },
+          {
+            "settings" : {
+
+            }
+          },
+          {
+            "variant" : "release",
+            "name" : "Release"
+          },
+          {
+            "settings" : {
+
+            }
+          }
+        ],
+        "defaultSettings" : {
+          "recommended" : {
+            "excluding" : [
+
+            ]
+          }
+        }
+      },
+      "targets" : [
+        {
+          "additionalFiles" : [
+
+          ],
+          "launchArguments" : [
+
+          ],
+          "destinations" : [
+            "macWithiPadDesign",
+            "iPad",
+            "appleVisionWithiPadDesign",
+            "iPhone"
+          ],
+          "prune" : false,
+          "name" : "GoogleSignIn",
+          "mergeable" : false,
+          "settings" : {
+            "base" : {
+              "ALWAYS_SEARCH_USER_PATHS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "CLANG_ENABLE_OBJC_WEAK" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_PREPROCESSOR_DEFINITIONS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "GID_SDK_VERSION=7.0.0",
+                    "SWIFT_PACKAGE=1"
+                  ]
+                }
+              },
+              "USE_HEADERMAP" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "FRAMEWORK_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(PLATFORM_DIR)\/Developer\/Library\/Frameworks"
+                  ]
+                }
+              },
+              "GCC_WARN_INHIBIT_ALL_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "SWIFT_ACTIVE_COMPILATION_CONDITIONS" : {
+                "string" : {
+                  "_0" : "$(inherited) SWIFT_PACKAGE"
+                }
+              },
+              "GCC_NO_COMMON_BLOCKS" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "ENABLE_STRICT_OBJC_MSGSEND" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "SWIFT_SUPPRESS_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "HEADER_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(SRCROOT)\/GoogleSignIn\/Sources\/Public",
+                    "$(SRCROOT)\/..\/AppAuth-iOS\/Source\/AppAuth",
+                    "$(SRCROOT)\/..\/AppAuth-iOS\/Source\/AppAuthCore",
+                    "$(SRCROOT)\/..\/gtm-session-fetcher\/Sources\/Core\/Public",
+                    "$(SRCROOT)\/GoogleSignIn\/Sources\/..\/..\/"
+                  ]
+                }
+              }
+            },
+            "configurations" : [
+              {
+                "variant" : "debug",
+                "name" : "Debug"
+              },
+              {
+                "settings" : {
+
+                }
+              },
+              {
+                "variant" : "release",
+                "name" : "Release"
+              },
+              {
+                "settings" : {
+
+                }
+              }
+            ],
+            "defaultSettings" : {
+              "recommended" : {
+                "excluding" : [
+
+                ]
+              }
+            }
+          },
+          "resources" : [
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Resources\/Roboto-Bold.ttf",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Resources\/google.png"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Resources\/google@2x.png",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Resources\/google@3x.png",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ar.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ca.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/cs.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/da.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/de.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/el.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/en.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/en_GB.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/es.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/es_MX.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/fi.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/fr.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/fr_CA.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/he.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/hi.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/hr.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/hu.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/id.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/it.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ja.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ko.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ms.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/nb.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/nl.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/pl.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/pt.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/pt_BR.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/pt_PT.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ro.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ru.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/sk.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/sv.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/th.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/tr.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/uk.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/vi.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/zh_CN.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/zh_TW.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ar.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ca.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/cs.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/da.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/de.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/el.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/en.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/en_GB.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/es.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/es_MX.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/fi.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/fr.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/fr_CA.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/he.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/hi.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/hr.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/hu.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/id.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/it.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ja.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ko.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ms.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/nb.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/nl.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/pl.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/pt.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/pt_BR.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/pt_PT.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ro.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/ru.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/sk.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/sv.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/th.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/tr.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/uk.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "tags" : [
+
+                ],
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/vi.lproj\/GoogleSignIn.strings"
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/zh_CN.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            },
+            {
+              "file" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Strings\/zh_TW.lproj\/GoogleSignIn.strings",
+                "tags" : [
+
+                ]
+              }
+            }
+          ],
+          "infoPlist" : {
+            "extendingDefault" : {
+              "with" : {
+
+              }
+            }
+          },
+          "playgrounds" : [
+
+          ],
+          "environmentVariables" : {
+
+          },
+          "bundleId" : "GoogleSignIn",
+          "rawScriptBuildPhases" : [
+
+          ],
+          "filesGroup" : {
+            "group" : {
+              "name" : "Project"
+            }
+          },
+          "headers" : {
+            "project" : [
+
+            ],
+            "public" : [
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Public\/GoogleSignIn\/GIDSignInResult.h",
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Public\/GoogleSignIn\/GIDGoogleUser.h",
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Public\/GoogleSignIn\/GIDConfiguration.h",
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Public\/GoogleSignIn\/GoogleSignIn.h",
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Public\/GoogleSignIn\/GIDSignIn.h",
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Public\/GoogleSignIn\/GIDSignInButton.h",
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Public\/GoogleSignIn\/GIDProfileData.h",
+              "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/Public\/GoogleSignIn\/GIDToken.h"
+            ],
+            "private" : [
+
+            ]
+          },
+          "copyFiles" : [
+
+          ],
+          "productName" : "GoogleSignIn",
+          "deploymentTargets" : {
+            "iOS" : "12.0"
+          },
+          "dependencies" : [
+            {
+              "project" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS",
+                "target" : "AppAuth"
+              }
+            },
+            {
+              "project" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth",
+                "target" : "GTMAppAuth"
+              }
+            },
+            {
+              "project" : {
+                "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher",
+                "target" : "GTMSessionFetcherCore"
+              }
+            },
+            {
+              "sdk" : {
+                "status" : "required",
+                "name" : "CoreGraphics.framework"
+              }
+            },
+            {
+              "sdk" : {
+                "name" : "CoreText.framework",
+                "status" : "required"
+              }
+            },
+            {
+              "sdk" : {
+                "status" : "required",
+                "name" : "Foundation.framework"
+              }
+            },
+            {
+              "sdk" : {
+                "name" : "LocalAuthentication.framework",
+                "status" : "required"
+              }
+            },
+            {
+              "sdk" : {
+                "status" : "required",
+                "name" : "Security.framework"
+              }
+            },
+            {
+              "sdk" : {
+                "name" : "AppKit.framework",
+                "status" : "required",
+                "condition" : {
+                  "platformFilters" : [
+                    {
+                      "macos" : {
+
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "sdk" : {
+                "name" : "UIKit.framework",
+                "status" : "required",
+                "condition" : {
+                  "platformFilters" : [
+                    {
+                      "ios" : {
+
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "sources" : [
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDSignInCallbackSchemes.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/NSBundle+GID3PAdditions.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDAuthentication.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDMDMPasscodeCache.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDSignInResult.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDEMMSupport.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDEMMErrorHandler.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDSignInStrings.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDMDMPasscodeState.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDAppAuthFetcherAuthorizationWithEMMSupport.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDCallbackQueue.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDSignInButton.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDSignInPreferences.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDProfileData.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDSignIn.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDConfiguration.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDGoogleUser.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDSignInInternalOptions.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDToken.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDAuthStateMigration.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignIn\/Sources\/GIDScopes.m"
+            }
+          ],
+          "buildRules" : [
+
+          ],
+          "scripts" : [
+
+          ],
+          "coreDataModels" : [
+
+          ],
+          "product" : "staticFramework",
+          "mergedBinaryType" : {
+            "disabled" : {
+
+            }
+          }
+        },
+        {
+          "mergedBinaryType" : {
+            "disabled" : {
+
+            }
+          },
+          "resources" : [
+
+          ],
+          "name" : "GoogleSignInSwift",
+          "additionalFiles" : [
+
+          ],
+          "mergeable" : false,
+          "playgrounds" : [
+
+          ],
+          "dependencies" : [
+            {
+              "target" : {
+                "name" : "GoogleSignIn"
+              }
+            }
+          ],
+          "sources" : [
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignInSwift\/Sources\/GoogleSignInButtonStrings.swift"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignInSwift\/Sources\/GoogleSignInButton.swift"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignInSwift\/Sources\/GoogleSignInButtonViewModel.swift"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignInSwift\/Sources\/GoogleSignInButtonBundleExtensions.swift"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS\/GoogleSignInSwift\/Sources\/GoogleSignInButtonStyling.swift"
+            }
+          ],
+          "scripts" : [
+
+          ],
+          "copyFiles" : [
+
+          ],
+          "filesGroup" : {
+            "group" : {
+              "name" : "Project"
+            }
+          },
+          "rawScriptBuildPhases" : [
+
+          ],
+          "productName" : "GoogleSignInSwift",
+          "deploymentTargets" : {
+            "iOS" : "12.0"
+          },
+          "destinations" : [
+            "appleVisionWithiPadDesign",
+            "iPhone",
+            "macWithiPadDesign",
+            "iPad"
+          ],
+          "buildRules" : [
+
+          ],
+          "settings" : {
+            "base" : {
+              "HEADER_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(SRCROOT)\/..\/AppAuth-iOS\/Source\/AppAuth",
+                    "$(SRCROOT)\/..\/AppAuth-iOS\/Source\/AppAuthCore",
+                    "$(SRCROOT)\/..\/gtm-session-fetcher\/Sources\/Core\/Public"
+                  ]
+                }
+              },
+              "ENABLE_STRICT_OBJC_MSGSEND" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_PREPROCESSOR_DEFINITIONS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "SWIFT_PACKAGE=1"
+                  ]
+                }
+              },
+              "SWIFT_SUPPRESS_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "ALWAYS_SEARCH_USER_PATHS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_WARN_INHIBIT_ALL_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "CLANG_ENABLE_OBJC_WEAK" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_NO_COMMON_BLOCKS" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "SWIFT_ACTIVE_COMPILATION_CONDITIONS" : {
+                "string" : {
+                  "_0" : "$(inherited) SWIFT_PACKAGE"
+                }
+              },
+              "FRAMEWORK_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(PLATFORM_DIR)\/Developer\/Library\/Frameworks"
+                  ]
+                }
+              },
+              "USE_HEADERMAP" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              }
+            },
+            "configurations" : [
+              {
+                "name" : "Release",
+                "variant" : "release"
+              },
+              {
+                "settings" : {
+
+                }
+              },
+              {
+                "name" : "Debug",
+                "variant" : "debug"
+              },
+              {
+                "settings" : {
+
+                }
+              }
+            ],
+            "defaultSettings" : {
+              "recommended" : {
+                "excluding" : [
+
+                ]
+              }
+            }
+          },
+          "prune" : false,
+          "bundleId" : "GoogleSignInSwift",
+          "environmentVariables" : {
+
+          },
+          "coreDataModels" : [
+
+          ],
+          "infoPlist" : {
+            "extendingDefault" : {
+              "with" : {
+
+              }
+            }
+          },
+          "product" : "staticFramework",
+          "launchArguments" : [
+
+          ]
+        }
+      ],
+      "filesGroup" : {
+        "group" : {
+          "name" : "Project"
+        }
+      },
+      "additionalFiles" : [
+
+      ],
+      "name" : "GoogleSignIn"
+    },
+    "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS",
+    {
+      "sourceRootPath" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS",
+      "settings" : {
+        "base" : {
+
+        },
+        "defaultSettings" : {
+          "recommended" : {
+            "excluding" : [
+
+            ]
+          }
+        },
+        "configurations" : [
+          {
+            "variant" : "debug",
+            "name" : "Debug"
+          },
+          {
+            "settings" : {
+
+            }
+          },
+          {
+            "name" : "Release",
+            "variant" : "release"
+          },
+          {
+            "settings" : {
+
+            }
+          }
+        ]
+      },
+      "xcodeProjPath" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/AppAuth.xcodeproj",
+      "schemes" : [
+
+      ],
+      "options" : {
+        "textSettings" : {
+
+        },
+        "disableSynthesizedResourceAccessors" : true,
+        "disableShowEnvironmentVarsInScriptPhases" : false,
+        "automaticSchemesOptions" : {
+          "disabled" : {
+
+          }
+        },
+        "disableBundleAccessors" : false
+      },
+      "filesGroup" : {
+        "group" : {
+          "name" : "Project"
+        }
+      },
+      "isExternal" : true,
+      "additionalFiles" : [
+
+      ],
+      "targets" : [
+        {
+          "filesGroup" : {
+            "group" : {
+              "name" : "Project"
+            }
+          },
+          "rawScriptBuildPhases" : [
+
+          ],
+          "destinations" : [
+            "macWithiPadDesign",
+            "appleVisionWithiPadDesign",
+            "iPhone",
+            "iPad"
+          ],
+          "copyFiles" : [
+
+          ],
+          "name" : "AppAuthCore",
+          "settings" : {
+            "configurations" : [
+              {
+                "variant" : "debug",
+                "name" : "Debug"
+              },
+              {
+                "settings" : {
+
+                }
+              },
+              {
+                "variant" : "release",
+                "name" : "Release"
+              },
+              {
+                "settings" : {
+
+                }
+              }
+            ],
+            "defaultSettings" : {
+              "recommended" : {
+                "excluding" : [
+
+                ]
+              }
+            },
+            "base" : {
+              "CLANG_ENABLE_OBJC_WEAK" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_PREPROCESSOR_DEFINITIONS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "SWIFT_PACKAGE=1"
+                  ]
+                }
+              },
+              "MODULEMAP_FILE" : {
+                "string" : {
+                  "_0" : "$(SRCROOT)\/Source\/AppAuthCore\/AppAuthCore.modulemap"
+                }
+              },
+              "GCC_NO_COMMON_BLOCKS" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "SWIFT_SUPPRESS_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "FRAMEWORK_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(PLATFORM_DIR)\/Developer\/Library\/Frameworks"
+                  ]
+                }
+              },
+              "SWIFT_ACTIVE_COMPILATION_CONDITIONS" : {
+                "string" : {
+                  "_0" : "$(inherited) SWIFT_PACKAGE"
+                }
+              },
+              "HEADER_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(SRCROOT)\/Source\/AppAuthCore"
+                  ]
+                }
+              },
+              "ALWAYS_SEARCH_USER_PATHS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "ENABLE_STRICT_OBJC_MSGSEND" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "USE_HEADERMAP" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_WARN_INHIBIT_ALL_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              }
+            }
+          },
+          "productName" : "AppAuthCore",
+          "coreDataModels" : [
+
+          ],
+          "sources" : [
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDRegistrationRequest.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDTokenRequest.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDErrorUtilities.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDEndSessionResponse.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDIDToken.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDAuthorizationRequest.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDError.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDAuthorizationService.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDServiceConfiguration.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDURLSessionProvider.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDAuthState.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDServiceDiscovery.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDRegistrationResponse.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDFieldMapping.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDTokenUtilities.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDResponseTypes.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDAuthorizationResponse.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDScopeUtilities.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDTokenResponse.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDGrantTypes.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDURLQueryComponent.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDScopes.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDEndSessionRequest.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthCore\/OIDClientMetadataParameters.m"
+            }
+          ],
+          "bundleId" : "AppAuthCore",
+          "launchArguments" : [
+
+          ],
+          "prune" : false,
+          "infoPlist" : {
+            "extendingDefault" : {
+              "with" : {
+
+              }
+            }
+          },
+          "mergeable" : false,
+          "deploymentTargets" : {
+            "iOS" : "12.0"
+          },
+          "environmentVariables" : {
+
+          },
+          "playgrounds" : [
+
+          ],
+          "resources" : [
+
+          ],
+          "scripts" : [
+
+          ],
+          "additionalFiles" : [
+
+          ],
+          "mergedBinaryType" : {
+            "disabled" : {
+
+            }
+          },
+          "buildRules" : [
+
+          ],
+          "dependencies" : [
+
+          ],
+          "product" : "staticFramework"
+        },
+        {
+          "coreDataModels" : [
+
+          ],
+          "playgrounds" : [
+
+          ],
+          "infoPlist" : {
+            "extendingDefault" : {
+              "with" : {
+
+              }
+            }
+          },
+          "productName" : "AppAuth",
+          "destinations" : [
+            "macWithiPadDesign",
+            "iPad",
+            "iPhone",
+            "appleVisionWithiPadDesign"
+          ],
+          "prune" : false,
+          "mergedBinaryType" : {
+            "disabled" : {
+
+            }
+          },
+          "product" : "staticFramework",
+          "copyFiles" : [
+
+          ],
+          "bundleId" : "AppAuth",
+          "filesGroup" : {
+            "group" : {
+              "name" : "Project"
+            }
+          },
+          "launchArguments" : [
+
+          ],
+          "deploymentTargets" : {
+            "iOS" : "12.0"
+          },
+          "buildRules" : [
+
+          ],
+          "settings" : {
+            "configurations" : [
+              {
+                "name" : "Debug",
+                "variant" : "debug"
+              },
+              {
+                "settings" : {
+
+                }
+              },
+              {
+                "variant" : "release",
+                "name" : "Release"
+              },
+              {
+                "settings" : {
+
+                }
+              }
+            ],
+            "base" : {
+              "GCC_NO_COMMON_BLOCKS" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "ALWAYS_SEARCH_USER_PATHS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "SWIFT_SUPPRESS_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "CLANG_ENABLE_OBJC_WEAK" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "HEADER_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(SRCROOT)\/Source\/AppAuth",
+                    "$(SRCROOT)\/Source\/AppAuthCore",
+                    "$(SRCROOT)\/Source\/AppAuth\/iOS",
+                    "$(SRCROOT)\/Source\/AppAuth\/macOS",
+                    "$(SRCROOT)\/Source\/AppAuth\/macOS\/LoopbackHTTPServer"
+                  ]
+                }
+              },
+              "ENABLE_STRICT_OBJC_MSGSEND" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "FRAMEWORK_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(PLATFORM_DIR)\/Developer\/Library\/Frameworks"
+                  ]
+                }
+              },
+              "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "MODULEMAP_FILE" : {
+                "string" : {
+                  "_0" : "$(SRCROOT)\/Source\/AppAuth\/AppAuth.modulemap"
+                }
+              },
+              "GCC_WARN_INHIBIT_ALL_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "USE_HEADERMAP" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "SWIFT_ACTIVE_COMPILATION_CONDITIONS" : {
+                "string" : {
+                  "_0" : "$(inherited) SWIFT_PACKAGE"
+                }
+              },
+              "GCC_PREPROCESSOR_DEFINITIONS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "SWIFT_PACKAGE=1"
+                  ]
+                }
+              }
+            },
+            "defaultSettings" : {
+              "recommended" : {
+                "excluding" : [
+
+                ]
+              }
+            }
+          },
+          "sources" : [
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuth\/iOS\/OIDExternalUserAgentIOSCustomBrowser.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuth\/macOS\/OIDExternalUserAgentMac.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuth\/iOS\/OIDAuthorizationService+IOS.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuth\/macOS\/LoopbackHTTPServer\/OIDLoopbackHTTPServer.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuth\/iOS\/OIDAuthState+IOS.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuth\/iOS\/OIDExternalUserAgentCatalyst.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuth\/macOS\/OIDRedirectHTTPHandler.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuth\/macOS\/OIDAuthorizationService+Mac.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuth\/macOS\/OIDAuthState+Mac.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuth\/iOS\/OIDExternalUserAgentIOS.m"
+            }
+          ],
+          "scripts" : [
+
+          ],
+          "dependencies" : [
+            {
+              "target" : {
+                "name" : "AppAuthCore"
+              }
+            }
+          ],
+          "environmentVariables" : {
+
+          },
+          "rawScriptBuildPhases" : [
+
+          ],
+          "additionalFiles" : [
+
+          ],
+          "mergeable" : false,
+          "name" : "AppAuth",
+          "resources" : [
+
+          ]
+        },
+        {
+          "sources" : [
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthTV\/OIDTVAuthorizationRequest.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthTV\/OIDTVAuthorizationResponse.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthTV\/OIDTVTokenRequest.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthTV\/OIDTVServiceConfiguration.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS\/Source\/AppAuthTV\/OIDTVAuthorizationService.m"
+            }
+          ],
+          "environmentVariables" : {
+
+          },
+          "product" : "staticFramework",
+          "deploymentTargets" : {
+            "iOS" : "12.0"
+          },
+          "rawScriptBuildPhases" : [
+
+          ],
+          "mergeable" : false,
+          "mergedBinaryType" : {
+            "disabled" : {
+
+            }
+          },
+          "name" : "AppAuthTV",
+          "buildRules" : [
+
+          ],
+          "playgrounds" : [
+
+          ],
+          "coreDataModels" : [
+
+          ],
+          "scripts" : [
+
+          ],
+          "destinations" : [
+            "appleVisionWithiPadDesign",
+            "iPhone",
+            "iPad",
+            "macWithiPadDesign"
+          ],
+          "prune" : false,
+          "dependencies" : [
+            {
+              "target" : {
+                "name" : "AppAuthCore"
+              }
+            }
+          ],
+          "bundleId" : "AppAuthTV",
+          "copyFiles" : [
+
+          ],
+          "launchArguments" : [
+
+          ],
+          "filesGroup" : {
+            "group" : {
+              "name" : "Project"
+            }
+          },
+          "settings" : {
+            "configurations" : [
+              {
+                "variant" : "release",
+                "name" : "Release"
+              },
+              {
+                "settings" : {
+
+                }
+              },
+              {
+                "name" : "Debug",
+                "variant" : "debug"
+              },
+              {
+                "settings" : {
+
+                }
+              }
+            ],
+            "defaultSettings" : {
+              "recommended" : {
+                "excluding" : [
+
+                ]
+              }
+            },
+            "base" : {
+              "FRAMEWORK_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(PLATFORM_DIR)\/Developer\/Library\/Frameworks"
+                  ]
+                }
+              },
+              "SWIFT_SUPPRESS_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "USE_HEADERMAP" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "MODULEMAP_FILE" : {
+                "string" : {
+                  "_0" : "$(SRCROOT)\/Source\/AppAuthTV\/AppAuthTV.modulemap"
+                }
+              },
+              "GCC_WARN_INHIBIT_ALL_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "HEADER_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(SRCROOT)\/Source\/AppAuthTV",
+                    "$(SRCROOT)\/Source\/AppAuthCore"
+                  ]
+                }
+              },
+              "SWIFT_ACTIVE_COMPILATION_CONDITIONS" : {
+                "string" : {
+                  "_0" : "$(inherited) SWIFT_PACKAGE"
+                }
+              },
+              "GCC_PREPROCESSOR_DEFINITIONS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "SWIFT_PACKAGE=1"
+                  ]
+                }
+              },
+              "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_NO_COMMON_BLOCKS" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "CLANG_ENABLE_OBJC_WEAK" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "ALWAYS_SEARCH_USER_PATHS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "ENABLE_STRICT_OBJC_MSGSEND" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              }
+            }
+          },
+          "productName" : "AppAuthTV",
+          "resources" : [
+
+          ],
+          "infoPlist" : {
+            "extendingDefault" : {
+              "with" : {
+
+              }
+            }
+          },
+          "additionalFiles" : [
+
+          ]
+        }
+      ],
+      "lastUpgradeCheck" : "99.9.9",
+      "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS",
+      "packages" : [
+
+      ],
+      "name" : "AppAuth",
+      "resourceSynthesizers" : [
+        {
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Strings"
+            }
+          },
+          "parserOptions" : {
+
+          },
+          "parser" : "strings",
+          "extensions" : [
+            "strings",
+            "stringsdict"
+          ]
+        },
+        {
+          "parserOptions" : {
+
+          },
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Assets"
+            }
+          },
+          "parser" : "assets",
+          "extensions" : [
+            "xcassets"
+          ]
+        },
+        {
+          "extensions" : [
+            "plist"
+          ],
+          "parserOptions" : {
+
+          },
+          "parser" : "plists",
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Plists"
+            }
+          }
+        },
+        {
+          "extensions" : [
+            "ttf",
+            "otf",
+            "ttc"
+          ],
+          "parser" : "fonts",
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Fonts"
+            }
+          },
+          "parserOptions" : {
+
+          }
+        }
+      ]
+    },
+    "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher",
+    {
+      "resourceSynthesizers" : [
+        {
+          "parserOptions" : {
+
+          },
+          "parser" : "strings",
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Strings"
+            }
+          },
+          "extensions" : [
+            "stringsdict",
+            "strings"
+          ]
+        },
+        {
+          "extensions" : [
+            "xcassets"
+          ],
+          "parser" : "assets",
+          "parserOptions" : {
+
+          },
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Assets"
+            }
+          }
+        },
+        {
+          "parser" : "plists",
+          "parserOptions" : {
+
+          },
+          "extensions" : [
+            "plist"
+          ],
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Plists"
+            }
+          }
+        },
+        {
+          "extensions" : [
+            "otf",
+            "ttf",
+            "ttc"
+          ],
+          "parser" : "fonts",
+          "template" : {
+            "defaultTemplate" : {
+              "_0" : "Fonts"
+            }
+          },
+          "parserOptions" : {
+
+          }
+        }
+      ],
+      "options" : {
+        "disableShowEnvironmentVarsInScriptPhases" : false,
+        "disableBundleAccessors" : false,
+        "disableSynthesizedResourceAccessors" : true,
+        "automaticSchemesOptions" : {
+          "disabled" : {
+
+          }
+        },
+        "textSettings" : {
+
+        }
+      },
+      "targets" : [
+        {
+          "infoPlist" : {
+            "extendingDefault" : {
+              "with" : {
+
+              }
+            }
+          },
+          "additionalFiles" : [
+
+          ],
+          "product" : "staticFramework",
+          "coreDataModels" : [
+
+          ],
+          "destinations" : [
+            "iPhone",
+            "appleVisionWithiPadDesign",
+            "iPad",
+            "macWithiPadDesign"
+          ],
+          "environmentVariables" : {
+
+          },
+          "launchArguments" : [
+
+          ],
+          "playgrounds" : [
+
+          ],
+          "name" : "GTMSessionFetcherCore",
+          "scripts" : [
+
+          ],
+          "buildRules" : [
+
+          ],
+          "filesGroup" : {
+            "group" : {
+              "name" : "Project"
+            }
+          },
+          "rawScriptBuildPhases" : [
+
+          ],
+          "deploymentTargets" : {
+            "iOS" : "12.0"
+          },
+          "prune" : false,
+          "settings" : {
+            "configurations" : [
+              {
+                "name" : "Debug",
+                "variant" : "debug"
+              },
+              {
+                "settings" : {
+
+                }
+              },
+              {
+                "variant" : "release",
+                "name" : "Release"
+              },
+              {
+                "settings" : {
+
+                }
+              }
+            ],
+            "base" : {
+              "SWIFT_ACTIVE_COMPILATION_CONDITIONS" : {
+                "string" : {
+                  "_0" : "$(inherited) SWIFT_PACKAGE"
+                }
+              },
+              "USE_HEADERMAP" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_WARN_INHIBIT_ALL_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "FRAMEWORK_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(PLATFORM_DIR)\/Developer\/Library\/Frameworks"
+                  ]
+                }
+              },
+              "HEADER_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(SRCROOT)\/Sources\/Core\/Public"
+                  ]
+                }
+              },
+              "ALWAYS_SEARCH_USER_PATHS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "GCC_NO_COMMON_BLOCKS" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "ENABLE_STRICT_OBJC_MSGSEND" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "MODULEMAP_FILE" : {
+                "string" : {
+                  "_0" : "$(SRCROOT)\/Sources\/Core\/Public\/GTMSessionFetcherCore.modulemap"
+                }
+              },
+              "CLANG_ENABLE_OBJC_WEAK" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_PREPROCESSOR_DEFINITIONS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "SWIFT_PACKAGE=1"
+                  ]
+                }
+              },
+              "SWIFT_SUPPRESS_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              }
+            },
+            "defaultSettings" : {
+              "recommended" : {
+                "excluding" : [
+
+                ]
+              }
+            }
+          },
+          "mergedBinaryType" : {
+            "disabled" : {
+
+            }
+          },
+          "mergeable" : false,
+          "sources" : [
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher\/Sources\/Core\/GTMSessionFetcherLogging.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher\/Sources\/Core\/GTMSessionFetcherService.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher\/Sources\/Core\/GTMSessionFetcher.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher\/Sources\/Core\/GTMSessionUploadFetcher.m"
+            }
+          ],
+          "resources" : [
+
+          ],
+          "copyFiles" : [
+
+          ],
+          "productName" : "GTMSessionFetcherCore",
+          "dependencies" : [
+
+          ],
+          "bundleId" : "GTMSessionFetcherCore"
+        },
+        {
+          "name" : "GTMSessionFetcherFull",
+          "rawScriptBuildPhases" : [
+
+          ],
+          "playgrounds" : [
+
+          ],
+          "buildRules" : [
+
+          ],
+          "prune" : false,
+          "mergeable" : false,
+          "settings" : {
+            "configurations" : [
+              {
+                "variant" : "debug",
+                "name" : "Debug"
+              },
+              {
+                "settings" : {
+
+                }
+              },
+              {
+                "name" : "Release",
+                "variant" : "release"
+              },
+              {
+                "settings" : {
+
+                }
+              }
+            ],
+            "base" : {
+              "FRAMEWORK_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(PLATFORM_DIR)\/Developer\/Library\/Frameworks"
+                  ]
+                }
+              },
+              "CLANG_ENABLE_OBJC_WEAK" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "ALWAYS_SEARCH_USER_PATHS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "GCC_NO_COMMON_BLOCKS" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "HEADER_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(SRCROOT)\/Sources\/Full\/Public",
+                    "$(SRCROOT)\/Sources\/Core\/Public"
+                  ]
+                }
+              },
+              "MODULEMAP_FILE" : {
+                "string" : {
+                  "_0" : "$(SRCROOT)\/Sources\/Full\/Public\/GTMSessionFetcherFull.modulemap"
+                }
+              },
+              "GCC_WARN_INHIBIT_ALL_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "USE_HEADERMAP" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "ENABLE_STRICT_OBJC_MSGSEND" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "SWIFT_SUPPRESS_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "SWIFT_ACTIVE_COMPILATION_CONDITIONS" : {
+                "string" : {
+                  "_0" : "$(inherited) SWIFT_PACKAGE"
+                }
+              },
+              "GCC_PREPROCESSOR_DEFINITIONS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "SWIFT_PACKAGE=1"
+                  ]
+                }
+              },
+              "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              }
+            },
+            "defaultSettings" : {
+              "recommended" : {
+                "excluding" : [
+
+                ]
+              }
+            }
+          },
+          "mergedBinaryType" : {
+            "disabled" : {
+
+            }
+          },
+          "environmentVariables" : {
+
+          },
+          "infoPlist" : {
+            "extendingDefault" : {
+              "with" : {
+
+              }
+            }
+          },
+          "bundleId" : "GTMSessionFetcherFull",
+          "product" : "staticFramework",
+          "filesGroup" : {
+            "group" : {
+              "name" : "Project"
+            }
+          },
+          "deploymentTargets" : {
+            "iOS" : "12.0"
+          },
+          "launchArguments" : [
+
+          ],
+          "additionalFiles" : [
+
+          ],
+          "coreDataModels" : [
+
+          ],
+          "productName" : "GTMSessionFetcherFull",
+          "copyFiles" : [
+
+          ],
+          "resources" : [
+
+          ],
+          "destinations" : [
+            "macWithiPadDesign",
+            "iPhone",
+            "appleVisionWithiPadDesign",
+            "iPad"
+          ],
+          "sources" : [
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher\/Sources\/Full\/GTMReadMonitorInputStream.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher\/Sources\/Full\/GTMMIMEDocument.m"
+            },
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher\/Sources\/Full\/GTMGatherInputStream.m"
+            }
+          ],
+          "dependencies" : [
+            {
+              "target" : {
+                "name" : "GTMSessionFetcherCore"
+              }
+            }
+          ],
+          "scripts" : [
+
+          ]
+        },
+        {
+          "sources" : [
+            {
+              "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher\/Sources\/LogView\/GTMSessionFetcherLogViewController.m"
+            }
+          ],
+          "settings" : {
+            "configurations" : [
+              {
+                "variant" : "release",
+                "name" : "Release"
+              },
+              {
+                "settings" : {
+
+                }
+              },
+              {
+                "variant" : "debug",
+                "name" : "Debug"
+              },
+              {
+                "settings" : {
+
+                }
+              }
+            ],
+            "base" : {
+              "CLANG_ENABLE_OBJC_WEAK" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "MODULEMAP_FILE" : {
+                "string" : {
+                  "_0" : "$(SRCROOT)\/Sources\/LogView\/Public\/GTMSessionFetcherLogView.modulemap"
+                }
+              },
+              "SWIFT_SUPPRESS_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_NO_COMMON_BLOCKS" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_WARN_INHIBIT_ALL_WARNINGS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "SWIFT_ACTIVE_COMPILATION_CONDITIONS" : {
+                "string" : {
+                  "_0" : "$(inherited) SWIFT_PACKAGE"
+                }
+              },
+              "FRAMEWORK_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(PLATFORM_DIR)\/Developer\/Library\/Frameworks"
+                  ]
+                }
+              },
+              "USE_HEADERMAP" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "ALWAYS_SEARCH_USER_PATHS" : {
+                "string" : {
+                  "_0" : "YES"
+                }
+              },
+              "ENABLE_STRICT_OBJC_MSGSEND" : {
+                "string" : {
+                  "_0" : "NO"
+                }
+              },
+              "GCC_PREPROCESSOR_DEFINITIONS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "SWIFT_PACKAGE=1"
+                  ]
+                }
+              },
+              "HEADER_SEARCH_PATHS" : {
+                "array" : {
+                  "_0" : [
+                    "$(inherited)",
+                    "$(SRCROOT)\/Sources\/LogView\/Public",
+                    "$(SRCROOT)\/Sources\/Core\/Public"
+                  ]
+                }
+              }
+            },
+            "defaultSettings" : {
+              "recommended" : {
+                "excluding" : [
+
+                ]
+              }
+            }
+          },
+          "rawScriptBuildPhases" : [
+
+          ],
+          "prune" : false,
+          "filesGroup" : {
+            "group" : {
+              "name" : "Project"
+            }
+          },
+          "mergedBinaryType" : {
+            "disabled" : {
+
+            }
+          },
+          "coreDataModels" : [
+
+          ],
+          "destinations" : [
+            "iPhone",
+            "macWithiPadDesign",
+            "appleVisionWithiPadDesign",
+            "iPad"
+          ],
+          "playgrounds" : [
+
+          ],
+          "copyFiles" : [
+
+          ],
+          "deploymentTargets" : {
+            "iOS" : "12.0"
+          },
+          "scripts" : [
+
+          ],
+          "additionalFiles" : [
+
+          ],
+          "buildRules" : [
+
+          ],
+          "productName" : "GTMSessionFetcherLogView",
+          "resources" : [
+
+          ],
+          "product" : "staticFramework",
+          "bundleId" : "GTMSessionFetcherLogView",
+          "infoPlist" : {
+            "extendingDefault" : {
+              "with" : {
+
+              }
+            }
+          },
+          "mergeable" : false,
+          "launchArguments" : [
+
+          ],
+          "name" : "GTMSessionFetcherLogView",
+          "dependencies" : [
+            {
+              "target" : {
+                "name" : "GTMSessionFetcherCore"
+              }
+            }
+          ],
+          "environmentVariables" : {
+
+          }
+        }
+      ],
+      "lastUpgradeCheck" : "99.9.9",
+      "additionalFiles" : [
+
+      ],
+      "filesGroup" : {
+        "group" : {
+          "name" : "Project"
+        }
+      },
+      "name" : "GTMSessionFetcher",
+      "settings" : {
+        "base" : {
+
+        },
+        "defaultSettings" : {
+          "recommended" : {
+            "excluding" : [
+
+            ]
+          }
+        },
+        "configurations" : [
+          {
+            "variant" : "release",
+            "name" : "Release"
+          },
+          {
+            "settings" : {
+
+            }
+          },
+          {
+            "variant" : "debug",
+            "name" : "Debug"
+          },
+          {
+            "settings" : {
+
+            }
+          }
+        ]
+      },
+      "xcodeProjPath" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher\/GTMSessionFetcher.xcodeproj",
+      "isExternal" : true,
+      "packages" : [
+
+      ],
+      "schemes" : [
+
+      ],
+      "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher",
+      "sourceRootPath" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher"
+    }
+  ],
+  "externalDependencies" : {
+    "AppAuthTV" : [
+      {
+        "project" : {
+          "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS",
+          "target" : "AppAuthTV"
+        }
+      }
+    ],
+    "GTMSessionFetcherLogView" : [
+      {
+        "project" : {
+          "target" : "GTMSessionFetcherLogView",
+          "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher"
+        }
+      }
+    ],
+    "GTMSessionFetcherFull" : [
+      {
+        "project" : {
+          "target" : "GTMSessionFetcherFull",
+          "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher"
+        }
+      }
+    ],
+    "GoogleSignInSwift" : [
+      {
+        "project" : {
+          "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS",
+          "target" : "GoogleSignInSwift"
+        }
+      }
+    ],
+    "GTMSessionFetcherCore" : [
+      {
+        "project" : {
+          "target" : "GTMSessionFetcherCore",
+          "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher"
+        }
+      }
+    ],
+    "GTMSessionFetcher" : [
+      {
+        "project" : {
+          "target" : "GTMSessionFetcherCore",
+          "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher"
+        }
+      },
+      {
+        "project" : {
+          "target" : "GTMSessionFetcherFull",
+          "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/gtm-session-fetcher"
+        }
+      }
+    ],
+    "AppAuthCore" : [
+      {
+        "project" : {
+          "target" : "AppAuthCore",
+          "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS"
+        }
+      }
+    ],
+    "AppAuth" : [
+      {
+        "project" : {
+          "target" : "AppAuth",
+          "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/AppAuth-iOS"
+        }
+      }
+    ],
+    "GTMAppAuth" : [
+      {
+        "project" : {
+          "target" : "GTMAppAuth",
+          "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GTMAppAuth"
+        }
+      }
+    ],
+    "GoogleSignIn" : [
+      {
+        "project" : {
+          "path" : "\/Users\/pepicrft\/src\/github.com\/tuist\/tuist\/fixtures\/ios_app_with_external_objc_packages\/Tuist\/Dependencies\/SwiftPackageManager\/.build\/checkouts\/GoogleSignIn-iOS",
+          "target" : "GoogleSignIn"
+        }
+      }
+    ]
+  }
+}

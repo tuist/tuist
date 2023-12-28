@@ -6,6 +6,7 @@ import TuistGraph
 import TuistLoader
 import TuistSigning
 import TuistSupport
+import TuistDependencies
 
 /// The protocol describes an interface for getting project mappers.
 protocol ProjectMapperFactorying {
@@ -79,6 +80,9 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
 
         // Signing
         mappers.append(SigningMapper())
+        
+        // Modulemaps for external Objective-C packages
+        mappers.append(ExternalObjectiveCModulemapProjectMapper())
 
         return mappers
     }
