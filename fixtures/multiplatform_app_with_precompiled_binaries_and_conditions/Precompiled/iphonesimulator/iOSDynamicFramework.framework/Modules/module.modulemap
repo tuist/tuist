@@ -1,0 +1,4 @@
+framework module iOSDynamicFramework {
+  header "iOSDynamicFramework-Swift.h"
+  requires objc
+}
