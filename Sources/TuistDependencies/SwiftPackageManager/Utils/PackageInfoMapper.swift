@@ -135,7 +135,6 @@ public protocol PackageInfoMapping {
         targetSettings: [String: TuistGraph.SettingsDictionary],
         projectOptions: TuistGraph.Project.Options?,
         minDeploymentTargets: ProjectDescription.DeploymentTargets,
-        destinations: ProjectDescription.Destinations,
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         macroDependencies: Set<PackageInfoMapper.ResolvedDependency>,
@@ -397,7 +396,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetSettings: [String: TuistGraph.SettingsDictionary],
         projectOptions: TuistGraph.Project.Options?,
         minDeploymentTargets: ProjectDescription.DeploymentTargets,
-        destinations: ProjectDescription.Destinations,
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         macroDependencies: Set<PackageInfoMapper.ResolvedDependency>,
@@ -457,7 +455,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     productTypes: productTypes,
                     baseSettings: baseSettings,
                     targetSettings: targetSettings,
-                    packageDestinations: destinations,
                     minDeploymentTargets: minDeploymentTargets,
                     targetToResolvedDependencies: targetToResolvedDependencies,
                     targetToModuleMap: targetToModuleMap,
@@ -509,7 +506,6 @@ extension ProjectDescription.Target {
         productTypes: [String: TuistGraph.Product],
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
-        packageDestinations: ProjectDescription.Destinations,
         minDeploymentTargets: ProjectDescription.DeploymentTargets,
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         targetToModuleMap: [String: ModuleMap],
@@ -540,7 +536,7 @@ extension ProjectDescription.Target {
             destinations = Set<ProjectDescription.Destination>([.mac])
         } else {
             // All packages implicitly support all platforms, we constrain this with the platforms defined in `Dependencies.swift`
-            destinations = packageDestinations.intersection(Set(Destination.allCases))
+            destinations = Set(Destination.allCases)
         }
 
         if macroDependencies.contains(where: { dependency in

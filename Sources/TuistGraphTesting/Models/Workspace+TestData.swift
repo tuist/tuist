@@ -12,7 +12,8 @@ extension Workspace {
         schemes: [Scheme] = [],
         ideTemplateMacros: IDETemplateMacros? = nil,
         additionalFiles: [FileElement] = [],
-        generationOptions: GenerationOptions = .test()
+        generationOptions: GenerationOptions = .test(),
+        dependencies: Dependencies = .init(package: nil, productTypes: [:], baseSettings: .default, targetSettings: [:])
     ) -> Workspace {
         Workspace(
             path: path,
@@ -22,7 +23,8 @@ extension Workspace {
             schemes: schemes,
             generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles
+            additionalFiles: additionalFiles,
+            dependencies: dependencies
         )
     }
 }

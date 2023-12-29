@@ -20,7 +20,6 @@ final class FetchServiceTests: TuistUnitTestCase {
     private var configLoader: MockConfigLoader!
     private var manifestLoader: MockManifestLoader!
     private var dependenciesController: MockDependenciesController!
-    private var dependenciesModelLoader: MockDependenciesModelLoader!
 
     private var subject: FetchService!
 
@@ -32,14 +31,12 @@ final class FetchServiceTests: TuistUnitTestCase {
         manifestLoader = MockManifestLoader()
         manifestLoader.manifestsAtStub = { _ in [.project] }
         dependenciesController = MockDependenciesController()
-        dependenciesModelLoader = MockDependenciesModelLoader()
 
         subject = FetchService(
             pluginService: pluginService,
             configLoader: configLoader,
             manifestLoader: manifestLoader,
-            dependenciesController: dependenciesController,
-            dependenciesModelLoader: dependenciesModelLoader
+            dependenciesController: dependenciesController
         )
     }
 
@@ -49,7 +46,6 @@ final class FetchServiceTests: TuistUnitTestCase {
         pluginService = nil
         configLoader = nil
         dependenciesController = nil
-        dependenciesModelLoader = nil
 
         super.tearDown()
     }
@@ -58,16 +54,10 @@ final class FetchServiceTests: TuistUnitTestCase {
         // Given
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
-            swiftPackageManager: .init(
-                .packages([
-                    .remote(url: "Dependency1/Dependency1", requirement: .upToNextMajor("1.2.3")),
-                ]),
-                productTypes: [:], baseSettings: .default,
-                targetSettings: [:]
-            ),
-            platforms: [.iOS, .macOS]
+            package: nil,
+            productTypes: [:], baseSettings: .default,
+            targetSettings: [:]
         )
-        dependenciesModelLoader.loadDependenciesStub = { _, _ in stubbedDependencies }
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
@@ -100,7 +90,6 @@ final class FetchServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertTrue(dependenciesController.invokedUpdate)
-        XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
         XCTAssertTrue(dependenciesController.invokedSave)
 
         XCTAssertFalse(dependenciesController.invokedFetch)
@@ -136,17 +125,11 @@ final class FetchServiceTests: TuistUnitTestCase {
         // Given
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
-            swiftPackageManager: .init(
-                .packages([
-                    .remote(url: "Dependency1/Dependency1", requirement: .upToNextMajor("1.2.3")),
-                ]),
-                productTypes: [:],
-                baseSettings: .default,
-                targetSettings: [:]
-            ),
-            platforms: [.iOS, .macOS]
+            package: nil,
+            productTypes: [:],
+            baseSettings: .default,
+            targetSettings: [:]
         )
-        dependenciesModelLoader.loadDependenciesStub = { _, _ in stubbedDependencies }
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
@@ -176,7 +159,6 @@ final class FetchServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
         XCTAssertTrue(dependenciesController.invokedFetch)
         XCTAssertTrue(dependenciesController.invokedSave)
 

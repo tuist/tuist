@@ -484,7 +484,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 "GULMethodSwizzler": .framework,
                 "GULNetwork": .dynamicLibrary,
             ],
-            platforms: [.iOS],
             baseSettings: .default,
             targetSettings: [:],
             swiftToolsVersion: nil,

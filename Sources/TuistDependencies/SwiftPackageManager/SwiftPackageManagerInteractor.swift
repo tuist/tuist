@@ -44,22 +44,22 @@ public protocol SwiftPackageManagerInteracting {
     /// Installs `Swift Package Manager` dependencies.
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    ///   - dependencies: List of dependencies to install using `Swift Package Manager`.
+    /// - Parameter dependencies: External dependencies configuration.
     ///   - platforms: Set of supported platforms.
     ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the lockfile.
     ///   - swiftToolsVersion: The version of Swift tools that will be used to resolve dependencies. If `nil` is passed then the
     /// environment’s version will be used.
     func install(
         dependenciesDirectory: AbsolutePath,
-        dependencies: TuistGraph.SwiftPackageManagerDependencies,
-        platforms: Set<TuistGraph.PackagePlatform>,
+        dependencies: TuistGraph.Dependencies,
         shouldUpdate: Bool,
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph
 
     /// Removes all cached `Swift Package Manager` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    func clean(dependenciesDirectory: AbsolutePath) throws
+    /// - Parameter dependencies: External dependencies configuration.
+    func clean(dependenciesDirectory: AbsolutePath, dependencies: TuistGraph.Dependencies) throws
 }
 
 // MARK: - Swift Package Manager Interactor
@@ -83,8 +83,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     public func install(
         dependenciesDirectory: AbsolutePath,
-        dependencies: TuistGraph.SwiftPackageManagerDependencies,
-        platforms: Set<TuistGraph.PackagePlatform>,
+        dependencies: TuistGraph.Dependencies,
         shouldUpdate: Bool,
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
@@ -92,7 +91,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
         let pathsProvider = SwiftPackageManagerPathsProvider(
             dependenciesDirectory: dependenciesDirectory,
-            packagesOrManifest: dependencies.packagesOrManifest
+            package: dependencies.package
         )
 
         try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies, swiftToolsVersion: swiftToolsVersion)
@@ -111,7 +110,6 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         let dependenciesGraph = try swiftPackageManagerGraphGenerator.generate(
             at: pathsProvider.destinationBuildDirectory,
             productTypes: dependencies.productTypes,
-            platforms: platforms,
             baseSettings: dependencies.baseSettings,
             targetSettings: dependencies.targetSettings,
             swiftToolsVersion: swiftToolsVersion,
@@ -123,15 +121,13 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         return dependenciesGraph
     }
 
-    public func clean(dependenciesDirectory: AbsolutePath) throws {
-        for packagesOrManifest in [TuistGraph.PackagesOrManifest.packages([]), .manifest] {
-            let pathsProvider = SwiftPackageManagerPathsProvider(
-                dependenciesDirectory: dependenciesDirectory,
-                packagesOrManifest: packagesOrManifest
-            )
-            try fileHandler.delete(pathsProvider.destinationSwiftPackageManagerDirectory)
-            try fileHandler.delete(pathsProvider.destinationPackageResolvedPath)
-        }
+    public func clean(dependenciesDirectory: AbsolutePath, dependencies: TuistGraph.Dependencies) throws {
+        let pathsProvider = SwiftPackageManagerPathsProvider(
+            dependenciesDirectory: dependenciesDirectory,
+            package: dependencies.package
+        )
+        try fileHandler.delete(pathsProvider.destinationSwiftPackageManagerDirectory)
+        try fileHandler.delete(pathsProvider.destinationPackageResolvedPath)
     }
 
     // MARK: - Installation
@@ -139,14 +135,13 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     /// Loads lockfile and dependencies into working directory if they had been saved before.
     private func loadDependencies(
         pathsProvider: SwiftPackageManagerPathsProvider,
-        dependencies: TuistGraph.SwiftPackageManagerDependencies,
+        dependencies: TuistGraph.Dependencies,
         swiftToolsVersion: TSCUtility.Version?
     ) throws {
         let version = try swiftToolsVersion ??
             TSCUtility.Version(versionString: try System.shared.swiftVersion(), usesLenientParsing: true)
-        let isLegacy = version < TSCUtility.Version(5, 6, 0)
 
-        // copy `Package.resolved` directory from lockfiles folder
+        // copy `Package.resolved` directory from destination path
         if fileHandler.exists(pathsProvider.destinationPackageResolvedPath) {
             try copy(
                 from: pathsProvider.destinationPackageResolvedPath,
@@ -154,22 +149,14 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             )
         }
 
+        // copy `Package.swift` from destination path
         // create `Package.swift`
         let packageManifestPath = pathsProvider.destinationPackageSwiftPath
         try fileHandler.createFolder(packageManifestPath.removingLastComponent())
-        let manifest = dependencies.manifest(
-            isLegacy: isLegacy,
-            packageManifestFolder: packageManifestPath.removingLastComponent()
-        )
-        switch manifest {
-        case let .content(content):
-            try fileHandler.write(content, path: packageManifestPath, atomically: true)
-        case .manifest:
-            if fileHandler.exists(packageManifestPath) {
-                try fileHandler.replace(packageManifestPath, with: pathsProvider.sourcePackageSwiftPath)
-            } else {
-                try fileHandler.copy(from: pathsProvider.sourcePackageSwiftPath, to: packageManifestPath)
-            }
+        if fileHandler.exists(packageManifestPath) {
+            try fileHandler.replace(packageManifestPath, with: pathsProvider.sourcePackageSwiftPath)
+        } else {
+            try fileHandler.copy(from: pathsProvider.sourcePackageSwiftPath, to: packageManifestPath)
         }
 
         // set `swift-tools-version` in `Package.swift`
@@ -226,20 +213,12 @@ private struct SwiftPackageManagerPathsProvider {
 
     let temporaryPackageResolvedPath: AbsolutePath
 
-    init(dependenciesDirectory: AbsolutePath, packagesOrManifest: TuistGraph.PackagesOrManifest) {
+    init(dependenciesDirectory: AbsolutePath, package: AbsolutePath?) {
         let tuistDirectory = dependenciesDirectory.removingLastComponent()
-        destinationPackageSwiftPath = dependenciesDirectory
+        destinationPackageSwiftPath = package ?? dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
             .appending(component: Constants.DependenciesDirectory.packageSwiftName)
-        switch packagesOrManifest {
-        case .packages:
-            destinationPackageResolvedPath = dependenciesDirectory
-                .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-                .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        case .manifest:
-            destinationPackageResolvedPath = tuistDirectory
-                .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        }
+        destinationPackageResolvedPath = destinationPackageSwiftPath.removingLastComponent().appending(component: Constants.DependenciesDirectory.packageResolvedName)
         destinationSwiftPackageManagerDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
         destinationBuildDirectory = destinationSwiftPackageManagerDirectory.appending(component: ".build")

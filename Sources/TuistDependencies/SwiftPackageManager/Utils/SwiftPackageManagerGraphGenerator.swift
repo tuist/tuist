@@ -41,7 +41,6 @@ public protocol SwiftPackageManagerGraphGenerating {
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed
     /// dependencies.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
-    /// - Parameter platforms: The supported platforms.
     /// - Parameter baseSettings: base `Settings` for targets.
     /// - Parameter targetSettings: `SettingsDictionary` overrides for targets.
     /// - Parameter swiftToolsVersion: The version of Swift tools that will be used to generate dependencies.
@@ -49,7 +48,6 @@ public protocol SwiftPackageManagerGraphGenerating {
     func generate(
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
-        platforms: Set<TuistGraph.PackagePlatform>,
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
         swiftToolsVersion: TSCUtility.Version?,
@@ -73,7 +71,6 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
     public func generate(
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
-        platforms: Set<TuistGraph.PackagePlatform>,
         baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
         swiftToolsVersion: TSCUtility.Version?,
@@ -138,23 +135,6 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
         )
 
-        let destinations: ProjectDescription.Destinations = Set(platforms.flatMap { platform -> ProjectDescription.Destinations in
-            switch platform {
-            case .iOS:
-                [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign]
-            case .macCatalyst:
-                [.macCatalyst]
-            case .macOS:
-                [.mac]
-            case .tvOS:
-                [.appleTv]
-            case .watchOS:
-                [.appleWatch]
-            case .visionOS:
-                [.appleVision]
-            }
-        })
-
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
@@ -166,7 +146,6 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 targetSettings: targetSettings,
                 projectOptions: projectOptions[packageInfo.name],
                 minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
-                destinations: destinations,
                 targetToProducts: preprocessInfo.targetToProducts,
                 targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
                 macroDependencies: preprocessInfo.macroDependencies,

@@ -14,13 +14,10 @@ enum DependenciesControllerError: FatalError, Equatable {
     /// Thrown when the same project is defined more than once.
     case duplicatedProject(Path, ProjectDescription.Project, ProjectDescription.Project)
 
-    /// Thrown when platforms for dependencies to install are not determined in `Dependencies.swift`.
-    case noPlatforms
-
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .duplicatedDependency, .duplicatedProject, .noPlatforms:
+        case .duplicatedDependency, .duplicatedProject:
             return .abort
         }
     }
@@ -40,8 +37,6 @@ enum DependenciesControllerError: FatalError, Equatable {
             First: \(first)
             Second: \(second)
             """
-        case .noPlatforms:
-            return "Platforms were not determined. Select platforms in `Dependencies.swift` manifest file."
         }
     }
 }
@@ -143,28 +138,12 @@ public final class DependenciesController: DependenciesControlling {
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
-        let platforms = dependencies.platforms
-
-        guard !platforms.isEmpty else {
-            throw DependenciesControllerError.noPlatforms
-        }
-
-        var dependenciesGraph = TuistCore.DependenciesGraph.none
-
-        if let swiftPackageManagerDependencies = dependencies.swiftPackageManager {
-            let swiftPackageManagerDependenciesGraph = try swiftPackageManagerInteractor.install(
-                dependenciesDirectory: dependenciesDirectory,
-                dependencies: swiftPackageManagerDependencies,
-                platforms: platforms,
-                shouldUpdate: shouldUpdate,
-                swiftToolsVersion: swiftVersion
-            )
-            dependenciesGraph = try dependenciesGraph.merging(with: swiftPackageManagerDependenciesGraph)
-        } else {
-            try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
-        }
-
-        return dependenciesGraph
+        return try swiftPackageManagerInteractor.install(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: dependencies,
+            shouldUpdate: shouldUpdate,
+            swiftToolsVersion: swiftVersion
+        )
     }
 }
 

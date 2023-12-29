@@ -12,7 +12,6 @@ final class FetchService {
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
     private let dependenciesController: DependenciesControlling
-    private let dependenciesModelLoader: DependenciesModelLoading
     private let converter: ManifestModelConverting
 
     init(
@@ -20,14 +19,12 @@ final class FetchService {
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader()),
         manifestLoader: ManifestLoading = ManifestLoader(),
         dependenciesController: DependenciesControlling = DependenciesController(),
-        dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader(),
         converter: ManifestModelConverting = ManifestModelConverter()
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader
         self.manifestLoader = manifestLoader
         self.dependenciesController = dependenciesController
-        self.dependenciesModelLoader = dependenciesModelLoader
         self.converter = converter
     }
 
@@ -68,7 +65,9 @@ final class FetchService {
     private func fetchDependencies(path: AbsolutePath, update: Bool, with plugins: TuistGraph.Plugins) throws {
         try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
 
-        guard FileHandler.shared.exists(
+        
+        let dependencies = try (try? manifestLoader.loadWorkspace(at: path)).map { try converter.convert(manifest: $0, path: path) }?.dependencies ?? .init(package: nil, productTypes: [:], baseSettings: .default, targetSettings: [:])
+        guard dependencies.package != nil || FileHandler.shared.exists(
             path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
         ) else {
             return
@@ -79,8 +78,6 @@ final class FetchService {
         } else {
             logger.info("Resolving and fetching dependencies.", metadata: .section)
         }
-
-        let dependencies = try dependenciesModelLoader.loadDependencies(at: path, with: plugins)
 
         let config = try configLoader.loadConfig(path: path)
         let swiftVersion = config.swiftVersion

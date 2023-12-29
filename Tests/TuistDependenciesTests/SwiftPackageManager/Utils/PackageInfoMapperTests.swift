@@ -3158,23 +3158,6 @@ extension PackageInfoMapping {
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
         )
 
-        let destinations: ProjectDescription.Destinations = Set(platforms.flatMap { platform -> ProjectDescription.Destinations in
-            switch platform {
-            case .iOS:
-                [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign]
-            case .macCatalyst:
-                [.macCatalyst]
-            case .macOS:
-                [.mac]
-            case .tvOS:
-                [.appleTv]
-            case .watchOS:
-                [.appleWatch]
-            case .visionOS:
-                [.appleVision]
-            }
-        })
-
         return try map(
             packageInfo: packageInfos[package]!,
             packageInfos: packageInfos,
@@ -3185,7 +3168,6 @@ extension PackageInfoMapping {
             targetSettings: targetSettings,
             projectOptions: projectOptions,
             minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
-            destinations: destinations,
             targetToProducts: preprocessInfo.targetToProducts,
             targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
             macroDependencies: preprocessInfo.macroDependencies,

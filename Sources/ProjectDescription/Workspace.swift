@@ -41,13 +41,17 @@ public struct Workspace: Codable, Equatable {
     /// The generation configuration of the workspace.
     public let generationOptions: GenerationOptions
 
+    /// The dependencies configuration of the workspace.
+    public let dependencies: Dependencies
+    
     public init(
         name: String,
         projects: [Path],
         schemes: [Scheme] = [],
         fileHeaderTemplate: FileHeaderTemplate? = nil,
         additionalFiles: [FileElement] = [],
-        generationOptions: GenerationOptions = .options()
+        generationOptions: GenerationOptions = .options(),
+        dependencies: Dependencies = .init()
     ) {
         self.name = name
         self.projects = projects
@@ -55,6 +59,7 @@ public struct Workspace: Codable, Equatable {
         self.fileHeaderTemplate = fileHeaderTemplate
         self.additionalFiles = additionalFiles
         self.generationOptions = generationOptions
+        self.dependencies = dependencies
         dumpIfNeeded(self)
     }
 }

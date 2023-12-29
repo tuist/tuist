@@ -6,28 +6,26 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.Dependencies {
-    /// Maps a ProjectDescription.Dependencies instance into a TuistGraph.Dependencies instance.
-    /// - Parameters:
-    ///   - manifest: Manifest representation of dependencies.
-    ///   - generatorPaths: Generator paths.
+    /// Creates `TuistGraph.Dependencies` instance from `ProjectDescription.Dependencies`
+    /// instance.
     static func from(
         manifest: ProjectDescription.Dependencies,
         generatorPaths: GeneratorPaths
     ) throws -> Self {
-        let swiftPackageManager: TuistGraph.SwiftPackageManagerDependencies? = try {
-            guard let swiftPackageManager = manifest.swiftPackageManager else {
-                return nil
-            }
-            return try TuistGraph.SwiftPackageManagerDependencies.from(
-                manifest: swiftPackageManager,
-                generatorPaths: generatorPaths
-            )
-        }()
-        let platforms = try manifest.platforms.map { try TuistGraph.PackagePlatform.from(manifest: $0) }
+        let package = try manifest.package.map { try generatorPaths.resolve(path: $0) }
+        let productTypes = manifest.productTypes.mapValues { TuistGraph.Product.from(manifest: $0) }
+        let baseSettings = try TuistGraph.Settings.from(manifest: manifest.baseSettings, generatorPaths: generatorPaths)
+        let targetSettings = manifest.targetSettings.mapValues { TuistGraph.SettingsDictionary.from(manifest: $0) }
+        let projectOptions: [String: TuistGraph.Project.Options] = manifest
+            .projectOptions
+            .mapValues { .from(manifest: $0) }
 
-        return Self(
-            swiftPackageManager: swiftPackageManager,
-            platforms: Set(platforms)
+        return .init(
+            package: package,
+            productTypes: productTypes,
+            baseSettings: baseSettings,
+            targetSettings: targetSettings,
+            projectOptions: projectOptions
         )
     }
 }

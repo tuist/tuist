@@ -181,10 +181,7 @@ public class ManifestLoader: ManifestLoading {
         _ manifest: Manifest,
         at path: AbsolutePath
     ) throws -> T {
-        let manifestPath = try manifestPath(
-            manifest,
-            at: path
-        )
+        let manifestPath = try manifestPath(manifest, at: path)
 
         let data = try loadDataForManifest(manifest, at: manifestPath)
 

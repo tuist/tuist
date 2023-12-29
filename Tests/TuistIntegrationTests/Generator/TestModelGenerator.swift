@@ -134,7 +134,8 @@ final class TestModelGenerator {
             path: path,
             xcWorkspacePath: path.appending(component: "Workspace.xcworkspace"),
             name: "Workspace",
-            projects: try projects.map { try pathTo($0) }
+            projects: try projects.map { try pathTo($0) },
+            dependencies: .init(package: nil, productTypes: [:], baseSettings: .default, targetSettings: [:])
         )
     }
 

@@ -15,6 +15,7 @@ public struct Workspace: Equatable, Codable {
     public var ideTemplateMacros: IDETemplateMacros?
     public var additionalFiles: [FileElement]
     public var generationOptions: GenerationOptions
+    public var dependencies: Dependencies
 
     // MARK: - Init
 
@@ -37,7 +38,8 @@ public struct Workspace: Equatable, Codable {
             renderMarkdownReadme: false
         ),
         ideTemplateMacros: IDETemplateMacros? = nil,
-        additionalFiles: [FileElement] = []
+        additionalFiles: [FileElement] = [],
+        dependencies: Dependencies
     ) {
         self.path = path
         self.xcWorkspacePath = xcWorkspacePath
@@ -47,6 +49,7 @@ public struct Workspace: Equatable, Codable {
         self.generationOptions = generationOptions
         self.ideTemplateMacros = ideTemplateMacros
         self.additionalFiles = additionalFiles
+        self.dependencies = dependencies
     }
 }
 
@@ -66,7 +69,8 @@ extension Workspace {
             schemes: schemes,
             generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles + files.map { .file(path: $0) }
+            additionalFiles: additionalFiles + files.map { .file(path: $0) },
+            dependencies: dependencies
         )
     }
 
@@ -79,7 +83,8 @@ extension Workspace {
             schemes: schemes,
             generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles
+            additionalFiles: additionalFiles,
+            dependencies: dependencies
         )
     }
 
@@ -92,7 +97,8 @@ extension Workspace {
             schemes: schemes,
             generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles
+            additionalFiles: additionalFiles,
+            dependencies: dependencies
         )
     }
 

@@ -183,7 +183,6 @@ public final class TestService { // swiftlint:disable:this type_body_length
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
-        let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
 
         let testGenerator: Generating
         if let generator {

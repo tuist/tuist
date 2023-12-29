@@ -45,28 +45,19 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<TuistGraph.PackagePlatform> = [.iOS]
-        let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
-            .packages([
-                .remote(url: "Moya", requirement: .exact("2.3.4")),
-                .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]),
+        let dependencies = Dependencies(
+            package: nil,
             productTypes: [:],
             baseSettings: .default,
             targetSettings: [:]
         )
-        let dependencies = Dependencies(
-            swiftPackageManager: swiftPackageManagerDependencies,
-            platforms: platforms
-        )
         let swiftVersion = TSCUtility.Version(5, 4, 0)
 
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
-            XCTAssertEqual(arg1, swiftPackageManagerDependencies)
-            XCTAssertEqual(arg2, [.iOS])
-            XCTAssertFalse(arg3)
-            XCTAssertEqual(arg4, TSCUtility.Version(5, 4, 0))
+            XCTAssertEqual(arg1, dependencies)
+            XCTAssertFalse(arg2)
+            XCTAssertEqual(arg3, TSCUtility.Version(5, 4, 0))
             return .test()
         }
 
@@ -80,30 +71,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertTrue(swiftPackageManagerInteractor.invokedInstall)
     }
 
-    func test_fetch_throws_when_noPlatforms() throws {
-        // Given
-        let rootPath = try temporaryPath()
-
-        let dependencies = TuistGraph.Dependencies(
-            swiftPackageManager: .init(.packages([]), productTypes: [:], baseSettings: .default, targetSettings: [:]),
-            platforms: []
-        )
-
-        // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil),
-            DependenciesControllerError.noPlatforms
-        )
-    }
-
     func test_fetch_no_dependencies() throws {
         // Given
         let rootPath = try temporaryPath()
 
-        let dependencies = TuistGraph.Dependencies(
-            swiftPackageManager: .init(.packages([]), productTypes: [:], baseSettings: .default, targetSettings: [:]),
-            platforms: [.iOS]
-        )
+        let dependencies = TuistGraph.Dependencies(package: nil, productTypes: [:], baseSettings: .default, targetSettings: [:])
 
         // When
         let graphManifest = try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil)
@@ -121,28 +93,19 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<TuistGraph.PackagePlatform> = [.iOS]
-        let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
-            .packages([
-                .remote(url: "Moya", requirement: .exact("2.3.4")),
-                .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]),
+        let dependencies = Dependencies(
+            package: nil,
             productTypes: [:],
             baseSettings: .default,
             targetSettings: [:]
         )
-        let dependencies = Dependencies(
-            swiftPackageManager: swiftPackageManagerDependencies,
-            platforms: platforms
-        )
         let swiftVersion = TSCUtility.Version(5, 4, 0)
 
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
-            XCTAssertEqual(arg1, swiftPackageManagerDependencies)
-            XCTAssertEqual(arg2, [.iOS])
-            XCTAssertTrue(arg3)
-            XCTAssertEqual(arg4, swiftVersion)
+            XCTAssertEqual(arg1, dependencies)
+            XCTAssertTrue(arg2)
+            XCTAssertEqual(arg3, swiftVersion)
             return .test()
         }
 
@@ -155,30 +118,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertTrue(swiftPackageManagerInteractor.invokedInstall)
     }
 
-    func test_update_throws_when_noPlatforms() throws {
-        // Given
-        let rootPath = try temporaryPath()
-
-        let dependencies = TuistGraph.Dependencies(
-            swiftPackageManager: .init(.packages([]), productTypes: [:], baseSettings: .default, targetSettings: [:]),
-            platforms: []
-        )
-
-        // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: nil),
-            DependenciesControllerError.noPlatforms
-        )
-    }
-
     func test_update_no_dependencies() throws {
         // Given
         let rootPath = try temporaryPath()
 
-        let dependencies = TuistGraph.Dependencies(
-            swiftPackageManager: .init(.packages([]), productTypes: [:], baseSettings: .default, targetSettings: [:]),
-            platforms: [.iOS]
-        )
+        let dependencies = TuistGraph.Dependencies(package: nil, productTypes: [:], baseSettings: .default, targetSettings: [:])
 
         // When
         let graphManifest = try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: nil)

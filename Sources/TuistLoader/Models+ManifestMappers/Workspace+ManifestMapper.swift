@@ -45,6 +45,7 @@ extension TuistGraph.Workspace {
 
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
+        let dependencies = try TuistGraph.Dependencies.from(manifest: manifest.dependencies, generatorPaths: generatorPaths)
 
         return TuistGraph.Workspace(
             path: path,
@@ -54,7 +55,8 @@ extension TuistGraph.Workspace {
             schemes: schemes,
             generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles
+            additionalFiles: additionalFiles,
+            dependencies: dependencies
         )
     }
 }
