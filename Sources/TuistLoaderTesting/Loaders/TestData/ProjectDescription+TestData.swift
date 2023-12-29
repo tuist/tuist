@@ -208,8 +208,8 @@ extension Arguments {
 }
 
 extension Dependencies {
-    public static func test(carthageDependencies: CarthageDependencies? = nil) -> Dependencies {
-        Dependencies(carthage: carthageDependencies)
+    public static func test() -> Dependencies {
+        Dependencies()
     }
 }
 

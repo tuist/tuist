@@ -77,7 +77,6 @@ extension GraphDependency {
             bcsymbolmapPaths: _,
             linking: _,
             architectures: _,
-            isCarthage: _,
             status: _
         ):
             return path.basenameWithoutExt

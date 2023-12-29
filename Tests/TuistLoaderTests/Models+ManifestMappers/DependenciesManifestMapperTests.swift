@@ -16,11 +16,6 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
 
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest: ProjectDescription.Dependencies = Dependencies(
-            carthage: [
-                .github(path: "Dependency1", requirement: .exact("1.1.1")),
-                .git(path: "Dependency.git", requirement: .branch("BranchName")),
-                .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
-            ],
             swiftPackageManager: .init(),
             platforms: [.iOS, .macOS, .tvOS]
         )
@@ -30,13 +25,6 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
 
         // Then
         let expected: TuistGraph.Dependencies = .init(
-            carthage: .init(
-                [
-                    .github(path: "Dependency1", requirement: .exact("1.1.1")),
-                    .git(path: "Dependency.git", requirement: .branch("BranchName")),
-                    .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
-                ]
-            ),
             swiftPackageManager: .init(
                 .manifest,
                 productTypes: [:],

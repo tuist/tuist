@@ -80,7 +80,6 @@ final class FrameworkLoaderTests: TuistUnitTestCase {
                 bcsymbolmapPaths: bcsymbolmapPaths,
                 linking: linking,
                 architectures: architectures,
-                isCarthage: false,
                 status: .required
             )
         }
@@ -98,7 +97,6 @@ final class FrameworkLoaderTests: TuistUnitTestCase {
                 bcsymbolmapPaths: bcsymbolmapPaths,
                 linking: linking,
                 architectures: architectures,
-                isCarthage: false,
                 status: .required
             )
         )

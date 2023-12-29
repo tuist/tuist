@@ -11,7 +11,7 @@ extension DependenciesGraph {
               "RxSwift": [
                 {
                   "xcframework": {
-                    "path": "/Tuist/Dependencies/Carthage/RxSwift.xcframework",
+                    "path": "/Tuist/Dependencies/SwiftPackageManager/RxSwift.xcframework",
                     "platformFilters": [
                             {
                               "catalyst" : { }
@@ -51,9 +51,6 @@ extension DependenciesGraph {
         import ProjectDescription
 
         let dependencies = Dependencies(
-            carthage: [
-                .github(path: "RxSwift/RxSwift", requirement: .exact("5.0.4")),
-            ],
             platforms: [.iOS]
         )
         """

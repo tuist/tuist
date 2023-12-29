@@ -61,11 +61,6 @@ final class CleanService {
     private func cleanDependencies(at path: AbsolutePath) throws {
         let dependenciesPath = path.appending(components: [Constants.tuistDirectoryName, Constants.DependenciesDirectory.name])
         if FileHandler.shared.exists(dependenciesPath) {
-            let carthagePath = dependenciesPath.appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-            if FileHandler.shared.exists(carthagePath) {
-                try FileHandler.shared.delete(carthagePath)
-            }
-
             let spmPath = dependenciesPath.appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
             if FileHandler.shared.exists(spmPath) {
                 try FileHandler.shared.delete(spmPath)

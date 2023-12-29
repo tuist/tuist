@@ -33,8 +33,8 @@ final class GraphLinterTests: TuistUnitTestCase {
     func test_lint_when_frameworks_are_missing() throws {
         // Given
         let temporaryPath = try temporaryPath()
-        let frameworkAPath = temporaryPath.appending(try RelativePath(validating: "Carthage/Build/iOS/A.framework"))
-        let frameworkBPath = temporaryPath.appending(try RelativePath(validating: "Carthage/Build/iOS/B.framework"))
+        let frameworkAPath = temporaryPath.appending(try RelativePath(validating: "Test/Build/iOS/A.framework"))
+        let frameworkBPath = temporaryPath.appending(try RelativePath(validating: "Test/Build/iOS/B.framework"))
         try FileHandler.shared.createFolder(frameworkAPath)
         let graph = Graph.test(dependencies: [
             GraphDependency.testFramework(path: frameworkAPath): Set(),

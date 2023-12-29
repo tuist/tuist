@@ -34,7 +34,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         bcsymbolmapPaths: [AbsolutePath],
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
-        isCarthage: Bool,
         status: FrameworkStatus
     )
 
@@ -64,7 +63,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case let .xcframework(path, _, _, _, _, _):
             hasher.combine("xcframework")
             hasher.combine(path)
-        case let .framework(path, _, _, _, _, _, _, _):
+        case let .framework(path, _, _, _, _, _, _):
             hasher.combine("framework")
             hasher.combine(path)
         case let .library(path, _, _, _, _):
@@ -109,7 +108,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
     public var isStaticPrecompiled: Bool {
         switch self {
         case let .xcframework(_, _, _, linking, _, _),
-             let .framework(_, _, _, _, linking, _, _, _),
+             let .framework(_, _, _, _, linking, _, _),
              let .library(_, _, linking, _, _): return linking == .static
         case .bundle: return false
         case .packageProduct: return false
@@ -124,7 +123,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
     public var isDynamicPrecompiled: Bool {
         switch self {
         case let .xcframework(_, _, _, linking, _, _),
-             let .framework(_, _, _, _, linking, _, _, _),
+             let .framework(_, _, _, _, linking, _, _),
              let .library(_, _, linking, _, _): return linking == .dynamic
         case .bundle: return false
         case .packageProduct: return false
@@ -181,7 +180,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         switch self {
         case let .xcframework(path, _, _, _, _, _):
             return path.basename
-        case let .framework(path, _, _, _, _, _, _, _):
+        case let .framework(path, _, _, _, _, _, _):
             return path.basename
         case let .library(path, _, _, _, _):
             return path.basename

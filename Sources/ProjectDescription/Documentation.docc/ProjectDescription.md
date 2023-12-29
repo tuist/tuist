@@ -12,8 +12,7 @@ The Tuist project manifest file, called _Project.swift_, defines the project con
 Multiple _Project.swift_ manifests can be collected under a Tuist workspace manifest,
 called _Workspace.swift_ (see ``Workspace`` for more).
 
-A _Dependencies.swift_ manifests defines your external dependencies
-from Swift Package Manager, Carthage or Cocoapods (see ``Dependencies`` for more).
+A _Dependencies.swift_ manifests defines your external dependencies from Swift Package Manager (see ``Dependencies`` for more).
 
 ``Plugin`` and other configurations are supported under the _Config.swift_ manifest (see ``Config`` for more).
 

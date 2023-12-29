@@ -217,7 +217,7 @@ class ProjectFileElements {
                     group: filesGroup,
                     sourceRootPath: sourceRootPath
                 )
-            case let .framework(path, _, _, _, _, _, _, _, _, _):
+            case let .framework(path, _, _, _, _, _, _, _, _):
                 try generatePrecompiledDependency(
                     path,
                     groups: groups,

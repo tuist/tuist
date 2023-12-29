@@ -821,7 +821,6 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let frameworkDependency = GraphDependencyReference.framework(
             path: frameworkPath,
             binaryPath: binaryPath,
-            isCarthage: false,
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .static,

@@ -5,7 +5,7 @@ import TuistGraph
 public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     var condition: PlatformCondition? {
         switch self {
-        case let .framework(_, _, _, _, _, _, _, _, _, condition),
+        case let .framework(_, _, _, _, _, _, _, _, condition),
              let .library(_, _, _, _, condition),
              let .xcframework(_, _, _, _, _, condition),
              let .bundle(_, condition),
@@ -33,7 +33,6 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     case framework(
         path: AbsolutePath,
         binaryPath: AbsolutePath,
-        isCarthage: Bool,
         dsymPath: AbsolutePath?,
         bcsymbolmapPaths: [AbsolutePath],
         linking: BinaryLinking,
@@ -48,11 +47,10 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
 
     init(_ dependency: GraphDependency, condition: PlatformCondition? = nil) {
         switch dependency {
-        case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage, status):
+        case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, status):
             self = .framework(
                 path: path,
                 binaryPath: binaryPath,
-                isCarthage: isCarthage,
                 dsymPath: dsymPath,
                 bcsymbolmapPaths: bcsymbolmapPaths,
                 linking: linking,
@@ -91,7 +89,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     /// this attribute returns the path to them.
     public var precompiledPath: AbsolutePath? {
         switch self {
-        case let .framework(path, _, _, _, _, _, _, _, _, _):
+        case let .framework(path, _, _, _, _, _, _, _, _):
             return path
         case let .library(path, _, _, _, _):
             return path
@@ -132,7 +130,6 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             case .framework(
                 path: let path,
                 binaryPath: _,
-                isCarthage: _,
                 dsymPath: _,
                 bcsymbolmapPaths: _,
                 linking: _,
