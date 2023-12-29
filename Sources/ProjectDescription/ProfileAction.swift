@@ -5,19 +5,19 @@ import Foundation
 /// It's initialized with the `.profileAction` static method
 public struct ProfileAction: Equatable, Codable {
     /// Indicates the build configuration the product should be profiled with.
-    public let configuration: ConfigurationName
+    public var configuration: ConfigurationName
 
     /// A list of actions that are executed before starting the profile process.
-    public let preActions: [ExecutionAction]
+    public var preActions: [ExecutionAction]
 
     /// A list of actions that are executed after the profile process.
-    public let postActions: [ExecutionAction]
+    public var postActions: [ExecutionAction]
 
     /// The name of the executable or target to profile.
-    public let executable: TargetReference?
+    public var executable: TargetReference?
 
     /// Command line arguments passed on launch and environment variables.
-    public let arguments: Arguments?
+    public var arguments: Arguments?
 
     init(
         configuration: ConfigurationName = .release,

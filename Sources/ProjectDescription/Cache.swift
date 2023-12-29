@@ -5,16 +5,16 @@ public struct Cache: Codable, Equatable {
     /// A cache profile.
     public struct Profile: Codable, Equatable {
         /// The unique name of a profile
-        public let name: String
+        public var name: String
 
         /// The configuration to be used when building the project during a caching warmup
-        public let configuration: String
+        public var configuration: String
 
         /// The device to be used when building the project during a caching warmup
-        public let device: String?
+        public var device: String?
 
         /// The version of the OS to be used when building the project during a caching warmup
-        public let os: String?
+        public var os: String?
 
         /// Returns a `Cache.Profile` instance.
         ///
@@ -35,9 +35,9 @@ public struct Cache: Codable, Equatable {
     }
 
     /// A list of the cache profiles.
-    public let profiles: [Profile]
+    public var profiles: [Profile]
     /// The path where the cache will be stored, if `nil` it will be a default location in a shared directory.
-    public let path: Path?
+    public var path: Path?
 
     /// Returns a `Cache` instance containing the given profiles.
     /// If no profile list is provided, tuist's default profile will be taken as the default.

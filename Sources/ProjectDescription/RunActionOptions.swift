@@ -3,21 +3,21 @@ import Foundation
 /// Options for the `RunAction` action
 public struct RunActionOptions: Equatable, Codable {
     /// Language to use when running the app.
-    public let language: SchemeLanguage?
+    public var language: SchemeLanguage?
 
     /// Region to use when running the app.
-    public let region: String?
+    public var region: String?
 
     /// The path of the
     /// [StoreKit configuration
     /// file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
-    public let storeKitConfigurationPath: Path?
+    public var storeKitConfigurationPath: Path?
 
     /// A simulated GPS location to use when running the app.
-    public let simulatedLocation: SimulatedLocation?
+    public var simulatedLocation: SimulatedLocation?
 
     /// Configure your project to work with the Metal frame debugger.
-    public let enableGPUFrameCaptureMode: GPUFrameCaptureMode
+    public var enableGPUFrameCaptureMode: GPUFrameCaptureMode
 
     /// Creates an `RunActionOptions` instance
     ///
@@ -87,9 +87,9 @@ extension RunActionOptions {
     /// Simulated location represents a GPS location that is used when running an app on the simulator.
     public struct SimulatedLocation: Codable, Equatable {
         /// The identifier of the location (e.g. London, England)
-        public let identifier: String?
+        public var identifier: String?
         /// Path to a .gpx file that indicates the location
-        public let gpxFile: Path?
+        public var gpxFile: Path?
 
         private init(
             identifier: String? = nil,

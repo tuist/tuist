@@ -9,10 +9,10 @@ import Foundation
 /// - `.strings(templatePath: "Templates/Strings.stencil")` to use strings template at a given path
 public struct ResourceSynthesizer: Codable, Equatable {
     /// Templates can be of multiple types
-    public let templateType: TemplateType
-    public let parser: Parser
-    public let parserOptions: [String: Parser.Option]
-    public let extensions: Set<String>
+    public var templateType: TemplateType
+    public var parser: Parser
+    public var parserOptions: [String: Parser.Option]
+    public var extensions: Set<String>
 
     /// Templates can be either a local template file, from a plugin, or a default template from tuist
     public enum TemplateType: Codable, Equatable {
