@@ -4,19 +4,19 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-/// A target mapper that updates
+/// A target mapper that enforces explicit dependneices by adding custom build directories
 public struct ExplicitDependencyGraphMapper: GraphMapping {
     public init() {}
 
     public func map(graph: Graph) async throws -> (Graph, [SideEffectDescriptor]) {
-        let graphTraverser = GraphTraverser(graph: graph)
-
         if !graph.packages.isEmpty {
             return (
                 graph,
                 []
             )
         }
+
+        let graphTraverser = GraphTraverser(graph: graph)
 
         var graph = graph
 
@@ -45,7 +45,10 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\($0)"
             }
 
-        if !graphTarget.isExplicitnessEnforced {
+        switch graphTarget.target.product {
+        case .dynamicLibrary, .staticLibrary, .framework, .staticFramework, .bundle:
+            break
+        default:
             return graphTarget.target
         }
 
@@ -64,8 +67,6 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             additionalSettings: additionalSettings
         )
 
-        let isExternal = graphTarget.project.isExternal
-
         let copyBuiltProductsScript: String
         let builtProductsScriptInputPaths: [String]
         let builtProductsScriptOutputPaths: [String]
@@ -73,12 +74,10 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         switch target.product {
         case .staticLibrary:
             let (libScript, libInputPaths, libOutputPaths) = copyBuiltProductsToSharedDirectory(
-                isExternal: isExternal,
                 extensionName: "a",
                 prefix: "lib"
             )
             let (moduleScript, moduleInputPaths, moduleOutputPaths) = copyBuiltProductsToSharedDirectory(
-                isExternal: isExternal,
                 extensionName: "swiftmodule"
             )
             copyBuiltProductsScript = [libScript, moduleScript].joined(separator: "\n")
@@ -91,7 +90,6 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 builtProductsScriptInputPaths,
                 builtProductsScriptOutputPaths
             ) = copyBuiltProductsToSharedDirectory(
-                isExternal: isExternal,
                 extensionName: "swiftmodule"
             )
         case .bundle:
@@ -100,7 +98,6 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 builtProductsScriptInputPaths,
                 builtProductsScriptOutputPaths
             ) = copyBuiltProductsToSharedDirectory(
-                isExternal: isExternal,
                 extensionName: "bundle"
             )
         case .framework, .staticFramework:
@@ -109,7 +106,6 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 builtProductsScriptInputPaths,
                 builtProductsScriptOutputPaths
             ) = copyBuiltProductsToSharedDirectory(
-                isExternal: isExternal,
                 extensionName: "framework"
             )
         default:
@@ -132,7 +128,6 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
     }
 
     private func copyBuiltProductsToSharedDirectory(
-        isExternal _: Bool,
         extensionName: String,
         prefix: String = ""
     ) -> (String, [String], [String]) {
@@ -153,16 +148,5 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             ["$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/\(prefix)$(PRODUCT_NAME).\(extensionName)"],
             ["$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(prefix)$(PRODUCT_NAME).\(extensionName)"]
         )
-    }
-}
-
-extension GraphTarget {
-    fileprivate var isExplicitnessEnforced: Bool {
-        switch target.product {
-        case .dynamicLibrary, .staticLibrary, .framework, .staticFramework, .bundle:
-            return true
-        default:
-            return false
-        }
     }
 }

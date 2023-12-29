@@ -16,21 +16,9 @@ extension TuistAcceptanceTestCase {
         for name: String,
         destination: String
     ) throws -> AbsolutePath {
-        if name.contains(".framework") {
-            return try XCTUnwrap(
-                FileHandler.shared.glob(
-                    derivedDataPath,
-                    glob: "**/Build/**/Products/\(destination)/\(name.components(separatedBy: ".").first ?? name)/\(name)/"
-                ).first
-            )
-        } else {
-            return try XCTUnwrap(
-                FileHandler.shared.glob(
-                    derivedDataPath,
-                    glob: "**/Build/**/Products/\(destination)/\(name)/"
-                ).first
-            )
-        }
+        try XCTUnwrap(
+            FileHandler.shared.glob(derivedDataPath, glob: "**/Build/**/Products/\(destination)/\(name)/").first
+        )
     }
 
     public func XCTUnwrapTarget(

@@ -71,6 +71,7 @@ public protocol GraphTraversing {
     /// - Returns: The test plans with the given name.
     func testPlan(name: String) -> TestPlan?
 
+    /// - Returns: All direct and transitive target dependencies
     func allTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
     /// Given a project directory and target name, it returns **all**l its direct target dependencies present in the same project.
