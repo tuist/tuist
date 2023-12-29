@@ -69,7 +69,8 @@ extension TuistGraph.Config.GenerationOptions {
             disablePackageVersionLocking: manifest.disablePackageVersionLocking,
             clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
             staticSideEffectsWarningTargets: TuistGraph.Config.GenerationOptions.StaticSideEffectsWarningTargets
-                .from(manifest: manifest.staticSideEffectsWarningTargets)
+                .from(manifest: manifest.staticSideEffectsWarningTargets),
+            enforceExplicitDependencies: manifest.enforceExplicitDependencies
         )
     }
 }

@@ -43,17 +43,20 @@ final class RunService {
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding
     private let targetRunner: TargetRunning
+    private let configLoader: ConfigLoading
 
     init(
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         targetBuilder: TargetBuilding = TargetBuilder(),
-        targetRunner: TargetRunning = TargetRunner()
+        targetRunner: TargetRunning = TargetRunner(),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
         self.generatorFactory = generatorFactory
         self.buildGraphInspector = buildGraphInspector
         self.targetBuilder = targetBuilder
         self.targetRunner = targetRunner
+        self.configLoader = configLoader
     }
 
     // swiftlint:disable:next function_body_length
@@ -77,7 +80,8 @@ final class RunService {
         }
 
         let graph: Graph
-        let generator = generatorFactory.default()
+        let config = try configLoader.loadConfig(path: runPath)
+        let generator = generatorFactory.default(config: config)
         if try (generate || buildGraphInspector.workspacePath(directory: runPath) == nil) {
             logger.notice("Generating project for running", metadata: .section)
             graph = try await generator.generateWithGraph(path: runPath).1

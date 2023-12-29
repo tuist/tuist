@@ -235,6 +235,20 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedTargetsAtResult
     }
 
+    var invokedAllTargetDependencies = false
+    var invokedAllTargetDependenciesCount = 0
+    var invokedAllTargetDependenciesParameters: (
+        path: AbsolutePath,
+        name: String
+    )?
+    var invokedAllTargetDependenciesResult: Set<TuistGraph.GraphTarget> = []
+    func allTargetDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistGraph.GraphTarget> {
+        invokedAllTargetDependencies = true
+        invokedAllTargetDependenciesCount += 1
+        invokedAllTargetDependenciesParameters = (path, name)
+        return invokedAllTargetDependenciesResult
+    }
+
     var invokedDirectLocalTargetDependencies = false
 
     var invokedDirectLocalTargetDependenciesCount = 0

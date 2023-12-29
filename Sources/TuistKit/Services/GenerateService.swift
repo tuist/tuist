@@ -14,6 +14,7 @@ final class GenerateService {
     private let generatorFactory: GeneratorFactorying
     private let manifestLoader: ManifestLoading
     private let pluginService: PluginServicing
+    private let configLoader: ConfigLoading
 
     init(
         clock: Clock = WallClock(),
@@ -21,7 +22,8 @@ final class GenerateService {
         manifestLoader: ManifestLoading = ManifestLoader(),
         opener: Opening = Opener(),
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
-        pluginService: PluginServicing = PluginService()
+        pluginService: PluginServicing = PluginService(),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
         self.clock = clock
         self.timeTakenLoggerFormatter = timeTakenLoggerFormatter
@@ -29,6 +31,7 @@ final class GenerateService {
         self.opener = opener
         self.generatorFactory = generatorFactory
         self.pluginService = pluginService
+        self.configLoader = configLoader
     }
 
     func run(
@@ -37,7 +40,8 @@ final class GenerateService {
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)
-        let generator = generatorFactory.default()
+        let config = try configLoader.loadConfig(path: path)
+        let generator = generatorFactory.default(config: config)
         let workspacePath = try await generator.generate(path: path)
         if !noOpen {
             try opener.open(path: workspacePath)

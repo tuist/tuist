@@ -40,38 +40,36 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             path: graphTarget.path,
             name: graphTarget.target.name
         )
-        var frameworkSearchPaths = allTargetDependencies
+        let frameworkSearchPaths = allTargetDependencies
             .map(\.target.productName).map {
                 "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\($0)"
             }
-        
-
-        var additionalSettings: SettingsDictionary = [:]
-        
-        if graphTarget.project.isExternal {
-            additionalSettings["FRAMEWORK_SEARCH_PATHS"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)"
-        } else {
-            additionalSettings["FRAMEWORK_SEARCH_PATHS"] = .array(frameworkSearchPaths)
-        }
 
         if !graphTarget.isExplicitnessEnforced {
             return graphTarget.target
         }
-        
-        let isExternal = graphTarget.project.isExternal
-        let subpath = isExternal ? "External" : "$(PRODUCT_NAME)"
-        additionalSettings["TARGET_BUILD_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
-        
-        additionalSettings["BUILT_PRODUCTS_DIR"] = "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
-        
+
+        var additionalSettings: SettingsDictionary = [
+            "TARGET_BUILD_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
+            "BUILT_PRODUCTS_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
+        ]
+
+        if graphTarget.project.isExternal {
+            additionalSettings["FRAMEWORK_SEARCH_PATHS"] = .array(["$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)"])
+        } else if !frameworkSearchPaths.isEmpty {
+            additionalSettings["FRAMEWORK_SEARCH_PATHS"] = .array(frameworkSearchPaths)
+        }
+
         var target = graphTarget.target.with(
             additionalSettings: additionalSettings
         )
-        
+
+        let isExternal = graphTarget.project.isExternal
+
         let copyBuiltProductsScript: String
         let builtProductsScriptInputPaths: [String]
         let builtProductsScriptOutputPaths: [String]
-        
+
         switch target.product {
         case .staticLibrary:
             let (libScript, libInputPaths, libOutputPaths) = copyBuiltProductsToSharedDirectory(
@@ -84,28 +82,40 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 extensionName: "swiftmodule"
             )
             copyBuiltProductsScript = [libScript, moduleScript].joined(separator: "\n")
-            
+
             builtProductsScriptInputPaths = libInputPaths + moduleInputPaths
             builtProductsScriptOutputPaths = libOutputPaths + moduleOutputPaths
         case .dynamicLibrary:
-            (copyBuiltProductsScript, builtProductsScriptInputPaths, builtProductsScriptOutputPaths) = copyBuiltProductsToSharedDirectory(
+            (
+                copyBuiltProductsScript,
+                builtProductsScriptInputPaths,
+                builtProductsScriptOutputPaths
+            ) = copyBuiltProductsToSharedDirectory(
                 isExternal: isExternal,
                 extensionName: "swiftmodule"
             )
         case .bundle:
-            (copyBuiltProductsScript, builtProductsScriptInputPaths, builtProductsScriptOutputPaths) = copyBuiltProductsToSharedDirectory(
+            (
+                copyBuiltProductsScript,
+                builtProductsScriptInputPaths,
+                builtProductsScriptOutputPaths
+            ) = copyBuiltProductsToSharedDirectory(
                 isExternal: isExternal,
                 extensionName: "bundle"
             )
         case .framework, .staticFramework:
-            (copyBuiltProductsScript, builtProductsScriptInputPaths, builtProductsScriptOutputPaths) = copyBuiltProductsToSharedDirectory(
+            (
+                copyBuiltProductsScript,
+                builtProductsScriptInputPaths,
+                builtProductsScriptOutputPaths
+            ) = copyBuiltProductsToSharedDirectory(
                 isExternal: isExternal,
                 extensionName: "framework"
             )
         default:
             return graphTarget.target
         }
-        
+
         target = target.with(
             scripts: target.scripts + [
                 TargetScript(
@@ -117,12 +127,12 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 ),
             ]
         )
-        
+
         return target
     }
-    
+
     private func copyBuiltProductsToSharedDirectory(
-        isExternal: Bool,
+        isExternal _: Bool,
         extensionName: String,
         prefix: String = ""
     ) -> (String, [String], [String]) {
