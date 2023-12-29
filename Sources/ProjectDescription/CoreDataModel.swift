@@ -3,10 +3,10 @@ import Foundation
 /// A Core Data model.
 public struct CoreDataModel: Codable, Equatable {
     /// Relative path to the model.
-    public let path: Path
+    public var path: Path
 
     /// Optional Current version (with or without extension)
-    public let currentVersion: String?
+    public var currentVersion: String?
 
     /// Creates a Core Data model from a path.
     ///
