@@ -192,7 +192,7 @@ final class FetchServiceTests: TuistUnitTestCase {
 
         XCTAssertFalse(dependenciesController.invokedUpdate)
     }
-    
+
     func test_fetch_path_is_found_in_root() async throws {
         // Given
         let stubbedPath = try temporaryPath()
@@ -208,7 +208,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(stubbedPath, path)
             return stubbedDependencies
         }
-        
+
         // Dependencies.swift in root
         try fileHandler.touch(expectedFoundDependenciesLocation)
 
@@ -218,7 +218,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             update: false
         )
     }
-    
+
     func test_fetch_path_is_found_in_root_but_manifest_is_in_nested_directory() async throws {
         // Given
         let stubbedPath = try temporaryPath()
@@ -236,7 +236,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(stubbedPath, path)
             return stubbedDependencies
         }
-        
+
         // Dependencies.swift in root
         try fileHandler.touch(expectedFoundDependenciesLocation)
 
@@ -246,7 +246,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             update: false
         )
     }
-    
+
     func test_fetch_path_is_found_in_nested_manifest_directory() async throws {
         // Given
         let stubbedPath = try temporaryPath()
@@ -264,7 +264,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(manifestPath, path)
             return stubbedDependencies
         }
-        
+
         // Dependencies.swift in root
         try fileHandler.touch(expectedFoundDependenciesLocation)
 
@@ -274,7 +274,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             update: false
         )
     }
-    
+
     func test_fetch_path_is_found_in_parent_directory_require_traversing() async throws {
         // Given
         let stubbedPath = try temporaryPath()
@@ -289,11 +289,14 @@ final class FetchServiceTests: TuistUnitTestCase {
             platforms: [.iOS, .macOS]
         )
         dependenciesModelLoader.loadDependenciesStub = { path, _ in
-            XCTAssertEqual(stubbedPath
-                .appending(components: ["First"]), path)
+            XCTAssertEqual(
+                stubbedPath
+                    .appending(components: ["First"]),
+                path
+            )
             return stubbedDependencies
         }
-        
+
         // Dependencies.swift in root
         try fileHandler.touch(expectedFoundDependenciesLocation)
 
