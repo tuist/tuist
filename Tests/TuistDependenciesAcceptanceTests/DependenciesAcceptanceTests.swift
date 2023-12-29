@@ -6,7 +6,7 @@ import XcodeProj
 import XCTest
 
  final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
-    func test_ios_app_with_helpers() async throws {
+    func test_app_spm_dependencies() async throws {
         try setUpFixture(.appWithSpmDependencies)
         try await run(FetchCommand.self)
         try await run(GenerateCommand.self)
