@@ -192,4 +192,115 @@ final class FetchServiceTests: TuistUnitTestCase {
 
         XCTAssertFalse(dependenciesController.invokedUpdate)
     }
+    
+    func test_fetch_path_is_found_in_root() async throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let expectedFoundDependenciesLocation = stubbedPath.appending(
+            components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(stubbedPath)
+        )
+        let stubbedDependencies = Dependencies(
+            carthage: nil,
+            swiftPackageManager: nil,
+            platforms: [.iOS, .macOS]
+        )
+        dependenciesModelLoader.loadDependenciesStub = { path, _ in
+            XCTAssertEqual(stubbedPath, path)
+            return stubbedDependencies
+        }
+        
+        // Dependencies.swift in root
+        try fileHandler.touch(expectedFoundDependenciesLocation)
+
+        // When
+        try await subject.run(
+            path: stubbedPath.pathString,
+            update: false
+        )
+    }
+    
+    func test_fetch_path_is_found_in_root_but_manifest_is_in_nested_directory() async throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let manifestPath = stubbedPath
+            .appending(components: ["First", "Second"])
+        let expectedFoundDependenciesLocation = stubbedPath.appending(
+            components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(stubbedPath)
+        )
+        let stubbedDependencies = Dependencies(
+            carthage: nil,
+            swiftPackageManager: nil,
+            platforms: [.iOS, .macOS]
+        )
+        dependenciesModelLoader.loadDependenciesStub = { path, _ in
+            XCTAssertEqual(stubbedPath, path)
+            return stubbedDependencies
+        }
+        
+        // Dependencies.swift in root
+        try fileHandler.touch(expectedFoundDependenciesLocation)
+
+        // When
+        try await subject.run(
+            path: manifestPath.pathString,
+            update: false
+        )
+    }
+    
+    func test_fetch_path_is_found_in_nested_manifest_directory() async throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let manifestPath = stubbedPath
+            .appending(components: ["First", "Second"])
+        let expectedFoundDependenciesLocation = manifestPath.appending(
+            components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(stubbedPath)
+        )
+        let stubbedDependencies = Dependencies(
+            carthage: nil,
+            swiftPackageManager: nil,
+            platforms: [.iOS, .macOS]
+        )
+        dependenciesModelLoader.loadDependenciesStub = { path, _ in
+            XCTAssertEqual(manifestPath, path)
+            return stubbedDependencies
+        }
+        
+        // Dependencies.swift in root
+        try fileHandler.touch(expectedFoundDependenciesLocation)
+
+        // When
+        try await subject.run(
+            path: manifestPath.pathString,
+            update: false
+        )
+    }
+    
+    func test_fetch_path_is_found_in_parent_directory_require_traversing() async throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let manifestPath = stubbedPath
+            .appending(components: ["First", "Second"])
+        let expectedFoundDependenciesLocation = stubbedPath.appending(
+            components: "First", Constants.tuistDirectoryName, Manifest.dependencies.fileName(stubbedPath)
+        )
+        let stubbedDependencies = Dependencies(
+            carthage: nil,
+            swiftPackageManager: nil,
+            platforms: [.iOS, .macOS]
+        )
+        dependenciesModelLoader.loadDependenciesStub = { path, _ in
+            XCTAssertEqual(stubbedPath
+                .appending(components: ["First"]), path)
+            return stubbedDependencies
+        }
+        
+        // Dependencies.swift in root
+        try fileHandler.touch(expectedFoundDependenciesLocation)
+
+        // When
+        try await subject.run(
+            path: manifestPath.pathString,
+            update: false
+        )
+    }
 }
