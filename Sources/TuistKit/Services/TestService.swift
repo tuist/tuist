@@ -184,7 +184,6 @@ public final class TestService { // swiftlint:disable:this type_body_length
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
-        let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
 
         let testGenerator: Generating
         if let generator {
@@ -300,6 +299,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
 
     // MARK: - Helpers
 
+    // swiftlint:disable:next function_body_length
     private func testScheme(
         scheme: Scheme,
         graphTraverser: GraphTraversing,

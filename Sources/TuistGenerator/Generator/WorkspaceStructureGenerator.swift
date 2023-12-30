@@ -246,8 +246,8 @@ extension DirectoryStructure.Node: CustomDebugStringConvertible {
             return "directory: \(path.pathString) > \(graph.nodes)"
         case let .folderReference(path):
             return "folderReference: \(path.pathString)"
-        case let .virtualGroup(name):
-            return "virtualGroup: \(name)"
+        case let .virtualGroup(name, graph):
+            return "virtualGroup: \(name) > \(graph.nodes)"
         }
     }
 }

@@ -232,7 +232,6 @@ extension TuistCore.DependenciesGraph {
         )
     }
 
-    // swiftlint:disable:next function_body_length
     public static func anotherDependency(
         spmFolder: Path,
         destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign]
