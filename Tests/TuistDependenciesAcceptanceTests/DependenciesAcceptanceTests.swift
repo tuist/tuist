@@ -5,11 +5,11 @@ import TuistSupportTesting
 import XcodeProj
 import XCTest
 
- final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
+final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test_app_spm_dependencies() async throws {
         try setUpFixture(.appWithSpmDependencies)
         try await run(FetchCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
- }
+}
