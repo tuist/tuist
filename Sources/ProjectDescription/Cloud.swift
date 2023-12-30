@@ -22,13 +22,13 @@ public struct Cloud: Codable, Equatable {
     }
 
     /// The base URL that points to the Cloud server.
-    public let url: String
+    public var url: String
 
     /// The project unique identifier.
-    public let projectId: String
+    public var projectId: String
 
     /// The configuration options.
-    public let options: [Option]
+    public var options: [Option]
 
     /// Returns a generic cloud configuration.
     /// - Parameters:

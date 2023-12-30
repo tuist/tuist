@@ -26,37 +26,37 @@ public struct TargetScript: Codable, Equatable { // swiftlint:disable:this type_
     }
 
     /// Name of the build phase when the project gets generated.
-    public let name: String
+    public var name: String
 
     /// The script that is to be executed
-    public let script: Script
+    public var script: Script
 
     /// Target script order.
-    public let order: Order
+    public var order: Order
 
     /// List of input file paths
-    public let inputPaths: [FileListGlob]
+    public var inputPaths: [FileListGlob]
 
     /// List of input filelist paths
-    public let inputFileListPaths: [Path]
+    public var inputFileListPaths: [Path]
 
     /// List of output file paths
-    public let outputPaths: [Path]
+    public var outputPaths: [Path]
 
     /// List of output filelist paths
-    public let outputFileListPaths: [Path]
+    public var outputFileListPaths: [Path]
 
     /// Whether to skip running this script in incremental builds, if nothing has changed
-    public let basedOnDependencyAnalysis: Bool?
+    public var basedOnDependencyAnalysis: Bool?
 
     /// Whether this script only runs on install builds (default is false)
-    public let runForInstallBuildsOnly: Bool
+    public var runForInstallBuildsOnly: Bool
 
     /// The path to the shell which shall execute this script.
-    public let shellPath: String
+    public var shellPath: String
 
     /// The path to the dependency file
-    public let dependencyFile: Path?
+    public var dependencyFile: Path?
 
     /// Creates the target script with its attributes.
     ///

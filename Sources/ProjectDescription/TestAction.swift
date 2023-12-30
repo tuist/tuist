@@ -6,34 +6,34 @@ import Foundation
 /// methods respectively.
 public struct TestAction: Equatable, Codable {
     /// List of test plans. The first in the list will be the default plan.
-    public let testPlans: [Path]?
+    public var testPlans: [Path]?
 
     /// A list of testable targets, that are targets which are defined in the project with testable information.
-    public let targets: [TestableTarget]
+    public var targets: [TestableTarget]
 
     /// Command line arguments passed on launch and environment variables.
-    public let arguments: Arguments?
+    public var arguments: Arguments?
 
     /// Build configuration to run the test with.
-    public let configuration: ConfigurationName
+    public var configuration: ConfigurationName
 
     /// Whether a debugger should be attached to the test process or not.
-    public let attachDebugger: Bool
+    public var attachDebugger: Bool
 
     /// A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT)
-    public let expandVariableFromTarget: TargetReference?
+    public var expandVariableFromTarget: TargetReference?
 
     /// A list of actions that are executed before starting the tests-run process.
-    public let preActions: [ExecutionAction]
+    public var preActions: [ExecutionAction]
 
     /// A list of actions that are executed after the tests-run process.
-    public let postActions: [ExecutionAction]
+    public var postActions: [ExecutionAction]
 
     /// List of options to set to the action.
-    public let options: TestActionOptions
+    public var options: TestActionOptions
 
     /// List of diagnostics options to set to the action.
-    public let diagnosticsOptions: [SchemeDiagnosticsOption]
+    public var diagnosticsOptions: [SchemeDiagnosticsOption]
 
     private init(
         testPlans: [Path]?,

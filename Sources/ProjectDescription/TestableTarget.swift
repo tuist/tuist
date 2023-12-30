@@ -1,10 +1,10 @@
 import Foundation
 
 public struct TestableTarget: Equatable, Codable, ExpressibleByStringInterpolation {
-    public let target: TargetReference
-    public let isSkipped: Bool
-    public let isParallelizable: Bool
-    public let isRandomExecutionOrdering: Bool
+    public var target: TargetReference
+    public var isSkipped: Bool
+    public var isParallelizable: Bool
+    public var isRandomExecutionOrdering: Bool
 
     public init(
         target: TargetReference,
