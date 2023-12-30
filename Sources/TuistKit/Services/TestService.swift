@@ -170,7 +170,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         validateTestTargetsParameters: Bool = true,
         generator: Generating? = nil,
-        rawXcodebuildLogs: Bool
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) async throws {
         if validateTestTargetsParameters {
             try validateParameters(
@@ -257,7 +258,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
                     testPlanConfiguration: testPlanConfiguration,
-                    rawXcodebuildLogs: rawXcodebuildLogs
+                    rawXcodebuildLogs: rawXcodebuildLogs,
+                    rawXcodebuildLogsPath: rawXcodebuildLogsPath
                 )
             }
         } else {
@@ -287,7 +289,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
                     testPlanConfiguration: testPlanConfiguration,
-                    rawXcodebuildLogs: rawXcodebuildLogs
+                    rawXcodebuildLogs: rawXcodebuildLogs,
+                    rawXcodebuildLogsPath: rawXcodebuildLogsPath
                 )
             }
         }
@@ -312,7 +315,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
         testPlanConfiguration: TestPlanConfiguration?,
-        rawXcodebuildLogs: Bool
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         if let testPlan = testPlanConfiguration?.testPlan, let testPlans = scheme.testAction?.testPlans,
@@ -370,7 +374,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
             testPlanConfiguration: testPlanConfiguration,
-            rawXcodebuildLogs: rawXcodebuildLogs
+            rawXcodebuildLogs: rawXcodebuildLogs,
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath
         )
         .printFormattedOutput()
     }

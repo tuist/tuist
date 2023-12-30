@@ -1,5 +1,79 @@
 # Changelog
 
+## 3.37.0 - 2023-12-28
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
+## 3.36.5 - 2023-12-24
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
+## 3.36.4 - 2023-12-23
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
+## 3.36.3 - 2023-12-22
+
+### Tuist
+
+#### Fixed
+
+- Fix deployment targets on tree shake [#5705](https://github.com/tuist/tuist/pull/5705) by [@alexanderwe](https://github.com/alexanderwe)
+
+### Tuist Cloud
+
+- no changes
+
+## 3.36.2 - 2023-12-21
+
+### Tuist
+
+#### Added
+
+- [Multiplatform] Enhance build phases to account for platform conditions [#5691](https://github.com/tuist/tuist/pull/5691) by [@alexanderwe](https://github.com/alexanderwe)
+
+#### Fixed
+
+- Fix a bug that causes platform from being wrongly stripped [#5704](https://github.com/tuist/tuist/pull/5704) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+- no changes
+
+## 3.36.1 - 2023-12-20
+
+### Tuist
+
+#### Added
+
+- Export the `TuistDependencies` product [#5697](https://github.com/tuist/tuist/pull/5697) by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- Include `XCTVapor` in a predefined list of testing packages [#5687](https://github.com/tuist/tuist/pull/5687) by [@danielmoro](https://github.com/danielmoro)
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.36.0 - 2023-12-15
 
 ### Tuist
