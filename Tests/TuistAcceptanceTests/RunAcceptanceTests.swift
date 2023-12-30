@@ -7,7 +7,7 @@ import XCTest
 
 final class RunAcceptanceTestCommandLineToolBasic: TuistAcceptanceTestCase {
     func test_command_line_tool_basic() async throws {
-        try setUpFixture("command_line_tool_basic")
+        try setUpFixture(.commandLineToolBasic)
         try await run(RunCommand.self, "CommandLineTool")
     }
 }

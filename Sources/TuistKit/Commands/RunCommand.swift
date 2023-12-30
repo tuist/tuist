@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TSCBasic
+import TSCUtility
 import TuistSupport
 
 public struct RunCommand: AsyncParsableCommand {
@@ -72,7 +73,18 @@ public struct RunCommand: AsyncParsableCommand {
     )
     var rawXcodebuildLogs: Bool = false
 
+    @Option(
+        name: [.customLong("raw-xcodebuild-logs-path")],
+        help: "When passed, it writes the raw xcodebuild logs to the file at the given path.",
+        completion: .file()
+    )
+    var rawXcodebuildLogsPath: String?
+
     public func run() async throws {
+        let rawXcodebuildLogsPath = rawXcodebuildLogsPath.map { try? AbsolutePath(
+            validating: $0,
+            relativeTo: FileHandler.shared.currentPath
+        ) } ?? nil
         try await RunService().run(
             path: path,
             schemeName: scheme,
@@ -83,7 +95,8 @@ public struct RunCommand: AsyncParsableCommand {
             version: os,
             rosetta: rosetta,
             arguments: arguments,
-            rawXcodebuildLogs: rawXcodebuildLogs
+            rawXcodebuildLogs: rawXcodebuildLogs,
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath
         )
     }
 }

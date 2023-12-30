@@ -204,6 +204,15 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
+    public func appExtensionDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, PlatformCondition?)] {
+        let validProducts: [Product] = [
+            .appExtension, .stickerPackExtension, .watch2Extension, .tvTopShelfExtension, .messagesExtension,
+        ]
+
+        return directLocalTargetDependenciesWithConditions(path: path, name: name)
+            .filter { validProducts.contains($0.0.target.product) }
+    }
+
     public func extensionKitExtensionDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistGraph.GraphTarget> {
         let validProducts: [Product] = [
             .extensionKitExtension,
@@ -214,9 +223,25 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
+    public func extensionKitExtensionDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(
+        GraphTarget,
+        PlatformCondition?
+    )] {
+        let validProducts: [Product] = [
+            .extensionKitExtension,
+        ]
+        return directLocalTargetDependenciesWithConditions(path: path, name: name)
+            .filter { validProducts.contains($0.0.target.product) }
+    }
+
     public func appClipDependencies(path: AbsolutePath, name: String) -> GraphTarget? {
         directLocalTargetDependencies(path: path, name: name)
             .first { $0.target.product == .appClip }
+    }
+
+    public func appClipDependenciesWithConditions(path: AbsolutePath, name: String) -> (GraphTarget, PlatformCondition?)? {
+        directLocalTargetDependenciesWithConditions(path: path, name: name)
+            .first { $0.0.target.product == .appClip }
     }
 
     public func buildsForMacCatalyst(path: AbsolutePath, name: String) -> Bool {

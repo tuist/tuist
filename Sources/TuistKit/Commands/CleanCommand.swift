@@ -32,8 +32,10 @@ enum CleanCategory: ExpressibleByArgument {
     }
 }
 
-struct CleanCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct CleanCommand: ParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "clean",
             abstract: "Clean all the artifacts stored locally"
@@ -50,7 +52,7 @@ struct CleanCommand: ParsableCommand {
     )
     var path: String?
 
-    func run() throws {
+    public func run() throws {
         try CleanService().run(
             categories: cleanCategories,
             path: path

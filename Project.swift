@@ -451,10 +451,12 @@ func targets() -> [Target] {
             product: .staticFramework,
             dependencies: [
                 .target(name: "TuistKit"),
+                .target(name: "TuistSupport"),
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistCore"),
                 .external(name: "SwiftToolsSupport"),
                 .external(name: "SystemPackage"),
+                .external(name: "XcodeProj"),
                 .sdk(name: "XCTest", type: .framework, status: .optional),
             ]
         ),

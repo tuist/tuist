@@ -57,14 +57,14 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await super.tearDown()
     }
 
-    public func setUpFixture(_ fixture: String) throws {
+    public func setUpFixture(_ fixture: TuistAcceptanceFixtures) throws {
         let fixturesPath = sourceRootPath
             .appending(component: "fixtures")
 
-        fixturePath = fixtureTemporaryDirectory.path.appending(component: fixture)
+        fixturePath = fixtureTemporaryDirectory.path.appending(component: fixture.path)
 
         try FileHandler.shared.copy(
-            from: fixturesPath.appending(component: fixture),
+            from: fixturesPath.appending(component: fixture.path),
             to: fixturePath
         )
     }

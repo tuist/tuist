@@ -67,6 +67,67 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         )
     }
 
+    func test_map_when_external_with_platform_filter() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone, .appleWatch, .appleTv, .mac])
+        let externalPackage = Target.test(
+            name: "Package",
+            destinations: [.iPhone, .iPad, .appleWatch],
+            product: .framework,
+            deploymentTargets: .init(iOS: "16.0", macOS: nil, watchOS: "9.0", tvOS: nil, visionOS: nil)
+        )
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let externalProject = Project.test(path: packagesDirectory, targets: [externalPackage], isExternal: true)
+
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
+
+        // Only use the external target on iOS
+        let dependencyCondition = try XCTUnwrap(PlatformCondition.when([.ios]))
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            targets: [
+                project.path: [
+                    appTarget.name: appTarget,
+                ],
+                externalProject.path: [
+                    externalPackage.name: externalPackage,
+                ],
+            ],
+            dependencies: [
+                appTargetDependency: Set([externalPackageDependency]),
+            ],
+            dependencyConditions: [
+                GraphEdge(from: appTargetDependency, to: externalPackageDependency): dependencyCondition,
+            ]
+        )
+
+        // When
+        let (mappedGraph, _) = try await subject.map(graph: graph)
+
+        // Then
+        XCTAssertEqual(
+            try XCTUnwrap(mappedGraph.targets[project.path]?[appTarget.name]?.supportedPlatforms),
+            Set([.iOS, .macOS, .tvOS, .watchOS])
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(mappedGraph.targets[externalProject.path]![externalPackage.name]?.supportedPlatforms),
+            Set([.iOS])
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(mappedGraph.targets[externalProject.path]![externalPackage.name]?.deploymentTargets),
+            .iOS("16.0")
+        )
+    }
+
     func test_map_when_external_transitive_dependency_without_platform_filter() async throws {
         // Given
         let directory = try temporaryPath()
