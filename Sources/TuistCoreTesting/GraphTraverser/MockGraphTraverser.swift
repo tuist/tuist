@@ -261,6 +261,7 @@ final class MockGraphTraverser: GraphTraversing {
         path: AbsolutePath,
         name: String
     )?
+    // swiftlint:disable:next identifier_name
     var invokedDirectLocalTargetDependenciesWithConditionsParametersList =
         [(path: AbsolutePath, name: String)]()
     var stubbedDirectLocalTargetDependenciesWithConditionsResult: [(GraphTarget, PlatformCondition?)]! = []
@@ -598,7 +599,9 @@ final class MockGraphTraverser: GraphTraversing {
 
     var invokedExtensionKitExtensionDependenciesWithConditions = false
     var invokedExtensionKitExtensionDependenciesWithConditionsCount = 0
+    // swiftlint:disable:next identifier_name
     var invokedExtensionKitExtensionDependenciesWithConditionsParameters: (path: AbsolutePath, name: String)?
+    // swiftlint:disable:next identifier_name
     var invokedExtensionKitExtensionDependenciesWithConditionsParametersList =
         [(path: AbsolutePath, name: String)]()
     var stubbedExtensionKitExtensionDependenciesWithConditionsResult: [(GraphTarget, PlatformCondition?)]! = []

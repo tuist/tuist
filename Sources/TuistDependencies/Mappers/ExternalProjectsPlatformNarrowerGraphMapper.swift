@@ -9,7 +9,7 @@ import TuistGraph
  down from nodes in the graph that are closer to the root. This is a behaviour that we need to copy over to Tuist. In our case
  the logic is executed at generation time.
  */
-public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping {
+public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swiftlint:disable:this type_name
     public init() {}
 
     public func map(graph: Graph) async throws -> (Graph, [TuistCore.SideEffectDescriptor]) {

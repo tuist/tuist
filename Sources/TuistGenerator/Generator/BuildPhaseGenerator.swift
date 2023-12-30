@@ -215,6 +215,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     func generateSourcesBuildPhase(
         files: [SourceFile],
         coreDataModels: [CoreDataModel],
