@@ -1,11 +1,8 @@
-# Build and deploy DocC to GitHub pages. Based off of Pointfree's work here:
+# Build and deploy DocC to GitHub pages. Based off of PointFree's work here:
 # https://github.com/pointfreeco/swift-parsing/blob/main/.github/workflows/documentation.yml
-name: Deploy Tuist Docc
+name: Deploy Tuist DocC
 
 on:
-#   release:
-#     types:
-#       - published
   push:
     branches:
       - main
