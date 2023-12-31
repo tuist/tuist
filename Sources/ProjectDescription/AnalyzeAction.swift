@@ -5,7 +5,7 @@ import Foundation
 /// It's initialized with the `.analyzeAction` static method
 public struct AnalyzeAction: Equatable, Codable {
     /// Indicates the build configuration the product should be analyzed with.
-    public let configuration: ConfigurationName
+    public var configuration: ConfigurationName
 
     /// Returns an analyze action.
     /// - Parameter configuration: Indicates the build configuration the product should be analyzed with.

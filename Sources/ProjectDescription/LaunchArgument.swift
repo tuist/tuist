@@ -5,9 +5,9 @@ public struct LaunchArgument: Equatable, Codable {
     // MARK: - Attributes
 
     /// Name of argument
-    public let name: String
+    public var name: String
     /// If enabled then argument is marked as active
-    public let isEnabled: Bool
+    public var isEnabled: Bool
 
     // MARK: - Init
 
