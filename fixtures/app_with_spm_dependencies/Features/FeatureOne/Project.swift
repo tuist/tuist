@@ -21,7 +21,6 @@ let project = Project(
             sources: ["Sources/**"],
             dependencies: [
                 .external(name: "Alamofire"),
-                .external(name: "Styles"),
             ],
             settings: .targetSettings
         ),
