@@ -14,12 +14,6 @@ extension TuistGraph.Dependencies {
         manifest: ProjectDescription.Dependencies,
         generatorPaths: GeneratorPaths
     ) throws -> Self {
-        let carthage: TuistGraph.CarthageDependencies? = try {
-            guard let carthage = manifest.carthage else {
-                return nil
-            }
-            return try TuistGraph.CarthageDependencies.from(manifest: carthage)
-        }()
         let swiftPackageManager: TuistGraph.SwiftPackageManagerDependencies? = try {
             guard let swiftPackageManager = manifest.swiftPackageManager else {
                 return nil
@@ -32,7 +26,6 @@ extension TuistGraph.Dependencies {
         let platforms = try manifest.platforms.map { try TuistGraph.PackagePlatform.from(manifest: $0) }
 
         return Self(
-            carthage: carthage,
             swiftPackageManager: swiftPackageManager,
             platforms: Set(platforms)
         )

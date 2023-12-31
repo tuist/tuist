@@ -15,7 +15,7 @@ extension TuistCore.DependenciesGraph {
             "RxSwift" : [
               {
                 "kind" : "xcframework",
-                "path" : "/Tuist/Dependencies/Carthage/RxSwift.xcframework"
+                "path" : "/Tuist/Dependencies/SwiftPackageManager/RxSwift.xcframework"
               }
             ]
           },

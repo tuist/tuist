@@ -58,11 +58,6 @@ final class FetchServiceTests: TuistUnitTestCase {
         // Given
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
-            carthage: .init(
-                [
-                    .git(path: "Dependency1", requirement: .exact("1.1.1")),
-                ]
-            ),
             swiftPackageManager: .init(
                 .packages([
                     .remote(url: "Dependency1/Dependency1", requirement: .upToNextMajor("1.2.3")),
@@ -141,11 +136,6 @@ final class FetchServiceTests: TuistUnitTestCase {
         // Given
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
-            carthage: .init(
-                [
-                    .github(path: "Dependency1", requirement: .exact("1.1.1")),
-                ]
-            ),
             swiftPackageManager: .init(
                 .packages([
                     .remote(url: "Dependency1/Dependency1", requirement: .upToNextMajor("1.2.3")),

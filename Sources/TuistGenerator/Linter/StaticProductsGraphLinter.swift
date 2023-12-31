@@ -160,7 +160,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         switch dependency {
         case let .xcframework(_, _, _, linking, _, _):
             return linking == .static
-        case let .framework(_, _, _, _, linking, _, _, _):
+        case let .framework(_, _, _, _, linking, _, _):
             return linking == .static
         case let .library(_, _, linking, _, _):
             return linking == .static

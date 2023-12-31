@@ -71,19 +71,13 @@ final class CleanServiceTests: TuistUnitTestCase {
             Constants.tuistDirectoryName,
             Constants.DependenciesDirectory.lockfilesDirectoryName
         )
-        let carthageDependenciesPath = projectPath.appending(
-            components: Constants.tuistDirectoryName,
-            Constants.DependenciesDirectory.name,
-            Constants.DependenciesDirectory.carthageDirectoryName
-        )
         let spmDependenciesPath = projectPath.appending(
             components: Constants.tuistDirectoryName,
             Constants.DependenciesDirectory.name,
-            Constants.DependenciesDirectory.carthageDirectoryName
+            Constants.DependenciesDirectory.swiftPackageManagerDirectoryName
         )
         try fileHandler.createFolder(dependenciesPath)
         try fileHandler.createFolder(lockfilesPath)
-        try fileHandler.createFolder(carthageDependenciesPath)
         try fileHandler.createFolder(spmDependenciesPath)
 
         // When
@@ -99,10 +93,6 @@ final class CleanServiceTests: TuistUnitTestCase {
         XCTAssertTrue(
             FileManager.default.fileExists(atPath: lockfilesPath.pathString),
             "Cache folder at path \(lockfilesPath) should not have been deleted by the test."
-        )
-        XCTAssertFalse(
-            FileManager.default.fileExists(atPath: carthageDependenciesPath.pathString),
-            "Cache folder at path \(carthageDependenciesPath) should have been deleted by the test."
         )
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: spmDependenciesPath.pathString),

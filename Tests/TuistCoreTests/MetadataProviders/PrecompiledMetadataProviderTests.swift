@@ -35,29 +35,6 @@ final class PrecompiledMetadataProviderTests: TuistUnitTestCase {
         XCTAssertEqual(uuids, Set())
     }
 
-    func test_metadata_carthage() throws {
-        // Given
-        let binaryPath = fixturePath(path: try RelativePath(validating: "Carthage/RxBlocking.framework/RxBlocking"))
-
-        // When
-        let architectures = try subject.architectures(binaryPath: binaryPath)
-        let linking = try subject.linking(binaryPath: binaryPath)
-        let uuids = try subject.uuids(binaryPath: binaryPath)
-
-        // Then
-        XCTAssertEqual(architectures, [.i386, .x8664, .armv7, .arm64])
-        XCTAssertEqual(linking, BinaryLinking.dynamic)
-        XCTAssertEqual(
-            uuids,
-            Set([
-                UUID(uuidString: "2510FE01-4D40-3956-BB71-857D3B2D9E73"),
-                UUID(uuidString: "1C061BD7-371A-3039-8510-15CDF61531F6"),
-                UUID(uuidString: "1208EC2E-0B7C-3B13-B5E1-6341E6AE6859"),
-                UUID(uuidString: "773847A9-0D05-35AF-9865-94A9A670080B"),
-            ])
-        )
-    }
-
     func test_metadata_framework() throws {
         // Given
         let binaryPath = fixturePath(path: try RelativePath(validating: "xpm.framework/xpm"))

@@ -64,7 +64,6 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
         let bcsymbolmapPaths = try bcsymbolmapPaths(frameworkPath: path)
         let linking = try linking(binaryPath: binaryPath)
         let architectures = try architectures(binaryPath: binaryPath)
-        let isCarthage = path.pathString.contains("Carthage/Build")
         return FrameworkMetadata(
             path: path,
             binaryPath: binaryPath,
@@ -72,7 +71,6 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
             bcsymbolmapPaths: bcsymbolmapPaths,
             linking: linking,
             architectures: architectures,
-            isCarthage: isCarthage,
             status: status
         )
     }

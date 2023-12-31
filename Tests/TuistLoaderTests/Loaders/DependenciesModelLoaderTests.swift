@@ -37,10 +37,6 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
 
         manifestLoader.loadDependenciesStub = { _ in
             Dependencies(
-                carthage: [
-                    .github(path: "Dependency1", requirement: .exact("1.1.1")),
-                    .git(path: "Dependency1", requirement: .exact("2.3.4")),
-                ],
                 swiftPackageManager: .init(),
                 platforms: [.iOS, .macOS]
             )
@@ -51,12 +47,6 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
 
         // Then
         let expected: TuistGraph.Dependencies = .init(
-            carthage: .init(
-                [
-                    .github(path: "Dependency1", requirement: .exact("1.1.1")),
-                    .git(path: "Dependency1", requirement: .exact("2.3.4")),
-                ]
-            ),
             swiftPackageManager: .init(
                 .manifest,
                 productTypes: [:],

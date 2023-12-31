@@ -49,8 +49,7 @@ enum DependenciesControllerError: FatalError, Equatable {
 // MARK: - Dependencies Controlling
 
 /// `DependenciesControlling` controls:
-///     1. Fetching/updating dependencies defined in `./Tuist/Dependencies.swift` by running appropriate dependencies managers
-/// (for example, `Carthage` or `SPM`).
+///     1. Fetching/updating dependencies defined in `./Tuist/Dependencies.swift` by running `SPM`.
 ///     2. Compiling fetched/updated dependencies into `.framework.`/`.xcframework.`.
 ///     3. Saving compiled frameworks under `./Tuist/Dependencies/*`.
 ///     4. Generating dependencies graph under `./Tuist/Dependencies/graph.json`.
@@ -89,16 +88,13 @@ public protocol DependenciesControlling {
 // MARK: - Dependencies Controller
 
 public final class DependenciesController: DependenciesControlling {
-    private let carthageInteractor: CarthageInteracting
     private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting
     private let dependenciesGraphController: DependenciesGraphControlling
 
     public init(
-        carthageInteractor: CarthageInteracting = CarthageInteractor(),
         swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor(),
         dependenciesGraphController: DependenciesGraphControlling = DependenciesGraphController()
     ) {
-        self.carthageInteractor = carthageInteractor
         self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
         self.dependenciesGraphController = dependenciesGraphController
     }
@@ -154,18 +150,6 @@ public final class DependenciesController: DependenciesControlling {
         }
 
         var dependenciesGraph = TuistCore.DependenciesGraph.none
-
-        if let carthageDependencies = dependencies.carthage, !carthageDependencies.dependencies.isEmpty {
-            let carthageDependenciesGraph = try carthageInteractor.install(
-                dependenciesDirectory: dependenciesDirectory,
-                dependencies: carthageDependencies,
-                platforms: platforms,
-                shouldUpdate: shouldUpdate
-            )
-            dependenciesGraph = try dependenciesGraph.merging(with: carthageDependenciesGraph)
-        } else {
-            try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
-        }
 
         if let swiftPackageManagerDependencies = dependencies.swiftPackageManager {
             let swiftPackageManagerDependenciesGraph = try swiftPackageManagerInteractor.install(
