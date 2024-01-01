@@ -728,61 +728,64 @@ public class GraphTraverser: GraphTraversing {
         return references
     }
 
+    @Atomic var conditionCache = [GraphEdge: PlatformCondition.CombinationResult]()
+    
     /// Recursively find platform filters within transitive dependencies
     /// - Parameters:
     ///   - rootDependency: dependency whose platform filters we need when depending on `transitiveDependency`
     ///   - transitiveDependency: target dependency
-    /// - Returns: CombinationResult which represents a resolved condition or `.invalid` based on traversing
+    /// - Returns: CombinationResult which represents a resolved condition or `.incompatible` based on traversing
     public func combinedCondition(
         to transitiveDependency: GraphDependency,
         from rootDependency: GraphDependency
     ) -> PlatformCondition
         .CombinationResult
     {
-        var visited: Set<GraphDependency> = []
 
-        func find(from root: GraphDependency, to other: GraphDependency) -> PlatformCondition.CombinationResult {
-            // Skip already visited nodes
-            guard !visited.contains(root) else { return .incompatible }
-            visited.insert(root)
-
-            // if we're at a leaf dependency, there is nothing else to traverse.
-            guard let dependencies = graph.dependencies[root] else { return .incompatible }
-
-            // We've reached our destination, return the filters or `.all` if none are set
-            if dependencies.contains(other) {
-                return .condition(graph.dependencyConditions[(root, other)])
-            } else {
-                // Capture the filters that could be applied to intermediate dependencies
-                // A --> (.ios) B --> C : C should have the .ios filter applied due to B
-                let filters = dependencies.map { node -> PlatformCondition.CombinationResult in
-                    let transitive = find(from: node, to: other)
-                    let currentCondition = graph.dependencyConditions[(root, node)]
-                    switch transitive {
-                    case .incompatible:
-                        return .incompatible
-                    case let .condition(.some(condition)):
-                        return condition.intersection(currentCondition)
-                    case .condition:
-                        return .condition(currentCondition)
-                    }
-                }
-
-                // Union our filters because multiple paths could lead to the same dependency (e.g. AVFoundation)
-                //  A --> (.ios) B --> C
-                //  A --> (.macos) D --> C
-                // C should have `[.ios, .macos]` set for filters to satisfy both paths
-                let transitiveFilters = filters.compactMap { $0 }
-                    .reduce(PlatformCondition.CombinationResult.incompatible) { result, condition in
-                        result.combineWith(condition)
-                    }
-
-                return transitiveFilters
-            }
+        if let cached = conditionCache[GraphEdge(from: rootDependency, to: transitiveDependency)] {
+            return cached
         }
-
-        return find(from: rootDependency, to: transitiveDependency)
+        
+        // if we're at a leaf dependency, there is nothing else to traverse.
+        guard let dependencies = graph.dependencies[rootDependency] else { return .incompatible }
+        
+        let result: PlatformCondition.CombinationResult
+        
+        // We've reached our destination, return the filters or `.all` if none are set
+        if dependencies.contains(transitiveDependency) {
+            result = .condition(graph.dependencyConditions[(rootDependency, transitiveDependency)])
+        } else {
+            // Capture the filters that could be applied to intermediate dependencies
+            // A --> (.ios) B --> C : C should have the .ios filter applied due to B
+            let filters = dependencies.map { node -> PlatformCondition.CombinationResult in
+                let transitive = combinedCondition(to: transitiveDependency, from: node)
+                let currentCondition = graph.dependencyConditions[(rootDependency, node)]
+                switch transitive {
+                case .incompatible:
+                    return .incompatible
+                case let .condition(.some(condition)):
+                    return condition.intersection(currentCondition)
+                case .condition:
+                    return .condition(currentCondition)
+                }
+            }
+            
+            // Union our filters because multiple paths could lead to the same dependency (e.g. AVFoundation)
+            //  A --> (.ios) B --> C
+            //  A --> (.macos) D --> C
+            // C should have `[.ios, .macos]` set for filters to satisfy both paths
+            let transitiveFilters = filters.compactMap { $0 }
+                .reduce(PlatformCondition.CombinationResult.incompatible) { result, condition in
+                    result.combineWith(condition)
+                }
+            
+            result = transitiveFilters
+        }
+        
+        conditionCache[GraphEdge(from: rootDependency, to: transitiveDependency)] = result
+        return result
     }
+
 
     public func externalTargetSupportedPlatforms() -> [GraphTarget: Set<Platform>] {
         let targetsWithExternalDependencies = targetsWithExternalDependencies()
