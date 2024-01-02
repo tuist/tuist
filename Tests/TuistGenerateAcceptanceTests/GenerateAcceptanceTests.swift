@@ -732,7 +732,7 @@ final class GenerateAcceptanceTestmacOSAppWithExtensions: TuistAcceptanceTestCas
 
 final class GenerateAcceptanceTestiOSAppWithImplicitDependencies: TuistAcceptanceTestCase {
     func test_ios_app_with_implicit_dependencies() async throws {
-        try setUpFixture("ios_app_with_implicit_dependencies")
+        try setUpFixture(.iosAppWithImplicitDependencies)
         try await run(BuildCommand.self, "FrameworkC")
         do {
             try await run(BuildCommand.self, "App")
