@@ -18,19 +18,19 @@ public enum PackagesOrManifest: Codable, Equatable {
 public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// The path to the `Package.swift` manifest defining the dependencies, or the list of packages that will be installed using
     /// Swift Package Manager.
-    public let packagesOrManifest: PackagesOrManifest
+    public var packagesOrManifest: PackagesOrManifest
 
     /// The custom `Product` type to be used for SPM targets.
-    public let productTypes: [String: Product]
+    public var productTypes: [String: Product]
 
     // The base settings to be used for targets generated from SwiftPackageManager
-    public let baseSettings: Settings
+    public var baseSettings: Settings
 
     // Additional settings to be added to targets generated from SwiftPackageManager.
-    public let targetSettings: [String: SettingsDictionary]
+    public var targetSettings: [String: SettingsDictionary]
 
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
-    public let projectOptions: [String: ProjectDescription.Project.Options]
+    public var projectOptions: [String: ProjectDescription.Project.Options]
 
     /// Creates `SwiftPackageManagerDependencies` instance.
     /// - Parameter packages: List of packages that will be installed using Swift Package Manager.

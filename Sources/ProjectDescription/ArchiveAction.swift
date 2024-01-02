@@ -5,15 +5,15 @@ import Foundation
 /// It's initialized with the `.archiveAction` static method.
 public struct ArchiveAction: Equatable, Codable {
     /// Indicates the build configuration to run the archive with.
-    public let configuration: ConfigurationName
+    public var configuration: ConfigurationName
     /// If set to true, Xcode will reveal the Organizer on completion.
-    public let revealArchiveInOrganizer: Bool
+    public var revealArchiveInOrganizer: Bool
     /// Set if you want to override Xcode's default archive name.
-    public let customArchiveName: String?
+    public var customArchiveName: String?
     /// A list of actions that are executed before starting the archive process.
-    public let preActions: [ExecutionAction]
+    public var preActions: [ExecutionAction]
     /// A list of actions that are executed after the archive process.
-    public let postActions: [ExecutionAction]
+    public var postActions: [ExecutionAction]
 
     init(
         configuration: ConfigurationName,

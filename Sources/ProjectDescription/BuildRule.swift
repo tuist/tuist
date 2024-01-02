@@ -3,31 +3,31 @@ import Foundation
 /// A BuildRule is used to specify a method for transforming an input file in to an output file(s).
 public struct BuildRule: Codable, Equatable {
     /// Compiler specification for element transformation.
-    public let compilerSpec: CompilerSpec
+    public var compilerSpec: CompilerSpec
 
     /// Regex pattern when `sourceFilesWithNamesMatching` is used.
-    public let filePatterns: String?
+    public var filePatterns: String?
 
     /// File types which are processed by build rule.
-    public let fileType: FileType
+    public var fileType: FileType
 
     /// Build rule name.
-    public let name: String?
+    public var name: String?
 
     /// Build rule output files.
-    public let outputFiles: [String]
+    public var outputFiles: [String]
 
     /// Build rule input files.
-    public let inputFiles: [String]
+    public var inputFiles: [String]
 
     /// Build rule output files compiler flags.
-    public let outputFilesCompilerFlags: [String]
+    public var outputFilesCompilerFlags: [String]
 
     /// Build rule custom script when `customScript` is used.
-    public let script: String?
+    public var script: String?
 
     /// Build rule run once per architecture.
-    public let runOncePerArchitecture: Bool?
+    public var runOncePerArchitecture: Bool?
 
     public init(
         name: String? = nil,

@@ -3,19 +3,19 @@ import Foundation
 /// A glob pattern configuration representing source files and its compiler flags, if any.
 public struct SourceFileGlob: Codable, Equatable {
     /// Glob pattern to the source files.
-    public let glob: Path
+    public var glob: Path
 
     /// Glob patterns for source files that will be excluded.
-    public let excluding: [Path]
+    public var excluding: [Path]
 
     /// The compiler flags to be set to the source files in the sources build phase.
-    public let compilerFlags: String?
+    public var compilerFlags: String?
 
     /// The source file attribute to be set in the build phase.
-    public let codeGen: FileCodeGen?
+    public var codeGen: FileCodeGen?
 
     /// Source file condition for compilation
-    public let compilationCondition: PlatformCondition?
+    public var compilationCondition: PlatformCondition?
 
     /// Returns a source glob pattern configuration.
     ///
@@ -68,7 +68,7 @@ extension SourceFileGlob: ExpressibleByStringInterpolation {
 /// A collection of source file globs.
 public struct SourceFilesList: Codable, Equatable {
     /// List glob patterns.
-    public let globs: [SourceFileGlob]
+    public var globs: [SourceFileGlob]
 
     /// Creates the source files list with the glob patterns.
     ///
