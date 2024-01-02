@@ -137,6 +137,12 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     )
     var rawXcodebuildLogsPath: String?
 
+    @Flag(
+        name: .long,
+        help: "When passed, it generates the project and skips testing. This is useful for debugging purposes."
+    )
+    var generateOnly: Bool = false
+
     public func validate() throws {
         try TestService().validateParameters(
             testTargets: testTargets,
@@ -186,7 +192,8 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
             },
             validateTestTargetsParameters: false,
             rawXcodebuildLogs: rawXcodebuildLogs,
-            rawXcodebuildLogsPath: rawXcodebuildLogsPath
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath,
+            generateOnly: generateOnly
         )
     }
 }
