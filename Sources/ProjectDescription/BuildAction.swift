@@ -5,13 +5,13 @@ import Foundation
 /// It's initialized with the `.buildAction` static method.
 public struct BuildAction: Equatable, Codable {
     /// A list of targets to build, which are defined in the project.
-    public let targets: [TargetReference]
+    public var targets: [TargetReference]
     /// A list of actions that are executed before starting the build process.
-    public let preActions: [ExecutionAction]
+    public var preActions: [ExecutionAction]
     /// A list of actions that are executed after the build process.
-    public let postActions: [ExecutionAction]
+    public var postActions: [ExecutionAction]
     /// Whether the post actions should be run in the case of a failure
-    public let runPostActionsOnFailure: Bool
+    public var runPostActionsOnFailure: Bool
 
     public init(
         targets: [TargetReference],

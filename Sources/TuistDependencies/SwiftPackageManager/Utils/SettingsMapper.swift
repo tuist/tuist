@@ -32,6 +32,7 @@ struct SettingsMapper {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     func settingsDictionaryForPlatform(_ platform: PackageInfo.Platform?) throws -> TuistGraph.SettingsDictionary {
         var headerSearchPaths = headerSearchPaths
         var defines = ["SWIFT_PACKAGE": "1"]

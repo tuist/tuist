@@ -3,7 +3,7 @@ import Foundation
 /// A collection of Carthage dependencies.
 public struct CarthageDependencies: Codable, Equatable {
     /// List of dependencies that will be installed using Carthage.
-    public let dependencies: [Dependency]
+    public var dependencies: [Dependency]
 
     /// Creates `CarthageDependencies` instance.
     /// - Parameter dependencies: List of dependencies that can be installed using Carthage.

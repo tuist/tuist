@@ -661,7 +661,10 @@ extension TestService {
         retryCount: Int = 0,
         testTargets: [TestIdentifier] = [],
         skipTestTargets: [TestIdentifier] = [],
-        testPlanConfiguration: TestPlanConfiguration? = nil
+        testPlanConfiguration: TestPlanConfiguration? = nil,
+        rawXcodebuildLogs: Bool = false,
+        rawXcodebuildLogsPath: AbsolutePath? = nil,
+        generateOnly: Bool = false
     ) async throws {
         try await run(
             schemeName: schemeName,
@@ -679,8 +682,9 @@ extension TestService {
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
             testPlanConfiguration: testPlanConfiguration,
-            rawXcodebuildLogs: false,
-            rawXcodebuildLogsPath: nil
+            rawXcodebuildLogs: rawXcodebuildLogs,
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath,
+            generateOnly: generateOnly
         )
     }
 }

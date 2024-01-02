@@ -26,7 +26,7 @@ extension TuistGraph.TargetDependency {
     ///   - manifest: Manifest representation of the target dependency model.
     ///   - generatorPaths: Generator paths.
     ///   - externalDependencies: External dependencies graph.
-    static func from(
+    static func from( // swiftlint:disable:this function_body_length
         manifest: ProjectDescription.TargetDependency,
         generatorPaths: GeneratorPaths,
         externalDependencies: [String: [TuistGraph.TargetDependency]]

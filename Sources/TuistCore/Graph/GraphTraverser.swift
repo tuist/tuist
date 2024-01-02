@@ -978,6 +978,7 @@ public class GraphTraverser: GraphTraversing {
         return validProducts.contains(target.product)
     }
 
+    // swiftlint:disable:next function_body_length
     func dependencyReference(
         to toDependency: GraphDependency,
         from fromDependency: GraphDependency
