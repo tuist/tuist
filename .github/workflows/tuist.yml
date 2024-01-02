@@ -72,7 +72,7 @@ jobs:
       - name: Print hashes
         run: tuist cache print-hashes
       - name: Cache warm
-        run: tuist cache warm
+        run: tuist cache warm --xcframeworks
 
   cache-warm-silicon:
     name: Cache warm with latest Tuist on Silicon
@@ -95,7 +95,7 @@ jobs:
       - name: Print hashes
         run: tuist cache print-hashes
       - name: Cache warm
-        run: tuist cache warm
+        run: tuist cache warm --xcframeworks
 
   acceptance_tests:
     name: Run ${{ matrix.feature }}
