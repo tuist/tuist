@@ -94,7 +94,7 @@ public struct BuildCommand: AsyncParsableCommand {
         name: .long,
         help: "When passed, it generates the project and skips building. This is useful for debugging purposes."
     )
-    var onlyGenerate: Bool = false
+    var generateOnly: Bool = false
 
     public func run() async throws {
         let absolutePath: AbsolutePath
@@ -122,7 +122,7 @@ public struct BuildCommand: AsyncParsableCommand {
             rosetta: rosetta,
             rawXcodebuildLogs: rawXcodebuildLogs,
             rawXcodebuildLogsPath: rawXcodebuildLogsPath,
-            onlyGenerate: onlyGenerate
+            generateOnly: generateOnly
         )
     }
 }

@@ -63,7 +63,7 @@ final class BuildService {
         rosetta: Bool,
         rawXcodebuildLogs: Bool,
         rawXcodebuildLogsPath: AbsolutePath?,
-        onlyGenerate: Bool
+        generateOnly: Bool
     ) async throws {
         let graph: Graph
         let generator = generatorFactory.default()
@@ -73,7 +73,7 @@ final class BuildService {
             graph = try await generator.load(path: path)
         }
 
-        if onlyGenerate {
+        if generateOnly {
             return
         }
 
