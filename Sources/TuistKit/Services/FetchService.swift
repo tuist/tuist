@@ -60,15 +60,6 @@ final class FetchService {
             }
         }
 
-        // Else, we try to traverse up the directories to find it
-        if let traversedPath = fileHandler.locateDirectoryTraversingParents(from: path, path: Constants.tuistDirectoryName) {
-            if fileHandler.exists(
-                traversedPath.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
-            ) {
-                return traversedPath
-            }
-        }
-
         // Otherwise return the original path
         return path
     }
