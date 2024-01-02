@@ -37,6 +37,12 @@ public protocol ManifestFilesLocating: AnyObject {
     /// It traverses up the directory hierarchy until it finds a `Dependencies.swift` file.
     /// - Parameter locatingPath: Path from where to do the lookup.
     func locateDependencies(at locatingPath: AbsolutePath) -> AbsolutePath?
+
+    /// It traverses up the directory hierarchy until it finds a `Package.swift` file
+    /// - Parameter locatingPath: Path from where to do the lookup
+    func locatePackageManifest(
+        at locatingPath: AbsolutePath
+    ) -> AbsolutePath?
 }
 
 public final class ManifestFilesLocator: ManifestFilesLocating {
@@ -182,6 +188,13 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
         let subPath =
             // swiftlint:disable:next force_try
             try! RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Manifest.dependencies.fileName(locatingPath))")
+        return traverseAndLocate(at: locatingPath, appending: subPath)
+    }
+
+    public func locatePackageManifest(at locatingPath: AbsolutePath) -> AbsolutePath? {
+        let subPath =
+            // swiftlint:disable:next force_try
+            try! RelativePath(validating: "\(Constants.tuistDirectoryName)/Package.swift")
         return traverseAndLocate(at: locatingPath, appending: subPath)
     }
 
