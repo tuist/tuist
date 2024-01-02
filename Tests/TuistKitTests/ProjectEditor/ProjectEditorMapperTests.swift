@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistGraphTesting
@@ -11,16 +12,21 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class ProjectEditorMapperTests: TuistUnitTestCase {
-    var subject: ProjectEditorMapper!
+    private var subject: ProjectEditorMapper!
+    private var swiftPackageManagerController: MockSwiftPackageManagerController!
 
     override func setUp() {
         super.setUp()
         system.swiftVersionStub = { "5.2" }
         developerEnvironment.stubbedArchitecture = .arm64
-        subject = ProjectEditorMapper()
+        swiftPackageManagerController = MockSwiftPackageManagerController()
+        subject = ProjectEditorMapper(
+            swiftPackageManagerController: swiftPackageManagerController
+        )
     }
 
     override func tearDown() {
+        swiftPackageManagerController = nil
         subject = nil
         super.tearDown()
     }
@@ -31,6 +37,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let configPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Config.swift")
         let dependenciesPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Dependencies.swift")
+        let packageManifestPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Package.swift")
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
         let templates = [sourceRootPath].map { $0.appending(component: "template") }
         let templateResource = [sourceRootPath].map { $0.appending(component: "template.stencil") }
@@ -44,6 +51,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             sourceRootPath.appending(component: "PluginTwo"),
             sourceRootPath.appending(component: "PluginThree"),
         ].map { EditablePluginManifest(name: $0.basename, path: $0) }
+        swiftPackageManagerController.getToolsVersionStub = { _ in
+            Version("5.5.0")
+        }
+        xcodeController.selectedVersionStub = .success(Version("11.3.0"))
 
         // When
         let graph = try subject.map(
@@ -53,6 +64,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             destinationDirectory: sourceRootPath,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
+            packageManifestPath: packageManifestPath,
             projectManifests: projectManifestPaths,
             editablePluginManifests: pluginPaths,
             pluginProjectDescriptionHelpersModule: [],
@@ -73,7 +85,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(graph.name, "TestManifests")
 
-        XCTAssertEqual(targets.count, 9)
+        XCTAssertEqual(targets.count, 10)
 
         // Generated Manifests target
         let manifestsTarget = try XCTUnwrap(project.targets.first(where: { $0.name == sourceRootPath.basename + projectName }))
@@ -198,6 +210,32 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             .target(name: "PluginThree"),
         ]))
 
+        // Generated Packages target
+        let packagesTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Packages" }))
+        XCTAssertTrue(targets.contains(packagesTarget))
+
+        XCTAssertEqual(packagesTarget.name, "Packages")
+        XCTAssertEqual(packagesTarget.destinations, .macOS)
+        XCTAssertEqual(packagesTarget.product, .staticFramework)
+        XCTAssertEqual(
+            packagesTarget.settings,
+            Settings(
+                base: [
+                    "OTHER_SWIFT_FLAGS": .array([
+                        "-package-description-version",
+                        "5.5.0",
+                    ]),
+                    "SWIFT_INCLUDE_PATHS": .array([
+                        "/Applications/Xcode-11.3.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
+                    ]),
+                ],
+                configurations: Settings.default.configurations,
+                defaultSettings: .recommended
+            )
+        )
+        XCTAssertEqual(packagesTarget.sources.map(\.path), [packageManifestPath])
+        XCTAssertEqual(packagesTarget.filesGroup, projectsGroup)
+
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
@@ -243,6 +281,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             destinationDirectory: sourceRootPath,
             configPath: nil,
             dependenciesPath: nil,
+            packageManifestPath: nil,
             projectManifests: projectManifestPaths,
             editablePluginManifests: [],
             pluginProjectDescriptionHelpersModule: [],
@@ -327,6 +366,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             destinationDirectory: sourceRootPath,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
+            packageManifestPath: nil,
             projectManifests: projectManifestPaths,
             editablePluginManifests: [],
             pluginProjectDescriptionHelpersModule: [],
@@ -437,6 +477,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             destinationDirectory: sourceRootPath,
             configPath: nil,
             dependenciesPath: nil,
+            packageManifestPath: nil,
             projectManifests: [],
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: [],
@@ -519,6 +560,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             destinationDirectory: sourceRootPath,
             configPath: nil,
             dependenciesPath: nil,
+            packageManifestPath: nil,
             projectManifests: [],
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: [],
@@ -635,6 +677,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             destinationDirectory: sourceRootPath,
             configPath: nil,
             dependenciesPath: nil,
+            packageManifestPath: nil,
             projectManifests: [],
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: [],
@@ -681,6 +724,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             destinationDirectory: sourceRootPath,
             configPath: nil,
             dependenciesPath: nil,
+            packageManifestPath: nil,
             projectManifests: projectManifestPaths,
             editablePluginManifests: [localPlugin],
             pluginProjectDescriptionHelpersModule: [remotePlugin],

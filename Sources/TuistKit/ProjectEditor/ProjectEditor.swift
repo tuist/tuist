@@ -137,6 +137,7 @@ final class ProjectEditor: ProjectEditing {
             cacheDirectory: cacheDirectory.cacheDirectory(for: .projectDescriptionHelpers)
         )
         let dependenciesPath = manifestFilesLocator.locateDependencies(at: editingPath)
+        let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: editingPath)
 
         let helpers = helpersDirectoryLocator.locate(at: editingPath).map {
             [
@@ -192,6 +193,7 @@ final class ProjectEditor: ProjectEditing {
             destinationDirectory: destinationDirectory,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
+            packageManifestPath: packageManifestPath,
             projectManifests: projectManifests.map(\.path),
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: builtPluginHelperModules,

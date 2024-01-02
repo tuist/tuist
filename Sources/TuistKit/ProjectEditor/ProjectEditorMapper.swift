@@ -13,6 +13,7 @@ protocol ProjectEditorMapping: AnyObject {
         destinationDirectory: AbsolutePath,
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
+        packageManifestPath: AbsolutePath?,
         projectManifests: [AbsolutePath],
         editablePluginManifests: [EditablePluginManifest],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
@@ -27,6 +28,14 @@ protocol ProjectEditorMapping: AnyObject {
 
 // swiftlint:disable:next type_body_length
 final class ProjectEditorMapper: ProjectEditorMapping {
+    private let swiftPackageManagerController: SwiftPackageManagerControlling
+
+    init(
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()
+    ) {
+        self.swiftPackageManagerController = swiftPackageManagerController
+    }
+
     // swiftlint:disable:next function_body_length
     func map(
         name: String,
@@ -35,6 +44,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         destinationDirectory: AbsolutePath,
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
+        packageManifestPath: AbsolutePath?,
         projectManifests: [AbsolutePath],
         editablePluginManifests: [EditablePluginManifest],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
@@ -56,7 +66,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             tuistPath: tuistPath
         )
 
-        let manifestsProject = mapManifestsProject(
+        let manifestsProject = try mapManifestsProject(
             projectManifests: projectManifests,
             projectDescriptionPath: projectDescriptionSearchPath,
             swiftVersion: swiftVersion,
@@ -70,6 +80,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             stencils: stencils,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
+            packageManifestPath: packageManifestPath,
             editablePluginTargets: editablePluginManifests.map(\.name),
             pluginProjectDescriptionHelpersModule: pluginProjectDescriptionHelpersModule
         )
@@ -146,9 +157,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         stencils: [AbsolutePath],
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
+        packageManifestPath: AbsolutePath?,
         editablePluginTargets: [String],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule]
-    ) -> Project? {
+    ) throws -> Project? {
         guard !projectManifests.isEmpty else { return nil }
 
         let projectName = "Manifests"
@@ -246,6 +258,30 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             )
         }()
 
+        let packagesTarget: Target? = try {
+            guard let packageManifestPath else { return nil }
+            let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
+            let xcodeVersion = try XcodeController.shared.selectedVersion()
+            return editorHelperTarget(
+                name: "Packages",
+                filesGroup: manifestsFilesGroup,
+                targetSettings: Settings(
+                    base: [
+                        "OTHER_SWIFT_FLAGS": .array([
+                            "-package-description-version",
+                            packageVersion.description,
+                        ]),
+                        "SWIFT_INCLUDE_PATHS": .array([
+                            "/Applications/Xcode-\(xcodeVersion).app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
+                        ]),
+                    ],
+                    configurations: Settings.default.configurations,
+                    defaultSettings: .recommended
+                ),
+                sourcePaths: [packageManifestPath]
+            )
+        }()
+
         let manifestsTargets = namedManifests(projectManifests).map { name, projectManifestSourcePath -> Target in
             editorHelperTarget(
                 name: name,
@@ -263,6 +299,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             stencilsTarget,
             configTarget,
             dependenciesTarget,
+            packagesTarget,
         ]
         .compactMap { $0 }
         + manifestsTargets
