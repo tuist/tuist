@@ -205,7 +205,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: [.iOS, .macOS]
         )
-        
+
         // When looking for the Dependencies.swift file the model loader will search in the given path
         // This is where we will assert
         dependenciesModelLoader.loadDependenciesStub = { path, _ in
@@ -239,7 +239,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: [.iOS, .macOS]
         )
-        
+
         // When looking for the Dependencies.swift file the model loader will search in the given path
         // This is where we will assert
         dependenciesModelLoader.loadDependenciesStub = { path, _ in
@@ -273,7 +273,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: [.iOS, .macOS]
         )
-        
+
         // When looking for the Dependencies.swift file the model loader will search in the given path
         // This is where we will assert
         dependenciesModelLoader.loadDependenciesStub = { path, _ in
