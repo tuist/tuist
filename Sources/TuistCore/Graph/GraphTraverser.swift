@@ -740,18 +740,17 @@ public class GraphTraverser: GraphTraversing {
     ) -> PlatformCondition
         .CombinationResult
     {
-
         if let cached = conditionCache[(rootDependency, transitiveDependency)] {
             return cached
         } else if graph.dependencyConditions.isEmpty {
             return .condition(nil)
         }
-        
+
         // if we're at a leaf dependency, there is nothing else to traverse.
         guard let dependencies = graph.dependencies[rootDependency] else { return .incompatible }
-        
+
         let result: PlatformCondition.CombinationResult
-        
+
         // We've reached our destination, return the filters or `.all` if none are set
         if dependencies.contains(transitiveDependency) {
             result = .condition(graph.dependencyConditions[(rootDependency, transitiveDependency)])
@@ -770,7 +769,7 @@ public class GraphTraverser: GraphTraversing {
                     return .condition(currentCondition)
                 }
             }
-            
+
             // Union our filters because multiple paths could lead to the same dependency (e.g. AVFoundation)
             //  A --> (.ios) B --> C
             //  A --> (.macos) D --> C
@@ -779,14 +778,13 @@ public class GraphTraverser: GraphTraversing {
                 .reduce(PlatformCondition.CombinationResult.incompatible) { result, condition in
                     result.combineWith(condition)
                 }
-            
+
             result = transitiveFilters
         }
-        
+
         conditionCache[(rootDependency, transitiveDependency)] = result
         return result
     }
-
 
     public func externalTargetSupportedPlatforms() -> [GraphTarget: Set<Platform>] {
         let targetsWithExternalDependencies = targetsWithExternalDependencies()

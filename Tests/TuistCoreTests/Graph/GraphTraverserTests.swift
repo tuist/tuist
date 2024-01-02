@@ -4600,7 +4600,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(result.0, GraphTarget(path: project.path, target: framework, project: project))
         XCTAssertEqual(result.1, platformCondition)
     }
-    
+
     // https://github.com/tuist/tuist/issues/5746
     func test_transitiveTargetDependenciesWhenIntermediateDependenciesHaveConditions() throws {
         // Given
@@ -4616,11 +4616,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let frameworkBDependency = GraphDependency.target(name: frameworkB.name, path: project.path)
         let frameworkCDependency = GraphDependency.target(name: frameworkC.name, path: project.path)
         let frameworkDDependency = GraphDependency.target(name: frameworkD.name, path: project.path)
-        
+
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([
                 frameworkADependency,
-                frameworkBDependency
+                frameworkBDependency,
             ]),
             frameworkADependency: Set([frameworkCDependency]),
             frameworkBDependency: Set([frameworkCDependency]),
@@ -4661,7 +4661,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(appToFrameworkC, .condition(nil))
         XCTAssertEqual(appToFrameworkD, .condition(nil))
     }
-
 
     func test_orphanExternalDependencies() throws {
         // Given
