@@ -90,6 +90,12 @@ public struct BuildCommand: AsyncParsableCommand {
     )
     var rawXcodebuildLogsPath: String?
 
+    @Flag(
+        name: .long,
+        help: "When passed, it generates the project and skips building. This is useful for debugging purposes."
+    )
+    var generateOnly: Bool = false
+
     public func run() async throws {
         let absolutePath: AbsolutePath
         if let path {
@@ -115,7 +121,8 @@ public struct BuildCommand: AsyncParsableCommand {
             osVersion: os,
             rosetta: rosetta,
             rawXcodebuildLogs: rawXcodebuildLogs,
-            rawXcodebuildLogsPath: rawXcodebuildLogsPath
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath,
+            generateOnly: generateOnly
         )
     }
 }

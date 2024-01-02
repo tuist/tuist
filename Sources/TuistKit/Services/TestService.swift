@@ -171,7 +171,8 @@ public final class TestService { // swiftlint:disable:this type_body_length
         validateTestTargetsParameters: Bool = true,
         generator: Generating? = nil,
         rawXcodebuildLogs: Bool,
-        rawXcodebuildLogsPath: AbsolutePath?
+        rawXcodebuildLogsPath: AbsolutePath?,
+        generateOnly: Bool
     ) async throws {
         if validateTestTargetsParameters {
             try validateParameters(
@@ -203,6 +204,11 @@ public final class TestService { // swiftlint:disable:this type_body_length
         let graph = try await testGenerator.generateWithGraph(
             path: path
         ).1
+
+        if generateOnly {
+            return
+        }
+
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
         let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +

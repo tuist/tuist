@@ -326,7 +326,8 @@ extension BuildService {
         platform: String? = nil,
         osVersion: String? = nil,
         rosetta: Bool = false,
-        rawXcodebuildLogsPath: AbsolutePath? = nil
+        rawXcodebuildLogsPath: AbsolutePath? = nil,
+        generateOnly: Bool = false
     ) async throws {
         try await run(
             schemeName: schemeName,
@@ -341,7 +342,8 @@ extension BuildService {
             osVersion: osVersion,
             rosetta: rosetta,
             rawXcodebuildLogs: false,
-            rawXcodebuildLogsPath: rawXcodebuildLogsPath
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath,
+            generateOnly: generateOnly
         )
     }
 }
