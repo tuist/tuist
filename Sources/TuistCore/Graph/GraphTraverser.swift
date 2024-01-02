@@ -724,12 +724,11 @@ public class GraphTraverser: GraphTraversing {
                 }
             }
         }
-
         return references
     }
 
-    @Atomic var conditionCache = [GraphEdge: PlatformCondition.CombinationResult]()
-    
+    let conditionCache = ConditionCache()
+
     /// Recursively find platform filters within transitive dependencies
     /// - Parameters:
     ///   - rootDependency: dependency whose platform filters we need when depending on `transitiveDependency`
@@ -742,8 +741,10 @@ public class GraphTraverser: GraphTraversing {
         .CombinationResult
     {
 
-        if let cached = conditionCache[GraphEdge(from: rootDependency, to: transitiveDependency)] {
+        if let cached = conditionCache[(rootDependency, transitiveDependency)] {
             return cached
+        } else if graph.dependencyConditions.isEmpty {
+            return .condition(nil)
         }
         
         // if we're at a leaf dependency, there is nothing else to traverse.
@@ -782,7 +783,7 @@ public class GraphTraverser: GraphTraversing {
             result = transitiveFilters
         }
         
-        conditionCache[GraphEdge(from: rootDependency, to: transitiveDependency)] = result
+        conditionCache[(rootDependency, transitiveDependency)] = result
         return result
     }
 
