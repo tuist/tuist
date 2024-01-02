@@ -730,6 +730,21 @@ final class GenerateAcceptanceTestmacOSAppWithExtensions: TuistAcceptanceTestCas
     }
 }
 
+final class GenerateAcceptanceTestiOSAppWithImplicitDependencies: TuistAcceptanceTestCase {
+    func test_ios_app_with_implicit_dependencies() async throws {
+        try setUpFixture(.iosAppWithImplicitDependencies)
+        try await run(BuildCommand.self, "FrameworkC")
+        do {
+            try await run(BuildCommand.self, "App")
+            XCTFail("Building app should fail as FrameworkA has an implicit dependency on FrameworkB")
+        } catch let error as FatalError {
+            XCTAssertTrue(
+                error.description.contains("The 'xcodebuild' command exited with error code 65 and message")
+            )
+        }
+    }
+}
+
 extension TuistAcceptanceTestCase {
     private func resourcePath(
         for productName: String,

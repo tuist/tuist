@@ -30,6 +30,7 @@ public enum TuistAcceptanceFixtures {
     case iosAppWithFrameworks
     case iosAppWithHeaders
     case iosAppWithHelpers
+    case iosAppWithImplicitDependencies
     case iosAppWithIncompatibleXcode
     case iosAppWithLocalBinarySwiftPackage
     case iosAppWithLocalSwiftPackage
@@ -120,6 +121,8 @@ public enum TuistAcceptanceFixtures {
             return "ios_app_with_headers"
         case .iosAppWithHelpers:
             return "ios_app_with_helpers"
+        case .iosAppWithImplicitDependencies:
+            return "ios_app_with_implicit_dependencies"
         case .iosAppWithIncompatibleXcode:
             return "ios_app_with_incompatible_xcode"
         case .iosAppWithLocalBinarySwiftPackage:
