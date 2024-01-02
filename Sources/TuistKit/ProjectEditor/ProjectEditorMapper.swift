@@ -259,9 +259,12 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         }()
 
         let packagesTarget: Target? = try {
-            guard let packageManifestPath else { return nil }
+            guard 
+                let packageManifestPath,
+                let xcode = try XcodeController.shared.selected()
+            else { return nil }
             let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
-            let xcodeVersion = try XcodeController.shared.selectedVersion()
+            
             return editorHelperTarget(
                 name: "Packages",
                 filesGroup: manifestsFilesGroup,
@@ -272,7 +275,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                             packageVersion.description,
                         ]),
                         "SWIFT_INCLUDE_PATHS": .array([
-                            "/Applications/Xcode-\(xcodeVersion).app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
+                            "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
                         ]),
                     ],
                     configurations: Settings.default.configurations,

@@ -54,7 +54,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         swiftPackageManagerController.getToolsVersionStub = { _ in
             Version("5.5.0")
         }
-        xcodeController.selectedVersionStub = .success(Version("11.3.0"))
+        xcodeController.selectedStub = .success(.test(path: AbsolutePath("/Applications/Xcode.app")))
 
         // When
         let graph = try subject.map(
@@ -226,7 +226,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
                         "5.5.0",
                     ]),
                     "SWIFT_INCLUDE_PATHS": .array([
-                        "/Applications/Xcode-11.3.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
+                        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
                     ]),
                 ],
                 configurations: Settings.default.configurations,

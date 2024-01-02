@@ -16,7 +16,7 @@ public protocol SwiftPackageManagerControlling {
     ///   - printOutput: When true it prints the Swift Package Manager's output.
     func update(at path: AbsolutePath, printOutput: Bool) throws
 
-    /// Sets tools version of package to the given value.
+    /// Gets the tools version of the package at the given path
     /// - Parameter path: Directory where the `Package.swift` is defined.
     /// - Returns: Version of tools.
     func getToolsVersion(at path: AbsolutePath) throws -> Version
