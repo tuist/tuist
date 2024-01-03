@@ -24,15 +24,15 @@ It's open source and written in Swift.
 
 ## Install ⬇️
 
-### Recommended: [rtx](https://github.com/jdx/rtx)
+### Recommended: [mise](https://github.com/jdx/mise)
 
-Install [rtx](https://github.com/jdx/rtx#installation) and then run the following command to install Tuist:
+Install [mise](https://mise.jdx.dev/getting-started.html#quickstart) and then run the following command to install Tuist:
 
 ```bash
-rtx install tuist
+mise install tuist
 ```
 
-You can check out [the documentation]([https://docs.next.tuist.io/documentation/tuist/tuist---installation](https://docs.next.tuist.io/documentation/tuist/installation)) to learn more about the rationale behind our installation approach and alternative approaches.
+You can check out [the documentation](https://docs.next.tuist.io/documentation/tuist/installation) to learn more about the rationale behind our installation approach and alternative approaches.
 
 ## Bootstrap your first project 🌀
 
