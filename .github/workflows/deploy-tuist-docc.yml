@@ -31,11 +31,11 @@ jobs:
           fetch-depth: 0
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: jdx/rtx-action@v1
+      - uses: jdx/mise-action@v2
         with:
           experimental: true
       - name: Build documentation
-        run: rtx run docs:build
+        run: mise run docs:build
       - name: Fix permissions
         run: 'sudo chown -R $USER .build/documentation'
       - name: Deploy production to Netlify
