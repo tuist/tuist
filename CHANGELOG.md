@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.38.0 - 2024-01-03
+
+### Tuist
+
+#### Changed
+
+- Make `ProjectDescription` model attributes mutable [#5745](https://github.com/tuist/tuist/pull/5745) by [@dxmvsh](https://github.com/dxmvsh)
+
+#### Added
+
+- Add a `--generate-only` flag to the build command [#5711](https://github.com/tuist/tuist/pull/5711) by [@pepicrft](https://github.com/pepicrft)
+- Add enforceExplicitDependendencies generation option [#5698](https://github.com/tuist/tuist/pull/5698) by [@fortmarek](https://github.com/fortmarek)
+- Add Package.swift support for tuist edit [#5751](https://github.com/tuist/tuist/pull/5751) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Align the behaviour of `--path` in `tuist fetch` with the rest of the CLI [#5742](https://github.com/tuist/tuist/pull/5742) by [@danibachar](https://github.com/danibachar)
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.37.0 - 2023-12-28
 
 ### Tuist
