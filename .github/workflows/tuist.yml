@@ -49,7 +49,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Test
-        run: tuist test --no-cache --skip-test-targets TuistBuildAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests
+        run: tuist test --xcframeworks --skip-test-targets TuistBuildAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests
 
   cache-warm:
     name: Cache warm with latest Tuist
@@ -70,7 +70,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Print hashes
-        run: tuist cache print-hashes
+        run: tuist cache print-hashes --xcframeworks
       - name: Cache warm
         run: tuist cache warm --xcframeworks
 
@@ -93,7 +93,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Print hashes
-        run: tuist cache print-hashes
+        run: tuist cache print-hashes --xcframeworks
       - name: Cache warm
         run: tuist cache warm --xcframeworks
 
@@ -132,7 +132,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Run acceptance tests
-        run: tuist test ${{ matrix.feature }}
+        run: tuist test ${{ matrix.feature }} --xcframeworks
   lint:
     name: Lint
     runs-on: macos-13
