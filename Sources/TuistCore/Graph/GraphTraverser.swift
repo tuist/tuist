@@ -751,7 +751,7 @@ public class GraphTraverser: GraphTraversing {
 
         let result: PlatformCondition.CombinationResult
 
-        // We've reached our destination, return the filters or `.all` if none are set
+        // We've reached our destination, return a condition for the leaf relationship (`nil` or a `PlatformFilters` set)
         if dependencies.contains(transitiveDependency) {
             result = .condition(graph.dependencyConditions[(rootDependency, transitiveDependency)])
         } else {
