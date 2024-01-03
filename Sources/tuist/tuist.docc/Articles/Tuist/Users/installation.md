@@ -20,23 +20,23 @@ Once installed, you can install Tuist through any of the following commands:
 
 ```bash
 # Tuist
-mise install tuist@3.36.0      # Install a specific version number
-mise install tuist@3           # Install a fuzzy version number
-mise use tuist@3.36.0          # Use tuist-3.36.0 in the current project
-mise use -g tuist@3.36.0       # Use tuist-3.36.0 as the global default
-mise install tuist             # Install the current version specified in .tool-versions/.mise.toml
-mise use tuist@latest          # Use the latest tuist in the current directory
-mise use -g tuist@system       # Use the system's tuist as the global default
+mise install tuist            # Install the current version specified in .tool-versions/.mise.toml
+mise install tuist@x.y.z      # Install a specific version number
+mise install tuist@3          # Install a fuzzy version number
+mise use tuist@x.y.z          # Use tuist-x.y.z in the current project
+mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
+mise use tuist@latest         # Use the latest tuist in the current directory
+mise use -g tuist@system      # Use the system's tuist as the global default
 
 # Tuist Cloud (For users of Tuist Cloud)
 # Note: You need to install one OR the other, not both
-mise install tuist-cloud@3.36.0
+mise install tuist-cloud            # Install the current version specified in .tool-versions/.mise.toml
+mise install tuist-cloud@x.y.z
 mise install tuist-cloud@3
-mise use tuist-cloud@3.36.0   
-mise use -g tuist-cloud@3.36.0       # Use tuist-cloud-3.36.0 as the global default
-mise install tuist-cloud             # Install the current version specified in .tool-versions/.mise.toml
-mise use tuist-cloud@latest          # Use the latest tuist-cloud in the current directory
-mise use -g tuist-cloud@system       # Use the system's tuist-cloud as the global default
+mise use tuist-cloud@x.y.z   
+mise use -g tuist-cloud@x.y.z       # Use tuist-cloud-x.y.z as the global default
+mise use tuist-cloud@latest         # Use the latest tuist-cloud in the current directory
+mise use -g tuist-cloud@system      # Use the system's tuist-cloud as the global default
 ```
 
 > Tip: We recommend using `mise use` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
@@ -51,6 +51,6 @@ you can install Tuist using [Homebrew](https://brew.sh) and [our formulas](https
 ```bash
 brew tap tuist/tuist
 brew install tuist
-brew install tuist@3.36.0
+brew install tuist@x.y.z
 brew install tuist-cloud # If you are a Tuist Cloud user
 ```
