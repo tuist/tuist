@@ -166,12 +166,12 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                 return paths.sorted { lhs, rhs in
                     let lhsBasename = lhs.parentDirectory.basenameWithoutExt
                     let rhsBasename = rhs.parentDirectory.basenameWithoutExt
-                    
+
                     if lhsBasename == developmentRegion {
                         return true
                     } else if rhsBasename == developmentRegion {
                         return false
-                    } else if lhsBasename.contains(developmentRegion) && rhsBasename.contains(developmentRegion) {
+                    } else if lhsBasename.contains(developmentRegion), rhsBasename.contains(developmentRegion) {
                         return lhsBasename < rhsBasename
                     } else {
                         return lhsBasename < rhsBasename
