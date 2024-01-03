@@ -150,7 +150,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Run acceptance tests
-        run: tuist test --xcframeworks --raw-xcodebuild-logs-path /tmp/tuist/test-${{ matrix.feature }}.xcodebuild.log ${{ matrix.feature }}
+        run: tuist test --xcframeworks --raw-xcodebuild-logs-path /tmp/tuist/test.${{ matrix.feature }}.xcodebuild.log ${{ matrix.feature }}
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
