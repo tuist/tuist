@@ -4644,8 +4644,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 GraphEdge(from: frameworkBDependency, to: frameworkCDependency): platformCondition,
             ]
         )
-        
-        for _ in 0..<50 {
+
+        for _ in 0 ..< 50 {
             let subject = GraphTraverser(graph: graph)
 
             // When
