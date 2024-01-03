@@ -14,6 +14,7 @@ public class GraphTraverser: GraphTraversing {
     public var dependencies: [GraphDependency: Set<GraphDependency>] { graph.dependencies }
 
     private let graph: Graph
+    private let conditionCache = ConditionCache()
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding = SystemFrameworkMetadataProvider()
 
     public required init(graph: Graph) {
@@ -726,8 +727,6 @@ public class GraphTraverser: GraphTraversing {
         }
         return references
     }
-
-    let conditionCache = ConditionCache()
 
     /// Recursively find platform filters within transitive dependencies
     /// - Parameters:
