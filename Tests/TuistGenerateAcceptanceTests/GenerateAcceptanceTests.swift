@@ -140,6 +140,7 @@ final class GenerateAcceptanceTestIosAppWithCustomDevelopmentRegion: TuistAccept
         for resource in [
             "en.lproj/Greetings.strings",
             "fr.lproj/Greetings.strings",
+            "fr-CA.lproj/Greetings.strings",
         ] {
             try await XCTAssertProductWithDestinationContainsResource(
                 "App.app",
