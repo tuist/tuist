@@ -4644,22 +4644,25 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 GraphEdge(from: frameworkBDependency, to: frameworkCDependency): platformCondition,
             ]
         )
-        let subject = GraphTraverser(graph: graph)
+        
+        for _ in 0..<50 {
+            let subject = GraphTraverser(graph: graph)
 
-        // When
-        let appToFrameworkC = subject.combinedCondition(
-            to: frameworkCDependency,
-            from: appDependency
-        )
+            // When
+            let appToFrameworkC = subject.combinedCondition(
+                to: frameworkCDependency,
+                from: appDependency
+            )
 
-        let appToFrameworkD = subject.combinedCondition(
-            to: frameworkDDependency,
-            from: appDependency
-        )
+            let appToFrameworkD = subject.combinedCondition(
+                to: frameworkDDependency,
+                from: appDependency
+            )
 
-        // Then
-        XCTAssertEqual(appToFrameworkC, .condition(nil))
-        XCTAssertEqual(appToFrameworkD, .condition(nil))
+            // Then
+            XCTAssertEqual(appToFrameworkC, .condition(nil))
+            XCTAssertEqual(appToFrameworkD, .condition(nil))
+        }
     }
 
     func test_orphanExternalDependencies() throws {
