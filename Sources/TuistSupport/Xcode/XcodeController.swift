@@ -18,6 +18,8 @@ public protocol XcodeControlling {
 }
 
 public class XcodeController: XcodeControlling {
+    public init() {}
+
     /// Shared instance.
     public static var shared: XcodeControlling = XcodeController()
 

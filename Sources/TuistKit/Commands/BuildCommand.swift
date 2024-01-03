@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TSCBasic
+import TSCUtility
 import TuistSupport
 
 /// Command that builds a target from the project in the current directory.
@@ -76,6 +77,25 @@ public struct BuildCommand: AsyncParsableCommand {
     )
     var derivedDataPath: String?
 
+    @Flag(
+        name: [.customLong("raw-xcodebuild-logs")],
+        help: "When passed, it outputs the raw xcodebuild logs without formatting them."
+    )
+    var rawXcodebuildLogs: Bool = false
+
+    @Option(
+        name: [.customLong("raw-xcodebuild-logs-path")],
+        help: "When passed, it writes the raw xcodebuild logs to the file at the given path.",
+        completion: .file()
+    )
+    var rawXcodebuildLogsPath: String?
+
+    @Flag(
+        name: .long,
+        help: "When passed, it generates the project and skips building. This is useful for debugging purposes."
+    )
+    var generateOnly: Bool = false
+
     public func run() async throws {
         let absolutePath: AbsolutePath
         if let path {
@@ -83,6 +103,10 @@ public struct BuildCommand: AsyncParsableCommand {
         } else {
             absolutePath = FileHandler.shared.currentPath
         }
+        let rawXcodebuildLogsPath = rawXcodebuildLogsPath.map { try? AbsolutePath(
+            validating: $0,
+            relativeTo: FileHandler.shared.currentPath
+        ) } ?? nil
 
         try await BuildService().run(
             schemeName: scheme,
@@ -95,7 +119,10 @@ public struct BuildCommand: AsyncParsableCommand {
             device: device,
             platform: platform,
             osVersion: os,
-            rosetta: rosetta
+            rosetta: rosetta,
+            rawXcodebuildLogs: rawXcodebuildLogs,
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath,
+            generateOnly: generateOnly
         )
     }
 }

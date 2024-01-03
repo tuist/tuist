@@ -12,8 +12,8 @@ public struct GraphEdge: Hashable, Codable {
     }
 }
 
-extension [GraphEdge: TargetDependency.Condition] {
-    public subscript(_ edge: (GraphDependency, GraphDependency)) -> TargetDependency.Condition? {
+extension [GraphEdge: PlatformCondition] {
+    public subscript(_ edge: (GraphDependency, GraphDependency)) -> PlatformCondition? {
         get {
             self[GraphEdge(from: edge.0, to: edge.1)]
         }
@@ -50,7 +50,7 @@ public struct Graph: Equatable, Codable {
     public var dependencies: [GraphDependency: Set<GraphDependency>]
 
     /// A dictionary that contains the Conditions to apply to a dependency relationship
-    public var dependencyConditions: [GraphEdge: TargetDependency.Condition]
+    public var dependencyConditions: [GraphEdge: PlatformCondition]
 
     public init(
         name: String,
@@ -60,7 +60,7 @@ public struct Graph: Equatable, Codable {
         packages: [AbsolutePath: [String: Package]],
         targets: [AbsolutePath: [String: Target]],
         dependencies: [GraphDependency: Set<GraphDependency>],
-        dependencyConditions: [GraphEdge: TargetDependency.Condition]
+        dependencyConditions: [GraphEdge: PlatformCondition]
     ) {
         self.name = name
         self.path = path

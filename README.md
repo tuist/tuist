@@ -24,11 +24,15 @@ It's open source and written in Swift.
 
 ## Install ⬇️
 
-### Running script (Recommended)
+### Recommended: [rtx](https://github.com/jdx/rtx)
 
-```shell
-curl -Ls https://install.tuist.io | bash
+Install [rtx](https://github.com/jdx/rtx#installation) and then run the following command to install Tuist:
+
+```bash
+rtx install tuist
 ```
+
+You can check out [the documentation]([https://docs.next.tuist.io/documentation/tuist/tuist---installation](https://docs.next.tuist.io/documentation/tuist/installation)) to learn more about the rationale behind our installation approach and alternative approaches.
 
 ## Bootstrap your first project 🌀
 
@@ -63,6 +67,17 @@ The financial sustainability of the project is possible thanks to the ongoing co
     </picture>
   </a>
 </div>
+
+[Lapse](https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist) is an app designed to reclaim how we take and share memories. A camera for living in the moment and a private photo journal for friends, not followers.
+
+<div >
+  <a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
+    <picture>
+      <img width="200" src="assets/companies/lapse.svg"/>
+    </picture>
+  </a>
+</div>
+
 
 ### Silver sponsors
 
@@ -202,6 +217,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
   </a>
   <a href="https://telepass.com/" target="_blank">
     <img src="assets/companies/telepass.svg" style="width: 112px;" hspace="8"/>
+  </a>
+  <a href="https://crunchyroll.com/" target="_blank">
+    <img src="assets/companies/crunchyroll_logo_vertical.svg" style="width: 50px;" hspace="8"/>
   </a>
 </div>
 
@@ -397,44 +415,46 @@ Thanks goes to these wonderful people:
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/MontakOleg"><img src="https://avatars.githubusercontent.com/u/1800899?v=4" width="100px;" alt=""/><br /><sub><b>MontakOleg</b></sub></a></td>
-      <td align="center" valign="top" width="14.28%"><a href="http://blog.jihoon.me"><img src="https://avatars.githubusercontent.com/u/68891494?v=4" width="100px;" alt=""/><br /><sub><b>안지훈</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/oozoofrog"><img src="https://avatars.githubusercontent.com/u/3011832?v=4" width="100px;" alt=""/><br /><sub><b>oozoofrog</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/MartinStrambach"><img src="https://avatars.githubusercontent.com/u/11178869?v=4" width="100px;" alt=""/><br /><sub><b>Martin Strambach</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/sh-a-n"><img src="https://avatars.githubusercontent.com/u/2219548?v=4" width="100px;" alt=""/><br /><sub><b>sh-a-n</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://linkedin.com/in/batuhansaka"><img src="https://avatars.githubusercontent.com/u/9626765?v=4" width="100px;" alt=""/><br /><sub><b>Batuhan Saka</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://jcsoohwancho.github.io"><img src="https://avatars.githubusercontent.com/u/51935215?v=4" width="100px;" alt=""/><br /><sub><b>SooHwanCho</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://www.bouncingball.mobi"><img src="https://avatars.githubusercontent.com/u/798117?v=4" width="100px;" alt=""/><br /><sub><b>Gary Riches</b></sub></a></td>
     </tr>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="http://www.bouncingball.mobi"><img src="https://avatars.githubusercontent.com/u/798117?v=4" width="100px;" alt=""/><br /><sub><b>Gary Riches</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://mustiikhalil.github.io/mustiikhalil/"><img src="https://avatars.githubusercontent.com/u/26250654?v=4" width="100px;" alt=""/><br /><sub><b>mustiikhalil</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/serejahh"><img src="https://avatars.githubusercontent.com/u/2575555?v=4" width="100px;" alt=""/><br /><sub><b>Serhii Butenko</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/petrukha-ivan"><img src="https://avatars.githubusercontent.com/u/93926277?v=4" width="100px;" alt=""/><br /><sub><b>Petrukha Ivan</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/lo1tuma"><img src="https://avatars.githubusercontent.com/u/169170?v=4" width="100px;" alt=""/><br /><sub><b>Mathias Schreck</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Buju77"><img src="https://avatars.githubusercontent.com/u/266349?v=4" width="100px;" alt=""/><br /><sub><b>Yen-Chia Lin</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://coolmathgames.tech"><img src="https://avatars.githubusercontent.com/u/6877780?v=4" width="100px;" alt=""/><br /><sub><b>Mary </b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/woohyunjin06"><img src="https://avatars.githubusercontent.com/u/30452977?v=4" width="100px;" alt=""/><br /><sub><b>Hyunjin</b></sub></a></td>
     </tr>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/woohyunjin06"><img src="https://avatars.githubusercontent.com/u/30452977?v=4" width="100px;" alt=""/><br /><sub><b>Hyunjin</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/kevin58332"><img src="https://avatars.githubusercontent.com/u/47673410?v=4" width="100px;" alt=""/><br /><sub><b>Kevin Aguilar</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://andrewroan.com"><img src="https://avatars.githubusercontent.com/u/9873566?v=4" width="100px;" alt=""/><br /><sub><b>Andrew Roan</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/ibrahim-oktay-518b4939/"><img src="https://avatars.githubusercontent.com/u/36792481?v=4" width="100px;" alt=""/><br /><sub><b>ibrahim oktay</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/navartis"><img src="https://avatars.githubusercontent.com/u/7813723?v=4" width="100px;" alt=""/><br /><sub><b>Dmitriy Kulakov</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/woin2ee"><img src="https://avatars.githubusercontent.com/u/81426024?v=4" width="100px;" alt=""/><br /><sub><b>Jaewon-Yun</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/tatagrigory"><img src="https://avatars.githubusercontent.com/u/5187973?v=4" width="100px;" alt=""/><br /><sub><b>tatagrigory</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://linkedin.com/in/denilchungath"><img src="https://avatars.githubusercontent.com/u/95201442?v=4" width="100px;" alt=""/><br /><sub><b>Denil Chungath</b></sub></a></td>
     </tr>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="http://linkedin.com/in/denilchungath"><img src="https://avatars.githubusercontent.com/u/95201442?v=4" width="100px;" alt=""/><br /><sub><b>Denil Chungath</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/victor-sarda/"><img src="https://avatars.githubusercontent.com/u/6460866?v=4" width="100px;" alt=""/><br /><sub><b>Victor Sarda</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/tzxdtc"><img src="https://avatars.githubusercontent.com/u/19767846?v=4" width="100px;" alt=""/><br /><sub><b>tzxdtc10</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ThiemeFM"><img src="https://avatars.githubusercontent.com/u/143395823?v=4" width="100px;" alt=""/><br /><sub><b>Thieme</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Lilfaen"><img src="https://avatars.githubusercontent.com/u/39119695?v=4" width="100px;" alt=""/><br /><sub><b>Clemens Beck</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://macpaw.com/"><img src="https://avatars.githubusercontent.com/u/119268?v=4" width="100px;" alt=""/><br /><sub><b>Paul Taykalo</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/in4lio"><img src="https://avatars.githubusercontent.com/u/976061?v=4" width="100px;" alt=""/><br /><sub><b>Vitaly Kravtsov</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://dc.wtf"><img src="https://avatars.githubusercontent.com/u/643865?v=4" width="100px;" alt=""/><br /><sub><b>dc</b></sub></a></td>
     </tr>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="http://dc.wtf"><img src="https://avatars.githubusercontent.com/u/643865?v=4" width="100px;" alt=""/><br /><sub><b>dc</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/baekteun"><img src="https://avatars.githubusercontent.com/u/74440939?v=4" width="100px;" alt=""/><br /><sub><b>baegteun</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://vcoutasso.com"><img src="https://avatars.githubusercontent.com/u/44986513?v=4" width="100px;" alt=""/><br /><sub><b>Vinícius Couto Tasso</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://blog.jihoon.me"><img src="https://avatars.githubusercontent.com/u/68891494?v=4" width="100px;" alt=""/><br /><sub><b>안지훈</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/dxmvsh"><img src="https://avatars.githubusercontent.com/u/44325936?v=4" width="100px;" alt=""/><br /><sub><b>Dimash</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/danibachar"><img src="https://avatars.githubusercontent.com/u/6380777?v=4" width="100px;" alt=""/><br /><sub><b>danibachar</b></sub></a></td>
     </tr>
   </tbody>
 </table>

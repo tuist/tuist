@@ -53,11 +53,14 @@ public struct TuistCommand: ParsableCommand {
             } else {
                 try CommandRunner().run()
             }
+            WarningController.shared.flush()
             _exit(0)
         } catch let error as FatalError {
+            WarningController.shared.flush()
             errorHandler.fatal(error: error)
             _exit(exitCode(for: error).rawValue)
         } catch {
+            WarningController.shared.flush()
             // Exit cleanly
             if exitCode(for: error).rawValue == 0 {
                 exit(withError: error)

@@ -26,7 +26,7 @@ extension TuistGraph.TargetDependency {
     ///   - manifest: Manifest representation of the target dependency model.
     ///   - generatorPaths: Generator paths.
     ///   - externalDependencies: External dependencies graph.
-    static func from(
+    static func from( // swiftlint:disable:this function_body_length
         manifest: ProjectDescription.TargetDependency,
         generatorPaths: GeneratorPaths,
         externalDependencies: [String: [TuistGraph.TargetDependency]]
@@ -110,8 +110,8 @@ extension ProjectDescription.PlatformFilters {
     }
 }
 
-extension ProjectDescription.TargetDependency.Condition {
-    var asGraphCondition: TuistGraph.TargetDependency.Condition? {
+extension ProjectDescription.PlatformCondition {
+    var asGraphCondition: TuistGraph.PlatformCondition? {
         .when(Set(platformFilters.asGraphFilters))
     }
 }

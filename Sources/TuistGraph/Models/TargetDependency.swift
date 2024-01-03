@@ -23,79 +23,22 @@ public enum TargetDependency: Equatable, Hashable, Codable {
         case macro
     }
 
-    public struct Condition: Codable, Hashable, Equatable, Comparable {
-        public static func < (lhs: TargetDependency.Condition, rhs: TargetDependency.Condition) -> Bool {
-            lhs.platformFilters < rhs.platformFilters
-        }
-
-        public let platformFilters: PlatformFilters
-        private init(platformFilters: PlatformFilters) {
-            self.platformFilters = platformFilters
-        }
-
-        public static func when(_ platformFilters: Set<PlatformFilter>) -> Condition? {
-            guard !platformFilters.isEmpty else { return nil }
-            return Condition(platformFilters: platformFilters)
-        }
-
-        public func intersection(_ other: Condition?) -> CombinationResult {
-            guard let otherFilters = other?.platformFilters else { return .condition(self) }
-            let filters = platformFilters.intersection(otherFilters)
-
-            if filters.isEmpty {
-                return .incompatible
-            } else {
-                return .condition(Condition(platformFilters: filters))
-            }
-        }
-
-        public func union(_ other: Condition?) -> CombinationResult {
-            guard let otherFilters = other?.platformFilters else { return .condition(nil) }
-            let filters = platformFilters.union(otherFilters)
-
-            if filters.isEmpty {
-                return .condition(nil)
-            } else {
-                return .condition(Condition(platformFilters: filters))
-            }
-        }
-
-        public enum CombinationResult: Equatable {
-            case incompatible
-            case condition(Condition?)
-
-            public func combineWith(_ other: CombinationResult) -> CombinationResult {
-                switch (self, other) {
-                case (.incompatible, .incompatible):
-                    return .incompatible
-                case (_, .incompatible):
-                    return self
-                case (.incompatible, _):
-                    return other
-                case let (.condition(lhs), .condition(rhs)):
-                    guard let lhs, let rhs else { return .condition(nil) }
-                    return lhs.union(rhs)
-                }
-            }
-        }
-    }
-
-    case target(name: String, condition: Condition? = nil)
-    case project(target: String, path: AbsolutePath, condition: Condition? = nil)
-    case framework(path: AbsolutePath, status: FrameworkStatus, condition: Condition? = nil)
-    case xcframework(path: AbsolutePath, status: FrameworkStatus, condition: Condition? = nil)
+    case target(name: String, condition: PlatformCondition? = nil)
+    case project(target: String, path: AbsolutePath, condition: PlatformCondition? = nil)
+    case framework(path: AbsolutePath, status: FrameworkStatus, condition: PlatformCondition? = nil)
+    case xcframework(path: AbsolutePath, status: FrameworkStatus, condition: PlatformCondition? = nil)
     case library(
         path: AbsolutePath,
         publicHeaders: AbsolutePath,
         swiftModuleMap: AbsolutePath?,
-        condition: Condition? = nil
+        condition: PlatformCondition? = nil
     )
-    case package(product: String, type: PackageType, condition: Condition? = nil)
-    case sdk(name: String, status: SDKStatus, condition: Condition? = nil)
+    case package(product: String, type: PackageType, condition: PlatformCondition? = nil)
+    case sdk(name: String, status: SDKStatus, condition: PlatformCondition? = nil)
     case cocoapod(type: PodDependencyType, content: String)
     case xctest
 
-    public var condition: Condition? {
+    public var condition: PlatformCondition? {
         switch self {
         case .target(name: _, condition: let condition):
             condition
@@ -115,7 +58,7 @@ public enum TargetDependency: Equatable, Hashable, Codable {
         }
     }
 
-    public func withCondition(_ condition: Condition?) -> TargetDependency {
+    public func withCondition(_ condition: PlatformCondition?) -> TargetDependency {
         switch self {
         case .target(name: let name, condition: _):
             return .target(name: name, condition: condition)

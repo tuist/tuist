@@ -2,8 +2,8 @@ import Foundation
 
 /// A collection of arguments and environment variables.
 public struct Arguments: Equatable, Codable {
-    public let environmentVariables: [String: EnvironmentVariable]
-    public let launchArguments: [LaunchArgument]
+    public var environmentVariables: [String: EnvironmentVariable]
+    public var launchArguments: [LaunchArgument]
 
     @available(*, deprecated, message: "please use environmentVariables instead")
     public init(

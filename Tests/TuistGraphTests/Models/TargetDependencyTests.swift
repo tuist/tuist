@@ -37,7 +37,7 @@ final class TargetDependencyTests: TuistUnitTestCase {
     }
 
     func test_filtering() {
-        let expected: TargetDependency.Condition? = .when([.macos])
+        let expected: PlatformCondition? = .when([.macos])
 
         let subjects: [TargetDependency] = [
             .framework(path: "/", status: .required, condition: expected),

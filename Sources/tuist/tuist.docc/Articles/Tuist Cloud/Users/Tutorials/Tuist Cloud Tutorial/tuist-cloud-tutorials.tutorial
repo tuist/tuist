@@ -1,0 +1,16 @@
+@Tutorials(name: "Tuist Cloud") {
+    @Intro(title: "Tuist Cloud Tutorials") {
+        Through these tutorials you will learn all about Tuist Cloud, from the basics like using the managed service to more advanced concepts like self-hosting a tuist cloud instance in your infrastructure.
+    }
+        
+    @Chapter(name: "Self-hosting") {
+        Discover how to set up your infrastructure for deploying and continuously updating Tuist Cloud.
+        
+        @Image(source: "Tuist Cloud Enterprise Server.png", alt: "An illustration that shows the icon of a server")
+        
+        @TutorialReference(tutorial: "doc:enterprise-infrastructure-requirements")
+        @TutorialReference(tutorial: "doc:enterprise-environment")
+        @TutorialReference(tutorial: "doc:enterprise-deployment")
+    }
+}
+

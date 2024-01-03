@@ -1237,6 +1237,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "dxmvsh",
+      "name": "Dimash",
+      "avatar_url": "https://avatars.githubusercontent.com/u/44325936?v=4",
+      "profile": "https://github.com/dxmvsh",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "danibachar",
+      "name": "danibachar",
+      "avatar_url": "https://avatars.githubusercontent.com/u/6380777?v=4",
+      "profile": "https://github.com/danibachar",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

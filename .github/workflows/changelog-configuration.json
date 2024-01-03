@@ -1,15 +1,15 @@
 {
   "categories": [
     {
-      "title": "### Changed",
+      "title": "#### Changed",
       "labels": ["changelog:changed"]
     },
     {
-      "title": "### Added",
+      "title": "#### Added",
       "labels": ["changelog:added"]
     },
     {
-      "title": "### Fixed",
+      "title": "#### Fixed",
       "labels": ["changelog:fixed"]
     }
   ],

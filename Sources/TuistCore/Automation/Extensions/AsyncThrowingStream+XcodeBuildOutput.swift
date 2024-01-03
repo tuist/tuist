@@ -13,7 +13,7 @@ extension AsyncThrowingStream where Element == SystemEvent<XcodeBuildOutput> {
             case let .standardOutput(output):
                 let lines = output.raw.split(separator: "\n")
                 for line in lines where !line.isEmpty {
-                    logger.notice("\(line)")
+                    logger.info("\(line)")
                 }
             }
         }

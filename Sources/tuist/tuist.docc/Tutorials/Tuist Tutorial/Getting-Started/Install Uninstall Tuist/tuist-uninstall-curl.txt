@@ -1,1 +1,0 @@
-% curl -Ls https://raw.githubusercontent.com/tuist/tuist/main/script/uninstall | bash

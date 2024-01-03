@@ -1020,7 +1020,7 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertNotNil(buildPhase)
 
         let expectedScript =
-            "cp $SYMROOT/$CONFIGURATION/\(macroExecutable.productName) $BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME/Macros/\(macroExecutable.productName)"
+            "cp \"$SYMROOT/$CONFIGURATION/\(macroExecutable.productName)\" \"$BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME/Macros/\(macroExecutable.productName)\""
         XCTAssertTrue(buildPhase?.shellScript?.contains(expectedScript) == true)
         XCTAssertTrue(buildPhase?.inputPaths.contains("$SYMROOT/$CONFIGURATION/\(macroExecutable.productName)") == true)
         XCTAssertTrue(

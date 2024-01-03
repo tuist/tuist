@@ -12,7 +12,9 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         Bool,
         AbsolutePath?,
         Bool,
-        [XcodeBuildArgument]
+        [XcodeBuildArgument],
+        Bool,
+        AbsolutePath?
     ) -> [SystemEvent<XcodeBuildOutput>])?
 
     func build(
@@ -22,7 +24,9 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         rosetta: Bool,
         derivedDataPath: AbsolutePath?,
         clean: Bool,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let buildStub {
             return buildStub(
@@ -32,7 +36,9 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                 rosetta,
                 derivedDataPath,
                 clean,
-                arguments
+                arguments,
+                rawXcodebuildLogs,
+                rawXcodebuildLogsPath
             ).asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {
@@ -56,7 +62,9 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             Int,
             [TestIdentifier],
             [TestIdentifier],
-            TestPlanConfiguration?
+            TestPlanConfiguration?,
+            Bool,
+            AbsolutePath?
         )
             -> [SystemEvent<XcodeBuildOutput>]
     )?
@@ -73,7 +81,9 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?
+        testPlanConfiguration: TestPlanConfiguration?,
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let testStub {
             let results = testStub(
@@ -88,7 +98,9 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                 retryCount,
                 testTargets,
                 skipTestTargets,
-                testPlanConfiguration
+                testPlanConfiguration,
+                rawXcodebuildLogs,
+                rawXcodebuildLogsPath
             )
             if let testErrorStub {
                 return AsyncThrowingStream {
@@ -107,7 +119,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
     }
 
     var archiveStub: (
-        (XcodeBuildTarget, String, Bool, AbsolutePath, [XcodeBuildArgument])
+        (XcodeBuildTarget, String, Bool, AbsolutePath, [XcodeBuildArgument], Bool, AbsolutePath?)
             -> [SystemEvent<XcodeBuildOutput>]
     )?
     func archive(
@@ -115,10 +127,13 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         scheme: String,
         clean: Bool,
         archivePath: AbsolutePath,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let archiveStub {
-            return archiveStub(target, scheme, clean, archivePath, arguments).asAsyncThrowingStream()
+            return archiveStub(target, scheme, clean, archivePath, arguments, rawXcodebuildLogs, rawXcodebuildLogsPath)
+                .asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {
                 throw TestError(
@@ -128,13 +143,15 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         }
     }
 
-    var createXCFrameworkStub: (([AbsolutePath], AbsolutePath) -> [SystemEvent<XcodeBuildOutput>])?
+    var createXCFrameworkStub: (([AbsolutePath], AbsolutePath, Bool, AbsolutePath?) -> [SystemEvent<XcodeBuildOutput>])?
     func createXCFramework(
         frameworks: [AbsolutePath],
-        output: AbsolutePath
+        output: AbsolutePath,
+        rawXcodebuildLogs: Bool,
+        rawXcodebuildLogsPath: AbsolutePath?
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let createXCFrameworkStub {
-            return createXCFrameworkStub(frameworks, output).asAsyncThrowingStream()
+            return createXCFrameworkStub(frameworks, output, rawXcodebuildLogs, rawXcodebuildLogsPath).asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {
                 throw TestError(

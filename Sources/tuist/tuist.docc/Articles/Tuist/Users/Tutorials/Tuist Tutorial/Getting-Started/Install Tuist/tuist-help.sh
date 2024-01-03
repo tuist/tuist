@@ -1,0 +1,55 @@
+$ curl https://rtx.jdx.dev/rtx-latest-macos-arm64 > ~/bin/rtx
+$ chmod +x ~/bin/rtx
+
+# For the bash shell
+$ echo 'eval "$(~/bin/rtx activate bash)"' >> ~/.bashrc
+
+# For the zsh shell
+$ echo 'eval "$(~/bin/rtx activate zsh)"' >> ~/.zshrc
+
+# For the Fish shell
+$ echo '~/bin/rtx activate fish | source' >> ~/.config/fish/config.fish
+
+$ rtx install tuist
+
+$ tuist version
+3.25.0
+
+# You should get a semantic version like shown above.
+
+$ tuist
+OVERVIEW: Generate, build and test your Xcode projects.
+
+USAGE: tuist [--help-env] <subcommand>
+
+OPTIONS:
+  --help-env              Display subcommands to manage the environment tuist
+                          versions.
+  -h, --help              Show help information.
+
+SUBCOMMANDS:
+  build                   Builds a project
+  cache                   A set of utilities related to the caching of targets.
+  clean                   Clean all the artifacts stored locally
+  dump                    Outputs the manifest as a JSON
+  edit                    Generates a temporary project to edit the project in
+                          the current directory
+  fetch                   Fetches any remote content necessary to interact with
+                          the project.
+  generate                Generates an Xcode workspace to start working on the
+                          project.
+  graph                   Generates a graph from the workspace or project in
+                          the current directory
+  init                    Bootstraps a project
+  cloud                   A set of commands to interact with the cloud.
+  migration               A set of utilities to assist in the migration of
+                          Xcode projects to Tuist.
+  plugin                  A set of commands for plugin's management.
+  run                     Runs a scheme or target in the project
+  scaffold                Generates new project based on a template
+  signing                 A set of commands for signing-related operations
+  test                    Tests a project
+  version                 Outputs the current version of tuist
+
+  See 'tuist help <subcommand>' for detailed help.
+

@@ -45,6 +45,10 @@ extension SettingsDictionary {
             } else if self[key] != newValue {
                 let newKey = "\(key)[sdk=\(platform.xcodeSdkRoot)*]"
                 self[newKey] = newValue
+                if platform.hasSimulators, let simulatorSDK = platform.xcodeSimulatorSDK {
+                    let newKey = "\(key)[sdk=\(simulatorSDK)*]"
+                    self[newKey] = newValue
+                }
             }
         }
     }

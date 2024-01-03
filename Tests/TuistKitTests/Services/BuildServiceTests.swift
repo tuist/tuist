@@ -69,6 +69,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
+        let rawXcodebuildLogsPath = try AbsolutePath(validating: "/tmp/xcodebuild.log")
         let graph = Graph.test()
         let scheme = Scheme.test()
         let project = Project.test()
@@ -97,18 +98,22 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _ in
-            XCTAssertEqual(_workspacePath, workspacePath)
-            XCTAssertEqual(_scheme, scheme)
-            XCTAssertTrue(_clean)
-            XCTAssertNil(_device)
-            XCTAssertNil(_osVersion)
-        }
+        targetBuilder
+            .buildTargetStub =
+            { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _, _rawXcodebuildLogsPath in
+                XCTAssertEqual(_workspacePath, workspacePath)
+                XCTAssertEqual(_scheme, scheme)
+                XCTAssertTrue(_clean)
+                XCTAssertNil(_device)
+                XCTAssertNil(_osVersion)
+                XCTAssertEqual(_rawXcodebuildLogsPath, rawXcodebuildLogsPath)
+            }
 
         // Then
         try await subject.testRun(
             schemeName: scheme.name,
-            path: path
+            path: path,
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath
         )
     }
 
@@ -122,6 +127,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let target = Target.test()
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
+        let rawXcodebuildLogsPath = try AbsolutePath(validating: "/tmp/xcodebuild.log")
 
         generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
@@ -144,16 +150,18 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _, _, _rawXcodebuildLogsPath in
             XCTAssertEqual(_workspacePath, workspacePath)
             XCTAssertEqual(_scheme, scheme)
             XCTAssertTrue(_clean)
+            XCTAssertEqual(_rawXcodebuildLogsPath, rawXcodebuildLogsPath)
         }
 
         // Then
         try await subject.testRun(
             schemeName: scheme.name,
-            path: path
+            path: path,
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath
         )
     }
 
@@ -169,6 +177,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let targetB = Target.test(name: "B")
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
+        let rawXcodebuildLogsPath = try AbsolutePath(validating: "/tmp/xcodebuild.log")
 
         generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
@@ -190,26 +199,30 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _ in
-            XCTAssertEqual(_workspacePath, workspacePath)
-            XCTAssertNil(_device)
-            XCTAssertNil(_osVersion)
+        targetBuilder
+            .buildTargetStub =
+            { _, _workspacePath, _scheme, _clean, _, _, _, _device, _osVersion, _, _, _, _rawXcodebuildLogsPath in
+                XCTAssertEqual(_workspacePath, workspacePath)
+                XCTAssertNil(_device)
+                XCTAssertNil(_osVersion)
+                XCTAssertEqual(_rawXcodebuildLogsPath, rawXcodebuildLogsPath)
 
-            if _scheme.name == "A" {
-                XCTAssertEqual(_scheme, schemeA)
-                XCTAssertTrue(_clean)
-            } else if _scheme.name == "B" {
-                // When running the second scheme clean should be false
-                XCTAssertEqual(_scheme, schemeB)
-                XCTAssertFalse(_clean)
-            } else {
-                XCTFail("unexpected scheme \(_scheme.name)")
+                if _scheme.name == "A" {
+                    XCTAssertEqual(_scheme, schemeA)
+                    XCTAssertTrue(_clean)
+                } else if _scheme.name == "B" {
+                    // When running the second scheme clean should be false
+                    XCTAssertEqual(_scheme, schemeB)
+                    XCTAssertFalse(_clean)
+                } else {
+                    XCTFail("unexpected scheme \(_scheme.name)")
+                }
             }
-        }
 
         // Then
         try await subject.testRun(
-            path: path
+            path: path,
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath
         )
     }
 
@@ -225,6 +238,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         let targetB = Target.test(name: "B")
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
+        let rawXcodebuildLogsPath = try AbsolutePath(validating: "/tmp/xcodebuild.log")
 
         generator.loadStub = { _path in
             XCTAssertEqual(_path, path)
@@ -246,9 +260,9 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _ in
+        targetBuilder.buildTargetStub = { _, _workspacePath, _scheme, _clean, _, _, _, _, _, _, _, _, _rawXcodebuildLogsPath in
             XCTAssertEqual(_workspacePath, workspacePath)
-
+            XCTAssertEqual(_rawXcodebuildLogsPath, rawXcodebuildLogsPath)
             if _scheme.name == "A" {
                 XCTAssertEqual(_scheme, schemeA)
                 XCTAssertTrue(_clean)
@@ -260,7 +274,8 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Then
         try await subject.testRun(
             schemeName: "A",
-            path: path
+            path: path,
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath
         )
     }
 
@@ -310,7 +325,9 @@ extension BuildService {
         device: String? = nil,
         platform: String? = nil,
         osVersion: String? = nil,
-        rosetta: Bool = false
+        rosetta: Bool = false,
+        rawXcodebuildLogsPath: AbsolutePath? = nil,
+        generateOnly: Bool = false
     ) async throws {
         try await run(
             schemeName: schemeName,
@@ -323,7 +340,10 @@ extension BuildService {
             device: device,
             platform: platform,
             osVersion: osVersion,
-            rosetta: rosetta
+            rosetta: rosetta,
+            rawXcodebuildLogs: false,
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath,
+            generateOnly: generateOnly
         )
     }
 }

@@ -3,16 +3,19 @@ import Foundation
 /// A glob pattern configuration representing source files and its compiler flags, if any.
 public struct SourceFileGlob: Codable, Equatable {
     /// Glob pattern to the source files.
-    public let glob: Path
+    public var glob: Path
 
     /// Glob patterns for source files that will be excluded.
-    public let excluding: [Path]
+    public var excluding: [Path]
 
     /// The compiler flags to be set to the source files in the sources build phase.
-    public let compilerFlags: String?
+    public var compilerFlags: String?
 
     /// The source file attribute to be set in the build phase.
-    public let codeGen: FileCodeGen?
+    public var codeGen: FileCodeGen?
+
+    /// Source file condition for compilation
+    public var compilationCondition: PlatformCondition?
 
     /// Returns a source glob pattern configuration.
     ///
@@ -21,36 +24,51 @@ public struct SourceFileGlob: Codable, Equatable {
     ///   - excluding: Glob patterns for source files that will be excluded.
     ///   - compilerFlags: The compiler flags to be set to the source files in the sources build phase.
     ///   - codeGen: The source file attribute to be set in the build phase.
+    ///   - compilationCondition: Condition for file compilation.
     public static func glob(
         _ glob: Path,
         excluding: [Path] = [],
         compilerFlags: String? = nil,
-        codeGen: FileCodeGen? = nil
+        codeGen: FileCodeGen? = nil,
+        compilationCondition: PlatformCondition? = nil
     ) -> Self {
-        .init(glob: glob, excluding: excluding, compilerFlags: compilerFlags, codeGen: codeGen)
+        .init(
+            glob: glob,
+            excluding: excluding,
+            compilerFlags: compilerFlags,
+            codeGen: codeGen,
+            compilationCondition: compilationCondition
+        )
     }
 
     public static func glob(
         _ glob: Path,
         excluding: Path?,
         compilerFlags: String? = nil,
-        codeGen: FileCodeGen? = nil
+        codeGen: FileCodeGen? = nil,
+        compilationCondition: PlatformCondition? = nil
     ) -> Self {
         let paths: [Path] = excluding.flatMap { [$0] } ?? []
-        return .init(glob: glob, excluding: paths, compilerFlags: compilerFlags, codeGen: codeGen)
+        return .init(
+            glob: glob,
+            excluding: paths,
+            compilerFlags: compilerFlags,
+            codeGen: codeGen,
+            compilationCondition: compilationCondition
+        )
     }
 }
 
 extension SourceFileGlob: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self.init(glob: Path(value), excluding: [], compilerFlags: nil, codeGen: nil)
+        self.init(glob: Path(value), excluding: [], compilerFlags: nil, codeGen: nil, compilationCondition: nil)
     }
 }
 
 /// A collection of source file globs.
 public struct SourceFilesList: Codable, Equatable {
     /// List glob patterns.
-    public let globs: [SourceFileGlob]
+    public var globs: [SourceFileGlob]
 
     /// Creates the source files list with the glob patterns.
     ///

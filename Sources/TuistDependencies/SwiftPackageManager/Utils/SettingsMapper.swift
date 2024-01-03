@@ -32,6 +32,7 @@ struct SettingsMapper {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     func settingsDictionaryForPlatform(_ platform: PackageInfo.Platform?) throws -> TuistGraph.SettingsDictionary {
         var headerSearchPaths = headerSearchPaths
         var defines = ["SWIFT_PACKAGE": "1"]
@@ -115,14 +116,9 @@ struct SettingsMapper {
     func settingsForPlatforms(_ platforms: [PackageInfo.Platform]) throws -> TuistGraph.SettingsDictionary {
         var resolvedSettings = try settingsDictionaryForPlatform(nil)
 
-        for platform in platforms {
+        for platform in platforms.sorted(by: { $0.platformName < $1.platformName }) {
             let platformSettings = try settingsDictionaryForPlatform(platform)
-            try platformSettings.forEach { key, newValue in
-                if resolvedSettings[key] != newValue {
-                    let newKey = "\(key)[sdk=\(try platform.graphPlatform().xcodeSdkRoot)*]"
-                    resolvedSettings[newKey] = newValue
-                }
-            }
+            resolvedSettings.overlay(with: platformSettings, for: try platform.graphPlatform())
         }
 
         return resolvedSettings

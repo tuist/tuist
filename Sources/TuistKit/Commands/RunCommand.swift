@@ -1,10 +1,13 @@
 import ArgumentParser
 import Foundation
 import TSCBasic
+import TSCUtility
 import TuistSupport
 
-struct RunCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct RunCommand: AsyncParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "run",
             abstract: "Runs a scheme or target in the project",
@@ -64,7 +67,24 @@ struct RunCommand: AsyncParsableCommand {
     )
     var arguments: [String] = []
 
-    func run() async throws {
+    @Flag(
+        name: [.customLong("raw-xcodebuild-logs")],
+        help: "When passed, it outputs the raw xcodebuild logs without formatting them."
+    )
+    var rawXcodebuildLogs: Bool = false
+
+    @Option(
+        name: [.customLong("raw-xcodebuild-logs-path")],
+        help: "When passed, it writes the raw xcodebuild logs to the file at the given path.",
+        completion: .file()
+    )
+    var rawXcodebuildLogsPath: String?
+
+    public func run() async throws {
+        let rawXcodebuildLogsPath = rawXcodebuildLogsPath.map { try? AbsolutePath(
+            validating: $0,
+            relativeTo: FileHandler.shared.currentPath
+        ) } ?? nil
         try await RunService().run(
             path: path,
             schemeName: scheme,
@@ -74,7 +94,9 @@ struct RunCommand: AsyncParsableCommand {
             device: device,
             version: os,
             rosetta: rosetta,
-            arguments: arguments
+            arguments: arguments,
+            rawXcodebuildLogs: rawXcodebuildLogs,
+            rawXcodebuildLogsPath: rawXcodebuildLogsPath
         )
     }
 }

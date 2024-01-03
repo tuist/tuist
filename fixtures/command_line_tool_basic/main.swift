@@ -1,3 +1,3 @@
 import Foundation
 
-print("CommandLineTool")
+print("CommandLineTool was run")

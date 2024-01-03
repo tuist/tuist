@@ -412,7 +412,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         func addBuildFile(
             _ path: AbsolutePath,
-            condition: TargetDependency.Condition?,
+            condition: PlatformCondition?,
             status: FrameworkStatus = .required
         ) throws {
             guard let fileRef = fileElements.file(path: path) else {
@@ -502,7 +502,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         )
 
         // For static framewor/library XCFrameworks, we need Xcode to process it to extract the
-        // the relevant product within it within it based on the architecture and place in
+        // the relevant product within it based on the architecture and place in
         // the products directory. This allows the current target to see the symbols from the XCFramework.
         //
         // Copying to products is not a nop like it is for regular static targets due to the processing step,
@@ -544,7 +544,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             }
         }.map { ("$SYMROOT/$CONFIGURATION/\($0)", "$BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME/Macros/\($0)") }
 
-        copySwiftMacrosBuildPhase.shellScript = filesToCopy.map { "cp \($0.0) \($0.1)" }.joined(separator: "\n")
+        copySwiftMacrosBuildPhase.shellScript = filesToCopy.map { "cp \"\($0.0)\" \"\($0.1)\"" }.joined(separator: "\n")
         copySwiftMacrosBuildPhase.inputPaths = filesToCopy.map(\.0)
         copySwiftMacrosBuildPhase.outputPaths = filesToCopy.map(\.1)
 
@@ -675,7 +675,7 @@ extension PBXTarget {
         isPlugin: Bool,
         pbxproj: PBXProj,
         target: Target,
-        condition: TargetDependency.Condition?
+        condition: PlatformCondition?
     ) throws {
         let productDependency = XCSwiftPackageProductDependency(productName: productName, isPlugin: isPlugin)
         pbxproj.add(object: productDependency)
