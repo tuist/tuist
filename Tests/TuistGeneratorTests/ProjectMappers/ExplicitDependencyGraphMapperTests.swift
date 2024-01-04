@@ -112,14 +112,14 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
             .framework
         )
         XCTAssertEqual(
-            gotFrameworkA.settings?.base["BUILT_PRODUCTS_DIR"],
+            gotFrameworkA.settings?.baseDebug["BUILT_PRODUCTS_DIR"],
             "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
         )
         XCTAssertEqual(
-            gotFrameworkA.settings?.base["TARGET_BUILD_DIR"],
+            gotFrameworkA.settings?.baseDebug["TARGET_BUILD_DIR"],
             "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)"
         )
-        switch gotFrameworkA.settings?.base["FRAMEWORK_SEARCH_PATHS"] {
+        switch gotFrameworkA.settings?.baseDebug["FRAMEWORK_SEARCH_PATHS"] {
         case let .array(array):
             XCTAssertEqual(
                 Set(array),
@@ -140,15 +140,15 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                     name: "Copy Built Products",
                     order: .post,
                     script: .embedded("""
-                    FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.framework"
-                    DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.framework"
+                    FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.framework"
+                    DESTINATION_FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.framework"
                     \(copyScript)
                     """),
                     inputPaths: [
-                        "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/$(PRODUCT_NAME).framework",
+                        "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/$(PRODUCT_NAME).framework",
                     ],
                     outputPaths: [
-                        "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).framework",
+                        "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).framework",
                     ]
                 ),
             ]
@@ -166,7 +166,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                 name: "DynamicLibraryB",
                 product: .dynamicLibrary,
                 settings: .test(
-                    base: [
+                    baseDebug: [
                         "BUILT_PRODUCTS_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
                         "TARGET_BUILD_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
                     ]
@@ -176,15 +176,15 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                         name: "Copy Built Products",
                         order: .post,
                         script: .embedded("""
-                        FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.swiftmodule"
-                        DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.swiftmodule"
+                        FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.swiftmodule"
+                        DESTINATION_FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.swiftmodule"
                         \(copyScript)
                         """),
                         inputPaths: [
-                            "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/$(PRODUCT_NAME).swiftmodule",
+                            "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/$(PRODUCT_NAME).swiftmodule",
                         ],
                         outputPaths: [
-                            "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).swiftmodule",
+                            "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).swiftmodule",
                         ]
                     ),
                 ]
@@ -198,7 +198,7 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                     product: .staticFramework,
                     productName: "ExternalFrameworkC",
                     settings: .test(
-                        base: [
+                        baseDebug: [
                             "BUILT_PRODUCTS_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
                             "TARGET_BUILD_DIR": "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)",
                             "FRAMEWORK_SEARCH_PATHS": [
@@ -211,15 +211,15 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                             name: "Copy Built Products",
                             order: .post,
                             script: .embedded("""
-                            FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.framework"
-                            DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.framework"
+                            FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.framework"
+                            DESTINATION_FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.framework"
                             \(copyScript)
                             """),
                             inputPaths: [
-                                "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/$(PRODUCT_NAME).framework",
+                                "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/$(PRODUCT_NAME).framework",
                             ],
                             outputPaths: [
-                                "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).framework",
+                                "$(BUILD_DIR)/Debug$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME).framework",
                             ]
                         ),
                     ]

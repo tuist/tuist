@@ -24,8 +24,16 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             var project = project
             project.targets = project.targets.map { target in
                 let graphTarget = GraphTarget(path: projectPath, target: target, project: project)
+                let projectDebugConfigurations = project.settings.configurations.keys
+                    .filter { $0.variant == .debug }
+                    .map(\.name)
 
-                let mappedTarget = map(graphTarget, graphTraverser: graphTraverser)
+                let mappedTarget = map(
+                    graphTarget,
+                    graphTraverser: graphTraverser,
+                    debugConfigurations: projectDebugConfigurations
+                        .isEmpty ? [project.defaultDebugBuildConfigurationName] : projectDebugConfigurations
+                )
 
                 return mappedTarget
             }
@@ -35,7 +43,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         return (graph, [])
     }
 
-    private func map(_ graphTarget: GraphTarget, graphTraverser: GraphTraversing) -> Target {
+    private func map(_ graphTarget: GraphTarget, graphTraverser: GraphTraversing, debugConfigurations: [String]) -> Target {
         let allTargetDependencies = graphTraverser.allTargetDependencies(
             path: graphTarget.path,
             name: graphTarget.target.name
@@ -63,8 +71,11 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             additionalSettings["FRAMEWORK_SEARCH_PATHS"] = .array(frameworkSearchPaths)
         }
 
-        var target = graphTarget.target.with(
-            additionalSettings: additionalSettings
+        var target = graphTarget.target
+        target.settings = Settings(
+            base: target.settings?.base ?? [:],
+            baseDebug: additionalSettings,
+            configurations: [:]
         )
 
         let copyBuiltProductsScript: String
@@ -74,10 +85,12 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         switch target.product {
         case .staticLibrary:
             let (libScript, libInputPaths, libOutputPaths) = copyBuiltProductsToSharedDirectory(
+                debugConfigurations: debugConfigurations,
                 extensionName: "a",
                 prefix: "lib"
             )
             let (moduleScript, moduleInputPaths, moduleOutputPaths) = copyBuiltProductsToSharedDirectory(
+                debugConfigurations: debugConfigurations,
                 extensionName: "swiftmodule"
             )
             copyBuiltProductsScript = [libScript, moduleScript].joined(separator: "\n")
@@ -90,6 +103,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 builtProductsScriptInputPaths,
                 builtProductsScriptOutputPaths
             ) = copyBuiltProductsToSharedDirectory(
+                debugConfigurations: debugConfigurations,
                 extensionName: "swiftmodule"
             )
         case .bundle:
@@ -98,6 +112,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 builtProductsScriptInputPaths,
                 builtProductsScriptOutputPaths
             ) = copyBuiltProductsToSharedDirectory(
+                debugConfigurations: debugConfigurations,
                 extensionName: "bundle"
             )
         case .framework, .staticFramework:
@@ -106,6 +121,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
                 builtProductsScriptInputPaths,
                 builtProductsScriptOutputPaths
             ) = copyBuiltProductsToSharedDirectory(
+                debugConfigurations: debugConfigurations,
                 extensionName: "framework"
             )
         default:
@@ -128,12 +144,38 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
     }
 
     private func copyBuiltProductsToSharedDirectory(
+        debugConfigurations: [String],
         extensionName: String,
         prefix: String = ""
     ) -> (String, [String], [String]) {
-        let script = """
-        FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/\(prefix)$PRODUCT_NAME.\(extensionName)"
-        DESTINATION_FILE="$CONFIGURATION_BUILD_DIR$TARGET_BUILD_SUBPATH/\(prefix)$PRODUCT_NAME.\(extensionName)"
+        let script = debugConfigurations.map {
+            copyScript(for: $0, extensionName: extensionName, prefix: prefix)
+        }
+        .joined(separator: "\n")
+
+        return (
+            script,
+            debugConfigurations.map {
+                "$(BUILD_DIR)/\($0)$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/\(prefix)$(PRODUCT_NAME).\(extensionName)"
+            },
+            debugConfigurations.map {
+                "$(BUILD_DIR)/\($0)$(EFFECTIVE_PLATFORM_NAME)$(TARGET_BUILD_SUBPATH)/\(prefix)$(PRODUCT_NAME).\(extensionName)"
+            }
+        )
+    }
+
+    private func copyScript(
+        for configuration: String,
+        extensionName: String,
+        prefix: String
+    ) -> String {
+        """
+        FILE="$BUILD_DIR/\(configuration)$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/\(prefix)$PRODUCT_NAME.\(
+            extensionName
+        )"
+        DESTINATION_FILE="$BUILD_DIR/\(configuration)$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/\(prefix)$PRODUCT_NAME.\(
+            extensionName
+        )"
         if [[ -d "$FILE" && ! -d "$DESTINATION_FILE" ]]; then
             ln -s "$FILE" "$DESTINATION_FILE"
         fi
@@ -142,11 +184,5 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             ln -s "$FILE" "$DESTINATION_FILE"
         fi
         """
-
-        return (
-            script,
-            ["$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/$(PRODUCT_NAME)/\(prefix)$(PRODUCT_NAME).\(extensionName)"],
-            ["$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\(prefix)$(PRODUCT_NAME).\(extensionName)"]
-        )
     }
 }
