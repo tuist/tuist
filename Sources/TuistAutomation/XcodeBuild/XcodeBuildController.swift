@@ -197,22 +197,13 @@ public final class XcodeBuildController: XcodeBuildControlling {
     }
 
     public func createXCFramework(
-        frameworks: [AbsolutePath],
+        arguments: [XcodeBuildControllerCreateXCFrameworkArgument],
         output: AbsolutePath,
         rawXcodebuildLogs: Bool,
         rawXcodebuildLogsPath: AbsolutePath?
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
-        command.append(contentsOf: frameworks.flatMap {
-            let pathString = $0.pathString
-            return [
-                "-framework",
-                // It's workaround for Xcode 15 RC bug
-                // remove it since bug will be fixed
-                // more details here: https://github.com/tuist/tuist/issues/5354
-                pathString.hasPrefix("/var/") ? pathString.replacingOccurrences(of: "/var/", with: "/private/var/") : pathString
-            ]
-        })
+        command.append(contentsOf: arguments.flatMap(\.xcodebuildArguments))
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
         return try run(command: command, rawXcodebuildLogs: rawXcodebuildLogs, rawXcodebuildLogsPath: rawXcodebuildLogsPath)
