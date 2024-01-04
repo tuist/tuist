@@ -25,22 +25,17 @@ extension Target {
             rootFolder = "Sources"
         }
         return Target(
-            name: name,
-            platform: .macOS,
-            product: product,
-            bundleId: "io.tuist.\(name)",
-            deploymentTarget: Constants.deploymentTarget,
-            infoPlist: .default,
-            sources: ["\(rootFolder)/\(name)/**/*.swift"],
-            dependencies: dependencies
+          name: name,
+          destinations: [.mac],
+          product: product,
+          bundleId: "io.tuist.\(name)",
+          deploymentTargets: .macOS("12.0"),
+          infoPlist: .default,
+          sources: ["\(rootFolder)/\(name)/**/*.swift"],
+          dependencies: dependencies
         )
     }
 
-    /// - Parameters:
-    ///     - dependencies: Dependencies for the main target.
-    ///     - testDependencies: Dependencies for tests.
-    ///     - testingDependencies: Dependencies for the testing target.
-    ///     - integrationTestsDependencies: Dependencies for the integration tests.
     public static func module(
         name: String,
         product: Product = .staticFramework,
