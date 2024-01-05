@@ -7,6 +7,54 @@ public enum XcodeBuildDestination: Equatable {
     case mac
 }
 
+/// An enum that represents value pairs that can be passed when creating an .xcframework.
+public enum XcodeBuildControllerCreateXCFrameworkArgument {
+    /**
+     An argument that represents a framework archive. The argument is a tuple containing the
+     absolute path to the archive, and the name of the framework inside the archive.
+
+     xcodebuild -create-xcframework
+         -archive archives/MyFramework-iOS.xcarchive -framework MyFramework.framework
+         -archive archives/MyFramework-iOS_Simulator.xcarchive -framework MyFramework.framework
+         -archive archives/MyFramework-macOS.xcarchive -framework MyFramework.framework
+         -archive archives/MyFramework-Mac_Catalyst.xcarchive -framework MyFramework.framework
+         -output xcframeworks/MyFramework.xcframework
+     */
+    case framework(archivePath: AbsolutePath, framework: String)
+
+    /**
+     An argument that represents a library. The argument is a tuple containing the absolute path
+     to the library, and the absolute path to the directory containing the headers.
+
+     xcodebuild -create-xcframework
+         -library products/iOS/usr/local/lib/libMyLibrary.a -headers products/iOS/usr/local/include
+         -library products/iOS_Simulator/usr/local/lib/libMyLibrary.a -headers products/iOS/usr/local/include
+         -library products/macOS/usr/local/lib/libMyLibrary.a -headers products/macOS/usr/local/include
+         -library products/Mac\ Catalyst/usr/local/lib/libMyLibrary.a -headers products/Mac\ Catalyst/usr/local/include
+         -output xcframeworks/MyLibrary.xcframework
+     */
+    case library(path: AbsolutePath, headers: AbsolutePath)
+
+    /**
+     Returns the arguments that represent his argument when invoking xcodebuild.
+     */
+    public var xcodebuildArguments: [String] {
+        func sanitizedPath(_ path: AbsolutePath) -> String {
+            // It's workaround for Xcode 15 RC bug
+            // remove it since bug will be fixed
+            // more details here: https://github.com/tuist/tuist/issues/5354
+            path.pathString.hasPrefix("/var/") ? path.pathString.replacingOccurrences(of: "/var/", with: "/private/var/") : path
+                .pathString
+        }
+        switch self {
+        case let .framework(archivePath, framework):
+            return ["-archive", sanitizedPath(archivePath), "-framework", framework]
+        case let .library(libraryPath, headers):
+            return ["-library", sanitizedPath(libraryPath), "-headers", sanitizedPath(headers)]
+        }
+    }
+}
+
 public protocol XcodeBuildControlling {
     /// Returns an observable to build the given project using xcodebuild.
     /// - Parameters:
@@ -82,12 +130,12 @@ public protocol XcodeBuildControlling {
 
     /// Creates an .xcframework combining the list of given frameworks.
     /// - Parameters:
-    ///   - frameworks: Frameworks to be combined.
+    ///   - arguments: A set of arguments to configure the XCFramework creation.
     ///   - output: Path to the output .xcframework.
     ///   - rawXcodebuildLogs: When true, it outputs the raw xcodebuild logs.
     ///   - rawXcodebuildLogsPath: When passed, it outputs the raw xcodebuildlogs in that file.
     func createXCFramework(
-        frameworks: [AbsolutePath],
+        arguments: [XcodeBuildControllerCreateXCFrameworkArgument],
         output: AbsolutePath,
         rawXcodebuildLogs: Bool,
         rawXcodebuildLogsPath: AbsolutePath?
