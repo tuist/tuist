@@ -18,7 +18,8 @@ extension TestAction {
         language: String? = nil,
         region: String? = nil,
         preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,
-        testPlans: [TestPlan]? = nil
+        testPlans: [TestPlan]? = nil,
+        skippedTests: [String]? = nil
     ) -> TestAction {
         TestAction(
             targets: targets,
@@ -34,7 +35,8 @@ extension TestAction {
             language: language,
             region: region,
             preferredScreenCaptureFormat: preferredScreenCaptureFormat,
-            testPlans: testPlans
+            testPlans: testPlans,
+            skippedTests: skippedTests
         )
     }
 }
