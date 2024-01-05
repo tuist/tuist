@@ -131,9 +131,16 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
         target = target.with(
             scripts: target.scripts + [
                 TargetScript(
-                    name: "Copy Built Products",
+                    name: "Copy Built Products for Explicit Dependencies",
                     order: .post,
-                    script: .embedded(copyBuiltProductsScript),
+                    script: .embedded(
+                        """
+                        # This script copies built products into the shared directory to be available for app and other targets that don't have scoped directories
+                        # If you try to archive any of the configurations seen in the output paths, the operation will fail due to `Multiple commands produce` error
+
+                        \(copyBuiltProductsScript)
+                        """
+                    ),
                     inputPaths: builtProductsScriptInputPaths,
                     outputPaths: builtProductsScriptOutputPaths
                 ),

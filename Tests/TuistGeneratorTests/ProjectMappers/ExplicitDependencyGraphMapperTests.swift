@@ -137,9 +137,12 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
             gotFrameworkA.scripts,
             [
                 TargetScript(
-                    name: "Copy Built Products",
+                    name: "Copy Built Products for Explicit Dependencies",
                     order: .post,
                     script: .embedded("""
+                    # This script copies built products into the shared directory to be available for app and other targets that don't have scoped directories
+                    # If you try to archive any of the configurations seen in the output paths, the operation will fail due to `Multiple commands produce` error
+
                     FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.framework"
                     DESTINATION_FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.framework"
                     \(copyScript)
@@ -173,9 +176,12 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                 ),
                 scripts: [
                     TargetScript(
-                        name: "Copy Built Products",
+                        name: "Copy Built Products for Explicit Dependencies",
                         order: .post,
                         script: .embedded("""
+                        # This script copies built products into the shared directory to be available for app and other targets that don't have scoped directories
+                        # If you try to archive any of the configurations seen in the output paths, the operation will fail due to `Multiple commands produce` error
+
                         FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.swiftmodule"
                         DESTINATION_FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.swiftmodule"
                         \(copyScript)
@@ -208,9 +214,12 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
                     ),
                     scripts: [
                         TargetScript(
-                            name: "Copy Built Products",
+                            name: "Copy Built Products for Explicit Dependencies",
                             order: .post,
                             script: .embedded("""
+                            # This script copies built products into the shared directory to be available for app and other targets that don't have scoped directories
+                            # If you try to archive any of the configurations seen in the output paths, the operation will fail due to `Multiple commands produce` error
+
                             FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME/$PRODUCT_NAME.framework"
                             DESTINATION_FILE="$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME$TARGET_BUILD_SUBPATH/$PRODUCT_NAME.framework"
                             \(copyScript)
