@@ -18,6 +18,7 @@ public struct TestAction: Equatable, Codable {
     public var language: String?
     public var region: String?
     public var preferredScreenCaptureFormat: ScreenCaptureFormat?
+    public var skippedTestIdentifiers: [String]?
 
     // MARK: - Init
 
@@ -35,7 +36,8 @@ public struct TestAction: Equatable, Codable {
         language: String? = nil,
         region: String? = nil,
         preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,
-        testPlans: [TestPlan]? = nil
+        testPlans: [TestPlan]? = nil,
+        skippedTestIdentifiers: [String]? = nil
     ) {
         self.testPlans = testPlans
         self.targets = targets
@@ -51,5 +53,6 @@ public struct TestAction: Equatable, Codable {
         self.language = language
         self.region = region
         self.preferredScreenCaptureFormat = preferredScreenCaptureFormat
+        self.skippedTestIdentifiers = skippedTestIdentifiers
     }
 }
