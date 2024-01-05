@@ -802,6 +802,13 @@ public class GraphTraverser: GraphTraversing {
         var platforms: [GraphTarget: Set<Platform>] = [:]
 
         func traverse(target: GraphTarget, parentPlatforms: Set<Platform>) {
+            /**
+             If the parent platform sare not a strict superset of the target platforms, there's no need to traverse the branch again.
+             */
+            guard parentPlatforms.isStrictSuperset(of: platforms[target, default: Set()]) else {
+                return
+            }
+            
             let dependencies = directTargetDependenciesWithConditions(path: target.path, name: target.target.name)
 
             dependencies.forEach { dependencyTarget, dependencyCondition in
