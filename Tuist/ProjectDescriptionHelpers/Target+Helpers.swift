@@ -25,14 +25,14 @@ extension Target {
             rootFolder = "Sources"
         }
         return Target(
-          name: name,
-          destinations: [.mac],
-          product: product,
-          bundleId: "io.tuist.\(name)",
-          deploymentTargets: .macOS("12.0"),
-          infoPlist: .default,
-          sources: ["\(rootFolder)/\(name)/**/*.swift"],
-          dependencies: dependencies
+            name: name,
+            destinations: [.mac],
+            product: product,
+            bundleId: "io.tuist.\(name)",
+            deploymentTargets: .macOS("12.0"),
+            infoPlist: .default,
+            sources: ["\(rootFolder)/\(name)/**/*.swift"],
+            dependencies: dependencies
         )
     }
 
