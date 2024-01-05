@@ -806,7 +806,7 @@ public class GraphTraverser: GraphTraversing {
 
             dependencies.forEach { dependencyTarget, dependencyCondition in
                 var platformsToInsert: Set<Platform>?
-                
+
                 if let dependencyCondition,
                    let platformIntersection = PlatformCondition.when(target.target.dependencyPlatformFilters)?
                    .intersection(dependencyCondition)
@@ -825,13 +825,13 @@ public class GraphTraverser: GraphTraversing {
                     let inheritedPlatforms = dependencyTarget.target.product == .macro ? Set<Platform>([.macOS]) : parentPlatforms
                     platformsToInsert = inheritedPlatforms.intersection(dependencyTarget.target.supportedPlatforms)
                 }
-                
-                if let platformsToInsert = platformsToInsert {
+
+                if let platformsToInsert {
                     var existingPlatforms = platforms[dependencyTarget, default: Set()]
                     let continueTraversing = !platformsToInsert.isSubset(of: existingPlatforms)
                     existingPlatforms.formUnion(platformsToInsert)
                     platforms[dependencyTarget] = existingPlatforms
-                    
+
                     if continueTraversing {
                         traverse(target: dependencyTarget, parentPlatforms: platforms[dependencyTarget, default: Set()])
                     }
