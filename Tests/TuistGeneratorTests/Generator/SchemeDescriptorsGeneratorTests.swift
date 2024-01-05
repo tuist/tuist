@@ -1002,7 +1002,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(postBuildableReference.buildableIdentifier, "primary")
     }
 
-    func test_schemeTestAction_when_testsTarget_with_skskippedTestIdentifiers() throws {
+    func test_schemeTestAction_when_testsTarget_with_skippedTests() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
@@ -1011,7 +1011,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let testAction = TestAction.test(
             targets: [TestableTarget(target: TargetReference(projectPath: project.path, name: "AppTests"))],
             arguments: nil,
-            skippedTestIdentifiers: ["AppTests/test_twoPlusTwo_isFour"]
+            skippedTests: ["AppTests/test_twoPlusTwo_isFour"]
         )
 
         let scheme = Scheme.test(name: "AppTests", testAction: testAction)

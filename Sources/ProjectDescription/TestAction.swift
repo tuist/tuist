@@ -36,7 +36,7 @@ public struct TestAction: Equatable, Codable {
     public var diagnosticsOptions: [SchemeDiagnosticsOption]
 
     /// List of testIdentifiers to skip to the test
-    public var skippedTestIdentifiers: [String]?
+    public var skippedTests: [String]?
 
     private init(
         testPlans: [Path]?,
@@ -49,7 +49,7 @@ public struct TestAction: Equatable, Codable {
         postActions: [ExecutionAction],
         options: TestActionOptions,
         diagnosticsOptions: [SchemeDiagnosticsOption],
-        skippedTestIdentifiers: [String]?
+        skippedTests: [String]?
     ) {
         self.testPlans = testPlans
         self.targets = targets
@@ -61,7 +61,7 @@ public struct TestAction: Equatable, Codable {
         self.expandVariableFromTarget = expandVariableFromTarget
         self.options = options
         self.diagnosticsOptions = diagnosticsOptions
-        self.skippedTestIdentifiers = skippedTestIdentifiers
+        self.skippedTests = skippedTests
     }
 
     /// Returns a test action from a list of targets to be tested.
@@ -87,7 +87,7 @@ public struct TestAction: Equatable, Codable {
         postActions: [ExecutionAction] = [],
         options: TestActionOptions = .options(),
         diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
-        skippedTestIdentifiers: [String] = []
+        skippedTests: [String] = []
     ) -> Self {
         Self(
             testPlans: nil,
@@ -100,7 +100,7 @@ public struct TestAction: Equatable, Codable {
             postActions: postActions,
             options: options,
             diagnosticsOptions: diagnosticsOptions,
-            skippedTestIdentifiers: skippedTestIdentifiers
+            skippedTests: skippedTests
         )
     }
 
@@ -130,7 +130,7 @@ public struct TestAction: Equatable, Codable {
             postActions: postActions,
             options: .options(),
             diagnosticsOptions: [],
-            skippedTestIdentifiers: nil
+            skippedTests: nil
         )
     }
 }

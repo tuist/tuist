@@ -294,7 +294,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             )
         }
 
-        let skippedTests = testAction.skippedTestIdentifiers?.map { value in
+        let skippedTests = testAction.skippedTests?.map { value in
             XCScheme.TestItem(identifier: value)
         } ?? []
 
