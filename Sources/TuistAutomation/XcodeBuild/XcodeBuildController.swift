@@ -289,6 +289,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
                          rawXcodebuildLogs: Bool,
                          rawXcodebuildLogsPath: AbsolutePath?) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         
+        logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
         let rawXcodebuildFileLogger: FileLogger? = if let rawXcodebuildLogsPath = rawXcodebuildLogsPath {
             try FileLogger(path: rawXcodebuildLogsPath)
         } else {
