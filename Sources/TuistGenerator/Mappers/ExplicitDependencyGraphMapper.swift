@@ -4,7 +4,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-/// A target mapper that enforces explicit dependneices by adding custom build directories
+/// A target mapper that enforces explicit dependencies by adding custom build directories
 public struct ExplicitDependencyGraphMapper: GraphMapping {
     public init() {}
 

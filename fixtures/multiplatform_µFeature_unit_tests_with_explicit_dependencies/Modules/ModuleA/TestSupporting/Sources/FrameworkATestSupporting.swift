@@ -3,7 +3,7 @@ import Mocker
 
 public enum NetworkResponseMocks {
     public static var testMock: Mock {
-        return Mock(
+        Mock(
             url: URL(string: "https://apple.com")!,
             dataType: .json,
             statusCode: 200,

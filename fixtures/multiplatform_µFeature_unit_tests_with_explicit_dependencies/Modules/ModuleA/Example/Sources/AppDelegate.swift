@@ -1,5 +1,5 @@
-import SwiftUI
 import ModuleAImplementation
+import SwiftUI
 
 @main
 struct TuistApp: App {

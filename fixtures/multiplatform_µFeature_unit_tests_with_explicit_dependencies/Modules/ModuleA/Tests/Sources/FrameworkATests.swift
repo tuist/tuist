@@ -1,9 +1,8 @@
-import ModuleATestSupporting
 import Mocker
+import ModuleATestSupporting
 import XCTest
 
 class FrameworkATests: XCTestCase {
-
     var sut: URLSession!
 
     override func setUp() {
