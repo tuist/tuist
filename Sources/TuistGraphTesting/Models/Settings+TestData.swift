@@ -13,11 +13,11 @@ extension Configuration {
 
 extension Settings {
     public static func test(
-        base: SettingsDictionary = [:],
+        base: SettingsDictionary,
         // swiftlint:disable:next force_try
-        debug: Configuration = Configuration(settings: [:], xcconfig: try! AbsolutePath(validating: "/Debug.xcconfig")),
+        debug: Configuration,
         // swiftlint:disable:next force_try
-        release: Configuration = Configuration(settings: [:], xcconfig: try! AbsolutePath(validating: "/Release.xcconfig"))
+        release: Configuration
     ) -> Settings {
         Settings(
             base: base,
@@ -27,9 +27,14 @@ extension Settings {
 
     public static func test(
         base: SettingsDictionary = [:],
+        baseDebug: SettingsDictionary = [:],
         configurations: [BuildConfiguration: Configuration?] = [:]
     ) -> Settings {
-        Settings(base: base, configurations: configurations)
+        Settings(
+            base: base,
+            baseDebug: baseDebug,
+            configurations: configurations
+        )
     }
 
     public static func test(defaultSettings: DefaultSettings) -> Settings {
