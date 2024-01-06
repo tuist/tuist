@@ -251,6 +251,13 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func directSwiftMacroFrameworkTargets(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
+    /// Given a project and a target name, it returns all the target dependencies that are a static framework representing
+    /// a Swift Macro
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func allSwiftMacroFrameworkTargets(path: AbsolutePath, name: String) -> Set<GraphTarget>
+
     /// It returns a set containing the external dependencies that are not referenced by the projects either directly nor
     /// transitively.
     /// - Returns: The list of dependencies.

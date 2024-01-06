@@ -4563,6 +4563,56 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.sorted(), [])
     }
 
+    func test_allSwiftMacroFrameworkTargets_returnsTransitiveSwiftMacros() {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let directMacroFramework = Target.test(name: "DirectMacroFramework", destinations: [.iPhone], product: .staticFramework)
+        let directMacro = Target.test(name: "DirectMacro", destinations: [.mac], product: .macro)
+        let transitiveMacroFramework = Target.test(
+            name: "TransitiveMacroFramework",
+            destinations: [.iPhone],
+            product: .staticFramework
+        )
+        let transitiveMacro = Target.test(name: "TransitiveMacro", destinations: [.mac], product: .macro)
+
+        let project = Project.test(targets: [app, directMacroFramework, directMacro])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([.target(name: directMacroFramework.name, path: project.path)]),
+            .target(name: directMacroFramework.name, path: project.path): Set([
+                .target(name: directMacro.name, path: project.path),
+                .target(name: transitiveMacroFramework.name, path: project.path),
+            ]),
+            .target(name: transitiveMacroFramework.name, path: project.path): Set([.target(
+                name: transitiveMacro.name,
+                path: project.path
+            )]),
+        ]
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [
+                app.name: app,
+                directMacroFramework.name: directMacroFramework,
+                directMacro.name: directMacro,
+                transitiveMacroFramework.name: transitiveMacroFramework,
+                transitiveMacro.name: transitiveMacro,
+            ]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.allSwiftMacroFrameworkTargets(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            GraphTarget(path: project.path, target: directMacroFramework, project: project),
+            GraphTarget(path: project.path, target: transitiveMacroFramework, project: project),
+        ])
+    }
+
     func test_directTargetDependenciesWithConditions() throws {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
