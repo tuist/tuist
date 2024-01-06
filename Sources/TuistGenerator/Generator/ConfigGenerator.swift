@@ -181,6 +181,9 @@ final class ConfigGenerator: ConfigGenerating {
         )
 
         settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
+        if buildConfiguration.variant == .debug {
+            settingsHelper.extend(buildSettings: &settings, with: target.settings?.baseDebug ?? [:])
+        }
         settingsHelper.extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
         let variantBuildConfiguration = XCBuildConfiguration(
