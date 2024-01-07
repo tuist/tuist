@@ -4,9 +4,7 @@ Learn how Tuist synthesizes code and resources at generation-time
 
 ## Overview
 
-Tuist can synthesize code and resources at generation-time to improve the ergonomics declaring and maintaining projects, and improving the confidence working with them by leveraging the compiler to catch issues. This document describes which files Tuist synthesizes, why it does it, and how to disable or customize the synthesis.
-
-## Target resources
+### Target resources
 
 Xcode projects support adding resources to targets. However, they present teams with a few challenges, specially when working with a modular project where sources and resources are often moved around:
 
