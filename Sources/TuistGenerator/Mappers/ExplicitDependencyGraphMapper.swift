@@ -71,14 +71,41 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             additionalSettings["FRAMEWORK_SEARCH_PATHS"] = .array(frameworkSearchPaths)
         }
 
-        // If any dependency of this target has "ENABLE_TESTING_SEARCH_PATHS" set to "Yes", it needs to be propagated
-        // on the upstream target as well
-        let enableTestingSearchPaths = allTargetDependencies.contains { dependency in
-            let target = graphTraverser.target(path: dependency.path, name: dependency.target.name)
-            return target?.target.settings?.base.contains(where: { key, value in
+        // Recursively find whether a graph targets needs to have "ENABLE_TESTING_SEARCH_PATHS" set to "YES"
+        func findEnableTestingSearchPaths(graphTarget: GraphTarget) -> Bool {
+            guard let target = graphTraverser.target(path: graphTarget.path, name: graphTarget.target.name)?.target else {
+                return false
+            }
+
+            if target.settings?.base.contains(where: { key, value in
                 return key == "ENABLE_TESTING_SEARCH_PATHS" && value == .string("YES")
-            }) ?? false
+            }) ?? false {
+                return true
+            }
+
+            let allTargetDependencies = graphTraverser.allTargetDependencies(
+                path: graphTarget.path,
+                name: graphTarget.target.name
+            )
+
+            guard !allTargetDependencies.isEmpty else {
+                return false
+            }
+
+            var enable: Bool = false
+            for dependency in allTargetDependencies {
+                if findEnableTestingSearchPaths(graphTarget: dependency) {
+                    enable = true
+                    break
+                }
+            }
+
+            return enable
         }
+
+        // If any dependency of this target has "ENABLE_TESTING_SEARCH_PATHS" set to "YES", it needs to be propagated
+        // on the upstream target as well
+        let enableTestingSearchPaths = findEnableTestingSearchPaths(graphTarget: graphTarget)
 
         if enableTestingSearchPaths {
             additionalSettings["ENABLE_TESTING_SEARCH_PATHS"] = .string("YES")
