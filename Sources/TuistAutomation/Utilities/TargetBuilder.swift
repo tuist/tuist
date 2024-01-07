@@ -26,7 +26,6 @@ public protocol TargetBuilding {
         clean: Bool,
         configuration: String?,
         buildOutputPath: AbsolutePath?,
-        resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         device: String?,
         osVersion: Version?,
@@ -84,7 +83,6 @@ public final class TargetBuilder: TargetBuilding {
         clean: Bool,
         configuration: String?,
         buildOutputPath: AbsolutePath?,
-        resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         device: String?,
         osVersion: Version?,
@@ -116,7 +114,6 @@ public final class TargetBuilder: TargetBuilding {
                 scheme: scheme.name,
                 destination: destination,
                 rosetta: rosetta,
-                resultBundlePath: resultBundlePath,
                 derivedDataPath: derivedDataPath,
                 clean: clean,
                 arguments: buildArguments

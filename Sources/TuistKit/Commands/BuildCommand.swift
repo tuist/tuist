@@ -73,12 +73,6 @@ public struct BuildCommand: AsyncParsableCommand {
     var buildOutputPath: String?
 
     @Option(
-        name: [.long, .customShort("T")],
-        help: "Path where the build result bundle will be saved."
-    )
-    var resultBundlePath: String?
-
-    @Option(
         help: "Overrides the folder that should be used for derived data when building the project."
     )
     var derivedDataPath: String?
@@ -103,12 +97,6 @@ public struct BuildCommand: AsyncParsableCommand {
             clean: clean,
             configuration: configuration,
             buildOutputPath: buildOutputPath.map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) },
-            resultBundlePath: resultBundlePath.map {
-                try AbsolutePath(
-                    validating: $0,
-                    relativeTo: FileHandler.shared.currentPath
-                )
-            },
             derivedDataPath: derivedDataPath,
             path: absolutePath,
             device: device,

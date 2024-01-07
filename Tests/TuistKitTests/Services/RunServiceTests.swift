@@ -113,7 +113,7 @@ final class RunServiceTests: TuistUnitTestCase {
         let clean = true
         let configuration = "Test"
         targetBuilder
-            .buildTargetStub = { _, _workspacePath, _scheme, _clean, _configuration, _, _, _, _, _, _, _ in
+            .buildTargetStub = { _, _workspacePath, _scheme, _clean, _configuration, _, _, _, _, _, _ in
                 // Then
                 XCTAssertEqual(_workspacePath, workspacePath)
                 XCTAssertEqual(_scheme.name, schemeName)
@@ -185,7 +185,7 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector.workspacePathStub = { _ in workspacePath }
         buildGraphInspector.runnableSchemesStub = { _ in [.test()] }
         buildGraphInspector.runnableTargetStub = { _, _ in .test() }
-        targetBuilder.buildTargetStub = { _, _, _, _, _, _, _, _, _, _, _, _ in expectation.fulfill() }
+        targetBuilder.buildTargetStub = { _, _, _, _, _, _, _, _, _, _, _ in expectation.fulfill() }
         targetRunner.assertCanRunTargetStub = { _ in throw TestError() }
 
         // Then

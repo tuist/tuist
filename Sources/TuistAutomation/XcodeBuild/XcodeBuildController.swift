@@ -37,7 +37,6 @@ public final class XcodeBuildController: XcodeBuildControlling {
         scheme: String,
         destination: XcodeBuildDestination?,
         rosetta: Bool,
-        resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         clean: Bool = false,
         arguments: [XcodeBuildArgument]
@@ -71,11 +70,6 @@ public final class XcodeBuildController: XcodeBuildControlling {
             command.append(contentsOf: ["-destination", SimulatorController().macOSDestination()])
         case nil:
             break
-        }
-        
-        // Result bundle path
-        if let resultBundlePath = resultBundlePath {
-            command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
         }
         
         // Derived data path

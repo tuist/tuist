@@ -69,7 +69,6 @@ public protocol XcodeBuildControlling {
         scheme: String,
         destination: XcodeBuildDestination?,
         rosetta: Bool,
-        resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         clean: Bool,
         arguments: [XcodeBuildArgument]

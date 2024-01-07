@@ -11,7 +11,6 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         XcodeBuildDestination?,
         Bool,
         AbsolutePath?,
-        AbsolutePath?,
         Bool,
         [XcodeBuildArgument]
     ) -> [SystemEvent<XcodeBuildOutput>])?
@@ -21,7 +20,6 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         scheme: String,
         destination: XcodeBuildDestination?,
         rosetta: Bool,
-        resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         clean: Bool,
         arguments: [XcodeBuildArgument]
@@ -32,7 +30,6 @@ final class MockXcodeBuildController: XcodeBuildControlling {
                 scheme,
                 destination,
                 rosetta,
-                resultBundlePath,
                 derivedDataPath,
                 clean,
                 arguments

@@ -48,7 +48,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             destination: nil,
             rosetta: false,
-            resultBundlePath: nil,
             derivedDataPath: nil,
             clean: true,
             arguments: []
@@ -77,7 +76,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             destination: nil,
             rosetta: true,
-            resultBundlePath: nil,
             derivedDataPath: nil,
             clean: true,
             arguments: []
@@ -107,7 +105,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             destination: .device("this_is_a_udid"),
             rosetta: false,
-            resultBundlePath: nil,
             derivedDataPath: nil,
             clean: true,
             arguments: []
@@ -137,38 +134,6 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             scheme: scheme,
             destination: .device("this_is_a_udid"),
             rosetta: true,
-            resultBundlePath: nil,
-            derivedDataPath: nil,
-            clean: true,
-            arguments: []
-        )
-
-        let result = try await events.toArray()
-        XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
-    }
-
-    func test_build_with_result_bundle_path() async throws {
-        // Given
-        let path = try temporaryPath()
-        let xcworkspacePath = path.appending(component: "Project.xcworkspace")
-        let target = XcodeBuildTarget.workspace(xcworkspacePath)
-        let scheme = "Scheme"
-        let resultBundlePath = try temporaryPath()
-
-        var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
-        command.append(contentsOf: target.xcodebuildArguments)
-        command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
-
-        system.succeedCommand(command, output: "output")
-        developerEnvironment.stubbedArchitecture = .x8664
-
-        // When
-        let events = try subject.build(
-            target,
-            scheme: scheme,
-            destination: nil,
-            rosetta: true,
-            resultBundlePath: resultBundlePath,
             derivedDataPath: nil,
             clean: true,
             arguments: []

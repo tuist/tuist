@@ -84,14 +84,13 @@ final class TargetBuilderTests: TuistUnitTestCase {
         }
 
         xcodeBuildController
-            .buildStub = { _workspace, _scheme, _destination, _rosetta, _resultBundlePath, _, _clean, _buildArguments in
+            .buildStub = { _workspace, _scheme, _destination, _rosetta, _, _clean, _buildArguments in
                 XCTAssertEqual(_workspace.path, workspacePath)
                 XCTAssertEqual(_scheme, scheme.name)
                 XCTAssertEqual(_destination, destination)
                 XCTAssertEqual(_rosetta, rosetta)
                 XCTAssertEqual(_clean, clean)
                 XCTAssertEqual(_buildArguments, buildArguments)
-                XCTAssertEqual(_resultBundlePath, resultBundlePath)
                 return [.standardOutput(.init(raw: "success"))]
             }
 
@@ -104,7 +103,6 @@ final class TargetBuilderTests: TuistUnitTestCase {
             clean: clean,
             configuration: configuration,
             buildOutputPath: nil,
-            resultBundlePath: resultBundlePath,
             derivedDataPath: nil,
             device: device,
             osVersion: version,
@@ -121,7 +119,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
         let graphTraverser = MockGraphTraverser()
 
-        xcodeBuildController.buildStub = { _, _, _, _, _, _, _, _ in
+        xcodeBuildController.buildStub = { _, _, _, _, _, _, _ in
             [.standardOutput(.init(raw: "success"))]
         }
 
@@ -141,7 +139,6 @@ final class TargetBuilderTests: TuistUnitTestCase {
             clean: false,
             configuration: nil,
             buildOutputPath: buildOutputPath,
-            resultBundlePath: nil,
             derivedDataPath: nil,
             device: nil,
             osVersion: nil,
@@ -173,7 +170,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
         let graphTraverser = MockGraphTraverser()
 
-        xcodeBuildController.buildStub = { _, _, _, _, _, _, _, _ in
+        xcodeBuildController.buildStub = { _, _, _, _, _, _, _ in
             [.standardOutput(.init(raw: "success"))]
         }
 
@@ -193,7 +190,6 @@ final class TargetBuilderTests: TuistUnitTestCase {
             clean: false,
             configuration: configuration,
             buildOutputPath: buildOutputPath,
-            resultBundlePath: nil,
             derivedDataPath: nil,
             device: nil,
             osVersion: nil,
