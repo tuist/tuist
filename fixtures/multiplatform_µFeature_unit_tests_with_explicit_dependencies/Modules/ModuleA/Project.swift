@@ -13,7 +13,7 @@ let project = Project(
             bundleId: "io.tuist.ModuleA.interface",
             deploymentTargets: .deploymentTargets(for: supportedPlatforms),
             sources: [
-                .glob("Implementation/Sources/**"),
+                .glob("Interface/Sources/**"),
             ]
         ),
         Target(

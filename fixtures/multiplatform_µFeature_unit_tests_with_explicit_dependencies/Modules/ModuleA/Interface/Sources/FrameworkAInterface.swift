@@ -1,1 +1,1 @@
-public protocol FrameworkAInterface: {}
+public protocol FrameworkAInterface {}

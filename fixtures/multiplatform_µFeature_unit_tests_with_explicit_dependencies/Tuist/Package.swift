@@ -4,6 +4,6 @@ import PackageDescription
 let package = Package(
     name: "Dependencies",
     dependencies: [
-        .package(url: "https://github.com/WeTransfer/Mocker", exact: "3.0.1"),
+        .package(url: "https://github.com/WeTransfer/Mocker", revision: "3.0.1"),
     ]
 )

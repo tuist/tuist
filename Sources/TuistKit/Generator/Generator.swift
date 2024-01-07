@@ -74,6 +74,28 @@ public class Generator: Generating {
 
         printAndFlushPendingLintWarnings()
 
+
+        workspaceDescriptor.projectDescriptors.forEach { project in
+            print("=====Project: \(project.xcodeprojPath.basename)=====")
+            project.xcodeProj.pbxproj.nativeTargets.forEach { target in
+                print("Target: \(target.name)")
+                print("Dependencies:")
+
+
+
+                target.dependencies.forEach { dependency in
+                    let a = dependency.target?.buildConfigurationList
+
+                    let c = a?.buildConfigurations.first?.buildSettings
+                    let b = dependency.target?.buildPhases
+                    print("\(dependency.name)")
+
+                }
+            }
+        }
+
+
+
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
 

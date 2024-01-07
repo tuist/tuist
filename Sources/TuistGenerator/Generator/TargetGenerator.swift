@@ -66,6 +66,7 @@ final class TargetGenerator: TargetGenerating {
         /// Products reference.
         let productFileReference = fileElements.products[target.name]!
 
+        var target = target
         /// Target
         let pbxTarget = PBXNativeTarget(
             name: target.name,
