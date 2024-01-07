@@ -118,8 +118,6 @@ public final class GraphLoader: GraphLoading {
         if !dependencies.isEmpty {
             cache.dependencies[targetDependency] = Set(dependencies)
         }
-
-        
     }
 
     // swiftlint:disable:next function_body_length
