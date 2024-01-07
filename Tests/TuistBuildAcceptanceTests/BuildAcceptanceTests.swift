@@ -48,9 +48,7 @@ final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDire
             "--configuration",
             "debug",
             "--build-output-path",
-            fixturePath.appending(component: "Builds").pathString,
-            "--result-bundle-path",
-            fixturePath.appending(component: "build-result").pathString
+            fixturePath.appending(component: "Builds").pathString
         )
         let debugPath = fixturePath.appending(
             try RelativePath(validating: "Builds/debug-iphonesimulator")
@@ -64,7 +62,6 @@ final class BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDire
             "--build-output-path",
             fixturePath.appending(component: "Builds").pathString
         )
-        XCTAssertTrue(FileHandler.shared.exists(fixturePath.appending(component: "build-result")))
         try XCTAssertDirectoryContentEqual(debugPath, ["App.app", "App.swiftmodule", "FrameworkA.framework"])
         let releasePath = fixturePath.appending(
             try RelativePath(validating: "Builds/release-iphonesimulator")
