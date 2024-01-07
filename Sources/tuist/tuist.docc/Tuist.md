@@ -75,7 +75,7 @@ The choice is yours. By adding .xcodeproj and .xcworkspace files to your .gitign
 - <doc:project-structure>
 - <doc:command-line-interface>
 - <doc:dependencies>
-- <doc:signing>
+- <doc:resources>
 - <doc:extensions>
 - <doc:migration-guidelines>
 - <doc:tuist-tutorials>
