@@ -660,6 +660,20 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedDirectSwiftMacroFrameworkTargetsResult
     }
 
+    var invokedAllSwiftMacroFrameworkTargets = false
+    var invokedAllSwiftMacroFrameworkTargetsCount = 0
+    var invokedAllSwiftMacroFrameworkTargetsParameters: (path: AbsolutePath, name: String)?
+    var invokedAllSwiftMacroFrameworkTargetsParametersList =
+        [(path: AbsolutePath, name: String)]()
+    var stubbedAllSwiftMacroFrameworkTargetsResult: Set<GraphTarget>! = []
+    func allSwiftMacroFrameworkTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistGraph.GraphTarget> {
+        invokedAllSwiftMacroFrameworkTargets = true
+        invokedAllSwiftMacroFrameworkTargetsCount += 1
+        invokedAllSwiftMacroFrameworkTargetsParameters = (path, name)
+        invokedAllSwiftMacroFrameworkTargetsParametersList.append((path, name))
+        return stubbedAllSwiftMacroFrameworkTargetsResult
+    }
+
     var invokedAllOrphanExternalTargets = false
     var invokedAllOrphanExternalTargetsCount = 0
     var stubbedAllOrphanExternalTargetsResult: Set<GraphTarget>! = []

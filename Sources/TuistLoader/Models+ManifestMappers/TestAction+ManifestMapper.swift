@@ -23,6 +23,7 @@ extension TuistGraph.TestAction {
         let language: SchemeLanguage?
         let region: String?
         let preferredScreenCaptureFormat: TuistGraph.ScreenCaptureFormat?
+        let skippedTests: [String]?
 
         if let plans = manifest.testPlans {
             testPlans = try plans.enumerated().compactMap { index, path in
@@ -41,6 +42,7 @@ extension TuistGraph.TestAction {
             language = nil
             region = nil
             preferredScreenCaptureFormat = nil
+            skippedTests = nil
         } else {
             targets = try manifest.targets
                 .map { try TuistGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
@@ -67,6 +69,7 @@ extension TuistGraph.TestAction {
 
             // not used when using targets
             testPlans = nil
+            skippedTests = manifest.skippedTests
         }
 
         let configurationName = manifest.configuration.rawValue
@@ -93,7 +96,8 @@ extension TuistGraph.TestAction {
             language: language?.identifier,
             region: region,
             preferredScreenCaptureFormat: preferredScreenCaptureFormat,
-            testPlans: testPlans
+            testPlans: testPlans,
+            skippedTests: skippedTests
         )
     }
 }

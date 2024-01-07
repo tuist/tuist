@@ -35,6 +35,9 @@ public struct TestAction: Equatable, Codable {
     /// List of diagnostics options to set to the action.
     public var diagnosticsOptions: [SchemeDiagnosticsOption]
 
+    /// List of testIdentifiers to skip to the test
+    public var skippedTests: [String]?
+
     private init(
         testPlans: [Path]?,
         targets: [TestableTarget],
@@ -45,7 +48,8 @@ public struct TestAction: Equatable, Codable {
         preActions: [ExecutionAction],
         postActions: [ExecutionAction],
         options: TestActionOptions,
-        diagnosticsOptions: [SchemeDiagnosticsOption]
+        diagnosticsOptions: [SchemeDiagnosticsOption],
+        skippedTests: [String]?
     ) {
         self.testPlans = testPlans
         self.targets = targets
@@ -57,6 +61,7 @@ public struct TestAction: Equatable, Codable {
         self.expandVariableFromTarget = expandVariableFromTarget
         self.options = options
         self.diagnosticsOptions = diagnosticsOptions
+        self.skippedTests = skippedTests
     }
 
     /// Returns a test action from a list of targets to be tested.
@@ -81,7 +86,8 @@ public struct TestAction: Equatable, Codable {
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
         options: TestActionOptions = .options(),
-        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]
+        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
+        skippedTests: [String] = []
     ) -> Self {
         Self(
             testPlans: nil,
@@ -93,7 +99,8 @@ public struct TestAction: Equatable, Codable {
             preActions: preActions,
             postActions: postActions,
             options: options,
-            diagnosticsOptions: diagnosticsOptions
+            diagnosticsOptions: diagnosticsOptions,
+            skippedTests: skippedTests
         )
     }
 
@@ -122,7 +129,8 @@ public struct TestAction: Equatable, Codable {
             preActions: preActions,
             postActions: postActions,
             options: .options(),
-            diagnosticsOptions: []
+            diagnosticsOptions: [],
+            skippedTests: nil
         )
     }
 }

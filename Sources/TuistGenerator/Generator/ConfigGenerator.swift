@@ -181,6 +181,9 @@ final class ConfigGenerator: ConfigGenerating {
         )
 
         settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
+        if buildConfiguration.variant == .debug {
+            settingsHelper.extend(buildSettings: &settings, with: target.settings?.baseDebug ?? [:])
+        }
         settingsHelper.extend(buildSettings: &settings, with: configuration?.settings ?? [:])
 
         let variantBuildConfiguration = XCBuildConfiguration(
@@ -312,7 +315,7 @@ final class ConfigGenerator: ConfigGenerating {
         graphTraverser: GraphTraversing,
         projectPath: AbsolutePath
     ) -> SettingsDictionary {
-        let targets = graphTraverser.directSwiftMacroFrameworkTargets(path: projectPath, name: target.name)
+        let targets = graphTraverser.allSwiftMacroFrameworkTargets(path: projectPath, name: target.name)
         if targets.isEmpty { return [:] }
         var settings: SettingsDictionary = [:]
         settings["OTHER_SWIFT_FLAGS"] = .array(targets.flatMap { target in
