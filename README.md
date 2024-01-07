@@ -42,7 +42,7 @@ tuist generate # Generates Xcode project & workspace
 tuist build # Builds your project
 ```
 
-[Check out](https://docs.tuist.io) the project "Get Started" guide to learn more about Tuist and all its features.
+[Check out](https://docs.tuist.io/documentation/tuist) the project "Get Started" guide to learn more about Tuist and all its features.
 
 ## Sample projects 🔬
 
@@ -50,7 +50,7 @@ You can find some sample projects in the [fixtures folder](fixtures) or the [awe
 
 ## Want to contribute?
 
-You can use our [contribution docs](https://docs.tuist.io/contributors/get-started) to get started. If you don't have a specific issue in mind, we are more than happy to help you, just ask for help in a given issue or on our [Slack](https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg). You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). We also offer [issue bounties](https://github.com/tuist/tuist/discussions/4982) for some highly-valued issues.
+You can use our [contribution docs](https://docs.tuist.io/documentation/tuist/get-started-as-contributor) to get started. If you don't have a specific issue in mind, we are more than happy to help you, just ask for help in a given issue or on our [Slack](https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg). You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). We also offer [issue bounties](https://github.com/tuist/tuist/discussions/4982) for some highly-valued issues.
 
 ## Sponsors
 
@@ -225,7 +225,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
 
 ## Documentation 📝
 
-Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://docs.tuist.io/tutorial/get-started/).
+Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://docs.tuist.io/documentation/tuist/).
 
 ## Supported by great companies
 
@@ -239,7 +239,7 @@ Do you want to know more about what Tuist can offer you? Or perhaps want to cont
 
 ## Contribute 👩‍💻
 
-If you are interested in contributing to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://docs.tuist.io/contributors/get-started).
+If you are interested in contributing to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://docs.tuist.io/documentation/tuist/get-started-as-contributor).
 
 ## Core Team ✨
 
