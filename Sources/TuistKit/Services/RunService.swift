@@ -115,6 +115,7 @@ final class RunService {
             clean: clean,
             configuration: configuration,
             buildOutputPath: nil,
+            resultBundlePath: nil,
             derivedDataPath: nil,
             device: device,
             osVersion: version?.version(),

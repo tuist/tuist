@@ -69,6 +69,7 @@ public protocol XcodeBuildControlling {
         scheme: String,
         destination: XcodeBuildDestination?,
         rosetta: Bool,
+        resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         clean: Bool,
         arguments: [XcodeBuildArgument]
@@ -124,7 +125,7 @@ public protocol XcodeBuildControlling {
         arguments: [XcodeBuildControllerCreateXCFrameworkArgument],
         output: AbsolutePath
     )
-    throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+        throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Gets the build settings of a scheme targets.
     /// - Parameters:
