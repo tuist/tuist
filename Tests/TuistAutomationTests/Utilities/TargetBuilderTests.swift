@@ -61,7 +61,6 @@ final class TargetBuilderTests: TuistUnitTestCase {
         // Given
         let scheme = Scheme.test(name: "A")
         let workspacePath = try AbsolutePath(validating: "/path/to/project.xcworkspace")
-        let resultBundlePath = try AbsolutePath(validating: "/tmp/result-bundle")
         let configuration = "TestRelease"
         let clean = false
         let buildArguments: [XcodeBuildArgument] = [
