@@ -812,6 +812,8 @@ public class GraphTraverser: GraphTraversing {
             let dependencies = directTargetDependenciesWithConditions(path: target.path, name: target.target.name)
 
             dependencies.forEach { dependencyTarget, dependencyCondition in
+                var platformsToInsert: Set<Platform>?
+
                 if let dependencyCondition,
                    let platformIntersection = PlatformCondition.when(target.target.dependencyPlatformFilters)?
                    .intersection(dependencyCondition)
@@ -823,22 +825,24 @@ public class GraphTraverser: GraphTraversing {
                         if let condition {
                             let dependencyPlatforms: [Platform] = condition.platformFilters.map(\.platform).filter { $0 != nil }
                                 .map { $0! }
-                            var existingDependencyPlatforms = platforms[dependencyTarget, default: Set()]
-                            existingDependencyPlatforms.formUnion(dependencyPlatforms)
-                            platforms[dependencyTarget] = existingDependencyPlatforms
+                            platformsToInsert = Set(dependencyPlatforms)
                         }
                     }
                 } else {
-                    /**
-                     When there are no conditions, the platforms are inherited from the parent.
-                     */
-                    var dependencyPlatforms = platforms[dependencyTarget, default: Set()]
                     let inheritedPlatforms = dependencyTarget.target.product == .macro ? Set<Platform>([.macOS]) : parentPlatforms
-                    dependencyPlatforms.formUnion(inheritedPlatforms.intersection(dependencyTarget.target.supportedPlatforms))
-                    platforms[dependencyTarget] = dependencyPlatforms
+                    platformsToInsert = inheritedPlatforms.intersection(dependencyTarget.target.supportedPlatforms)
                 }
 
-                traverse(target: dependencyTarget, parentPlatforms: platforms[dependencyTarget, default: Set()])
+                if let platformsToInsert {
+                    var existingPlatforms = platforms[dependencyTarget, default: Set()]
+                    let continueTraversing = !platformsToInsert.isSubset(of: existingPlatforms)
+                    existingPlatforms.formUnion(platformsToInsert)
+                    platforms[dependencyTarget] = existingPlatforms
+
+                    if continueTraversing {
+                        traverse(target: dependencyTarget, parentPlatforms: platforms[dependencyTarget, default: Set()])
+                    }
+                }
             }
         }
 
