@@ -108,20 +108,18 @@ final class RunServiceTests: TuistUnitTestCase {
     func test_run_buildsTarget() async throws {
         // Given
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
-        let rawXcodebuildLogsPath = try AbsolutePath(validating: "/tmp/xcodebuild.log")
         let expectation = expectation(description: "builds target")
         let schemeName = "AScheme"
         let clean = true
         let configuration = "Test"
         targetBuilder
             .buildTargetStub =
-            { _, _workspacePath, _scheme, _clean, _configuration, _, _, _, _, _, _, _, _rawXcodebuildLogsPath in
+            { _, _workspacePath, _scheme, _clean, _configuration, _, _, _, _, _, _ in
                 // Then
                 XCTAssertEqual(_workspacePath, workspacePath)
                 XCTAssertEqual(_scheme.name, schemeName)
                 XCTAssertEqual(_clean, clean)
                 XCTAssertEqual(_configuration, configuration)
-                XCTAssertEqual(_rawXcodebuildLogsPath, rawXcodebuildLogsPath)
                 expectation.fulfill()
             }
         generator.generateWithGraphStub = { _ in (workspacePath, .test()) }
@@ -134,8 +132,7 @@ final class RunServiceTests: TuistUnitTestCase {
         try await subject.run(
             schemeName: schemeName,
             clean: clean,
-            configuration: configuration,
-            rawXcodebuildLogsPath: rawXcodebuildLogsPath
+            configuration: configuration
         )
         await fulfillment(of: [expectation], timeout: 1)
     }
@@ -189,7 +186,7 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector.workspacePathStub = { _ in workspacePath }
         buildGraphInspector.runnableSchemesStub = { _ in [.test()] }
         buildGraphInspector.runnableTargetStub = { _, _ in .test() }
-        targetBuilder.buildTargetStub = { _, _, _, _, _, _, _, _, _, _, _, _, _ in expectation.fulfill() }
+        targetBuilder.buildTargetStub = { _, _, _, _, _, _, _, _, _, _, _ in expectation.fulfill() }
         targetRunner.assertCanRunTargetStub = { _ in throw TestError() }
 
         // Then
@@ -211,8 +208,7 @@ extension RunService {
         device: String? = nil,
         version: String? = nil,
         rosetta: Bool = false,
-        arguments: [String] = [],
-        rawXcodebuildLogsPath: AbsolutePath? = nil
+        arguments: [String] = []
     ) async throws {
         try await run(
             path: nil,
@@ -223,9 +219,7 @@ extension RunService {
             device: device,
             version: version,
             rosetta: rosetta,
-            arguments: arguments,
-            rawXcodebuildLogs: false,
-            rawXcodebuildLogsPath: rawXcodebuildLogsPath
+            arguments: arguments
         )
     }
 }
