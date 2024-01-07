@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.39.0 - 2024-01-07
+
+### Tuist
+
+#### Added
+
+- Prefer an exact match on `developmentRegion` when choosing localization strings files [#5758](https://github.com/tuist/tuist/pull/5758) by [@UniekLee](https://github.com/UniekLee)
+- Verbose-log the `xcodebuild` command that's being executed [#5768](https://github.com/tuist/tuist/pull/5768) by [@pepicrft](https://github.com/pepicrft)
+- Add SkippedTests for TestAction [#5767](https://github.com/tuist/tuist/pull/5767) by [@dp221125](https://github.com/dp221125)
+
+#### Fixed
+
+- Fix explicit dependencies for archive [#5764](https://github.com/tuist/tuist/pull/5764) by [@fortmarek](https://github.com/fortmarek)
+- Add support for transitive Swift Macros [#5772](https://github.com/tuist/tuist/pull/5772) by [@pepicrft](https://github.com/pepicrft)
+- Optimize the graph traverser function to obtain the platforms for external dependencies [#5770](https://github.com/tuist/tuist/pull/5770) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.38.0 - 2024-01-03
 
 ### Tuist
