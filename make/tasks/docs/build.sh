@@ -9,3 +9,6 @@ swift package --package-path $ROOT_DIR --allow-writing-to-directory .build/docum
 echo "/index.html	/documentation/tuist" > "$ROOT_DIR/.build/documentation/_redirects"
 cp $ROOT_DIR/assets/favicon.ico $ROOT_DIR/.build/documentation/favicon.ico
 cp $ROOT_DIR/assets/favicon.svg $ROOT_DIR/.build/documentation/favicon.svg
+
+REDIRECT_LINE="/                /documentation/tuist"
+echo "$REDIRECT_LINE" > "$ROOT_DIR/.build/documentation/_redirects"
