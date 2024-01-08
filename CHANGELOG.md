@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.39.2 - 2024-01-08
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix the warning messages that tells users about the depreaction of frameworks for caching by [@pepicrft](https://github.com/pepicrft)
+- Fix cache warming failing to resolve the hash for targets by [@pepicrft](https://github.com/pepicrft)
+
 ## 3.39.1 - 2024-01-08
 
 ### Tuist
