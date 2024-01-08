@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.39.1 - 2024-01-08
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix cache warm for xcframeworks when explicit dependencies are enabled. [#66](https://github.com/tuist/tuist/pull/66) by [@fortmarek](https://github.com/fortmarek)
+
 ## 3.39.0 - 2024-01-07
 
 ### Tuist
