@@ -64,8 +64,6 @@ final class BuildService {
         platform: String?,
         osVersion: String?,
         rosetta: Bool,
-        rawXcodebuildLogs: Bool,
-        rawXcodebuildLogsPath: AbsolutePath?,
         generateOnly: Bool
     ) async throws {
         let graph: Graph
@@ -129,9 +127,7 @@ final class BuildService {
                 device: device,
                 osVersion: osVersion?.version(),
                 rosetta: rosetta,
-                graphTraverser: graphTraverser,
-                rawXcodebuildLogs: rawXcodebuildLogs,
-                rawXcodebuildLogsPath: rawXcodebuildLogsPath
+                graphTraverser: graphTraverser
             )
         } else {
             var cleaned = false
@@ -162,9 +158,7 @@ final class BuildService {
                     device: device,
                     osVersion: osVersion?.version(),
                     rosetta: rosetta,
-                    graphTraverser: graphTraverser,
-                    rawXcodebuildLogs: rawXcodebuildLogs,
-                    rawXcodebuildLogsPath: rawXcodebuildLogsPath
+                    graphTraverser: graphTraverser
                 )
                 cleaned = true
             }

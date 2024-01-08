@@ -49,11 +49,11 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Test
-        run: tuist test --xcframeworks --skip-test-targets TuistBuildAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --raw-xcodebuild-logs-path /tmp/tuist/test.xcodebuild.log
+        run: tuist test --xcframeworks --skip-test-targets TuistBuildAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-${{ matrix.feature }}
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
-          name: test.xcodebuild.log
+          name: test-${{ matrix.feature }}
           path: |
             /tmp/tuist/**
 
@@ -150,11 +150,11 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Run acceptance tests
-        run: tuist test --xcframeworks --raw-xcodebuild-logs-path /tmp/tuist/test.${{ matrix.feature }}.xcodebuild.log ${{ matrix.feature }}
+        run: tuist test --xcframeworks --result-bundle-path /tmp/tuist/test-${{ matrix.feature }} ${{ matrix.feature }}
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
-          name: test-${{ matrix.feature }}.xcodebuild.log
+          name: test-${{ matrix.feature }}
           path: |
             /tmp/tuist/**
   lint:
