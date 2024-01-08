@@ -32,7 +32,7 @@ Install [mise](https://mise.jdx.dev/getting-started.html#quickstart) and then ru
 mise install tuist
 ```
 
-You can check out [the documentation](https://docs.next.tuist.io/documentation/tuist/installation) to learn more about the rationale behind our installation approach and alternative approaches.
+You can check out [the documentation](https://docs.tuist.io/documentation/tuist/installation) to learn more about the rationale behind our installation approach and alternative approaches.
 
 ## Bootstrap your first project 🌀
 
