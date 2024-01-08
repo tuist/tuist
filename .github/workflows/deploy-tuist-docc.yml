@@ -38,7 +38,7 @@ jobs:
         run: 'sudo chown -R $USER .build/documentation'
       - name: Copy the redirects file to the root
         # For the Netlify CLI to pick it up
-        run: cp .build/documentation/_redirects ./_redirects
+        run: cp .build/documentation/netlify.toml ./netlify.toml  
       - name: Deploy production to Netlify
         uses: South-Paw/action-netlify-cli@1.0.1
         id: netlify
