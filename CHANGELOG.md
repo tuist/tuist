@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.39.3 - 2024-01-08
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.39.2 - 2024-01-08
 
 ### Tuist
