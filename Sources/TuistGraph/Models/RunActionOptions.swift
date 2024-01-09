@@ -10,7 +10,7 @@ public struct RunActionOptions: Equatable, Codable {
     public let region: String?
 
     /// Show non localized string as UPPERCASE when running the app.
-    public var showNonLocalizedStrings: Bool
+    public var showNonLocalizedStringsAsUppercase: Bool
 
     /// The path of the
     /// [StoreKit configuration
@@ -43,14 +43,14 @@ public struct RunActionOptions: Equatable, Codable {
     public init(
         language: String? = nil,
         region: String? = nil,
-        showNonLocalizedStrings: Bool = false,
+        showNonLocalizedStringsAsUppercase: Bool = false,
         storeKitConfigurationPath: AbsolutePath? = nil,
         simulatedLocation: SimulatedLocation? = nil,
         enableGPUFrameCaptureMode: GPUFrameCaptureMode = .autoEnabled
     ) {
         self.language = language
         self.region = region
-        self.showNonLocalizedStrings = showNonLocalizedStrings
+        self.showNonLocalizedStringsAsUppercase = showNonLocalizedStringsAsUppercase
         self.storeKitConfigurationPath = storeKitConfigurationPath
         self.simulatedLocation = simulatedLocation
         self.enableGPUFrameCaptureMode = enableGPUFrameCaptureMode

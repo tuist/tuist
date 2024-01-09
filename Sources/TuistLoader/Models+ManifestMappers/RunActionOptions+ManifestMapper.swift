@@ -14,14 +14,14 @@ extension TuistGraph.RunActionOptions {
     ) throws -> TuistGraph.RunActionOptions {
         var language: String?
         var region: String?
-        var showNonLocalizedStrings: Bool
+        var showNonLocalizedStringsAsUppercase: Bool
         var storeKitConfigurationPath: AbsolutePath?
         var simulatedLocation: SimulatedLocation?
         var enableGPUFrameCaptureMode: GPUFrameCaptureMode
 
         language = manifest.language?.identifier
         region = manifest.region
-        showNonLocalizedStrings = manifest.showNonLocalizedStrings
+        showNonLocalizedStringsAsUppercase = manifest.showNonLocalizedStringsAsUppercase
 
         switch manifest.enableGPUFrameCaptureMode {
         case .autoEnabled:
@@ -52,7 +52,7 @@ extension TuistGraph.RunActionOptions {
         return TuistGraph.RunActionOptions(
             language: language,
             region: region,
-            showNonLocalizedStrings: showNonLocalizedStrings,
+            showNonLocalizedStringsAsUppercase: showNonLocalizedStringsAsUppercase,
             storeKitConfigurationPath: storeKitConfigurationPath,
             simulatedLocation: simulatedLocation,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode
