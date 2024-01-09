@@ -8,6 +8,9 @@ public struct RunActionOptions: Equatable, Codable {
     /// Region to use when running the app.
     public var region: String?
 
+    /// Show non localized string as UPPERCASE when running the app.
+    public var showNonLocalizedStrings: Bool
+
     /// The path of the
     /// [StoreKit configuration
     /// file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
@@ -39,12 +42,14 @@ public struct RunActionOptions: Equatable, Codable {
     init(
         language: SchemeLanguage? = nil,
         region: String? = nil,
+        showNonLocalizedStrings: Bool = false,
         storeKitConfigurationPath: Path? = nil,
         simulatedLocation: SimulatedLocation? = nil,
         enableGPUFrameCaptureMode: GPUFrameCaptureMode = GPUFrameCaptureMode.default
     ) {
         self.language = language
         self.region = region
+        self.showNonLocalizedStrings = showNonLocalizedStrings
         self.storeKitConfigurationPath = storeKitConfigurationPath
         self.simulatedLocation = simulatedLocation
         self.enableGPUFrameCaptureMode = enableGPUFrameCaptureMode
@@ -71,6 +76,7 @@ public struct RunActionOptions: Equatable, Codable {
     public static func options(
         language: SchemeLanguage? = nil,
         region: String? = nil,
+        showNonLocalizedStrings: Bool = false,
         storeKitConfigurationPath: Path? = nil,
         simulatedLocation: SimulatedLocation? = nil,
         enableGPUFrameCaptureMode: GPUFrameCaptureMode = GPUFrameCaptureMode.default
@@ -78,6 +84,7 @@ public struct RunActionOptions: Equatable, Codable {
         self.init(
             language: language,
             region: region,
+            showNonLocalizedStrings: showNonLocalizedStrings,
             storeKitConfigurationPath: storeKitConfigurationPath,
             simulatedLocation: simulatedLocation,
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode
