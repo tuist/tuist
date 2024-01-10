@@ -25,12 +25,13 @@ extension Workspace {
                 testingOptions: TestingOptions = [],
                 testLanguage: String? = nil,
                 testRegion: String? = nil,
-                testScreenCaptureFormat: ScreenCaptureFormat? = nil
+                testScreenCaptureFormat: ScreenCaptureFormat? = nil,
+                showNonLocalizedStrings: Bool = false
             )
 
             public var codeCoverageMode: CodeCoverageMode {
                 switch self {
-                case let .enabled(codeCoverageMode, _, _, _, _):
+                case let .enabled(codeCoverageMode, _, _, _, _, _):
                     return codeCoverageMode
                 case .disabled:
                     return .disabled
@@ -39,7 +40,7 @@ extension Workspace {
 
             public var testingOptions: TestingOptions {
                 switch self {
-                case let .enabled(_, testingOptions, _, _, _):
+                case let .enabled(_, testingOptions, _, _, _, _):
                     return testingOptions
                 case .disabled:
                     return []
@@ -48,7 +49,7 @@ extension Workspace {
 
             public var testLanguage: String? {
                 switch self {
-                case let .enabled(_, _, language, _, _):
+                case let .enabled(_, _, language, _, _, _):
                     return language
                 case .disabled:
                     return nil
@@ -57,7 +58,7 @@ extension Workspace {
 
             public var testRegion: String? {
                 switch self {
-                case let .enabled(_, _, _, region, _):
+                case let .enabled(_, _, _, region, _, _):
                     return region
                 case .disabled:
                     return nil
@@ -66,10 +67,19 @@ extension Workspace {
 
             public var testScreenCaptureFormat: ScreenCaptureFormat? {
                 switch self {
-                case let .enabled(_, _, _, _, testScreenCaptureFormat):
+                case let .enabled(_, _, _, _, testScreenCaptureFormat, _):
                     return testScreenCaptureFormat
                 case .disabled:
                     return nil
+                }
+            }
+
+            public var showNonLocalizedStrings: Bool {
+                switch self {
+                case let .enabled(_, _, _, _, _, showNonLocalizedStrings):
+                    return showNonLocalizedStrings
+                case .disabled:
+                    return false
                 }
             }
         }

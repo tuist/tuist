@@ -23,7 +23,8 @@ extension Workspace {
                 testingOptions: TestingOptions = [],
                 testLanguage: SchemeLanguage? = nil,
                 testRegion: String? = nil,
-                testScreenCaptureFormat: ScreenCaptureFormat? = nil
+                testScreenCaptureFormat: ScreenCaptureFormat? = nil,
+                showNonLocalizedStrings: Bool = false
             )
         }
 

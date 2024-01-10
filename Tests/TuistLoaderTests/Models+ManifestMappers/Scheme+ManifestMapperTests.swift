@@ -26,6 +26,33 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
     }
 
+    func test_from_when_the_scheme_has_language_region_showNonLocalizedStrings() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath")
+        let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
+
+        let runActions = ProjectDescription.RunAction.test(
+            configuration: .debug,
+            options: .options(
+                language: "en",
+                region: "us",
+                showNonLocalizedStringsAsUppercase: true
+            )
+        )
+
+        let manifest = ProjectDescription.Scheme.test(
+            name: "Scheme",
+            shared: true,
+            runAction: runActions
+        )
+
+        // When
+        let model = try TuistGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
+
+        // Then
+        try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
+    }
+
     func test_from_when_the_scheme_has_actions() throws {
         // Given
         let arguments = ProjectDescription.Arguments.test(
