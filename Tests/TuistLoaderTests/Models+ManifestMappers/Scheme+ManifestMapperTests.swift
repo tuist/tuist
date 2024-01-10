@@ -31,8 +31,10 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let projectPath = try AbsolutePath(validating: "/somepath")
         let generatorPaths = GeneratorPaths(manifestDirectory: projectPath)
 
+        let buildAction = ProjectDescription.BuildAction.test(targets: ["A"])
         let runActions = ProjectDescription.RunAction.test(
             configuration: .debug,
+            executable: "A",
             options: .options(
                 language: "en",
                 region: "us",
@@ -43,6 +45,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.Scheme.test(
             name: "Scheme",
             shared: true,
+            buildAction: buildAction,
             runAction: runActions
         )
 

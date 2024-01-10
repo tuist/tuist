@@ -121,6 +121,7 @@ final class DumpServiceTests: TuistTestCase {
 
                   }
                 },
+                "showNonLocalizedStrings": false,
                 "testingOptions": 0
               }
             },

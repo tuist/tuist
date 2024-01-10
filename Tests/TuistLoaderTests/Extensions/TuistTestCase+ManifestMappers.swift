@@ -210,6 +210,37 @@ extension TuistTestCase {
         try optionalAssert(runAction.arguments, manifest.arguments) {
             self.assert(arguments: $0, matches: $1, file: file, line: line)
         }
+        try optionalAssert(runAction.options, manifest.options) {
+            self.assert(options: $0, matches: $1, file: file, line: line)
+        }
+    }
+
+    func assert(
+        options: TuistGraph.RunActionOptions,
+        matches manifest: ProjectDescription.RunActionOptions,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(
+            options.language,
+            manifest.language?.identifier,
+            file: file,
+            line: line
+        )
+
+        XCTAssertEqual(
+            options.region,
+            manifest.region,
+            file: file,
+            line: line
+        )
+
+        XCTAssertEqual(
+            options.showNonLocalizedStringsAsUppercase,
+            manifest.showNonLocalizedStringsAsUppercase,
+            file: file,
+            line: line
+        )
     }
 
     func assert(
