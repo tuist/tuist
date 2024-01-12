@@ -98,7 +98,7 @@ jobs:
 ```
 
 
-> Tip: We recommend using `mise use` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
+> Tip: We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
 
 > Important: **Tuist Cloud** (<doc:tuist-cloud>), a closed-source extension of Tuist with optimizations such as binary caching and selective testing, is distributed as a different asdf plugin, tuist-cloud. Note that by using it, you agree to the [Tuist Cloud Terms of Service](https://tuist.io/terms/).
 
