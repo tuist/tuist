@@ -39,7 +39,66 @@ mise use tuist-cloud@latest         # Use the latest tuist-cloud in the current 
 mise use -g tuist-cloud@system      # Use the system's tuist-cloud as the global default
 ```
 
-> Tip: We recommend using `mise use` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
+#### Continuous integration
+
+If you are using Tuist in a continuous integration environment, the following sections show how to install Tuist in the most common ones:
+
+##### Xcode Cloud
+
+You'll need a [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script) script that installs Mise and Tuist:
+
+```bash
+#!/bin/sh
+curl https://mise.jdx.dev/install.sh | sh
+mise install # Installs the version from .mise.toml
+
+# Runs the version of Tuist indicated in the .mise.toml file
+mise x tuist generate
+```
+
+##### Codemagic
+
+To install and use Mise and Tuist in [Codemagic](https://codemagic.io), you can add an additional step to your workflow, and run Tuist through `mise x tuist` to ensure that the right version is used:
+
+```yaml
+workflows:
+  lint:
+    name: Build
+    max_build_duration: 30
+    environment:
+      xcode: 15.0.1
+    scripts:
+      - name: Install Mise
+        script: |
+          curl https://mise.jdx.dev/install.sh | sh
+          mise install # Installs the version from .mise.toml
+      - name: Build
+        script: mise x tuist build
+```
+
+##### GitHub Actions
+
+On GitHub Actions you can use the [mise-action](https://github.com/jdx/mise-action), which abstracts the installation of Mise and Tuist and the configuration of the environment:
+
+```yaml
+name: test
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+jobs:
+  lint:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: jdx/mise-action@v2
+```
+
+
+> Tip: We recommend using `mise use --pin` in your Tuist projects to pin the version of Tuist across environments. The command will create a `.tool-versions` file containing the version of Tuist.
 
 > Important: **Tuist Cloud** (<doc:tuist-cloud>), a closed-source extension of Tuist with optimizations such as binary caching and selective testing, is distributed as a different asdf plugin, tuist-cloud. Note that by using it, you agree to the [Tuist Cloud Terms of Service](https://tuist.io/terms/).
 
