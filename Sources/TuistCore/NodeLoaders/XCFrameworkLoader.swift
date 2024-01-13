@@ -58,7 +58,8 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
             primaryBinaryPath: metadata.primaryBinaryPath,
             linking: metadata.linking,
             mergeable: metadata.mergeable,
-            status: metadata.status
+            status: metadata.status,
+            macroPath: metadata.macroPath
         )
     }
 }

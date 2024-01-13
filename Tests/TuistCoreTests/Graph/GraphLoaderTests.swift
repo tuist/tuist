@@ -368,7 +368,8 @@ final class GraphLoaderTests: TuistUnitTestCase {
                 primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
                 linking: .dynamic,
                 mergeable: false,
-                status: .required
+                status: .required,
+                macroPath: nil
             )
         )
 
@@ -391,7 +392,8 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
                     linking: .dynamic,
                     mergeable: false,
-                    status: .required
+                    status: .required,
+                    macroPath: nil
                 ),
             ]),
         ])
@@ -413,7 +415,8 @@ final class GraphLoaderTests: TuistUnitTestCase {
                 primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
                 linking: .dynamic,
                 mergeable: true,
-                status: .required
+                status: .required,
+                macroPath: nil
             )
         )
 
@@ -436,7 +439,8 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
                     linking: .dynamic,
                     mergeable: true,
-                    status: .required
+                    status: .required,
+                    macroPath: nil
                 ),
             ]),
         ])

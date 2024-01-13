@@ -135,7 +135,8 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .dynamic,
             mergeable: false,
-            status: .required
+            status: .required,
+            macroPath: nil
         ))
     }
 
@@ -170,7 +171,8 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .dynamic,
             mergeable: true,
-            status: .required
+            status: .required,
+            macroPath: nil
         ))
     }
 
@@ -204,7 +206,8 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .static,
             mergeable: false,
-            status: .required
+            status: .required,
+            macroPath: nil
         ))
     }
 
@@ -238,7 +241,8 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .dynamic,
             mergeable: false,
-            status: .required
+            status: .required,
+            macroPath: nil
         ))
 
         XCTAssertPrinterOutputContains("""

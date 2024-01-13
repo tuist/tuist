@@ -286,6 +286,17 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     /// - Returns: A set containing all the direct target dependencies that are external.
     func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
+
+    /// It returns all the plugin executables to use for a given target. A plugin executable can represent a Swift Macro
+    /// executable to resolve macros.
+    ///
+    /// Executables are passed through the build setting "OTHER_SWIFT_FLAGS" and the flag "-load-plugin-executable {value}"
+    ///
+    ///
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func allSwiftPluginExecutables(path: AbsolutePath, name: String) -> Set<String>
 }
 
 extension GraphTraversing {

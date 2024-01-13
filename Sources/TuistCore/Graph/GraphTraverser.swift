@@ -573,7 +573,7 @@ public class GraphTraverser: GraphTraversing {
         .lazy
         .compactMap { (dependency: GraphDependency) -> AbsolutePath? in
             switch dependency {
-            case let .xcframework(path, _, _, _, _, _): return path
+            case let .xcframework(path, _, _, _, _, _, _): return path
             case let .framework(path, _, _, _, _, _, _, _): return path
             case .library: return nil
             case .bundle: return nil
@@ -683,6 +683,27 @@ public class GraphTraverser: GraphTraversing {
             }
         let allExternalTargets = allExternalTargets()
         return allExternalTargets.subtracting(allTargetExternalDependendedUponTargets)
+    }
+
+    public func allSwiftPluginExecutables(path: TSCBasic.AbsolutePath, name: String) -> Set<String> {
+        let precompiledMacroPluginExecutables = filterDependencies(from: .target(name: name, path: path), test: { dependency in
+            switch dependency {
+            case let .xcframework(_, _, _, _, _, _, macroPath):
+                return macroPath != nil
+            case .bundle, .library, .framework, .sdk, .target, .packageProduct:
+                return false
+            }
+        })
+        .lazy.compactMap { dependency in
+            switch dependency {
+            case let .xcframework(_, _, _, _, _, _, macroPath):
+                return macroPath!
+            case .bundle, .library, .framework, .sdk, .target, .packageProduct:
+                return nil
+            }
+        }.map { "\($0.pathString)/#\($0.basename)" }
+        // TODO: Include Swift Macro source targets
+        return Set(precompiledMacroPluginExecutables)
     }
 
     // MARK: - Internal
@@ -894,7 +915,7 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func isXCFrameworkMerged(dependency: GraphDependency, expectedMergedBinaries: Set<String>) -> Bool {
-        guard case let .xcframework(_, infoPlist, _, _, mergeable, _) = dependency,
+        guard case let .xcframework(_, infoPlist, _, _, mergeable, _, _) = dependency,
               let binaryName = infoPlist.libraries.first?.binaryName,
               expectedMergedBinaries.contains(binaryName)
         else {
@@ -920,7 +941,7 @@ public class GraphTraverser: GraphTraversing {
 
     func isDependencyStatic(dependency: GraphDependency) -> Bool {
         switch dependency {
-        case let .xcframework(_, _, _, linking, _, _),
+        case let .xcframework(_, _, _, linking, _, _, _),
              let .framework(_, _, _, _, linking, _, _, _),
              let .library(_, _, linking, _, _):
             return linking == .static
@@ -961,7 +982,7 @@ public class GraphTraverser: GraphTraversing {
 
     func isDependencyPrecompiledDynamicAndLinkable(dependency: GraphDependency) -> Bool {
         switch dependency {
-        case let .xcframework(_, _, _, linking, _, _),
+        case let .xcframework(_, _, _, linking, _, _, _),
              let .framework(_, _, _, _, linking, _, _, _),
              let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
             return linking == .dynamic
@@ -1051,7 +1072,7 @@ public class GraphTraverser: GraphTraversing {
                 productName: target.target.productNameWithExtension,
                 condition: condition
             )
-        case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, status):
+        case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, status, _):
             return .xcframework(
                 path: path,
                 infoPlist: infoPlist,
@@ -1114,7 +1135,7 @@ public class GraphTraverser: GraphTraversing {
             from: .target(name: name, path: path),
             test: { dependency in
                 switch dependency {
-                case let .xcframework(_, _, _, linking: linking, _, _):
+                case let .xcframework(_, _, _, linking: linking, _, _, _):
                     return linking == .static
                 case .framework, .library, .bundle, .packageProduct, .target, .sdk:
                     return false

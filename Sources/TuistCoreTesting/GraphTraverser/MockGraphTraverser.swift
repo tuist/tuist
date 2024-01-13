@@ -723,4 +723,18 @@ final class MockGraphTraverser: GraphTraversing {
         invokedDirectTargetExternalDependenciesParametersList.append((path, name))
         return stubbedDirectTargetExternalDependenciesResult
     }
+
+    var invokedAllSwiftPluginExecutables = false
+    var invokedAllSwiftPluginExecutablesCount = 0
+    var invokedAllSwiftPluginExecutablesParameters: (path: AbsolutePath, name: String)?
+    var invokedAllSwiftPluginExecutablesParametersList =
+        [(path: AbsolutePath, name: String)]()
+    var stubbedAllSwiftPluginExecutablesResult: Set<String>! = []
+    func allSwiftPluginExecutables(path: TSCBasic.AbsolutePath, name: String) -> Set<String> {
+        invokedAllSwiftPluginExecutables = true
+        invokedAllSwiftPluginExecutablesCount += 1
+        invokedAllSwiftPluginExecutablesParameters = (path, name)
+        invokedAllSwiftPluginExecutablesParametersList.append((path, name))
+        return stubbedAllSwiftPluginExecutablesResult
+    }
 }

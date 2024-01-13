@@ -23,7 +23,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         primaryBinaryPath: AbsolutePath,
         linking: BinaryLinking,
         mergeable: Bool,
-        status: FrameworkStatus
+        status: FrameworkStatus,
+        macroPath: AbsolutePath?
     )
 
     /// A dependency that represents a pre-compiled framework.
@@ -61,7 +62,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public func hash(into hasher: inout Hasher) {
         switch self {
-        case let .xcframework(path, _, _, _, _, _):
+        case let .xcframework(path, _, _, _, _, _, _):
             hasher.combine("xcframework")
             hasher.combine(path)
         case let .framework(path, _, _, _, _, _, _, _):
@@ -108,7 +109,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
      */
     public var isStaticPrecompiled: Bool {
         switch self {
-        case let .xcframework(_, _, _, linking, _, _),
+        case let .xcframework(_, _, _, linking, _, _, _),
              let .framework(_, _, _, _, linking, _, _, _),
              let .library(_, _, linking, _, _): return linking == .static
         case .bundle: return false
@@ -123,7 +124,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
      */
     public var isDynamicPrecompiled: Bool {
         switch self {
-        case let .xcframework(_, _, _, linking, _, _),
+        case let .xcframework(_, _, _, linking, _, _, _),
              let .framework(_, _, _, _, linking, _, _, _),
              let .library(_, _, linking, _, _): return linking == .dynamic
         case .bundle: return false
@@ -179,7 +180,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var name: String {
         switch self {
-        case let .xcframework(path, _, _, _, _, _):
+        case let .xcframework(path, _, _, _, _, _, _):
             return path.basename
         case let .framework(path, _, _, _, _, _, _, _):
             return path.basename

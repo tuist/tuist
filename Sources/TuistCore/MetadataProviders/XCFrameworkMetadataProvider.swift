@@ -54,12 +54,14 @@ public protocol XCFrameworkMetadataProviding: PrecompiledMetadataProviding {
 // MARK: - Default Implementation
 
 public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCFrameworkMetadataProviding {
-    override public init() {
+    let fileHandler: FileHandling
+
+    public init(fileHandler: FileHandling = FileHandler.shared) {
+        self.fileHandler = fileHandler
         super.init()
     }
 
     public func loadMetadata(at path: AbsolutePath, status: FrameworkStatus) throws -> XCFrameworkMetadata {
-        let fileHandler = FileHandler.shared
         guard fileHandler.exists(path) else {
             throw XCFrameworkMetadataProviderError.xcframeworkNotFound(path)
         }
@@ -75,12 +77,23 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
             primaryBinaryPath: primaryBinaryPath,
             linking: linking,
             mergeable: infoPlist.libraries.allSatisfy(\.mergeable),
-            status: status
+            status: status,
+            macroPath: try macroPath(xcframeworkPath: path)
         )
     }
 
+    /**
+     An XCFramework that contains static frameworks that represent macros, those are frameworks with a Macros directory in them.
+     We assume that the Swift Macros, which are command line executables, are fat binaries for both architectures supported by macOS:
+     x86_64 and arm64.
+     */
+    public func macroPath(xcframeworkPath: AbsolutePath) throws -> AbsolutePath? {
+        guard let frameworkPath = fileHandler.glob(xcframeworkPath, glob: "*/*.framework").first else { return nil }
+        guard let macroPath = fileHandler.glob(frameworkPath, glob: "Macros/*").first else { return nil }
+        return try AbsolutePath(validating: "\(macroPath.pathString)/#\(macroPath.basename)")
+    }
+
     public func infoPlist(xcframeworkPath: AbsolutePath) throws -> XCFrameworkInfoPlist {
-        let fileHandler = FileHandler.shared
         let infoPlist = xcframeworkPath.appending(component: "Info.plist")
         guard fileHandler.exists(infoPlist) else {
             throw XCFrameworkMetadataProviderError.missingRequiredFile(infoPlist)
@@ -100,7 +113,7 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
             ) else {
                 return false
             }
-            guard FileHandler.shared.exists(binaryPath) else {
+            guard fileHandler.exists(binaryPath) else {
                 // The missing slice relative to the XCFramework folder. e.g ios-x86_64-simulator/Alamofire.framework/Alamofire
                 let relativeArchitectureBinaryPath = binaryPath.components.suffix(3).joined(separator: "/")
                 logger

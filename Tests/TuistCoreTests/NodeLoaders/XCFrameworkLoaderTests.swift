@@ -70,7 +70,8 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
                 primaryBinaryPath: binaryPath,
                 linking: linking,
                 mergeable: false,
-                status: .required
+                status: .required,
+                macroPath: nil
             )
         }
 
@@ -86,7 +87,8 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
                 primaryBinaryPath: binaryPath,
                 linking: linking,
                 mergeable: false,
-                status: .required
+                status: .required,
+                macroPath: nil
             )
         )
     }
