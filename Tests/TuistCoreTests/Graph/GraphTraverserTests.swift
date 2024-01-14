@@ -5074,6 +5074,119 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, Set([GraphTarget(path: externalProject.path, target: externalFramework, project: externalProject)]))
     }
 
+    func test_allSwiftPluginExecutables_includesAllXCFrameworkMacros_when_theyAreDirectOrTransitiveDependencies() throws {
+        // Given
+        let directory = try temporaryPath()
+        let appTarget = Target.test(name: "App", destinations: [.appleWatch])
+        let project = Project.test(path: directory, targets: [appTarget])
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let directXCFrameworkMacroPath = directory
+            .appending(
+                try RelativePath(
+                    validating: "DirectMacro.xcframework/watchos-arm64_i386_x86_64-simulator/DirectMacro.framework/Macros/DirectMacro"
+                )
+            )
+        let directXCFramework = GraphDependency.testXCFramework(macroPath: directXCFrameworkMacroPath)
+        let transitiveXCFrameworkMacroPath = directory
+            .appending(
+                try RelativePath(
+                    validating: "TransitiveMacro.xcframework/watchos-arm64_i386_x86_64-simulator/TransitiveMacro.framework/Macros/TransitiveMacro"
+                )
+            )
+        let transitiveXCFramework = GraphDependency.testXCFramework(macroPath: transitiveXCFrameworkMacroPath)
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+            ],
+            targets: [
+                project.path: [
+                    appTarget.name: appTarget,
+                ],
+            ],
+            dependencies: [
+                appTargetDependency: Set([directXCFramework]),
+                directXCFramework: Set([transitiveXCFramework]),
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
+
+        XCTAssertEqual(got.sorted(), [
+            "\(directXCFrameworkMacroPath.pathString)/#\(directXCFrameworkMacroPath.basename)",
+            "\(transitiveXCFrameworkMacroPath.pathString)/#\(transitiveXCFrameworkMacroPath.basename)",
+        ])
+    }
+
+    func test_allSwiftPluginExecutables_staticFrameworksThatDependOnMacroTargets_when_theyAreDirectOrTransitiveDependencies(
+    ) throws {
+        // Given
+        let directory = try temporaryPath()
+        let appTarget = Target.test(name: "App", destinations: [.appleWatch])
+        let directMacroStaticFrameworkTarget = Target.test(
+            name: "DirectMacroStaticFramework",
+            destinations: [.appleWatch],
+            product: .staticFramework
+        )
+        let directMacroMacroTarget = Target.test(name: "DirectMacro", destinations: [.appleWatch], product: .macro)
+        let transitiveMacroStaticFrameworkTarget = Target.test(
+            name: "TransitiveMacroStaticFramework",
+            destinations: [.appleWatch],
+            product: .staticFramework
+        )
+        let transitiveMacroMacroTarget = Target.test(name: "TransitiveMacro", destinations: [.appleWatch], product: .macro)
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let directMacroStaticFrameworkTargetDependency = GraphDependency.target(
+            name: directMacroStaticFrameworkTarget.name,
+            path: project.path
+        )
+        let directMacroMacroTargetDependency = GraphDependency.target(name: directMacroMacroTarget.name, path: project.path)
+        let transitiveMacroStaticFrameworkTargetDependency = GraphDependency.target(
+            name: transitiveMacroStaticFrameworkTarget.name,
+            path: project.path
+        )
+        let transitiveMacroMacroTargetDependency = GraphDependency.target(
+            name: transitiveMacroMacroTarget.name,
+            path: project.path
+        )
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+            ],
+            targets: [
+                project.path: [
+                    appTarget.name: appTarget,
+                    directMacroStaticFrameworkTarget.name: directMacroStaticFrameworkTarget,
+                    directMacroMacroTarget.name: directMacroMacroTarget,
+                    transitiveMacroStaticFrameworkTarget.name: transitiveMacroStaticFrameworkTarget,
+                    transitiveMacroMacroTarget.name: transitiveMacroMacroTarget,
+                ],
+            ],
+            dependencies: [
+                appTargetDependency: Set([directMacroStaticFrameworkTargetDependency]),
+                directMacroStaticFrameworkTargetDependency: Set([
+                    directMacroMacroTargetDependency,
+                    transitiveMacroStaticFrameworkTargetDependency,
+                ]),
+                transitiveMacroStaticFrameworkTargetDependency: Set([transitiveMacroMacroTargetDependency]),
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
+
+        print(got)
+
+        XCTAssertEqual(got.sorted(), [
+            "$BUILT_PRODUCTS_DIR/\(directMacroStaticFrameworkTarget.productNameWithExtension)/Macros/DirectMacro#DirectMacro",
+            "$BUILT_PRODUCTS_DIR/\(transitiveMacroStaticFrameworkTarget.productNameWithExtension)/Macros/TransitiveMacro#TransitiveMacro",
+        ])
+    }
+
     // MARK: - Helpers
 
     private func sdkDependency(from dependency: GraphDependencyReference) -> SDKPathAndStatus? {
