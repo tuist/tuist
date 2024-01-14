@@ -88,9 +88,9 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
      x86_64 and arm64.
      */
     public func macroPath(xcframeworkPath: AbsolutePath) throws -> AbsolutePath? {
-        guard let frameworkPath = fileHandler.glob(xcframeworkPath, glob: "*/*.framework").first else { return nil }
+        guard let frameworkPath = fileHandler.glob(xcframeworkPath, glob: "*/*.framework").sorted().first else { return nil }
         guard let macroPath = fileHandler.glob(frameworkPath, glob: "Macros/*").first else { return nil }
-        return try AbsolutePath(validating: "\(macroPath.pathString)/#\(macroPath.basename)")
+        return try AbsolutePath(validating: macroPath.pathString)
     }
 
     public func infoPlist(xcframeworkPath: AbsolutePath) throws -> XCFrameworkInfoPlist {
