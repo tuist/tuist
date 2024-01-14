@@ -702,8 +702,21 @@ public class GraphTraverser: GraphTraversing {
                 return nil
             }
         }.map { "\($0.pathString)/#\($0.basename)" }
-        // TODO: Include Swift Macro source targets
-        return Set(precompiledMacroPluginExecutables)
+
+        let sourceMacroPluginExecutables = allSwiftMacroFrameworkTargets(path: path, name: name)
+            .flatMap { target in
+                directSwiftMacroExecutables(path: target.project.path, name: target.target.name).map { (target, $0) }
+            }
+            .compactMap { target, dependencyReference in
+                switch dependencyReference {
+                case let .product(_, productName, _):
+                    return "$BUILT_PRODUCTS_DIR/\(target.target.productNameWithExtension)/Macros/\(productName)#\(productName)"
+                default:
+                    return nil
+                }
+            }
+
+        return Set(precompiledMacroPluginExecutables + sourceMacroPluginExecutables)
     }
 
     // MARK: - Internal

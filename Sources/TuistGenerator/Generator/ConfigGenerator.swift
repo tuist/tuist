@@ -318,20 +318,11 @@ final class ConfigGenerator: ConfigGenerating {
         let targets = graphTraverser.allSwiftMacroFrameworkTargets(path: projectPath, name: target.name)
         if targets.isEmpty { return [:] }
         var settings: SettingsDictionary = [:]
-        settings["OTHER_SWIFT_FLAGS"] = .array(targets.flatMap { target in
-            let macroExecutables = graphTraverser.directSwiftMacroExecutables(path: target.path, name: target.target.name)
-            return macroExecutables.flatMap { macroExecutable in
-                switch macroExecutable {
-                case let .product(_, productName, _):
-                    return [
-                        "-load-plugin-executable",
-                        "$BUILT_PRODUCTS_DIR/\(target.target.productNameWithExtension)/Macros/\(productName)#\(productName)",
-                    ]
-                default:
-                    return []
-                }
-            }
-        })
+
+        let pluginExecutables = graphTraverser.allSwiftPluginExecutables(path: projectPath, name: target.name)
+        if pluginExecutables.isEmpty { return settings }
+        let swiftCompilerFlags = pluginExecutables.flatMap { ["-load-plugin-executable", $0] }
+        settings["OTHER_SWIFT_FLAGS"] = .array(swiftCompilerFlags)
         return settings
     }
 
