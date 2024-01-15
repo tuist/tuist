@@ -16,7 +16,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        system.swiftVersionStub = { "5.7.0" }
+        system.swiftVersionStub = { "5.9.0" }
         subject = PackageInfoMapper()
     }
 
