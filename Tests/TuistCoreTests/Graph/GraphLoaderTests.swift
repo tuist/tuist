@@ -387,13 +387,15 @@ final class GraphLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([
                 .xcframework(
-                    path: "/XCFrameworks/XF1.xcframework",
-                    infoPlist: .test(),
-                    primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
-                    linking: .dynamic,
-                    mergeable: false,
-                    status: .required,
-                    macroPath: nil
+                    GraphDependency.XCFramework(
+                        path: "/XCFrameworks/XF1.xcframework",
+                        infoPlist: .test(),
+                        primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
+                        linking: .dynamic,
+                        mergeable: false,
+                        status: .required,
+                        macroPath: nil
+                    )
                 ),
             ]),
         ])
@@ -434,13 +436,15 @@ final class GraphLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([
                 .xcframework(
-                    path: "/XCFrameworks/XF1.xcframework",
-                    infoPlist: .test(),
-                    primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
-                    linking: .dynamic,
-                    mergeable: true,
-                    status: .required,
-                    macroPath: nil
+                    GraphDependency.XCFramework(
+                        path: "/XCFrameworks/XF1.xcframework",
+                        infoPlist: .test(),
+                        primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
+                        linking: .dynamic,
+                        mergeable: true,
+                        status: .required,
+                        macroPath: nil
+                    )
                 ),
             ]),
         ])

@@ -1308,44 +1308,50 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let cDependency = GraphDependency.xcframework(
-            path: "/xcframeworks/c.xcframework",
-            infoPlist: .test(libraries: [.test(
-                identifier: "id",
-                path: try RelativePath(validating: "path"),
-                architectures: [.arm64]
-            )]),
-            primaryBinaryPath: "/xcframeworks/c.xcframework/c",
-            linking: .dynamic,
-            mergeable: false,
-            status: .required,
-            macroPath: nil
+            GraphDependency.XCFramework(
+                path: "/xcframeworks/c.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: try RelativePath(validating: "path"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/c.xcframework/c",
+                linking: .dynamic,
+                mergeable: false,
+                status: .required,
+                macroPath: nil
+            )
         )
         let dDependency = GraphDependency.xcframework(
-            path: "/xcframeworks/d.xcframework",
-            infoPlist: .test(libraries: [.test(
-                identifier: "id",
-                path: try RelativePath(validating: "path"),
-                architectures: [.arm64]
-            )]),
-            primaryBinaryPath: "/xcframeworks/d.xcframework/d",
-            linking: .dynamic,
-            mergeable: false,
-            status: .required,
-            macroPath: nil
+            GraphDependency.XCFramework(
+                path: "/xcframeworks/d.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: try RelativePath(validating: "path"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/d.xcframework/d",
+                linking: .dynamic,
+                mergeable: false,
+                status: .required,
+                macroPath: nil
+            )
         )
         let eDependency = GraphDependency.xcframework(
-            path: "/xcframeworks/e.xcframework",
-            infoPlist: .test(libraries: [.test(
-                identifier: "id",
-                path: try RelativePath(validating: "path"),
+            GraphDependency.XCFramework(
+                path: "/xcframeworks/e.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: try RelativePath(validating: "path"),
+                    mergeable: true,
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/e.xcframework/e",
+                linking: .dynamic,
                 mergeable: true,
-                architectures: [.arm64]
-            )]),
-            primaryBinaryPath: "/xcframeworks/e.xcframework/e",
-            linking: .dynamic,
-            mergeable: true,
-            status: .required,
-            macroPath: nil
+                status: .required,
+                macroPath: nil
+            )
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency, eDependency),
@@ -1383,44 +1389,50 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let cDependency = GraphDependency.xcframework(
-            path: "/xcframeworks/c.xcframework",
-            infoPlist: .test(libraries: [.test(
-                identifier: "id",
-                path: try RelativePath(validating: "c.framework"),
-                architectures: [.arm64]
-            )]),
-            primaryBinaryPath: "/xcframeworks/c.xcframework/c",
-            linking: .dynamic,
-            mergeable: false,
-            status: .required,
-            macroPath: nil
+            GraphDependency.XCFramework(
+                path: "/xcframeworks/c.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: try RelativePath(validating: "c.framework"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/c.xcframework/c",
+                linking: .dynamic,
+                mergeable: false,
+                status: .required,
+                macroPath: nil
+            )
         )
         let dDependency = GraphDependency.xcframework(
-            path: "/xcframeworks/d.xcframework",
-            infoPlist: .test(libraries: [.test(
-                identifier: "id",
-                path: try RelativePath(validating: "d.framework"),
-                architectures: [.arm64]
-            )]),
-            primaryBinaryPath: "/xcframeworks/d.xcframework/d",
-            linking: .dynamic,
-            mergeable: false,
-            status: .required,
-            macroPath: nil
+            GraphDependency.XCFramework(
+                path: "/xcframeworks/d.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: try RelativePath(validating: "d.framework"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/d.xcframework/d",
+                linking: .dynamic,
+                mergeable: false,
+                status: .required,
+                macroPath: nil
+            )
         )
         let eDependency = GraphDependency.xcframework(
-            path: "/xcframeworks/e.xcframework",
-            infoPlist: .test(libraries: [.test(
-                identifier: "id",
-                path: try RelativePath(validating: "e.framework"),
+            GraphDependency.XCFramework(
+                path: "/xcframeworks/e.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: try RelativePath(validating: "e.framework"),
+                    mergeable: true,
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/e.xcframework/e",
+                linking: .dynamic,
                 mergeable: true,
-                architectures: [.arm64]
-            )]),
-            primaryBinaryPath: "/xcframeworks/e.xcframework/e",
-            linking: .dynamic,
-            mergeable: true,
-            status: .required,
-            macroPath: nil
+                status: .required,
+                macroPath: nil
+            )
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: cDependency, eDependency),
@@ -3985,17 +3997,19 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         let project = Project.test(targets: [staticLibrary])
         let directXCFramework = GraphDependency.xcframework(
-            path: "/xcframeworks/direct.xcframework",
-            infoPlist: .test(libraries: [.test(
-                identifier: "id",
-                path: try RelativePath(validating: "path"),
-                architectures: [.arm64]
-            )]),
-            primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
-            linking: .static,
-            mergeable: false,
-            status: .required,
-            macroPath: nil
+            GraphDependency.XCFramework(
+                path: "/xcframeworks/direct.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: try RelativePath(validating: "path"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/direct.xcframework/direct",
+                linking: .static,
+                mergeable: false,
+                status: .required,
+                macroPath: nil
+            )
         )
         let directFramework = GraphDependency.framework(
             path: "/frameworks/direct.framework",
@@ -4009,43 +4023,49 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
         let directFrameworkTarget = GraphDependency.target(name: staticFramework.name, path: project.path)
         let transitiveFrameworkTargetXCFramework = GraphDependency.xcframework(
-            path: "/xcframeworks/transitive-framework-target-xcframework.xcframework",
-            infoPlist: .test(libraries: [.test(
-                identifier: "id",
-                path: try RelativePath(validating: "path"),
-                architectures: [.arm64]
-            )]),
-            primaryBinaryPath: "/xcframeworks/transitive-framework-target-xcframework.xcframework/transitive",
-            linking: .static,
-            mergeable: false,
-            status: .required,
-            macroPath: nil
+            GraphDependency.XCFramework(
+                path: "/xcframeworks/transitive-framework-target-xcframework.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: try RelativePath(validating: "path"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/transitive-framework-target-xcframework.xcframework/transitive",
+                linking: .static,
+                mergeable: false,
+                status: .required,
+                macroPath: nil
+            )
         )
         let transitiveXCFramework = GraphDependency.xcframework(
-            path: "/xcframeworks/transitive.xcframework",
-            infoPlist: .test(libraries: [.test(
-                identifier: "id",
-                path: try RelativePath(validating: "path"),
-                architectures: [.arm64]
-            )]),
-            primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
-            linking: .static,
-            mergeable: false,
-            status: .required,
-            macroPath: nil
+            GraphDependency.XCFramework(
+                path: "/xcframeworks/transitive.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: try RelativePath(validating: "path"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/transitive.xcframework/transitive",
+                linking: .static,
+                mergeable: false,
+                status: .required,
+                macroPath: nil
+            )
         )
         let frameworkTransitiveXCFramework = GraphDependency.xcframework(
-            path: "/xcframeworks/framework-transitive.xcframework",
-            infoPlist: .test(libraries: [.test(
-                identifier: "id",
-                path: try RelativePath(validating: "path"),
-                architectures: [.arm64]
-            )]),
-            primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
-            linking: .static,
-            mergeable: false,
-            status: .required,
-            macroPath: nil
+            GraphDependency.XCFramework(
+                path: "/xcframeworks/framework-transitive.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: try RelativePath(validating: "path"),
+                    architectures: [.arm64]
+                )]),
+                primaryBinaryPath: "/xcframeworks/framework-transitive.xcframework/framework-transitive",
+                linking: .static,
+                mergeable: false,
+                status: .required,
+                macroPath: nil
+            )
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [

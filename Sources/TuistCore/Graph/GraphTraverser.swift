@@ -301,7 +301,7 @@ public class GraphTraverser: GraphTraversing {
         /// Precompiled frameworks
         var precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
-            test: isDependencyPrecompiledDynamicAndLinkable,
+            test: { $0.isPrecompiledDynamicAndLinkable },
             skip: canDependencyEmbedProducts
         )
         // Skip merged precompiled libraries from merging into the runnable binary
@@ -409,7 +409,7 @@ public class GraphTraverser: GraphTraversing {
             .flatMap { filterDependencies(from: $0) }
 
         let precompiledLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
-            .filter(isDependencyPrecompiledDynamicAndLinkable)
+            .filter(\.isPrecompiledDynamicAndLinkable)
             .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
 
         references.formUnion(precompiledLibrariesAndFrameworks)
@@ -567,13 +567,13 @@ public class GraphTraverser: GraphTraversing {
         let from = GraphDependency.target(name: name, path: path)
         let precompiledFrameworksPaths = filterDependencies(
             from: from,
-            test: isDependencyPrecompiledDynamicAndLinkable,
+            test: { $0.isPrecompiledDynamicAndLinkable },
             skip: canDependencyEmbedProducts
         )
         .lazy
         .compactMap { (dependency: GraphDependency) -> AbsolutePath? in
             switch dependency {
-            case let .xcframework(path, _, _, _, _, _, _): return path
+            case let .xcframework(xcframework): return xcframework.path
             case let .framework(path, _, _, _, _, _, _, _): return path
             case .library: return nil
             case .bundle: return nil
@@ -688,16 +688,16 @@ public class GraphTraverser: GraphTraversing {
     public func allSwiftPluginExecutables(path: TSCBasic.AbsolutePath, name: String) -> Set<String> {
         let precompiledMacroPluginExecutables = filterDependencies(from: .target(name: name, path: path), test: { dependency in
             switch dependency {
-            case let .xcframework(_, _, _, _, _, _, macroPath):
-                return macroPath != nil
+            case let .xcframework(xcframework):
+                return xcframework.macroPath != nil
             case .bundle, .library, .framework, .sdk, .target, .packageProduct:
                 return false
             }
         })
         .lazy.compactMap { dependency in
             switch dependency {
-            case let .xcframework(_, _, _, _, _, _, macroPath):
-                return macroPath!
+            case let .xcframework(xcframework):
+                return xcframework.macroPath!
             case .bundle, .library, .framework, .sdk, .target, .packageProduct:
                 return nil
             }
@@ -928,16 +928,16 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func isXCFrameworkMerged(dependency: GraphDependency, expectedMergedBinaries: Set<String>) -> Bool {
-        guard case let .xcframework(_, infoPlist, _, _, mergeable, _, _) = dependency,
-              let binaryName = infoPlist.libraries.first?.binaryName,
+        guard case let .xcframework(xcframework) = dependency,
+              let binaryName = xcframework.infoPlist.libraries.first?.binaryName,
               expectedMergedBinaries.contains(binaryName)
         else {
             return false
         }
-        if !mergeable {
+        if !xcframework.mergeable {
             fatalError("XCFramework \(binaryName) must be compiled with  -make_mergeable option enabled")
         }
-        return mergeable
+        return xcframework.mergeable
     }
 
     func isDependencyDynamicNonMergeableTarget(dependency: GraphDependency) -> Bool {
@@ -954,8 +954,9 @@ public class GraphTraverser: GraphTraversing {
 
     func isDependencyStatic(dependency: GraphDependency) -> Bool {
         switch dependency {
-        case let .xcframework(_, _, _, linking, _, _, _),
-             let .framework(_, _, _, _, linking, _, _, _),
+        case let .xcframework(xcframework):
+            return xcframework.linking == .static
+        case let .framework(_, _, _, _, linking, _, _, _),
              let .library(_, _, linking, _, _):
             return linking == .static
         case .bundle: return false
@@ -989,19 +990,6 @@ public class GraphTraverser: GraphTraversing {
         case let .target(name, path):
             guard let target = target(path: path, name: name) else { return false }
             return target.target.product.isDynamic
-        case .sdk: return false
-        }
-    }
-
-    func isDependencyPrecompiledDynamicAndLinkable(dependency: GraphDependency) -> Bool {
-        switch dependency {
-        case let .xcframework(_, _, _, linking, _, _, _),
-             let .framework(_, _, _, _, linking, _, _, _),
-             let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
-            return linking == .dynamic
-        case .bundle: return false
-        case .packageProduct: return false
-        case .target: return false
         case .sdk: return false
         }
     }
@@ -1085,13 +1073,13 @@ public class GraphTraverser: GraphTraversing {
                 productName: target.target.productNameWithExtension,
                 condition: condition
             )
-        case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, status, _):
+        case let .xcframework(xcframework):
             return .xcframework(
-                path: path,
-                infoPlist: infoPlist,
-                primaryBinaryPath: primaryBinaryPath,
-                binaryPath: primaryBinaryPath,
-                status: status,
+                path: xcframework.path,
+                infoPlist: xcframework.infoPlist,
+                primaryBinaryPath: xcframework.primaryBinaryPath,
+                binaryPath: xcframework.primaryBinaryPath,
+                status: xcframework.status,
                 condition: condition
             )
         }
@@ -1148,8 +1136,8 @@ public class GraphTraverser: GraphTraversing {
             from: .target(name: name, path: path),
             test: { dependency in
                 switch dependency {
-                case let .xcframework(_, _, _, linking: linking, _, _, _):
-                    return linking == .static
+                case let .xcframework(xcframework):
+                    return xcframework.linking == .static
                 case .framework, .library, .bundle, .packageProduct, .target, .sdk:
                     return false
                 }

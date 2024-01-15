@@ -260,7 +260,7 @@ public final class GraphLoader: GraphLoading {
             at: path,
             status: status
         )
-        let xcframework: GraphDependency = .xcframework(
+        let xcframework: GraphDependency = .xcframework(GraphDependency.XCFramework(
             path: metadata.path,
             infoPlist: metadata.infoPlist,
             primaryBinaryPath: metadata.primaryBinaryPath,
@@ -268,7 +268,7 @@ public final class GraphLoader: GraphLoading {
             mergeable: metadata.mergeable,
             status: metadata.status,
             macroPath: metadata.macroPath
-        )
+        ))
         cache.add(xcframework: xcframework, at: path)
         return xcframework
     }

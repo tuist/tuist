@@ -69,13 +69,13 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 product: (linking == .static) ? .staticLibrary : .dynamicLibrary,
                 condition: condition
             )
-        case let .xcframework(path, infoPlist, primaryBinaryPath, _, _, status, _):
+        case let .xcframework(xcframework):
             self = .xcframework(
-                path: path,
-                infoPlist: infoPlist,
-                primaryBinaryPath: primaryBinaryPath,
-                binaryPath: primaryBinaryPath,
-                status: status,
+                path: xcframework.path,
+                infoPlist: xcframework.infoPlist,
+                primaryBinaryPath: xcframework.primaryBinaryPath,
+                binaryPath: xcframework.primaryBinaryPath,
+                status: xcframework.status,
                 condition: condition
             )
         default:

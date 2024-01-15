@@ -11,7 +11,7 @@ public enum BinaryArchitecture: String, Codable {
     case arm64e
 }
 
-public enum BinaryLinking: String, Codable {
+public enum BinaryLinking: String, Hashable, Codable {
     case `static`, dynamic
 }
 

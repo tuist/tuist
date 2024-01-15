@@ -1073,9 +1073,9 @@ final class LinkGeneratorTests: XCTestCase {
         let projectFileElements = ProjectFileElements()
         dependencies.forEach { dependency in
             switch dependency {
-            case .xcframework(path: let path, infoPlist: _, primaryBinaryPath: _, linking: _, mergeable: _, _, _):
-                projectFileElements.elements[path] = PBXFileReference(
-                    path: path.relative(to: projectPath).pathString
+            case let .xcframework(xcframework):
+                projectFileElements.elements[xcframework.path] = PBXFileReference(
+                    path: xcframework.path.relative(to: projectPath).pathString
                 )
             default:
                 fatalError("Scenarios not handled in this test stub")

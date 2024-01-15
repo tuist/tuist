@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public enum FrameworkStatus: String, Codable {
+public enum FrameworkStatus: String, Hashable, Codable {
     case required
     case optional
 }

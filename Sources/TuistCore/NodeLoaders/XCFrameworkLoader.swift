@@ -52,7 +52,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
             at: path,
             status: status
         )
-        return .xcframework(
+        let xcframework = GraphDependency.XCFramework(
             path: path,
             infoPlist: metadata.infoPlist,
             primaryBinaryPath: metadata.primaryBinaryPath,
@@ -61,5 +61,6 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
             status: metadata.status,
             macroPath: metadata.macroPath
         )
+        return .xcframework(xcframework)
     }
 }
