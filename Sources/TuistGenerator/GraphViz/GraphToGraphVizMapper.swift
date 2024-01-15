@@ -81,15 +81,8 @@ extension GraphDependency {
             status: _
         ):
             return path.basenameWithoutExt
-        case let .xcframework(
-            path: path,
-            infoPlist: _,
-            primaryBinaryPath: _,
-            linking: _,
-            mergeable: _,
-            status: _
-        ):
-            return path.basenameWithoutExt
+        case let .xcframework(xcframework):
+            return xcframework.path.basenameWithoutExt
         case let .library(
             path: path,
             publicHeaders: _,

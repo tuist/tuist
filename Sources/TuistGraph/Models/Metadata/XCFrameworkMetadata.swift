@@ -9,6 +9,7 @@ public struct XCFrameworkMetadata: Equatable {
     public var linking: BinaryLinking
     public var mergeable: Bool
     public var status: FrameworkStatus
+    public var macroPath: AbsolutePath?
 
     public init(
         path: AbsolutePath,
@@ -16,7 +17,8 @@ public struct XCFrameworkMetadata: Equatable {
         primaryBinaryPath: AbsolutePath,
         linking: BinaryLinking,
         mergeable: Bool,
-        status: FrameworkStatus
+        status: FrameworkStatus,
+        macroPath: AbsolutePath?
     ) {
         self.path = path
         self.infoPlist = infoPlist
@@ -24,5 +26,6 @@ public struct XCFrameworkMetadata: Equatable {
         self.linking = linking
         self.mergeable = mergeable
         self.status = status
+        self.macroPath = macroPath
     }
 }
