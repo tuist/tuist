@@ -65,6 +65,17 @@ public protocol DependenciesControlling {
         swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph
 
+    /// Fetches dependencies.
+    /// - Parameter path: Directory where project's dependencies will be fetched.
+    /// - Parameter packageSettings: Custom Swift Package Manager settings
+    /// - Parameter swiftVersion: The specified version of Swift. If `nil` is passed then the environment’s version will be used.
+    func fetch(
+        at path: AbsolutePath,
+        packageSettings: TuistGraph.PackageSettings,
+        swiftVersion: TSCUtility.Version?
+    ) throws -> TuistCore.DependenciesGraph
+
+    
     /// Updates dependencies.
     /// - Parameters:
     ///   - path: Directory where project's dependencies will be updated.
@@ -73,6 +84,17 @@ public protocol DependenciesControlling {
     func update(
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
+        swiftVersion: TSCUtility.Version?
+    ) throws -> TuistCore.DependenciesGraph
+    
+    /// Updates dependencies.
+    /// - Parameters:
+    ///   - path: Directory where project's dependencies will be updated.
+    ///   - packageSettings: Custom Swift Package Manager settings
+    ///   - swiftVersion: The specified version of Swift. If `nil` is passed then will use the environment’s version will be used.
+    func update(
+        at path: AbsolutePath,
+        packageSettings: TuistGraph.PackageSettings,
         swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph
 
@@ -112,6 +134,55 @@ public final class DependenciesController: DependenciesControlling {
             at: path,
             dependencies: dependencies,
             shouldUpdate: false,
+            swiftVersion: swiftVersion
+        )
+    }
+
+    
+    public func fetch(
+        at path: AbsolutePath,
+        packageSettings: TuistGraph.PackageSettings,
+        swiftVersion: TSCUtility.Version?
+    ) throws -> TuistCore.DependenciesGraph {
+        try install(
+            at: path,
+            dependencies: TuistGraph.Dependencies(
+                carthage: nil,
+                swiftPackageManager: TuistGraph.SwiftPackageManagerDependencies(
+                    .manifest,
+                    productTypes: packageSettings.productTypes,
+                    baseSettings: packageSettings.baseSettings,
+                    targetSettings: packageSettings.targetSettings,
+                    projectOptions: packageSettings.projectOptions
+                    
+                ),
+                platforms: packageSettings.platforms
+            ),
+            shouldUpdate: false,
+            swiftVersion: swiftVersion
+        )
+    }
+    
+    public func update(
+        at path: AbsolutePath,
+        packageSettings: TuistGraph.PackageSettings,
+        swiftVersion: TSCUtility.Version?
+    ) throws -> TuistCore.DependenciesGraph {
+        try install(
+            at: path,
+            dependencies: TuistGraph.Dependencies(
+                carthage: nil,
+                swiftPackageManager: TuistGraph.SwiftPackageManagerDependencies(
+                    .manifest,
+                    productTypes: packageSettings.productTypes,
+                    baseSettings: packageSettings.baseSettings,
+                    targetSettings: packageSettings.targetSettings,
+                    projectOptions: packageSettings.projectOptions
+                    
+                ),
+                platforms: packageSettings.platforms
+            ),
+            shouldUpdate: true,
             swiftVersion: swiftVersion
         )
     }

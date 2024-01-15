@@ -88,7 +88,12 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
 
         let dependenciesPath = dependenciesPath(at: rootDirectory)
 
-        guard FileHandler.shared.exists(dependenciesPath) else {
+        guard
+            FileHandler.shared.exists(dependenciesPath)
+                || FileHandler.shared.exists(
+                    rootDirectory.appending(components: [Constants.tuistDirectoryName, Constants.DependenciesDirectory.packageSwiftName])
+                )
+        else {
             return .none
         }
 

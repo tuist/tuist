@@ -10,6 +10,6 @@ final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTes
         try setUpFixture(.appWithSpmDependencies)
         try await run(FetchCommand.self)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+        try await run(BuildCommand.self, "App")
     }
 }
