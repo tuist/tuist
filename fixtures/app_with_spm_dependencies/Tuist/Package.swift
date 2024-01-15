@@ -2,16 +2,16 @@
 import PackageDescription
 
 #if TUIST
-import ProjectDescription
-import ProjectDescriptionHelpers
+    import ProjectDescription
+    import ProjectDescriptionHelpers
 
-let packageSettings = PackageSettings(
-    baseSettings: .targetSettings,
-    projectOptions: [
-        "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
-    ],
-    platforms: [.iOS, .watchOS]
-)
+    let packageSettings = PackageSettings(
+        baseSettings: .targetSettings,
+        projectOptions: [
+            "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
+        ],
+        platforms: [.iOS, .watchOS]
+    )
 
 #endif
 

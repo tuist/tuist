@@ -20,14 +20,14 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
     public init(manifestLoader: ManifestLoading = ManifestLoader()) {
         self.manifestLoader = manifestLoader
     }
-    
+
     public func loadPackageSettings(at path: AbsolutePath, with plugins: Plugins) throws -> TuistGraph.PackageSettings {
         try manifestLoader.register(plugins: plugins)
         let manifest = try manifestLoader.loadPackageSettings(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        
+
         return try TuistGraph.PackageSettings.from(
-            manifest: manifest, 
+            manifest: manifest,
             generatorPaths: generatorPaths
         )
     }

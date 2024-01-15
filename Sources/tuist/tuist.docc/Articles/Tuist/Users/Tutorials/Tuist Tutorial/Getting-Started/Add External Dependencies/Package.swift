@@ -2,15 +2,15 @@
 import PackageDescription
 
 #if TUIST
-import ProjectDescription
-import ProjectDescriptionHelpers
+    import ProjectDescription
+    import ProjectDescriptionHelpers
 
-let packageSettings = PackageSettings(
-    productTypes: [
-        "Alamofire": .framework, // default is .staticFramework
-    ],
-    platforms: [.iOS]
-)
+    let packageSettings = PackageSettings(
+        productTypes: [
+            "Alamofire": .framework, // default is .staticFramework
+        ],
+        platforms: [.iOS]
+    )
 #endif
 
 let package = Package(

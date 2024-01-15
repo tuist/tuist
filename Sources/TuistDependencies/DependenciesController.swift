@@ -75,7 +75,6 @@ public protocol DependenciesControlling {
         swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph
 
-    
     /// Updates dependencies.
     /// - Parameters:
     ///   - path: Directory where project's dependencies will be updated.
@@ -86,7 +85,7 @@ public protocol DependenciesControlling {
         dependencies: TuistGraph.Dependencies,
         swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph
-    
+
     /// Updates dependencies.
     /// - Parameters:
     ///   - path: Directory where project's dependencies will be updated.
@@ -138,7 +137,6 @@ public final class DependenciesController: DependenciesControlling {
         )
     }
 
-    
     public func fetch(
         at path: AbsolutePath,
         packageSettings: TuistGraph.PackageSettings,
@@ -154,7 +152,7 @@ public final class DependenciesController: DependenciesControlling {
                     baseSettings: packageSettings.baseSettings,
                     targetSettings: packageSettings.targetSettings,
                     projectOptions: packageSettings.projectOptions
-                    
+
                 ),
                 platforms: packageSettings.platforms
             ),
@@ -162,7 +160,7 @@ public final class DependenciesController: DependenciesControlling {
             swiftVersion: swiftVersion
         )
     }
-    
+
     public func update(
         at path: AbsolutePath,
         packageSettings: TuistGraph.PackageSettings,
@@ -178,7 +176,7 @@ public final class DependenciesController: DependenciesControlling {
                     baseSettings: packageSettings.baseSettings,
                     targetSettings: packageSettings.targetSettings,
                     projectOptions: packageSettings.projectOptions
-                    
+
                 ),
                 platforms: packageSettings.platforms
             ),

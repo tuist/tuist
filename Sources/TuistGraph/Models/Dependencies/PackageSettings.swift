@@ -13,10 +13,10 @@ public struct PackageSettings: Equatable {
 
     /// The custom project options for each project generated from a swift package
     public let projectOptions: [String: TuistGraph.Project.Options]
-    
+
     /// The custom set of `platforms` that are used by your project
     public let platforms: Set<PackagePlatform>
-    
+
     /// Initializes a new `PackageSettings` instance.
     /// - Parameters:
     ///    - productTypes: The custom `Product` types to be used for SPM targets.

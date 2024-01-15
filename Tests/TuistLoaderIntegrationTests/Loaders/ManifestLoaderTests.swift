@@ -74,7 +74,7 @@ final class ManifestLoaderTests: TuistTestCase {
         // Then
         XCTAssertEqual(got.name, "tuist")
     }
-    
+
     func test_loadPackageSettings() throws {
         // Given
         let temporaryPath = try temporaryPath()

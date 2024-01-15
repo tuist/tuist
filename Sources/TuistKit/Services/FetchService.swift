@@ -93,9 +93,15 @@ final class FetchService {
     private func fetchDependencies(path: AbsolutePath, update: Bool, with plugins: TuistGraph.Plugins) throws {
         try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
 
-        let dependenciesManifestPath = path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
-        let packageManifestPath = path.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.packageSwiftName)
-        
+        let dependenciesManifestPath = path.appending(
+            components: Constants.tuistDirectoryName,
+            Manifest.dependencies.fileName(path)
+        )
+        let packageManifestPath = path.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.DependenciesDirectory.packageSwiftName
+        )
+
         guard fileHandler.exists(dependenciesManifestPath) || fileHandler.exists(packageManifestPath) else {
             return
         }
@@ -108,11 +114,11 @@ final class FetchService {
 
         let config = try configLoader.loadConfig(path: path)
         let swiftVersion = config.swiftVersion
-        
+
         let dependenciesManifest: TuistCore.DependenciesGraph
         if fileHandler.exists(dependenciesManifestPath) {
             let dependencies = try dependenciesModelLoader.loadDependencies(at: path, with: plugins)
-            
+
             if update {
                 dependenciesManifest = try dependenciesController.update(
                     at: path,
@@ -129,7 +135,7 @@ final class FetchService {
 
         } else {
             let packageSettings = try packageSettingsLoader.loadPackageSettings(at: path, with: plugins)
-            
+
             if update {
                 dependenciesManifest = try dependenciesController.update(
                     at: path,
@@ -143,7 +149,6 @@ final class FetchService {
                     swiftVersion: swiftVersion
                 )
             }
-
         }
 
         let dependenciesGraph = try converter.convert(manifest: dependenciesManifest, path: path)

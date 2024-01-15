@@ -29,7 +29,7 @@ public struct PackageSettings: Codable, Equatable {
 
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public var projectOptions: [String: ProjectDescription.Project.Options]
-    
+
     /// The custom set of `platforms` that are used by your project
     public let platforms: Set<PackagePlatform>
 

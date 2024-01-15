@@ -35,9 +35,9 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         let plugins = Plugins.test()
 
         manifestLoader.loadPackageSettingsStub = { _ in
-                PackageSettings(
-                    platforms: [.iOS, .macOS]
-                )
+            PackageSettings(
+                platforms: [.iOS, .macOS]
+            )
         }
         manifestLoader.loadDependenciesStub = { _ in
             Dependencies(

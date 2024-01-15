@@ -74,7 +74,7 @@ public protocol ManifestLoading {
     /// - Parameters:
     /// - Parameter path: Path to the directory that contains the Package.swift
     func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies
-    
+
     /// Loads the `PackageSettings` from `Package.swift` in the given directory
     /// -  path: Path to the directory that contains Dependencies.swift
     func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings
@@ -169,7 +169,7 @@ public class ManifestLoader: ManifestLoading {
         let dependencyPath = path.appending(components: Constants.tuistDirectoryName)
         return try loadManifest(.dependencies, at: dependencyPath)
     }
-    
+
     public func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings {
         let packageManifestPath = path.appending(components: Constants.tuistDirectoryName)
         return try loadManifest(.package, at: packageManifestPath)
@@ -355,11 +355,12 @@ public class ManifestLoader: ManifestLoading {
                 ] }
             }
         }()
-        
+
         let packageDescriptionArguments: [String] = try {
             if case .package = manifest {
                 guard let xcode = try XcodeController.shared.selected() else { return [] }
-                let manifestPath = "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI"
+                let manifestPath =
+                    "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI"
                 return [
                     "-I", manifestPath,
                     "-L", manifestPath,
