@@ -315,11 +315,8 @@ final class ConfigGenerator: ConfigGenerating {
         graphTraverser: GraphTraversing,
         projectPath: AbsolutePath
     ) -> SettingsDictionary {
-        let targets = graphTraverser.allSwiftMacroFrameworkTargets(path: projectPath, name: target.name)
-        if targets.isEmpty { return [:] }
-        var settings: SettingsDictionary = [:]
-
         let pluginExecutables = graphTraverser.allSwiftPluginExecutables(path: projectPath, name: target.name)
+        var settings: SettingsDictionary = [:]
         if pluginExecutables.isEmpty { return settings }
         let swiftCompilerFlags = pluginExecutables.flatMap { ["-load-plugin-executable", $0] }
         settings["OTHER_SWIFT_FLAGS"] = .array(swiftCompilerFlags)
