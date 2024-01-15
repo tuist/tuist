@@ -10,6 +10,7 @@
   <img src="https://img.shields.io/opencollective/backers/tuistapp?style=flat-square" alt="Backers">
   <img src="https://img.shields.io/github/license/tuist/tuist?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/Powered%20by-Tuist-blue" alt="Powered by Tuist">
+  <a href="https://polar.sh/tuist"><img src="https://polar.sh/embed/seeks-funding-shield.svg?org=tuist" /></a>
 </div>
 
 <div align="center">
