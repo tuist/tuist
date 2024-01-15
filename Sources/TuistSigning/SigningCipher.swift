@@ -84,12 +84,11 @@ public final class SigningCipher: SigningCiphering {
             .map(FileHandler.shared.readFile)
             .map { try encryptData($0, masterKey: masterKey) }
 
-        try zip(cipheredKeys, signingKeyFiles)
-            .forEach { key, file in
-                logger.debug("Encrypting \(file.pathString)")
-                let encryptedPath = try AbsolutePath(validating: file.pathString + "." + Constants.encryptedExtension)
-                try key.write(to: encryptedPath.url)
-            }
+        for (key, file) in zip(cipheredKeys, signingKeyFiles) {
+            logger.debug("Encrypting \(file.pathString)")
+            let encryptedPath = try AbsolutePath(validating: file.pathString + "." + Constants.encryptedExtension)
+            try key.write(to: encryptedPath.url)
+        }
 
         if !keepFiles {
             try signingKeyFiles.forEach(FileHandler.shared.delete)
@@ -109,7 +108,7 @@ public final class SigningCipher: SigningCiphering {
         try locateUnencryptedSigningFiles(at: path)
             .forEach(FileHandler.shared.delete)
 
-        try zip(decipheredKeys, signingKeyFiles).forEach { key, keyFile in
+        for (key, keyFile) in zip(decipheredKeys, signingKeyFiles) {
             logger.debug("Decrypting \(keyFile.pathString)")
             let decryptedPath = try AbsolutePath(
                 validating: keyFile.parentDirectory.pathString + "/" + keyFile

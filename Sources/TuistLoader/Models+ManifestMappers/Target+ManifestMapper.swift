@@ -161,20 +161,19 @@ extension TuistGraph.Target {
             }
         }
 
-        allResources
-            .forEach { fileElement in
-                switch fileElement {
-                case .folderReference: filteredResources.append(fileElement)
-                case let .file(path, _, _):
-                    if path.extension == "playground" {
-                        playgrounds.insert(path)
-                    } else if path.extension == "xcdatamodeld" {
-                        coreDataModels.insert(path)
-                    } else {
-                        filteredResources.append(fileElement)
-                    }
+        for fileElement in allResources {
+            switch fileElement {
+            case .folderReference: filteredResources.append(fileElement)
+            case let .file(path, _, _):
+                if path.extension == "playground" {
+                    playgrounds.insert(path)
+                } else if path.extension == "xcdatamodeld" {
+                    coreDataModels.insert(path)
+                } else {
+                    filteredResources.append(fileElement)
                 }
             }
+        }
 
         return (
             resources: filteredResources,
@@ -206,7 +205,7 @@ extension TuistGraph.Target {
             )
         } ?? [])
 
-        allSources.forEach { sourceFile in
+        for sourceFile in allSources {
             if sourceFile.path.extension == "playground" {
                 playgrounds.insert(sourceFile.path)
             } else {

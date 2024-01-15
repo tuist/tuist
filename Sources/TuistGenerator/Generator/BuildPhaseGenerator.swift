@@ -169,7 +169,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxproj: PBXProj,
         sourceRootPath: AbsolutePath
     ) throws {
-        try scripts.forEach { script in
+        for script in scripts {
             let buildPhase = try PBXShellScriptBuildPhase(
                 files: [],
                 name: script.name,
@@ -208,7 +208,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxTarget: PBXTarget,
         pbxproj: PBXProj
     ) {
-        rawScriptBuildPhases.forEach { script in
+        for script in rawScriptBuildPhases {
             let buildPhase = PBXShellScriptBuildPhase(
                 files: [],
                 name: script.name,
@@ -239,7 +239,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             .sorted(by: { $0.path < $1.path })
 
         var pbxBuildFiles = [PBXBuildFile]()
-        try sortedFiles.forEach { buildFile in
+        for buildFile in sortedFiles {
             let buildFilePath = buildFile.path
             let isLocalized = buildFilePath.pathString.contains(".lproj/")
             let element: (element: PBXFileElement, path: AbsolutePath)
@@ -375,7 +375,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
     ) throws {
-        try target.copyFiles.forEach { action in
+        for action in target.copyFiles {
             let copyFilesPhase = PBXCopyFilesBuildPhase(
                 dstPath: action.subpath,
                 dstSubfolderSpec: action.destination.toXcodeprojSubFolder,
@@ -389,15 +389,15 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             let filePaths = action.files.map(\.path).sorted()
 
             var pbxBuildFiles = [PBXBuildFile]()
-            try filePaths.forEach {
-                guard let fileReference = fileElements.file(path: $0) else {
-                    throw BuildPhaseGenerationError.missingFileReference($0)
+            for filePath in filePaths {
+                guard let fileReference = fileElements.file(path: filePath) else {
+                    throw BuildPhaseGenerationError.missingFileReference(filePath)
                 }
 
-                if buildFilesCache.contains($0) == false {
+                if buildFilesCache.contains(filePath) == false {
                     let pbxBuildFile = PBXBuildFile(file: fileReference)
                     pbxBuildFiles.append(pbxBuildFile)
-                    buildFilesCache.insert($0)
+                    buildFilesCache.insert(filePath)
                 }
             }
             pbxBuildFiles.forEach { pbxproj.add(object: $0) }
@@ -414,7 +414,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         var pbxBuildFiles = [PBXBuildFile]()
         let ignoredVariantGroupExtensions = [".intentdefinition"]
 
-        try files.sorted(by: { $0.path < $1.path }).forEach { resource in
+        for resource in files.sorted(by: { $0.path < $1.path }) {
             let buildFilePath = resource.path
 
             let pathString = buildFilePath.pathString
@@ -431,7 +431,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 // Xcode automatically copies the string files for some files (i.e. .intentdefinition files), hence we need
                 // to remove them from the Copy Resources build phase
                 if let suffix = path.suffix, ignoredVariantGroupExtensions.contains(suffix) {
-                    return
+                    continue
                 }
 
                 element = (group, path)

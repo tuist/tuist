@@ -107,7 +107,7 @@ final class ProductTests: XCTestCase {
             .extensionKitExtension,
             .macro,
         ]
-        Product.allCases.forEach { product in
+        for product in Product.allCases {
             if runnables.contains(product) {
                 XCTAssertTrue(product.runnable)
             } else {
@@ -117,7 +117,7 @@ final class ProductTests: XCTestCase {
     }
 
     func test_testsBundle() {
-        Product.allCases.forEach { product in
+        for product in Product.allCases {
             if product == .uiTests || product == .unitTests {
                 XCTAssertTrue(product.testsBundle)
             } else {

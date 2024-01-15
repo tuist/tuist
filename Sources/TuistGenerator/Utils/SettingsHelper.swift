@@ -8,7 +8,7 @@ final class SettingsHelper {
         buildSettings: inout SettingsDictionary,
         with other: SettingsDictionary
     ) {
-        other.forEach { key, newValue in
+        for (key, newValue) in other {
             buildSettings[key] = merge(oldValue: buildSettings[key], newValue: newValue).normalize()
         }
     }

@@ -55,7 +55,7 @@ class ProjectFileElements {
     ) throws {
         var files = Set<GroupFileElement>()
 
-        try project.targets.forEach { target in
+        for target in project.targets {
             try files.formUnion(targetFiles(target: target))
         }
         let projectFileElements = projectFiles(project: project)
@@ -176,8 +176,8 @@ class ProjectFileElements {
             )
         })
 
-        target.copyFiles.forEach {
-            elements.formUnion($0.files.map {
+        for copyFile in target.copyFiles {
+            elements.formUnion(copyFile.files.map {
                 GroupFileElement(
                     path: $0.path,
                     group: target.filesGroup,
@@ -195,8 +195,8 @@ class ProjectFileElements {
         pbxproj: PBXProj,
         sourceRootPath: AbsolutePath
     ) throws {
-        try files.forEach {
-            try generate(fileElement: $0, groups: groups, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
+        for file in files {
+            try generate(fileElement: file, groups: groups, pbxproj: pbxproj, sourceRootPath: sourceRootPath)
         }
     }
 
@@ -207,7 +207,7 @@ class ProjectFileElements {
         sourceRootPath: AbsolutePath,
         filesGroup: ProjectGroup
     ) throws {
-        try dependencyReferences.sorted().forEach { (dependency: GraphDependencyReference) in
+        for dependency in dependencyReferences.sorted() {
             switch dependency {
             case let .xcframework(path, _, _, _, _, _):
                 try generatePrecompiledDependency(

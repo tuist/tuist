@@ -147,10 +147,10 @@ open class TuistTestCase: XCTestCase {
         let fileHandler = FileHandler()
         let paths = try files.map { temporaryPath.appending(try RelativePath(validating: $0)) }
 
-        try paths.forEach {
-            try fileHandler.touch($0)
+        for item in paths {
+            try fileHandler.touch(item)
             if let content {
-                try fileHandler.write(content, path: $0, atomically: true)
+                try fileHandler.write(content, path: item, atomically: true)
             }
         }
         return paths
@@ -161,8 +161,8 @@ open class TuistTestCase: XCTestCase {
         let temporaryPath = try temporaryPath()
         let fileHandler = FileHandler.shared
         let paths = try folders.map { temporaryPath.appending(try RelativePath(validating: $0)) }
-        try paths.forEach {
-            try fileHandler.createFolder($0)
+        for path in paths {
+            try fileHandler.createFolder(path)
         }
         return paths
     }

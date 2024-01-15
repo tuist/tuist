@@ -18,7 +18,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         var sideEffects: [SideEffectDescriptor] = []
         var targets: [Target] = []
 
-        try project.targets.forEach { target in
+        for target in project.targets {
             let (mappedTargets, targetSideEffects) = try mapTarget(target, project: project)
             targets.append(contentsOf: mappedTargets)
             sideEffects.append(contentsOf: targetSideEffects)

@@ -508,10 +508,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
             pbxproj: pbxproj
         )
-        try files.forEach {
+        for file in files {
             try fileElements.generate(
                 fileElement: GroupFileElement(
-                    path: $0,
+                    path: file,
                     group: .group(name: "Project"),
                     isReference: true
                 ),
@@ -556,10 +556,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
             pbxproj: pbxproj
         )
-        try files.forEach {
+        for file in files {
             try fileElements.generate(
                 fileElement: GroupFileElement(
-                    path: $0,
+                    path: file,
                     group: .group(name: "Project"),
                     isReference: true
                 ),
@@ -718,10 +718,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
 
-        resources.forEach {
+        for resource in resources {
             let ref = PBXFileReference()
             pbxproj.add(object: ref)
-            fileElements.elements[$0.path] = ref
+            fileElements.elements[resource.path] = ref
         }
         let nativeTarget = PBXNativeTarget(name: "Test")
 
@@ -754,7 +754,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let resourceBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
         var buildFiles = try XCTUnwrap(resourceBuildPhase.files)
 
-        try buildFiles.forEach { buildFile in
+        for buildFile in buildFiles {
             // Explicitly exctracting the original path because it gets lost in translation for resource files
             let path = try XCTUnwrap(fileElements.elements.first(where: { $0.value === buildFile.file })).key
 
@@ -1590,10 +1590,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     private func createFileElements(for coreDataModels: [CoreDataModel]) -> ProjectFileElements {
         let fileElements = ProjectFileElements()
-        coreDataModels.forEach { model in
+        for model in coreDataModels {
             let versionGroup = XCVersionGroup(path: model.path.basename, name: model.path.basename)
             fileElements.elements[model.path] = versionGroup
-            model.versions.forEach { version in
+            for version in model.versions {
                 let fileReference = PBXFileReference(name: version.basename, path: version.basename)
                 fileElements.elements[version] = fileReference
             }

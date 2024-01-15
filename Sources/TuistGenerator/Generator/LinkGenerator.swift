@@ -229,7 +229,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         var frameworkReferences: [GraphDependencyReference] = []
 
-        try embeddableFrameworks.forEach { dependency in
+        for dependency in embeddableFrameworks {
             switch dependency {
             case .framework:
                 frameworkReferences.append(dependency)
@@ -391,7 +391,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             .array(["$(inherited)"] + paths.map { $0.xcodeValue(sourceRootPath: sourceRootPath) }.uniqued().sorted())
         let newSetting = [name: value]
         let helper = SettingsHelper()
-        try configurationList.buildConfigurations.forEach { configuration in
+        for configuration in configurationList.buildConfigurations {
             try helper.extend(buildSettings: &configuration.buildSettings, with: newSetting)
         }
     }
@@ -428,36 +428,35 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             buildPhase.files?.append(buildFile)
         }
 
-        try linkableDependencies
-            .forEach { dependency in
-                switch dependency {
-                case let .framework(path, _, _, _, _, _, _, _, status, condition):
-                    try addBuildFile(path, condition: condition, status: status)
-                case let .library(path, _, _, _, condition):
-                    try addBuildFile(path, condition: condition)
-                case let .xcframework(path, _, _, _, status, condition):
-                    try addBuildFile(path, condition: condition, status: status)
-                case .bundle:
-                    break
-                case let .product(dependencyTarget, _, condition):
-                    guard let fileRef = fileElements.product(target: dependencyTarget) else {
-                        throw LinkGeneratorError.missingProduct(name: dependencyTarget)
-                    }
-                    let buildFile = PBXBuildFile(file: fileRef)
-                    buildFile.applyCondition(condition, applicableTo: target)
-                    pbxproj.add(object: buildFile)
-                    buildPhase.files?.append(buildFile)
-                case let .sdk(sdkPath, sdkStatus, _, condition):
-                    guard let fileRef = fileElements.sdk(path: sdkPath) else {
-                        throw LinkGeneratorError.missingReference(path: sdkPath)
-                    }
-
-                    let buildFile = createSDKBuildFile(for: fileRef, status: sdkStatus)
-                    buildFile.applyCondition(condition, applicableTo: target)
-                    pbxproj.add(object: buildFile)
-                    buildPhase.files?.append(buildFile)
+        for dependency in linkableDependencies {
+            switch dependency {
+            case let .framework(path, _, _, _, _, _, _, _, status, condition):
+                try addBuildFile(path, condition: condition, status: status)
+            case let .library(path, _, _, _, condition):
+                try addBuildFile(path, condition: condition)
+            case let .xcframework(path, _, _, _, status, condition):
+                try addBuildFile(path, condition: condition, status: status)
+            case .bundle:
+                break
+            case let .product(dependencyTarget, _, condition):
+                guard let fileRef = fileElements.product(target: dependencyTarget) else {
+                    throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
+                let buildFile = PBXBuildFile(file: fileRef)
+                buildFile.applyCondition(condition, applicableTo: target)
+                pbxproj.add(object: buildFile)
+                buildPhase.files?.append(buildFile)
+            case let .sdk(sdkPath, sdkStatus, _, condition):
+                guard let fileRef = fileElements.sdk(path: sdkPath) else {
+                    throw LinkGeneratorError.missingReference(path: sdkPath)
+                }
+
+                let buildFile = createSDKBuildFile(for: fileRef, status: sdkStatus)
+                buildFile.applyCondition(condition, applicableTo: target)
+                pbxproj.add(object: buildFile)
+                buildPhase.files?.append(buildFile)
             }
+        }
     }
 
     func generateCopyProductsBuildPhase(

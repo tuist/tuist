@@ -45,7 +45,7 @@ struct SettingsMapper {
         var settingsDictionary = TuistGraph.SettingsDictionary()
         let platformSettings = try settingsForPlatform(platform?.platformName)
 
-        try platformSettings.forEach { setting in
+        for setting in platformSettings {
             switch (setting.tool, setting.name) {
             case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
                 headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])")
@@ -68,7 +68,7 @@ struct SettingsMapper {
                 linkerFlags.append(contentsOf: setting.value)
             case (.linker, .linkedFramework), (.linker, .linkedLibrary):
                 // Handled as dependency
-                return
+                continue
 
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),

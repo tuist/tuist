@@ -57,10 +57,10 @@ final class ConfigGenerator: ConfigGenerating {
         )
         pbxproj.add(object: configurationList)
 
-        try project.settings.configurations.sortedByBuildConfigurationName().forEach {
+        for item in project.settings.configurations.sortedByBuildConfigurationName() {
             try generateProjectSettingsFor(
-                buildConfiguration: $0.key,
-                configuration: $0.value,
+                buildConfiguration: item.key,
+                configuration: item.value,
                 project: project,
                 fileElements: fileElements,
                 pbxproj: pbxproj,
@@ -104,12 +104,12 @@ final class ConfigGenerator: ConfigGenerating {
         let configurations = Dictionary(uniqueKeysWithValues: configurationsTuples)
         let nonEmptyConfigurations = !configurations.isEmpty ? configurations : Settings.default.configurations
         let orderedConfigurations = nonEmptyConfigurations.sortedByBuildConfigurationName()
-        try orderedConfigurations.forEach {
+        for orderedConfiguration in orderedConfigurations {
             try generateTargetSettingsFor(
                 target: target,
                 project: project,
-                buildConfiguration: $0.key,
-                configuration: $0.value,
+                buildConfiguration: orderedConfiguration.key,
+                configuration: orderedConfiguration.value,
                 fileElements: fileElements,
                 graphTraverser: graphTraverser,
                 pbxproj: pbxproj,

@@ -39,7 +39,7 @@ extension SettingsDictionary {
         with other: SettingsDictionary,
         for platform: Platform
     ) {
-        other.forEach { key, newValue in
+        for (key, newValue) in other {
             if self[key] == nil {
                 self[key] = newValue
             } else if self[key] != newValue {

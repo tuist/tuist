@@ -56,13 +56,13 @@ extension Target {
         var sourceFiles: [AbsolutePath: TuistGraph.SourceFile] = [:]
         var invalidGlobs: [InvalidGlob] = []
 
-        try sources.forEach { source in
+        for source in sources {
             let sourcePath = try AbsolutePath(validating: source.glob)
             let base = try AbsolutePath(validating: sourcePath.dirname)
 
             // Paths that should be excluded from sources
             var excluded: [AbsolutePath] = []
-            try source.excluding.forEach { path in
+            for path in source.excluding {
                 let absolute = try AbsolutePath(validating: path)
                 let globs = try AbsolutePath(validating: absolute.dirname).glob(absolute.basename)
                 excluded.append(contentsOf: globs)

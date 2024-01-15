@@ -318,8 +318,8 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
     @discardableResult
     func createFolders(_ folders: [String]) throws -> [AbsolutePath] {
         let paths = folders.map { try! AbsolutePath(validating: $0) }
-        try paths.forEach {
-            try fileHandler.createFolder($0)
+        for path in paths {
+            try fileHandler.createFolder(path)
         }
         return paths
     }
@@ -327,8 +327,8 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
     @discardableResult
     func createFiles(_ files: [String]) throws -> [AbsolutePath] {
         let paths = files.map { try! AbsolutePath(validating: $0) }
-        try paths.forEach {
-            try fileHandler.touch($0)
+        for path in paths {
+            try fileHandler.touch(path)
         }
         return paths
     }

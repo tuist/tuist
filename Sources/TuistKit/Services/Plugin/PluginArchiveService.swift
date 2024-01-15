@@ -71,16 +71,15 @@ final class PluginArchiveService {
         in temporaryDirectory: AbsolutePath
     ) throws {
         let artifactsPath = temporaryDirectory.appending(component: "artifacts")
-        try taskProducts
-            .forEach { product in
-                logger.notice("Building \(product)...")
-                try swiftPackageManagerController.buildFatReleaseBinary(
-                    packagePath: path,
-                    product: product,
-                    buildPath: temporaryDirectory.appending(component: "build"),
-                    outputPath: artifactsPath
-                )
-            }
+        for product in taskProducts {
+            logger.notice("Building \(product)...")
+            try swiftPackageManagerController.buildFatReleaseBinary(
+                packagePath: path,
+                product: product,
+                buildPath: temporaryDirectory.appending(component: "build"),
+                outputPath: artifactsPath
+            )
+        }
         let archiver = try fileArchiverFactory.makeFileArchiver(
             for: taskProducts
                 .map(artifactsPath.appending)

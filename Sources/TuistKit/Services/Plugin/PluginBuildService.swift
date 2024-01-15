@@ -30,14 +30,14 @@ final class PluginBuildService {
                 "--show-bin-path"
             )
         }
-        targets.forEach {
+        for target in targets {
             buildCommand += [
-                "--target", $0,
+                "--target", target,
             ]
         }
-        products.forEach {
+        for product in products {
             buildCommand += [
-                "--product", $0,
+                "--product", product,
             ]
         }
         try System.shared.runAndPrint(buildCommand)

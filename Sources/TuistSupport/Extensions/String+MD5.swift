@@ -267,8 +267,8 @@ class MD5: HashProtocol {
         var result = [UInt8]()
         result.reserveCapacity(hh.count / 4)
 
-        hh.forEach {
-            let itemLE = $0.littleEndian
+        for item in hh {
+            let itemLE = item.littleEndian
             let r1 = UInt8(itemLE & 0xFF)
             let r2 = UInt8((itemLE >> 8) & 0xFF)
             let r3 = UInt8((itemLE >> 16) & 0xFF)

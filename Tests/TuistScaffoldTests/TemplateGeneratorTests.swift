@@ -111,8 +111,8 @@ final class TemplateGeneratorTests: TuistTestCase {
         )
 
         // Then
-        try expectedFiles.forEach {
-            XCTAssertEqual(try FileHandler.shared.readTextFile($0.0), $0.1)
+        for expectedFile in expectedFiles {
+            XCTAssertEqual(try FileHandler.shared.readTextFile(expectedFile.0), expectedFile.1)
         }
     }
 
@@ -159,8 +159,8 @@ final class TemplateGeneratorTests: TuistTestCase {
         )
 
         // Then
-        try expectedFiles.forEach {
-            XCTAssertEqual(try FileHandler.shared.readTextFile($0.0), $0.1)
+        for expectedFile in expectedFiles {
+            XCTAssertEqual(try FileHandler.shared.readTextFile(expectedFile.0), expectedFile.1)
         }
     }
 
@@ -197,8 +197,8 @@ final class TemplateGeneratorTests: TuistTestCase {
         )
 
         // Then
-        try expectedFiles.forEach {
-            XCTAssertEqual(try FileHandler.shared.readTextFile($0.0), $0.1)
+        for expectedFile in expectedFiles {
+            XCTAssertEqual(try FileHandler.shared.readTextFile(expectedFile.0), expectedFile.1)
         }
     }
 

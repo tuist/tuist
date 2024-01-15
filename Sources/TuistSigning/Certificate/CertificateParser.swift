@@ -134,13 +134,13 @@ extension String {
         let matches = regex.matches(in: self, options: [], range: NSRange(startIndex..., in: self)).reversed()
 
         var modifiableString = self
-        matches.forEach { result in
+        for result in matches {
             guard let firstRange = Range(result.range(at: 2), in: modifiableString),
                   let secondRange = Range(result.range(at: 4), in: modifiableString),
                   let firstInt = UInt8(modifiableString[firstRange], radix: 16),
                   let secondInt = UInt8(modifiableString[secondRange], radix: 16)
             else {
-                return
+                continue
             }
             let resultRange = Range(result.range, in: modifiableString)!
             modifiableString.replaceSubrange(
