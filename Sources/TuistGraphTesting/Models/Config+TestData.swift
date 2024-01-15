@@ -30,13 +30,15 @@ extension Config.GenerationOptions {
         resolveDependenciesWithSystemScm: Bool = false,
         disablePackageVersionLocking: Bool = false,
         clonedSourcePackagesDirPath: AbsolutePath? = nil,
-        staticSideEffectsWarningTargets: TuistGraph.Config.GenerationOptions.StaticSideEffectsWarningTargets = .all
+        staticSideEffectsWarningTargets: TuistGraph.Config.GenerationOptions.StaticSideEffectsWarningTargets = .all,
+        enforceExplicitDependencies: Bool = false
     ) -> Self {
         .init(
             resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
             disablePackageVersionLocking: disablePackageVersionLocking,
             clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
-            staticSideEffectsWarningTargets: staticSideEffectsWarningTargets
+            staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
+            enforceExplicitDependencies: enforceExplicitDependencies
         )
     }
 }

@@ -27,17 +27,23 @@ extension Config {
         /// including the same static library of framework as a transitive dependency.
         public var staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets
 
+        /// The generated project has build settings and build paths modified in such a way that projects with implicit
+        /// dependencies won't build until all dependencies are declared explicitly.
+        public let enforceExplicitDependencies: Bool
+
         public static func options(
             resolveDependenciesWithSystemScm: Bool = false,
             disablePackageVersionLocking: Bool = false,
             clonedSourcePackagesDirPath: Path? = nil,
-            staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all
+            staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
+            enforceExplicitDependencies: Bool = false
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
                 disablePackageVersionLocking: disablePackageVersionLocking,
                 clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
-                staticSideEffectsWarningTargets: staticSideEffectsWarningTargets
+                staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
+                enforceExplicitDependencies: enforceExplicitDependencies
             )
         }
     }

@@ -60,7 +60,7 @@ final class MockGeneratorFactory: GeneratorFactorying {
     var invokedDefaultCount = 0
     var stubbedDefaultResult: Generating!
 
-    func `default`() -> Generating {
+    func `default`(config _: Config) -> Generating {
         invokedDefault = true
         invokedDefaultCount += 1
         return stubbedDefaultResult

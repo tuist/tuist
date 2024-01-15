@@ -1002,6 +1002,63 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(postBuildableReference.buildableIdentifier, "primary")
     }
 
+    func test_schemeTestAction_when_testsTarget_with_skippedTests() throws {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(targets: [target, testTarget])
+
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: project.path, name: "AppTests"))],
+            arguments: nil,
+            skippedTests: ["AppTests/test_twoPlusTwo_isFour"]
+        )
+
+        let scheme = Scheme.test(name: "AppTests", testAction: testAction)
+        let generatedProjects = createGeneratedProjects(projects: [project])
+
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target.name: target,
+                    testTarget.name: testTarget,
+                ],
+            ],
+            dependencies: [
+                .target(name: testTarget.name, path: project.path): [
+                    .target(name: target.name, path: project.path),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: project.path,
+            generatedProjects: generatedProjects
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.buildConfiguration, "Debug")
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
+        XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
+        XCTAssertNil(result.macroExpansion)
+        let testable = try XCTUnwrap(result.testables.first)
+        let buildableReference = testable.buildableReference
+
+        XCTAssertEqual(testable.skipped, false)
+        XCTAssertEqual(buildableReference.referencedContainer, "container:Project.xcodeproj")
+        XCTAssertEqual(buildableReference.buildableName, "AppTests.xctest")
+        XCTAssertEqual(buildableReference.blueprintName, "AppTests")
+        XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
+        XCTAssertEqual(testable.skippedTests, [XCScheme.TestItem(identifier: "AppTests/test_twoPlusTwo_isFour")])
+    }
+
     // MARK: - Launch Action Tests
 
     func test_schemeLaunchAction() throws {

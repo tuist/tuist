@@ -3,6 +3,7 @@
 name: Deploy Tuist DocC
 
 on:
+  workflow_dispatch: {}
   push:
     branches:
       - main
@@ -28,21 +29,22 @@ jobs:
           fetch-depth: 0
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: jdx/rtx-action@v1
+      - uses: jdx/mise-action@v2
         with:
           experimental: true
       - name: Build documentation
-        run: rtx run docs:build
+        run: mise run docs:build
       - name: Fix permissions
         run: 'sudo chown -R $USER .build/documentation'
-      - name: Deploy production to Netlify
-        uses: South-Paw/action-netlify-cli@1.0.1
-        id: netlify
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
         with:
-          args: 'deploy --json --prod --dir \"./.build/documentation\" --message \"production [${{ github.sha }}]\"'
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: cc0237353f2f825680b0463629cd4a86
+          projectName: tuist-docs
+          directory: .build/documentation
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          wranglerVersion: '3'
       - name: Finish deployment
         uses: bobheadxi/deployments@v1
         if: always()
@@ -51,4 +53,4 @@ jobs:
           step: finish
           status: ${{ job.status }}
           deployment_id: ${{ steps.deployment.outputs.deployment_id }}
-          env_url: ${{ steps.netlify.outputs.NETLIFY_PROD_URL }}
+          env_url: "https://docs.tuist.io"

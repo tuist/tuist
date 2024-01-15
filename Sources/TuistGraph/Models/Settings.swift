@@ -104,6 +104,8 @@ public struct Settings: Equatable, Codable {
     // MARK: - Attributes
 
     public let base: SettingsDictionary
+    /// Base settings applied only for configurations of `variant == .debug`
+    public let baseDebug: SettingsDictionary
     public let configurations: [BuildConfiguration: Configuration?]
     public let defaultSettings: DefaultSettings
 
@@ -111,10 +113,12 @@ public struct Settings: Equatable, Codable {
 
     public init(
         base: SettingsDictionary = [:],
+        baseDebug: SettingsDictionary = [:],
         configurations: [BuildConfiguration: Configuration?],
         defaultSettings: DefaultSettings = .recommended
     ) {
         self.base = base
+        self.baseDebug = baseDebug
         self.configurations = configurations
         self.defaultSettings = defaultSettings
     }

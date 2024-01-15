@@ -95,7 +95,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
         ]
         let tuistPath = try AbsolutePath(validating: ProcessInfo.processInfo.arguments.first!)
         let configPath = directory.appending(components: "Tuist", "Config.swift")
-        let dependenciesPath = directory.appending(components: "Tuist", "Dependencies.swif")
+        let dependenciesPath = directory.appending(components: "Tuist", "Dependencies.swift")
+        let packageManifestPath = directory.appending(components: "Tuist", "Package.swift")
         try FileHandler.shared.createFolder(directory.appending(component: "a folder"))
         try FileHandler.shared.write(
             """
@@ -121,6 +122,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
         manifestFilesLocator.locateConfigStub = configPath
         manifestFilesLocator.locateDependenciesStub = dependenciesPath
+        manifestFilesLocator.locatePackageManifestStub = packageManifestPath
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -139,6 +141,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEqual(mapArgs?.configPath, configPath)
         XCTAssertEqual(mapArgs?.dependenciesPath, dependenciesPath)
+        XCTAssertEqual(mapArgs?.packageManifestPath, packageManifestPath)
     }
 
     func test_edit_when_there_are_no_editable_files() throws {

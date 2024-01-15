@@ -26,7 +26,9 @@ protocol GeneratorFactorying {
     /// Returns the default generator.
     /// - Parameter config: The project configuration.
     /// - Returns: A Generator instance.
-    func `default`() -> Generating
+    func `default`(
+        config: Config
+    ) -> Generating
 }
 
 public class GeneratorFactory: GeneratorFactorying {
@@ -69,13 +71,13 @@ public class GeneratorFactory: GeneratorFactorying {
         )
     }
 
-    public func `default`() -> Generating {
+    public func `default`(config: Config) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
         let projectMappers = projectMapperFactory.default()
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
         let graphMapperFactory = GraphMapperFactory()
-        let graphMappers = graphMapperFactory.default()
+        let graphMappers = graphMapperFactory.default(config: config)
         let workspaceMappers = workspaceMapperFactory.default()
         let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(

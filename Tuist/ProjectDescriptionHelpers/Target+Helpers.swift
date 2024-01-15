@@ -26,21 +26,16 @@ extension Target {
         }
         return Target(
             name: name,
-            platform: .macOS,
+            destinations: [.mac],
             product: product,
             bundleId: "io.tuist.\(name)",
-            deploymentTarget: Constants.deploymentTarget,
+            deploymentTargets: .macOS("12.0"),
             infoPlist: .default,
             sources: ["\(rootFolder)/\(name)/**/*.swift"],
             dependencies: dependencies
         )
     }
 
-    /// - Parameters:
-    ///     - dependencies: Dependencies for the main target.
-    ///     - testDependencies: Dependencies for tests.
-    ///     - testingDependencies: Dependencies for the testing target.
-    ///     - integrationTestsDependencies: Dependencies for the integration tests.
     public static func module(
         name: String,
         product: Product = .staticFramework,

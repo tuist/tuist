@@ -14,6 +14,8 @@ final class FetchService {
     private let dependenciesController: DependenciesControlling
     private let dependenciesModelLoader: DependenciesModelLoading
     private let converter: ManifestModelConverting
+    private let rootDirectoryLocator: RootDirectoryLocating
+    private let fileHandler: FileHandling
 
     init(
         pluginService: PluginServicing = PluginService(),
@@ -21,7 +23,9 @@ final class FetchService {
         manifestLoader: ManifestLoading = ManifestLoader(),
         dependenciesController: DependenciesControlling = DependenciesController(),
         dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader(),
-        converter: ManifestModelConverting = ManifestModelConverter()
+        converter: ManifestModelConverting = ManifestModelConverter(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+        fileHandler: FileHandling = FileHandler.shared
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader
@@ -29,18 +33,36 @@ final class FetchService {
         self.dependenciesController = dependenciesController
         self.dependenciesModelLoader = dependenciesModelLoader
         self.converter = converter
+        self.rootDirectoryLocator = rootDirectoryLocator
+        self.fileHandler = fileHandler
     }
 
     func run(
         path: String?,
         update: Bool
     ) async throws {
-        let path = try self.path(path)
-
+        let path = try locateDependencies(at: path)
         try await fetchDependencies(path: path, update: update, with: fetchPlugins(path: path))
     }
 
     // MARK: - Helpers
+
+    public func locateDependencies(at path: String?) throws -> AbsolutePath {
+        // Convert to AbsolutePath
+        let path = try self.path(path)
+
+        // If the Dependencies.swift file exists in the root Tuist directory, we load it from there
+        if let rootDirectoryPath = rootDirectoryLocator.locate(from: path) {
+            if fileHandler.exists(
+                rootDirectoryPath.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
+            ) {
+                return rootDirectoryPath
+            }
+        }
+
+        // Otherwise return the original path
+        return path
+    }
 
     private func path(_ path: String?) throws -> AbsolutePath {
         if let path {
@@ -51,7 +73,7 @@ final class FetchService {
     }
 
     private var currentPath: AbsolutePath {
-        FileHandler.shared.currentPath
+        fileHandler.currentPath
     }
 
     private func fetchPlugins(path: AbsolutePath) async throws -> TuistGraph.Plugins {
@@ -86,6 +108,7 @@ final class FetchService {
         let swiftVersion = config.swiftVersion
 
         let dependenciesManifest: TuistCore.DependenciesGraph
+
         if update {
             dependenciesManifest = try dependenciesController.update(
                 at: path,

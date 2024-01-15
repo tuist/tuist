@@ -140,6 +140,7 @@ final class GenerateAcceptanceTestIosAppWithCustomDevelopmentRegion: TuistAccept
         for resource in [
             "en.lproj/Greetings.strings",
             "fr.lproj/Greetings.strings",
+            "fr-CA.lproj/Greetings.strings",
         ] {
             try await XCTAssertProductWithDestinationContainsResource(
                 "App.app",
@@ -727,6 +728,21 @@ final class GenerateAcceptanceTestmacOSAppWithExtensions: TuistAcceptanceTestCas
 
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
+    }
+}
+
+final class GenerateAcceptanceTestiOSAppWithImplicitDependencies: TuistAcceptanceTestCase {
+    func test_ios_app_with_implicit_dependencies() async throws {
+        try setUpFixture(.iosAppWithImplicitDependencies)
+        try await run(BuildCommand.self, "FrameworkC")
+        do {
+            try await run(BuildCommand.self, "App")
+            XCTFail("Building app should fail as FrameworkA has an implicit dependency on FrameworkB")
+        } catch let error as FatalError {
+            XCTAssertTrue(
+                error.description.contains("The 'xcodebuild' command exited with error code 65 and message")
+            )
+        }
     }
 }
 

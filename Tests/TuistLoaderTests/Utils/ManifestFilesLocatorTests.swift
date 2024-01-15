@@ -485,6 +485,31 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         XCTAssertNil(configPath)
     }
 
+    func test_locatePackageManifest() throws {
+        // Given
+        let paths = try createFiles([
+            "Module01/File01.swift",
+            "Module01/File02.swift",
+            "Module01/File03.swift",
+
+            "Module02/File01.swift",
+            "Module02/File01.swift",
+            "Module02/Subdir01/File01.swift",
+            "Module02/Subdir01/File02.swift",
+
+            "File01.swift",
+            "File02.swift",
+            "Tuist/Package.swift",
+        ])
+
+        // When
+        let packageManifestPath = subject.locatePackageManifest(at: try temporaryPath())
+
+        // Then
+        XCTAssertNotNil(packageManifestPath)
+        XCTAssertEqual(paths.last, packageManifestPath)
+    }
+
     func test_locateDependencies() throws {
         // Given
         let paths = try createFiles([

@@ -71,6 +71,9 @@ public protocol GraphTraversing {
     /// - Returns: The test plans with the given name.
     func testPlan(name: String) -> TestPlan?
 
+    /// - Returns: All direct and transitive target dependencies
+    func allTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
+
     /// Given a project directory and target name, it returns **all**l its direct target dependencies present in the same project.
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies`
     /// instead
@@ -247,6 +250,13 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
     func directSwiftMacroFrameworkTargets(path: AbsolutePath, name: String) -> Set<GraphTarget>
+
+    /// Given a project and a target name, it returns all the target dependencies that are a static framework representing
+    /// a Swift Macro
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func allSwiftMacroFrameworkTargets(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
     /// It returns a set containing the external dependencies that are not referenced by the projects either directly nor
     /// transitively.

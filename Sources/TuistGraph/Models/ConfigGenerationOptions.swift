@@ -13,17 +13,20 @@ extension Config {
         public let disablePackageVersionLocking: Bool
         public let clonedSourcePackagesDirPath: AbsolutePath?
         public let staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets
+        public let enforceExplicitDependencies: Bool
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
             disablePackageVersionLocking: Bool,
             clonedSourcePackagesDirPath: AbsolutePath? = nil,
-            staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all
+            staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
+            enforceExplicitDependencies: Bool = false
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
             self.clonedSourcePackagesDirPath = clonedSourcePackagesDirPath
             self.staticSideEffectsWarningTargets = staticSideEffectsWarningTargets
+            self.enforceExplicitDependencies = enforceExplicitDependencies
         }
     }
 }

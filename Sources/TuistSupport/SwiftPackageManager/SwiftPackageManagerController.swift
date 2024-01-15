@@ -16,6 +16,11 @@ public protocol SwiftPackageManagerControlling {
     ///   - printOutput: When true it prints the Swift Package Manager's output.
     func update(at path: AbsolutePath, printOutput: Bool) throws
 
+    /// Gets the tools version of the package at the given path
+    /// - Parameter path: Directory where the `Package.swift` is defined.
+    /// - Returns: Version of tools.
+    func getToolsVersion(at path: AbsolutePath) throws -> Version
+
     /// Sets tools version of package to the given value.
     /// - Parameter path: Directory where the `Package.swift` is defined.
     /// - Parameter version: Version of tools. When `nil` then the environment’s version will be set.
@@ -64,6 +69,15 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
         try System.shared.run(command)
+    }
+
+    public func getToolsVersion(at path: AbsolutePath) throws -> Version {
+        let extraArguments = ["tools-version"]
+
+        let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
+
+        let rawVersion = try System.shared.capture(command).trimmingCharacters(in: .whitespacesAndNewlines)
+        return try Version(versionString: rawVersion)
     }
 
     public func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo {
