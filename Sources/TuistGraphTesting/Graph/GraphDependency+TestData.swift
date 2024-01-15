@@ -38,13 +38,13 @@ extension GraphDependency {
         macroPath: AbsolutePath? = nil
     ) -> GraphDependency {
         .xcframework(
-            path: path,
-            infoPlist: infoPlist,
-            primaryBinaryPath: primaryBinaryPath,
-            linking: linking,
-            mergeable: false,
-            status: status,
-            macroPath: macroPath
+            GraphDependency.XCFramework(path: path,
+                                        infoPlist: infoPlist,
+                                        primaryBinaryPath: primaryBinaryPath,
+                                        linking: linking,
+                                        mergeable: false,
+                                        status: status,
+                                        macroPath: macroPath)
         )
     }
 

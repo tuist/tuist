@@ -158,8 +158,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 
     private func isStaticProduct(_ dependency: GraphDependency, graphTraverser: GraphTraversing) -> Bool {
         switch dependency {
-        case let .xcframework(_, _, _, linking, _, _, _):
-            return linking == .static
+        case let .xcframework(xcframework):
+            return xcframework.linking == .static
         case let .framework(_, _, _, _, linking, _, _, _):
             return linking == .static
         case let .library(_, _, linking, _, _):
