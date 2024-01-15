@@ -202,8 +202,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/cpisciotta/xcbeautify",
       "state" : {
-        "revision" : "84d24a9854e6fdcd2c91122d50a3189b072e8136",
-        "version" : "1.4.0"
+        "branch" : "charles/Swift-5.9",
+        "revision" : "8abc72cdda56948cba32d1547e432b194892ebf3"
       }
     },
     {
