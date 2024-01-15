@@ -5,7 +5,7 @@
 --exclude fixtures/tuist_plugin
 --disable hoistAwait
 --disable hoistTry
---swiftversion 5.7
+--swiftversion 5.9
 --minversion 0.53.0
 
 # format options
