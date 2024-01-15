@@ -29,7 +29,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         }
         manifestLoader.loadConfigStub = { [weak self] path in
             guard let self,
-                  let config = self.registeredConfigs[path]
+                  let config = registeredConfigs[path]
             else {
                 throw ManifestLoaderError.manifestNotFound(.config, path)
             }
