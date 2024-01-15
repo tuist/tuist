@@ -1,5 +1,23 @@
 # Changelog
 
+## 3.40.0 - 2024-01-15
+
+### Tuist
+
+#### Changed
+
+- Remove raw xcodebuild logs in favor of resultBundlePath and xcactivitylog [#5776](https://github.com/tuist/tuist/pull/5776) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix incremental test execution when migrating from Tuist versions older than 3.36.0 [#5791](https://github.com/tuist/tuist/pull/5791) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+#### Changed
+
+- Build macOS xcframework for both Intel and ARM by [@fortmarek](https://github.com/fortmarek)
+
 ## 3.39.3 - 2024-01-08
 
 ### Tuist
