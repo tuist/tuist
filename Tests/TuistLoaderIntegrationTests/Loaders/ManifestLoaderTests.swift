@@ -75,6 +75,52 @@ final class ManifestLoaderTests: TuistTestCase {
         XCTAssertEqual(got.name, "tuist")
     }
 
+    func test_loadPackageSettings() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let content = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        #if TUIST
+        import ProjectDescription
+
+        let packageSettings = PackageSettings(
+            platforms: [.iOS, .watchOS]
+        )
+
+        #endif
+
+        let package = Package(
+            name: "PackageName",
+            dependencies: []
+        )
+
+        """
+
+        let manifestPath = temporaryPath.appending(
+            components: [
+                Constants.tuistDirectoryName,
+                Manifest.package.fileName(temporaryPath),
+            ]
+        )
+        try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        // When
+        let got = try subject.loadPackageSettings(at: temporaryPath)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .init(platforms: [.iOS, .watchOS])
+        )
+    }
+
     func test_loadWorkspace() throws {
         // Given
         let temporaryPath = try temporaryPath()

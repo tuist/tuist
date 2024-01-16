@@ -1,6 +1,6 @@
-# Build and deploy DocC to GitHub pages. Based off of Pointfree's work here:
+# Build and deploy DocC to GitHub pages. Based off of PointFree's work here:
 # https://github.com/pointfreeco/swift-parsing/blob/main/.github/workflows/documentation.yml
-name: Deploy Desscription Docc
+name: Deploy Description DocC
 
 on:
   release:
@@ -57,7 +57,7 @@ jobs:
                     || echo "⚠️ Documentation skipped for "$tag".";
             fi;
           done
-      
+
       - name: Fix permissions
         run: 'sudo chown -R $USER docs-out'
       - name: Publish documentation to GitHub Pages
