@@ -10,6 +10,7 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     Account.create!(owner: organization, name: "tuist")
     inviter.add_role(:admin, organization)
     invitee_email = "test1@cloud.tuist.io"
+    InvitationMailer.any_instance.expects(:invitation_mail).once
 
     # When
     got = OrganizationInviteService.new.invite(
@@ -17,6 +18,29 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
       invitee_email: invitee_email,
       organization_id: organization.id,
     )
+    # Then
+    assert_equal got.inviter, inviter
+    assert_equal got.invitee_email, invitee_email
+    assert_equal got.organization, organization
+  end
+
+  test "invite a user to an organization when smpt is not configured" do
+    # Given
+    inviter = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    organization = Organization.create!
+    Account.create!(owner: organization, name: "tuist")
+    inviter.add_role(:admin, organization)
+    invitee_email = "test1@cloud.tuist.io"
+    Environment.stubs(:smpt_configured?).returns(false)
+    InvitationMailer.any_instance.expects(:invitation_mail).never
+
+    # When
+    got = OrganizationInviteService.new.invite(
+      inviter: inviter,
+      invitee_email: invitee_email,
+      organization_id: organization.id,
+    )
+
     # Then
     assert_equal got.inviter, inviter
     assert_equal got.invitee_email, invitee_email

@@ -86,14 +86,16 @@ class OrganizationInviteService < ApplicationService
     organization = find_organization(invitation.organization.id)
     raise Error::Unauthorized unless OrganizationPolicy.new(resender, organization).update?
 
-    InvitationMailer
-      .invitation_mail(
-        inviter: invitation.inviter,
-        invitee_email: invitation.invitee_email,
-        organization: organization,
-        token: invitation.token,
-      )
-      .deliver_now
+    if Environment.smpt_configured?
+      InvitationMailer
+        .invitation_mail(
+          inviter: invitation.inviter,
+          invitee_email: invitation.invitee_email,
+          organization: organization,
+          token: invitation.token,
+        )
+        .deliver_now
+    end
     invitation
   end
 
@@ -129,14 +131,17 @@ class OrganizationInviteService < ApplicationService
     rescue ActiveRecord::RecordNotUnique
       raise Error::DuplicateInvitation.new(invitee_email, organization.name)
     end
-    InvitationMailer
-      .invitation_mail(
-        inviter: inviter,
-        invitee_email: invitee_email,
-        organization: organization,
-        token: token,
-      )
-      .deliver_now
+
+    if Environment.smpt_configured?
+      InvitationMailer
+        .invitation_mail(
+          inviter: inviter,
+          invitee_email: invitee_email,
+          organization: organization,
+          token: token,
+        )
+        .deliver_now
+    end
     invitation
   end
 

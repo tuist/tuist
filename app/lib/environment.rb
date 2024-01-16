@@ -159,6 +159,18 @@ module Environment
       truthy?(env['SECRET_KEY_BASE_DUMMY'])
     end
 
+    def smpt_domain
+      fetch(:smpt_settings, :domain)
+    end
+
+    def smpt_user_name
+      fetch(:smpt_settings, :user_name)
+    end
+
+    def smpt_password
+      fetch(:smpt_settings, :password)
+    end
+
     # Configuration checkers
 
     def attio_configured?
@@ -170,6 +182,10 @@ module Environment
         stripe_publishable_key.present? &&
         stripe_endpoint_secret.present? &&
         stripe_plan_id.present?
+    end
+
+    def smpt_configured?
+      smpt_domain.present? && smpt_user_name.present? && smpt_password.present?
     end
 
     def okta_configured?
