@@ -165,7 +165,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
         scheme: String,
         clean: Bool,
         archivePath: AbsolutePath,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        derivedDataPath: AbsolutePath?
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -184,6 +185,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Archive path
         command.append(contentsOf: ["-archivePath", archivePath.pathString])
 
+        // Derived data path
+        if let derivedDataPath = derivedDataPath {
+            command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
+        }
+        
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
 
@@ -192,12 +198,19 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
     public func createXCFramework(
         arguments: [XcodeBuildControllerCreateXCFrameworkArgument],
-        output: AbsolutePath
+        output: AbsolutePath,
+        derivedDataPath: AbsolutePath?
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
         command.append(contentsOf: arguments.flatMap(\.xcodebuildArguments))
         command.append(contentsOf: ["-output", output.pathString])
         command.append("-allow-internal-distribution")
+        
+        // Derived data path
+        if let derivedDataPath = derivedDataPath {
+            command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
+        }
+        
         return try run(command: command)
     }
 
@@ -209,7 +222,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
     public func showBuildSettings(
         _ target: XcodeBuildTarget,
         scheme: String,
-        configuration: String
+        configuration: String,
+        derivedDataPath: AbsolutePath?
     ) async throws -> [String: XcodeBuildSettings] {
         var command = ["/usr/bin/xcrun", "xcodebuild", "archive", "-showBuildSettings", "-skipUnavailableActions"]
 
@@ -219,6 +233,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Scheme
         command.append(contentsOf: ["-scheme", scheme])
 
+        // Derived data path
+        if let derivedDataPath = derivedDataPath {
+            command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
+        }
+        
         // Target
         command.append(contentsOf: target.xcodebuildArguments)
 

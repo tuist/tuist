@@ -107,7 +107,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
     }
 
     var archiveStub: (
-        (XcodeBuildTarget, String, Bool, AbsolutePath, [XcodeBuildArgument])
+        (XcodeBuildTarget, String, Bool, AbsolutePath, [XcodeBuildArgument], AbsolutePath?)
             -> [SystemEvent<XcodeBuildOutput>]
     )?
     func archive(
@@ -115,10 +115,11 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         scheme: String,
         clean: Bool,
         archivePath: AbsolutePath,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        derivedDataPath: AbsolutePath?
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let archiveStub {
-            return archiveStub(target, scheme, clean, archivePath, arguments)
+            return archiveStub(target, scheme, clean, archivePath, arguments, derivedDataPath)
                 .asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {
@@ -130,15 +131,16 @@ final class MockXcodeBuildController: XcodeBuildControlling {
     }
 
     var createXCFrameworkStub: (
-        ([XcodeBuildControllerCreateXCFrameworkArgument], AbsolutePath)
+        ([XcodeBuildControllerCreateXCFrameworkArgument], AbsolutePath, AbsolutePath?)
             -> [SystemEvent<XcodeBuildOutput>]
     )?
     func createXCFramework(
         arguments: [XcodeBuildControllerCreateXCFrameworkArgument],
-        output: AbsolutePath
+        output: AbsolutePath,
+        derivedDataPath: AbsolutePath?
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let createXCFrameworkStub {
-            return createXCFrameworkStub(arguments, output).asAsyncThrowingStream()
+            return createXCFrameworkStub(arguments, output, derivedDataPath).asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {
                 throw TestError(
@@ -148,14 +150,15 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         }
     }
 
-    var showBuildSettingsStub: ((XcodeBuildTarget, String, String) -> [String: XcodeBuildSettings])?
+    var showBuildSettingsStub: ((XcodeBuildTarget, String, String, AbsolutePath?) -> [String: XcodeBuildSettings])?
     func showBuildSettings(
         _ target: XcodeBuildTarget,
         scheme: String,
-        configuration: String
+        configuration: String,
+        derivedDataPath: AbsolutePath?
     ) throws -> [String: XcodeBuildSettings] {
         if let showBuildSettingsStub {
-            return showBuildSettingsStub(target, scheme, configuration)
+            return showBuildSettingsStub(target, scheme, configuration, derivedDataPath)
         } else {
             throw TestError(
                 "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to showBuildSettings"
