@@ -110,6 +110,7 @@ public class ManifestLoader: ManifestLoading {
     private var plugins: Plugins = .none
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
+    private let xcodeController: XcodeControlling
 
     // MARK: - Init
 
@@ -119,7 +120,8 @@ public class ManifestLoader: ManifestLoading {
             resourceLocator: ResourceLocator(),
             cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
-            manifestFilesLocator: ManifestFilesLocator()
+            manifestFilesLocator: ManifestFilesLocator(),
+            xcodeController: XcodeController.shared
         )
     }
 
@@ -128,13 +130,15 @@ public class ManifestLoader: ManifestLoading {
         resourceLocator: ResourceLocating,
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
-        manifestFilesLocator: ManifestFilesLocating
+        manifestFilesLocator: ManifestFilesLocating,
+        xcodeController: XcodeControlling
     ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
         self.manifestFilesLocator = manifestFilesLocator
+        self.xcodeController = xcodeController
         decoder = JSONDecoder()
     }
 
@@ -358,7 +362,7 @@ public class ManifestLoader: ManifestLoading {
 
         let packageDescriptionArguments: [String] = try {
             if case .package = manifest {
-                guard let xcode = try XcodeController.shared.selected() else { return [] }
+                guard let xcode = try xcodeController.selected() else { return [] }
                 let manifestPath =
                     "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI"
                 return [

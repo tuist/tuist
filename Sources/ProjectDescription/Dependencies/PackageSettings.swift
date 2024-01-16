@@ -1,20 +1,29 @@
 import Foundation
 
-/// A collection of external dependencies.
+/// A custom Swift Package Manager configuration
 ///
 ///
 /// ```swift
-/// TODO: Update this
-/// import ProjectDescription
+/// // swift-tools-version: 5.8
+/// import PackageDescription
 ///
-/// let dependencies = Dependencies(
-///     carthage: [
-///         .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4")),
-///     ],
-///     swiftPackageManager: [
-///         .remote(url: "https://github.com/Alamofire/Alamofire", requirement: / .upToNextMajor(from: "5.0.0")),
-///     ],
-///     platforms: [.iOS]
+/// #if TUIST
+///     import ProjectDescription
+///     import ProjectDescriptionHelpers
+///
+///     let packageSettings = PackageSettings(
+///         productTypes: [
+///             "Alamofire": .framework, // default is .staticFramework
+///         ],
+///         platforms: [.iOS]
+///     )
+/// #endif
+///
+/// let package = Package(
+///     name: "PackageName",
+///     dependencies: [
+///         .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
+///     ]
 /// )
 /// ```
 public struct PackageSettings: Codable, Equatable {
@@ -33,7 +42,7 @@ public struct PackageSettings: Codable, Equatable {
     /// The custom set of `platforms` that are used by your project
     public let platforms: Set<PackagePlatform>
 
-    /// Creates `SwiftPackageManagerDependencies` instance using the package manifest at `Tuist/Package.swift`.
+    /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
