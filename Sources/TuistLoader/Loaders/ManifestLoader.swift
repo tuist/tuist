@@ -10,7 +10,7 @@ public enum ManifestLoaderError: FatalError, Equatable {
     case unexpectedOutput(AbsolutePath)
     case manifestNotFound(Manifest?, AbsolutePath)
     case manifestCachingFailed(Manifest?, AbsolutePath)
-    case manifestLoadingFailed(path: AbsolutePath, context: String)
+    case manifestLoadingFailed(path: AbsolutePath, data: Data, context: String)
 
     public static func manifestNotFound(_ path: AbsolutePath) -> ManifestLoaderError {
         .manifestNotFound(nil, path)
@@ -26,7 +26,7 @@ public enum ManifestLoaderError: FatalError, Equatable {
             return "\(manifest?.fileName(path) ?? "Manifest") not found at path \(path.pathString)"
         case let .manifestCachingFailed(manifest, path):
             return "Could not cache \(manifest?.fileName(path) ?? "Manifest") at path \(path.pathString)"
-        case let .manifestLoadingFailed(path, context):
+        case let .manifestLoadingFailed(path, _, context):
             return """
             Unable to load manifest at \(path.pathString.bold())
             \(context)
@@ -176,7 +176,20 @@ public class ManifestLoader: ManifestLoading {
 
     public func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings {
         let packageManifestPath = path.appending(components: Constants.tuistDirectoryName)
-        return try loadManifest(.package, at: packageManifestPath)
+        do {
+            return try loadManifest(.package, at: packageManifestPath)
+        } catch let error as ManifestLoaderError {
+            switch error {
+            case let .manifestLoadingFailed(path: _, data: data, context: _):
+                if data.count == 0 {
+                    return PackageSettings()
+                } else {
+                    throw error
+                }
+            default:
+                throw error
+            }
+        }
     }
 
     public func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin {
@@ -206,7 +219,9 @@ public class ManifestLoader: ManifestLoading {
         } catch {
             guard let error = error as? DecodingError else {
                 throw ManifestLoaderError.manifestLoadingFailed(
-                    path: manifestPath, context: error.localizedDescription
+                    path: manifestPath,
+                    data: data,
+                    context: error.localizedDescription
                 )
             }
 
@@ -216,6 +231,7 @@ public class ManifestLoader: ManifestLoading {
             case let .typeMismatch(type, context):
                 throw ManifestLoaderError.manifestLoadingFailed(
                     path: manifestPath,
+                    data: data,
                     context: """
                     The content of the manifest did not match the expected type of: \(String(describing: type).bold())
                     \(context.debugDescription)
@@ -224,6 +240,7 @@ public class ManifestLoader: ManifestLoading {
             case let .valueNotFound(value, _):
                 throw ManifestLoaderError.manifestLoadingFailed(
                     path: manifestPath,
+                    data: data,
                     context: """
                     Expected a non-optional value for property of type \(String(describing: value).bold()) but found a nil value.
                     \(json.bold())
@@ -232,6 +249,7 @@ public class ManifestLoader: ManifestLoading {
             case let .keyNotFound(codingKey, _):
                 throw ManifestLoaderError.manifestLoadingFailed(
                     path: manifestPath,
+                    data: data,
                     context: """
                     Did not find property with name \(codingKey.stringValue.bold()) in the JSON represented by:
                     \(json.bold())
@@ -240,6 +258,7 @@ public class ManifestLoader: ManifestLoading {
             case let .dataCorrupted(context):
                 throw ManifestLoaderError.manifestLoadingFailed(
                     path: manifestPath,
+                    data: data,
                     context: """
                     The encoded data for the manifest is corrupted.
                     \(context.debugDescription)
@@ -248,6 +267,7 @@ public class ManifestLoader: ManifestLoading {
             @unknown default:
                 throw ManifestLoaderError.manifestLoadingFailed(
                     path: manifestPath,
+                    data: data,
                     context: """
                     Unable to decode the manifest for an unknown reason.
                     \(error.localizedDescription)
