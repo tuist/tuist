@@ -11,6 +11,9 @@ let project = Project(
             product: .framework,
             bundleId: "io.tuist.featureOne",
             sources: ["Sources/**"],
+            dependencies: [
+                .external(name: "Alamofire"),
+            ],
             settings: .targetSettings
         ),
         Target(
@@ -21,7 +24,6 @@ let project = Project(
             sources: ["Sources/**"],
             dependencies: [
                 .external(name: "Alamofire"),
-                .external(name: "Styles"),
             ],
             settings: .targetSettings
         ),

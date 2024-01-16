@@ -218,3 +218,9 @@ extension Plugin {
         Plugin(name: name)
     }
 }
+
+extension PackageSettings {
+    public static func test() -> PackageSettings {
+        PackageSettings()
+    }
+}

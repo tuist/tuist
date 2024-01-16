@@ -10,7 +10,10 @@ public final class MockDependenciesController: DependenciesControlling {
     public init() {}
 
     public var invokedFetch = false
-    public var fetchStub: ((AbsolutePath, TuistGraph.Dependencies, TSCUtility.Version?) throws -> TuistCore.DependenciesGraph)?
+    public var legacyFetchStub: (
+        (AbsolutePath, TuistGraph.Dependencies, TSCUtility.Version?) throws -> TuistCore
+            .DependenciesGraph
+    )?
 
     public func fetch(
         at path: AbsolutePath,
@@ -18,11 +21,24 @@ public final class MockDependenciesController: DependenciesControlling {
         swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         invokedFetch = true
-        return try fetchStub?(path, dependencies, swiftVersion) ?? .none
+        return try legacyFetchStub?(path, dependencies, swiftVersion) ?? .none
+    }
+
+    public var fetchStub: ((AbsolutePath, TuistGraph.PackageSettings, TSCUtility.Version?) throws -> TuistCore.DependenciesGraph)?
+    public func fetch(
+        at path: AbsolutePath,
+        packageSettings: TuistGraph.PackageSettings,
+        swiftVersion: TSCUtility.Version?
+    ) throws -> TuistCore.DependenciesGraph {
+        invokedFetch = true
+        return try fetchStub?(path, packageSettings, swiftVersion) ?? .none
     }
 
     public var invokedUpdate = false
-    public var updateStub: ((AbsolutePath, TuistGraph.Dependencies, TSCUtility.Version?) throws -> TuistCore.DependenciesGraph)?
+    public var legacyUpdateStub: (
+        (AbsolutePath, TuistGraph.Dependencies, TSCUtility.Version?) throws -> TuistCore
+            .DependenciesGraph
+    )?
 
     public func update(
         at path: AbsolutePath,
@@ -30,7 +46,21 @@ public final class MockDependenciesController: DependenciesControlling {
         swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         invokedUpdate = true
-        return try updateStub?(path, dependencies, swiftVersion) ?? .none
+        return try legacyUpdateStub?(path, dependencies, swiftVersion) ?? .none
+    }
+
+    public var updateStub: (
+        (AbsolutePath, TuistGraph.PackageSettings, TSCUtility.Version?) throws -> TuistCore
+            .DependenciesGraph
+    )?
+
+    public func update(
+        at path: AbsolutePath,
+        packageSettings: TuistGraph.PackageSettings,
+        swiftVersion: TSCUtility.Version?
+    ) throws -> TuistCore.DependenciesGraph {
+        invokedUpdate = true
+        return try updateStub?(path, packageSettings, swiftVersion) ?? .none
     }
 
     public var invokedSave = false
