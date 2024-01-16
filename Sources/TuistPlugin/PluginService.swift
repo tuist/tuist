@@ -308,10 +308,10 @@ public final class PluginService: PluginServicing {
                 try? fileUnarchiver.delete()
             }
             try FileHandler.shared.createFolder(pluginReleaseDirectory)
-            try unarchivedContents.forEach {
+            for unarchivedContent in unarchivedContents {
                 try FileHandler.shared.move(
-                    from: $0,
-                    to: pluginReleaseDirectory.appending(component: $0.basename)
+                    from: unarchivedContent,
+                    to: pluginReleaseDirectory.appending(component: unarchivedContent.basename)
                 )
             }
 

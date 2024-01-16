@@ -48,7 +48,7 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When / Then
-        try (0 ..< 50).forEach { _ in
+        for _ in 0 ..< 50 {
             _ = try subject.generate(graphTraverser: graphTraverser)
         }
     }

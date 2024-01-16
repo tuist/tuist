@@ -109,8 +109,8 @@ public final class SigningInteractor: SigningInteracting {
             return (certificate: certificate, provisioningProfile: provisioningProfile)
         }
 
-        try signingPairs.map(\.certificate).forEach {
-            try signingInstaller.installCertificate($0, keychainPath: keychainPath)
+        for signingPair in signingPairs.map(\.certificate) {
+            try signingInstaller.installCertificate(signingPair, keychainPath: keychainPath)
         }
 
         let provisioningProfileInstallLintIssues = try signingPairs.map(\.provisioningProfile)

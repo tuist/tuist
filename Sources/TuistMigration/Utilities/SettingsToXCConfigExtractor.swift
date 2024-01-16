@@ -71,13 +71,13 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         var buildSettingsLines: [String] = []
 
         // Common build settings
-        commonBuildSettings.forEach { setting in
+        for setting in commonBuildSettings {
             let value = buildConfigurations.first!.buildSettings[setting]!
             commonBuildSettingsLines.append("\(setting)=\(flattenedValue(from: value))")
         }
 
         // Per-configuration build settings
-        buildConfigurations.forEach { configuration in
+        for configuration in buildConfigurations {
             configuration.buildSettings.forEach { key, value in
                 if commonBuildSettings.contains(key) { return }
                 buildSettingsLines.append("\(key)[config=\(configuration.name)]=\(flattenedValue(from: value))")

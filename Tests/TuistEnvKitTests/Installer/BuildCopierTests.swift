@@ -41,7 +41,7 @@ final class BuildCopierTests: XCTestCase {
         let toPath = toDir.path
 
         // Creating files
-        try BuildCopier.files.forEach { file in
+        for file in BuildCopier.files {
             let filePath = fromPath.appending(component: file)
             try Data().write(to: filePath.url)
         }

@@ -56,8 +56,8 @@ public struct TextTable<T> {
         render(separator: separator, in: &table, widths: widths)
 
         // Data Rows
-        data.forEach {
-            let row = mapper($0)
+        for data in data {
+            let row = mapper(data)
             render(row: row, in: &table, widths: widths)
         }
 

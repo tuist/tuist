@@ -55,7 +55,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     func readAll() throws -> [AsyncQueueEventTuple] {
         let paths = FileHandler.shared.glob(directory, glob: "*.json")
         var events: [AsyncQueueEventTuple] = []
-        paths.forEach { eventPath in
+        for eventPath in paths {
             let fileName = eventPath.basenameWithoutExt
             let components = fileName.split(separator: ".")
             guard components.count == 3,
@@ -65,7 +65,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
                 /// Changing the naming convention is a breaking change. When detected
                 /// we delete the event.
                 try? FileHandler.shared.delete(eventPath)
-                return
+                continue
             }
             do {
                 let data = try Data(contentsOf: eventPath.url)

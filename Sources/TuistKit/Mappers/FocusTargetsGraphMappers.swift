@@ -37,7 +37,7 @@ public final class FocusTargetsGraphMappers: GraphMapping {
             successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)) }
         ))
 
-        graphTraverser.allTargets().forEach { graphTarget in
+        for graphTarget in graphTraverser.allTargets() {
             if !filteredTargets.contains(graphTarget) {
                 var target = graphTarget.target
                 target.prune = true

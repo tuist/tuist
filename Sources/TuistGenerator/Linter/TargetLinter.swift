@@ -40,7 +40,7 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: validateCoreDataModelsExist(target: target))
         issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
         issues.append(contentsOf: lintMergeableLibrariesOnlyAppliesToDynamicTargets(target: target))
-        target.scripts.forEach { script in
+        for script in target.scripts {
             issues.append(contentsOf: targetScriptLinter.lint(script))
         }
         return issues

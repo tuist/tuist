@@ -107,9 +107,9 @@ public final class TemplateGenerator: TemplateGenerating {
         destinationPath: AbsolutePath
     ) throws {
         let environment = stencilSwiftEnvironment()
-        try renderedItems.forEach {
+        for renderedItem in renderedItems {
             let renderedContents: String?
-            switch $0.contents {
+            switch renderedItem.contents {
             case let .string(contents):
                 renderedContents = try environment.renderTemplate(
                     string: contents,
@@ -129,7 +129,7 @@ public final class TemplateGenerator: TemplateGenerating {
                 }
             case let .directory(path):
                 let destinationDirectoryPath = destinationPath
-                    .appending(try RelativePath(validating: $0.path.pathString))
+                    .appending(try RelativePath(validating: renderedItem.path.pathString))
                     .appending(component: path.basename)
                 // workaround for creating folder tree of destinationDirectoryPath
                 if !FileHandler.shared.exists(destinationDirectoryPath.parentDirectory) {
@@ -144,11 +144,11 @@ public final class TemplateGenerator: TemplateGenerating {
             // Generate file only when it has some content, unless it is a `.gitkeep` file
             if let rendered = renderedContents,
                !rendered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-               $0.path.basename == ".gitkeep"
+               renderedItem.path.basename == ".gitkeep"
             {
                 try FileHandler.shared.write(
                     rendered,
-                    path: destinationPath.appending($0.path),
+                    path: destinationPath.appending(renderedItem.path),
                     atomically: true
                 )
             }

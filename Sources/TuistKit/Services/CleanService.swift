@@ -24,8 +24,8 @@ final class CleanService {
         let config = try configLoader.loadConfig(path: path)
         let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
 
-        try categories.forEach {
-            switch $0 {
+        for category in categories {
+            switch category {
             case let .global(cacheCategory):
                 try cleanCacheCategory(
                     cacheCategory,

@@ -37,24 +37,23 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 
         let graphTraverser = GraphTraverser(graph: graph)
 
-        targetsAndDependencies.forEach { target, targetDependencies in
+        for (target, targetDependencies) in targetsAndDependencies {
             var leftNode = GraphViz.Node(target.target.name)
 
             leftNode.applyAttributes(attributes: target.styleAttributes)
             nodes.append(leftNode)
 
-            targetDependencies
-                .forEach { dependency in
-                    var rightNode = GraphViz.Node(dependency.name)
-                    rightNode.applyAttributes(
-                        attributes: dependency.styleAttributes(
-                            graphTraverser: graphTraverser
-                        )
+            for dependency in targetDependencies {
+                var rightNode = GraphViz.Node(dependency.name)
+                rightNode.applyAttributes(
+                    attributes: dependency.styleAttributes(
+                        graphTraverser: graphTraverser
                     )
-                    nodes.append(rightNode)
-                    let edge = GraphViz.Edge(from: leftNode, to: rightNode)
-                    dependencies.append(edge)
-                }
+                )
+                nodes.append(rightNode)
+                let edge = GraphViz.Edge(from: leftNode, to: rightNode)
+                dependencies.append(edge)
+            }
         }
 
         let sortedNodes = Set(nodes).sorted { $0.id < $1.id }

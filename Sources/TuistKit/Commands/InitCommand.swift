@@ -59,13 +59,13 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
         name = try container.decodeIfPresent(Option<String>.self, forKey: .name)?.wrappedValue
         template = try container.decodeIfPresent(Option<String>.self, forKey: .template)?.wrappedValue
         path = try container.decodeIfPresent(Option<String>.self, forKey: .path)?.wrappedValue
-        try InitCommand.requiredTemplateOptions.forEach { option in
+        for option in InitCommand.requiredTemplateOptions {
             requiredTemplateOptions[option.name] = try container.decode(
                 Option<String>.self,
                 forKey: .required(option.name)
             ).wrappedValue
         }
-        try InitCommand.optionalTemplateOptions.forEach { option in
+        for option in InitCommand.optionalTemplateOptions {
             optionalTemplateOptions[option.name] = try container.decode(
                 Option<String?>.self,
                 forKey: .optional(option.name)

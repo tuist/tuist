@@ -8,18 +8,18 @@ protocol BuildRulesGenerating: AnyObject {
 
 final class BuildRulesGenerator: BuildRulesGenerating {
     func generateBuildRules(target: Target, pbxTarget: PBXTarget, pbxproj: PBXProj) throws {
-        target.buildRules.forEach {
+        for buildRule in target.buildRules {
             let rule = PBXBuildRule(
-                compilerSpec: $0.compilerSpec.rawValue,
-                fileType: $0.fileType.rawValue,
+                compilerSpec: buildRule.compilerSpec.rawValue,
+                fileType: buildRule.fileType.rawValue,
                 isEditable: true,
-                filePatterns: $0.filePatterns,
-                name: $0.name,
-                outputFiles: $0.outputFiles,
-                inputFiles: $0.inputFiles,
-                outputFilesCompilerFlags: $0.outputFilesCompilerFlags,
-                script: $0.script,
-                runOncePerArchitecture: $0.runOncePerArchitecture
+                filePatterns: buildRule.filePatterns,
+                name: buildRule.name,
+                outputFiles: buildRule.outputFiles,
+                inputFiles: buildRule.inputFiles,
+                outputFilesCompilerFlags: buildRule.outputFilesCompilerFlags,
+                script: buildRule.script,
+                runOncePerArchitecture: buildRule.runOncePerArchitecture
             )
             pbxTarget.buildRules.append(rule)
             pbxproj.add(object: rule)

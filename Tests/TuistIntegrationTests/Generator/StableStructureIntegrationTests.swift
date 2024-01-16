@@ -21,7 +21,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
         var capturedUserSchemes = [[XCScheme]]()
 
         // When
-        try (0 ..< 10).forEach { _ in
+        for _ in 0 ..< 10 {
             let subject = DescriptorGenerator()
             let writer = XcodeProjWriter()
             let config = TestModelGenerator.WorkspaceConfig(
