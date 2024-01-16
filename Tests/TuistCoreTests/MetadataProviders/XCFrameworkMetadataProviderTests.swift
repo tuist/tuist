@@ -259,7 +259,7 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
             to: xcframeworkPath
         )
         var macroPaths: [AbsolutePath] = []
-        try fileHandler.glob(xcframeworkPath, glob: "*/*.framework").sorted().forEach { frameworkPath in
+        for frameworkPath in fileHandler.glob(xcframeworkPath, glob: "*/*.framework").sorted() {
             try fileHandler.createFolder(frameworkPath.appending(component: "Macros"))
             let macroPath = frameworkPath.appending(components: ["Macros", "MyFramework"])
             try fileHandler.touch(macroPath)

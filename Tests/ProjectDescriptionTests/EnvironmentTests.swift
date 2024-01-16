@@ -12,7 +12,7 @@ final class EnvironmentTests: XCTestCase {
             "TUIST_3": "yes",
             "TUIST_4": "YES",
         ]
-        environment.enumerated().forEach { index, _ in
+        for (index, _) in environment.enumerated() {
             let value = Environment.value(for: String(index), environment: environment)
             XCTAssertTrue(value.getBoolean(default: false))
         }
@@ -26,7 +26,7 @@ final class EnvironmentTests: XCTestCase {
             "TUIST_3": "no",
             "TUIST_4": "NO",
         ]
-        environment.enumerated().forEach { index, _ in
+        for (index, _) in environment.enumerated() {
             let value = Environment.value(for: String(index), environment: environment)
             XCTAssertFalse(value.getBoolean(default: true))
         }
@@ -38,7 +38,7 @@ final class EnvironmentTests: XCTestCase {
             "TUIST_0": stringValue,
             "TUIST_1": "1",
         ]
-        environment.enumerated().forEach { index, _ in
+        for (index, _) in environment.enumerated() {
             let value = Environment.value(for: String(index), environment: environment)
             XCTAssertEqual(value.getString(default: ""), environment["TUIST_\(index)"])
         }

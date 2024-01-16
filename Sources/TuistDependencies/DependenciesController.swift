@@ -173,7 +173,7 @@ extension TuistCore.DependenciesGraph {
         var mergedExternalDependencies: [String: [ProjectDescription.TargetDependency]] =
             externalDependencies
 
-        try other.externalDependencies.forEach { name, dependency in
+        for (name, dependency) in other.externalDependencies {
             if let alreadyPresent = mergedExternalDependencies[name] {
                 throw DependenciesControllerError.duplicatedDependency(name, alreadyPresent, dependency)
             }

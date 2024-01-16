@@ -80,7 +80,7 @@ public class GraphTraverser: GraphTraversing {
 
     public func targets(product: Product) -> Set<GraphTarget> {
         var filteredTargets: Set<GraphTarget> = Set()
-        targets.forEach { path, projectTargets in
+        for (path, projectTargets) in targets {
             projectTargets.values.forEach { target in
                 guard target.product == product else { return }
                 guard let project = projects[path] else { return }
@@ -610,10 +610,10 @@ public class GraphTraverser: GraphTraversing {
         var references: Set<GraphDependencyReference> = Set()
 
         // Linkable dependencies
-        try targets.forEach { target in
-            try references.formUnion(self.linkableDependencies(path: path, name: target.target.name))
-            references.formUnion(self.embeddableFrameworks(path: path, name: target.target.name))
-            references.formUnion(self.copyProductDependencies(path: path, name: target.target.name))
+        for target in targets {
+            try references.formUnion(linkableDependencies(path: path, name: target.target.name))
+            references.formUnion(embeddableFrameworks(path: path, name: target.target.name))
+            references.formUnion(copyProductDependencies(path: path, name: target.target.name))
         }
         return references
     }
@@ -845,7 +845,7 @@ public class GraphTraverser: GraphTraversing {
         func traverse(target: GraphTarget, parentPlatforms: Set<Platform>) {
             let dependencies = directTargetDependenciesWithConditions(path: target.path, name: target.target.name)
 
-            dependencies.forEach { dependencyTarget, dependencyCondition in
+            for (dependencyTarget, dependencyCondition) in dependencies {
                 var platformsToInsert: Set<Platform>?
 
                 if let dependencyCondition,

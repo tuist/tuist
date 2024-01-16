@@ -16,9 +16,9 @@ public class CircularDependencyLinter: CircularDependencyLinting {
     public func lintWorkspace(workspace: Workspace, projects: [Project]) throws {
         let cycleDetector = GraphCircularDetector()
         let cache = GraphLoader.Cache(projects: projects)
-        try workspace.projects.forEach {
+        for project in workspace.projects {
             try lintProject(
-                path: $0,
+                path: project,
                 cache: cache,
                 cycleDetector: cycleDetector
             )
@@ -40,10 +40,10 @@ public class CircularDependencyLinter: CircularDependencyLinting {
         }
         cache.add(project: project)
 
-        try project.targets.forEach {
+        for target in project.targets {
             try lintTarget(
                 path: path,
-                name: $0.name,
+                name: target.name,
                 cache: cache,
                 cycleDetector: cycleDetector
             )
@@ -70,11 +70,11 @@ public class CircularDependencyLinter: CircularDependencyLinting {
 
         cache.add(target: target, path: path)
 
-        try target.dependencies.forEach {
+        for item in target.dependencies {
             try lintDependency(
                 path: path,
                 fromTarget: target.name,
-                dependency: $0,
+                dependency: item,
                 cache: cache,
                 cycleDetector: cycleDetector
             )

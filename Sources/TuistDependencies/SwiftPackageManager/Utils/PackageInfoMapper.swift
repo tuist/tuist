@@ -265,7 +265,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         var externalDependencies: [String: [ProjectDescription.TargetDependency]] = .init()
         externalDependencies = try packageInfos
             .reduce(into: [:]) { result, packageInfo in
-                try packageInfo.value.products.forEach { product in
+                for product in packageInfo.value.products {
                     result[product.name] = try product.targets.flatMap { target in
                         try ResolvedDependency.fromTarget(
                             name: target,
@@ -299,7 +299,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         let targetToModuleMap: [String: ModuleMap]
         targetToModuleMap = try packageInfos.reduce(into: [:]) { result, packageInfo in
-            try packageInfo.value.targets.forEach { target in
+            for target in packageInfo.value.targets {
                 switch target.type {
                 case .system:
                     /// System library targets assume the module map is located at the source directory root
@@ -322,7 +322,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         publicHeadersPath: target.publicHeadersPath(packageFolder: packageToFolder[packageInfo.key]!)
                     )
                 default:
-                    return
+                    continue
                 }
             }
         }
@@ -354,7 +354,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageInfos: [String: PackageInfo]
     ) -> Set<String> {
         let targetTypes = packageInfos.reduce(into: [String: PackageInfo.Target.TargetType]()) { partialResult, item in
-            item.value.targets.forEach { target in
+            for target in item.value.targets {
                 partialResult[target.name] = target.type
             }
         }

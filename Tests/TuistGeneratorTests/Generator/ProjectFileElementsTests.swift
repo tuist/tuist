@@ -247,9 +247,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         }
 
         // When
-        try elements.forEach {
+        for element in elements {
             try subject.generate(
-                fileElement: $0,
+                fileElement: element,
                 groups: groups,
                 pbxproj: pbxproj,
                 sourceRootPath: temporaryPath
@@ -298,9 +298,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         }
 
         // When
-        try elements.forEach {
+        for element in elements {
             try subject.generate(
-                fileElement: $0,
+                fileElement: element,
                 groups: groups,
                 pbxproj: pbxproj,
                 sourceRootPath: temporaryPath
@@ -349,9 +349,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         }
 
         // When
-        try elements.forEach {
+        for element in elements {
             try subject.generate(
-                fileElement: $0,
+                fileElement: element,
                 groups: groups,
                 pbxproj: pbxproj,
                 sourceRootPath: temporaryPath
