@@ -71,6 +71,9 @@ public protocol GraphTraversing {
     /// - Returns: The test plans with the given name.
     func testPlan(name: String) -> TestPlan?
 
+    /// - Returns: All direct and transitive target dependencies
+    func allTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
+
     /// Given a project directory and target name, it returns **all**l its direct target dependencies present in the same project.
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies`
     /// instead
@@ -248,6 +251,13 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func directSwiftMacroFrameworkTargets(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
+    /// Given a project and a target name, it returns all the target dependencies that are a static framework representing
+    /// a Swift Macro
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func allSwiftMacroFrameworkTargets(path: AbsolutePath, name: String) -> Set<GraphTarget>
+
     /// It returns a set containing the external dependencies that are not referenced by the projects either directly nor
     /// transitively.
     /// - Returns: The list of dependencies.
@@ -276,6 +286,17 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     /// - Returns: A set containing all the direct target dependencies that are external.
     func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
+
+    /// It returns all the plugin executables to use for a given target. A plugin executable can represent a Swift Macro
+    /// executable to resolve macros.
+    ///
+    /// Executables are passed through the build setting "OTHER_SWIFT_FLAGS" and the flag "-load-plugin-executable {value}"
+    ///
+    ///
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func allSwiftPluginExecutables(path: AbsolutePath, name: String) -> Set<String>
 }
 
 extension GraphTraversing {

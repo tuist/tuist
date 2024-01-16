@@ -171,6 +171,7 @@ final class DumpServiceTests: TuistTestCase {
           },
           "generationOptions": {
             "disablePackageVersionLocking": false,
+            "enforceExplicitDependencies": false,
             "resolveDependenciesWithSystemScm": false,
             "staticSideEffectsWarningTargets": {
               "all": {

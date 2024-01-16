@@ -38,10 +38,10 @@ public struct Configuration: Equatable, Codable {
         case release
     }
 
-    public let name: ConfigurationName
-    public let variant: Variant
-    public let settings: SettingsDictionary
-    public let xcconfig: Path?
+    public var name: ConfigurationName
+    public var variant: Variant
+    public var settings: SettingsDictionary
+    public var xcconfig: Path?
 
     /// Returns a debug configuration.
     ///
@@ -116,9 +116,9 @@ extension DefaultSettings {
 /// A group of settings configuration.
 public struct Settings: Equatable, Codable {
     /// A dictionary with build settings that are inherited from all the configurations.
-    public let base: SettingsDictionary
-    public let configurations: [Configuration]
-    public let defaultSettings: DefaultSettings
+    public var base: SettingsDictionary
+    public var configurations: [Configuration]
+    public var defaultSettings: DefaultSettings
 
     /// Creates settings with default.configurations `Debug` and `Release`
     ///

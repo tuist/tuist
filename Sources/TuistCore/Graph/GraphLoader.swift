@@ -120,6 +120,7 @@ public final class GraphLoader: GraphLoading {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private func loadDependency(
         path: AbsolutePath,
         forPlatforms platforms: Set<Platform>,
@@ -258,14 +259,15 @@ public final class GraphLoader: GraphLoading {
             at: path,
             status: status
         )
-        let xcframework: GraphDependency = .xcframework(
+        let xcframework: GraphDependency = .xcframework(GraphDependency.XCFramework(
             path: metadata.path,
             infoPlist: metadata.infoPlist,
             primaryBinaryPath: metadata.primaryBinaryPath,
             linking: metadata.linking,
             mergeable: metadata.mergeable,
-            status: metadata.status
-        )
+            status: metadata.status,
+            macroPath: metadata.macroPath
+        ))
         cache.add(xcframework: xcframework, at: path)
         return xcframework
     }

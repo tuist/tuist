@@ -32,15 +32,19 @@ extension GraphDependency {
         primaryBinaryPath: AbsolutePath = AbsolutePath.root
             .appending(try! RelativePath(validating: "Test.xcframework/Test")),
         linking: BinaryLinking = .dynamic,
-        status: FrameworkStatus = .required
+        status: FrameworkStatus = .required,
+        macroPath: AbsolutePath? = nil
     ) -> GraphDependency {
         .xcframework(
-            path: path,
-            infoPlist: infoPlist,
-            primaryBinaryPath: primaryBinaryPath,
-            linking: linking,
-            mergeable: false,
-            status: status
+            GraphDependency.XCFramework(
+                path: path,
+                infoPlist: infoPlist,
+                primaryBinaryPath: primaryBinaryPath,
+                linking: linking,
+                mergeable: false,
+                status: status,
+                macroPath: macroPath
+            )
         )
     }
 

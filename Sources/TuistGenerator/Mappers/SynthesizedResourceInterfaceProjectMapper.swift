@@ -161,23 +161,23 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         switch resourceSynthesizer.parser {
         case .strings:
             // This file kind is localizable, let's order files based on it
-            var regionPriorityQueue: [String] = []
+            paths = {
+                guard let developmentRegion else { return paths }
+                return paths.sorted { lhs, rhs in
+                    let lhsBasename = lhs.parentDirectory.basenameWithoutExt
+                    let rhsBasename = rhs.parentDirectory.basenameWithoutExt
 
-            if let developmentRegion {
-                regionPriorityQueue.insert(developmentRegion, at: 0)
-            }
-
-            // Let's sort paths moving the development region localization's one at first
-            let prioritizedPaths = paths.filter { path in
-                regionPriorityQueue.map { path.parentDirectory.basename.contains($0) }.contains(true)
-            }
-
-            let unprioritizedPaths = paths.filter { path in
-                !regionPriorityQueue.map { path.parentDirectory.basename.contains($0) }.contains(true)
-            }
-
-            paths = prioritizedPaths + unprioritizedPaths
-
+                    if lhsBasename == developmentRegion {
+                        return true
+                    } else if rhsBasename == developmentRegion {
+                        return false
+                    } else if lhsBasename.contains(developmentRegion), rhsBasename.contains(developmentRegion) {
+                        return lhsBasename < rhsBasename
+                    } else {
+                        return lhsBasename < rhsBasename
+                    }
+                }
+            }()
         case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml, .files:
             break
         }

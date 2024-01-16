@@ -170,8 +170,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         validateTestTargetsParameters: Bool = true,
         generator: Generating? = nil,
-        rawXcodebuildLogs: Bool,
-        rawXcodebuildLogsPath: AbsolutePath?
+        generateOnly: Bool
     ) async throws {
         if validateTestTargetsParameters {
             try validateParameters(
@@ -184,7 +183,6 @@ public final class TestService { // swiftlint:disable:this type_body_length
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
-        let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
 
         let testGenerator: Generating
         if let generator {
@@ -204,6 +202,11 @@ public final class TestService { // swiftlint:disable:this type_body_length
         let graph = try await testGenerator.generateWithGraph(
             path: path
         ).1
+
+        if generateOnly {
+            return
+        }
+
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
         let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
@@ -257,9 +260,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     retryCount: retryCount,
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
-                    testPlanConfiguration: testPlanConfiguration,
-                    rawXcodebuildLogs: rawXcodebuildLogs,
-                    rawXcodebuildLogsPath: rawXcodebuildLogsPath
+                    testPlanConfiguration: testPlanConfiguration
                 )
             }
         } else {
@@ -288,9 +289,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
                     retryCount: retryCount,
                     testTargets: testTargets,
                     skipTestTargets: skipTestTargets,
-                    testPlanConfiguration: testPlanConfiguration,
-                    rawXcodebuildLogs: rawXcodebuildLogs,
-                    rawXcodebuildLogsPath: rawXcodebuildLogsPath
+                    testPlanConfiguration: testPlanConfiguration
                 )
             }
         }
@@ -300,6 +299,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
 
     // MARK: - Helpers
 
+    // swiftlint:disable:next function_body_length
     private func testScheme(
         scheme: Scheme,
         graphTraverser: GraphTraversing,
@@ -314,9 +314,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
         retryCount: Int,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
-        testPlanConfiguration: TestPlanConfiguration?,
-        rawXcodebuildLogs: Bool,
-        rawXcodebuildLogsPath: AbsolutePath?
+        testPlanConfiguration: TestPlanConfiguration?
     ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         if let testPlan = testPlanConfiguration?.testPlan, let testPlans = scheme.testAction?.testPlans,
@@ -373,9 +371,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
             retryCount: retryCount,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
-            testPlanConfiguration: testPlanConfiguration,
-            rawXcodebuildLogs: rawXcodebuildLogs,
-            rawXcodebuildLogsPath: rawXcodebuildLogsPath
+            testPlanConfiguration: testPlanConfiguration
         )
         .printFormattedOutput()
     }

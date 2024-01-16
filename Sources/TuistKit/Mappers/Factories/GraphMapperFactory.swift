@@ -20,14 +20,16 @@ protocol GraphMapperFactorying {
 
     /// Returns the default graph mapper that should be used from all the commands that require loading and processing the graph.
     /// - Returns: The default mapper.
-    func `default`() -> [GraphMapping]
+    func `default`(
+        config: Config
+    ) -> [GraphMapping]
 }
 
 public final class GraphMapperFactory: GraphMapperFactorying {
     public init() {}
 
     public func automation(
-        config _: Config,
+        config: Config,
         testsCacheDirectory _: AbsolutePath,
         testPlan: String?,
         includedTargets: Set<String>,
@@ -42,16 +44,21 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             )
         )
         mappers.append(TreeShakePrunedTargetsGraphMapper())
-        mappers.append(contentsOf: self.default())
+        mappers.append(contentsOf: self.default(config: config))
 
         return mappers
     }
 
-    public func `default`() -> [GraphMapping] {
+    public func `default`(
+        config: Config
+    ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(UpdateWorkspaceProjectsGraphMapper())
         mappers.append(PruneOrphanExternalTargetsGraphMapper())
         mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
+        if config.generationOptions.enforceExplicitDependencies {
+            mappers.append(ExplicitDependencyGraphMapper())
+        }
         return mappers
     }
 }

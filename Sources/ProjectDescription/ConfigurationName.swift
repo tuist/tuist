@@ -15,7 +15,7 @@ import Foundation
 /// ```
 public struct ConfigurationName: ExpressibleByStringLiteral, Codable, Equatable {
     /// The configuration name.
-    public let rawValue: String
+    public var rawValue: String
 
     init(_ rawValue: String) {
         self.rawValue = rawValue

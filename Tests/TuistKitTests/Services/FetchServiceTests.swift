@@ -182,4 +182,101 @@ final class FetchServiceTests: TuistUnitTestCase {
 
         XCTAssertFalse(dependenciesController.invokedUpdate)
     }
+
+    func test_fetch_when_from_a_tuist_project_directory() async throws {
+        // Given
+        let exp = expectation(description: "awaiting path validation")
+        let temporaryDirectory = try temporaryPath()
+        let expectedFoundDependenciesLocation = temporaryDirectory.appending(
+            components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(temporaryDirectory)
+        )
+        let stubbedDependencies = Dependencies(
+            swiftPackageManager: nil,
+            platforms: [.iOS, .macOS]
+        )
+
+        // When looking for the Dependencies.swift file the model loader will search in the given path
+        // This is where we will assert
+        dependenciesModelLoader.loadDependenciesStub = { path, _ in
+            defer { exp.fulfill() }
+            XCTAssertEqual(temporaryDirectory, path)
+            return stubbedDependencies
+        }
+
+        // Dependencies.swift in root
+        try fileHandler.touch(expectedFoundDependenciesLocation)
+
+        // When - This will cause the `loadDependenciesStub` closure to be called and assert if needed
+        try await subject.run(
+            path: temporaryDirectory.pathString,
+            update: false
+        )
+        await fulfillment(of: [exp], timeout: 0.1)
+    }
+
+    func test_fetch_path_is_found_in_tuist_project_directory_but_manifest_is_in_nested_directory() async throws {
+        // Given
+        let exp = expectation(description: "awaiting path validation")
+        let temporaryDirectory = try temporaryPath()
+        let manifestPath = temporaryDirectory
+            .appending(components: ["First", "Second"])
+        let expectedFoundDependenciesLocation = temporaryDirectory.appending(
+            components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(temporaryDirectory)
+        )
+        let stubbedDependencies = Dependencies(
+            swiftPackageManager: nil,
+            platforms: [.iOS, .macOS]
+        )
+
+        // When looking for the Dependencies.swift file the model loader will search in the given path
+        // This is where we will assert
+        dependenciesModelLoader.loadDependenciesStub = { path, _ in
+            defer { exp.fulfill() }
+            XCTAssertEqual(temporaryDirectory, path)
+            return stubbedDependencies
+        }
+
+        // Dependencies.swift in root
+        try fileHandler.touch(expectedFoundDependenciesLocation)
+
+        // When - This will cause the `loadDependenciesStub` closure to be called and assert if needed
+        try await subject.run(
+            path: manifestPath.pathString,
+            update: false
+        )
+        await fulfillment(of: [exp], timeout: 0.1)
+    }
+
+    func test_fetch_path_is_found_in_nested_manifest_directory() async throws {
+        // Given
+        let exp = expectation(description: "awaiting path validation")
+        let temporaryDirectory = try temporaryPath()
+        let manifestPath = temporaryDirectory
+            .appending(components: ["First", "Second"])
+        let expectedFoundDependenciesLocation = manifestPath.appending(
+            components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(temporaryDirectory)
+        )
+        let stubbedDependencies = Dependencies(
+            swiftPackageManager: nil,
+            platforms: [.iOS, .macOS]
+        )
+
+        // When looking for the Dependencies.swift file the model loader will search in the given path
+        // This is where we will assert
+        dependenciesModelLoader.loadDependenciesStub = { path, _ in
+            defer { exp.fulfill() }
+            XCTAssertEqual(manifestPath, path)
+            return stubbedDependencies
+        }
+
+        // Dependencies.swift in root
+        try fileHandler.touch(expectedFoundDependenciesLocation)
+
+        // When - This will cause the `loadDependenciesStub` closure to be called and assert if needed
+        try await subject.run(
+            path: manifestPath.pathString,
+            update: false
+        )
+        await fulfillment(of: [exp], timeout: 0.1)
+    }
 }

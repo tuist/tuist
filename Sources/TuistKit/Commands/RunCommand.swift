@@ -67,24 +67,7 @@ public struct RunCommand: AsyncParsableCommand {
     )
     var arguments: [String] = []
 
-    @Flag(
-        name: [.customLong("raw-xcodebuild-logs")],
-        help: "When passed, it outputs the raw xcodebuild logs without formatting them."
-    )
-    var rawXcodebuildLogs: Bool = false
-
-    @Option(
-        name: [.customLong("raw-xcodebuild-logs-path")],
-        help: "When passed, it writes the raw xcodebuild logs to the file at the given path.",
-        completion: .file()
-    )
-    var rawXcodebuildLogsPath: String?
-
     public func run() async throws {
-        let rawXcodebuildLogsPath = rawXcodebuildLogsPath.map { try? AbsolutePath(
-            validating: $0,
-            relativeTo: FileHandler.shared.currentPath
-        ) } ?? nil
         try await RunService().run(
             path: path,
             schemeName: scheme,
@@ -94,9 +77,7 @@ public struct RunCommand: AsyncParsableCommand {
             device: device,
             version: os,
             rosetta: rosetta,
-            arguments: arguments,
-            rawXcodebuildLogs: rawXcodebuildLogs,
-            rawXcodebuildLogsPath: rawXcodebuildLogsPath
+            arguments: arguments
         )
     }
 }

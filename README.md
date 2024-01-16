@@ -10,6 +10,7 @@
   <img src="https://img.shields.io/opencollective/backers/tuistapp?style=flat-square" alt="Backers">
   <img src="https://img.shields.io/github/license/tuist/tuist?style=flat-square" alt="License">
   <img src="https://img.shields.io/badge/Powered%20by-Tuist-blue" alt="Powered by Tuist">
+  <a href="https://polar.sh/tuist"><img src="https://polar.sh/embed/seeks-funding-shield.svg?org=tuist" /></a>
 </div>
 
 <div align="center">
@@ -24,15 +25,15 @@ It's open source and written in Swift.
 
 ## Install ⬇️
 
-### Recommended: [rtx](https://github.com/jdx/rtx)
+### Recommended: [mise](https://github.com/jdx/mise)
 
-Install [rtx](https://github.com/jdx/rtx#installation) and then run the following command to install Tuist:
+Install [mise](https://mise.jdx.dev/getting-started.html#quickstart) and then run the following command to install Tuist:
 
 ```bash
-rtx install tuist
+mise install tuist
 ```
 
-You can check out [the documentation]([https://docs.next.tuist.io/documentation/tuist/tuist---installation](https://docs.next.tuist.io/documentation/tuist/installation)) to learn more about the rationale behind our installation approach and alternative approaches.
+You can check out [the documentation](https://docs.tuist.io/documentation/tuist/installation) to learn more about the rationale behind our installation approach and alternative approaches.
 
 ## Bootstrap your first project 🌀
 
@@ -42,7 +43,7 @@ tuist generate # Generates Xcode project & workspace
 tuist build # Builds your project
 ```
 
-[Check out](https://docs.tuist.io) the project "Get Started" guide to learn more about Tuist and all its features.
+[Check out](https://docs.tuist.io/documentation/tuist) the project "Get Started" guide to learn more about Tuist and all its features.
 
 ## Sample projects 🔬
 
@@ -50,7 +51,7 @@ You can find some sample projects in the [fixtures folder](fixtures) or the [awe
 
 ## Want to contribute?
 
-You can use our [contribution docs](https://docs.tuist.io/contributors/get-started) to get started. If you don't have a specific issue in mind, we are more than happy to help you, just ask for help in a given issue or on our [Slack](https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg). You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). We also offer [issue bounties](https://github.com/tuist/tuist/discussions/4982) for some highly-valued issues.
+You can use our [contribution docs](https://docs.tuist.io/documentation/tuist/get-started-as-contributor) to get started. If you don't have a specific issue in mind, we are more than happy to help you, just ask for help in a given issue or on our [Slack](https://join.slack.com/t/tuistapp/shared_invite/zt-1lqw355mp-zElRwLeoZ2EQsgGEkyaFgg). You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). We also offer [issue bounties](https://github.com/tuist/tuist/discussions/4982) for some highly-valued issues.
 
 ## Sponsors
 
@@ -225,7 +226,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
 
 ## Documentation 📝
 
-Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://docs.tuist.io/tutorial/get-started/).
+Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://docs.tuist.io/documentation/tuist/).
 
 ## Supported by great companies
 
@@ -239,7 +240,7 @@ Do you want to know more about what Tuist can offer you? Or perhaps want to cont
 
 ## Contribute 👩‍💻
 
-If you are interested in contributing to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://docs.tuist.io/contributors/get-started).
+If you are interested in contributing to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://docs.tuist.io/documentation/tuist/get-started-as-contributor).
 
 ## Core Team ✨
 
@@ -454,6 +455,8 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="http://vcoutasso.com"><img src="https://avatars.githubusercontent.com/u/44986513?v=4" width="100px;" alt=""/><br /><sub><b>Vinícius Couto Tasso</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://blog.jihoon.me"><img src="https://avatars.githubusercontent.com/u/68891494?v=4" width="100px;" alt=""/><br /><sub><b>안지훈</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/dxmvsh"><img src="https://avatars.githubusercontent.com/u/44325936?v=4" width="100px;" alt=""/><br /><sub><b>Dimash</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/danibachar"><img src="https://avatars.githubusercontent.com/u/6380777?v=4" width="100px;" alt=""/><br /><sub><b>danibachar</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/dp221125"><img src="https://avatars.githubusercontent.com/u/10572119?v=4" width="100px;" alt=""/><br /><sub><b>한석호(MilKyo)</b></sub></a></td>
     </tr>
   </tbody>
 </table>

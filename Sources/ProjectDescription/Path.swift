@@ -11,9 +11,9 @@ public struct Path: ExpressibleByStringInterpolation, Codable, Hashable {
         case relativeToRoot
     }
 
-    public let type: PathType
-    public let pathString: String
-    public let callerPath: String?
+    public var type: PathType
+    public var pathString: String
+    public var callerPath: String?
 
     /// Default PathType is `.relativeToManifest`
     public init(_ path: String) {

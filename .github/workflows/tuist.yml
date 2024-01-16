@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: jdx/rtx-action@v1
+      - uses: jdx/mise-action@v2
         with:
           experimental: true
       - name: Select Xcode
@@ -49,14 +49,20 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Test
-        run: tuist test --no-cache --skip-test-targets TuistBuildAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests
+        run: tuist test --xcframeworks --skip-test-targets TuistBuildAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-${{ matrix.feature }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: test-${{ matrix.feature }}
+          path: |
+            /tmp/tuist/**
 
   cache-warm:
     name: Cache warm with latest Tuist
     runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
-      - uses: jdx/rtx-action@v1
+      - uses: jdx/mise-action@v2
         with:
           experimental: true
       - name: Select Xcode
@@ -70,16 +76,22 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Print hashes
-        run: tuist cache print-hashes
+        run: tuist cache print-hashes --xcframeworks
       - name: Cache warm
-        run: tuist cache warm
+        run: tuist cache warm --xcframeworks --raw-xcodebuild-logs-path /tmp/tuist/cache-warm-x86_64.xcodebuild.log
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: cache-warm-x86_64.xcodebuild.log
+          path: |
+            /tmp/tuist/**
 
   cache-warm-silicon:
     name: Cache warm with latest Tuist on Silicon
     runs-on: macos-13-xlarge
     steps:
       - uses: actions/checkout@v3
-      - uses: jdx/rtx-action@v1
+      - uses: jdx/mise-action@v2
         with:
           experimental: true
       - name: Select Xcode
@@ -93,9 +105,15 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Print hashes
-        run: tuist cache print-hashes
+        run: tuist cache print-hashes --xcframeworks
       - name: Cache warm
-        run: tuist cache warm
+        run: tuist cache warm --xcframeworks --raw-xcodebuild-logs-path /tmp/tuist/cache-warm-arm64.xcodebuild.log
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: cache-warm-arm64.xcodebuild.log
+          path: |
+            /tmp/tuist/**
 
   acceptance_tests:
     name: Run ${{ matrix.feature }}
@@ -113,7 +131,7 @@ jobs:
           ]
     steps:
       - uses: actions/checkout@v4
-      - uses: jdx/rtx-action@v1
+      - uses: jdx/mise-action@v2
         with:
           experimental: true
       - name: Select Xcode
@@ -132,19 +150,25 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Run acceptance tests
-        run: tuist test ${{ matrix.feature }}
+        run: tuist test --xcframeworks --result-bundle-path /tmp/tuist/test-${{ matrix.feature }} ${{ matrix.feature }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: test-${{ matrix.feature }}
+          path: |
+            /tmp/tuist/**
   lint:
     name: Lint
     runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
-      - uses: jdx/rtx-action@v1
+      - uses: jdx/mise-action@v2
         with:
           experimental: true
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Run
-        run: rtx run lint
+        run: mise run lint
 
   lint-lockfiles:
     name: Lint lockfiles

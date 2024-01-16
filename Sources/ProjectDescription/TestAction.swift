@@ -6,34 +6,37 @@ import Foundation
 /// methods respectively.
 public struct TestAction: Equatable, Codable {
     /// List of test plans. The first in the list will be the default plan.
-    public let testPlans: [Path]?
+    public var testPlans: [Path]?
 
     /// A list of testable targets, that are targets which are defined in the project with testable information.
-    public let targets: [TestableTarget]
+    public var targets: [TestableTarget]
 
     /// Command line arguments passed on launch and environment variables.
-    public let arguments: Arguments?
+    public var arguments: Arguments?
 
     /// Build configuration to run the test with.
-    public let configuration: ConfigurationName
+    public var configuration: ConfigurationName
 
     /// Whether a debugger should be attached to the test process or not.
-    public let attachDebugger: Bool
+    public var attachDebugger: Bool
 
     /// A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT)
-    public let expandVariableFromTarget: TargetReference?
+    public var expandVariableFromTarget: TargetReference?
 
     /// A list of actions that are executed before starting the tests-run process.
-    public let preActions: [ExecutionAction]
+    public var preActions: [ExecutionAction]
 
     /// A list of actions that are executed after the tests-run process.
-    public let postActions: [ExecutionAction]
+    public var postActions: [ExecutionAction]
 
     /// List of options to set to the action.
-    public let options: TestActionOptions
+    public var options: TestActionOptions
 
     /// List of diagnostics options to set to the action.
-    public let diagnosticsOptions: [SchemeDiagnosticsOption]
+    public var diagnosticsOptions: [SchemeDiagnosticsOption]
+
+    /// List of testIdentifiers to skip to the test
+    public var skippedTests: [String]?
 
     private init(
         testPlans: [Path]?,
@@ -45,7 +48,8 @@ public struct TestAction: Equatable, Codable {
         preActions: [ExecutionAction],
         postActions: [ExecutionAction],
         options: TestActionOptions,
-        diagnosticsOptions: [SchemeDiagnosticsOption]
+        diagnosticsOptions: [SchemeDiagnosticsOption],
+        skippedTests: [String]?
     ) {
         self.testPlans = testPlans
         self.targets = targets
@@ -57,6 +61,7 @@ public struct TestAction: Equatable, Codable {
         self.expandVariableFromTarget = expandVariableFromTarget
         self.options = options
         self.diagnosticsOptions = diagnosticsOptions
+        self.skippedTests = skippedTests
     }
 
     /// Returns a test action from a list of targets to be tested.
@@ -81,7 +86,8 @@ public struct TestAction: Equatable, Codable {
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
         options: TestActionOptions = .options(),
-        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]
+        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
+        skippedTests: [String] = []
     ) -> Self {
         Self(
             testPlans: nil,
@@ -93,7 +99,8 @@ public struct TestAction: Equatable, Codable {
             preActions: preActions,
             postActions: postActions,
             options: options,
-            diagnosticsOptions: diagnosticsOptions
+            diagnosticsOptions: diagnosticsOptions,
+            skippedTests: skippedTests
         )
     }
 
@@ -122,7 +129,8 @@ public struct TestAction: Equatable, Codable {
             preActions: preActions,
             postActions: postActions,
             options: .options(),
-            diagnosticsOptions: []
+            diagnosticsOptions: [],
+            skippedTests: nil
         )
     }
 }

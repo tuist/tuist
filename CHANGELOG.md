@@ -1,5 +1,100 @@
 # Changelog
 
+## 3.40.0 - 2024-01-15
+
+### Tuist
+
+#### Changed
+
+- Remove raw xcodebuild logs in favor of resultBundlePath and xcactivitylog [#5776](https://github.com/tuist/tuist/pull/5776) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix incremental test execution when migrating from Tuist versions older than 3.36.0 [#5791](https://github.com/tuist/tuist/pull/5791) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+#### Changed
+
+- Build macOS xcframework for both Intel and ARM by [@fortmarek](https://github.com/fortmarek)
+
+## 3.39.3 - 2024-01-08
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+- no changes
+
+## 3.39.2 - 2024-01-08
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix the warning messages that tells users about the depreaction of frameworks for caching by [@pepicrft](https://github.com/pepicrft)
+- Fix cache warming failing to resolve the hash for targets by [@pepicrft](https://github.com/pepicrft)
+
+## 3.39.1 - 2024-01-08
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix cache warm for xcframeworks when explicit dependencies are enabled. [#66](https://github.com/tuist/tuist/pull/66) by [@fortmarek](https://github.com/fortmarek)
+
+## 3.39.0 - 2024-01-07
+
+### Tuist
+
+#### Added
+
+- Prefer an exact match on `developmentRegion` when choosing localization strings files [#5758](https://github.com/tuist/tuist/pull/5758) by [@UniekLee](https://github.com/UniekLee)
+- Verbose-log the `xcodebuild` command that's being executed [#5768](https://github.com/tuist/tuist/pull/5768) by [@pepicrft](https://github.com/pepicrft)
+- Add SkippedTests for TestAction [#5767](https://github.com/tuist/tuist/pull/5767) by [@dp221125](https://github.com/dp221125)
+
+#### Fixed
+
+- Fix explicit dependencies for archive [#5764](https://github.com/tuist/tuist/pull/5764) by [@fortmarek](https://github.com/fortmarek)
+- Add support for transitive Swift Macros [#5772](https://github.com/tuist/tuist/pull/5772) by [@pepicrft](https://github.com/pepicrft)
+- Optimize the graph traverser function to obtain the platforms for external dependencies [#5770](https://github.com/tuist/tuist/pull/5770) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+- no changes
+
+## 3.38.0 - 2024-01-03
+
+### Tuist
+
+#### Changed
+
+- Make `ProjectDescription` model attributes mutable [#5745](https://github.com/tuist/tuist/pull/5745) by [@dxmvsh](https://github.com/dxmvsh)
+
+#### Added
+
+- Add a `--generate-only` flag to the build command [#5711](https://github.com/tuist/tuist/pull/5711) by [@pepicrft](https://github.com/pepicrft)
+- Add enforceExplicitDependendencies generation option [#5698](https://github.com/tuist/tuist/pull/5698) by [@fortmarek](https://github.com/fortmarek)
+- Add Package.swift support for tuist edit [#5751](https://github.com/tuist/tuist/pull/5751) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Align the behaviour of `--path` in `tuist fetch` with the rest of the CLI [#5742](https://github.com/tuist/tuist/pull/5742) by [@danibachar](https://github.com/danibachar)
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.37.0 - 2023-12-28
 
 ### Tuist

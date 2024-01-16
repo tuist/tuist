@@ -25,7 +25,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
         case .builds:
             return "BuildCache"
         case .tests:
-            return "TestsCache"
+            return "incremental-tests"
         case .generatedAutomationProjects:
             return "Projects"
         case .projectDescriptionHelpers:

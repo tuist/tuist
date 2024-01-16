@@ -7,12 +7,12 @@ import Foundation
 /// - `.strings(parserOptions: ["separator": "/"])` to use strings template with SwiftGen Parser Options
 /// - `.strings(plugin: "MyPlugin")` to use strings template from a plugin
 /// - `.strings(templatePath: "Templates/Strings.stencil")` to use strings template at a given path
-public struct ResourceSynthesizer: Codable, Equatable {
+public struct ResourceSynthesizer: Codable, Equatable { // swiftlint:disable:this type_body_length
     /// Templates can be of multiple types
-    public let templateType: TemplateType
-    public let parser: Parser
-    public let parserOptions: [String: Parser.Option]
-    public let extensions: Set<String>
+    public var templateType: TemplateType
+    public var parser: Parser
+    public var parserOptions: [String: Parser.Option]
+    public var extensions: Set<String>
 
     /// Templates can be either a local template file, from a plugin, or a default template from tuist
     public enum TemplateType: Codable, Equatable {

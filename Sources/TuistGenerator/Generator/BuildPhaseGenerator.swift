@@ -173,8 +173,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             let buildPhase = try PBXShellScriptBuildPhase(
                 files: [],
                 name: script.name,
-                inputPaths: script.inputPaths.map { $0.relative(to: sourceRootPath).pathString },
-                outputPaths: script.outputPaths.map { $0.relative(to: sourceRootPath).pathString },
+                inputPaths: script.inputPaths
+                    .map {
+                        (try? AbsolutePath(validating: $0))?.relative(to: sourceRootPath).pathString ?? $0
+                    },
+                outputPaths: script.outputPaths
+                    .map {
+                        (try? AbsolutePath(validating: $0))?.relative(to: sourceRootPath).pathString ?? $0
+                    },
                 inputFileListPaths: script.inputFileListPaths.map { $0.relative(to: sourceRootPath).pathString },
 
                 outputFileListPaths: script.outputFileListPaths.map { $0.relative(to: sourceRootPath).pathString },
@@ -215,6 +221,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     func generateSourcesBuildPhase(
         files: [SourceFile],
         coreDataModels: [CoreDataModel],

@@ -28,19 +28,19 @@ public struct Headers: Codable, Equatable {
     }
 
     /// Path to an umbrella header, which will be used to get list of public headers.
-    public let umbrellaHeader: Path?
+    public var umbrellaHeader: Path?
 
     /// Relative glob pattern that points to the public headers.
-    public let `public`: FileList?
+    public var `public`: FileList?
 
     /// Relative glob pattern that points to the private headers.
-    public let `private`: FileList?
+    public var `private`: FileList?
 
     /// Relative glob pattern that points to the project headers.
-    public let project: FileList?
+    public var project: FileList?
 
     /// Rule, which determines how to resolve found duplicates in public/private/project scopes
-    public let exclusionRule: AutomaticExclusionRule
+    public var exclusionRule: AutomaticExclusionRule
 
     private init(
         public publicHeaders: FileList? = nil,

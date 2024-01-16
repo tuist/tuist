@@ -13,6 +13,7 @@ let project = Project(
             dependencies: [
                 .project(target: "Framework2", path: "../Framework2"),
                 .project(target: "Framework3", path: "../Framework3"),
+                .project(target: "Framework4", path: "../Framework4"),
             ]
         ),
 

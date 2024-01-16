@@ -125,17 +125,10 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
     var skipConfigurations: [String] = []
 
     @Flag(
-        name: [.customLong("raw-xcodebuild-logs")],
-        help: "When passed, it outputs the raw xcodebuild logs without formatting them."
+        name: .long,
+        help: "When passed, it generates the project and skips testing. This is useful for debugging purposes."
     )
-    var rawXcodebuildLogs: Bool = false
-
-    @Option(
-        name: [.customLong("raw-xcodebuild-logs-path")],
-        help: "When passed, it writes the raw xcodebuild logs to the file at the given path.",
-        completion: .file()
-    )
-    var rawXcodebuildLogsPath: String?
+    var generateOnly: Bool = false
 
     public func validate() throws {
         try TestService().validateParameters(
@@ -152,10 +145,6 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
         } else {
             absolutePath = FileHandler.shared.currentPath
         }
-        let rawXcodebuildLogsPath = rawXcodebuildLogsPath.map { try? AbsolutePath(
-            validating: $0,
-            relativeTo: FileHandler.shared.currentPath
-        ) } ?? nil
 
         try await TestService().run(
             schemeName: scheme,
@@ -185,8 +174,7 @@ public struct TestCommand: AsyncParsableCommand, HasTrackableParameters {
                 )
             },
             validateTestTargetsParameters: false,
-            rawXcodebuildLogs: rawXcodebuildLogs,
-            rawXcodebuildLogsPath: rawXcodebuildLogsPath
+            generateOnly: generateOnly
         )
     }
 }
