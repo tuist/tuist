@@ -35,8 +35,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
 
 // MARK: - Swift Package Manager Graph Generator
 
-/// A protocol that defines an interface to generate the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
-public protocol SwiftPackageManagerGraphGenerating {
+/// A protocol that defines an interface to load the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
+public protocol SwiftPackageManagerGraphLoading {
     /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed
     /// dependencies.
@@ -46,18 +46,13 @@ public protocol SwiftPackageManagerGraphGenerating {
     /// - Parameter targetSettings: `SettingsDictionary` overrides for targets.
     /// - Parameter swiftToolsVersion: The version of Swift tools that will be used to generate dependencies.
     /// - Parameter projectOptions: The custom configurations for generated projects.
-    func generate(
+    func load(
         at path: AbsolutePath,
-        productTypes: [String: TuistGraph.Product],
-        platforms: Set<TuistGraph.PackagePlatform>,
-        baseSettings: TuistGraph.Settings,
-        targetSettings: [String: TuistGraph.SettingsDictionary],
-        swiftToolsVersion: TSCUtility.Version?,
-        projectOptions: [String: TuistGraph.Project.Options]
+        packageSettings: TuistGraph.PackageSettings
     ) throws -> TuistCore.DependenciesGraph
 }
 
-public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
+public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoMapper: PackageInfoMapping
 
@@ -70,15 +65,16 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
     }
 
     // swiftlint:disable:next function_body_length
-    public func generate(
+    public func load(
         at path: AbsolutePath,
-        productTypes: [String: TuistGraph.Product],
-        platforms: Set<TuistGraph.PackagePlatform>,
-        baseSettings: TuistGraph.Settings,
-        targetSettings: [String: TuistGraph.SettingsDictionary],
-        swiftToolsVersion: TSCUtility.Version?,
-        projectOptions: [String: TuistGraph.Project.Options]
+        packageSettings: TuistGraph.PackageSettings
     ) throws -> TuistCore.DependenciesGraph {
+        let path = path.appending(
+            components: [
+                Constants.tuistDirectoryName,
+                Constants.DependenciesDirectory.packageBuildDirectoryName
+            ]
+        )
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")
 
@@ -138,7 +134,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
         )
 
-        let destinations: ProjectDescription.Destinations = Set(platforms.flatMap { platform -> ProjectDescription.Destinations in
+        let destinations: ProjectDescription.Destinations = Set(packageSettings.platforms.flatMap { platform -> ProjectDescription.Destinations in
             switch platform {
             case .iOS:
                 [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign]
@@ -161,10 +157,10 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 packageInfos: packageInfoDictionary,
                 name: packageInfo.name,
                 path: packageInfo.folder,
-                productTypes: productTypes,
-                baseSettings: baseSettings,
-                targetSettings: targetSettings,
-                projectOptions: projectOptions[packageInfo.name],
+                productTypes: packageSettings.productTypes,
+                baseSettings: packageSettings.baseSettings,
+                targetSettings: packageSettings.targetSettings,
+                projectOptions: packageSettings.projectOptions[packageInfo.name],
                 minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
                 destinations: destinations,
                 targetToProducts: preprocessInfo.targetToProducts,
@@ -172,7 +168,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 macroDependencies: preprocessInfo.macroDependencies,
                 targetToModuleMap: preprocessInfo.targetToModuleMap,
                 packageToProject: packageToProject,
-                swiftToolsVersion: swiftToolsVersion
+                swiftToolsVersion: packageSettings.swiftToolsVersion
             )
             result[Path(packageInfo.folder.pathString)] = manifest
         }
