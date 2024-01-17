@@ -71,3 +71,11 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
         self.projectOptions = projectOptions
     }
 }
+
+// MARK: - ExpressibleByArrayLiteral
+
+extension SwiftPackageManagerDependencies: ExpressibleByArrayLiteral {
+    public init(arrayLiteral elements: Package...) {
+        self.init(elements)
+    }
+}
