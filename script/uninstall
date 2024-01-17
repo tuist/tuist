@@ -27,7 +27,7 @@ sudo_if_install_dir_not_writeable() {
   if [ -w $INSTALL_DIR ]; then
     bash -c "$command"
   else
-    bash -c "sudo \"$command\""
+    bash -c "sudo $command"
   fi
 }
 
