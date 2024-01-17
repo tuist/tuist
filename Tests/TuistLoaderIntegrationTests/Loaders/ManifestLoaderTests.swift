@@ -121,6 +121,43 @@ final class ManifestLoaderTests: TuistTestCase {
         )
     }
 
+    func test_loadPackageSettings_without_package_settings() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let content = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        let package = Package(
+            name: "PackageName",
+            dependencies: []
+        )
+
+        """
+
+        let manifestPath = temporaryPath.appending(
+            components: [
+                Constants.tuistDirectoryName,
+                Manifest.package.fileName(temporaryPath),
+            ]
+        )
+        try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        // When
+        let got = try subject.loadPackageSettings(at: temporaryPath)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .init()
+        )
+    }
+
     func test_loadWorkspace() throws {
         // Given
         let temporaryPath = try temporaryPath()
@@ -221,7 +258,9 @@ final class ManifestLoaderTests: TuistTestCase {
         // Given
         let fileHandler = FileHandler()
         let temporaryPath = try temporaryPath()
-        try fileHandler.touch(temporaryPath.appending(component: "Config.swift"))
+        let configPath = temporaryPath.appending(component: "Config.swift")
+        try fileHandler.touch(configPath)
+        let data = try fileHandler.readFile(configPath)
 
         // When
         XCTAssertThrowsError(
@@ -231,6 +270,7 @@ final class ManifestLoaderTests: TuistTestCase {
                 error as? ManifestLoaderError,
                 .manifestLoadingFailed(
                     path: temporaryPath.appending(component: "Config.swift"),
+                    data: data,
                     context: """
                     The encoded data for the manifest is corrupted.
                     The given data was not valid JSON.
