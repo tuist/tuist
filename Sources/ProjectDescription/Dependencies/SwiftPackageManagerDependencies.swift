@@ -46,7 +46,12 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
         targetSettings: [String: SettingsDictionary] = [:],
         projectOptions: [String: ProjectDescription.Project.Options] = [:]
     ) {
-        packagesOrManifest = .packages(packages)
+        // If we pass `[]` then that implies we should use `Package.swift`
+        if packages.isEmpty {
+            packagesOrManifest = .manifest
+        } else {
+            packagesOrManifest = .packages(packages)
+        }
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
@@ -69,11 +74,6 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
-    }
-
-    public static var manifest: SwiftPackageManagerDependencies {
-        // Needed to disambiguate `.init()` call sites
-        .init(productTypes: [:])
     }
 }
 
