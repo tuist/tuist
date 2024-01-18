@@ -12,7 +12,6 @@ protocol ProjectEditorMapping: AnyObject {
         sourceRootPath: AbsolutePath,
         destinationDirectory: AbsolutePath,
         configPath: AbsolutePath?,
-        dependenciesPath: AbsolutePath?,
         packageManifestPath: AbsolutePath?,
         projectManifests: [AbsolutePath],
         editablePluginManifests: [EditablePluginManifest],
@@ -43,7 +42,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         sourceRootPath: AbsolutePath,
         destinationDirectory: AbsolutePath,
         configPath: AbsolutePath?,
-        dependenciesPath: AbsolutePath?,
         packageManifestPath: AbsolutePath?,
         projectManifests: [AbsolutePath],
         editablePluginManifests: [EditablePluginManifest],
@@ -79,7 +77,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             resourceSynthesizers: resourceSynthesizers,
             stencils: stencils,
             configPath: configPath,
-            dependenciesPath: dependenciesPath,
             packageManifestPath: packageManifestPath,
             editablePluginTargets: editablePluginManifests.map(\.name),
             pluginProjectDescriptionHelpersModule: pluginProjectDescriptionHelpersModule
@@ -156,7 +153,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         configPath: AbsolutePath?,
-        dependenciesPath: AbsolutePath?,
         packageManifestPath: AbsolutePath?,
         editablePluginTargets: [String],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule]
@@ -247,17 +243,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
 
-        let dependenciesTarget: Target? = {
-            guard let dependenciesPath else { return nil }
-            return editorHelperTarget(
-                name: "Dependencies",
-                filesGroup: manifestsFilesGroup,
-                targetSettings: targetWithLinkedPluginsSettings,
-                sourcePaths: [dependenciesPath],
-                dependencies: helperAndPluginDependencies
-            )
-        }()
-
         let packagesTarget: Target? = try {
             guard let packageManifestPath,
                   let xcode = try XcodeController.shared.selected()
@@ -300,7 +285,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             resourceSynthesizersTarget,
             stencilsTarget,
             configTarget,
-            dependenciesTarget,
             packagesTarget,
         ]
         .compactMap { $0 }

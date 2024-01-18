@@ -70,14 +70,13 @@ public protocol ManifestLoading {
     /// - Parameter path: Path to the directory that contains the name_of_template.swift
     func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template
 
-    /// Loads the Dependencies.swift in the given directory
-    /// - Parameters:
-    /// - Parameter path: Path to the directory that contains the Package.swift
-    func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies
-
     /// Loads the `PackageSettings` from `Package.swift` in the given directory
-    /// -  path: Path to the directory that contains Dependencies.swift
+    /// -  path: Path to the directory that contains Package.swift
     func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings
+    
+    /// Loads `Package.swift`
+    /// - path: Path to the directory that contains Package.swift
+    func loadPackage(at path: AbsolutePath) throws -> PackageInfo
 
     /// Loads the Plugin.swift in the given directory.
     /// - Parameter path: Path to the directory that contains Plugin.swift
@@ -111,6 +110,7 @@ public class ManifestLoader: ManifestLoading {
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
     private let xcodeController: XcodeControlling
+    private let swiftPackageManagerController: SwiftPackageManagerControlling
 
     // MARK: - Init
 
@@ -121,7 +121,8 @@ public class ManifestLoader: ManifestLoading {
             cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
-            xcodeController: XcodeController.shared
+            xcodeController: XcodeController.shared,
+            swiftPackageManagerController: SwiftPackageManagerController()
         )
     }
 
@@ -131,7 +132,8 @@ public class ManifestLoader: ManifestLoading {
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
         manifestFilesLocator: ManifestFilesLocating,
-        xcodeController: XcodeControlling
+        xcodeController: XcodeControlling,
+        swiftPackageManagerController: SwiftPackageManagerControlling
     ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
@@ -139,6 +141,7 @@ public class ManifestLoader: ManifestLoading {
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
         self.manifestFilesLocator = manifestFilesLocator
         self.xcodeController = xcodeController
+        self.swiftPackageManagerController = swiftPackageManagerController
         decoder = JSONDecoder()
     }
 
@@ -169,14 +172,15 @@ public class ManifestLoader: ManifestLoading {
         try loadManifest(.template, at: path)
     }
 
-    public func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies {
-        let dependencyPath = path.appending(components: Constants.tuistDirectoryName)
-        return try loadManifest(.dependencies, at: dependencyPath)
-    }
-
     public func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings {
         let packageManifestPath = path.appending(components: Constants.tuistDirectoryName)
-        return try loadManifest(.package, at: packageManifestPath)
+        return try loadManifest(.packageSettings, at: packageManifestPath)
+    }
+    
+    public func loadPackage(at path: AbsolutePath) throws -> PackageInfo {
+        try swiftPackageManagerController.loadPackageInfo(
+            at: path
+        )
     }
 
     public func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin {
@@ -314,11 +318,11 @@ public class ManifestLoader: ManifestLoading {
         switch manifest {
         case .config,
              .plugin,
-             .dependencies,
              .project,
              .template,
              .workspace,
-             .package:
+             .package,
+             .packageSettings:
             frameworkName = "ProjectDescription"
         }
         var arguments = [
@@ -337,13 +341,12 @@ public class ManifestLoader: ManifestLoading {
 
         let projectDescriptionHelperArguments: [String] = try {
             switch manifest {
-            case .config, .plugin:
+            case .config, .plugin, .package:
                 return []
-            case .dependencies,
-                 .project,
+            case .project,
                  .template,
                  .workspace,
-                 .package:
+                 .packageSettings:
                 return try projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
                     cacheDirectory: projectDescriptionHelpersCacheDirectory
                 )
@@ -361,7 +364,7 @@ public class ManifestLoader: ManifestLoading {
         }()
 
         let packageDescriptionArguments: [String] = try {
-            if case .package = manifest {
+            if case .packageSettings = manifest {
                 guard let xcode = try xcodeController.selected() else { return [] }
                 let manifestPath =
                     "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI"

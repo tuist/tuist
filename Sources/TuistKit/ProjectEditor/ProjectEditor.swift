@@ -121,8 +121,7 @@ final class ProjectEditor: ProjectEditing {
             }
 
         let pathsToExclude = [
-            "**/\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)/**",
-            "**/\(Constants.DependenciesDirectory.packageBuildDirectoryName)/**",
+            "**/\(Constants.SwiftPackageManager.packageBuildDirectoryName)/**",
         ] + tuistIgnoreEntries
 
         let projectDescriptionPath = try resourceLocator.projectDescription()
@@ -136,7 +135,6 @@ final class ProjectEditor: ProjectEditing {
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
             cacheDirectory: cacheDirectory.cacheDirectory(for: .projectDescriptionHelpers)
         )
-        let dependenciesPath = manifestFilesLocator.locateDependencies(at: editingPath)
         let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: editingPath)
 
         let helpers = helpersDirectoryLocator.locate(at: editingPath).map {
@@ -192,7 +190,6 @@ final class ProjectEditor: ProjectEditing {
             sourceRootPath: editingPath,
             destinationDirectory: destinationDirectory,
             configPath: configPath,
-            dependenciesPath: dependenciesPath,
             packageManifestPath: packageManifestPath,
             projectManifests: projectManifests.map(\.path),
             editablePluginManifests: editablePluginManifests,

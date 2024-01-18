@@ -148,12 +148,12 @@ public protocol PackageInfoMapping {
 // swiftlint:disable:next type_body_length
 public final class PackageInfoMapper: PackageInfoMapping {
     public struct PreprocessInfo {
-        let platformToMinDeploymentTarget: ProjectDescription.DeploymentTargets
-        let productToExternalDependencies: [String: [ProjectDescription.TargetDependency]]
-        let targetToProducts: [String: Set<PackageInfo.Product>]
-        let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
-        let targetToModuleMap: [String: ModuleMap]
-        let macroDependencies: Set<PackageInfoMapper.ResolvedDependency>
+        public let platformToMinDeploymentTarget: ProjectDescription.DeploymentTargets
+        public let productToExternalDependencies: [String: [ProjectDescription.TargetDependency]]
+        public let targetToProducts: [String: Set<PackageInfo.Product>]
+        public let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
+        public let targetToModuleMap: [String: ModuleMap]
+        public let macroDependencies: Set<PackageInfoMapper.ResolvedDependency>
     }
 
     // Predefined source directories, in order of preference.
@@ -539,7 +539,7 @@ extension ProjectDescription.Target {
         if target.type == .macro {
             destinations = Set<ProjectDescription.Destination>([.mac])
         } else {
-            // All packages implicitly support all platforms, we constrain this with the platforms defined in `Dependencies.swift`
+            // All packages implicitly support all platforms, we constrain this with the platforms defined in `Package.swift`
             destinations = packageDestinations.intersection(Set(Destination.allCases))
         }
 

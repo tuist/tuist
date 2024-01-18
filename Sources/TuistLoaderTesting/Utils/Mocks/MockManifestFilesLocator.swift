@@ -49,11 +49,6 @@ public final class MockManifestFilesLocator: ManifestFilesLocating {
         return locateConfigStub ?? at.appending(components: "Tuist", "Config.swift")
     }
 
-    public func locateDependencies(at: AbsolutePath) -> AbsolutePath? {
-        locateDependenciesArgs.append(at)
-        return locateDependenciesStub ?? at.appending(components: "Tuist", "Dependencies.swift")
-    }
-
     public func locatePackageManifest(at: AbsolutePath) -> AbsolutePath? {
         locatePackageManifestArgs.append(at)
         return locatePackageManifestStub ?? at.appending(components: "Tuist", "Package.swift")

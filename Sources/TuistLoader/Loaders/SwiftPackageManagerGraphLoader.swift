@@ -5,6 +5,7 @@ import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
+import TuistDependencies
 
 // MARK: - Swift Package Manager Graph Generator Errors
 
@@ -55,13 +56,16 @@ public protocol SwiftPackageManagerGraphLoading {
 public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoMapper: PackageInfoMapping
+    private let manifestLoader: ManifestLoading
 
     public init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
-        packageInfoMapper: PackageInfoMapping = PackageInfoMapper()
+        packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
+        manifestLoader: ManifestLoading = ManifestLoader()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
+        self.manifestLoader = manifestLoader
     }
 
     // swiftlint:disable:next function_body_length
@@ -72,7 +76,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         let path = path.appending(
             components: [
                 Constants.tuistDirectoryName,
-                Constants.DependenciesDirectory.packageBuildDirectoryName
+                Constants.SwiftPackageManager.packageBuildDirectoryName
             ]
         )
         let checkoutsFolder = path.appending(component: "checkouts")
@@ -103,7 +107,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
 
-            let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: packageFolder)
+            let packageInfo = try manifestLoader.loadPackage(at: packageFolder)
             let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in

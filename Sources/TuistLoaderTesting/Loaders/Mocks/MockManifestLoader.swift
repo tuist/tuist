@@ -25,8 +25,8 @@ public final class MockManifestLoader: ManifestLoading {
     public var loadTemplateCount: UInt = 0
     public var loadTemplateStub: ((AbsolutePath) throws -> Template)?
 
-    public var loadDependenciesCount: UInt = 0
-    public var loadDependenciesStub: ((AbsolutePath) throws -> Dependencies)?
+    public var loadPackageCount: UInt = 0
+    public var loadPackageStub: ((AbsolutePath) throws -> PackageInfo)?
 
     public var loadPackageSettingsCount: UInt = 0
     public var loadPackageSettingsStub: ((AbsolutePath) throws -> PackageSettings)?
@@ -70,10 +70,10 @@ public final class MockManifestLoader: ManifestLoading {
         loadTemplateCount += 1
         return try loadTemplateStub?(path) ?? Template.test()
     }
-
-    public func loadDependencies(at path: AbsolutePath) throws -> Dependencies {
-        loadDependenciesCount += 1
-        return try loadDependenciesStub?(path) ?? Dependencies.test()
+    
+    public func loadPackage(at path: AbsolutePath) throws -> PackageInfo {
+        loadPackageCount += 1
+        return try loadPackageStub?(path) ?? .test()
     }
 
     public func loadPackageSettings(at path: AbsolutePath) throws -> PackageSettings {

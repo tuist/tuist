@@ -10,24 +10,18 @@ import TuistSupport
 final class FetchService {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
-    private let manifestLoader: ManifestLoading
     private let swiftPackageManagerController: SwiftPackageManagerControlling
-    private let converter: ManifestModelConverting
     private let fileHandler: FileHandling
 
     init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader()),
-        manifestLoader: ManifestLoading = ManifestLoader(),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
-        converter: ManifestModelConverting = ManifestModelConverter(),
         fileHandler: FileHandling = FileHandler.shared
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader
-        self.manifestLoader = manifestLoader
         self.swiftPackageManagerController = swiftPackageManagerController
-        self.converter = converter
         self.fileHandler = fileHandler
     }
 
@@ -64,7 +58,7 @@ final class FetchService {
     private func fetchDependencies(path: AbsolutePath, update: Bool) throws {
         let packageManifestPath = path.appending(
             components: Constants.tuistDirectoryName,
-            Constants.DependenciesDirectory.packageSwiftName
+            Constants.SwiftPackageManager.packageSwiftName
         )
 
         guard fileHandler.exists(packageManifestPath) else {

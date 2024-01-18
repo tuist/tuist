@@ -51,7 +51,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             ),
             graphLoader: GraphLoader(),
             pluginsService: PluginService(manifestLoader: manifestLoader),
-            swiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoader(),
+            swiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoader(manifestLoader: manifestLoader),
             packageSettingsLoader: PackageSettingsLoader(manifestLoader: manifestLoader),
             graphLoaderLinter: CircularDependencyLinter(),
             manifestLinter: ManifestLinter(),

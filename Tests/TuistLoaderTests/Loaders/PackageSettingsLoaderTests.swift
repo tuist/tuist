@@ -4,6 +4,7 @@ import TuistCore
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
+import TSCUtility
 import XCTest
 
 @testable import ProjectDescription
@@ -13,39 +14,39 @@ import XCTest
 
 final class PackageSettingsLoaderTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoader!
+    private var swiftPackageManagerController: MockSwiftPackageManagerController!
     private var subject: PackageSettingsLoader!
 
     override func setUp() {
         super.setUp()
 
         manifestLoader = MockManifestLoader()
-        subject = PackageSettingsLoader(manifestLoader: manifestLoader)
+        swiftPackageManagerController = MockSwiftPackageManagerController()
+        subject = PackageSettingsLoader(
+            manifestLoader: manifestLoader,
+            swiftPackageManagerController: swiftPackageManagerController
+        )
     }
 
     override func tearDown() {
         subject = nil
         manifestLoader = nil
+        swiftPackageManagerController = nil
 
         super.tearDown()
     }
 
-    func test_loadDependencies() throws {
+    func test_loadPackageSettings() throws {
         // Given
         let temporaryPath = try temporaryPath()
         let plugins = Plugins.test()
+        
+        swiftPackageManagerController.getToolsVersionStub = { _ in
+            TSCUtility.Version("5.4.9")
+        }
 
         manifestLoader.loadPackageSettingsStub = { _ in
             PackageSettings(
-                platforms: [.iOS, .macOS]
-            )
-        }
-        manifestLoader.loadDependenciesStub = { _ in
-            Dependencies(
-                carthage: [
-                    .github(path: "Dependency1", requirement: .exact("1.1.1")),
-                    .git(path: "Dependency1", requirement: .exact("2.3.4")),
-                ],
-                swiftPackageManager: .init(),
                 platforms: [.iOS, .macOS]
             )
         }
@@ -56,11 +57,17 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         // Then
         let expected: TuistGraph.PackageSettings = .init(
             productTypes: [:],
-            baseSettings: .init(configurations: [
-                .debug: .init(settings: [:], xcconfig: nil),
-                .release: .init(settings: [:], xcconfig: nil),
-            ]),
+            baseSettings: TuistGraph.Settings(
+                base: [:],
+                baseDebug: [:],
+                configurations: [
+                    .release: TuistGraph.Configuration(settings: [:], xcconfig: nil),
+                    .debug: TuistGraph.Configuration(settings: [:], xcconfig: nil)
+                ],
+                defaultSettings: .recommended
+            ),
             targetSettings: [:],
+            swiftToolsVersion: TSCUtility.Version("5.4.9"),
             platforms: [.iOS, .macOS]
         )
         XCTAssertEqual(manifestLoader.registerPluginsCount, 1)
