@@ -70,6 +70,11 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
     }
+    
+    public static var manifest: SwiftPackageManagerDependencies {
+        // Needed to disambiguate `.init()` call sites
+        .init(productTypes: [:])
+    }
 }
 
 // MARK: - ExpressibleByArrayLiteral

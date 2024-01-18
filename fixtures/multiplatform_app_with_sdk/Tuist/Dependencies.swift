@@ -1,6 +1,6 @@
 import ProjectDescription
 
 let dependencies = Dependencies(
-    swiftPackageManager: [],
+    swiftPackageManager: .manifest,
     platforms: [.macOS, .iOS]
 )
