@@ -97,7 +97,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         )
 
         // When
-        try (0 ..< 2).forEach { _ in
+        for _ in 0 ..< 2 {
             try subject.write(project: descriptor)
         }
 
@@ -119,7 +119,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         ]
 
         // When
-        try schemesWriteOperations.forEach { schemes in
+        for schemes in schemesWriteOperations {
             let descriptor = ProjectDescriptor.test(
                 path: path,
                 xcodeprojPath: xcodeProjPath,
@@ -150,7 +150,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         ]
 
         // When
-        try schemesWriteOperations.forEach { schemes in
+        for schemes in schemesWriteOperations {
             let descriptor = ProjectDescriptor.test(
                 path: path,
                 xcodeprojPath: xcodeProjPath,
@@ -182,7 +182,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         ]
 
         // When
-        try schemesWriteOperations.forEach { schemes in
+        for schemes in schemesWriteOperations {
             let descriptor = WorkspaceDescriptor.test(
                 path: path,
                 xcworkspacePath: xcworkspacePath,
@@ -213,7 +213,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         ]
 
         // When
-        try schemesWriteOperations.forEach { schemes in
+        for schemes in schemesWriteOperations {
             let descriptor = WorkspaceDescriptor.test(
                 path: path,
                 xcworkspacePath: xcworkspacePath,

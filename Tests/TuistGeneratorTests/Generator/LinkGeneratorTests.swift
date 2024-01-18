@@ -203,7 +203,7 @@ final class LinkGeneratorTests: XCTestCase {
     }
 
     func test_generateEmbedPhase_doesNot_includesSymbols_when_testTarget() throws {
-        try Product.allCases.filter(\.testsBundle).forEach { product in
+        for product in Product.allCases.filter(\.testsBundle) {
             // Given
 
             var dependencies: Set<GraphDependencyReference> = []
@@ -1059,8 +1059,8 @@ final class LinkGeneratorTests: XCTestCase {
 
     func createProjectFileElements(for targets: [Target]) -> ProjectFileElements {
         let projectFileElements = ProjectFileElements()
-        targets.forEach {
-            projectFileElements.products[$0.name] = PBXFileReference(path: $0.productNameWithExtension)
+        for target in targets {
+            projectFileElements.products[target.name] = PBXFileReference(path: target.productNameWithExtension)
         }
 
         return projectFileElements
@@ -1071,7 +1071,7 @@ final class LinkGeneratorTests: XCTestCase {
         projectPath: AbsolutePath
     ) -> ProjectFileElements {
         let projectFileElements = ProjectFileElements()
-        dependencies.forEach { dependency in
+        for dependency in dependencies {
             switch dependency {
             case let .xcframework(xcframework):
                 projectFileElements.elements[xcframework.path] = PBXFileReference(

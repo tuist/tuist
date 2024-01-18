@@ -86,11 +86,11 @@ class ProjectGroups {
         let projectGroupNames = extractProjectGroupNames(from: project)
         let groupsToCreate = OrderedSet(projectGroupNames)
         var projectGroups = [(name: String, group: PBXGroup)]()
-        groupsToCreate.forEach {
-            let projectGroup = PBXGroup(children: [], sourceTree: .group, name: $0)
+        for item in groupsToCreate {
+            let projectGroup = PBXGroup(children: [], sourceTree: .group, name: item)
             pbxproj.add(object: projectGroup)
             mainGroup.children.append(projectGroup)
-            projectGroups.append(($0, projectGroup))
+            projectGroups.append((item, projectGroup))
         }
 
         /// Compiled

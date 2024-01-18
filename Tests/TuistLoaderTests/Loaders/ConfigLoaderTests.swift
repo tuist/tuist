@@ -100,8 +100,8 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             "/project/Module/",
             "/project/Module/A/",
         ]
-        paths.forEach {
-            stub(path: $0, exists: true)
+        for item in paths {
+            stub(path: item, exists: true)
         }
         stub(
             config: .test(),

@@ -62,8 +62,8 @@ public final class ModuleMapMapper: WorkspaceMapping {
     public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
         let (projectsByPath, targetsByName) = Self.makeProjectsByPathWithTargetsByName(workspace: workspace)
         var targetToModuleMaps: [TargetID: Set<AbsolutePath>] = [:]
-        try workspace.projects.forEach { project in
-            try project.targets.forEach { target in
+        for project in workspace.projects {
+            for target in project.targets {
                 try Self.dependenciesModuleMaps(
                     workspace: workspace,
                     project: project,
@@ -123,9 +123,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
     {
         var projectsByPath = [AbsolutePath: Project]()
         var targetsByName = [String: Target]()
-        workspace.projects.forEach { project in
+        for project in workspace.projects {
             projectsByPath[project.path] = project
-            project.targets.forEach { target in
+            for target in project.targets {
                 targetsByName[target.name] = target
             }
         }

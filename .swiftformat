@@ -6,6 +6,7 @@
 --disable hoistAwait
 --disable hoistTry
 --swiftversion 5.7
+--minversion 0.53.0
 
 # format options
 

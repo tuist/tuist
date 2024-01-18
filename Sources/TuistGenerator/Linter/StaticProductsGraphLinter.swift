@@ -26,10 +26,10 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     ) -> Set<StaticDependencyWarning> {
         var warnings = Set<StaticDependencyWarning>()
         let cache = Cache()
-        dependencies.forEach { dependency in
+        for dependency in dependencies {
             // Skip already evaluated nodes
             guard cache.results(for: dependency) == nil else {
-                return
+                continue
             }
             let results = buildStaticProductsMap(
                 visiting: dependency,
