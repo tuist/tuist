@@ -131,16 +131,15 @@ final class MockXcodeBuildController: XcodeBuildControlling {
     }
 
     var createXCFrameworkStub: (
-        ([XcodeBuildControllerCreateXCFrameworkArgument], AbsolutePath, AbsolutePath?)
+        ([XcodeBuildControllerCreateXCFrameworkArgument], AbsolutePath)
             -> [SystemEvent<XcodeBuildOutput>]
     )?
     func createXCFramework(
         arguments: [XcodeBuildControllerCreateXCFrameworkArgument],
-        output: AbsolutePath,
-        derivedDataPath: AbsolutePath?
+        output: AbsolutePath
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let createXCFrameworkStub {
-            return createXCFrameworkStub(arguments, output, derivedDataPath).asAsyncThrowingStream()
+            return createXCFrameworkStub(arguments, output).asAsyncThrowingStream()
         } else {
             return AsyncThrowingStream {
                 throw TestError(

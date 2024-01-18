@@ -122,11 +122,9 @@ public protocol XcodeBuildControlling {
     /// - Parameters:
     ///   - arguments: A set of arguments to configure the XCFramework creation.
     ///   - output: Path to the output .xcframework.
-    ///   - derivedDataPath: Custom location for derived data. Use `xcodebuild`'s default if `nil`
     func createXCFramework(
         arguments: [XcodeBuildControllerCreateXCFrameworkArgument],
-        output: AbsolutePath,
-        derivedDataPath: AbsolutePath?
+        output: AbsolutePath
     )
         throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
