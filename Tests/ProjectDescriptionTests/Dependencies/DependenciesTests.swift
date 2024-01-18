@@ -10,7 +10,7 @@ final class DependenciesTests: XCTestCase {
                 .github(path: "Dependency1/Dependency1", requirement: .branch("BranchName")),
                 .git(path: "Dependency2/Dependency2", requirement: .upToNext("1.2.3")),
             ],
-            swiftPackageManager: .init(),
+            swiftPackageManager: [],
             platforms: [.iOS, .macOS, .tvOS, .watchOS]
         )
         XCTAssertCodable(subject)
