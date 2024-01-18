@@ -108,12 +108,14 @@ public protocol XcodeBuildControlling {
     ///   - clean: True if xcodebuild should clean the project before archiving.
     ///   - archivePath: Path where the archive will be exported (with extension .xcarchive)
     ///   - arguments: Extra xcodebuild arguments.
+    ///   - derivedDataPath: Custom location for derived data. Use `xcodebuild`'s default if `nil`
     func archive(
         _ target: XcodeBuildTarget,
         scheme: String,
         clean: Bool,
         archivePath: AbsolutePath,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        derivedDataPath: AbsolutePath?
     ) throws -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Creates an .xcframework combining the list of given frameworks.
@@ -131,9 +133,11 @@ public protocol XcodeBuildControlling {
     ///   - target: Project of workspace where the scheme is defined.
     ///   - scheme: Scheme whose target build settings will be obtained.
     ///   - configuration: Build configuration.
+    ///   - derivedDataPath: Custom location for derived data. Use `xcodebuild`'s default if `nil`
     func showBuildSettings(
         _ target: XcodeBuildTarget,
         scheme: String,
-        configuration: String
+        configuration: String,
+        derivedDataPath: AbsolutePath?
     ) async throws -> [String: XcodeBuildSettings]
 }

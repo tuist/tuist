@@ -151,7 +151,7 @@ public final class TargetRunner: TargetRunning {
         arguments: [String]
     ) async throws {
         let settings = try await xcodeBuildController
-            .showBuildSettings(.workspace(workspacePath), scheme: schemeName, configuration: configuration)
+            .showBuildSettings(.workspace(workspacePath), scheme: schemeName, configuration: configuration, derivedDataPath: nil)
         let bundleId = settings[target.target.name]?.productBundleIdentifier ?? target.target.bundleId
         let simulator = try await simulatorController
             .findAvailableDevice(platform: platform, version: version, minVersion: minVersion, deviceName: deviceName)

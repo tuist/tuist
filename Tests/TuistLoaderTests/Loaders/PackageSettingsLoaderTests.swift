@@ -14,7 +14,6 @@ import XCTest
 
 final class PackageSettingsLoaderTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoader!
-    private var swiftPackageManagerController: MockSwiftPackageManagerController!
     private var subject: PackageSettingsLoader!
 
     override func setUp() {

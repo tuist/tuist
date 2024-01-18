@@ -102,6 +102,10 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
+    public func loadPackageSettings(at path: AbsolutePath) throws -> PackageSettings {
+        try manifestLoader.loadPackageSettings(at: path)
+    }
+
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
         manifestLoader.manifests(at: path)
     }

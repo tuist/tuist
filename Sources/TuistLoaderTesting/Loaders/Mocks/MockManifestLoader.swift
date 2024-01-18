@@ -31,6 +31,9 @@ public final class MockManifestLoader: ManifestLoading {
     public var loadPackageSettingsCount: UInt = 0
     public var loadPackageSettingsStub: ((AbsolutePath) throws -> PackageSettings)?
 
+    public var loadPackageSettingsCount: UInt = 0
+    public var loadPackageSettingsStub: ((AbsolutePath) throws -> PackageSettings)?
+
     public var loadPluginCount: UInt = 0
     public var loadPluginStub: ((AbsolutePath) throws -> Plugin)?
 
@@ -74,6 +77,11 @@ public final class MockManifestLoader: ManifestLoading {
     public func loadPackage(at path: AbsolutePath) throws -> PackageInfo {
         loadPackageCount += 1
         return try loadPackageStub?(path) ?? .test()
+    }
+
+    public func loadPackageSettings(at path: AbsolutePath) throws -> PackageSettings {
+        loadPackageSettingsCount += 1
+        return try loadPackageSettingsStub?(path) ?? .test()
     }
 
     public func loadPackageSettings(at path: AbsolutePath) throws -> PackageSettings {
