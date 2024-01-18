@@ -158,7 +158,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
 
         fileHandler.stubExists = { _ in true }
         xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _, _ in outputPath }
-        xcodeBuildController.showBuildSettingsStub = { _, _, _ in
+        xcodeBuildController.showBuildSettingsStub = { _, _, _, _ in
             let settings = ["PRODUCT_BUNDLE_IDENTIFIER": bundleId]
             return [
                 graphTarget.target

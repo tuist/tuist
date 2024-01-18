@@ -13,6 +13,7 @@ final class FetchService {
     private let manifestLoader: ManifestLoading
     private let dependenciesController: DependenciesControlling
     private let dependenciesModelLoader: DependenciesModelLoading
+    private let packageSettingsLoader: PackageSettingsLoading
     private let converter: ManifestModelConverting
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileHandler: FileHandling
@@ -23,6 +24,7 @@ final class FetchService {
         manifestLoader: ManifestLoading = ManifestLoader(),
         dependenciesController: DependenciesControlling = DependenciesController(),
         dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader(),
+        packageSettingsLoader: PackageSettingsLoading = PackageSettingsLoader(),
         converter: ManifestModelConverting = ManifestModelConverter(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         fileHandler: FileHandling = FileHandler.shared
@@ -32,6 +34,7 @@ final class FetchService {
         self.manifestLoader = manifestLoader
         self.dependenciesController = dependenciesController
         self.dependenciesModelLoader = dependenciesModelLoader
+        self.packageSettingsLoader = packageSettingsLoader
         self.converter = converter
         self.rootDirectoryLocator = rootDirectoryLocator
         self.fileHandler = fileHandler
@@ -90,9 +93,16 @@ final class FetchService {
     private func fetchDependencies(path: AbsolutePath, update: Bool, with plugins: TuistGraph.Plugins) throws {
         try manifestLoader.validateHasProjectOrWorkspaceManifest(at: path)
 
-        guard FileHandler.shared.exists(
-            path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
-        ) else {
+        let dependenciesManifestPath = path.appending(
+            components: Constants.tuistDirectoryName,
+            Manifest.dependencies.fileName(path)
+        )
+        let packageManifestPath = path.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.DependenciesDirectory.packageSwiftName
+        )
+
+        guard fileHandler.exists(dependenciesManifestPath) || fileHandler.exists(packageManifestPath) else {
             return
         }
 
@@ -102,25 +112,43 @@ final class FetchService {
             logger.info("Resolving and fetching dependencies.", metadata: .section)
         }
 
-        let dependencies = try dependenciesModelLoader.loadDependencies(at: path, with: plugins)
-
         let config = try configLoader.loadConfig(path: path)
         let swiftVersion = config.swiftVersion
 
         let dependenciesManifest: TuistCore.DependenciesGraph
+        if fileHandler.exists(dependenciesManifestPath) {
+            let dependencies = try dependenciesModelLoader.loadDependencies(at: path, with: plugins)
 
-        if update {
-            dependenciesManifest = try dependenciesController.update(
-                at: path,
-                dependencies: dependencies,
-                swiftVersion: swiftVersion
-            )
+            if update {
+                dependenciesManifest = try dependenciesController.update(
+                    at: path,
+                    dependencies: dependencies,
+                    swiftVersion: swiftVersion
+                )
+            } else {
+                dependenciesManifest = try dependenciesController.fetch(
+                    at: path,
+                    dependencies: dependencies,
+                    swiftVersion: swiftVersion
+                )
+            }
+
         } else {
-            dependenciesManifest = try dependenciesController.fetch(
-                at: path,
-                dependencies: dependencies,
-                swiftVersion: swiftVersion
-            )
+            let packageSettings = try packageSettingsLoader.loadPackageSettings(at: path, with: plugins)
+
+            if update {
+                dependenciesManifest = try dependenciesController.update(
+                    at: path,
+                    packageSettings: packageSettings,
+                    swiftVersion: swiftVersion
+                )
+            } else {
+                dependenciesManifest = try dependenciesController.fetch(
+                    at: path,
+                    packageSettings: packageSettings,
+                    swiftVersion: swiftVersion
+                )
+            }
         }
 
         let dependenciesGraph = try converter.convert(manifest: dependenciesManifest, path: path)

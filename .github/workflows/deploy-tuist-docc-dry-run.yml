@@ -1,4 +1,4 @@
-name: Deploy Tuist Docc dry-run
+name: Deploy Tuist DocC dry-run
 
 on:
   pull_request:

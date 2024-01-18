@@ -1,4 +1,4 @@
-$ tuis generate
+$ tuist generate
 
 Generating workspace App.xcworkspace
 Generating project App

@@ -1,25 +1,32 @@
 import Foundation
 
-public enum PackagesOrManifest: Codable, Equatable {
-    case packages([Package])
-    case manifest
-}
-
-/// A collection of Swift Package Manager dependencies.
+/// A custom Swift Package Manager configuration
 ///
-/// For example, to enabled resource accessors on projects generated from Swift Package Manager:
 ///
 /// ```swift
-/// let packageManager = SwiftPackageManagerDependencies(
-///     "Package.swift",
-///     projectOptions: ["MySwiftPackage":  .options(disableSynthesizedResourceAccessors: false)]
+/// // swift-tools-version: 5.8
+/// import PackageDescription
+///
+/// #if TUIST
+///     import ProjectDescription
+///     import ProjectDescriptionHelpers
+///
+///     let packageSettings = PackageSettings(
+///         productTypes: [
+///             "Alamofire": .framework, // default is .staticFramework
+///         ],
+///         platforms: [.iOS]
+///     )
+/// #endif
+///
+/// let package = Package(
+///     name: "PackageName",
+///     dependencies: [
+///         .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
+///     ]
 /// )
 /// ```
-public struct SwiftPackageManagerDependencies: Codable, Equatable {
-    /// The path to the `Package.swift` manifest defining the dependencies, or the list of packages that will be installed using
-    /// Swift Package Manager.
-    public var packagesOrManifest: PackagesOrManifest
-
+public struct PackageSettings: Codable, Equatable {
     /// The custom `Product` type to be used for SPM targets.
     public var productTypes: [String: Product]
 
@@ -32,34 +39,27 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public var projectOptions: [String: ProjectDescription.Project.Options]
 
-    /// Creates `SwiftPackageManagerDependencies` instance using the package manifest at `Tuist/Package.swift`.
+    /// The custom set of `platforms` that are used by your project
+    public let platforms: Set<PackagePlatform>
+
+    /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     /// - Parameter projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    /// - Parameter platforms: The custom set of `platforms` that are used by your project
     public init(
         productTypes: [String: Product] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary] = [:],
-        projectOptions: [String: ProjectDescription.Project.Options] = [:]
+        projectOptions: [String: ProjectDescription.Project.Options] = [:],
+        platforms: Set<PackagePlatform> = Set(PackagePlatform.allCases)
     ) {
-        packagesOrManifest = .manifest
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
-    }
-
-    public static var manifest: SwiftPackageManagerDependencies {
-        // Needed to disambiguate `.init()` call sites
-        .init(productTypes: [:])
-    }
-}
-
-// MARK: - ExpressibleByArrayLiteral
-
-extension SwiftPackageManagerDependencies: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: Package...) {
-        self.init(elements)
+        self.platforms = platforms
+        dumpIfNeeded(self)
     }
 }

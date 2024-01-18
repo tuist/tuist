@@ -49,7 +49,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Test
-        run: tuist test --xcframeworks --skip-test-targets TuistBuildAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-${{ matrix.feature }}
+        run: tuist test --xcframeworks --skip-test-targets TuistBuildAcceptanceTests TuistDependenciesAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-${{ matrix.feature }}
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
@@ -86,35 +86,6 @@ jobs:
           path: |
             /tmp/tuist/**
 
-  cache-warm-silicon:
-    name: Cache warm with latest Tuist on Silicon
-    runs-on: macos-13-xlarge
-    steps:
-      - uses: actions/checkout@v3
-      - uses: jdx/mise-action@v2
-        with:
-          experimental: true
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: actions/cache@v3
-        name: 'Cache fetched dependencies folder'
-        with:
-          path: Tuist/Dependencies/SwiftPackageManager/.build
-          key: spm-v1-${{ hashFiles('Package.resolved') }}
-          restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
-      - name: Fetch dependencies
-        run: tuist fetch
-      - name: Print hashes
-        run: tuist cache print-hashes --xcframeworks
-      - name: Cache warm
-        run: tuist cache warm --xcframeworks --raw-xcodebuild-logs-path /tmp/tuist/cache-warm-arm64.xcodebuild.log
-      - uses: actions/upload-artifact@v4
-        if: ${{ always() }}
-        with:
-          name: cache-warm-arm64.xcodebuild.log
-          path: |
-            /tmp/tuist/**
-
   acceptance_tests:
     name: Run ${{ matrix.feature }}
     runs-on: macos-13
@@ -126,6 +97,7 @@ jobs:
           [
             'TuistAcceptanceTests',
             'TuistBuildAcceptanceTests',
+            'TuistDependenciesAcceptanceTests',
             'TuistGenerateAcceptanceTests',
             'TuistTestAcceptanceTests',
           ]
