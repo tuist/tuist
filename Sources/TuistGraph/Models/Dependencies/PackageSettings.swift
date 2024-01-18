@@ -15,6 +15,9 @@ public struct PackageSettings: Equatable {
     /// The custom project options for each project generated from a swift package
     public let projectOptions: [String: TuistGraph.Project.Options]
 
+    /// Swift tools version of the parsed `Package.swift`
+    public let swiftToolsVersion: Version
+
     /// The custom set of `platforms` that are used by your project
     public let platforms: Set<PackagePlatform>
 
@@ -29,12 +32,14 @@ public struct PackageSettings: Equatable {
         baseSettings: Settings,
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: TuistGraph.Project.Options] = [:],
+        swiftToolsVersion: Version,
         platforms: Set<PackagePlatform>
     ) {
         self.productTypes = productTypes
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
+        self.swiftToolsVersion = swiftToolsVersion
         self.platforms = platforms
     }
 }

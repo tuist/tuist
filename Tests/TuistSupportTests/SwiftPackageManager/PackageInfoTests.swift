@@ -33,13 +33,13 @@ final class PackageInfoTests: XCTestCase {
                                 name: .linkedLibrary,
                                 condition: PackageInfo.PackageConditionDescription(platformNames: ["iOS"], config: nil),
                                 value: ["ProjectDescription"]
-                            )
-                        ], 
+                            ),
+                        ],
                         checksum: nil
                     ),
                 ],
                 platforms: [
-                    PackageInfo.Platform(platformName: "iOS", version: "17.2", options: [])
+                    PackageInfo.Platform(platformName: "iOS", version: "17.2", options: []),
                 ],
                 cLanguageStandard: nil,
                 cxxLanguageStandard: nil,

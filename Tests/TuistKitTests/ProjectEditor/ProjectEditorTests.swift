@@ -112,7 +112,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
             XCTAssertEqual(
                 excluding,
                 [
-                    "**/Tuist/Dependencies/**",
                     "**/.build/**",
                     "\(directory.pathString)/a folder/**",
                     "\(directory.pathString)/B.swift",

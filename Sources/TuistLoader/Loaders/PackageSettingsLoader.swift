@@ -1,10 +1,10 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
-import TSCUtility
 
 /// Entity responsible for providing `PackageSettings`.
 public protocol PackageSettingsLoading {

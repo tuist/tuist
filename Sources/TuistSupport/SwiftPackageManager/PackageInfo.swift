@@ -407,7 +407,7 @@ extension PackageInfo.Target {
             private enum CodingKeys: String, CodingKey {
                 case tool, name, condition, value, kind
             }
-            
+
             // Xcode 14 format
             private enum Kind: Codable, Equatable {
                 case headerSearchPath(String)
@@ -420,7 +420,6 @@ extension PackageInfo.Target {
             }
 
             public init(from decoder: Decoder) throws {
-
                 let container = try decoder.container(keyedBy: CodingKeys.self)
 
                 tool = try container.decode(Tool.self, forKey: .tool)
@@ -454,10 +453,10 @@ extension PackageInfo.Target {
                     value = try container.decode([String].self, forKey: .value)
                 }
             }
-            
+
             public func encode(to encoder: Encoder) throws {
                 var container = encoder.container(keyedBy: CodingKeys.self)
-                
+
                 try container.encode(tool, forKey: .tool)
                 try container.encodeIfPresent(condition, forKey: .condition)
                 switch name {
@@ -534,27 +533,27 @@ extension PackageInfo.Target.Dependency: Codable {
             )
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case let .byName(name: name, condition: condition):
             var unkeyedContainer = container.nestedUnkeyedContainer(forKey: .byName)
             try unkeyedContainer.encode(name)
-            if let condition = condition {
+            if let condition {
                 try unkeyedContainer.encode(condition)
             }
         case let .product(name: name, package: package, condition: condition):
             var unkeyedContainer = container.nestedUnkeyedContainer(forKey: .product)
             try unkeyedContainer.encode(name)
             try unkeyedContainer.encode(package)
-            if let condition = condition {
+            if let condition {
                 try unkeyedContainer.encode(condition)
             }
         case let .target(name: name, condition: condition):
             var unkeyedContainer = container.nestedUnkeyedContainer(forKey: .target)
             try unkeyedContainer.encode(name)
-            if let condition = condition {
+            if let condition {
                 try unkeyedContainer.encode(condition)
             }
         }
@@ -585,10 +584,10 @@ extension PackageInfo.Product.ProductType: Codable {
             self = .plugin
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        
+
         switch self {
         case .executable:
             try container.encode(CodingKeys.executable.rawValue, forKey: .executable)

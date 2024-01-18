@@ -59,12 +59,15 @@ final class CleanService {
     }
 
     private func cleanDependencies(at path: AbsolutePath) throws {
-        let swiftPackageManagerBuildPath = path.appending(components: [Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageBuildDirectoryName])
+        let swiftPackageManagerBuildPath = path.appending(
+            components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageBuildDirectoryName
+        )
         if FileHandler.shared.exists(swiftPackageManagerBuildPath) {
-            if FileHandler.shared.exists(swiftPackageManagerBuildPath) {
-                try FileHandler.shared.delete(swiftPackageManagerBuildPath)
-            }
+            try FileHandler.shared.delete(swiftPackageManagerBuildPath)
         }
-        logger.info("Successfully cleaned Swift Package Manager dependencies at path \(swiftPackageManagerBuildPath.pathString)", metadata: .success)
+        logger.info(
+            "Successfully cleaned Swift Package Manager dependencies at path \(swiftPackageManagerBuildPath.pathString)",
+            metadata: .success
+        )
     }
 }

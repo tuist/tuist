@@ -1,10 +1,10 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
-import TSCUtility
 import XCTest
 
 @testable import ProjectDescription
@@ -39,7 +39,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
         let plugins = Plugins.test()
-        
+
         swiftPackageManagerController.getToolsVersionStub = { _ in
             TSCUtility.Version("5.4.9")
         }
@@ -61,7 +61,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
                 baseDebug: [:],
                 configurations: [
                     .release: TuistGraph.Configuration(settings: [:], xcconfig: nil),
-                    .debug: TuistGraph.Configuration(settings: [:], xcconfig: nil)
+                    .debug: TuistGraph.Configuration(settings: [:], xcconfig: nil),
                 ],
                 defaultSettings: .recommended
             ),

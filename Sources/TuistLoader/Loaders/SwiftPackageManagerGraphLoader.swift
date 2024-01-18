@@ -3,9 +3,9 @@ import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
+import TuistDependencies
 import TuistGraph
 import TuistSupport
-import TuistDependencies
 
 // MARK: - Swift Package Manager Graph Generator Errors
 
@@ -76,7 +76,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         let path = path.appending(
             components: [
                 Constants.tuistDirectoryName,
-                Constants.SwiftPackageManager.packageBuildDirectoryName
+                Constants.SwiftPackageManager.packageBuildDirectoryName,
             ]
         )
         let checkoutsFolder = path.appending(component: "checkouts")
@@ -138,22 +138,23 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
         )
 
-        let destinations: ProjectDescription.Destinations = Set(packageSettings.platforms.flatMap { platform -> ProjectDescription.Destinations in
-            switch platform {
-            case .iOS:
-                [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign]
-            case .macCatalyst:
-                [.macCatalyst]
-            case .macOS:
-                [.mac]
-            case .tvOS:
-                [.appleTv]
-            case .watchOS:
-                [.appleWatch]
-            case .visionOS:
-                [.appleVision]
-            }
-        })
+        let destinations: ProjectDescription
+            .Destinations = Set(packageSettings.platforms.flatMap { platform -> ProjectDescription.Destinations in
+                switch platform {
+                case .iOS:
+                    [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign]
+                case .macCatalyst:
+                    [.macCatalyst]
+                case .macOS:
+                    [.mac]
+                case .tvOS:
+                    [.appleTv]
+                case .watchOS:
+                    [.appleWatch]
+                case .visionOS:
+                    [.appleVision]
+                }
+            })
 
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(

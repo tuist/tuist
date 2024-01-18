@@ -96,7 +96,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         let plugins = try await loadPlugins(at: path)
 
         let packageSettings = try packageSettingsLoader.loadPackageSettings(at: path, with: plugins)
-        
+
         // Load DependenciesGraph
         let dependenciesGraph = try converter.convert(
             manifest: try swiftPackageManagerGraphLoader.load(
@@ -105,7 +105,6 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             ),
             path: path
         )
-        
 
         let allManifests = try recursiveManifestLoader.loadWorkspace(at: path)
         let (workspaceModels, manifestProjects) = (

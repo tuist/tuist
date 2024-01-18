@@ -61,10 +61,10 @@ final class CleanServiceTests: TuistUnitTestCase {
         }
         cacheDirectoriesProvider.cacheDirectoryStub = cachePath
         let projectPath = try temporaryPath()
-        let tuistPath = projectPath.appending(
-            component: Constants.tuistDirectoryName
+        let swiftPackageManagerBuildPath = projectPath.appending(
+            components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageBuildDirectoryName
         )
-        try fileHandler.createFolder(tuistPath)
+        try fileHandler.createFolder(swiftPackageManagerBuildPath)
 
         // When
         try subject.run(categories: CleanCategory.allCases, path: nil)
@@ -77,8 +77,8 @@ final class CleanServiceTests: TuistUnitTestCase {
         let testsExists = FileManager.default.fileExists(atPath: cachePaths[3].pathString)
         XCTAssertFalse(testsExists, "Cache folder at path \(cachePaths[3].pathString) should not have been deleted by the test.")
         XCTAssertFalse(
-            FileManager.default.fileExists(atPath: tuistPath.pathString),
-            "Cache folder at path \(tuistPath) should have been deleted by the test."
+            FileManager.default.fileExists(atPath: swiftPackageManagerBuildPath.pathString),
+            "Cache folder at path \(swiftPackageManagerBuildPath) should have been deleted by the test."
         )
     }
 }

@@ -70,24 +70,13 @@ public protocol ManifestLoading {
     /// - Parameter path: Path to the directory that contains the name_of_template.swift
     func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template
 
-<<<<<<< HEAD
     /// Loads the `PackageSettings` from `Package.swift` in the given directory
     /// -  path: Path to the directory that contains Package.swift
     func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings
-    
+
     /// Loads `Package.swift`
     /// - path: Path to the directory that contains Package.swift
     func loadPackage(at path: AbsolutePath) throws -> PackageInfo
-=======
-    /// Loads the Dependencies.swift in the given directory
-    /// - Parameters:
-    /// - Parameter path: Path to the directory that contains the Package.swift
-    func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies
->>>>>>> origin/tuist-4
-
-    /// Loads the `PackageSettings` from `Package.swift` in the given directory
-    /// -  path: Path to the directory that contains Dependencies.swift
-    func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings
 
     /// Loads the Plugin.swift in the given directory.
     /// - Parameter path: Path to the directory that contains Plugin.swift
@@ -121,10 +110,7 @@ public class ManifestLoader: ManifestLoading {
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
     private let xcodeController: XcodeControlling
-<<<<<<< HEAD
     private let swiftPackageManagerController: SwiftPackageManagerControlling
-=======
->>>>>>> origin/tuist-4
 
     // MARK: - Init
 
@@ -135,12 +121,8 @@ public class ManifestLoader: ManifestLoading {
             cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
-<<<<<<< HEAD
             xcodeController: XcodeController.shared,
             swiftPackageManagerController: SwiftPackageManagerController()
-=======
-            xcodeController: XcodeController.shared
->>>>>>> origin/tuist-4
         )
     }
 
@@ -150,12 +132,8 @@ public class ManifestLoader: ManifestLoading {
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
         manifestFilesLocator: ManifestFilesLocating,
-<<<<<<< HEAD
         xcodeController: XcodeControlling,
         swiftPackageManagerController: SwiftPackageManagerControlling
-=======
-        xcodeController: XcodeControlling
->>>>>>> origin/tuist-4
     ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
@@ -163,10 +141,7 @@ public class ManifestLoader: ManifestLoading {
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
         self.manifestFilesLocator = manifestFilesLocator
         self.xcodeController = xcodeController
-<<<<<<< HEAD
         self.swiftPackageManagerController = swiftPackageManagerController
-=======
->>>>>>> origin/tuist-4
         decoder = JSONDecoder()
     }
 
@@ -197,11 +172,6 @@ public class ManifestLoader: ManifestLoading {
         try loadManifest(.template, at: path)
     }
 
-    public func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings {
-        let packageManifestPath = path.appending(components: Constants.tuistDirectoryName)
-        return try loadManifest(.packageSettings, at: packageManifestPath)
-    }
-    
     public func loadPackage(at path: AbsolutePath) throws -> PackageInfo {
         try swiftPackageManagerController.loadPackageInfo(
             at: path

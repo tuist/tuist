@@ -30,7 +30,7 @@ final class FetchService {
         update: Bool
     ) async throws {
         let path = try self.path(path)
-     
+
         try await fetchPlugins(path: path)
         try fetchDependencies(path: path, update: update)
     }
@@ -44,7 +44,6 @@ final class FetchService {
             return fileHandler.currentPath
         }
     }
-
 
     private func fetchPlugins(path: AbsolutePath) async throws {
         logger.info("Resolving and fetching plugins.", metadata: .section)
@@ -67,11 +66,11 @@ final class FetchService {
 
         if update {
             logger.info("Updating dependencies.", metadata: .section)
-            
+
             try swiftPackageManagerController.update(at: packageManifestPath.parentDirectory, printOutput: true)
         } else {
             logger.info("Resolving and fetching dependencies.", metadata: .section)
-            
+
             try swiftPackageManagerController.resolve(at: packageManifestPath.parentDirectory, printOutput: true)
         }
     }
