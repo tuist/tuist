@@ -3,7 +3,6 @@ import TSCBasic
 import TSCUtility
 import TuistCore
 import TuistCoreTesting
-import TuistDependenciesTesting
 import TuistGraph
 import TuistGraphTesting
 import TuistLoader
