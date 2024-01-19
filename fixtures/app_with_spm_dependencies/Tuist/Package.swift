@@ -1,19 +1,19 @@
 // swift-tools-version: 5.9
 import PackageDescription
 
-#if TUIST
-    import ProjectDescription
-    import ProjectDescriptionHelpers
+// #if TUIST
+//     import ProjectDescription
+//     import ProjectDescriptionHelpers
 
-    let packageSettings = PackageSettings(
-        baseSettings: .targetSettings,
-        projectOptions: [
-            "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
-        ],
-        platforms: [.iOS, .watchOS]
-    )
+//     let packageSettings = PackageSettings(
+//         baseSettings: .targetSettings,
+//         projectOptions: [
+//             "LocalSwiftPackage": .options(disableSynthesizedResourceAccessors: false),
+//         ],
+//         platforms: [.iOS, .watchOS]
+//     )
 
-#endif
+// #endif
 
 let package = Package(
     name: "PackageName",

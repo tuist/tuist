@@ -247,6 +247,151 @@ final class DumpServiceTests: TuistTestCase {
         XCTAssertPrinterOutputContains(expected)
     }
 
+    func test_prints_the_manifest_when_package_manifest() async throws {
+        let tmpDir = try temporaryPath()
+        let config = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        #if TUIST
+        import ProjectDescription
+
+        let packageSettings = PackageSettings(
+            platforms: [.iOS, .watchOS]
+        )
+
+        #endif
+
+        let package = Package(
+            name: "PackageName",
+            dependencies: []
+        )
+
+        """
+        try fileHandler.createFolder(tmpDir.appending(component: Constants.tuistDirectoryName))
+        try config.write(
+            toFile: tmpDir.appending(
+                components: Constants.tuistDirectoryName,
+                Constants.SwiftPackageManager.packageSwiftName
+            ).pathString,
+            atomically: true,
+            encoding: .utf8
+        )
+        try await subject.run(path: tmpDir.pathString, manifest: .package)
+        let expected = """
+        {
+          "baseSettings": {
+            "base": {
+
+            },
+            "configurations": [
+              {
+                "name": {
+                  "rawValue": "Debug"
+                },
+                "settings": {
+
+                },
+                "variant": "debug"
+              },
+              {
+                "name": {
+                  "rawValue": "Release"
+                },
+                "settings": {
+
+                },
+                "variant": "release"
+              }
+            ],
+            "defaultSettings": {
+              "recommended": {
+                "excluding": [
+
+                ]
+              }
+            }
+          },
+          "platforms": [
+            "ios",
+            "watchos"
+          ],
+          "productTypes": {
+
+          },
+          "projectOptions": {
+
+          },
+          "targetSettings": {
+
+          }
+        }
+        """
+
+        XCTAssertPrinterOutputContains(expected)
+    }
+
+    func test_prints_the_manifest_when_package_manifest_without_package_settings() async throws {
+        let tmpDir = try temporaryPath()
+        let config = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        let package = Package(
+            name: "PackageName",
+            dependencies: []
+        )
+
+        """
+        try fileHandler.createFolder(tmpDir.appending(component: Constants.tuistDirectoryName))
+        try config.write(
+            toFile: tmpDir.appending(
+                components: Constants.tuistDirectoryName,
+                Constants.SwiftPackageManager.packageSwiftName
+            ).pathString,
+            atomically: true,
+            encoding: .utf8
+        )
+        try await subject.run(path: tmpDir.pathString, manifest: .package)
+        let expected = """
+        {
+          "baseSettings": {
+            "base": {
+
+            },
+            "configurations": [
+              {
+                "name": {
+                  "rawValue": "Debug"
+                },
+                "settings": {
+
+                },
+                "variant": "debug"
+              },
+              {
+                "name": {
+                  "rawValue": "Release"
+                },
+                "settings": {
+
+                },
+                "variant": "release"
+              }
+            ],
+            "defaultSettings": {
+              "recommended": {
+                "excluding": [
+
+                ]
+              }
+            }
+          },
+        """
+
+        XCTAssertPrinterOutputContains(expected)
+    }
+
     func test_run_throws_when_project_and_file_doesnt_exist() async throws {
         try await assertLoadingRaisesWhenManifestNotFound(manifest: .project)
     }
@@ -316,6 +461,8 @@ extension DumpableManifest {
             return .template
         case .plugin:
             return .plugin
+        case .package:
+            return .packageSettings
         }
     }
 }
