@@ -2,7 +2,6 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
-import TuistDependencies
 import TuistSupport
 import TuistSupportTesting
 

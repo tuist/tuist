@@ -3,7 +3,6 @@ import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistDependencies
 import TuistGraph
 import TuistSupport
 

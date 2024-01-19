@@ -6,8 +6,8 @@ import TuistGraph
 import TuistSupport
 import XCTest
 
-@testable import TuistDependencies
-@testable import TuistDependenciesTesting
+@testable import TuistCoreTesting
+@testable import TuistLoader
 @testable import TuistSupportTesting
 
 final class PackageInfoMapperTests: TuistUnitTestCase {
