@@ -457,6 +457,7 @@ Thanks goes to these wonderful people:
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/dxmvsh"><img src="https://avatars.githubusercontent.com/u/44325936?v=4" width="100px;" alt=""/><br /><sub><b>Dimash</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/danibachar"><img src="https://avatars.githubusercontent.com/u/6380777?v=4" width="100px;" alt=""/><br /><sub><b>danibachar</b></sub></a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/dp221125"><img src="https://avatars.githubusercontent.com/u/10572119?v=4" width="100px;" alt=""/><br /><sub><b>한석호(MilKyo)</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://medium.com/@haifengkaohaifengkao&usg=AOvVaw2_xG-ZLdBawBIyS7m-99RQ"><img src="https://avatars.githubusercontent.com/u/4080524?v=4" width="100px;" alt=""/><br /><sub><b>Hai Feng Kao</b></sub></a></td>
     </tr>
   </tbody>
 </table>
