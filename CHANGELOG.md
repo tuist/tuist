@@ -12,7 +12,6 @@
 
 - Fix generation not including macros from XCFrameworks [#5801](https://github.com/tuist/tuist/pull/5801) by [@pepicrft](https://github.com/pepicrft)
 - Fix loading PackageSettings when not specified in Package.swift [#5805](https://github.com/tuist/tuist/pull/5805) by [@fortmarek](https://github.com/fortmarek)
-- Add back `SwiftPackageManagerDependencies` conformance to `ExpressibleByArrayLiteral` for backwards compatibility [#5809](https://github.com/tuist/tuist/pull/5809) by [@waltflanagan](https://github.com/waltflanagan)
 
 ### Tuist Cloud
 
