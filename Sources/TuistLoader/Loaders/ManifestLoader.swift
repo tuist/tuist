@@ -181,7 +181,7 @@ public class ManifestLoader: ManifestLoading {
     public func loadPackageSettings(at path: AbsolutePath) throws -> ProjectDescription.PackageSettings {
         let packageManifestPath = path.appending(components: Constants.tuistDirectoryName)
         do {
-            return try loadManifest(.package, at: packageManifestPath)
+            return try loadManifest(.packageSettings, at: packageManifestPath)
         } catch let error as ManifestLoaderError {
             switch error {
             case let .manifestLoadingFailed(path: _, data: data, context: _):

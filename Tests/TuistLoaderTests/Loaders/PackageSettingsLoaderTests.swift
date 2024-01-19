@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TSCUtility
 import TuistCore
+import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
@@ -14,6 +15,8 @@ import XCTest
 
 final class PackageSettingsLoaderTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoader!
+    private var swiftPackageManagerController: MockSwiftPackageManagerController!
+    private var rootDirectoryLocator: MockRootDirectoryLocator!
     private var subject: PackageSettingsLoader!
 
     override func setUp() {
@@ -21,9 +24,12 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
 
         manifestLoader = MockManifestLoader()
         swiftPackageManagerController = MockSwiftPackageManagerController()
+        rootDirectoryLocator = MockRootDirectoryLocator()
         subject = PackageSettingsLoader(
             manifestLoader: manifestLoader,
-            swiftPackageManagerController: swiftPackageManagerController
+            swiftPackageManagerController: swiftPackageManagerController,
+            rootDirectoryLocator: rootDirectoryLocator,
+            fileHandler: fileHandler
         )
     }
 
