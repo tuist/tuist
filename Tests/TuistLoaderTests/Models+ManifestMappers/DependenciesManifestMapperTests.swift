@@ -21,7 +21,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                 .git(path: "Dependency.git", requirement: .branch("BranchName")),
                 .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
             ],
-            swiftPackageManager: .manifest,
+            swiftPackageManager: .init(),
             platforms: [.iOS, .macOS, .tvOS]
         )
 

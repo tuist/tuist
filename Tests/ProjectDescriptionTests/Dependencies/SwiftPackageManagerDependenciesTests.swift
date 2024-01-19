@@ -5,7 +5,7 @@ import XCTest
 
 final class SwiftPackageManagerDependenciesTests: XCTestCase {
     func test_swiftPackageManagerDependencies_codable() {
-        let subject: SwiftPackageManagerDependencies = []
+        let subject: SwiftPackageManagerDependencies = .init()
         XCTAssertCodable(subject)
     }
 }
