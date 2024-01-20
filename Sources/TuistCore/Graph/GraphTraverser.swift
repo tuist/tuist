@@ -44,7 +44,7 @@ public class GraphTraverser: GraphTraversing {
         try topologicalSort(
             Array(allTargets()),
             successors: {
-                Array(directTargetDependencies(path: $0.path, name: $0.target.name).map(\.graphTarget))
+                directTargetDependencies(path: $0.path, name: $0.target.name).map(\.graphTarget)
             }
         ).reversed()
     }
@@ -157,16 +157,6 @@ public class GraphTraverser: GraphTraversing {
             return GraphTargetReference(target: graphTarget, condition: condition)
         }
     }
-
-//    func conditionalize(_ target: GraphDependency, dependencies: [GraphTarget]) -> [GraphTargetReference] {
-//        return dependencies.map { dependency in
-//            let condition = graph.dependencyConditions[GraphEdge(
-//                from: target,
-//                to: dependency
-//            )]
-//            return dependency.withCondition(condition)
-//        }
-//    }
 
     public func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         guard let target = graph.targets[path]?[name] else { return [] }
