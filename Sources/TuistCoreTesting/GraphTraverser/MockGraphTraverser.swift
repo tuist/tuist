@@ -305,7 +305,7 @@ final class MockGraphTraverser: GraphTraversing {
         invokedAppExtensionDependenciesParametersList.append((path, name))
         return stubbedAppExtensionDependenciesResult
     }
-    
+
     var invokedResourceBundleDependencies = false
     var invokedResourceBundleDependenciesCount = 0
     var invokedResourceBundleDependenciesParameters: (path: AbsolutePath, name: String)?
