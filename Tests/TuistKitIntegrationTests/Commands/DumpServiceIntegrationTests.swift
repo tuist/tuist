@@ -312,20 +312,6 @@ final class DumpServiceTests: TuistTestCase {
               }
             }
           },
-          "platforms": [
-            "ios",
-            "watchos"
-          ],
-          "productTypes": {
-
-          },
-          "projectOptions": {
-
-          },
-          "targetSettings": {
-
-          }
-        }
         """
 
         XCTAssertPrinterOutputContains(expected)
