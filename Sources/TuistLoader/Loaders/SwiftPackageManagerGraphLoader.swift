@@ -40,15 +40,9 @@ public protocol SwiftPackageManagerGraphLoading {
     /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed
     /// dependencies.
-    /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
-    /// - Parameter platforms: The supported platforms.
-    /// - Parameter baseSettings: base `Settings` for targets.
-    /// - Parameter targetSettings: `SettingsDictionary` overrides for targets.
-    /// - Parameter swiftToolsVersion: The version of Swift tools that will be used to generate dependencies.
-    /// - Parameter projectOptions: The custom configurations for generated projects.
     func load(
         at path: AbsolutePath,
-        packageSettings: TuistGraph.PackageSettings
+        plugins: Plugins
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -56,22 +50,44 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoMapper: PackageInfoMapping
     private let manifestLoader: ManifestLoading
+    private let fileHandler: FileHandling
+    private let packageSettingsLoader: PackageSettingsLoading
+
+    public convenience init(
+        manifestLoader: ManifestLoading
+    ) {
+        self.init(
+            packageSettingsLoader: PackageSettingsLoader(manifestLoader: manifestLoader)
+        )
+    }
 
     public init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
-        manifestLoader: ManifestLoading = ManifestLoader()
+        manifestLoader: ManifestLoading = ManifestLoader(),
+        fileHandler: FileHandling = FileHandler.shared,
+        packageSettingsLoader: PackageSettingsLoading = PackageSettingsLoader()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
         self.manifestLoader = manifestLoader
+        self.fileHandler = fileHandler
+        self.packageSettingsLoader = packageSettingsLoader
     }
 
     // swiftlint:disable:next function_body_length
     public func load(
         at path: AbsolutePath,
-        packageSettings: TuistGraph.PackageSettings
+        plugins: Plugins
     ) throws -> TuistCore.DependenciesGraph {
+        guard fileHandler.exists(
+            path.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+        ) else {
+            return .none
+        }
+
+        let packageSettings = try packageSettingsLoader.loadPackageSettings(at: path, with: plugins)
+
         let path = path.appending(
             components: [
                 Constants.tuistDirectoryName,
