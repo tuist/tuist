@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import TSCBasic
+
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
 public protocol Environmenting: AnyObject {

@@ -430,7 +430,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         for dependency in linkableDependencies {
             switch dependency {
-            case let .framework(path, _, _, _, _, _, _, _, status, condition):
+            case let .framework(path, _, _, _, _, _, _, status, condition):
                 try addBuildFile(path, condition: condition, status: status)
             case let .library(path, _, _, _, condition):
                 try addBuildFile(path, condition: condition)
