@@ -119,7 +119,7 @@ public class GraphTraverser: GraphTraversing {
 
     public func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference> {
         let target = GraphDependency.target(name: name, path: path)
-        guard let dependencies = graph.dependencies[.target(name: name, path: path)]
+        guard let dependencies = graph.dependencies[target]
         else { return [] }
 
         let targetDependencies = dependencies
