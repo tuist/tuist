@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.41.0 - 2024-01-19
+
+### Tuist
+
+#### Added
+
+- Add PackageSettings for Package.swift [#5802](https://github.com/tuist/tuist/pull/5802) by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fix generation not including macros from XCFrameworks [#5801](https://github.com/tuist/tuist/pull/5801) by [@pepicrft](https://github.com/pepicrft)
+- Fix loading PackageSettings when not specified in Package.swift [#5805](https://github.com/tuist/tuist/pull/5805) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.40.0 - 2024-01-15
 
 ### Tuist
