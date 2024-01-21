@@ -207,12 +207,6 @@ extension Arguments {
     }
 }
 
-extension Dependencies {
-    public static func test() -> Dependencies {
-        Dependencies()
-    }
-}
-
 extension Plugin {
     public static func test(name: String = "Plugin") -> Plugin {
         Plugin(name: name)

@@ -21,7 +21,7 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
 
     func test_bcsymbolmapPaths() throws {
         // Given
-        let testPath = try temporaryFixture("Test/")
+        let testPath = try temporaryFixture("PrebuiltFramework/")
         let frameworkPath = FileHandler.shared.glob(testPath, glob: "*.framework").first!
 
         // When
@@ -36,7 +36,7 @@ final class FrameworkMetadataProviderIntegrationTests: TuistTestCase {
 
     func test_dsymPath() throws {
         // Given
-        let testPath = try temporaryFixture("Test/")
+        let testPath = try temporaryFixture("PrebuiltFramework/")
         let frameworkPath = FileHandler.shared.glob(testPath, glob: "*.framework").first!
 
         // When

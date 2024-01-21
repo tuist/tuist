@@ -212,7 +212,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         cacheDirectoriesProvider.cacheDirectoryStub = temporaryDirectory
         try fileHandler.touch(
             pluginDirectory
-                .appending(components: PluginServiceConstants.repository, Constants.DependenciesDirectory.packageSwiftName)
+                .appending(components: PluginServiceConstants.repository, Constants.SwiftPackageManager.packageSwiftName)
         )
         let commandPath = pluginDirectory.appending(components: PluginServiceConstants.release, "tuist-command")
         try fileHandler.touch(commandPath)

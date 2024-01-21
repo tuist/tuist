@@ -35,50 +35,65 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
 
 // MARK: - Swift Package Manager Graph Generator
 
-/// A protocol that defines an interface to generate the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
-public protocol SwiftPackageManagerGraphGenerating {
+/// A protocol that defines an interface to load the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
+public protocol SwiftPackageManagerGraphLoading {
     /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed
     /// dependencies.
-    /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
-    /// - Parameter platforms: The supported platforms.
-    /// - Parameter baseSettings: base `Settings` for targets.
-    /// - Parameter targetSettings: `SettingsDictionary` overrides for targets.
-    /// - Parameter swiftToolsVersion: The version of Swift tools that will be used to generate dependencies.
-    /// - Parameter projectOptions: The custom configurations for generated projects.
-    func generate(
+    func load(
         at path: AbsolutePath,
-        productTypes: [String: TuistGraph.Product],
-        platforms: Set<TuistGraph.PackagePlatform>,
-        baseSettings: TuistGraph.Settings,
-        targetSettings: [String: TuistGraph.SettingsDictionary],
-        swiftToolsVersion: TSCUtility.Version?,
-        projectOptions: [String: TuistGraph.Project.Options]
+        plugins: Plugins
     ) throws -> TuistCore.DependenciesGraph
 }
 
-public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
+public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoMapper: PackageInfoMapping
+    private let manifestLoader: ManifestLoading
+    private let fileHandler: FileHandling
+    private let packageSettingsLoader: PackageSettingsLoading
+
+    public convenience init(
+        manifestLoader: ManifestLoading
+    ) {
+        self.init(
+            packageSettingsLoader: PackageSettingsLoader(manifestLoader: manifestLoader)
+        )
+    }
 
     public init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
-        packageInfoMapper: PackageInfoMapping = PackageInfoMapper()
+        packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
+        manifestLoader: ManifestLoading = ManifestLoader(),
+        fileHandler: FileHandling = FileHandler.shared,
+        packageSettingsLoader: PackageSettingsLoading = PackageSettingsLoader()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
+        self.manifestLoader = manifestLoader
+        self.fileHandler = fileHandler
+        self.packageSettingsLoader = packageSettingsLoader
     }
 
     // swiftlint:disable:next function_body_length
-    public func generate(
+    public func load(
         at path: AbsolutePath,
-        productTypes: [String: TuistGraph.Product],
-        platforms: Set<TuistGraph.PackagePlatform>,
-        baseSettings: TuistGraph.Settings,
-        targetSettings: [String: TuistGraph.SettingsDictionary],
-        swiftToolsVersion: TSCUtility.Version?,
-        projectOptions: [String: TuistGraph.Project.Options]
+        plugins: Plugins
     ) throws -> TuistCore.DependenciesGraph {
+        guard fileHandler.exists(
+            path.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+        ) else {
+            return .none
+        }
+
+        let packageSettings = try packageSettingsLoader.loadPackageSettings(at: path, with: plugins)
+
+        let path = path.appending(
+            components: [
+                Constants.tuistDirectoryName,
+                Constants.SwiftPackageManager.packageBuildDirectoryName,
+            ]
+        )
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")
 
@@ -107,7 +122,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
 
-            let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: packageFolder)
+            let packageInfo = try manifestLoader.loadPackage(at: packageFolder)
             let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in
@@ -138,22 +153,23 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths
         )
 
-        let destinations: ProjectDescription.Destinations = Set(platforms.flatMap { platform -> ProjectDescription.Destinations in
-            switch platform {
-            case .iOS:
-                [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign]
-            case .macCatalyst:
-                [.macCatalyst]
-            case .macOS:
-                [.mac]
-            case .tvOS:
-                [.appleTv]
-            case .watchOS:
-                [.appleWatch]
-            case .visionOS:
-                [.appleVision]
-            }
-        })
+        let destinations: ProjectDescription
+            .Destinations = Set(packageSettings.platforms.flatMap { platform -> ProjectDescription.Destinations in
+                switch platform {
+                case .iOS:
+                    [.iPhone, .iPad, .appleVisionWithiPadDesign, .macWithiPadDesign]
+                case .macCatalyst:
+                    [.macCatalyst]
+                case .macOS:
+                    [.mac]
+                case .tvOS:
+                    [.appleTv]
+                case .watchOS:
+                    [.appleWatch]
+                case .visionOS:
+                    [.appleVision]
+                }
+            })
 
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(
@@ -161,10 +177,10 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 packageInfos: packageInfoDictionary,
                 name: packageInfo.name,
                 path: packageInfo.folder,
-                productTypes: productTypes,
-                baseSettings: baseSettings,
-                targetSettings: targetSettings,
-                projectOptions: projectOptions[packageInfo.name],
+                productTypes: packageSettings.productTypes,
+                baseSettings: packageSettings.baseSettings,
+                targetSettings: packageSettings.targetSettings,
+                projectOptions: packageSettings.projectOptions[packageInfo.name],
                 minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
                 destinations: destinations,
                 targetToProducts: preprocessInfo.targetToProducts,
@@ -172,7 +188,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 macroDependencies: preprocessInfo.macroDependencies,
                 targetToModuleMap: preprocessInfo.targetToModuleMap,
                 packageToProject: packageToProject,
-                swiftToolsVersion: swiftToolsVersion
+                swiftToolsVersion: packageSettings.swiftToolsVersion
             )
             result[Path(packageInfo.folder.pathString)] = manifest
         }

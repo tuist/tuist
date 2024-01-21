@@ -2,7 +2,7 @@ import TSCBasic
 import TuistSupportTesting
 import XCTest
 
-@testable import TuistDependencies
+@testable import TuistLoader
 
 class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     private var subject: SwiftPackageManagerModuleMapGenerator!

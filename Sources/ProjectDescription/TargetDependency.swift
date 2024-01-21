@@ -124,7 +124,7 @@ public enum TargetDependency: Codable, Hashable {
     /// Dependency on XCTest.
     case xctest
 
-    /// Dependency on an external dependency imported through `Dependencies.swift`.
+    /// Dependency on an external dependency imported through `Package.swift`.
     ///
     /// - Parameters:
     ///   - name: Name of the external dependency

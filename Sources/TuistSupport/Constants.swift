@@ -31,17 +31,10 @@ public enum Constants {
     /// Changing this results in changing the target hash and hence forcing a rebuild of its artifact.
     public static let cacheVersion = "1.0.0"
 
-    public enum DependenciesDirectory {
-        public static let dependenciesFileName = "Dependencies.swift"
-        public static let name = "Dependencies"
-        public static let graphName = "graph.json"
-        public static let lockfilesDirectoryName = "Lockfiles"
-        public static let cartfileName = "Cartfile"
-        public static let cartfileResolvedName = "Cartfile.resolved"
+    public enum SwiftPackageManager {
         public static let packageSwiftName = "Package.swift"
         public static let packageResolvedName = "Package.resolved"
         public static let packageBuildDirectoryName = ".build"
-        public static let swiftPackageManagerDirectoryName = "SwiftPackageManager"
     }
 
     public enum DerivedDirectory {

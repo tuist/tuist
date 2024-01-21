@@ -30,7 +30,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     private let converter: ManifestModelConverting
     private let graphLoader: GraphLoading
     private let pluginsService: PluginServicing
-    private let dependenciesGraphController: DependenciesGraphControlling
+    private let swiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading
     private let graphLoaderLinter: CircularDependencyLinting
     private let manifestLinter: ManifestLinting
     private let workspaceMapper: WorkspaceMapping
@@ -50,7 +50,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             ),
             graphLoader: GraphLoader(),
             pluginsService: PluginService(manifestLoader: manifestLoader),
-            dependenciesGraphController: DependenciesGraphController(),
+            swiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoader(manifestLoader: manifestLoader),
             graphLoaderLinter: CircularDependencyLinter(),
             manifestLinter: ManifestLinter(),
             workspaceMapper: workspaceMapper,
@@ -65,7 +65,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         converter: ManifestModelConverting,
         graphLoader: GraphLoading,
         pluginsService: PluginServicing,
-        dependenciesGraphController: DependenciesGraphControlling,
+        swiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading,
         graphLoaderLinter: CircularDependencyLinting,
         manifestLinter: ManifestLinting,
         workspaceMapper: WorkspaceMapping,
@@ -77,7 +77,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         self.converter = converter
         self.graphLoader = graphLoader
         self.pluginsService = pluginsService
-        self.dependenciesGraphController = dependenciesGraphController
+        self.swiftPackageManagerGraphLoader = swiftPackageManagerGraphLoader
         self.graphLoaderLinter = graphLoaderLinter
         self.manifestLinter = manifestLinter
         self.workspaceMapper = workspaceMapper
@@ -92,7 +92,13 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         let plugins = try await loadPlugins(at: path)
 
         // Load DependenciesGraph
-        let dependenciesGraph = try dependenciesGraphController.load(at: path)
+        let dependenciesGraph = try converter.convert(
+            manifest: try swiftPackageManagerGraphLoader.load(
+                at: path,
+                plugins: plugins
+            ),
+            path: path
+        )
 
         let allManifests = try recursiveManifestLoader.loadWorkspace(at: path)
         let (workspaceModels, manifestProjects) = (
