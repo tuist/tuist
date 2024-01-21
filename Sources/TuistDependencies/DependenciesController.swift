@@ -141,7 +141,6 @@ public final class DependenciesController: DependenciesControlling {
         try install(
             at: path,
             dependencies: TuistGraph.Dependencies(
-                carthage: nil,
                 swiftPackageManager: TuistGraph.SwiftPackageManagerDependencies(
                     .manifest,
                     productTypes: packageSettings.productTypes,
@@ -165,7 +164,6 @@ public final class DependenciesController: DependenciesControlling {
         try install(
             at: path,
             dependencies: TuistGraph.Dependencies(
-                carthage: nil,
                 swiftPackageManager: TuistGraph.SwiftPackageManagerDependencies(
                     .manifest,
                     productTypes: packageSettings.productTypes,

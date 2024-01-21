@@ -41,10 +41,6 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         }
         manifestLoader.loadDependenciesStub = { _ in
             Dependencies(
-                carthage: [
-                    .github(path: "Dependency1", requirement: .exact("1.1.1")),
-                    .git(path: "Dependency1", requirement: .exact("2.3.4")),
-                ],
                 swiftPackageManager: .init(),
                 platforms: [.iOS, .macOS]
             )
