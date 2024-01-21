@@ -1,6 +1,15 @@
 // swift-tools-version: 5.9
 import PackageDescription
 
+#if TUIST
+    import ProjectDescription
+    import ProjectDescriptionHelpers
+
+    let packageSettings = PackageSettings(
+        platforms: [.iOS, .watchOS]
+    )
+#endif
+
 let package = Package(
     name: "PackageName",
     dependencies: [
