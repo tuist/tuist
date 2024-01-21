@@ -5,7 +5,7 @@ import PackageDescription
     import ProjectDescription
 
     let packageSettings = PackageSettings(
-        platforms: [.iOS, .watchOS]
+        platforms: [.macOS, .iOS]
     )
 #endif
 
