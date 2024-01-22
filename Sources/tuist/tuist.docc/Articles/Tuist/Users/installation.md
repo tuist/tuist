@@ -113,3 +113,46 @@ brew install tuist
 brew install tuist@x.y.z
 brew install tuist-cloud # If you are a Tuist Cloud user
 ```
+
+### Shell completions
+
+<!-- Swift Argument Parser reference: https://github.com/apple/swift-argument-parser/blob/280700d361c1b3af6e2345f5e24f67fa9450bec6/Documentation/07%20Completion%20Scripts.md -->
+
+If you have Tuist **globally installed**,
+you can install shell completions for Bash and Zsh to autocomplete commands and options.
+
+#### Zsh
+
+If you have [oh-my-zsh](https://ohmyz.sh/) installed, you already have a directory of automatically loading completion scripts — `.oh-my-zsh/completions`. Copy your new completion script to a new file in that directory called `_tuist`:
+
+```bash
+tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
+```
+
+Without `oh-my-zsh`, you'll need to add a path for completion scripts to your function path, and turn on completion script autoloading. First, add these lines to `~/.zshrc`:
+
+```bash
+fpath=(~/.zsh/completion $fpath)
+autoload -U compinit
+compinit
+```
+
+Next, create a directory at `~/.zsh/completion` and copy the completion script to the new directory, again into a file called `_tuist`.
+
+```bash
+tuist --generate-completion-script > ~/.zsh/completion/_tuist
+```
+
+#### Bash
+
+If you have [bash-completion](https://github.com/scop/bash-completion) installed, you can just copy your new completion script to file `/usr/local/etc/bash_completion.d/_tuist`:
+
+```bash
+tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
+```
+
+Without bash-completion, you'll need to source the completion script directly. Copy it to a directory such as `~/.bash_completions/`, and then add the following line to `~/.bash_profile` or `~/.bashrc`:
+
+```bash
+source ~/.bash_completions/example.bash
+```
