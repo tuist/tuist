@@ -4,8 +4,8 @@ set -euo pipefail
 
 echo "⏳ Generating documentation for the latest release.";
 mise run docs:build
-cp tuist/assets/favicon.ico $ROOT_DIR/.build/documentation/favicon.ico
-cp tuist/assets/favicon.svg $ROOT_DIR/.build/documentation/favicon.svg
+cp tuist/assets/favicon.ico .build/documentation/favicon.ico
+cp tuist/assets/favicon.svg .build/documentation/favicon.svg
 
 for tag in $(git tag | tail -n +20);
 do
@@ -23,7 +23,7 @@ else
     --allow-writing-to-directory .build/documentation/"$tag" \
     generate-documentation \
     --target tuist \
-    --output-path docs-out/"$tag" \
+    --output-path .build/documentation/"$tag" \
     --transform-for-static-hosting \
     --hosting-base-path /tuist/"$tag" \
         && echo "✅ Documentation generated for "$tag" release." \

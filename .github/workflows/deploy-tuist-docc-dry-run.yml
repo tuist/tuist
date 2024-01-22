@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
           path: tuist
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat tuist/.xcode-version).app
       - uses: jdx/mise-action@v2
         with:
           experimental: true
