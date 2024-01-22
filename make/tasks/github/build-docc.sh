@@ -5,10 +5,12 @@ set -euo pipefail
 echo "⏳ Generating documentation for the latest release.";
 mise run docs:build
 
+cd tuist-archive
 for tag in $(git tag | tail -n +20);
 do
 echo "⏳ Generating documentation for "$tag" release.";
 
+cd ..
 if [ -d ".build/documentation/$tag" ] 
 then
     echo "✅ Documentation for "$tag" already exists.";
