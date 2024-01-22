@@ -3,9 +3,8 @@ name: Deploy Tuist DocC dry-run
 on:
   pull_request:
     paths:
-      - Package.swift
-      - Package.resolved
-      - Sources/**/*.docc
+      - Sources/ProjectDescription/**
+      - docs/**
       - .github/workflows/deploy-tuist-docc-dry-run.yml
 
 jobs:
