@@ -69,7 +69,7 @@ Tuist includes [templates](https://github.com/tuist/tuist/tree/main/Sources/Tuis
 #### Custom templates
 
 If you want to provide your own templates to synthesize accessors to other resource types,
-which must be supported by [SwiftGen](https://docs.old.tuist.io/guides/resources),
+which must be supported by [SwiftGen](https://github.com/SwiftGen/SwiftGen),
 you can create them at `Tuist/ResourceSynthesizers/{name}.stencil`,
 where the name is the camel-case version of the resource.
 
@@ -91,5 +91,7 @@ you can use the `Project.resourceSynthesizers` property passing the list of reso
 ```swift
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ```
+
+> Note: You can check out [this fixture](https://github.com/tuist/tuist/tree/main/fixtures/ios_app_with_templates) to see an example of how to use custom templates to synthesize accessors to resources.
 
 <!-- TODO: Reference this page when writing the documentation for plugins >
