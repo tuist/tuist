@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -euo pipefail
+
+echo "⏳ Generating documentation for the latest release.";
+mise run docs:build
+cp tuist/assets/favicon.ico $ROOT_DIR/.build/documentation/favicon.ico
+cp tuist/assets/favicon.svg $ROOT_DIR/.build/documentation/favicon.svg
+
+for tag in $(git tag | tail -n +20);
+do
+echo "⏳ Generating documentation for "$tag" release.";
+
+if [ -d "docs-out/$tag" ] 
+then 
+    echo "✅ Documentation for "$tag" already exists.";
+else 
+    git checkout -f "$tag";
+    
+    swift package \
+    --disable-sandbox \
+    --package-path tuist/docs \
+    --allow-writing-to-directory .build/documentation/"$tag" \
+    generate-documentation \
+    --target tuist \
+    --output-path docs-out/"$tag" \
+    --transform-for-static-hosting \
+    --hosting-base-path /tuist/"$tag" \
+        && echo "✅ Documentation generated for "$tag" release." \
+        || echo "⚠️ Documentation skipped for "$tag".";
+fi;
+done

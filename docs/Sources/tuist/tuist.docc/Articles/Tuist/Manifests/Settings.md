@@ -4,7 +4,6 @@
 
 ### Related
 
-- ``DefaultSettings``
 - ``SettingValue``
 - ``SettingsDictionary``
 - ``Configuration``
