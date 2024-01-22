@@ -4,6 +4,7 @@ set -euo pipefail
 
 echo "⏳ Generating documentation for the latest release.";
 cd tuist
+mkdir .build
 mise run docs:build
 cd ..
 cp tuist/assets/favicon.ico .build/documentation/favicon.ico
