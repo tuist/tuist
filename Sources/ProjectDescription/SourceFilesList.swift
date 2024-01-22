@@ -6,57 +6,16 @@ public struct SourceFileGlob: Codable, Equatable {
     public var glob: Path
 
     /// Glob patterns for source files that will be excluded.
-    public var excluding: [Path]
+    public var excluding: [Path] = []
 
     /// The compiler flags to be set to the source files in the sources build phase.
-    public var compilerFlags: String?
+    public var compilerFlags: String? = nil
 
     /// The source file attribute to be set in the build phase.
-    public var codeGen: FileCodeGen?
+    public var codeGen: FileCodeGen? = nil
 
     /// Source file condition for compilation
-    public var compilationCondition: PlatformCondition?
-
-    /// Returns a source glob pattern configuration.
-    ///
-    /// - Parameters:
-    ///   - glob: Glob pattern to the source files.
-    ///   - excluding: Glob patterns for source files that will be excluded.
-    ///   - compilerFlags: The compiler flags to be set to the source files in the sources build phase.
-    ///   - codeGen: The source file attribute to be set in the build phase.
-    ///   - compilationCondition: Condition for file compilation.
-    public static func glob(
-        _ glob: Path,
-        excluding: [Path] = [],
-        compilerFlags: String? = nil,
-        codeGen: FileCodeGen? = nil,
-        compilationCondition: PlatformCondition? = nil
-    ) -> Self {
-        .init(
-            glob: glob,
-            excluding: excluding,
-            compilerFlags: compilerFlags,
-            codeGen: codeGen,
-            compilationCondition: compilationCondition
-        )
-    }
-
-    public static func glob(
-        _ glob: Path,
-        excluding: Path?,
-        compilerFlags: String? = nil,
-        codeGen: FileCodeGen? = nil,
-        compilationCondition: PlatformCondition? = nil
-    ) -> Self {
-        let paths: [Path] = excluding.flatMap { [$0] } ?? []
-        return .init(
-            glob: glob,
-            excluding: paths,
-            compilerFlags: compilerFlags,
-            codeGen: codeGen,
-            compilationCondition: compilationCondition
-        )
-    }
+    public var compilationCondition: PlatformCondition? = nil
 }
 
 extension SourceFileGlob: ExpressibleByStringInterpolation {
@@ -81,13 +40,13 @@ public struct SourceFilesList: Codable, Equatable {
     ///
     /// - Parameter globs: Glob patterns.
     public init(globs: [String]) {
-        self.globs = globs.map(SourceFileGlob.init)
+        self.init(globs: globs.map(SourceFileGlob.init))
     }
 
     /// Returns a sources list from a list of paths.
     /// - Parameter paths: Source paths.
-    public static func paths(_ paths: [Path]) -> SourceFilesList {
-        SourceFilesList(globs: paths.map { .glob($0) })
+    public init(paths: [Path]) -> SourceFilesList {
+        self.init(globs: paths.map { .glob($0) })
     }
 }
 

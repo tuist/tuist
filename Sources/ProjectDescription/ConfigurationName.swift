@@ -27,13 +27,6 @@ public struct ConfigurationName: ExpressibleByStringLiteral, Codable, Equatable 
         self.init(value)
     }
 
-    /// Returns a configuration name with its name.
-    /// - Parameter name: Configuration name.
-    /// - Returns: Initialized configuration name.
-    public static func configuration(_ name: String) -> ConfigurationName {
-        self.init(name)
-    }
-
     /// Returns a configuration named "Debug"
     public static var debug: ConfigurationName {
         ConfigurationName("Debug")

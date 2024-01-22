@@ -11,21 +11,11 @@ public struct Cloud: Codable, Equatable {
     }
 
     /// The base URL that points to the Cloud server.
-    public var url: String
+    public var url: String = "https://cloud.tuist.io"
 
     /// The project unique identifier.
     public var projectId: String
 
     /// The configuration options.
-    public var options: [Option]
-
-    /// Returns a generic cloud configuration.
-    /// - Parameters:
-    ///   - projectId: Project unique identifier.
-    ///   - url: Base URL to the Cloud server.
-    ///   - options: Cloud options.
-    /// - Returns: A Cloud instance.
-    public static func cloud(projectId: String, url: String = "https://cloud.tuist.io", options: [Option] = []) -> Cloud {
-        Cloud(url: url, projectId: projectId, options: options)
-    }
+    public var options: [Option] = []
 }

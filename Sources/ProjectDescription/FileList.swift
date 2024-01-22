@@ -7,14 +7,6 @@ import Foundation
 public struct FileList: Codable, Equatable {
     /// Glob pattern to the files.
     public let globs: [FileListGlob]
-
-    /// Creates a file list from a collection of glob patterns.
-    ///
-    ///   - glob: Relative glob pattern.
-    ///   - excluding: Relative glob patterns for excluded files.
-    public static func list(_ globs: [FileListGlob]) -> FileList {
-        FileList(globs: globs)
-    }
 }
 
 extension FileList: ExpressibleByStringInterpolation {

@@ -4,50 +4,28 @@ extension Project {
     /// Options to configure a project.
     public struct Options: Codable, Equatable {
         /// Configures automatic target schemes generation.
-        public var automaticSchemesOptions: AutomaticSchemesOptions
+        public var automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
 
         /// Configures the default known regions
-        public var defaultKnownRegions: [String]?
+        public var defaultKnownRegions: [String]? = nil
 
         /// Configures the development region.
-        public var developmentRegion: String?
+        public var developmentRegion: String? = nil
 
         /// Disables generating Bundle accessors.
-        public var disableBundleAccessors: Bool
+        public var disableBundleAccessors: Bool = false
 
         /// Suppress logging of environment in Run Script build phases.
-        public var disableShowEnvironmentVarsInScriptPhases: Bool
+        public var disableShowEnvironmentVarsInScriptPhases: Bool = false
 
         /// Disable synthesized resource accessors.
-        public var disableSynthesizedResourceAccessors: Bool
+        public var disableSynthesizedResourceAccessors: Bool = false
 
         /// Configures text settings.
-        public var textSettings: TextSettings
+        public var textSettings: TextSettings = .init()
 
         /// Configures the name of the generated .xcodeproj.
-        public var xcodeProjectName: String?
-
-        public static func options(
-            automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
-            defaultKnownRegions: [String]? = nil,
-            developmentRegion: String? = nil,
-            disableBundleAccessors: Bool = false,
-            disableShowEnvironmentVarsInScriptPhases: Bool = false,
-            disableSynthesizedResourceAccessors: Bool = false,
-            textSettings: TextSettings = .textSettings(),
-            xcodeProjectName: String? = nil
-        ) -> Self {
-            self.init(
-                automaticSchemesOptions: automaticSchemesOptions,
-                defaultKnownRegions: defaultKnownRegions,
-                developmentRegion: developmentRegion,
-                disableBundleAccessors: disableBundleAccessors,
-                disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
-                disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
-                textSettings: textSettings,
-                xcodeProjectName: xcodeProjectName
-            )
-        }
+        public var xcodeProjectName: String? = nil
     }
 }
 
@@ -91,24 +69,15 @@ extension Project.Options {
     /// The text settings options
     public struct TextSettings: Codable, Equatable {
         /// Whether tabs should be used instead of spaces
-        public var usesTabs: Bool?
+        public var usesTabs: Bool? = nil
 
         /// The width of space indent
-        public var indentWidth: UInt?
+        public var indentWidth: UInt? = nil
 
         /// The width of tab indent
-        public var tabWidth: UInt?
+        public var tabWidth: UInt? = nil
 
         /// Whether lines should be wrapped or not
-        public var wrapsLines: Bool?
-
-        public static func textSettings(
-            usesTabs: Bool? = nil,
-            indentWidth: UInt? = nil,
-            tabWidth: UInt? = nil,
-            wrapsLines: Bool? = nil
-        ) -> Self {
-            self.init(usesTabs: usesTabs, indentWidth: indentWidth, tabWidth: tabWidth, wrapsLines: wrapsLines)
-        }
+        public var wrapsLines: Bool? = nil
     }
 }

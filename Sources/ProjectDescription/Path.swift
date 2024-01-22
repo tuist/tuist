@@ -45,15 +45,4 @@ public struct Path: ExpressibleByStringInterpolation, Codable, Hashable {
     public static func relativeToRoot(_ pathString: String) -> Path {
         Path(pathString, type: .relativeToRoot)
     }
-
-    // MARK: - ExpressibleByStringInterpolation
-
-    /// Initializer uses `.relativeToRoot` if path starts with `//` otherwise it is `.relativeToManifest` by default
-    public init(stringLiteral: String) {
-        if stringLiteral.starts(with: "//") {
-            self.init(stringLiteral.replacingOccurrences(of: "//", with: ""), type: .relativeToRoot)
-        } else {
-            self.init(stringLiteral, type: .relativeToManifest)
-        }
-    }
 }

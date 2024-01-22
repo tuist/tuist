@@ -53,32 +53,6 @@ public struct Template: Codable, Equatable {
     }
 }
 
-extension Template.Item {
-    /// - Parameters:
-    ///     - path: Path where to generate file
-    ///     - contents: String Contents
-    /// - Returns: `Template.Item` that is `.string`
-    public static func string(path: String, contents: String) -> Template.Item {
-        Template.Item(path: path, contents: .string(contents))
-    }
-
-    /// - Parameters:
-    ///     - path: Path where to generate file
-    ///     - templatePath: Path of file where the template is defined
-    /// - Returns: `Template.Item` that is `.file`
-    public static func file(path: String, templatePath: Path) -> Template.Item {
-        Template.Item(path: path, contents: .file(templatePath))
-    }
-
-    /// - Parameters:
-    ///     - path: Path where will be copied the folder
-    ///     - sourcePath: Path of folder which will be copied
-    /// - Returns: `Template.Item` that is `.directory`
-    public static func directory(path: String, sourcePath: Path) -> Template.Item {
-        Template.Item(path: path, contents: .directory(sourcePath))
-    }
-}
-
 extension String.StringInterpolation {
     public mutating func appendInterpolation(_ value: Template.Attribute) {
         switch value {

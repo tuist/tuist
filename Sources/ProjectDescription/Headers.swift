@@ -28,16 +28,16 @@ public struct Headers: Codable, Equatable {
     }
 
     /// Path to an umbrella header, which will be used to get list of public headers.
-    public var umbrellaHeader: Path?
+    public var umbrellaHeader: Path? = nil
 
     /// Relative glob pattern that points to the public headers.
-    public var `public`: FileList?
+    public var `public`: FileList? = nil
 
     /// Relative glob pattern that points to the private headers.
-    public var `private`: FileList?
+    public var `private`: FileList? = nil
 
     /// Relative glob pattern that points to the project headers.
-    public var project: FileList?
+    public var project: FileList? = nil
 
     /// Rule, which determines how to resolve found duplicates in public/private/project scopes
     public var exclusionRule: AutomaticExclusionRule

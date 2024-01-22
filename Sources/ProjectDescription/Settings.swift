@@ -117,7 +117,7 @@ extension DefaultSettings {
 public struct Settings: Equatable, Codable {
     /// A dictionary with build settings that are inherited from all the configurations.
     public var base: SettingsDictionary
-    public var configurations: [Configuration]
+    public var configurations: [Configuration] = 
     public var defaultSettings: DefaultSettings
 
     /// Creates settings with default.configurations `Debug` and `Release`
@@ -134,20 +134,18 @@ public struct Settings: Equatable, Codable {
     ///
     /// - seealso: Configuration
     /// - seealso: DefaultSettings
-    public static func settings(
+    public init(
         base: SettingsDictionary = [:],
         debug: SettingsDictionary = [:],
         release: SettingsDictionary = [:],
         defaultSettings: DefaultSettings = .recommended
     ) -> Settings {
-        Settings(
-            base: base,
-            configurations: [
-                .debug(name: .debug, settings: debug, xcconfig: nil),
-                .release(name: .release, settings: release, xcconfig: nil),
-            ],
-            defaultSettings: defaultSettings
-        )
+        self.base = base
+        self.configurations = [
+            .debug(name: .debug, settings: debug, xcconfig: nil),
+            .release(name: .release, settings: release, xcconfig: nil),
+        ]
+        self.defaultSettings = defaultSettings
     }
 
     /// Creates settings with any number of configurations.
@@ -163,15 +161,13 @@ public struct Settings: Equatable, Codable {
     ///
     /// - seealso: Configuration
     /// - seealso: DefaultSettings
-    public static func settings(
+    public init(
         base: SettingsDictionary = [:],
         configurations: [Configuration],
         defaultSettings: DefaultSettings = .recommended
     ) -> Settings {
-        Settings(
-            base: base,
-            configurations: configurations,
-            defaultSettings: defaultSettings
-        )
+        self.base = base
+        self.configurations = configurations,
+        self.defaultSettings = defaultSettings
     }
 }

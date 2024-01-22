@@ -1,8 +1,6 @@
 import Foundation
 
 /// An action that archives the built products.
-///
-/// It's initialized with the `.archiveAction` static method.
 public struct ArchiveAction: Equatable, Codable {
     /// Indicates the build configuration to run the archive with.
     public var configuration: ConfigurationName
@@ -15,7 +13,7 @@ public struct ArchiveAction: Equatable, Codable {
     /// A list of actions that are executed after the archive process.
     public var postActions: [ExecutionAction]
 
-    init(
+    public init(
         configuration: ConfigurationName,
         revealArchiveInOrganizer: Bool = true,
         customArchiveName: String? = nil,
@@ -27,28 +25,5 @@ public struct ArchiveAction: Equatable, Codable {
         self.customArchiveName = customArchiveName
         self.preActions = preActions
         self.postActions = postActions
-    }
-
-    /// Initialize a `ArchiveAction`
-    /// - Parameters:
-    ///   - configuration: Indicates the build configuration to run the archive with.
-    ///   - revealArchiveInOrganizer: If set to true, Xcode will reveal the Organizer on completion.
-    ///   - customArchiveName: Set if you want to override Xcode's default archive name.
-    ///   - preActions: A list of actions that are executed before starting the archive process.
-    ///   - postActions: A list of actions that are executed after the archive process.
-    public static func archiveAction(
-        configuration: ConfigurationName,
-        revealArchiveInOrganizer: Bool = true,
-        customArchiveName: String? = nil,
-        preActions: [ExecutionAction] = [],
-        postActions: [ExecutionAction] = []
-    ) -> ArchiveAction {
-        ArchiveAction(
-            configuration: configuration,
-            revealArchiveInOrganizer: revealArchiveInOrganizer,
-            customArchiveName: customArchiveName,
-            preActions: preActions,
-            postActions: postActions
-        )
     }
 }

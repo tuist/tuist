@@ -8,17 +8,10 @@ public struct TargetReference: Hashable, Codable, ExpressibleByStringInterpolati
     public var projectPath: Path?
     /// Name of the target.
     public var targetName: String
+}
 
-    public init(projectPath: Path?, target: String) {
-        self.projectPath = projectPath
-        targetName = target
-    }
-
+extension TargetReference: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self = .init(projectPath: nil, target: value)
-    }
-
-    public static func project(path: Path, target: String) -> TargetReference {
-        .init(projectPath: path, target: target)
     }
 }
