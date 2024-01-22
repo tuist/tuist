@@ -37,7 +37,7 @@ public struct PackageSettings: Codable, Equatable {
     public var targetSettings: [String: SettingsDictionary]
 
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
-    public var projectOptions: [String: ProjectDescription.Project.Options]
+    public var projectOptions: [String: Project.Options]
 
     /// The custom set of `platforms` that are used by your project
     public let platforms: Set<PackagePlatform>
@@ -52,7 +52,7 @@ public struct PackageSettings: Codable, Equatable {
         productTypes: [String: Product] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary] = [:],
-        projectOptions: [String: ProjectDescription.Project.Options] = [:],
+        projectOptions: [String: Project.Options] = [:],
         platforms: Set<PackagePlatform> = Set(PackagePlatform.allCases)
     ) {
         self.productTypes = productTypes

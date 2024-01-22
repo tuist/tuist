@@ -1,4 +1,4 @@
-# ``ProjectDescription/Settings``
+# Settings
 
 ## Topics
 

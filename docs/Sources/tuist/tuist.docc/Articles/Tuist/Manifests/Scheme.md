@@ -1,4 +1,4 @@
-# ``ProjectDescription/Scheme``
+# Scheme
 
 ## Topics
 

@@ -1,4 +1,4 @@
-# ``ProjectDescription/Template``
+# Template
 
 ## Topics
 

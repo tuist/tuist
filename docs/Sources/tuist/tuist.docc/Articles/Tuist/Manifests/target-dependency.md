@@ -1,4 +1,4 @@
-# ``ProjectDescription/TargetDependency``
+# TargetDependency
 
 ## Topics
 
