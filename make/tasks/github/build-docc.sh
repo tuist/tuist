@@ -3,26 +3,26 @@
 set -euo pipefail
 
 echo "⏳ Generating documentation for the latest release.";
-cd tuist
-mkdir .build
 mise run docs:build
-cd ..
-cp tuist/assets/favicon.ico .build/documentation/favicon.ico
-cp tuist/assets/favicon.svg .build/documentation/favicon.svg
 
 for tag in $(git tag | tail -n +20);
 do
 echo "⏳ Generating documentation for "$tag" release.";
 
-if [ -d "docs-out/$tag" ] 
-then 
+if [ -d ".build/documentation/$tag" ] 
+then
     echo "✅ Documentation for "$tag" already exists.";
-else 
+else
+    cd tuist-archive
     git checkout -f "$tag";
+    cd ..
+
+    rm docs/Sources/tuist/ProjectDescription
+    ln -s ../tuist-archive/Sources/tuist/ProjectDescription docs/Sources/tuist/ProjectDescription
     
     swift package \
     --disable-sandbox \
-    --package-path tuist/docs \
+    --package-path docs \
     --allow-writing-to-directory .build/documentation/"$tag" \
     generate-documentation \
     --target tuist \
