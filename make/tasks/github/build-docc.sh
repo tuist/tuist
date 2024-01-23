@@ -29,5 +29,7 @@ else
     --hosting-base-path /tuist/"$tag" \
         && echo "✅ Documentation generated for "$tag" release." \
         || echo "⚠️ Documentation skipped for "$tag".";
+    cp assets/favicon.ico .build/documentation/"$tag"/favicon.ico
+    cp assets/favicon.svg .build/documentation/"$tag"/favicon.svg
 fi;
 done
