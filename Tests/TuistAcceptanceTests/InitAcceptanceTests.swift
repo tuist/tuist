@@ -51,7 +51,7 @@ final class InitAcceptanceTestSwiftUImacOSApp: TuistAcceptanceTestCase {
 
 final class InitAcceptanceTestCLIProjectWithTemplateInADifferentRepository: TuistAcceptanceTestCase {
     func test_cli_project_with_template_in_a_different_repository() async throws {
-        try run(InitCommand.self, "--template", "https://github.com/tuist/ExampleTuistTemplate.git", "--name", "MyApp")
+        try run(InitCommand.self, "--template", "https://github.com/tuist/ExampleTuistTemplate-Tuist4.git", "--name", "MyApp")
         try await run(BuildCommand.self)
     }
 }
