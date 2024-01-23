@@ -6,10 +6,10 @@ let project = Project(
     targets: [
         Target(
             name: "App",
-            destinations: .iOS,
+            destinations: [.iPhone],
             product: .app,
             bundleId: "io.tuist.app",
-            deploymentTarget: .iOS(targetVersion: "13.0", devices: .iphone),
+            deploymentTargets: .iOS("13.0"),
             infoPlist: .default,
             sources: ["Targets/App/Sources/**"]
         ),
@@ -48,7 +48,7 @@ let project = Project(
             destinations: [.mac],
             product: .framework,
             bundleId: "io.tuist.MacFramework",
-            deploymentTarget: .macOS(targetVersion: "10.15"),
+            deploymentTargets: .macOS("10.15"),
             infoPlist: .default,
             sources: "Targets/MacFramework/Sources/**",
             settings: .settings(
@@ -63,7 +63,7 @@ let project = Project(
             destinations: [.mac],
             product: .unitTests,
             bundleId: "io.tuist.MacFrameworkTests",
-            deploymentTarget: .macOS(targetVersion: "10.15"),
+            deploymentTargets: .macOS("10.15"),
             infoPlist: .default,
             sources: "Targets/MacFramework/Tests/**",
             dependencies: [

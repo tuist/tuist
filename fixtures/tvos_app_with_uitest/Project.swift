@@ -8,7 +8,7 @@ let project = Project(
             destinations: [.appleTv],
             product: .app,
             bundleId: "io.tuist.App",
-            deploymentTarget: .tvOS(targetVersion: "14.0"),
+            deploymentTargets: .tvOS("14.0"),
             infoPlist: .default,
             sources: .paths([.relativeToManifest("App/Sources/**")])
         ),
