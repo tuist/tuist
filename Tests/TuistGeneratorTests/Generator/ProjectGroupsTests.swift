@@ -74,10 +74,10 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertNil(main.group(named: "Target")?.path)
         XCTAssertEqual(main.group(named: "Target")?.sourceTree, .group)
 
-        XCTAssertTrue(main.children.contains(subject.compiled))
-        XCTAssertEqual(subject.compiled.name, "Compiled")
-        XCTAssertNil(subject.compiled.path)
-        XCTAssertEqual(subject.compiled.sourceTree, .group)
+        XCTAssertTrue(main.children.contains(subject.frameworks))
+        XCTAssertEqual(subject.frameworks.name, "Frameworks")
+        XCTAssertNil(subject.frameworks.path)
+        XCTAssertEqual(subject.frameworks.sourceTree, .group)
 
         XCTAssertTrue(main.children.contains(subject.products))
         XCTAssertEqual(subject.products.name, "Products")
@@ -111,7 +111,7 @@ final class ProjectGroupsTests: XCTestCase {
             "B",
             "C",
             "A",
-            "Compiled",
+            "Frameworks",
             "Products",
         ])
     }
@@ -125,7 +125,7 @@ final class ProjectGroupsTests: XCTestCase {
         let got = try subject.targetFrameworks(target: "Test")
         XCTAssertEqual(got.name, "Test")
         XCTAssertEqual(got.sourceTree, .group)
-        XCTAssertTrue(subject.compiled.children.contains(got))
+        XCTAssertTrue(subject.frameworks.children.contains(got))
     }
 
     func test_projectGroup_unknownProjectGroups() throws {
