@@ -18,8 +18,7 @@ set -e
 
 # TuistWorkspace dir
 pushd ../..
-#tuist fetch
-#tuist generate GamingXamarin --no-open
+tuist fetch && tuist generate --no-open
 popd
 
 # Archive for iOS Devices
