@@ -36,8 +36,7 @@ jobs:
         with:
           experimental: true
       - name: Build documentation
-        run: |
-          bash ./tuist/make/tasks/build-docc.sh
+        run: bash ./make/tasks/github/build-docc.sh
       - name: Fix permissions
         run: 'sudo chown -R $USER .build/documentation'
       - name: Publish to Cloudflare Pages
