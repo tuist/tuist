@@ -64,7 +64,7 @@ Tuist includes [templates](https://github.com/tuist/tuist/tree/main/Sources/Tuis
 | Fonts | `Fonts+{Target}.swift` |
 | Files | `Files+{Target}.swift` |
 
-> Note: You can disable the synthesizing of resource accessors in a per-project basis by passing the `disableSynthesizedResourceAccessors` option to the project options.
+> Note: You can disable the synthesizing of resource accessors on a per-project basis by passing the `disableSynthesizedResourceAccessors` option to the project options.
 
 #### Custom templates
 
