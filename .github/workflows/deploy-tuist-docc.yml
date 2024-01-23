@@ -25,9 +25,11 @@ jobs:
           step: start
       - name: Checkout Package
         uses: actions/checkout@v3
+      - name: Checkout all tuist versions
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          path: tuist
+          path: tuist-archive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: jdx/mise-action@v2
