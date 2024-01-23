@@ -5,7 +5,7 @@ set -euo pipefail
 echo "⏳ Generating documentation for the latest release.";
 mise run docs:build
 
-for tag in $(git tag -C tuist-archive -l --sort=v:refname | tail -n 30);
+for tag in $(git -C tuist-archive tag -l --sort=v:refname | tail -n 30);
 do
 echo "⏳ Generating documentation for "$tag" release.";
 
@@ -13,7 +13,7 @@ if [ -d ".build/documentation/$tag" ]
 then
     echo "✅ Documentation for "$tag" already exists.";
 else
-    git checkout -C tuist-archive -f "$tag";
+    git -C tuist-archive checkout -f "$tag";
 
     rm docs/Sources/tuist/ProjectDescription
     ln -s ../tuist-archive/Sources/tuist/ProjectDescription docs/Sources/tuist/ProjectDescription
