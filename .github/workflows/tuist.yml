@@ -78,7 +78,7 @@ jobs:
       - name: Print hashes
         run: tuist cache print-hashes --xcframeworks
       - name: Cache warm
-        run: tuist cache warm --xcframeworks --raw-xcodebuild-logs-path /tmp/tuist/cache-warm-x86_64.xcodebuild.log
+        run: tuist cache warm --xcframeworks
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
