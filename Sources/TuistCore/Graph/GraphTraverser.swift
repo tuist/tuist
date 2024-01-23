@@ -508,8 +508,8 @@ public class GraphTraverser: GraphTraversing {
                         return directSwiftMacroExecutables(path: projectPath, name: targetName)
                             .compactMap { executableDependency in
                                 switch executableDependency {
-                                case let .product(_, productName, _, _):
-                                    return productName
+                                case let .product(_, macroExecutableProductName, _, _):
+                                    return "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME/Frameworks/\(productName)/\(macroExecutableProductName)"
                                 default:
                                     return nil
                                 }

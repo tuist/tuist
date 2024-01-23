@@ -124,13 +124,21 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
          The executable is compiled transitively through the static library, and we place it inside the framework to make it available to the target depending on the framework
          to point it with the `-load-plugin-executable $BUILT_PRODUCTS_DIR/ExecutableName\#ExecutableName` build setting.
          */
-        let directSwiftMacroExecutables = graphTraverser.directSwiftMacroExecutables(path: path, name: target.name).sorted()
         try generateCopySwiftMacroExecutableScriptBuildPhase(
-            directSwiftMacroExecutables: directSwiftMacroExecutables,
-            target: target,
+            directSwiftMacroExecutables: graphTraverser.directSwiftMacroExecutables(path: path, name: target.name).sorted(),
             pbxTarget: pbxTarget,
-            pbxproj: pbxproj,
-            fileElements: fileElements
+            pbxproj: pbxproj
+        )
+
+        /**
+         We use frameworks and XCFrameworks as containers for Macro executables under the /Macros directory inside the framework or XCFramework. While this makes the
+         macro portable, it might lead to signing and distribution issues because the executable might end up in app bundles if they are dynamic. The goal of this script build phase
+         is to strip the macro executables from the dynamic frameworks that have been embedded.
+         */
+        try generateStripDynamicFrameworkMacrosBuildPhase(
+            macroPaths: graphTraverser.removableEmbeddedMacroPaths(path: path, name: target.name).sorted(),
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj
         )
 
         try generatePackages(
@@ -138,6 +146,22 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             pbxTarget: pbxTarget,
             pbxproj: pbxproj
         )
+    }
+
+    func generateStripDynamicFrameworkMacrosBuildPhase(
+        macroPaths: [String],
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj
+    ) throws {
+        if macroPaths.isEmpty { return }
+
+        let phase = PBXShellScriptBuildPhase(name: "Strip Swift Macro executables from dynamic frameworks")
+
+        phase.shellScript = macroPaths.map { "rm -rf \"\($0)\"" }.joined(separator: "\n")
+        phase.inputPaths = macroPaths
+
+        pbxproj.add(object: phase)
+        pbxTarget.buildPhases.append(phase)
     }
 
     private func setupSearchAndIncludePaths(
@@ -515,10 +539,8 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
     func generateCopySwiftMacroExecutableScriptBuildPhase(
         directSwiftMacroExecutables: [GraphDependencyReference],
-        target _: Target,
         pbxTarget: PBXTarget,
-        pbxproj: PBXProj,
-        fileElements _: ProjectFileElements
+        pbxproj: PBXProj
     ) throws {
         if directSwiftMacroExecutables.isEmpty { return }
 
