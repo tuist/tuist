@@ -33,7 +33,6 @@ let project = Project(
 
 ### Others
 
-- ``Options-swift.struct``
 - ``TestingOptions``
 - ``FileHeaderTemplate``
 - ``ResourceSynthesizer``
