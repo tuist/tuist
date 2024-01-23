@@ -29,7 +29,7 @@ In the following sections you'll learn how to declare dependencies in your proje
 
 > Note: Tuist validates the graph when generating the project to ensure that there are no cycles and that all the dependencies are valid. Thanks to this, any team can take part in evolving the dependency graph without worrying about breaking it.
 
-## Inernal dependencies
+## Internal dependencies
 
 Targets can depend on other targets in the same and different projects, and on binaries.
 When instantiating a `Target`, you can pass the `dependencies` argument with any of the following options:

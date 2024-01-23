@@ -1,7 +1,0 @@
-# Template
-
-## Topics
-
-### Configuration
-
-- ``TemplateString``
