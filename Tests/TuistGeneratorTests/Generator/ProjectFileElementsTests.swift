@@ -792,7 +792,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(groups.compiled.flattenedChildren, [
+        XCTAssertEqual(groups.frameworks.flattenedChildren, [
             "ARKit.framework",
         ])
 
@@ -841,7 +841,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(groups.compiled.flattenedChildren, [
+        XCTAssertEqual(groups.frameworks.flattenedChildren, [
             "Test.framework",
         ])
 
