@@ -501,7 +501,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 let buildFile = PBXBuildFile(file: fileElements.file(path: path))
                 buildFile.applyCondition(condition, applicableTo: target)
                 return buildFile
-            case let .product(target: targetName, _, condition: condition):
+            case let .product(target: targetName, _, _, condition: condition):
                 let buildFile = PBXBuildFile(file: fileElements.product(target: targetName))
                 buildFile.applyCondition(condition, applicableTo: target)
                 return buildFile

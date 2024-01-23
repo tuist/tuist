@@ -737,4 +737,18 @@ final class MockGraphTraverser: GraphTraversing {
         invokedAllSwiftPluginExecutablesParametersList.append((path, name))
         return stubbedAllSwiftPluginExecutablesResult
     }
+
+    var invokedRemovableEmbeddedMacroPaths = false
+    var invokedRemovableEmbeddedMacroPathsCount = 0
+    var invokedRemovableEmbeddedMacroPathsParameters: (path: AbsolutePath, name: String)?
+    var invokedRemovableEmbeddedMacroPathsParametersList =
+        [(path: AbsolutePath, name: String)]()
+    var stubbedRemovableEmbeddedMacroPathsResult: Set<String>! = []
+    func removableEmbeddedMacroPaths(path: TSCBasic.AbsolutePath, name: String) -> Set<String> {
+        invokedRemovableEmbeddedMacroPaths = true
+        invokedRemovableEmbeddedMacroPathsCount += 1
+        invokedRemovableEmbeddedMacroPathsParameters = (path, name)
+        invokedRemovableEmbeddedMacroPathsParametersList.append((path, name))
+        return stubbedRemovableEmbeddedMacroPathsResult
+    }
 }

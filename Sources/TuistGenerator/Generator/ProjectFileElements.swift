@@ -75,7 +75,12 @@ class ProjectFileElements {
 
         // Products
         let directProducts = project.targets.map {
-            GraphDependencyReference.product(target: $0.name, productName: $0.productNameWithExtension, condition: nil)
+            GraphDependencyReference.product(
+                target: $0.name,
+                productName: $0.productNameWithExtension,
+                projectPath: project.path,
+                condition: nil
+            )
         }
 
         // Dependencies
@@ -209,7 +214,7 @@ class ProjectFileElements {
     ) throws {
         for dependency in dependencyReferences.sorted() {
             switch dependency {
-            case let .xcframework(path, _, _, _, _, _):
+            case let .xcframework(path, _, _, _, _, _, _):
                 try generatePrecompiledDependency(
                     path,
                     groups: groups,
@@ -247,7 +252,7 @@ class ProjectFileElements {
                     toGroup: groups.frameworks,
                     pbxproj: pbxproj
                 )
-            case let .product(target: target, productName: productName, _):
+            case let .product(target: target, productName: productName, projectPath: _, _):
                 try generateProduct(
                     targetName: target,
                     productName: productName,

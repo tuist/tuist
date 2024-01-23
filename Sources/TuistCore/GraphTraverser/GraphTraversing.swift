@@ -297,6 +297,19 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
     func allSwiftPluginExecutables(path: AbsolutePath, name: String) -> Set<String>
+
+    /// Since we use frameworks and XCFrameworks as bundles to include macros under the Macros/ directory
+    /// inside them, we have to make sure the directory is stripped out when frameworks and XCFrameworks are dynamic.
+    /// This is something that Xcode doesn't do out of the box because the Macros/ convention is Tuist-proprietary.
+    /// Therefore, a script build phase is necessary.
+    ///
+    /// This function returns the paths that should be removed for a particular target.
+    ///
+    /// - Parameters:
+    ///   - path: Path to the project containing the target
+    ///   - name: Name of the target.
+    /// - Returns: The list of paths to be removed.
+    func removableEmbeddedMacroPaths(path: AbsolutePath, name: String) -> Set<String>
 }
 
 extension GraphTraversing {

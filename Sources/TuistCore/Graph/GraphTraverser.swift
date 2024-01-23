@@ -490,10 +490,35 @@ public class GraphTraverser: GraphTraversing {
             .map { GraphDependencyReference.product(
                 target: $0.target.name,
                 productName: $0.target.productName,
+                projectPath: $0.project.path,
                 condition: .when([.macos])
             ) }
 
         return Set(dependencies)
+    }
+
+    public func removableEmbeddedMacroPaths(path: AbsolutePath, name: String) -> Set<String> {
+        Set(
+            embeddableFrameworks(path: path, name: name)
+                .flatMap { dependency -> [String] in
+                    switch dependency {
+                    case let .xcframework(_, _, primaryBinaryPath, _, _, _, macroPath):
+                        return macroPath != nil ? [primaryBinaryPath.parentDirectory.basename] : []
+                    case let .product(targetName, productName, projectPath, _):
+                        return directSwiftMacroExecutables(path: projectPath, name: targetName)
+                            .compactMap { executableDependency in
+                                switch executableDependency {
+                                case let .product(_, productName, _, _):
+                                    return productName
+                                default:
+                                    return nil
+                                }
+                            }
+                    default:
+                        return []
+                    }
+                }
+        )
     }
 
     public func directSwiftMacroFrameworkTargets(path: AbsolutePath, name: String) -> Set<GraphTarget> {
@@ -505,7 +530,7 @@ public class GraphTraverser: GraphTraversing {
 
     public func allSwiftMacroFrameworkTargets(path: AbsolutePath, name: String) -> Set<GraphTarget> {
         let dependencies = allTargetDependencies(path: path, name: name)
-            .filter { $0.target.product == .staticFramework }
+            .filter { $0.target.product == .staticFramework || $0.target.product == .framework }
             .filter { self.directSwiftMacroExecutables(path: $0.path, name: $0.target.name).count != 0 }
         return Set(dependencies)
     }
@@ -709,7 +734,7 @@ public class GraphTraverser: GraphTraversing {
             }
             .compactMap { target, dependencyReference in
                 switch dependencyReference {
-                case let .product(_, productName, _):
+                case let .product(_, productName, _, _):
                     return "$BUILT_PRODUCTS_DIR/\(target.target.productNameWithExtension)/Macros/\(productName)#\(productName)"
                 default:
                     return nil
@@ -1071,6 +1096,7 @@ public class GraphTraverser: GraphTraversing {
             return .product(
                 target: target.target.name,
                 productName: target.target.productNameWithExtension,
+                projectPath: path,
                 condition: condition
             )
         case let .xcframework(xcframework):
@@ -1080,6 +1106,7 @@ public class GraphTraverser: GraphTraversing {
                 primaryBinaryPath: xcframework.primaryBinaryPath,
                 binaryPath: xcframework.primaryBinaryPath,
                 status: xcframework.status,
+                macroPath: xcframework.macroPath,
                 condition: condition
             )
         }

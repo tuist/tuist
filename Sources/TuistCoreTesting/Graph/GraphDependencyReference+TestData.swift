@@ -39,6 +39,7 @@ extension GraphDependencyReference {
         binaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist",
         linking _: BinaryLinking = .dynamic,
         status: FrameworkStatus = .required,
+        macroPath: AbsolutePath? = nil,
         condition: PlatformCondition? = nil
     ) -> GraphDependencyReference {
         GraphDependencyReference.xcframework(
@@ -47,6 +48,7 @@ extension GraphDependencyReference {
             primaryBinaryPath: primaryBinaryPath,
             binaryPath: binaryPath,
             status: status,
+            macroPath: macroPath,
             condition: condition
         )
     }
@@ -84,11 +86,13 @@ extension GraphDependencyReference {
     public static func testProduct(
         target: String = "Target",
         productName: String = "Target.framework",
+        projectPath: AbsolutePath = "/project",
         condition: PlatformCondition? = nil
     ) -> GraphDependencyReference {
         GraphDependencyReference.product(
             target: target,
             productName: productName,
+            projectPath: projectPath,
             condition: condition
         )
     }

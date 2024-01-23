@@ -63,7 +63,8 @@ final class LinkGeneratorTests: XCTestCase {
         dependencies.insert(GraphDependencyReference.testFramework())
         dependencies.insert(GraphDependencyReference.product(
             target: "Test",
-            productName: "Test.framework"
+            productName: "Test.framework",
+            projectPath: .root
         ))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
@@ -117,7 +118,8 @@ final class LinkGeneratorTests: XCTestCase {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.product(
             target: "Test",
-            productName: "Test.framework"
+            productName: "Test.framework",
+            projectPath: .root
         ))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
@@ -166,7 +168,8 @@ final class LinkGeneratorTests: XCTestCase {
             dependencies.insert(GraphDependencyReference.testFramework())
             dependencies.insert(GraphDependencyReference.product(
                 target: "Test",
-                productName: "Test.framework"
+                productName: "Test.framework",
+                projectPath: .root
             ))
             let pbxproj = PBXProj()
             let (pbxTarget, target) = createTargets(product: product)
@@ -210,7 +213,8 @@ final class LinkGeneratorTests: XCTestCase {
             dependencies.insert(GraphDependencyReference.testFramework())
             dependencies.insert(GraphDependencyReference.product(
                 target: "Test",
-                productName: "Test.framework"
+                productName: "Test.framework",
+                projectPath: .root
             ))
             let pbxproj = PBXProj()
             let (pbxTarget, target) = createTargets(product: product)
@@ -250,7 +254,8 @@ final class LinkGeneratorTests: XCTestCase {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.product(
             target: "Test",
-            productName: "Test.framework"
+            productName: "Test.framework",
+            projectPath: .root
         ))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
@@ -614,7 +619,8 @@ final class LinkGeneratorTests: XCTestCase {
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework"))
         dependencies.insert(GraphDependencyReference.product(
             target: "Test",
-            productName: "Test.framework"
+            productName: "Test.framework",
+            projectPath: .root
         ))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
@@ -652,7 +658,8 @@ final class LinkGeneratorTests: XCTestCase {
         dependencies.insert(GraphDependencyReference.testFramework(path: "/test.framework", status: .optional))
         dependencies.insert(GraphDependencyReference.product(
             target: "Test",
-            productName: "Test.framework"
+            productName: "Test.framework",
+            projectPath: .root
         ))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
@@ -712,7 +719,8 @@ final class LinkGeneratorTests: XCTestCase {
         var dependencies: Set<GraphDependencyReference> = []
         dependencies.insert(GraphDependencyReference.product(
             target: "Test",
-            productName: "Test.framework"
+            productName: "Test.framework",
+            projectPath: .root
         ))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)

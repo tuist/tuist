@@ -233,7 +233,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             switch dependency {
             case .framework:
                 frameworkReferences.append(dependency)
-            case let .xcframework(path, _, _, _, _, condition):
+            case let .xcframework(path, _, _, _, _, _, condition):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }
@@ -244,7 +244,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
-            case let .product(dependencyTarget, _, condition):
+            case let .product(dependencyTarget, _, _, condition):
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
                     throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
@@ -434,11 +434,11 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 try addBuildFile(path, condition: condition, status: status)
             case let .library(path, _, _, _, condition):
                 try addBuildFile(path, condition: condition)
-            case let .xcframework(path, _, _, _, status, condition):
+            case let .xcframework(path, _, _, _, status, _, condition):
                 try addBuildFile(path, condition: condition, status: status)
             case .bundle:
                 break
-            case let .product(dependencyTarget, _, condition):
+            case let .product(dependencyTarget, _, _, condition):
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
                     throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
@@ -526,7 +526,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         let filesToCopy = directSwiftMacroExecutables.compactMap {
             switch $0 {
-            case let .product(_, productName, _):
+            case let .product(_, productName, _, _):
                 return productName
             default:
                 return nil
@@ -552,7 +552,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         for dependency in dependencies.sorted() {
             switch dependency {
-            case let .product(target: dependencyTarget, _, condition: condition):
+            case let .product(target: dependencyTarget, _, _, condition: condition):
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
                     throw LinkGeneratorError.missingProduct(name: dependencyTarget)
                 }
@@ -604,7 +604,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         for dependency in dependencies.sorted() {
             switch dependency {
-            case let .xcframework(path: path, _, _, _, _, condition):
+            case let .xcframework(path: path, _, _, _, _, _, condition):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }
