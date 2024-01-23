@@ -80,6 +80,12 @@ The choice is yours. By adding .xcodeproj and .xcworkspace files to your .gitign
 - <doc:migration-guidelines>
 - <doc:tuist-tutorials>
 
+### Manifests
+
+- <doc:project>
+- <doc:config>
+- <doc:workspace>
+
 ### For Tuist Cloud Users
 
 - <doc:tuist-cloud>
