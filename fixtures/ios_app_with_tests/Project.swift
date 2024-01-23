@@ -25,7 +25,7 @@ let project = Project(
             destinations: [.iPhone],
             product: .unitTests,
             bundleId: "io.tuist.AppCoreTests",
-            deploymentTarget: .iOS("12.0"),
+            deploymentTargets: .iOS("12.0"),
             infoPlist: "Tests.plist",
             sources: "AppCore/Tests/**",
             dependencies: [
