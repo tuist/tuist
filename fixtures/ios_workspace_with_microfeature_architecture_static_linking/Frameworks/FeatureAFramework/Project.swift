@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: "FrameworkA",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.FrameworkA",
             infoPlist: "Info.plist",
@@ -25,7 +25,7 @@ let project = Project(
         ),
         Target(
             name: "FrameworkATests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.FrameworkATests",
             infoPlist: "Tests.plist",

@@ -6,7 +6,7 @@ let project = Project(
     targets: [
         Target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.app",
             deploymentTarget: .iOS(targetVersion: "13.0", devices: .iphone),
@@ -15,7 +15,7 @@ let project = Project(
         ),
         Target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: .default,

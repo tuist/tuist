@@ -8,7 +8,7 @@ let project = Project(
     targets: [
         Target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Support/App-Info.plist",
@@ -26,7 +26,7 @@ let project = Project(
         ),
         Target(
             name: "WatchApp",
-            platform: .watchOS,
+            destinations: [.appleWatch],
             product: .watch2App,
             bundleId: "io.tuist.App.watchkitapp",
             infoPlist: .default,
@@ -37,7 +37,7 @@ let project = Project(
         ),
         Target(
             name: "WatchAppExtension",
-            platform: .watchOS,
+            destinations: [.appleWatch],
             product: .watch2Extension,
             bundleId: "io.tuist.App.watchkitapp.watchkitextension",
             infoPlist: .extendingDefault(with: [
@@ -51,7 +51,7 @@ let project = Project(
         ),
         Target(
             name: "WatchAppUITests",
-            platform: .watchOS,
+            destinations: [.appleWatch],
             product: .uiTests,
             bundleId: "io.tuist.App.watchkitapp.uitests",
             dependencies: [.target(name: "WatchApp")]

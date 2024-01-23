@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: "MainApp",
-            platform: .macOS,
+            destinations: [.mac],
             product: .app,
             bundleId: "io.tuist.MainApp",
             infoPlist: "MainApp/Info.plist",
@@ -16,7 +16,7 @@ let project = Project(
         ),
         Target(
             name: "XPCApp",
-            platform: .macOS,
+            destinations: [.mac],
             product: .xpc,
             bundleId: "io.tuist.XPCApp",
             sources: ["XPCApp/Sources/**"],
@@ -27,14 +27,14 @@ let project = Project(
         ),
         Target(
             name: "DynamicFramework",
-            platform: .macOS,
+            destinations: [.mac],
             product: .framework,
             bundleId: "io.tuist.DynamicFramework",
             sources: ["DynamicFramework/Sources/**"]
         ),
         Target(
             name: "StaticFramework",
-            platform: .macOS,
+            destinations: [.mac],
             product: .staticFramework,
             bundleId: "io.tuist.StaticFramework",
             sources: ["StaticFramework/Sources/**"]

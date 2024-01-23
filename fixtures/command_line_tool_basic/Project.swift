@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: "CommandLineTool",
-            platform: .macOS,
+            destinations: [.mac],
             product: .commandLineTool,
             bundleId: "com.example.commandlinetool",
             infoPlist: .default,

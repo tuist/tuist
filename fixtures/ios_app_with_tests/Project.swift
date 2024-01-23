@@ -13,7 +13,7 @@ let project = Project(
     targets: [
         Target(
             name: "AppCore",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.AppCore",
             deploymentTarget: .iOS(targetVersion: "12.0", devices: .iphone),
@@ -22,7 +22,7 @@ let project = Project(
         ),
         Target(
             name: "AppCoreTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppCoreTests",
             deploymentTarget: .iOS(targetVersion: "12.0", devices: .iphone),
@@ -34,7 +34,7 @@ let project = Project(
         ),
         Target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
@@ -49,7 +49,7 @@ let project = Project(
         ),
         Target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: "Tests.plist",
@@ -64,7 +64,7 @@ let project = Project(
         ),
         Target(
             name: "MacFramework",
-            platform: .macOS,
+            destinations: [.mac],
             product: .framework,
             bundleId: "io.tuist.MacFramework",
             deploymentTarget: .macOS(targetVersion: "10.15"),
@@ -77,7 +77,7 @@ let project = Project(
         ),
         Target(
             name: "MacFrameworkTests",
-            platform: .macOS,
+            destinations: [.mac],
             product: .unitTests,
             bundleId: "io.tuist.MacFrameworkTests",
             deploymentTarget: .macOS(targetVersion: "10.15"),
@@ -93,7 +93,7 @@ let project = Project(
         ),
         Target(
             name: "AppUITests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .uiTests,
             bundleId: "io.tuist.AppUITests",
             infoPlist: "Tests.plist",
@@ -104,7 +104,7 @@ let project = Project(
         ),
         Target(
             name: "App-dash",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.AppDash",
             infoPlist: "Info.plist",
@@ -120,7 +120,7 @@ let project = Project(
         ),
         Target(
             name: "App-dashUITests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .uiTests,
             bundleId: "io.tuist.AppDashUITests",
             infoPlist: "Tests.plist",

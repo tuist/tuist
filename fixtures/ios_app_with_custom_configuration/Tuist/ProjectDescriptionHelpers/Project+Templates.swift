@@ -64,7 +64,7 @@ extension Target {
     ) -> Target {
         Target(
             name: name,
-            platform: .iOS,
+            destinations: .iOS,
             product: product,
             bundleId: "tuist.io.\(name)",
             deploymentTarget: .deploymentTarget,
@@ -80,7 +80,7 @@ extension Target {
     ) -> Target {
         Target(
             name: "\(name)Tests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "tuist.io..\(name)Tests",
             infoPlist: .default,

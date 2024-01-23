@@ -7,7 +7,7 @@ let project = Project(
     targets: [
         Target(
             name: "FeatureOneFramework_iOS",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.featureOne",
             sources: ["Sources/**"],
@@ -18,7 +18,7 @@ let project = Project(
         ),
         Target(
             name: "FeatureOneFramework_watchOS",
-            platform: .watchOS,
+            destinations: [.appleWatch],
             product: .framework,
             bundleId: "io.tuist.featureOne",
             sources: ["Sources/**"],
