@@ -109,3 +109,4 @@ Tuist/Dependencies/graph.json
 # Tuist Cloud
 TuistCloud
 !make/tasks/cloud
+**/Build/**
