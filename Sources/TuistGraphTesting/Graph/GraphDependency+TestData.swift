@@ -28,6 +28,12 @@ extension GraphDependency {
         )
     }
 
+    public static func testMacro(
+        path: AbsolutePath = AbsolutePath.root.appending(try! RelativePath(validating: "macro"))
+    ) -> GraphDependency {
+        .macro(path: path)
+    }
+
     public static func testXCFramework(
         path: AbsolutePath = AbsolutePath.root.appending(try! RelativePath(validating: "Test.xcframework")),
         infoPlist: XCFrameworkInfoPlist = .test(),

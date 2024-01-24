@@ -255,7 +255,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
-            case .library, .bundle, .sdk:
+            case .library, .bundle, .sdk, .macro:
                 // Do nothing
                 break
             }
@@ -436,7 +436,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 try addBuildFile(path, condition: condition)
             case let .xcframework(path, _, _, _, status, condition):
                 try addBuildFile(path, condition: condition, status: status)
-            case .bundle:
+            case .bundle, .macro:
                 break
             case let .product(dependencyTarget, _, condition):
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {

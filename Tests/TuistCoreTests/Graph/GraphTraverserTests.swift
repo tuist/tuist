@@ -5100,20 +5100,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let appTarget = Target.test(name: "App", destinations: [.appleWatch])
         let project = Project.test(path: directory, targets: [appTarget])
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
-        let directXCFrameworkMacroPath = directory
-            .appending(
-                try RelativePath(
-                    validating: "DirectMacro.xcframework/watchos-arm64_i386_x86_64-simulator/DirectMacro.framework/Macros/DirectMacro"
-                )
-            )
-        let directXCFramework = GraphDependency.testXCFramework(macroPath: directXCFrameworkMacroPath)
-        let transitiveXCFrameworkMacroPath = directory
-            .appending(
-                try RelativePath(
-                    validating: "TransitiveMacro.xcframework/watchos-arm64_i386_x86_64-simulator/TransitiveMacro.framework/Macros/TransitiveMacro"
-                )
-            )
-        let transitiveXCFramework = GraphDependency.testXCFramework(macroPath: transitiveXCFrameworkMacroPath)
+        let precompiledMacroXCFramework = GraphDependency.testXCFramework()
+        let macroPath = AbsolutePath.root.appending(components: ["macros", "macro"])
+        let precompiledMacroExecutable = GraphDependency.testMacro(path: macroPath)
 
         let graph = Graph.test(
             projects: [
@@ -5125,8 +5114,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 ],
             ],
             dependencies: [
-                appTargetDependency: Set([directXCFramework]),
-                directXCFramework: Set([transitiveXCFramework]),
+                appTargetDependency: Set([precompiledMacroXCFramework]),
+                precompiledMacroXCFramework: Set([precompiledMacroExecutable]),
             ]
         )
 
@@ -5134,8 +5123,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
 
         XCTAssertEqual(got.sorted(), [
-            "\(directXCFrameworkMacroPath.pathString)/#\(directXCFrameworkMacroPath.basename)",
-            "\(transitiveXCFrameworkMacroPath.pathString)/#\(transitiveXCFrameworkMacroPath.basename)",
+            "\(macroPath.pathString)/#\(macroPath.basename)",
         ])
     }
 

@@ -575,6 +575,7 @@ public class GraphTraverser: GraphTraversing {
             switch dependency {
             case let .xcframework(xcframework): return xcframework.path
             case let .framework(path, _, _, _, _, _, _, _): return path
+            case .macro: return nil
             case .library: return nil
             case .bundle: return nil
             case .packageProduct: return nil
@@ -686,22 +687,31 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func allSwiftPluginExecutables(path: TSCBasic.AbsolutePath, name: String) -> Set<String> {
+        func precompiledMacroDependencies(_ graphDependency: GraphDependency) -> Set<AbsolutePath> {
+            Set(
+                dependencies[graphDependency, default: Set()]
+                    .lazy
+                    .compactMap {
+                        if case let GraphDependency.macro(path) = $0 {
+                            return path
+                        } else {
+                            return nil
+                        }
+                    }
+            )
+        }
+
         let precompiledMacroPluginExecutables = filterDependencies(from: .target(name: name, path: path), test: { dependency in
             switch dependency {
-            case let .xcframework(xcframework):
-                return xcframework.macroPath != nil
-            case .bundle, .library, .framework, .sdk, .target, .packageProduct:
+            case .xcframework:
+                return !precompiledMacroDependencies(dependency).isEmpty
+            case .bundle, .library, .framework, .sdk, .target, .packageProduct, .macro:
                 return false
             }
         })
-        .lazy.compactMap { dependency in
-            switch dependency {
-            case let .xcframework(xcframework):
-                return xcframework.macroPath!
-            case .bundle, .library, .framework, .sdk, .target, .packageProduct:
-                return nil
-            }
-        }.map { "\($0.pathString)/#\($0.basename)" }
+        .lazy
+        .flatMap(precompiledMacroDependencies)
+        .map { "\($0.pathString)/#\($0.basename)" }
 
         let sourceMacroPluginExecutables = allSwiftMacroFrameworkTargets(path: path, name: name)
             .flatMap { target in
@@ -905,6 +915,7 @@ public class GraphTraverser: GraphTraversing {
 
     func isDependencyPrecompiledLibrary(dependency: GraphDependency) -> Bool {
         switch dependency {
+        case .macro: return false
         case .xcframework: return true
         case .framework: return true
         case .library: return true
@@ -917,6 +928,7 @@ public class GraphTraverser: GraphTraversing {
 
     func isDependencyPrecompiledFramework(dependency: GraphDependency) -> Bool {
         switch dependency {
+        case .macro: return false
         case .xcframework: return true
         case .framework: return true
         case .library: return false
@@ -954,6 +966,8 @@ public class GraphTraverser: GraphTraversing {
 
     func isDependencyStatic(dependency: GraphDependency) -> Bool {
         switch dependency {
+        case .macro:
+            return false
         case let .xcframework(xcframework):
             return xcframework.linking == .static
         case let .framework(_, _, _, _, linking, _, _, _),
@@ -982,6 +996,7 @@ public class GraphTraverser: GraphTraversing {
 
     func isDependencyDynamicTarget(dependency: GraphDependency) -> Bool {
         switch dependency {
+        case .macro: return false
         case .xcframework: return false
         case .framework: return false
         case .library: return false
@@ -1034,6 +1049,8 @@ public class GraphTraverser: GraphTraversing {
         }
 
         switch toDependency {
+        case let .macro(path):
+            return .macro(path: path)
         case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage, status):
             return .framework(
                 path: path,
@@ -1116,7 +1133,7 @@ public class GraphTraverser: GraphTraversing {
                 switch dependency {
                 case let .framework(_, _, _, _, linking: linking, _, _, _):
                     return linking == .static
-                case .xcframework, .library, .bundle, .packageProduct, .target, .sdk:
+                case .xcframework, .library, .bundle, .packageProduct, .target, .sdk, .macro:
                     return false
                 }
             }
@@ -1138,7 +1155,7 @@ public class GraphTraverser: GraphTraversing {
                 switch dependency {
                 case let .xcframework(xcframework):
                     return xcframework.linking == .static
-                case .framework, .library, .bundle, .packageProduct, .target, .sdk:
+                case .framework, .library, .bundle, .packageProduct, .target, .sdk, .macro:
                     return false
                 }
             },

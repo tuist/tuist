@@ -76,9 +76,12 @@ private enum KnownGraphDependencyReference: CaseIterable {
     case library
     case product
     case sdk
+    case macro
 
     func sampleReferences(name: String) -> [GraphDependencyReference] {
         switch self {
+        case .macro:
+            return [.testMacro(path: try! AbsolutePath(validating: "/macros/\(name)"))]
         case .xcframework:
             return [.testXCFramework(path: try! AbsolutePath(validating: "/dependencies/\(name).xcframework"))]
         case .framework:
@@ -131,6 +134,8 @@ extension GraphDependencyReference {
             return .product
         case .sdk:
             return .sdk
+        case .macro:
+            return .macro
         }
     }
 }
