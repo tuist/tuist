@@ -1,13 +1,13 @@
 import ProjectDescription
 
 let project = Project(
-    name: "FrameworkWithSwiftMacro",
+    name: "App",
     targets: [
         Target(
-            name: "Framework",
+            name: "App",
             destinations: [.iPhone, .mac],
             product: .app,
-            bundleId: "io.tuist.FrameworkWithSwiftMacro",
+            bundleId: "io.tuist.App",
             sources: ["Sources/**/*"],
             dependencies: [
                 .external(name: "ComposableArchitecture"),

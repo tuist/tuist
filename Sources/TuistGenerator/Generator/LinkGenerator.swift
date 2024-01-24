@@ -164,6 +164,12 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         phase.shellScript = macroPaths.map { "rm -rf \"\($0)\"" }.joined(separator: "\n")
 
+        // This disables the "based on dependency analysis".
+        // Otherwise we receive a warning that we are not passing a list of inputs and outputs,
+        // which we can't because we are deleting files so there's technically no output.
+        phase.alwaysOutOfDate = true
+        phase.inputPaths = macroPaths
+
         pbxproj.add(object: phase)
         pbxTarget.buildPhases.append(phase)
     }

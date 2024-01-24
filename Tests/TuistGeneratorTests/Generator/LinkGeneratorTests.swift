@@ -1092,6 +1092,7 @@ final class LinkGeneratorTests: XCTestCase {
                 .first(where: { $0.name() == "Strip Swift Macro executables from dynamic frameworks" })
         )
         XCTAssertEqual(buildPhase.shellScript?.spm_chomp(), "rm -rf \"\(marosDirectory)\"")
+        XCTAssertTrue(buildPhase.alwaysOutOfDate)
     }
 
     // MARK: - Helpers

@@ -2,6 +2,14 @@ import CasePaths
 import ComposableArchitecture
 import Foundation
 import StructBuilder
+import SwiftUI
+
+@main
+struct TestApp: App {
+    var body: some Scene {
+        WindowGroup {}
+    }
+}
 
 @Buildable
 public struct Person {

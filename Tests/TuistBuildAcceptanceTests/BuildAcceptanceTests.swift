@@ -87,11 +87,10 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMeth
     }
 }
 
-final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives: TuistAcceptanceTestCase {
-    func test_framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
-        try setUpFixture(.frameworkWithNativeSwiftMacro)
+final class BuildAcceptanceTestAppWithSwiftMacroIntegratedWithXcodeProjPrimitives: TuistAcceptanceTestCase {
+    func test_app_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
+        try setUpFixture(.iosAppWithNativeSwiftMacros)
         try await run(FetchCommand.self)
-        try await run(BuildCommand.self, "Framework", "--platform", "macos")
         try await run(BuildCommand.self, "Framework", "--platform", "ios")
     }
 }
