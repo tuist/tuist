@@ -397,8 +397,8 @@ public class ManifestLoader: ManifestLoading {
                     "-L", manifestPath,
                     "-F", manifestPath,
                     "-lPackageDescription",
-                    "-D", "TUIST",
                     "-package-description-version", packageVersion.description,
+                    "-D", "TUIST",
                 ]
             } else {
                 return []
