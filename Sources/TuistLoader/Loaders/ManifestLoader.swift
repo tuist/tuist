@@ -111,6 +111,7 @@ public class ManifestLoader: ManifestLoading {
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
     private let xcodeController: XcodeControlling
+    private let swiftPackageManagerController: SwiftPackageManagerControlling
 
     // MARK: - Init
 
@@ -121,7 +122,8 @@ public class ManifestLoader: ManifestLoading {
             cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
             projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator(),
-            xcodeController: XcodeController.shared
+            xcodeController: XcodeController.shared,
+            swiftPackageManagerController: SwiftPackageManagerController()
         )
     }
 
@@ -131,7 +133,8 @@ public class ManifestLoader: ManifestLoading {
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
         manifestFilesLocator: ManifestFilesLocating,
-        xcodeController: XcodeControlling
+        xcodeController: XcodeControlling,
+        swiftPackageManagerController: SwiftPackageManagerControlling
     ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
@@ -139,6 +142,7 @@ public class ManifestLoader: ManifestLoading {
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
         self.manifestFilesLocator = manifestFilesLocator
         self.xcodeController = xcodeController
+        self.swiftPackageManagerController = swiftPackageManagerController
         decoder = JSONDecoder()
     }
 
@@ -383,6 +387,9 @@ public class ManifestLoader: ManifestLoading {
         let packageDescriptionArguments: [String] = try {
             if case .package = manifest {
                 guard let xcode = try xcodeController.selected() else { return [] }
+                let packageVersion = try swiftPackageManagerController.getToolsVersion(
+                    at: path.parentDirectory
+                )
                 let manifestPath =
                     "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI"
                 return [
@@ -390,6 +397,7 @@ public class ManifestLoader: ManifestLoading {
                     "-L", manifestPath,
                     "-F", manifestPath,
                     "-lPackageDescription",
+                    "-package-description-version", packageVersion.description,
                     "-D", "TUIST",
                 ]
             } else {
