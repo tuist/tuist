@@ -515,7 +515,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
     func generateCopySwiftMacroExecutableScriptBuildPhase(
         directSwiftMacroExecutables: [GraphDependencyReference],
-        target _: Target,
+        target: Target,
         pbxTarget: PBXTarget,
         pbxproj: PBXProj,
         fileElements _: ProjectFileElements
@@ -524,23 +524,44 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         let copySwiftMacrosBuildPhase = PBXShellScriptBuildPhase(name: "Copy Swift Macro executable into $BUILT_PRODUCT_DIR")
 
-        let filesToCopy = directSwiftMacroExecutables.compactMap {
+        let executableNames = directSwiftMacroExecutables.compactMap {
             switch $0 {
             case let .product(_, productName, _):
                 return productName
             default:
                 return nil
             }
-        }.map { ("$SYMROOT/$CONFIGURATION/\($0)", "$BUILT_PRODUCTS_DIR/\($0)") }
+        }
 
+        let copyLines = executableNames.map {
+            """
+            if [[ -f "$SYMROOT/$CONFIGURATION/\($0)" && ! -f "$BUILT_PRODUCTS_DIR/\($0)" ]]; then
+                cp "$SYMROOT/$CONFIGURATION/\($0)" "$BUILT_PRODUCTS_DIR/\($0)"
+            fi
+            """
+        }
         copySwiftMacrosBuildPhase.shellScript = """
-        // This build phase serves two purposes:
-        //  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
-        //  - Place the artifacts in the directory where the built artifacts for the active destination live.
-        \(filesToCopy.map { "cp \"\($0.0)\" \"\($0.1)\"" }.joined(separator: "\n"))
+        #  This build phase serves two purposes:
+        #  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
+        #  - Place the artifacts in the directory where the built artifacts for the active destination live.
+        \(copyLines.joined(separator: "\n"))
         """
-        copySwiftMacrosBuildPhase.inputPaths = filesToCopy.map(\.0)
-        copySwiftMacrosBuildPhase.outputPaths = filesToCopy.map(\.1)
+
+        copySwiftMacrosBuildPhase.inputPaths = executableNames.map { "$SYMROOT/$CONFIGURATION/\($0)" }
+
+        copySwiftMacrosBuildPhase.outputPaths = target.supportedPlatforms
+            .filter { $0 != .macOS }
+            .flatMap { platform in
+                var sdks: [String] = []
+                sdks.append(platform.xcodeDeviceSDK)
+                if let simulatorSDK = platform.xcodeSimulatorSDK { sdks.append(simulatorSDK) }
+                return sdks
+            }
+            .flatMap { sdk in
+                executableNames.map { executable in
+                    "$SYMROOT/$CONFIGURATION-\(sdk)/\(executable)"
+                }
+            }
 
         pbxproj.add(object: copySwiftMacrosBuildPhase)
         pbxTarget.buildPhases.append(copySwiftMacrosBuildPhase)
