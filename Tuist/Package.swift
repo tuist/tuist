@@ -19,5 +19,6 @@ let package = Package(
         .package(url: "https://github.com/SwiftGen/SwiftGen", from: "6.6.2"),
         .package(url: "https://github.com/tuist/XcodeProj", from: "8.15.0"),
         .package(url: "https://github.com/cpisciotta/xcbeautify", from: "1.4.0"),
+        .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
     ]
 )

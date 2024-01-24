@@ -37,6 +37,15 @@
       }
     },
     {
+      "identity" : "difference",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/krzysztofzablocki/Difference.git",
+      "state" : {
+        "revision" : "f627d00718033c3d7888acd5f4e3524a843db1cf",
+        "version" : "1.0.2"
+      }
+    },
+    {
       "identity" : "graphviz",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SwiftDocOrg/GraphViz.git",
@@ -174,7 +183,7 @@
     {
       "identity" : "swifter",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/httpswift/swifter",
+      "location" : "https://github.com/httpswift/swifter.git",
       "state" : {
         "revision" : "1e4f51c92d7ca486242d8bf0722b99de2c3531aa"
       }
@@ -200,7 +209,7 @@
     {
       "identity" : "xcodeproj",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/XcodeProj.git",
+      "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
         "revision" : "3797181813ee963fe305d939232bc576d23ddbb0",
         "version" : "8.15.0"
