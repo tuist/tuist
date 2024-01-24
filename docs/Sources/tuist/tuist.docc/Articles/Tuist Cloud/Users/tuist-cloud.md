@@ -22,6 +22,12 @@ Tuist Cloud offers a robust storage solution for Tuist, enabling the sharing of 
 
 > Tip: To assist organizations in evaluating their return on investment (ROI), we've developed an [**ROI calculator**](https://tuist.io/cloud). For instance, consider an organization with approximately 20 developers. If their clean builds take 10 minutes and they achieve a 70% cache effectiveness, they could potentially reduce development time by 24,000 hours and recover up to $6.4 million a year.
 
+#### Selective testing across environments
+
+Once teams reach a certain scale, they often grapple with optimizing their CI process to maintain quick turnaround times. While **testing everything** continually might work for smaller teams, it becomes impractical on a larger scale. At this juncture, many teams resort to investing in superior hardware, creating custom tools, complicating their CI pipelines, or worse, accepting slower development cycles. But there's a better way.
+
+**Tuist Cloud utilizes graph knowledge and fingerprinting technology—essential for binary caching—to discern which targets to test based on file modifications.** Not only that, as your tests will also be able to use binary caching, massively reducing the time it takes to both _build_ and _run_ your tests.
+
 #### Insights
 
 While optimizing workflows based on our project insights is beneficial, it's crucial to ensure that your project's evolution doesn't lead to regressions, adversely affecting the developer experience. While our ultimate goal is to harness AI technologies to offer you a virtual co-pilot, we currently provide foundational insights to enhance your understanding of your project and workflows. This allows you to identify optimization opportunities and make data-driven decisions. We firmly believe this is data that Xcode ought to supply. However, recognizing the clear demand from teams, we're stepping up to deliver it.
@@ -41,9 +47,3 @@ Regressions can easily compromise the health of a project, build, or test suites
 In a conventional setup, these issues often go unnoticed until they've become significant problems. By the time they're detected, teams face the daunting task of tracing back to find the root cause before implementing a fix. This becomes especially challenging in dynamic environments where changes are constantly integrated. However, there's a more efficient approach.
 
 We aim to **gather data from builds, including build times, binary sizes, and test outcomes, and integrate this with graph information.** This consolidated data will then be transmitted to our server. From there, developers can **visually track performance trends over time**. Our goal is to not only make this information easily accessible but also **actionable**. By identifying potential deviations that might hinder productivity, we can flag them directly in PRs. This proactive approach ensures that potential regressions are intercepted before merging into the primary repository branch. In essence, Tuist Cloud is designed to serve as a vigilant co-pilot, ensuring a **consistently healthy and efficient development environment**. An optimal development environment is pivotal for maintaining developers' enthusiasm and commitment to the project.
-
-#### Incremental test execution across environments
-
-Once teams reach a certain scale, they often grapple with optimizing their CI process to maintain quick turnaround times. While **testing everything** continually might work for smaller teams, it becomes impractical on a larger scale. At this juncture, many teams resort to investing in superior hardware, creating custom tools, complicating their CI pipelines, or worse, accepting slower development cycles. But there's a better way.
-
-**Tuist Cloud utilizes graph knowledge and fingerprinting technology—essential for binary caching—to discern which targets to test based on file modifications.** Best of all, this behavior can be fine-tuned using additional hashing keys. For instance, while you might choose to build and test everything on the `main` branch, you can adopt an incremental approach from the primary trunk when development diverges. This approach is not only efficient but also cost-effective for teams.
