@@ -67,7 +67,7 @@ let project = Project(
             destinations: [.mac],
             product: .framework,
             bundleId: "io.tuist.MacFramework",
-            deploymentTarget: .macOS("10.15"),
+            deploymentTargets: .macOS("10.15"),
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
             sources: .paths([.relativeToManifest("MacFramework/Sources/**")]),
             settings: .settings(base: [
@@ -80,7 +80,7 @@ let project = Project(
             destinations: [.mac],
             product: .unitTests,
             bundleId: "io.tuist.MacFrameworkTests",
-            deploymentTarget: .macOS("10.15"),
+            deploymentTargets: .macOS("10.15"),
             infoPlist: "Tests.plist",
             sources: "MacFramework/Tests/**",
             dependencies: [
