@@ -356,7 +356,7 @@ public class ManifestLoader: ManifestLoading {
             "-framework", frameworkName,
         ]
         let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
-            .cacheDirectories(config: nil)
+            .cacheDirectories()
             .cacheDirectory(for: .projectDescriptionHelpers)
 
         let projectDescriptionHelperArguments: [String] = try {

@@ -22,7 +22,7 @@ final class CleanService {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
-        let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
+        let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories()
 
         for category in categories {
             switch category {

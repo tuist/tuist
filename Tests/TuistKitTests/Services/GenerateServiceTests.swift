@@ -10,13 +10,6 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-private typealias GeneratorParameters = (
-    sources: Set<String>,
-    cacheOutputType: CacheOutputType,
-    cacheProfile: TuistGraph.Cache.Profile,
-    ignoreCache: Bool
-)
-
 final class GenerateServiceTests: TuistUnitTestCase {
     var subject: GenerateService!
     var opener: MockOpener!

@@ -62,7 +62,6 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let config = Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
-            cache: nil,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(resolveDependenciesWithSystemScm: true),
@@ -186,7 +185,6 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let config = Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
-            cache: nil,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(clonedSourcePackagesDirPath: temporaryPath.appending(component: "spm")),

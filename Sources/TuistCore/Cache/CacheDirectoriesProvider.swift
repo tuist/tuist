@@ -9,7 +9,6 @@ public protocol CacheDirectoriesProviding {
 }
 
 public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
-    public let cacheDirectory: AbsolutePath
     // swiftlint:disable:next force_try
     private static let defaultDirectory = try! AbsolutePath(validating: URL(fileURLWithPath: NSHomeDirectory()).path)
         .appending(component: ".tuist")
@@ -18,15 +17,10 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
             .map { try! AbsolutePath(validating: $0) } // swiftlint:disable:this force_try
     }
 
-    public init(config: Config?) {
-        if let cacheDirectory = config?.cache?.path {
-            self.cacheDirectory = cacheDirectory
-        } else {
-            cacheDirectory = CacheDirectoriesProvider.defaultDirectory.appending(component: "Cache")
-        }
-    }
+    public init() {}
 
     public func cacheDirectory(for category: CacheCategory) -> AbsolutePath {
-        (Self.forcedCacheDirectory ?? cacheDirectory).appending(component: category.directoryName)
+        let cacheDirectory = CacheDirectoriesProvider.defaultDirectory.appending(component: "Cache")
+        return (Self.forcedCacheDirectory ?? cacheDirectory).appending(component: category.directoryName)
     }
 }

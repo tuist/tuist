@@ -16,9 +16,6 @@ public struct Config: Equatable, Hashable {
     /// Cloud configuration.
     public let cloud: Cloud?
 
-    /// Cache configuration.
-    public let cache: Cache?
-
     /// The version of Swift that will be used by Tuist.
     /// If `nil` is passed then Tuist will use the environment’s version.
     public let swiftVersion: Version?
@@ -31,7 +28,6 @@ public struct Config: Equatable, Hashable {
         Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
-            cache: nil,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .init(
@@ -48,7 +44,6 @@ public struct Config: Equatable, Hashable {
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
     ///   - cloud: Cloud configuration.
-    ///   - cache: Cache configuration.
     ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: List of locations to a `Plugin` manifest.
     ///   - generationOptions: Generation options.
@@ -56,7 +51,6 @@ public struct Config: Equatable, Hashable {
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions,
         cloud: Cloud?,
-        cache: Cache?,
         swiftVersion: Version?,
         plugins: [PluginLocation],
         generationOptions: GenerationOptions,
@@ -64,7 +58,6 @@ public struct Config: Equatable, Hashable {
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.cloud = cloud
-        self.cache = cache
         self.swiftVersion = swiftVersion
         self.plugins = plugins
         self.generationOptions = generationOptions
@@ -76,7 +69,6 @@ public struct Config: Equatable, Hashable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(generationOptions)
         hasher.combine(cloud)
-        hasher.combine(cache)
         hasher.combine(swiftVersion)
         hasher.combine(compatibleXcodeVersions)
     }
