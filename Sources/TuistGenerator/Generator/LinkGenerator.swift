@@ -136,7 +136,9 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
          is to strip the macro executables from the dynamic frameworks that have been embedded.
          */
         try generateStripDynamicFrameworkMacrosBuildPhase(
-            macroPaths: graphTraverser.removableEmbeddedMacroPaths(path: path, name: target.name).sorted(),
+            targetName: target.name,
+            projectPath: path,
+            graphTraverser: graphTraverser,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj
         )
@@ -149,10 +151,13 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
     }
 
     func generateStripDynamicFrameworkMacrosBuildPhase(
-        macroPaths: [String],
+        targetName: String,
+        projectPath: AbsolutePath,
+        graphTraverser: GraphTraversing,
         pbxTarget: PBXTarget,
         pbxproj: PBXProj
     ) throws {
+        let macroPaths = graphTraverser.removableEmbeddedMacroPaths(path: projectPath, name: targetName).sorted()
         if macroPaths.isEmpty { return }
 
         let phase = PBXShellScriptBuildPhase(name: "Strip Swift Macro executables from dynamic frameworks")

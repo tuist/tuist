@@ -1037,6 +1037,63 @@ final class LinkGeneratorTests: XCTestCase {
         )
     }
 
+    func test_generateStripDynamicFrameworkMacrosBuildPhase_doesntGenerateThePhase_when_noRemovableDynamicFrameworksWithMacros(
+    ) throws {
+        // Given
+        let graphTraverser = MockGraphTraverser()
+        let projectPath = AbsolutePath.root
+        let targetName = "Test"
+        let xcodeProjElements = createXcodeprojElements()
+        graphTraverser.stubbedRemovableEmbeddedMacroPathsResult = Set()
+
+        // When
+        try subject.generateStripDynamicFrameworkMacrosBuildPhase(
+            targetName: targetName,
+            projectPath: projectPath,
+            graphTraverser: graphTraverser,
+            pbxTarget: xcodeProjElements.pbxTarget,
+            pbxproj: xcodeProjElements.pbxproj
+        )
+
+        // Then
+        let buildPhase = xcodeProjElements
+            .pbxTarget
+            .buildPhases
+            .compactMap { $0 as? PBXShellScriptBuildPhase }
+            .first(where: { $0.name() == "Strip Swift Macro executables from dynamic frameworks" })
+        XCTAssertNil(buildPhase)
+    }
+
+    func test_generateStripDynamicFrameworkMacrosBuildPhase_generatesAPhase_when_thereAreRemovableDynamicFrameworksWithMacros(
+    ) throws {
+        // Given
+        let graphTraverser = MockGraphTraverser()
+        let projectPath = AbsolutePath.root
+        let targetName = "Test"
+        let xcodeProjElements = createXcodeprojElements()
+        let marosDirectory = "$BUILT_PRODUCTS_DIR/$FRAMEWORKS_FOLDER_PATH/Macro.framework/Macros"
+        graphTraverser.stubbedRemovableEmbeddedMacroPathsResult = Set([marosDirectory])
+
+        // When
+        try subject.generateStripDynamicFrameworkMacrosBuildPhase(
+            targetName: targetName,
+            projectPath: projectPath,
+            graphTraverser: graphTraverser,
+            pbxTarget: xcodeProjElements.pbxTarget,
+            pbxproj: xcodeProjElements.pbxproj
+        )
+
+        // Then
+        let buildPhase = try XCTUnwrap(
+            xcodeProjElements
+                .pbxTarget
+                .buildPhases
+                .compactMap { $0 as? PBXShellScriptBuildPhase }
+                .first(where: { $0.name() == "Strip Swift Macro executables from dynamic frameworks" })
+        )
+        XCTAssertEqual(buildPhase.shellScript?.spm_chomp(), "rm -rf \"\(marosDirectory)\"")
+    }
+
     // MARK: - Helpers
 
     struct XcodeprojElements {
