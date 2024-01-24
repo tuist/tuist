@@ -149,7 +149,6 @@ final class DumpServiceTests: TuistTestCase {
         let config = Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
-            cache: nil,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .options()

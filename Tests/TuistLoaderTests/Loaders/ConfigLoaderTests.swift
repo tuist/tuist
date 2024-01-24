@@ -74,7 +74,6 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(result, TuistGraph.Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
-            cache: nil,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),
@@ -115,7 +114,6 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(result, TuistGraph.Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
-            cache: nil,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),

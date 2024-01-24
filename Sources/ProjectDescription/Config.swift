@@ -40,9 +40,6 @@ public struct Config: Codable, Equatable {
     /// Cloud configuration.
     public let cloud: Cloud?
 
-    /// Cache configuration.
-    public let cache: Cache?
-
     /// The Swift tools versions that will be used by Tuist to fetch external dependencies.
     /// If `nil` is passed then Tuist will use the environment’s version.
     /// - Note: This **does not** control the `SWIFT_VERSION` build setting in regular generated projects, for this please use
@@ -55,14 +52,12 @@ public struct Config: Codable, Equatable {
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project is compatible with.
     ///   - cloud: Cloud configuration.
-    ///   - cache: Cache configuration.
     ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
-        cache: Cache? = nil,
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: GenerationOptions = .options()
@@ -71,7 +66,6 @@ public struct Config: Codable, Equatable {
         self.plugins = plugins
         self.generationOptions = generationOptions
         self.cloud = cloud
-        self.cache = cache
         self.swiftVersion = swiftVersion
         dumpIfNeeded(self)
     }
