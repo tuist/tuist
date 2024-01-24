@@ -2,7 +2,7 @@ import ProjectDescription
 
 let dependencies = Dependencies(
     swiftPackageManager: .init(
-        targetSettings: [:]
+        productTypes: ["StructBuilder": .framework]
     ),
     platforms: [.macOS, .iOS]
 )

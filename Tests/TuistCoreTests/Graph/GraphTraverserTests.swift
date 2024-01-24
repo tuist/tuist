@@ -5232,12 +5232,66 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // When
         let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
 
-        print(got)
-
         XCTAssertEqual(got.sorted(), [
             "$BUILT_PRODUCTS_DIR/\(directMacroStaticFrameworkTarget.productNameWithExtension)/Macros/DirectMacro#DirectMacro",
             "$BUILT_PRODUCTS_DIR/\(transitiveMacroStaticFrameworkTarget.productNameWithExtension)/Macros/TransitiveMacro#TransitiveMacro",
         ])
+    }
+
+    func test_removableEmbeddedMacroPaths_returnsTheRightPaths() throws {
+        // Given
+        let directory = try temporaryPath()
+        let appTarget = Target.test(name: "App", destinations: [.appleWatch])
+        let directMacroStaticFrameworkTarget = Target.test(
+            name: "DirectMacroDynamicFramework",
+            destinations: [.appleWatch],
+            product: .framework
+        )
+        let directMacroMacroTarget = Target.test(name: "DirectMacro", destinations: [.appleWatch], product: .macro)
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let directMacroStaticFrameworkTargetDependency = GraphDependency.target(
+            name: directMacroStaticFrameworkTarget.name,
+            path: project.path
+        )
+        let directMacroMacroTargetDependency = GraphDependency.target(name: directMacroMacroTarget.name, path: project.path)
+        let precompiledXCFrameworkMacroDependency = GraphDependency.testXCFramework(
+            primaryBinaryPath: "/Macro.xcframework/watchos-arm64_arm64_32/Macro.framework/Macro",
+            linking: .dynamic,
+            macroPath: try AbsolutePath(validating: "/Macro.xcframework/watchos-arm64_arm64_32/Macro.framework/Macros")
+        )
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+            ],
+            targets: [
+                project.path: [
+                    appTarget.name: appTarget,
+                    directMacroStaticFrameworkTarget.name: directMacroStaticFrameworkTarget,
+                    directMacroMacroTarget.name: directMacroMacroTarget,
+                ],
+            ],
+            dependencies: [
+                appTargetDependency: Set([directMacroStaticFrameworkTargetDependency, precompiledXCFrameworkMacroDependency]),
+                directMacroStaticFrameworkTargetDependency: Set([
+                    directMacroMacroTargetDependency,
+                ]),
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).removableEmbeddedMacroPaths(path: project.path, name: appTarget.name)
+
+        // Then
+        XCTAssertEqual(
+            got.sorted(),
+            [
+                "$BUILT_PRODUCTS_DIR/$FRAMEWORKS_FOLDER_PATH/\(directMacroStaticFrameworkTarget.productNameWithExtension)/Macros",
+                "$BUILT_PRODUCTS_DIR/$FRAMEWORKS_FOLDER_PATH/Macro.framework/Macros",
+            ]
+        )
     }
 
     // MARK: - Helpers

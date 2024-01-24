@@ -158,7 +158,6 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         let phase = PBXShellScriptBuildPhase(name: "Strip Swift Macro executables from dynamic frameworks")
 
         phase.shellScript = macroPaths.map { "rm -rf \"\($0)\"" }.joined(separator: "\n")
-        phase.inputPaths = macroPaths
 
         pbxproj.add(object: phase)
         pbxTarget.buildPhases.append(phase)

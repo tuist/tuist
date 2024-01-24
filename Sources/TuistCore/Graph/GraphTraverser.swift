@@ -502,14 +502,16 @@ public class GraphTraverser: GraphTraversing {
             embeddableFrameworks(path: path, name: name)
                 .flatMap { dependency -> [String] in
                     switch dependency {
-                    case let .xcframework(_, _, primaryBinaryPath, _, _, _, macroPath):
-                        return macroPath != nil ? [primaryBinaryPath.parentDirectory.basename] : []
+                    case let .xcframework(_, _, primaryBinaryPath, _, _, macroPath, _):
+                        return macroPath != nil ?
+                            ["$BUILT_PRODUCTS_DIR/$FRAMEWORKS_FOLDER_PATH/\(primaryBinaryPath.parentDirectory.basename)/Macros"] :
+                            []
                     case let .product(targetName, productName, projectPath, _):
                         return directSwiftMacroExecutables(path: projectPath, name: targetName)
                             .compactMap { executableDependency in
                                 switch executableDependency {
-                                case let .product(_, macroExecutableProductName, _, _):
-                                    return "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME/Frameworks/\(productName)/\(macroExecutableProductName)"
+                                case .product:
+                                    return "$BUILT_PRODUCTS_DIR/$FRAMEWORKS_FOLDER_PATH/\(productName)/Macros"
                                 default:
                                     return nil
                                 }

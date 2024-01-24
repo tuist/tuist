@@ -6,7 +6,7 @@ let project = Project(
         Target(
             name: "Framework",
             destinations: [.iPhone, .mac],
-            product: .staticLibrary,
+            product: .app,
             bundleId: "io.tuist.FrameworkWithSwiftMacro",
             sources: ["Sources/**/*"],
             dependencies: [
