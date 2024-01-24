@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: "App",
-            platform: .tvOS,
+            destinations: [.appleTv],
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Info.plist",
@@ -16,7 +16,7 @@ let project = Project(
         ),
         Target(
             name: "TopShelfExtension",
-            platform: .tvOS,
+            destinations: [.appleTv],
             product: .tvTopShelfExtension,
             bundleId: "io.tuist.App.TopShelfExtension",
             infoPlist: .extendingDefault(with: [
@@ -32,7 +32,7 @@ let project = Project(
         ),
         Target(
             name: "StaticFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.App.StaticFramework",
             infoPlist: .default,

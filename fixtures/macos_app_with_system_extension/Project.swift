@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: "MainApp",
-            platform: .macOS,
+            destinations: [.mac],
             product: .app,
             bundleId: "io.tuist.MainApp",
             infoPlist: "MainApp/Info.plist",
@@ -16,7 +16,7 @@ let project = Project(
         ),
         Target(
             name: "SystemExtension",
-            platform: .macOS,
+            destinations: [.mac],
             product: .systemExtension,
             bundleId: "io.tuist.SystemExtension",
             sources: ["SystemExtension/Sources/**"]

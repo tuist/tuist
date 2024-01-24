@@ -64,10 +64,10 @@ extension Target {
     ) -> Target {
         Target(
             name: name,
-            platform: .iOS,
+            destinations: [.iPhone],
             product: product,
             bundleId: "tuist.io.\(name)",
-            deploymentTarget: .deploymentTarget,
+            deploymentTargets: .iOS("11.0"),
             infoPlist: .default,
             sources: ["Sources/**"],
             resources: resources,
@@ -80,21 +80,12 @@ extension Target {
     ) -> Target {
         Target(
             name: "\(name)Tests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "tuist.io..\(name)Tests",
             infoPlist: .default,
             sources: ["Tests/**"],
             dependencies: [.target(name: "\(name)")]
-        )
-    }
-}
-
-extension DeploymentTarget {
-    static var deploymentTarget: DeploymentTarget {
-        .iOS(
-            targetVersion: "11.0",
-            devices: [.iphone]
         )
     }
 }

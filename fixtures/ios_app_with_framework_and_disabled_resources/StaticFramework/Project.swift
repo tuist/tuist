@@ -9,7 +9,7 @@ let project = Project(
     targets: [
         Target(
             name: "StaticFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.StaticFramework",
             infoPlist: "Config/StaticFramework-Info.plist",
@@ -18,7 +18,7 @@ let project = Project(
         ),
         Target(
             name: "StaticFrameworkResources",
-            platform: .iOS,
+            destinations: .iOS,
             product: .bundle,
             bundleId: "io.tuist.StaticFrameworkResources",
             infoPlist: .default,

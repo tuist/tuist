@@ -6,16 +6,16 @@ let project = Project(
     targets: [
         Target(
             name: "App",
-            platform: .iOS,
+            destinations: [.iPhone],
             product: .app,
             bundleId: "io.tuist.app",
-            deploymentTarget: .iOS(targetVersion: "13.0", devices: .iphone),
+            deploymentTargets: .iOS("13.0"),
             infoPlist: .default,
             sources: ["Targets/App/Sources/**"]
         ),
         Target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: .default,
@@ -26,7 +26,7 @@ let project = Project(
         ),
         Target(
             name: "tvOSFramework",
-            platform: .tvOS,
+            destinations: [.appleTv],
             product: .framework,
             bundleId: "io.tuist.tvOSFramework",
             infoPlist: .default,
@@ -34,7 +34,7 @@ let project = Project(
         ),
         Target(
             name: "tvOSFrameworkTests",
-            platform: .tvOS,
+            destinations: [.appleTv],
             product: .unitTests,
             bundleId: "io.tuist.tvOSFrameworkTests",
             infoPlist: .default,
@@ -45,10 +45,10 @@ let project = Project(
         ),
         Target(
             name: "MacFramework",
-            platform: .macOS,
+            destinations: [.mac],
             product: .framework,
             bundleId: "io.tuist.MacFramework",
-            deploymentTarget: .macOS(targetVersion: "10.15"),
+            deploymentTargets: .macOS("10.15"),
             infoPlist: .default,
             sources: "Targets/MacFramework/Sources/**",
             settings: .settings(
@@ -60,10 +60,10 @@ let project = Project(
         ),
         Target(
             name: "MacFrameworkTests",
-            platform: .macOS,
+            destinations: [.mac],
             product: .unitTests,
             bundleId: "io.tuist.MacFrameworkTests",
-            deploymentTarget: .macOS(targetVersion: "10.15"),
+            deploymentTargets: .macOS("10.15"),
             infoPlist: .default,
             sources: "Targets/MacFramework/Tests/**",
             dependencies: [

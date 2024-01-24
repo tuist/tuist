@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Support/App-Info.plist",
@@ -20,7 +20,7 @@ let project = Project(
         ),
         Target(
             name: "MyTestFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.MyTestFramework",
             infoPlist: .default,
@@ -31,7 +31,7 @@ let project = Project(
         ),
         Target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: "Support/Tests.plist",
@@ -43,7 +43,7 @@ let project = Project(
         ),
         Target(
             name: "MacFramework",
-            platform: .macOS,
+            destinations: [.mac],
             product: .framework,
             bundleId: "io.tuist.MacFramework",
             infoPlist: "Support/Framework-Info.plist",
@@ -55,7 +55,7 @@ let project = Project(
         ),
         Target(
             name: "TVFramework",
-            platform: .tvOS,
+            destinations: [.appleTv],
             product: .framework,
             bundleId: "io.tuist.MacFramework",
             infoPlist: "Support/Framework-Info.plist",

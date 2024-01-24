@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: "App",
-            platform: .visionOS,
+            destinations: [.appleVision],
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Support/Info.plist",
@@ -17,7 +17,7 @@ let project = Project(
         ),
         Target(
             name: "AppTests",
-            platform: .visionOS,
+            destinations: [.appleVision],
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: "Support/Tests.plist",

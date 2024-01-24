@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: "StaticFramework4",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.StaticFramework4",
             infoPlist: .default,

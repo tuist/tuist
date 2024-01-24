@@ -4,7 +4,7 @@ func target(name: String) -> Target {
     print("Target name - \(name)")
     return Target(
         name: name,
-        platform: .macOS,
+        destinations: [.mac],
         product: .app,
         bundleId: "io.tuist.\(name)",
         infoPlist: .default,

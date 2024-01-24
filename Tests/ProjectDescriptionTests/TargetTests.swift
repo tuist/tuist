@@ -8,11 +8,11 @@ final class TargetTests: XCTestCase {
     func test_toJSON() {
         let subject = Target(
             name: "name",
-            platform: .iOS,
+            destinations: [.iPhone, .iPad],
             product: .app,
             productName: "product_name",
             bundleId: "bundle_id",
-            deploymentTarget: .iOS(targetVersion: "13.1", devices: [.iphone, .ipad]),
+            deploymentTargets: .iOS("13.1"),
             infoPlist: "info.plist",
             sources: "sources/*",
             resources: "resources/*",
@@ -45,7 +45,7 @@ final class TargetTests: XCTestCase {
     func test_toJSON_withFileList() {
         let subject = Target(
             name: "name",
-            platform: .iOS,
+            destinations: [.iPhone, .iPad, .macWithiPadDesign],
             product: .app,
             productName: "product_name",
             bundleId: "bundle_id",

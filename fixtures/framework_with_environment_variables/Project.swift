@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: Environment.frameworkName.getString(default: "Framework"),
-            platform: .macOS,
+            destinations: [.mac],
             product: .framework,
             bundleId: "io.tuist.App",
             infoPlist: .default,

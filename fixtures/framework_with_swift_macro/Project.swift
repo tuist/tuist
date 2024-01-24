@@ -9,7 +9,7 @@ let project = Project(
     targets: [
         Target(
             name: "Framework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.FrameworkWithSwiftMacro",
             sources: ["Sources/**/*"],

@@ -6,7 +6,7 @@ let project = Project(
     targets: [
         Target(
             name: "AppWithSpace",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.app-with-space",
             infoPlist: "Info.plist",

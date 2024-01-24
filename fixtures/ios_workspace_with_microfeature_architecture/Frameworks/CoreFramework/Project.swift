@@ -6,7 +6,7 @@ let project = Project(
     targets: [
         Target(
             name: "Core",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: .bundleId(for: "Core"),
             infoPlist: "Info.plist",
@@ -18,7 +18,7 @@ let project = Project(
         ),
         Target(
             name: "CoreTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: .bundleId(for: "CoreTests"),
             infoPlist: "Tests.plist",

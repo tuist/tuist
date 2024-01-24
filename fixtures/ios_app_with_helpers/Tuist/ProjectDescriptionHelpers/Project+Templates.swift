@@ -1,21 +1,21 @@
 import ProjectDescription
 
 extension Project {
-    public static func app(name: String, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
-        project(name: name, product: .app, platform: platform, dependencies: dependencies, infoPlist: [
+    public static func app(name: String, destinations: Destinations, dependencies: [TargetDependency] = []) -> Project {
+        project(name: name, product: .app, destinations: destinations, dependencies: dependencies, infoPlist: [
             "CFBundleShortVersionString": "1.0",
             "CFBundleVersion": "1",
         ])
     }
 
-    public static func framework(name: String, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
-        project(name: name, product: .framework, platform: platform, dependencies: dependencies)
+    public static func framework(name: String, destinations: Destinations, dependencies: [TargetDependency] = []) -> Project {
+        project(name: name, product: .framework, destinations: destinations, dependencies: dependencies)
     }
 
     public static func project(
         name: String,
         product: Product,
-        platform: Platform,
+        destinations: Destinations,
         dependencies: [TargetDependency] = [],
         infoPlist: [String: Plist.Value] = [:]
     ) -> Project {
@@ -24,7 +24,7 @@ extension Project {
             targets: [
                 Target(
                     name: name,
-                    platform: platform,
+                    destinations: destinations,
                     product: product,
                     bundleId: "io.tuist.\(name)",
                     infoPlist: .extendingDefault(with: infoPlist),
@@ -34,7 +34,7 @@ extension Project {
                 ),
                 Target(
                     name: "\(name)Tests",
-                    platform: platform,
+                    destinations: destinations,
                     product: .unitTests,
                     bundleId: "io.tuist.\(name)Tests",
                     infoPlist: .default,

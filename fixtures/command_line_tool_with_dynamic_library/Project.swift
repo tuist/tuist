@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: "CommandLineTool",
-            platform: .macOS,
+            destinations: [.mac],
             product: .commandLineTool,
             bundleId: "com.example.commandlinetool",
             infoPlist: .default,
@@ -16,7 +16,7 @@ let project = Project(
         ),
         Target(
             name: "DynamicLib",
-            platform: .macOS,
+            destinations: [.mac],
             product: .dynamicLibrary,
             bundleId: "com.example.dynamiclib",
             infoPlist: .default,

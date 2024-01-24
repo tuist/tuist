@@ -17,7 +17,7 @@ let project = Project(
     targets: [
         Target(
             name: "App",
-            platform: .macOS,
+            destinations: [.mac],
             product: .app,
             bundleId: "io.tuist.app",
             infoPlist: .default,
@@ -26,7 +26,7 @@ let project = Project(
         ),
         Target(
             name: "Workflow",
-            platform: .macOS,
+            destinations: [.mac],
             product: .appExtension,
             bundleId: "io.tuist.app.workflow",
             infoPlist: .extendingDefault(with: [

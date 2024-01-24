@@ -10,7 +10,7 @@ let project = Project(
     targets: [
         Target(
             name: "SignApp",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "$(PRODUCT_BUNDLE_IDENTIFIER)",
             infoPlist: "Info.plist",
@@ -23,7 +23,7 @@ let project = Project(
         ),
         Target(
             name: "AppA",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.test.appA",
             infoPlist: "Info.plist",
@@ -35,7 +35,7 @@ let project = Project(
         ),
         Target(
             name: "AppB",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.test.appB",
             infoPlist: "Info.plist",

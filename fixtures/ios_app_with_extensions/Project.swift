@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Info.plist",
@@ -22,7 +22,7 @@ let project = Project(
         // doesn't seem to be supported.
         Target(
             name: "AppWithMessagesExtension",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App2",
             infoPlist: "Info.plist",
@@ -34,7 +34,7 @@ let project = Project(
         ),
         Target(
             name: "StickersPackExtension",
-            platform: .iOS,
+            destinations: .iOS,
             product: .stickerPackExtension,
             bundleId: "io.tuist.App.StickersPackExtension",
             infoPlist: .extendingDefault(with: [
@@ -51,7 +51,7 @@ let project = Project(
         ),
         Target(
             name: "NotificationServiceExtension",
-            platform: .iOS,
+            destinations: .iOS,
             product: .appExtension,
             bundleId: "io.tuist.App.NotificationServiceExtension",
             infoPlist: .extendingDefault(with: [
@@ -67,7 +67,7 @@ let project = Project(
         ),
         Target(
             name: "MessageExtension",
-            platform: .iOS,
+            destinations: .iOS,
             product: .messagesExtension,
             bundleId: "io.tuist.App2.MessageExtension",
             infoPlist: .extendingDefault(with: [
@@ -84,7 +84,7 @@ let project = Project(
         ),
         Target(
             name: "WidgetExtension",
-            platform: .iOS,
+            destinations: .iOS,
             product: .appExtension,
             bundleId: "io.tuist.App.WidgetExtension",
             infoPlist: .extendingDefault(with: [
@@ -101,7 +101,7 @@ let project = Project(
         ),
         Target(
             name: "StaticFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.App.StaticFramework",
             infoPlist: .default,
@@ -109,7 +109,7 @@ let project = Project(
         ),
         Target(
             name: "AppIntentExtension",
-            platform: .iOS,
+            destinations: .iOS,
             product: .extensionKitExtension,
             bundleId: "io.tuist.App.AppIntentExtension",
             infoPlist: .extendingDefault(with: [
