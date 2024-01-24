@@ -26,10 +26,10 @@ extension Target {
         }
         return Target(
             name: name,
-            platform: .macOS,
+            destinations: [.mac],
             product: product,
             bundleId: "io.tuist.\(name)",
-            deploymentTarget: .macOS(targetVersion: "12.0"),
+            deploymentTargets: .macOS("12.0"),
             infoPlist: .default,
             sources: ["\(rootFolder)/\(name)/**/*.swift"],
             dependencies: dependencies
