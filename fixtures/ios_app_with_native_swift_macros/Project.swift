@@ -5,7 +5,7 @@ let project = Project(
     targets: [
         Target(
             name: "App",
-            destinations: [.iPhone, .mac],
+            destinations: [.mac],
             product: .app,
             bundleId: "io.tuist.App",
             sources: ["Sources/**/*"],

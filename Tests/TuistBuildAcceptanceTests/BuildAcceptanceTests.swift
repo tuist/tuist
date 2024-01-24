@@ -91,7 +91,17 @@ final class BuildAcceptanceTestAppWithSwiftMacroIntegratedWithXcodeProjPrimitive
     func test_app_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
         try setUpFixture(.iosAppWithNativeSwiftMacros)
         try await run(FetchCommand.self)
-        try await run(BuildCommand.self, "Framework", "--platform", "ios")
+//        try await run(BuildCommand.self, "App", "--platform", "ios")
+        try System.shared.run([
+                    "xcodebuild",
+                    "build",
+                    "-workspace",
+                    fixturePath.appending(component: "App.xcworkspace").pathString,
+                    "-scheme",
+                    "App",
+                ])
+        
+        let structBuilderFrameworkPath = try XCTUnwrap(FileHandler.shared.glob(self.derivedDataPath, glob: "App-*/Build/Products/Debug-iphonesimulator/App.app/Frameworks/StructBuilder.framework/").first)
     }
 }
 
