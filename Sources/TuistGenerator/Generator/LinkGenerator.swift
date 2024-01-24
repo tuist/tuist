@@ -522,7 +522,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
     ) throws {
         if directSwiftMacroExecutables.isEmpty { return }
 
-        let copySwiftMacrosBuildPhase = PBXShellScriptBuildPhase(name: "Copy Swift Macro executable into /Macros")
+        let copySwiftMacrosBuildPhase = PBXShellScriptBuildPhase(name: "Copy Swift Macro executable into $BUILT_PRODUCT_DIR")
 
         let filesToCopy = directSwiftMacroExecutables.compactMap {
             switch $0 {
@@ -531,9 +531,14 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             default:
                 return nil
             }
-        }.map { ("$SYMROOT/$CONFIGURATION/\($0)", "$BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME/Macros/\($0)") }
+        }.map { ("$SYMROOT/$CONFIGURATION/\($0)", "$BUILT_PRODUCTS_DIR/\($0)") }
 
-        copySwiftMacrosBuildPhase.shellScript = filesToCopy.map { "cp \"\($0.0)\" \"\($0.1)\"" }.joined(separator: "\n")
+        copySwiftMacrosBuildPhase.shellScript = """
+        // This build phase serves two purposes:
+        //  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
+        //  - Place the artifacts in the directory where the built artifacts for the active destination live.
+        \(filesToCopy.map { "cp \"\($0.0)\" \"\($0.1)\"" }.joined(separator: "\n"))
+        """
         copySwiftMacrosBuildPhase.inputPaths = filesToCopy.map(\.0)
         copySwiftMacrosBuildPhase.outputPaths = filesToCopy.map(\.1)
 

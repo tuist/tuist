@@ -707,10 +707,10 @@ public class GraphTraverser: GraphTraversing {
             .flatMap { target in
                 directSwiftMacroExecutables(path: target.project.path, name: target.target.name).map { (target, $0) }
             }
-            .compactMap { target, dependencyReference in
+            .compactMap { _, dependencyReference in
                 switch dependencyReference {
                 case let .product(_, productName, _):
-                    return "$BUILT_PRODUCTS_DIR/\(target.target.productNameWithExtension)/Macros/\(productName)#\(productName)"
+                    return "$BUILT_PRODUCTS_DIR/\(productName)#\(productName)"
                 default:
                     return nil
                 }

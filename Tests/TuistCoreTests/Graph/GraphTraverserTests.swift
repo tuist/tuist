@@ -5202,8 +5202,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         print(got)
 
         XCTAssertEqual(got.sorted(), [
-            "$BUILT_PRODUCTS_DIR/\(directMacroStaticFrameworkTarget.productNameWithExtension)/Macros/DirectMacro#DirectMacro",
-            "$BUILT_PRODUCTS_DIR/\(transitiveMacroStaticFrameworkTarget.productNameWithExtension)/Macros/TransitiveMacro#TransitiveMacro",
+            "$BUILT_PRODUCTS_DIR/DirectMacro#DirectMacro",
+            "$BUILT_PRODUCTS_DIR/TransitiveMacro#TransitiveMacro",
         ])
     }
 
