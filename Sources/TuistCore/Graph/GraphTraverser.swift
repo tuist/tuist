@@ -1020,6 +1020,7 @@ public class GraphTraverser: GraphTraversing {
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
+        case .macro: return false
         }
     }
 
