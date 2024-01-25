@@ -975,9 +975,8 @@ final class LinkGeneratorTests: XCTestCase {
 
     func test_generateLinks_generatesAShellScriptBuildPhase_when_targetIsAMacroFramework() throws {
         // Given
-        let projectSettings = Settings.default
         let app = Target.test(name: "app", platform: .iOS, product: .app)
-        let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
+        let macroFramework = Target.test(name: "framework", platform: .iOS, product: .staticFramework)
         let macroExecutable = Target.test(name: "macro", platform: .macOS, product: .macro)
         let project = Project.test(targets: [app, macroFramework, macroExecutable])
 
@@ -1015,17 +1014,21 @@ final class LinkGeneratorTests: XCTestCase {
             .pbxTarget
             .buildPhases
             .compactMap { $0 as? PBXShellScriptBuildPhase }
-            .first(where: { $0.name() == "Copy Swift Macro executable into /Macros" })
+            .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
 
         XCTAssertNotNil(buildPhase)
 
         let expectedScript =
-            "cp \"$SYMROOT/$CONFIGURATION/\(macroExecutable.productName)\" \"$BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME/Macros/\(macroExecutable.productName)\""
+            "if [[ -f \"$SYMROOT/$CONFIGURATION/\(macroExecutable.productName)\" && ! -f \"$BUILT_PRODUCTS_DIR/\(macroExecutable.productName)\" ]]; then\n    cp \"$SYMROOT/$CONFIGURATION/\(macroExecutable.productName)\" \"$BUILT_PRODUCTS_DIR/\(macroExecutable.productName)\"\nfi"
         XCTAssertTrue(buildPhase?.shellScript?.contains(expectedScript) == true)
         XCTAssertTrue(buildPhase?.inputPaths.contains("$SYMROOT/$CONFIGURATION/\(macroExecutable.productName)") == true)
         XCTAssertTrue(
             buildPhase?.outputPaths
-                .contains("$BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME/Macros/\(macroExecutable.productName)") == true
+                .contains("$SYMROOT/$CONFIGURATION-iphonesimulator/\(macroExecutable.productName)") == true
+        )
+        XCTAssertTrue(
+            buildPhase?.outputPaths
+                .contains("$SYMROOT/$CONFIGURATION-iphoneos/\(macroExecutable.productName)") == true
         )
     }
 
