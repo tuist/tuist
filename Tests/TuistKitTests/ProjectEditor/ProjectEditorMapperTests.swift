@@ -217,22 +217,30 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(packagesTarget.name, "Packages")
         XCTAssertEqual(packagesTarget.destinations, .macOS)
         XCTAssertEqual(packagesTarget.product, .staticFramework)
-        XCTAssertEqual(
-            packagesTarget.settings,
-            Settings(
-                base: [
+        var expectedPackagesSettings = expectedSettings(includePaths: [
+            projectDescriptionPath,
+            projectDescriptionPath.parentDirectory,
+        ])
+        expectedPackagesSettings = expectedPackagesSettings.with(
+            base: expectedPackagesSettings.base.merging(
+                [
                     "OTHER_SWIFT_FLAGS": .array([
                         "-package-description-version",
                         "5.5.0",
+                        "-D", "TUIST",
                     ]),
                     "SWIFT_INCLUDE_PATHS": .array([
                         "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
                     ]),
                 ],
-                configurations: Settings.default.configurations,
-                defaultSettings: .recommended
+                uniquingKeysWith: { $1 }
             )
         )
+        XCTAssertEqual(
+            packagesTarget.settings,
+            expectedPackagesSettings
+        )
+        XCTAssertEqual(packagesTarget.dependencies, [.target(name: "ProjectDescriptionHelpers")])
         XCTAssertEqual(packagesTarget.sources.map(\.path), [packageManifestPath])
         XCTAssertEqual(packagesTarget.filesGroup, projectsGroup)
 

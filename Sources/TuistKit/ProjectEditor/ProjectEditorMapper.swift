@@ -264,23 +264,39 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             else { return nil }
             let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
 
+            var packagesSettings = targetBaseSettings(
+                projectFrameworkPath: projectDescriptionPath,
+                pluginHelperLibraryPaths: pluginProjectDescriptionHelpersModule.map(\.path),
+                swiftVersion: swiftVersion
+            )
+            packagesSettings.merge(
+                [
+                    "OTHER_SWIFT_FLAGS": .array([
+                        "-package-description-version",
+                        packageVersion.description,
+                        "-D", "TUIST",
+                    ]),
+                    "SWIFT_INCLUDE_PATHS": .array([
+                        "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
+                    ]),
+                ],
+                uniquingKeysWith: { $1 }
+            )
+
+            let dependencies: [TargetDependency] = helpersTarget == nil ? [] : [
+                .target(name: "ProjectDescriptionHelpers"),
+            ]
+
             return editorHelperTarget(
                 name: "Packages",
                 filesGroup: manifestsFilesGroup,
                 targetSettings: Settings(
-                    base: [
-                        "OTHER_SWIFT_FLAGS": .array([
-                            "-package-description-version",
-                            packageVersion.description,
-                        ]),
-                        "SWIFT_INCLUDE_PATHS": .array([
-                            "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
-                        ]),
-                    ],
+                    base: packagesSettings,
                     configurations: Settings.default.configurations,
                     defaultSettings: .recommended
                 ),
-                sourcePaths: [packageManifestPath]
+                sourcePaths: [packageManifestPath],
+                dependencies: dependencies
             )
         }()
 
