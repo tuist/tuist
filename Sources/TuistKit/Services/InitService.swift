@@ -180,7 +180,7 @@ class InitService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
-    ) throws -> [String: String] {
+    ) throws -> [String: AnyHashable] {
         let defaultAttributes = ["name": name, "platform": platform.caseValue]
         return try template.attributes.reduce(into: defaultAttributes) { attributesDictionary, attribute in
             if attribute.name == "name" || attribute.name == "platform" {

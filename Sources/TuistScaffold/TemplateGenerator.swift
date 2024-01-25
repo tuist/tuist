@@ -16,7 +16,7 @@ public protocol TemplateGenerating {
     func generate(
         template: Template,
         to destinationPath: AbsolutePath,
-        attributes: [String: String]
+        attributes: [String: AnyHashable]
     ) throws
 }
 
@@ -27,7 +27,7 @@ public final class TemplateGenerator: TemplateGenerating {
     public func generate(
         template: Template,
         to destinationPath: AbsolutePath,
-        attributes: [String: String]
+        attributes: [String: AnyHashable]
     ) throws {
         let renderedItems = try renderItems(
             template: template,
@@ -50,7 +50,7 @@ public final class TemplateGenerator: TemplateGenerating {
     /// Renders items' paths in format  path_to_dir/{{ attribute_name }} with `attributes`
     private func renderItems(
         template: Template,
-        attributes: [String: String]
+        attributes: [String: AnyHashable]
     ) throws -> [Template.Item] {
         let environment = stencilSwiftEnvironment()
         return try template.items.map {
@@ -103,7 +103,7 @@ public final class TemplateGenerator: TemplateGenerating {
     /// Generate all `renderedItems`
     private func generateItems(
         renderedItems: [Template.Item],
-        attributes: [String: String],
+        attributes: [String: AnyHashable],
         destinationPath: AbsolutePath
     ) throws {
         let environment = stencilSwiftEnvironment()

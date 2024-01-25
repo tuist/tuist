@@ -17,7 +17,7 @@ public struct Template: Equatable {
 
     public enum Attribute: Equatable {
         case required(String)
-        case optional(String, default: String)
+        case optional(String, default: AnyHashable)
 
         public var isOptional: Bool {
             switch self {
