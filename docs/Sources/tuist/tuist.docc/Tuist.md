@@ -75,10 +75,16 @@ The choice is yours. By adding .xcodeproj and .xcworkspace files to your .gitign
 - <doc:project-structure>
 - <doc:command-line-interface>
 - <doc:dependencies>
-- <doc:signing>
+- <doc:synthesized-files>
 - <doc:extensions>
 - <doc:migration-guidelines>
 - <doc:tuist-tutorials>
+
+### Manifests
+
+- <doc:project>
+- <doc:config>
+- <doc:workspace>
 
 ### For Tuist Cloud Users
 

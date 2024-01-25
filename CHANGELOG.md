@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.42.0 - 2024-01-24
+
+### Tuist
+
+#### Fixed
+
+- Rename Compiled group to Frameworks [#5826](https://github.com/tuist/tuist/pull/5826) by [@kwridan](https://github.com/kwridan)
+- Use the correct Swift tools version when loading the PackageSettings [#5831](https://github.com/tuist/tuist/pull/5831) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.41.0 - 2024-01-19
 
 ### Tuist

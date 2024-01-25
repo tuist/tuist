@@ -244,7 +244,7 @@ class ProjectFileElements {
             case let .sdk(sdkNodePath, _, _, _):
                 generateSDKFileElement(
                     sdkNodePath: sdkNodePath,
-                    toGroup: groups.compiled,
+                    toGroup: groups.frameworks,
                     pbxproj: pbxproj
                 )
             case let .product(target: target, productName: productName, _):
@@ -274,7 +274,7 @@ class ProjectFileElements {
                 from: sourceRootPath,
                 fileAbsolutePath: path,
                 name: path.basename,
-                toGroup: groups.compiled,
+                toGroup: groups.frameworks,
                 pbxproj: pbxproj
             )
             compiled[path] = fileElement

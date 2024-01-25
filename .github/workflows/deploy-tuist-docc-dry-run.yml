@@ -3,9 +3,8 @@ name: Deploy Tuist DocC dry-run
 on:
   pull_request:
     paths:
-      - Package.swift
-      - Package.resolved
-      - Sources/**/*.docc
+      - Sources/ProjectDescription/**
+      - docs/**
       - .github/workflows/deploy-tuist-docc-dry-run.yml
 
 jobs:
@@ -15,10 +14,15 @@ jobs:
     steps:
       - name: Checkout Package
         uses: actions/checkout@v3
+      - name: Checkout all tuist versions
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          path: tuist-archive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: jdx/mise-action@v2
         with:
           experimental: true
       - name: Build documentation
-        run: mise run docs:build
+        run: bash ./make/tasks/github/build-docc.sh

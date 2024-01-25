@@ -168,7 +168,9 @@ final class ManifestLoaderTests: TuistTestCase {
 
         let package = Package(
             name: "PackageName",
-            dependencies: []
+            dependencies: [
+                .package(url: "https://github.com/Alamofire/Alamofire", exact: "5.8.0"),
+            ]
         )
 
         """

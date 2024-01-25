@@ -386,6 +386,9 @@ public class ManifestLoader: ManifestLoading {
         let packageDescriptionArguments: [String] = try {
             if case .packageSettings = manifest {
                 guard let xcode = try xcodeController.selected() else { return [] }
+                let packageVersion = try swiftPackageManagerController.getToolsVersion(
+                    at: path.parentDirectory
+                )
                 let manifestPath =
                     "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI"
                 return [
@@ -393,6 +396,7 @@ public class ManifestLoader: ManifestLoading {
                     "-L", manifestPath,
                     "-F", manifestPath,
                     "-lPackageDescription",
+                    "-package-description-version", packageVersion.description,
                     "-D", "TUIST",
                 ]
             } else {
