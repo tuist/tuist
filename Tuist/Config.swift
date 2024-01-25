@@ -7,5 +7,5 @@ let config = Config(
         options: [.optional]
     ),
     swiftVersion: .init("5.8"),
-    generationOptions: .options()
+    generationOptions: .options(enforceExplicitDependencies: true)
 )
