@@ -30,6 +30,12 @@ extension GraphDependencyReference {
         )
     }
 
+    public static func testMacro(
+        path: AbsolutePath = "/macros/tuist"
+    ) -> GraphDependencyReference {
+        GraphDependencyReference.macro(path: path)
+    }
+
     public static func testXCFramework(
         path: AbsolutePath = "/frameworks/tuist.xcframework",
         infoPlist: XCFrameworkInfoPlist = .test(),

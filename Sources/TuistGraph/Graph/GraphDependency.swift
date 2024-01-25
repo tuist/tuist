@@ -9,7 +9,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         public let linking: BinaryLinking
         public let mergeable: Bool
         public let status: FrameworkStatus
-        public let macroPath: AbsolutePath?
 
         public init(
             path: AbsolutePath,
@@ -18,7 +17,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             linking: BinaryLinking,
             mergeable: Bool,
             status: FrameworkStatus,
-            macroPath: AbsolutePath?
+            macroPath _: AbsolutePath?
         ) {
             self.path = path
             self.infoPlist = infoPlist
@@ -26,7 +25,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             self.linking = linking
             self.mergeable = mergeable
             self.status = status
-            self.macroPath = macroPath
         }
 
         public var description: String {
@@ -74,6 +72,9 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         swiftModuleMap: AbsolutePath?
     )
 
+    /// A macOS executable that represents a macro
+    case macro(path: AbsolutePath)
+
     /// A dependency that represents a pre-compiled bundle.
     case bundle(path: AbsolutePath)
 
@@ -88,6 +89,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public func hash(into hasher: inout Hasher) {
         switch self {
+        case let .macro(path):
+            hasher.combine(path)
         case let .xcframework(xcframework):
             hasher.combine(xcframework)
         case let .framework(path, _, _, _, _, _, _):
@@ -119,6 +122,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var isTarget: Bool {
         switch self {
+        case .macro: return false
         case .xcframework: return false
         case .framework: return false
         case .library: return false
@@ -134,6 +138,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
      */
     public var isStaticPrecompiled: Bool {
         switch self {
+        case .macro: return false
         case let .xcframework(xcframework):
             return xcframework.linking == .static
         case let .framework(_, _, _, _, linking, _, _),
@@ -150,6 +155,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
      */
     public var isDynamicPrecompiled: Bool {
         switch self {
+        case .macro: return false
         case let .xcframework(xcframework):
             return xcframework.linking == .dynamic
         case let .framework(_, _, _, _, linking, _, _),
@@ -163,6 +169,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var isPrecompiled: Bool {
         switch self {
+        case .macro: return true
         case .xcframework: return true
         case .framework: return true
         case .library: return true
@@ -175,6 +182,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var isPrecompiledDynamicAndLinkable: Bool {
         switch self {
+        case .macro: return false
         case let .xcframework(xcframework):
             return xcframework.linking == .dynamic
         case let .framework(_, _, _, _, linking, _, _),
@@ -202,6 +210,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var description: String {
         switch self {
+        case .macro:
+            return "macro '\(name)'"
         case .xcframework:
             return "xcframework '\(name)'"
         case .framework:
@@ -221,6 +231,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
 
     public var name: String {
         switch self {
+        case let .macro(path):
+            return path.basename
         case let .xcframework(xcframework):
             return xcframework.path.basename
         case let .framework(path, _, _, _, _, _, _):

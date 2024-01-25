@@ -646,32 +646,32 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedDirectSwiftMacroExecutablesResult
     }
 
-    var invokedDirectSwiftMacroFrameworkTargets = false
-    var invokedDirectSwiftMacroFrameworkTargetsCount = 0
-    var invokedDirectSwiftMacroFrameworkTargetsParameters: (path: AbsolutePath, name: String)?
-    var invokedDirectSwiftMacroFrameworkTargetsParametersList =
+    var invokedDirectSwiftMacroTargets = false
+    var invokedDirectSwiftMacroTargetsCount = 0
+    var invokedDirectSwiftMacroTargetsParameters: (path: AbsolutePath, name: String)?
+    var invokedDirectSwiftMacroTargetsParametersList =
         [(path: AbsolutePath, name: String)]()
-    var stubbedDirectSwiftMacroFrameworkTargetsResult: Set<GraphTarget>! = []
-    func directSwiftMacroFrameworkTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<GraphTarget> {
-        invokedDirectSwiftMacroFrameworkTargets = true
-        invokedDirectSwiftMacroFrameworkTargetsCount += 1
-        invokedDirectSwiftMacroFrameworkTargetsParameters = (path, name)
-        invokedDirectSwiftMacroFrameworkTargetsParametersList.append((path, name))
-        return stubbedDirectSwiftMacroFrameworkTargetsResult
+    var stubbedDirectSwiftMacroTargetsResult: Set<GraphTarget>! = []
+    func directSwiftMacroTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<GraphTarget> {
+        invokedDirectSwiftMacroTargets = true
+        invokedDirectSwiftMacroTargetsCount += 1
+        invokedDirectSwiftMacroTargetsParameters = (path, name)
+        invokedDirectSwiftMacroTargetsParametersList.append((path, name))
+        return stubbedDirectSwiftMacroTargetsResult
     }
 
-    var invokedAllSwiftMacroFrameworkTargets = false
-    var invokedAllSwiftMacroFrameworkTargetsCount = 0
-    var invokedAllSwiftMacroFrameworkTargetsParameters: (path: AbsolutePath, name: String)?
-    var invokedAllSwiftMacroFrameworkTargetsParametersList =
+    var invokedAllSwiftMacroTargets = false
+    var invokedAllSwiftMacroTargetsCount = 0
+    var invokedAllSwiftMacroTargetsParameters: (path: AbsolutePath, name: String)?
+    var invokedAllSwiftMacroTargetsParametersList =
         [(path: AbsolutePath, name: String)]()
-    var stubbedAllSwiftMacroFrameworkTargetsResult: Set<GraphTarget>! = []
-    func allSwiftMacroFrameworkTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistGraph.GraphTarget> {
-        invokedAllSwiftMacroFrameworkTargets = true
-        invokedAllSwiftMacroFrameworkTargetsCount += 1
-        invokedAllSwiftMacroFrameworkTargetsParameters = (path, name)
-        invokedAllSwiftMacroFrameworkTargetsParametersList.append((path, name))
-        return stubbedAllSwiftMacroFrameworkTargetsResult
+    var stubbedAllSwiftMacroTargetsResult: Set<GraphTarget>! = []
+    func allSwiftMacroTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistGraph.GraphTarget> {
+        invokedAllSwiftMacroTargets = true
+        invokedAllSwiftMacroTargetsCount += 1
+        invokedAllSwiftMacroTargetsParameters = (path, name)
+        invokedAllSwiftMacroTargetsParametersList.append((path, name))
+        return stubbedAllSwiftMacroTargetsResult
     }
 
     var invokedAllOrphanExternalTargets = false

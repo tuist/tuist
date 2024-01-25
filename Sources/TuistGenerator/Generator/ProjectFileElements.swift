@@ -209,6 +209,14 @@ class ProjectFileElements {
     ) throws {
         for dependency in dependencyReferences.sorted() {
             switch dependency {
+            case let .macro(path):
+                try generatePrecompiledDependency(
+                    path,
+                    groups: groups,
+                    pbxproj: pbxproj,
+                    group: filesGroup,
+                    sourceRootPath: sourceRootPath
+                )
             case let .xcframework(path, _, _, _, _, _):
                 try generatePrecompiledDependency(
                     path,
