@@ -4530,15 +4530,34 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.sorted(), [])
     }
 
-    func test_directSwiftMacroFrameworkTargets_when_targetHasADirectMacroStaticFrameworkDependency() {
+    func test_directSwiftMacroTargets_when_targetHasADirectMacroStaticFrameworkDependency() {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
-        let macroFramework = Target.test(name: "StaticFramework", destinations: [.iPhone], product: .staticFramework)
+        let staticFrameworkMacro = Target.test(name: "StaticFrameworkMacro", destinations: [.iPhone], product: .staticFramework)
+        let dynamicFrameworkMacro = Target.test(name: "DynamicFrameworkMacro", destinations: [.iPhone], product: .framework)
+        let staticLibraryMacro = Target.test(name: "StaticLibraryMacro", destinations: [.iPhone], product: .staticLibrary)
+        let dynamicLibraryMacro = Target.test(name: "DynamicLibraryMacro", destinations: [.iPhone], product: .dynamicLibrary)
+
         let macro = Target.test(name: "Macro", destinations: [.mac], product: .macro)
-        let project = Project.test(targets: [app, macroFramework, macro])
+        let project = Project.test(targets: [
+            app,
+            staticFrameworkMacro,
+            dynamicFrameworkMacro,
+            staticLibraryMacro,
+            dynamicLibraryMacro,
+            macro,
+        ])
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
-            .target(name: macroFramework.name, path: project.path): Set([.target(name: macro.name, path: project.path)]),
+            .target(name: app.name, path: project.path): Set([
+                .target(name: staticFrameworkMacro.name, path: project.path),
+                .target(name: dynamicFrameworkMacro.name, path: project.path),
+                .target(name: staticLibraryMacro.name, path: project.path),
+                .target(name: dynamicLibraryMacro.name, path: project.path),
+            ]),
+            .target(name: staticFrameworkMacro.name, path: project.path): Set([.target(name: macro.name, path: project.path)]),
+            .target(name: dynamicFrameworkMacro.name, path: project.path): Set([.target(name: macro.name, path: project.path)]),
+            .target(name: staticLibraryMacro.name, path: project.path): Set([.target(name: macro.name, path: project.path)]),
+            .target(name: dynamicLibraryMacro.name, path: project.path): Set([.target(name: macro.name, path: project.path)]),
         ]
 
         // Given: Value Graph
@@ -4547,7 +4566,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
             projects: [project.path: project],
             targets: [project.path: [
                 app.name: app,
-                macroFramework.name: macroFramework,
+                staticFrameworkMacro.name: staticFrameworkMacro,
+                dynamicFrameworkMacro.name: dynamicFrameworkMacro,
+                staticLibraryMacro.name: staticLibraryMacro,
+                dynamicLibraryMacro.name: dynamicLibraryMacro,
                 macro.name: macro,
             ]],
             dependencies: dependencies
@@ -4555,15 +4577,18 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.directSwiftMacroFrameworkTargets(path: project.path, name: app.name)
+        let got = subject.directSwiftMacroTargets(path: project.path, name: app.name)
 
         // Then
         XCTAssertEqual(got.sorted(), [
-            GraphTarget(path: project.path, target: macroFramework, project: project),
+            GraphTarget(path: project.path, target: dynamicFrameworkMacro, project: project),
+            GraphTarget(path: project.path, target: dynamicLibraryMacro, project: project),
+            GraphTarget(path: project.path, target: staticFrameworkMacro, project: project),
+            GraphTarget(path: project.path, target: staticLibraryMacro, project: project),
         ])
     }
 
-    func test_directSwiftMacroFrameworkTargets_doesntReturnAStaticFramework_when_theStaticFrameworkDoesntDependOnAMacroExecutable(
+    func test_directSwiftMacroTargets_doesntReturnATarget_when_theItDoesntDependOnAMacroExecutable(
     ) {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
@@ -4587,21 +4612,21 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.directSwiftMacroFrameworkTargets(path: project.path, name: app.name)
+        let got = subject.directSwiftMacroTargets(path: project.path, name: app.name)
 
         // Then
         XCTAssertEqual(got.sorted(), [])
     }
 
-    func test_allSwiftMacroFrameworkTargets_returnsTransitiveSwiftMacros() {
+    func test_allSwiftMacroTargets_returnsTransitiveSwiftMacros() {
         // Given
         let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
         let directMacroFramework = Target.test(name: "DirectMacroFramework", destinations: [.iPhone], product: .staticFramework)
         let directMacro = Target.test(name: "DirectMacro", destinations: [.mac], product: .macro)
-        let transitiveMacroFramework = Target.test(
-            name: "TransitiveMacroFramework",
+        let transitiveMacroLibrary = Target.test(
+            name: "TransitiveMacroLibrary",
             destinations: [.iPhone],
-            product: .staticFramework
+            product: .staticLibrary
         )
         let transitiveMacro = Target.test(name: "TransitiveMacro", destinations: [.mac], product: .macro)
 
@@ -4610,9 +4635,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .target(name: app.name, path: project.path): Set([.target(name: directMacroFramework.name, path: project.path)]),
             .target(name: directMacroFramework.name, path: project.path): Set([
                 .target(name: directMacro.name, path: project.path),
-                .target(name: transitiveMacroFramework.name, path: project.path),
+                .target(name: transitiveMacroLibrary.name, path: project.path),
             ]),
-            .target(name: transitiveMacroFramework.name, path: project.path): Set([.target(
+            .target(name: transitiveMacroLibrary.name, path: project.path): Set([.target(
                 name: transitiveMacro.name,
                 path: project.path
             )]),
@@ -4626,7 +4651,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 app.name: app,
                 directMacroFramework.name: directMacroFramework,
                 directMacro.name: directMacro,
-                transitiveMacroFramework.name: transitiveMacroFramework,
+                transitiveMacroLibrary.name: transitiveMacroLibrary,
                 transitiveMacro.name: transitiveMacro,
             ]],
             dependencies: dependencies
@@ -4634,12 +4659,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.allSwiftMacroFrameworkTargets(path: project.path, name: app.name)
+        let got = subject.allSwiftMacroTargets(path: project.path, name: app.name)
 
         // Then
         XCTAssertEqual(got.sorted(), [
             GraphTarget(path: project.path, target: directMacroFramework, project: project),
-            GraphTarget(path: project.path, target: transitiveMacroFramework, project: project),
+            GraphTarget(path: project.path, target: transitiveMacroLibrary, project: project),
         ])
     }
 

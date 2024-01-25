@@ -496,16 +496,16 @@ public class GraphTraverser: GraphTraversing {
         return Set(dependencies)
     }
 
-    public func directSwiftMacroFrameworkTargets(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+    public func directSwiftMacroTargets(path: AbsolutePath, name: String) -> Set<GraphTarget> {
         let dependencies = directTargetDependencies(path: path, name: name)
-            .filter { $0.target.product == .staticFramework }
+            .filter { [.staticFramework, .framework, .dynamicLibrary, .staticLibrary].contains($0.target.product) }
             .filter { self.directSwiftMacroExecutables(path: $0.path, name: $0.target.name).count != 0 }
         return Set(dependencies)
     }
 
-    public func allSwiftMacroFrameworkTargets(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+    public func allSwiftMacroTargets(path: AbsolutePath, name: String) -> Set<GraphTarget> {
         let dependencies = allTargetDependencies(path: path, name: name)
-            .filter { $0.target.product == .staticFramework }
+            .filter { [.staticFramework, .framework, .dynamicLibrary, .staticLibrary].contains($0.target.product) }
             .filter { self.directSwiftMacroExecutables(path: $0.path, name: $0.target.name).count != 0 }
         return Set(dependencies)
     }
@@ -713,7 +713,7 @@ public class GraphTraverser: GraphTraversing {
         .flatMap(precompiledMacroDependencies)
         .map { "\($0.pathString)/#\($0.basename)" }
 
-        let sourceMacroPluginExecutables = allSwiftMacroFrameworkTargets(path: path, name: name)
+        let sourceMacroPluginExecutables = allSwiftMacroTargets(path: path, name: name)
             .flatMap { target in
                 directSwiftMacroExecutables(path: target.project.path, name: target.target.name).map { (target, $0) }
             }
