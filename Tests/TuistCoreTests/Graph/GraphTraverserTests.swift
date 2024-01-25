@@ -1177,6 +1177,44 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got)
     }
 
+    func test_embeddableFrameworks_when_macroExecutableInBetween() throws {
+        /**
+         Target > Macro XCFramework > Macro Executable > Dynamic SwiftSyntax
+
+         Having a macro executable that links dynamic dependencies is an scenario that Tuist might support in the future.
+         This test ensures that our graph traverser is accounting for that already.
+         */
+        // Given
+        let target = Target.test(name: "Main", product: .app)
+        let precompiledMacro = GraphDependency.testXCFramework(linking: .dynamic)
+        let precompiledMacroExecutable = GraphDependency.testMacro()
+        let swiftSyntaxDynamicXCFramework = GraphDependency.testXCFramework(linking: .dynamic)
+
+        let project = Project.test(targets: [target])
+        let graphTarget = GraphDependency.target(name: target.name, path: project.path)
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: [
+                .target(
+                    name: target.name,
+                    path: project.path
+                ): Set([precompiledMacro]),
+                precompiledMacro: Set([swiftSyntaxDynamicXCFramework]),
+                precompiledMacroExecutable: Set([swiftSyntaxDynamicXCFramework]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [GraphDependencyReference(precompiledMacro)])
+    }
+
     func test_embeddableFrameworks_when_targetIsNotApp() throws {
         // Given
         let target = Target.test(name: "Main", product: .framework)
@@ -1827,6 +1865,40 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, try [AbsolutePath(validating: "/test")])
+    }
+
+    func test_linkableDependencies_whenMacros() throws {
+        // Given
+        let target = Target.test(name: "Main", product: .app)
+        let macroXCFramework = GraphDependency.testXCFramework(
+            path: .root.appending(component: "Macro.xcframework"),
+            linking: .static
+        )
+        let macroExecutable = GraphDependency.testMacro()
+        let swiftSyntax = GraphDependency.testXCFramework(
+            path: .root.appending(component: "SwiftSyntax.xcframework"),
+            linking: .static
+        )
+        let project = Project.test(targets: [target])
+
+        // Given: Value Graph
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: target.name, path: project.path): Set([macroXCFramework]),
+            macroXCFramework: Set([macroExecutable]),
+            macroExecutable: Set([swiftSyntax]),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got.first, GraphDependencyReference(macroXCFramework))
     }
 
     func test_linkableDependencies_whenPrecompiled() throws {

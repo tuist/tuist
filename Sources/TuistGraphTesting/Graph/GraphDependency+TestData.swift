@@ -96,6 +96,10 @@ extension GraphDependency {
         )
     }
 
+    public static func testBundle(path: AbsolutePath = .root.appending(component: "test.bundle")) -> GraphDependency {
+        .bundle(path: path)
+    }
+
     public static func testPackageProduct(
         path: AbsolutePath = .root,
         product: String = "Tuist"

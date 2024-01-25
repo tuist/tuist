@@ -20,4 +20,15 @@ final class GraphDependencyTests: TuistUnitTestCase {
         // Then
         XCTAssertCodable(subject)
     }
+
+    func test_isLinkable() {
+        XCTAssertFalse(GraphDependency.testMacro().isLinkable)
+        XCTAssertTrue(GraphDependency.testXCFramework().isLinkable)
+        XCTAssertTrue(GraphDependency.testFramework().isLinkable)
+        XCTAssertTrue(GraphDependency.testLibrary().isLinkable)
+        XCTAssertFalse(GraphDependency.testBundle().isLinkable)
+        XCTAssertTrue(GraphDependency.testPackageProduct().isLinkable)
+        XCTAssertTrue(GraphDependency.testTarget().isLinkable)
+        XCTAssertTrue(GraphDependency.testSDK().isLinkable)
+    }
 }
