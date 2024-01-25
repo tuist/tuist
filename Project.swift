@@ -20,6 +20,9 @@ func targets() -> [Target] {
             product: .commandLineTool,
             dependencies: [
                 .target(name: "TuistEnvKit"),
+            ],
+            testDependencies: [
+                .target(name: "TuistEnvKit"),
             ]
         ),
         Target.target(
