@@ -21,7 +21,6 @@ final class CleanService {
         let manifestLoaderFactory = ManifestLoaderFactory()
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
-        let config = try configLoader.loadConfig(path: path)
         let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories()
 
         for category in categories {

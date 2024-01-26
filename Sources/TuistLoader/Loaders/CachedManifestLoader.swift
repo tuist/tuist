@@ -60,7 +60,6 @@ public class CachedManifestLoader: ManifestLoading {
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
         try load(manifest: .config, at: path) {
             let projectDescriptionConfig = try manifestLoader.loadConfig(at: path)
-            let config = try TuistGraph.Config.from(manifest: projectDescriptionConfig, at: path)
             cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories().cacheDirectory(for: .manifests)
             return projectDescriptionConfig
         }
