@@ -302,7 +302,7 @@ public class GraphTraverser: GraphTraversing {
         var precompiledFrameworks = filterDependencies(
             from: .target(name: name, path: path),
             test: { $0.isPrecompiledDynamicAndLinkable },
-            skip: canDependencyEmbedProducts
+            skip: or(canDependencyEmbedProducts, isDependencyPrecompiledMacro)
         )
         // Skip merged precompiled libraries from merging into the runnable binary
         if case let .manual(dependenciesToMerge) = target.target.mergedBinaryType {
@@ -406,7 +406,8 @@ public class GraphTraverser: GraphTraversing {
             .filter(\.isPrecompiled)
 
         let precompiledDependencies = precompiled
-            .flatMap { filterDependencies(from: $0) }
+            .flatMap { filterDependencies(from: $0)
+            }
 
         let precompiledLibrariesAndFrameworks = Set(precompiled + precompiledDependencies)
             .filter(\.isPrecompiledDynamicAndLinkable)
@@ -440,7 +441,7 @@ public class GraphTraverser: GraphTraversing {
             let staticDependenciesPrecompiledLibrariesAndFrameworks = transitiveStaticTargetReferences.flatMap { dependency in
                 self.graph.dependencies[dependency, default: []]
                     .lazy
-                    .filter(\.isPrecompiled)
+                    .filter { $0.isPrecompiled && $0.isLinkable }
             }
 
             let allDependencies = (
@@ -708,6 +709,13 @@ public class GraphTraverser: GraphTraversing {
             case .bundle, .library, .framework, .sdk, .target, .packageProduct, .macro:
                 return false
             }
+        }, skip: { dependency in
+            switch dependency {
+            case .macro:
+                return true
+            case .bundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework:
+                return false
+            }
         })
         .lazy
         .flatMap(precompiledMacroDependencies)
@@ -909,8 +917,17 @@ public class GraphTraverser: GraphTraversing {
         filterDependencies(
             from: dependency,
             test: isDependencyStatic,
-            skip: canDependencyLinkStaticProducts
+            skip: or(canDependencyLinkStaticProducts, isDependencyPrecompiledMacro)
         )
+    }
+
+    func isDependencyPrecompiledMacro(_ dependency: GraphDependency) -> Bool {
+        switch dependency {
+        case .macro:
+            return true
+        case .bundle, .framework, .xcframework, .library, .sdk, .target, .packageProduct:
+            return false
+        }
     }
 
     func isDependencyPrecompiledLibrary(dependency: GraphDependency) -> Bool {
