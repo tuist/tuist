@@ -5174,7 +5174,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let project = Project.test(path: directory, targets: [appTarget])
         let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
         let precompiledMacroXCFramework = GraphDependency.testXCFramework()
-        let macroPath = AbsolutePath.root.appending(components: ["macros", "macro"])
+        let macroPath = AbsolutePath.root.appending(components: ["macros", "macro.macro"])
         let precompiledMacroExecutable = GraphDependency.testMacro(path: macroPath)
 
         let graph = Graph.test(
@@ -5196,7 +5196,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
 
         XCTAssertEqual(got.sorted(), [
-            "\(macroPath.pathString)/#\(macroPath.basename)",
+            "\(macroPath.pathString)/#\(macroPath.basename.replacingOccurrences(of: ".macro", with: ""))",
         ])
     }
 
