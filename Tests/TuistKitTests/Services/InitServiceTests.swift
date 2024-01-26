@@ -128,38 +128,38 @@ final class InitServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(expectedAttributes, generatorAttributes)
     }
-    
+
     func test_optional_dictionary_attribute_is_taken_from_template() async throws {
         // Given
         struct Env: Hashable {
             let key: String
             let value: String
         }
-        
+
         let context = [
             "envs": [
                 Env(key: "key1", value: "value1"),
                 Env(key: "key2", value: "value2"),
-            ]
+            ],
         ]
-        
+
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [
                 .optional("optional", default: context),
             ])
         }
-        
+
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
         }
-        
+
         let expectedAttributes: [String: AnyHashable] = [
             "name": "Name",
             "platform": "iOS",
             "optional": context,
         ]
-        
+
         var generatorAttributes: [String: AnyHashable] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
@@ -167,32 +167,32 @@ final class InitServiceTests: TuistUnitTestCase {
 
         // When
         try subject.testRun(name: "Name")
-        
+
         // Then
         XCTAssertEqual(expectedAttributes, generatorAttributes)
     }
-    
+
     func test_optional_integer_attribute_is_taken_from_template() async throws {
         // Given
-        let defaultIntegerValue: Int = 999
-        
+        let defaultIntegerValue = 999
+
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [
                 .optional("optional", default: defaultIntegerValue),
             ])
         }
-        
+
         let defaultTemplatePath = try temporaryPath().appending(component: "default")
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
         }
-        
+
         let expectedAttributes: [String: AnyHashable] = [
             "name": "Name",
             "platform": "iOS",
             "optional": defaultIntegerValue,
         ]
-        
+
         var generatorAttributes: [String: AnyHashable] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
@@ -200,7 +200,7 @@ final class InitServiceTests: TuistUnitTestCase {
 
         // When
         try subject.testRun(name: "Name")
-        
+
         // Then
         XCTAssertEqual(expectedAttributes, generatorAttributes)
     }
