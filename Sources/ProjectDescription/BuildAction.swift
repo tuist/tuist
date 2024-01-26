@@ -13,18 +13,6 @@ public struct BuildAction: Equatable, Codable {
     /// Whether the post actions should be run in the case of a failure
     public var runPostActionsOnFailure: Bool
 
-    public init(
-        targets: [TargetReference],
-        preActions: [ExecutionAction] = [],
-        postActions: [ExecutionAction] = [],
-        runPostActionsOnFailure: Bool = false
-    ) {
-        self.targets = targets
-        self.preActions = preActions
-        self.postActions = postActions
-        self.runPostActionsOnFailure = runPostActionsOnFailure
-    }
-
     /// Returns a build action.
     /// - Parameters:
     ///   - targets: A list of targets to build, which are defined in the project.

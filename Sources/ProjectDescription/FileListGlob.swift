@@ -33,6 +33,6 @@ public struct FileListGlob: Codable, Equatable {
 
 extension FileListGlob: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self.init(glob: Path(value), excluding: [])
+        self.init(glob: .path(value), excluding: [])
     }
 }

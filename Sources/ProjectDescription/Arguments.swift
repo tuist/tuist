@@ -4,17 +4,11 @@ import Foundation
 public struct Arguments: Equatable, Codable {
     public var environmentVariables: [String: EnvironmentVariable]
     public var launchArguments: [LaunchArgument]
-
-    public init(
+    
+    public static func arguments(
         environmentVariables: [String: EnvironmentVariable] = [:],
         launchArguments: [LaunchArgument] = []
-    ) {
-        self.environmentVariables = environmentVariables
-        self.launchArguments = launchArguments
-    }
-
-    public init(launchArguments: [LaunchArgument]) {
-        environmentVariables = [:]
-        self.launchArguments = launchArguments
+    ) -> Self {
+        self.init(environmentVariables: environmentVariables, launchArguments: launchArguments)
     }
 }

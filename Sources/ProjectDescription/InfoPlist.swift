@@ -41,6 +41,6 @@ public enum InfoPlist: Codable, Equatable {
 
 extension InfoPlist: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self = .file(path: Path(value))
+        self = .file(path: .path(value))
     }
 }
