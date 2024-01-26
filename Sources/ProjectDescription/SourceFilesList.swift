@@ -81,7 +81,7 @@ public struct SourceFilesList: Codable, Equatable {
     ///
     /// - Parameter globs: Glob patterns.
     public static func sourceFilesList(globs: [String]) -> Self {
-        self.sourceFilesList(globs: globs.map(SourceFileGlob.init))
+        sourceFilesList(globs: globs.map(SourceFileGlob.init))
     }
 
     /// Returns a sources list from a list of paths.

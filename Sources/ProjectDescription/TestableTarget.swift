@@ -17,7 +17,7 @@ public struct TestableTarget: Equatable, Codable, ExpressibleByStringInterpolati
         self.isParallelizable = isParallelizable
         self.isRandomExecutionOrdering = isRandomExecutionOrdering
     }
-    
+
     public static func testableTarget(
         target: TargetReference,
         isSkipped: Bool = false,

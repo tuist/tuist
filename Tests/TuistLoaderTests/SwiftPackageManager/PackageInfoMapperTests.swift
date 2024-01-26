@@ -3291,7 +3291,11 @@ extension ProjectDescription.Target {
             sources = list
         case .default:
             // swiftlint:disable:next force_try
-            sources = .sourceFilesList(globs: [basePath.appending(try! RelativePath(validating: "Package/Sources/\(name)/**")).pathString])
+            sources =
+                .sourceFilesList(globs: [
+                    basePath.appending(try! RelativePath(validating: "Package/Sources/\(name)/**"))
+                        .pathString,
+                ])
         }
 
         return ProjectDescription.Target.target(

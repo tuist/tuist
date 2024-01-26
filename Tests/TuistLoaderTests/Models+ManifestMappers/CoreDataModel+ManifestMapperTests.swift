@@ -43,7 +43,10 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         // When
         let model = try TuistGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
 
-        let manifestWithCurrentVersionExplicitly = ProjectDescription.CoreDataModel.coreDataModel("model.xcdatamodeld", currentVersion: "83")
+        let manifestWithCurrentVersionExplicitly = ProjectDescription.CoreDataModel.coreDataModel(
+            "model.xcdatamodeld",
+            currentVersion: "83"
+        )
 
         // Then
         XCTAssertTrue(try coreDataModel(

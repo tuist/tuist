@@ -265,7 +265,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                         "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
                     ]),
                 ],
-                uniquingKeysWith: { 
+                uniquingKeysWith: {
                     switch ($0, $1) {
                     case let (.array(leftArray), .array(rightArray)):
                         return SettingValue.array(leftArray + rightArray)

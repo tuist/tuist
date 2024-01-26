@@ -4,7 +4,7 @@ import Foundation
 public struct Arguments: Equatable, Codable {
     public var environmentVariables: [String: EnvironmentVariable]
     public var launchArguments: [LaunchArgument]
-    
+
     public static func arguments(
         environmentVariables: [String: EnvironmentVariable] = [:],
         launchArguments: [LaunchArgument] = []

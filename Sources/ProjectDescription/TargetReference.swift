@@ -21,7 +21,7 @@ public struct TargetReference: Hashable, Codable, ExpressibleByStringInterpolati
     public static func project(path: Path, target: String) -> TargetReference {
         .init(projectPath: path, target: target)
     }
-    
+
     public static func target(_ name: String) -> TargetReference {
         .init(projectPath: nil, target: name)
     }
