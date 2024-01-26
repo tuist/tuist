@@ -11,7 +11,7 @@ let project = Project(
         )
     ),
     targets: [
-        Target(
+        .target(
             name: "AppCore",
             destinations: [.iPhone],
             product: .framework,
@@ -20,7 +20,7 @@ let project = Project(
             infoPlist: .default,
             sources: .paths([.relativeToManifest("AppCore/Sources/**")])
         ),
-        Target(
+        .target(
             name: "AppCoreTests",
             destinations: [.iPhone],
             product: .unitTests,
@@ -32,7 +32,7 @@ let project = Project(
                 .target(name: "AppCore"),
             ]
         ),
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -47,7 +47,7 @@ let project = Project(
                 "CODE_SIGNING_REQUIRED": "NO",
             ])
         ),
-        Target(
+        .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,
@@ -62,7 +62,7 @@ let project = Project(
                 "CODE_SIGNING_REQUIRED": "NO",
             ])
         ),
-        Target(
+        .target(
             name: "MacFramework",
             destinations: [.mac],
             product: .framework,
@@ -75,7 +75,7 @@ let project = Project(
                 "CODE_SIGNING_REQUIRED": "NO",
             ])
         ),
-        Target(
+        .target(
             name: "MacFrameworkTests",
             destinations: [.mac],
             product: .unitTests,
@@ -91,7 +91,7 @@ let project = Project(
                 "CODE_SIGNING_REQUIRED": "NO",
             ])
         ),
-        Target(
+        .target(
             name: "AppUITests",
             destinations: .iOS,
             product: .uiTests,
@@ -102,7 +102,7 @@ let project = Project(
                 .target(name: "App"),
             ]
         ),
-        Target(
+        .target(
             name: "App-dash",
             destinations: .iOS,
             product: .app,
@@ -118,7 +118,7 @@ let project = Project(
                 "CODE_SIGNING_REQUIRED": "NO",
             ])
         ),
-        Target(
+        .target(
             name: "App-dashUITests",
             destinations: .iOS,
             product: .uiTests,

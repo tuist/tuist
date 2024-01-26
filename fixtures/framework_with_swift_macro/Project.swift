@@ -7,7 +7,7 @@ let project = Project(
         .remote(url: "https://github.com/pointfreeco/swift-composable-architecture", requirement: .exact("1.4.0")),
     ],
     targets: [
-        Target(
+        .target(
             name: "Framework",
             destinations: .iOS,
             product: .framework,

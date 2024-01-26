@@ -6,7 +6,7 @@ let project = Project(
         .package(url: "https://github.com/ReactiveX/RxSwift", .upToNextMajor(from: "5.0.0")),
     ],
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -22,7 +22,7 @@ let project = Project(
                 .package(product: "RxBlocking"),
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,

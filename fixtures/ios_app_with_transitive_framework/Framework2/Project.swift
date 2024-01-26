@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "Framework2",
     targets: [
-        Target(
+        .target(
             name: "Framework2-iOS",
             destinations: .iOS,
             product: .framework,
@@ -15,7 +15,7 @@ let project = Project(
             ],
             settings: .settings(base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"])
         ),
-        Target(
+        .target(
             name: "Framework2-macOS",
             destinations: [.mac],
             product: .framework,

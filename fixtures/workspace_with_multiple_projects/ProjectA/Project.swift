@@ -4,7 +4,7 @@ let project = Project(
     name: "ProjectA",
     organizationName: "tuist.io",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -13,7 +13,7 @@ let project = Project(
             infoPlist: .default,
             sources: ["Targets/App/Sources/**"]
         ),
-        Target(
+        .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,

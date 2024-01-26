@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "FrameworkWithSwiftMacro",
     targets: [
-        Target(
+        .target(
             name: "Framework",
             destinations: [.iPhone, .mac],
             product: .staticLibrary,

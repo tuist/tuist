@@ -7,7 +7,7 @@ let project = Project(
         disableSynthesizedResourceAccessors: true
     ),
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,

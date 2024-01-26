@@ -2,7 +2,7 @@ import ProjectDescription
 
 func target(name: String) -> Target {
     print("Target name - \(name)")
-    return Target(
+    return .target(
         name: name,
         destinations: [.mac],
         product: .app,

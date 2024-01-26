@@ -15,7 +15,7 @@ let project = Project(
         disableSynthesizedResourceAccessors: true
     ),
     targets: [
-        Target(
+        .target(
             name: "Framework1",
             destinations: .iOS,
             product: .framework,

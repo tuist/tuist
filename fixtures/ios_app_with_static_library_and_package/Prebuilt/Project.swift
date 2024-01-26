@@ -6,7 +6,7 @@ let project = Project(
         .package(path: "../Packages/PackageA"),
     ],
     targets: [
-        Target(
+        .target(
             name: "PrebuiltStaticFramework",
             destinations: .iOS,
             product: .staticFramework,

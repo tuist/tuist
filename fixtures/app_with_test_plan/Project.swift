@@ -4,7 +4,7 @@ let project = Project(
     name: "App",
     organizationName: "tuist.io",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: [.iPhone],
             product: .app,
@@ -13,7 +13,7 @@ let project = Project(
             infoPlist: .default,
             sources: ["Targets/App/Sources/**"]
         ),
-        Target(
+        .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,
@@ -24,7 +24,7 @@ let project = Project(
                 .target(name: "App"),
             ]
         ),
-        Target(
+        .target(
             name: "MacFramework",
             destinations: [.mac],
             product: .framework,
@@ -39,7 +39,7 @@ let project = Project(
                 ]
             )
         ),
-        Target(
+        .target(
             name: "MacFrameworkTests",
             destinations: [.mac],
             product: .unitTests,
@@ -59,7 +59,7 @@ let project = Project(
         ),
     ],
     schemes: [
-        Scheme(
+        .scheme(
             name: "App",
             buildAction: BuildAction(targets: ["App"]),
             testAction: .testPlans([.relativeToManifest("All.xctestplan")]),

@@ -64,7 +64,7 @@ extension Scheme {
         profileAction: ProjectDescription.ProfileAction? = nil,
         analyzeAction: ProjectDescription.AnalyzeAction? = nil
     ) -> Scheme {
-        Scheme(
+        .scheme(
             name: name,
             shared: shared,
             hidden: hidden,

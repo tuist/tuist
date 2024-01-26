@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "CommandLineTool",
     targets: [
-        Target(
+        .target(
             name: "CommandLineTool",
             destinations: [.mac],
             product: .commandLineTool,
@@ -14,7 +14,7 @@ let project = Project(
                 .target(name: "DynamicLib"),
             ]
         ),
-        Target(
+        .target(
             name: "DynamicLib",
             destinations: [.mac],
             product: .dynamicLibrary,

@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -20,7 +20,7 @@ let project = Project(
         // We need a separate app to test out Message Extensions
         // as having both stickers pack and message extensions in one app
         // doesn't seem to be supported.
-        Target(
+        .target(
             name: "AppWithMessagesExtension",
             destinations: .iOS,
             product: .app,
@@ -32,7 +32,7 @@ let project = Project(
                 .target(name: "NotificationServiceExtension"),
             ]
         ),
-        Target(
+        .target(
             name: "StickersPackExtension",
             destinations: .iOS,
             product: .stickerPackExtension,
@@ -49,7 +49,7 @@ let project = Project(
             dependencies: [
             ]
         ),
-        Target(
+        .target(
             name: "NotificationServiceExtension",
             destinations: .iOS,
             product: .appExtension,
@@ -65,7 +65,7 @@ let project = Project(
             dependencies: [
             ]
         ),
-        Target(
+        .target(
             name: "MessageExtension",
             destinations: .iOS,
             product: .messagesExtension,
@@ -82,7 +82,7 @@ let project = Project(
             dependencies: [
             ]
         ),
-        Target(
+        .target(
             name: "WidgetExtension",
             destinations: .iOS,
             product: .appExtension,
@@ -99,7 +99,7 @@ let project = Project(
                 .target(name: "StaticFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "StaticFramework",
             destinations: .iOS,
             product: .staticFramework,
@@ -107,7 +107,7 @@ let project = Project(
             infoPlist: .default,
             sources: "StaticFramework/Sources/**"
         ),
-        Target(
+        .target(
             name: "AppIntentExtension",
             destinations: .iOS,
             product: .extensionKitExtension,

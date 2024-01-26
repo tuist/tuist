@@ -15,7 +15,7 @@ let workflowExtensionSettings: SettingsDictionary = [
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: [.mac],
             product: .app,
@@ -24,7 +24,7 @@ let project = Project(
             sources: "App/**",
             dependencies: [.target(name: "Workflow")]
         ),
-        Target(
+        .target(
             name: "Workflow",
             destinations: [.mac],
             product: .appExtension,

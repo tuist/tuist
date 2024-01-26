@@ -62,7 +62,7 @@ extension Target {
         dependencies: [TargetDependency],
         resources: ResourceFileElements? = nil
     ) -> Target {
-        Target(
+        .target(
             name: name,
             destinations: [.iPhone],
             product: product,
@@ -78,7 +78,7 @@ extension Target {
     public static func test(
         name: String
     ) -> Target {
-        Target(
+        .target(
             name: "\(name)Tests",
             destinations: .iOS,
             product: .unitTests,
@@ -96,16 +96,14 @@ extension Scheme {
         mainTargetName: String,
         testTargetName: String
     ) -> Scheme {
-        let main = TargetReference(
-            projectPath: nil,
-            target: mainTargetName
+        let main: TargetReference = .target(
+            mainTargetName
         )
-        let test = TargetReference(
-            projectPath: nil,
-            target: testTargetName
+        let test: TargetReference = .target(
+            testTargetName
         )
 
-        return Scheme(
+        return .scheme(
             name: name,
             shared: true,
             buildAction: .buildAction(targets: [
@@ -113,7 +111,7 @@ extension Scheme {
             ]),
             testAction: .targets(
                 [
-                    TestableTarget(target: test),
+                    .testableTarget(target: test),
                 ],
                 configuration: "debug"
             ),

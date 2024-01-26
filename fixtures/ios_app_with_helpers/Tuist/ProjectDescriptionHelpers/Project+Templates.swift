@@ -22,7 +22,7 @@ extension Project {
         Project(
             name: name,
             targets: [
-                Target(
+                .target(
                     name: name,
                     destinations: destinations,
                     product: product,
@@ -32,7 +32,7 @@ extension Project {
                     resources: [],
                     dependencies: dependencies
                 ),
-                Target(
+                .target(
                     name: "\(name)Tests",
                     destinations: destinations,
                     product: .unitTests,

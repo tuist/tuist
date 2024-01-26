@@ -31,7 +31,7 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
         let manifest: ProjectDescription.Configuration = .debug(
             name: .debug,
             settings: settings,
-            xcconfig: Path(xcconfigPath.pathString)
+            xcconfig: .path(xcconfigPath.pathString)
         )
 
         // When

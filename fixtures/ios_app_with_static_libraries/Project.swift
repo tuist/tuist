@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "iOSAppWithTransistiveStaticLibraries",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -14,7 +14,7 @@ let project = Project(
                 .project(target: "A", path: "Modules/A"),
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,

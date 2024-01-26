@@ -1,7 +1,7 @@
 import ProjectDescription
 
 let debugAction = ExecutionAction(scriptText: "echo Debug", target: "App")
-let debugScheme = Scheme(
+let debugScheme = .scheme(
     name: "App-Debug",
     shared: true,
     buildAction: .buildAction(
@@ -23,7 +23,7 @@ let debugScheme = Scheme(
 )
 
 let releaseAction = ExecutionAction(scriptText: "echo Release", target: "App")
-let releaseScheme = Scheme(
+let releaseScheme = .scheme(
     name: "App-Release",
     shared: true,
     buildAction: .buildAction(targets: ["App"], preActions: [releaseAction]),
@@ -38,7 +38,7 @@ let releaseScheme = Scheme(
     )
 )
 
-let userScheme = Scheme(
+let userScheme = .scheme(
     name: "App-Local",
     shared: false,
     buildAction: .buildAction(targets: ["App"], preActions: [debugAction]),
@@ -49,7 +49,7 @@ let userScheme = Scheme(
 let project = Project(
     name: "MainApp",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -61,7 +61,7 @@ let project = Project(
                 .project(target: "Framework2", path: "../Frameworks/Framework2"),
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,

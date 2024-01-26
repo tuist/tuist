@@ -1,6 +1,6 @@
 import ProjectDescription
 
-let customAppScheme = Scheme(
+let customAppScheme = .scheme(
     name: "Workspace-App",
     shared: true,
     buildAction: .buildAction(
@@ -48,7 +48,7 @@ let customAppScheme = Scheme(
     archiveAction: .archiveAction(configuration: "Debug", customArchiveName: "Something2")
 )
 
-let customAppSchemeWithTestPlans = Scheme(
+let customAppSchemeWithTestPlans = .scheme(
     name: "Workspace-App-With-TestPlans",
     shared: true,
     buildAction: .buildAction(
@@ -66,7 +66,7 @@ let customAppSchemeWithTestPlans = Scheme(
     archiveAction: .archiveAction(configuration: "Debug", customArchiveName: "Something2")
 )
 
-let customFrameworkScheme = Scheme(
+let customFrameworkScheme = .scheme(
     name: "Workspace-Framework",
     shared: true,
     buildAction: .buildAction(

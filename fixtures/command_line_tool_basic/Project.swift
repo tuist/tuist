@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "CommandLineTool",
     targets: [
-        Target(
+        .target(
             name: "CommandLineTool",
             destinations: [.mac],
             product: .commandLineTool,

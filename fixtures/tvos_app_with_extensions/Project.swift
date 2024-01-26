@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: [.appleTv],
             product: .app,
@@ -14,7 +14,7 @@ let project = Project(
                 .target(name: "TopShelfExtension"),
             ]
         ),
-        Target(
+        .target(
             name: "TopShelfExtension",
             destinations: [.appleTv],
             product: .tvTopShelfExtension,
@@ -30,7 +30,7 @@ let project = Project(
             dependencies: [
             ]
         ),
-        Target(
+        .target(
             name: "StaticFramework",
             destinations: .iOS,
             product: .staticFramework,

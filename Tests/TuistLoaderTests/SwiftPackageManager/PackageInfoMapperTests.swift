@@ -455,7 +455,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(
                             "Target1",
                             basePath: basePath,
-                            customSources: .custom(.init(
+                            customSources: .custom(.sourceFilesList(
                                 globs: [
                                     basePath
                                         .appending(try RelativePath(validating: "Package/\(alternativeDefaultSource)/Target1/**"))
@@ -621,7 +621,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath: basePath,
                         customProductName: "com_example_target_1",
                         customBundleID: "com.example.target-1",
-                        customSources: .custom(.init(globs: [
+                        customSources: .custom(.sourceFilesList(globs: [
                             basePath
                                 .appending(try RelativePath(validating: "Package/Sources/com.example.target-1/**")).pathString,
                         ]))
@@ -851,11 +851,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSources: .custom(.init(globs: [
+                        customSources: .custom(.sourceFilesList(globs: [
                             .glob(
-                                Path(basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString),
+                                .path(basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString),
                                 excluding: [
-                                    Path(
+                                    .path(
                                         basePath
                                             .appending(
                                                 try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
@@ -867,14 +867,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ])),
                         resources: [
                             .folderReference(
-                                path: Path(
+                                path: .path(
                                     basePath.appending(try RelativePath(validating: "Package/Sources/Target1/Resource/Folder"))
                                         .pathString
                                 ),
                                 tags: []
                             ),
                             .glob(
-                                pattern: Path(
+                                pattern: .path(
                                     basePath
                                         .appending(
                                             try RelativePath(validating: "Package/Sources/Target1/Another/Resource/Folder/**")
@@ -882,7 +882,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                         .pathString
                                 ),
                                 excluding: [
-                                    Path(
+                                    .path(
                                         basePath
                                             .appending(
                                                 try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
@@ -893,7 +893,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 tags: []
                             ),
                             .glob(
-                                pattern: Path(
+                                pattern: .path(
                                     basePath
                                         .appending(
                                             try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/Folder/**")
@@ -901,7 +901,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                         .pathString
                                 ),
                                 excluding: [
-                                    Path(
+                                    .path(
                                         basePath
                                             .appending(
                                                 try RelativePath(validating: "Package/Sources/Target1/AnotherOne/Resource/**")
@@ -960,7 +960,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath: basePath,
                         resources: [
                             .glob(
-                                pattern: Path(defaultResourcePath.pathString),
+                                pattern: .path(defaultResourcePath.pathString),
                                 excluding: [],
                                 tags: []
                             ),
@@ -1305,7 +1305,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        dependencies: [.project(target: "Dependency1", path: Path("\(basePath.pathString)/Package2"))],
+                        dependencies: [.project(target: "Dependency1", path: .path("\(basePath.pathString)/Package2"))],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": [
                                 "$(SRCROOT)/Sources/Target1/include",
@@ -1368,13 +1368,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSources: .custom(.init(globs: [
+                        customSources: .custom(.sourceFilesList(globs: [
                             basePath
                                 .appending(try RelativePath(validating: "Package/Custom/Sources/Folder/**")).pathString,
                         ])),
                         resources: [
                             .folderReference(
-                                path: Path(
+                                path: .path(
                                     basePath.appending(try RelativePath(validating: "Package/Custom/Resource/Folder"))
                                         .pathString
                                 ),
@@ -1483,7 +1483,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     customProductName: "Target1",
                     customBundleID: "Target1",
                     deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
-                    customSources: .custom(.init(globs: [
+                    customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**"))
                             .pathString,
                     ]))
@@ -2370,7 +2370,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         dependencies: [
-                            .xcframework(path: Path(
+                            .xcframework(path: .path(
                                 basePath.appending(try RelativePath(validating: "artifacts/Package/Dependency1.xcframework"))
                                     .pathString
                             )),
@@ -2460,7 +2460,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         dependencies: [
-                            .xcframework(path: Path(
+                            .xcframework(path: .path(
                                 basePath.appending(try RelativePath(validating: "artifacts/Package/Dependency1.xcframework"))
                                     .pathString
                             )),
@@ -2508,7 +2508,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        dependencies: [.xcframework(path: Path(
+                        dependencies: [.xcframework(path: .path(
                             basePath
                                 .appending(try RelativePath(validating: "Package/Dependency1/Dependency1.xcframework")).pathString
                         ))]
@@ -2573,11 +2573,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         dependencies: [
                             .project(
                                 target: "Target2",
-                                path: Path(basePath.appending(try RelativePath(validating: "Package2")).pathString)
+                                path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString)
                             ),
                             .project(
                                 target: "Target3",
-                                path: Path(basePath.appending(try RelativePath(validating: "Package2")).pathString)
+                                path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString)
                             ),
                         ]
                     ),
@@ -2641,11 +2641,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         dependencies: [
                             .project(
                                 target: "Target2",
-                                path: Path(basePath.appending(try RelativePath(validating: "Package2")).pathString)
+                                path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString)
                             ),
                             .project(
                                 target: "Target3",
-                                path: Path(basePath.appending(try RelativePath(validating: "Package2")).pathString)
+                                path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString)
                             ),
                         ]
                     ),
@@ -2978,7 +2978,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     customProductName: "Target1",
                     customBundleID: "Target1",
                     deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
-                    customSources: .custom(.init(globs: [
+                    customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString,
                     ])),
                     dependencies: [
@@ -2993,7 +2993,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     customProductName: "Dependency1",
                     customBundleID: "Dependency1",
                     deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
-                    customSources: .custom(.init(globs: [
+                    customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/**")).pathString,
                     ]))
                 ),
@@ -3004,7 +3004,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     customProductName: "Dependency2",
                     customBundleID: "Dependency2",
                     deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
-                    customSources: .custom(.init(globs: [
+                    customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Dependency2/**")).pathString,
                     ]))
                 ),
@@ -3075,18 +3075,18 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     customProductName: "Target1",
                     customBundleID: "Target1",
                     deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
-                    customSources: .custom(.init(globs: [
+                    customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString,
                     ])),
                     dependencies: [
                         .project(
                             target: "Target2",
-                            path: Path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
+                            path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
                             condition: .when([.ios])
                         ),
                         .project(
                             target: "Target3",
-                            path: Path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
+                            path: .path(basePath.appending(try RelativePath(validating: "Package2")).pathString),
                             condition: .when([.ios])
                         ),
                     ]
@@ -3291,10 +3291,10 @@ extension ProjectDescription.Target {
             sources = list
         case .default:
             // swiftlint:disable:next force_try
-            sources = .init(globs: [basePath.appending(try! RelativePath(validating: "Package/Sources/\(name)/**")).pathString])
+            sources = .sourceFilesList(globs: [basePath.appending(try! RelativePath(validating: "Package/Sources/\(name)/**")).pathString])
         }
 
-        return ProjectDescription.Target(
+        return ProjectDescription.Target.target(
             name: name,
             destinations: destinations,
             product: product,
@@ -3303,7 +3303,7 @@ extension ProjectDescription.Target {
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,
-            resources: resources.isEmpty ? nil : ResourceFileElements(resources: resources),
+            resources: resources.isEmpty ? nil : .resources(resources),
             headers: headers,
             dependencies: dependencies,
             settings: DependenciesGraph.spmSettings(baseSettings: baseSettings, with: customSettings, moduleMap: moduleMap)
@@ -3319,7 +3319,7 @@ extension [ProjectDescription.ResourceFileElement] {
         ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
             .map { file -> ProjectDescription.ResourceFileElement in
                 ResourceFileElement.glob(
-                    pattern: Path("\(path.appending(component: "**").pathString)/*.\(file)"),
+                    pattern: .path("\(path.appending(component: "**").pathString)/*.\(file)"),
                     excluding: excluding
                 )
             }
