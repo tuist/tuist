@@ -719,7 +719,7 @@ public class GraphTraverser: GraphTraversing {
         })
         .lazy
         .flatMap(precompiledMacroDependencies)
-        .map { "\($0.pathString)/#\($0.basename)" }
+        .map { "\($0.pathString)/#\($0.basename.replacingOccurrences(of: ".macro", with: ""))" }
 
         let sourceMacroPluginExecutables = allSwiftMacroTargets(path: path, name: name)
             .flatMap { target in
