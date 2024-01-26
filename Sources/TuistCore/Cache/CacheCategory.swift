@@ -3,7 +3,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// The plugins cache.
     case plugins
 
-    /// The build cache
+    /// The binary cache
     case builds
 
     /// The tests cache
@@ -23,9 +23,9 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
         case .plugins:
             return "Plugins"
         case .builds:
-            return "BuildCache"
+            return "BinaryCache"
         case .tests:
-            return "incremental-tests"
+            return "SelectiveTests"
         case .generatedAutomationProjects:
             return "Projects"
         case .projectDescriptionHelpers:
