@@ -635,7 +635,7 @@ extension ProjectDescription.DeploymentTargets {
     /// A dictionary that contains the oldest supported version of each platform
     public static func oldestVersions(for swiftVersion: TSCUtility.Version) -> ProjectDescription.DeploymentTargets {
         if swiftVersion < Version(5, 7, 0) {
-            return DeploymentTargets(
+            return .deploymentTargets(
                 iOS: "9.0",
                 macOS: "10.10",
                 watchOS: "2.0",
@@ -643,7 +643,7 @@ extension ProjectDescription.DeploymentTargets {
                 visionOS: "1.0"
             )
         } else if swiftVersion < Version(5, 9, 0) {
-            return DeploymentTargets(
+            return .deploymentTargets(
                 iOS: "11.0",
                 macOS: "10.13",
                 watchOS: "4.0",
@@ -651,7 +651,7 @@ extension ProjectDescription.DeploymentTargets {
                 visionOS: "1.0"
             )
         } else {
-            return DeploymentTargets(
+            return .deploymentTargets(
                 iOS: "12.0",
                 macOS: "10.13",
                 watchOS: "4.0",
@@ -680,7 +680,7 @@ extension ProjectDescription.DeploymentTargets {
             return try max(minDeploymentTargets[platform], platformInfos[platform])
         }
 
-        return .init(
+        return .deploymentTargets(
             iOS: try versionFor(platform: .iOS),
             macOS: try versionFor(platform: .macOS),
             watchOS: try versionFor(platform: .watchOS),

@@ -2,7 +2,7 @@ import ProjectDescription
 
 extension Target {
     public static func app(name: String, dependencies: [TargetDependency] = []) -> Target {
-        Target(
+        .target(
             name: name,
             destinations: [.iPhone, .iPad],
             product: .app,
@@ -15,7 +15,7 @@ extension Target {
     }
 
     public static func framework(name: String, dependencies: [TargetDependency] = []) -> Target {
-        Target(
+        .target(
             name: name,
             destinations: [.iPhone, .iPad],
             product: .framework,

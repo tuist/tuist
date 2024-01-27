@@ -1482,7 +1482,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     destinations: [.iPad, .iPhone, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
                     customProductName: "Target1",
                     customBundleID: "Target1",
-                    deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
+                    deploymentTargets: .deploymentTargets(iOS: "11.0", tvOS: "11.0"),
                     customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**"))
                             .pathString,
@@ -2977,7 +2977,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
                     customProductName: "Target1",
                     customBundleID: "Target1",
-                    deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
+                    deploymentTargets: .deploymentTargets(iOS: "11.0", tvOS: "11.0"),
                     customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString,
                     ])),
@@ -2992,7 +2992,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
                     customProductName: "Dependency1",
                     customBundleID: "Dependency1",
-                    deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
+                    deploymentTargets: .deploymentTargets(iOS: "11.0", tvOS: "11.0"),
                     customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/**")).pathString,
                     ]))
@@ -3003,7 +3003,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
                     customProductName: "Dependency2",
                     customBundleID: "Dependency2",
-                    deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
+                    deploymentTargets: .deploymentTargets(iOS: "11.0", tvOS: "11.0"),
                     customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Dependency2/**")).pathString,
                     ]))
@@ -3074,7 +3074,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     destinations: [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign, .appleTv],
                     customProductName: "Target1",
                     customBundleID: "Target1",
-                    deploymentTargets: .init(iOS: "11.0", tvOS: "11.0"),
+                    deploymentTargets: .deploymentTargets(iOS: "11.0", tvOS: "11.0"),
                     customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString,
                     ])),
@@ -3275,7 +3275,7 @@ extension ProjectDescription.Target {
         product: ProjectDescription.Product = .staticFramework,
         customProductName: String? = nil,
         customBundleID: String? = nil,
-        deploymentTargets: ProjectDescription.DeploymentTargets = DeploymentTargets(iOS: "11.0"),
+        deploymentTargets: ProjectDescription.DeploymentTargets = .deploymentTargets(iOS: "11.0"),
         customSources: SourceFilesListType = .default,
         resources: [ProjectDescription.ResourceFileElement] = [],
         headers: ProjectDescription.Headers? = nil,
