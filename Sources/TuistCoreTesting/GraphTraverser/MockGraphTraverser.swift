@@ -607,7 +607,7 @@ final class MockGraphTraverser: GraphTraversing {
         invokedDirectSwiftMacroTargetsParameters = (path, name)
         invokedDirectSwiftMacroTargetsParametersList.append((path, name))
         return stubbedDirectSwiftMacroTargetsResult
-        }
+    }
 
     var invokedAllSwiftMacroTargets = false
     var invokedAllSwiftMacroTargetsCount = 0

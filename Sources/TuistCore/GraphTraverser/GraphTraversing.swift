@@ -214,7 +214,6 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func directSwiftMacroTargets(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
 
-
     /// Given a project and a target name, it returns all the target dependencies that are a target representing
     /// a Swift Macro
     /// - Parameters:
