@@ -8,6 +8,9 @@
 
 - Improve editing of PackageSettings in Package.swift [#5837](https://github.com/tuist/tuist/pull/5837) by [@fortmarek](https://github.com/fortmarek)
 
+#### Fixed
+- Not bundle Swift Macros into the parent framework [#5834](https://github.com/tuist/tuist/pull/5834) by [@pepicrft](https://github.com/pepicrft)
+
 ### Tuist Cloud
 
 #### Changed
