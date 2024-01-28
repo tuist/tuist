@@ -115,6 +115,15 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule]
     ) throws -> ProjectDescriptionHelpersModule? {
         guard let tuistHelpersDirectory = helpersDirectoryLocator.locate(at: path) else { return nil }
+        #if DEBUG
+            if let sourceRoot = ProcessEnv.vars["TUIST_CONFIG_SRCROOT"],
+               tuistHelpersDirectory.isDescendant(
+                   of: try! AbsolutePath(validating: sourceRoot)
+               )
+            {
+                return nil
+            }
+        #endif
         return try buildHelpers(
             name: Self.defaultHelpersName,
             in: tuistHelpersDirectory,
