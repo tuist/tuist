@@ -396,7 +396,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         )
         XCTAssertFalse(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "A"))
+            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .selectiveTests).appending(component: "A"))
         )
     }
 

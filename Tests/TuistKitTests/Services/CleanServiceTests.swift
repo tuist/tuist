@@ -37,7 +37,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         cacheDirectoriesProvider.cacheDirectoryStub = cachePath
 
         // When
-        try subject.run(categories: [.global(.builds), .global(.tests)], path: nil)
+        try subject.run(categories: [.global(.binaries), .global(.selectiveTests)], path: nil)
 
         // Then
         let buildsExists = FileManager.default.fileExists(atPath: cachePaths[1].pathString)
