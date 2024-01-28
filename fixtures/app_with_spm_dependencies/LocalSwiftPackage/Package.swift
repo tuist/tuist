@@ -9,13 +9,13 @@ let package = Package(
     platforms: [.iOS(.v13)],
     products: [.library(name: "Styles", targets: ["Styles"])],
     dependencies: [
-        .package(path: "../LocalSwiftPackageB")
+        .package(path: "../LocalSwiftPackageB"),
     ],
     targets: [
         .target(
             name: "Styles",
             dependencies: [
-                .product(name: "LibraryA", package: "LocalSwiftPackageB", condition: .when(platforms: [.macOS]))
+                .product(name: "LibraryA", package: "LocalSwiftPackageB", condition: .when(platforms: [.macOS])),
             ],
             resources: [
                 .process("Resources/Fonts"),
