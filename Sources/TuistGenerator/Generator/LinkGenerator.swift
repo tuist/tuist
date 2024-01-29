@@ -535,15 +535,16 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         let copyLines = executableNames.map {
             """
-            if [[ -f "$BUILD_DIR/$CONFIGURATION/\($0)" && ! -f "$BUILT_PRODUCTS_DIR/\($0)" ]]; then
-                cp "$BUILD_DIR/$CONFIGURATION/\($0)" "$BUILT_PRODUCTS_DIR/\($0)"
+            if [[ -f "$BUILD_DIR/$CONFIGURATION/\($0)" && ! -f "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\($0)" ]]; then
+                mkdir -p "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/"
+                cp "$BUILD_DIR/$CONFIGURATION/\($0)" "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\($0)"
             fi
             """
         }
         copySwiftMacrosBuildPhase.shellScript = """
         #  This build phase serves two purposes:
         #  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
-        #  - Place the artifacts in the directory where the built artifacts for the active destination live.
+        #  - Place the artifacts in the "Debug" directory where the built artifacts for the active destination live. We default to "Debug" because otherwise the Xcode editor fails to resolve the macro references.
         \(copyLines.joined(separator: "\n"))
         """
 
@@ -559,7 +560,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             }
             .flatMap { sdk in
                 executableNames.map { executable in
-                    "$BUILD_DIR/$CONFIGURATION-\(sdk)/\(executable)"
+                    "$BUILD_DIR/Debug-\(sdk)/\(executable)"
                 }
             }
 
