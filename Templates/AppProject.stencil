@@ -1,29 +1,31 @@
 import ProjectDescription
-import ProjectDescriptionHelpers
-import MyPlugin
 
-/*
-                +-------------+
-                |             |
-                |     App     | Contains {{ name }} App target and {{ name }} unit-test target
-                |             |
-         +------+-------------+-------+
-         |         depends on         |
-         |                            |
- +----v-----+                   +-----v-----+
- |          |                   |           |
- |   Kit    |                   |     UI    |   Two independent frameworks to share code and start modularising your app
- |          |                   |           |
- +----------+                   +-----------+
-
- */
-
-// MARK: - Project
-
-// Local plugin loaded
-let localHelper = LocalHelper(name: "MyPlugin")
-
-// Creates our project using a helper function defined in ProjectDescriptionHelpers
-let project = Project.app(name: "{{ name }}",
-                          destinations: .{{ platform }},
-                          additionalTargets: ["{{name}}Kit", "{{name}}UI"])
+let project = Project(
+	name: "{{ name }}",
+	targets: [
+		.target(
+			name: "{{ name }}",
+			destinations: .{{ platform }},
+			product: .app,
+			bundleId: "io.tuist.{{ name }}",
+			infoPlist: .extendingDefault(
+                with: [
+                    "UILaunchStoryboardName": "LaunchScreen.storyboard",
+                ]
+            ),
+			sources: ["{{ name }}/Sources/**"],
+			resources: ["{{ name }}/Resources/**"],
+			dependencies: []
+		),
+        .target(
+			name: "{{ name }}Tests",
+			destinations: .{{ platform }},
+			product: .unitTests,
+			bundleId: "io.tuist.{{ name }}Tests",
+			infoPlist: .default,
+			sources: ["{{ name }}/Tests/**"],
+			resources: [],
+			dependencies: [.target(name: "{{ name }}")]
+		),
+	]
+)

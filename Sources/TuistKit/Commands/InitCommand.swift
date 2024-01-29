@@ -37,7 +37,7 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
 
     @Option(
         name: .shortAndLong,
-        help: "The name of the project. If it's not passed (Default: Name of the directory)"
+        help: "The name of the project. If it's not passed (Default: Name of the current directory)"
     )
     var name: String?
 

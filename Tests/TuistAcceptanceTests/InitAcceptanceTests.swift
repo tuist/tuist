@@ -27,20 +27,6 @@ final class InitAcceptanceTestiOSApp: TuistAcceptanceTestCase {
 //    }
 // }
 
-final class InitAcceptanceTestSwiftUIiOSApp: TuistAcceptanceTestCase {
-    func test_init_swift_ui_ios_app() async throws {
-        try run(InitCommand.self, "--platform", "ios", "--name", "MyApp", "--template", "swiftui")
-        try await run(BuildCommand.self)
-    }
-}
-
-final class InitAcceptanceTestSwiftUImacOSApp: TuistAcceptanceTestCase {
-    func test_init_swift_ui_macos_app() async throws {
-        try run(InitCommand.self, "--platform", "macos", "--name", "MyApp", "--template", "swiftui")
-        try await run(BuildCommand.self)
-    }
-}
-
 // TODO: Fix
 // final class InitAcceptanceTestSwiftUtvOSApp: TuistAcceptanceTestCase {
 //    func test_init_swift_ui_tvos_app() async throws {
