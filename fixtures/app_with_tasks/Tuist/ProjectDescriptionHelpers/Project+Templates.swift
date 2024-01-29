@@ -25,7 +25,7 @@ extension Project {
 
     /// Helper function to create a framework target and an associated unit test target
     private static func makeFrameworkTargets(name: String, platform: Platform) -> [Target] {
-        let sources = Target(
+        let sources = .target(
             name: name,
             platform: platform,
             product: .framework,
@@ -35,7 +35,7 @@ extension Project {
             resources: [],
             dependencies: []
         )
-        let tests = Target(
+        let tests = .target(
             name: "\(name)Tests",
             platform: platform,
             product: .unitTests,
@@ -62,7 +62,7 @@ extension Project {
             "aps-environment": "development",
         ]
 
-        let mainTarget = Target(
+        let mainTarget: Target = .target(
             name: name,
             platform: platform,
             product: .app,
@@ -74,7 +74,7 @@ extension Project {
             dependencies: dependencies
         )
 
-        let testTarget = Target(
+        let testTarget: Target = .target(
             name: "\(name)Tests",
             platform: platform,
             product: .unitTests,

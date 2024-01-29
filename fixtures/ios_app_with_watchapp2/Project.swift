@@ -6,7 +6,7 @@ let project = Project(
         .package(path: "Packages/LibraryA"),
     ],
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -24,7 +24,7 @@ let project = Project(
                 .package(product: "LibraryA"),
             ]
         ),
-        Target(
+        .target(
             name: "WatchApp",
             destinations: [.appleWatch],
             product: .watch2App,
@@ -35,7 +35,7 @@ let project = Project(
                 .target(name: "WatchAppExtension"),
             ]
         ),
-        Target(
+        .target(
             name: "WatchAppExtension",
             destinations: [.appleWatch],
             product: .watch2Extension,
@@ -49,7 +49,7 @@ let project = Project(
                 .package(product: "LibraryA"),
             ]
         ),
-        Target(
+        .target(
             name: "WatchAppUITests",
             destinations: [.appleWatch],
             product: .uiTests,

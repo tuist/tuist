@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "C",
     targets: [
-        Target(
+        .target(
             name: "C",
             destinations: .iOS,
             product: .staticLibrary,
@@ -16,7 +16,7 @@ let project = Project(
             ],
             settings: .settings(base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"])
         ),
-        Target(
+        .target(
             name: "CTests",
             destinations: .iOS,
             product: .unitTests,

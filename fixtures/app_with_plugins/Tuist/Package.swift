@@ -2,7 +2,6 @@
 import PackageDescription
 
 #if TUIST
-
     import ExampleTuistPlugin
     import LocalPlugin
     import ProjectDescription

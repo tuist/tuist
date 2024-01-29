@@ -5,14 +5,14 @@ public struct ResourceFileElements: Codable, Equatable {
     /// List of resource file elements
     public var resources: [ResourceFileElement]
 
-    public init(resources: [ResourceFileElement]) {
-        self.resources = resources
+    public static func resources(_ resources: [ResourceFileElement]) -> Self {
+        self.init(resources: resources)
     }
 }
 
 extension ResourceFileElements: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self.init(resources: [.glob(pattern: Path(value))])
+        self.init(resources: [.glob(pattern: .path(value))])
     }
 }
 

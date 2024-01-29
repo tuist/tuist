@@ -4,7 +4,7 @@ let project = Project(
     name: "AppWithSpace",
     options: .options(disableShowEnvironmentVarsInScriptPhases: true),
     targets: [
-        Target(
+        .target(
             name: "AppWithSpace",
             destinations: .iOS,
             product: .app,

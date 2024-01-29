@@ -38,9 +38,8 @@ public struct Template: Codable, Equatable {
         public let path: String
         public let contents: Contents
 
-        public init(path: String, contents: Contents) {
-            self.path = path
-            self.contents = contents
+        public static func item(path: String, contents: Contents) -> Self {
+            self.init(path: path, contents: contents)
         }
     }
 

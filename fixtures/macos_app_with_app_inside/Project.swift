@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "Embedded App",
     targets: [
-        Target(
+        .target(
             name: "MainApp",
             destinations: [.mac],
             product: .app,
@@ -18,7 +18,7 @@ let project = Project(
                 .target(name: "InnerCLI"),
             ]
         ),
-        Target(
+        .target(
             name: "InnerApp",
             destinations: [.mac],
             product: .app,
@@ -26,7 +26,7 @@ let project = Project(
             infoPlist: "InnerApp/Info.plist",
             sources: ["InnerApp/Sources/**"]
         ),
-        Target(
+        .target(
             name: "InnerCLI",
             destinations: [.mac],
             product: .commandLineTool,

@@ -5,7 +5,7 @@ let project = Project(
     name: "App",
     settings: .projectSettings,
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -19,7 +19,7 @@ let project = Project(
             ],
             settings: .targetSettings
         ),
-        Target(
+        .target(
             name: "AppKit",
             destinations: .iOS,
             product: .staticFramework,
@@ -33,7 +33,7 @@ let project = Project(
             ],
             settings: .targetSettings
         ),
-        Target(
+        .target(
             name: "WatchApp",
             destinations: [.appleWatch],
             product: .watch2App,
@@ -48,7 +48,7 @@ let project = Project(
                 .target(name: "WatchExtension"),
             ]
         ),
-        Target(
+        .target(
             name: "WatchExtension",
             destinations: [.appleWatch],
             product: .watch2Extension,

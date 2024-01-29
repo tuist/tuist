@@ -76,7 +76,7 @@ extension Target {
         coreDataModels: [CoreDataModel] = [],
         environment: [String: String] = [:]
     ) -> Target {
-        Target(
+        .target(
             name: name,
             destinations: destinations,
             product: product,
@@ -129,7 +129,7 @@ extension Scheme {
         testAction: TestAction? = nil,
         runAction: RunAction? = nil
     ) -> Scheme {
-        Scheme(
+        .scheme(
             name: name,
             shared: shared,
             buildAction: buildAction,
@@ -141,7 +141,7 @@ extension Scheme {
 
 extension BuildAction {
     public static func test(targets: [TargetReference] = []) -> BuildAction {
-        BuildAction(
+        .buildAction(
             targets: targets,
             preActions: [ExecutionAction.test()],
             postActions: [ExecutionAction.test()]
@@ -185,7 +185,7 @@ extension ExecutionAction {
     public static func test(
         title: String = "Test Script",
         scriptText: String = "echo Test",
-        target: TargetReference? = TargetReference(projectPath: nil, target: "Target")
+        target: TargetReference? = .target("Target")
     ) -> ExecutionAction {
         ExecutionAction(
             title: title,

@@ -27,7 +27,7 @@ class ManifestTemplate {
     """
 
     private let targetTemplate = """
-            Target(
+            .target(
                 name: "{TargetName}",
                 destinations: .iOS,
                 product: .framework,

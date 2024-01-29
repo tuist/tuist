@@ -5,7 +5,7 @@ let project = Project(
     name: "FeatureOne",
     settings: .projectSettings,
     targets: [
-        Target(
+        .target(
             name: "FeatureOneFramework_iOS",
             destinations: .iOS,
             product: .framework,
@@ -16,7 +16,7 @@ let project = Project(
             ],
             settings: .targetSettings
         ),
-        Target(
+        .target(
             name: "FeatureOneFramework_watchOS",
             destinations: [.appleWatch],
             product: .framework,

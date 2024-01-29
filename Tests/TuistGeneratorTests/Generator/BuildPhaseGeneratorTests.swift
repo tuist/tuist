@@ -586,7 +586,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateSourcesBuildPhase_whenCoreDataModel() throws {
         // Given
-        let coreDataModel = CoreDataModel(
+        let coreDataModel = .coreDataModel(
             path: try AbsolutePath(validating: "/Model.xcdatamodeld"),
             versions: [try AbsolutePath(validating: "/Model.xcdatamodeld/1.xcdatamodel")],
             currentVersion: "1"
@@ -1480,7 +1480,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     func test_generateBuildPhases_whenStaticFrameworkWithCoreDataModels() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/to/project")
-        let coreDataModel = CoreDataModel(
+        let coreDataModel = .coreDataModel(
             path: path.appending(component: "Model.xcdatamodeld"),
             versions: [
                 path.appending(components: "Model.xcdatamodeld", "1.xcdatamodel"),
@@ -1522,7 +1522,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     func test_generateBuildPhases_whenBundleWithCoreDataModels() throws {
         // Given
         let path = try AbsolutePath(validating: "/path/to/project")
-        let coreDataModel = CoreDataModel(
+        let coreDataModel = .coreDataModel(
             path: path.appending(component: "Model.xcdatamodeld"),
             versions: [
                 path.appending(components: "Model.xcdatamodeld", "1.xcdatamodel"),

@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "A",
     targets: [
-        Target(
+        .target(
             name: "A",
             destinations: .iOS,
             product: .staticLibrary,
@@ -21,7 +21,7 @@ let project = Project(
 
             settings: .settings(base: ["HEADER_SEARCH_PATHS": "$(SRCROOT)/CustomHeaders"])
         ),
-        Target(
+        .target(
             name: "ATests",
             destinations: .iOS,
             product: .unitTests,

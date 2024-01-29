@@ -265,7 +265,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                         "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
                     ]),
                 ],
-                uniquingKeysWith: { $1 }
+                uniquingKeysWith: {
+                    switch ($0, $1) {
+                    case let (.array(leftArray), .array(rightArray)):
+                        return SettingValue.array(leftArray + rightArray)
+                    default:
+                        return $1
+                    }
+                }
             )
 
             let dependencies: [TargetDependency] = helpersTarget == nil ? [] : [

@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "App with XPC",
     targets: [
-        Target(
+        .target(
             name: "MainApp",
             destinations: [.mac],
             product: .app,
@@ -14,7 +14,7 @@ let project = Project(
                 .target(name: "XPCApp"),
             ]
         ),
-        Target(
+        .target(
             name: "XPCApp",
             destinations: [.mac],
             product: .xpc,
@@ -25,14 +25,14 @@ let project = Project(
                 .target(name: "StaticFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "DynamicFramework",
             destinations: [.mac],
             product: .framework,
             bundleId: "io.tuist.DynamicFramework",
             sources: ["DynamicFramework/Sources/**"]
         ),
-        Target(
+        .target(
             name: "StaticFramework",
             destinations: [.mac],
             product: .staticFramework,

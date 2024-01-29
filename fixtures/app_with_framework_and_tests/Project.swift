@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -14,7 +14,7 @@ let project = Project(
                 .target(name: "Framework"),
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,
@@ -25,7 +25,7 @@ let project = Project(
                 .target(name: "App"),
             ]
         ),
-        Target(
+        .target(
             name: "Framework",
             destinations: .iOS,
             product: .framework,
@@ -35,7 +35,7 @@ let project = Project(
             dependencies: [
             ]
         ),
-        Target(
+        .target(
             name: "FrameworkTests",
             destinations: .iOS,
             product: .unitTests,
@@ -48,7 +48,7 @@ let project = Project(
         ),
     ],
     schemes: [
-        Scheme(
+        .scheme(
             name: "AppCustomScheme",
             buildAction: .buildAction(targets: [TargetReference("App")])
         ),

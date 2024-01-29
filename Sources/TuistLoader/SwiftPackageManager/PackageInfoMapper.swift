@@ -184,7 +184,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 guard target.type == .binary else { return }
                 if let path = target.path {
                     // local binary
-                    result[target.name] = Path(
+                    result[target.name] = .path(
                         packageToFolder[packageInfo.key]!.appending(try RelativePath(validating: path))
                             .pathString
                     )
@@ -194,7 +194,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     guard let artifactPath = packageToTargetsToArtifactPaths[packageInfo.key]?[target.name] else {
                         throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.key, target: target.name)
                     }
-                    result[target.name] = Path(artifactPath.pathString)
+                    result[target.name] = .path(artifactPath.pathString)
                 }
             }
         }
@@ -279,7 +279,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                             case let .target(name, condition):
                                 return .project(
                                     target: name,
-                                    path: Path(packageToFolder[packageInfo.key]!.pathString),
+                                    path: .path(packageToFolder[packageInfo.key]!.pathString),
                                     condition: condition
                                 )
                             case .externalTarget:
@@ -611,7 +611,7 @@ extension ProjectDescription.Target {
             targetSettings: targetSettings
         )
 
-        return ProjectDescription.Target(
+        return .target(
             name: PackageInfoMapper.sanitize(targetName: target.name),
             destinations: destinations,
             product: product,
@@ -635,7 +635,7 @@ extension ProjectDescription.DeploymentTargets {
     /// A dictionary that contains the oldest supported version of each platform
     public static func oldestVersions(for swiftVersion: TSCUtility.Version) -> ProjectDescription.DeploymentTargets {
         if swiftVersion < Version(5, 7, 0) {
-            return DeploymentTargets(
+            return .deploymentTargets(
                 iOS: "9.0",
                 macOS: "10.10",
                 watchOS: "2.0",
@@ -643,7 +643,7 @@ extension ProjectDescription.DeploymentTargets {
                 visionOS: "1.0"
             )
         } else if swiftVersion < Version(5, 9, 0) {
-            return DeploymentTargets(
+            return .deploymentTargets(
                 iOS: "11.0",
                 macOS: "10.13",
                 watchOS: "4.0",
@@ -651,7 +651,7 @@ extension ProjectDescription.DeploymentTargets {
                 visionOS: "1.0"
             )
         } else {
-            return DeploymentTargets(
+            return .deploymentTargets(
                 iOS: "12.0",
                 macOS: "10.13",
                 watchOS: "4.0",
@@ -680,7 +680,7 @@ extension ProjectDescription.DeploymentTargets {
             return try max(minDeploymentTargets[platform], platformInfos[platform])
         }
 
-        return .init(
+        return .deploymentTargets(
             iOS: try versionFor(platform: .iOS),
             macOS: try versionFor(platform: .macOS),
             watchOS: try versionFor(platform: .watchOS),
@@ -764,14 +764,14 @@ extension SourceFilesList {
             sourcesPaths = [path.appending(component: "**")]
         }
         guard !sourcesPaths.isEmpty else { return nil }
-        return .init(
+        return .sourceFilesList(
             globs: try sourcesPaths.map { absolutePath -> ProjectDescription.SourceFileGlob in
                 .glob(
-                    Path(absolutePath.pathString),
+                    .path(absolutePath.pathString),
                     excluding: try excluding.map {
                         let excludePath = path.appending(try RelativePath(validating: $0))
                         let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
-                        return Path(excludeGlob.pathString)
+                        return .path(excludeGlob.pathString)
                     }
                 )
             }
@@ -792,7 +792,7 @@ extension ResourceFileElements {
         ///   - resourceAbsolutePath: The absolute path of that resource
         /// - Returns: A ProjectDescription.ResourceFileElement mapped from a `.copy` resource rule of SPM
         func handleCopyResource(resourceAbsolutePath: AbsolutePath) -> ProjectDescription.ResourceFileElement {
-            .folderReference(path: Path(resourceAbsolutePath.pathString))
+            .folderReference(path: .path(resourceAbsolutePath.pathString))
         }
 
         /// Handles the conversion of a `.process` resource rule of SPM
@@ -804,11 +804,11 @@ extension ResourceFileElements {
             let absolutePathGlob = resourceAbsolutePath.extension != nil ? resourceAbsolutePath : resourceAbsolutePath
                 .appending(component: "**")
             return .glob(
-                pattern: Path(absolutePathGlob.pathString),
+                pattern: .path(absolutePathGlob.pathString),
                 excluding: try excluding.map {
                     let excludePath = path.appending(try RelativePath(validating: $0))
                     let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
-                    return Path(excludeGlob.pathString)
+                    return .path(excludeGlob.pathString)
                 }
             )
         }
@@ -839,7 +839,7 @@ extension ResourceFileElements {
         // Check for empty resource files
         guard !resourceFileElements.isEmpty else { return nil }
 
-        return .init(resources: resourceFileElements)
+        return .resources(resourceFileElements)
     }
 
     // These files are automatically added as resource if they are inside targets directory.
@@ -875,7 +875,7 @@ extension ProjectDescription.TargetDependency {
             case let .externalTarget(project, target, condition):
                 return .project(
                     target: target,
-                    path: Path(packageToProject[project]!.pathString),
+                    path: .path(packageToProject[project]!.pathString),
                     condition: condition
                 )
             }
@@ -915,7 +915,7 @@ extension ProjectDescription.Headers {
         case .header, .nestedHeader:
             let publicHeaders = try FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
                 .filter { $0.extension == "h" }
-            let list: [FileListGlob] = publicHeaders.map { .glob(Path($0.pathString)) }
+            let list: [FileListGlob] = publicHeaders.map { .glob(.path($0.pathString)) }
             return .headers(public: .list(list))
         case .none, .custom, .directory:
             return nil
@@ -1161,7 +1161,7 @@ extension ProjectDescription.Configuration {
     ) -> Self {
         let name = ConfigurationName(stringLiteral: buildConfiguration.name)
         let settings = ProjectDescription.SettingsDictionary.from(settingsDictionary: configuration?.settings ?? [:])
-        let xcconfig = configuration?.xcconfig.map { Path($0.relative(to: packageFolder).pathString) }
+        let xcconfig = configuration?.xcconfig.map { Path.path($0.relative(to: packageFolder).pathString) }
         switch buildConfiguration.variant {
         case .debug:
             return .debug(name: name, settings: settings, xcconfig: xcconfig)

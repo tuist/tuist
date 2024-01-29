@@ -4,7 +4,7 @@ import ProjectDescription
 let project = Project(
     name: "FeatureContracts",
     targets: [
-        Target(
+        .target(
             name: "FeatureContracts",
             destinations: .iOS,
             product: .framework,
@@ -22,7 +22,7 @@ let project = Project(
                 .project(target: "Core", path: "../CoreFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "FeatureContractsTests",
             destinations: .iOS,
             product: .unitTests,

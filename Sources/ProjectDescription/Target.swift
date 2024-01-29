@@ -70,7 +70,7 @@ public struct Target: Codable, Equatable {
     /// Specifies whether if the target can be merged as part of another binary or not
     public var mergeable: Bool
 
-    public init(
+    public static func target(
         name: String,
         destinations: Destinations,
         product: Product,
@@ -93,28 +93,30 @@ public struct Target: Codable, Equatable {
         buildRules: [BuildRule] = [],
         mergedBinaryType: MergedBinaryType = .disabled,
         mergeable: Bool = false
-    ) {
-        self.name = name
-        self.destinations = destinations
-        self.bundleId = bundleId
-        self.productName = productName
-        self.product = product
-        self.infoPlist = infoPlist
-        self.entitlements = entitlements
-        self.dependencies = dependencies
-        self.settings = settings
-        self.sources = sources
-        self.resources = resources
-        self.copyFiles = copyFiles
-        self.headers = headers
-        self.scripts = scripts
-        self.coreDataModels = coreDataModels
-        self.environmentVariables = environmentVariables
-        self.launchArguments = launchArguments
-        self.deploymentTargets = deploymentTargets
-        self.additionalFiles = additionalFiles
-        self.buildRules = buildRules
-        self.mergedBinaryType = mergedBinaryType
-        self.mergeable = mergeable
+    ) -> Self {
+        self.init(
+            name: name,
+            destinations: destinations,
+            product: product,
+            productName: productName,
+            bundleId: bundleId,
+            deploymentTargets: deploymentTargets,
+            infoPlist: infoPlist,
+            sources: sources,
+            resources: resources,
+            copyFiles: copyFiles,
+            headers: headers,
+            entitlements: entitlements,
+            scripts: scripts,
+            dependencies: dependencies,
+            settings: settings,
+            coreDataModels: coreDataModels,
+            environmentVariables: environmentVariables,
+            launchArguments: launchArguments,
+            additionalFiles: additionalFiles,
+            buildRules: buildRules,
+            mergedBinaryType: mergedBinaryType,
+            mergeable: mergeable
+        )
     }
 }

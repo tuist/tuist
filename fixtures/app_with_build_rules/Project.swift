@@ -4,14 +4,14 @@ let project = Project(
     name: "App",
     organizationName: "Tuist",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             sources: ["App/*"],
             buildRules: [
-                .init(
+                .buildRule(
                     name: "Process_InfoPlist.strings",
                     fileType: .sourceFilesWithNamesMatching,
                     filePatterns: "*/InfoPlist.strings",

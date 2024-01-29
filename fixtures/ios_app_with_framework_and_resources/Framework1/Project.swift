@@ -12,14 +12,14 @@ let resources: [ResourceFileElement] = [
 let project = Project(
     name: "Framework1",
     targets: [
-        Target(
+        .target(
             name: "Framework1",
             destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.Framework1",
             infoPlist: "Config/Framework1-Info.plist",
             sources: "Sources/**",
-            resources: ResourceFileElements(resources: resources)
+            resources: .resources(resources)
         ),
     ]
 )

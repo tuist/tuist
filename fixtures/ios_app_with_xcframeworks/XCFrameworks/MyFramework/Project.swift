@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "MyFramework",
     targets: [
-        Target(
+        .target(
             name: "MyFramework",
             destinations: .iOS,
             product: .framework,
@@ -22,7 +22,7 @@ let project = Project(
                 "BUILD_LIBRARY_FOR_DISTRIBUTION": "YES",
             ])
         ),
-        Target(
+        .target(
             name: "MyFrameworkTests",
             destinations: .iOS,
             product: .unitTests,

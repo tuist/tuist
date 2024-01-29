@@ -14,11 +14,13 @@ public struct CoreDataModel: Codable, Equatable {
     ///   - path: relative path to the Core Data model.
     ///   - currentVersion: optional current version name (with or without the extension)
     ///   By providing nil, it will try to read it from the .xccurrentversion file.
-    public init(
+    public static func coreDataModel(
         _ path: Path,
         currentVersion: String? = nil
-    ) {
-        self.path = path
-        self.currentVersion = currentVersion
+    ) -> Self {
+        self.init(
+            path: path,
+            currentVersion: currentVersion
+        )
     }
 }

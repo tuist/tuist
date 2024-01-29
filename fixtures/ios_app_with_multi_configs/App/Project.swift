@@ -11,7 +11,7 @@ let settings: Settings = .settings(
     ]
 )
 
-let betaScheme = Scheme(
+let betaScheme: Scheme = .scheme(
     name: "App-Beta",
     shared: true,
     buildAction: .buildAction(targets: ["App"]),
@@ -25,7 +25,7 @@ let project = Project(
     name: "MainApp",
     settings: settings,
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -37,7 +37,7 @@ let project = Project(
                 .project(target: "Framework2", path: "../Framework2"),
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,

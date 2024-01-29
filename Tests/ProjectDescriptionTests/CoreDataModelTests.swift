@@ -6,7 +6,7 @@ import XCTest
 
 final class CoreDataModelTests: XCTestCase {
     func test_toJSON() {
-        let subject = CoreDataModel("path", currentVersion: "current")
+        let subject: CoreDataModel = .coreDataModel("path", currentVersion: "current")
         XCTAssertCodable(subject)
     }
 }

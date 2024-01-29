@@ -8,7 +8,7 @@ let project = Project(
     name: "MainApp",
     settings: settings,
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -21,7 +21,7 @@ let project = Project(
                 .project(target: "Framework2-iOS", path: "../Framework2"),
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,

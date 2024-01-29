@@ -106,7 +106,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         // Given
 
         let coreDataModels: [CoreDataModel] =
-            [CoreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
+            [.coreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
         let target = Target.test(product: .staticLibrary, coreDataModels: coreDataModels)
         project = Project.test(targets: [target])
 
@@ -194,7 +194,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func test_map_when_a_target_that_has_core_data_models_and_supports_them() throws {
         // Given
         let coreDataModels: [CoreDataModel] =
-            [CoreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
+            [.coreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
         let target = Target.test(product: .framework, coreDataModels: coreDataModels)
         project = Project.test(targets: [target])
 
