@@ -1317,7 +1317,7 @@ extension PackageInfoMapper {
                         targetDependencyToFramework: targetDependencyToFramework,
                         condition: condition
                     )
-                case let .product(name, package, condition):
+                case let .product(name, package, _, condition):
                     return try Self.fromProduct(
                         package: idToPackage[package.lowercased()] ?? package,
                         product: name,
