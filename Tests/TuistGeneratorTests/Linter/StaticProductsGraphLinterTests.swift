@@ -1247,6 +1247,48 @@ class StaticProductsGraphLinterTests: XCTestCase {
         XCTAssertEqual(results, [])
     }
 
+    func test_lint_whenMacros() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let macroStaticFramework = Target.test(name: "MacroStaticFramework", product: .staticFramework)
+        let macroExecutable = Target.test(name: "Macro", product: .macro)
+        let swiftSyntax = Target.test(name: "SwiftSyntax", product: .staticLibrary)
+
+        let project = Project
+            .test(targets: [app, macroStaticFramework, macroExecutable, swiftSyntax])
+
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let macroStaticFrameworkDependency = GraphDependency.target(name: macroStaticFramework.name, path: path)
+        let macroExecutableDependency = GraphDependency.target(name: macroExecutable.name, path: path)
+        let swiftSyntaxDependency = GraphDependency.target(name: swiftSyntax.name, path: path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            appDependency: Set([macroStaticFrameworkDependency]),
+            macroStaticFrameworkDependency: Set([macroExecutableDependency]),
+            macroExecutableDependency: Set([swiftSyntaxDependency]),
+        ]
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            targets: [path: [
+                app.name: app,
+                macroStaticFramework.name: macroStaticFramework,
+                macroExecutable.name: macroExecutable,
+                swiftSyntax.name: swiftSyntax,
+            ]],
+            dependencies: dependencies
+        )
+        let config = Config.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertEqual(results, [])
+    }
+
     // MARK: - Helpers
 
     private func warning(product node: String, type: String = "Target", linkedBy: [GraphDependency]) -> LintingIssue {
