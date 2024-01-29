@@ -690,7 +690,7 @@ public class GraphTraverser: GraphTraversing {
             .compactMap { _, dependencyReference in
                 switch dependencyReference {
                 case let .product(_, productName, _):
-                    return "$(BUILD_DIR)/$(CONFIGURATION)/\(productName)#\(productName)"
+                    return "$(BUILT_PRODUCTS_DIR)/\(productName)#\(productName)"
                 default:
                     return nil
                 }
