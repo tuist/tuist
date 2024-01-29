@@ -93,7 +93,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
                 manifest: manifestWithoutCurrentVersion,
                 generatorPaths: generatorPaths
             ),
-            TuistGraph.CoreDataModel(
+            TuistGraph .. coreDataModel(
                 path: temporaryPath.appending(component: "model.xcdatamodeld"),
                 versions: [],
                 currentVersion: "model"

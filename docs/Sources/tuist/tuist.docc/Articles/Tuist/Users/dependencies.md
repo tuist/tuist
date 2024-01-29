@@ -85,7 +85,7 @@ let project = Project(name: "MyProject", packages: [
 And then reference them from your targets:
 
 ```swift
-let target = Target(name: "MyTarget", dependencies: [
+let target = .target(name: "MyTarget", dependencies: [
     .package(product: "CryptoSwift", type: .runtime)
 ])
 ```

@@ -10,7 +10,7 @@ import ProjectDescription
 let project = Project(
     name: "MyProject",
     targets: [
-        Target(
+        .target(
             name: "App",
             platform: .iOS,
             product: .app,

@@ -359,7 +359,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let dataModelPath = path.appending(component: "Model.xcdatamodeld")
         let target = Target.test(coreDataModels: [
-            CoreDataModel(path: dataModelPath, versions: [], currentVersion: "1.0.0"),
+            .coreDataModel(path: dataModelPath, versions: [], currentVersion: "1.0.0"),
         ])
 
         // When
@@ -379,7 +379,7 @@ final class TargetLinterTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(dataModelPath)
 
         let target = Target.test(coreDataModels: [
-            CoreDataModel(path: dataModelPath, versions: [], currentVersion: "1.0.0"),
+            .coreDataModel(path: dataModelPath, versions: [], currentVersion: "1.0.0"),
         ])
 
         // When

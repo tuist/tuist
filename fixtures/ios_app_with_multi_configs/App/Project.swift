@@ -11,7 +11,7 @@ let settings: Settings = .settings(
     ]
 )
 
-let betaScheme = .scheme(
+let betaScheme: Scheme = .scheme(
     name: "App-Beta",
     shared: true,
     buildAction: .buildAction(targets: ["App"]),

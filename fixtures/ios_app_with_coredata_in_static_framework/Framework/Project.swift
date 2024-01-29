@@ -11,7 +11,7 @@ let project = Project(
             infoPlist: .default,
             sources: ["Sources/**"],
             coreDataModels: [
-                CoreDataModel("CoreData/Users.xcdatamodeld"),
+                .coreDataModel("CoreData/Users.xcdatamodeld"),
             ]
         ),
     ]

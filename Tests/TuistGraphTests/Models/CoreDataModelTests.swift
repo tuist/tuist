@@ -7,7 +7,7 @@ import XCTest
 final class CoreDataModelTests: TuistUnitTestCase {
     func test_codable() {
         // Given
-        let subject = CoreDataModel(
+        let subject = .coreDataModel(
             path: "/path/to/model",
             versions: [
                 "/path/to/version",

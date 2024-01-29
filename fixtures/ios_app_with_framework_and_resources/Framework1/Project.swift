@@ -19,7 +19,7 @@ let project = Project(
             bundleId: "io.tuist.Framework1",
             infoPlist: "Config/Framework1-Info.plist",
             sources: "Sources/**",
-            resources: ResourceFileElements(resources: resources)
+            resources: .resources(resources)
         ),
     ]
 )
