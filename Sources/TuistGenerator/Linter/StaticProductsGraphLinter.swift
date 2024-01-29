@@ -228,6 +228,10 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             // System Extension can safely link the same static products as apps
             // as they are an independent product
             return false
+        case (_, .macro):
+            // Macro executables can safely link the same static products as the targets
+            // depending on the executable's parent target (e.g. framework or library).
+            return false
         default:
             return true
         }
