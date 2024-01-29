@@ -119,7 +119,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             if let sourceRoot = ProcessEnv.vars["TUIST_CONFIG_SRCROOT"],
                tuistHelpersDirectory.isDescendant(
                    // swiftlint:disable:next force_try
-                   of: try! AbsolutePath(validating: sourceRoot)
+                of: try! AbsolutePath(validating: sourceRoot).appending(component: Constants.tuistDirectoryName)
                )
             {
                 return nil

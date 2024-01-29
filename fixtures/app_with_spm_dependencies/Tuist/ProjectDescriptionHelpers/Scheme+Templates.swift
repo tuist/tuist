@@ -52,28 +52,4 @@ extension Scheme {
                 .map { scheme(for: $0, target: target, executable: executable) }
         }
     }
-
-    public static func scheme(
-        name: String,
-        shared: Bool = true,
-        hidden: Bool = false,
-        buildAction: ProjectDescription.BuildAction? = nil,
-        testAction: ProjectDescription.TestAction? = nil,
-        runAction: ProjectDescription.RunAction? = nil,
-        archiveAction: ProjectDescription.ArchiveAction? = nil,
-        profileAction: ProjectDescription.ProfileAction? = nil,
-        analyzeAction: ProjectDescription.AnalyzeAction? = nil
-    ) -> Scheme {
-        .scheme(
-            name: name,
-            shared: shared,
-            hidden: hidden,
-            buildAction: buildAction,
-            testAction: testAction,
-            runAction: runAction,
-            archiveAction: archiveAction,
-            profileAction: profileAction,
-            analyzeAction: analyzeAction
-        )
-    }
 }
