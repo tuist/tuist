@@ -549,10 +549,13 @@ extension PackageInfo.Target.Dependency: Codable {
             if let condition {
                 try unkeyedContainer.encode(condition)
             }
-        case let .product(name: name, package: package, condition: condition):
+        case let .product(name: name, package: package, moduleAliases: moduleAliases, condition: condition):
             var unkeyedContainer = container.nestedUnkeyedContainer(forKey: .product)
             try unkeyedContainer.encode(name)
             try unkeyedContainer.encode(package)
+            if let moduleAliases {
+                try unkeyedContainer.encode(moduleAliases)
+            }
             if let condition {
                 try unkeyedContainer.encode(condition)
             }

@@ -405,7 +405,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                     ]
                 ),
             ],
-            coreDataModels: [.coreDataModel(
+            coreDataModels: [CoreDataModel(
                 path: try AbsolutePath(validating: "/project/model.xcdatamodeld"),
                 versions: [try AbsolutePath(validating: "/project/model.xcdatamodeld/1.xcdatamodel")],
                 currentVersion: "1"
