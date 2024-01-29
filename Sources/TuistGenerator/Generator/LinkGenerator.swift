@@ -122,7 +122,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
          Target -> MyMacro (Static framework) -> MyMacro (Executable)
 
          The executable is compiled transitively through the static library, and we place it inside the framework to make it available to the target depending on the framework
-         to point it with the `-load-plugin-executable $BUILT_PRODUCTS_DIR/ExecutableName\#ExecutableName` build setting.
+         to point it with the `-load-plugin-executable $(BUILD_DIR)/$(CONFIGURATION)/ExecutableName\#ExecutableName` build setting.
          */
         let directSwiftMacroExecutables = graphTraverser.directSwiftMacroExecutables(path: path, name: target.name).sorted()
         try generateCopySwiftMacroExecutableScriptBuildPhase(
