@@ -194,6 +194,19 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         }
     }
 
+    public var isPrecompiledMacro: Bool {
+        switch self {
+        case .macro: return true
+        case .xcframework: return false
+        case .framework: return false
+        case .library: return false
+        case .bundle: return false
+        case .packageProduct: return false
+        case .target: return false
+        case .sdk: return false
+        }
+    }
+
     public var isPrecompiledDynamicAndLinkable: Bool {
         switch self {
         case .macro: return false
