@@ -5220,7 +5220,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
 
         XCTAssertEqual(got.sorted(), [
-            "\(macroPath.pathString)/#\(macroPath.basename.replacingOccurrences(of: ".macro", with: ""))",
+            "\(macroPath.pathString)#\(macroPath.basename.replacingOccurrences(of: ".macro", with: ""))",
         ])
     }
 
@@ -5284,11 +5284,56 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // When
         let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
 
-        print(got)
-
         XCTAssertEqual(got.sorted(), [
             "$BUILT_PRODUCTS_DIR/DirectMacro#DirectMacro",
             "$BUILT_PRODUCTS_DIR/TransitiveMacro#TransitiveMacro",
+        ])
+    }
+
+    func test_allSwiftPluginExecutables_when_staticMacroFrameworkThatDependOnMacroPrecompiledExecutable(
+    ) throws {
+        // Given
+        let directory = try temporaryPath()
+        let appTarget = Target.test(name: "App", destinations: [.appleWatch])
+        let directMacroStaticFrameworkTarget = Target.test(
+            name: "DirectMacroStaticFramework",
+            destinations: [.appleWatch],
+            product: .staticFramework
+        )
+        let precompiledMacroPath: AbsolutePath = .root.appending(component: "macro.macro")
+        let directMacroMacroPrecompiledExecutable = GraphDependency.macro(path: precompiledMacroPath)
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let directMacroStaticFrameworkTargetDependency = GraphDependency.target(
+            name: directMacroStaticFrameworkTarget.name,
+            path: project.path
+        )
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+            ],
+            targets: [
+                project.path: [
+                    appTarget.name: appTarget,
+                    directMacroStaticFrameworkTarget.name: directMacroStaticFrameworkTarget,
+                ],
+            ],
+            dependencies: [
+                appTargetDependency: Set([directMacroStaticFrameworkTargetDependency]),
+                directMacroStaticFrameworkTargetDependency: Set([
+                    directMacroMacroPrecompiledExecutable,
+                ]),
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            "\(precompiledMacroPath.pathString)#\(precompiledMacroPath.basename.replacingOccurrences(of: ".macro", with: ""))",
         ])
     }
 

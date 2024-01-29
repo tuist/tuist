@@ -706,7 +706,9 @@ public class GraphTraverser: GraphTraversing {
             switch dependency {
             case .xcframework:
                 return !precompiledMacroDependencies(dependency).isEmpty
-            case .bundle, .library, .framework, .sdk, .target, .packageProduct, .macro:
+            case .macro:
+                return true
+            case .bundle, .library, .framework, .sdk, .target, .packageProduct:
                 return false
             }
         }, skip: { dependency in
@@ -717,9 +719,17 @@ public class GraphTraverser: GraphTraversing {
                 return false
             }
         })
-        .lazy
-        .flatMap(precompiledMacroDependencies)
-        .map { "\($0.pathString)/#\($0.basename.replacingOccurrences(of: ".macro", with: ""))" }
+        .flatMap { dependency in
+            switch dependency {
+            case .xcframework:
+                return Array(precompiledMacroDependencies(dependency))
+            case let .macro(path):
+                return [path]
+            case .bundle, .library, .framework, .sdk, .target, .packageProduct:
+                return []
+            }
+        }
+        .map { "\($0.pathString)#\($0.basename.replacingOccurrences(of: ".macro", with: ""))" }
 
         let sourceMacroPluginExecutables = allSwiftMacroTargets(path: path, name: name)
             .flatMap { target in
@@ -1176,7 +1186,7 @@ public class GraphTraverser: GraphTraversing {
                     return false
                 }
             },
-            skip: { $0.isDynamicPrecompiled || !$0.isPrecompiled }
+            skip: { $0.isDynamicPrecompiled || !$0.isPrecompiled || $0.isPrecompiledMacro }
         )
         return Set(dependencies)
             .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }

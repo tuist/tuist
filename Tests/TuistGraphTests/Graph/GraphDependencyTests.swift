@@ -31,4 +31,15 @@ final class GraphDependencyTests: TuistUnitTestCase {
         XCTAssertTrue(GraphDependency.testTarget().isLinkable)
         XCTAssertTrue(GraphDependency.testSDK().isLinkable)
     }
+
+    func test_isPrecompiledMacro() {
+        XCTAssertTrue(GraphDependency.testMacro().isPrecompiledMacro)
+        XCTAssertFalse(GraphDependency.testXCFramework().isPrecompiledMacro)
+        XCTAssertFalse(GraphDependency.testFramework().isPrecompiledMacro)
+        XCTAssertFalse(GraphDependency.testLibrary().isPrecompiledMacro)
+        XCTAssertFalse(GraphDependency.testBundle().isPrecompiledMacro)
+        XCTAssertFalse(GraphDependency.testPackageProduct().isPrecompiledMacro)
+        XCTAssertFalse(GraphDependency.testTarget().isPrecompiledMacro)
+        XCTAssertFalse(GraphDependency.testSDK().isPrecompiledMacro)
+    }
 }
