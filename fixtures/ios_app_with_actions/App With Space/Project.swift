@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "AppWithSpace",
     targets: [
-        Target(
+        .target(
             name: "AppWithSpace",
             destinations: .iOS,
             product: .app,

@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "Project",
     targets: [
-        Target(
+        .target(
             name: "MyTestFramework",
             destinations: .iOS,
             product: .framework,
@@ -14,7 +14,7 @@ let project = Project(
                 .xctest,
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,
@@ -26,7 +26,7 @@ let project = Project(
                 .target(name: "MyTestFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "App",
             destinations: [.iPhone, .iPad, .mac],
             product: .app,
@@ -41,7 +41,7 @@ let project = Project(
                 .sdk(name: "MobileCoreServices", type: .framework, status: .required, condition: .when([.ios])),
             ]
         ),
-        Target(
+        .target(
             name: "MultiPlatformFramework",
             destinations: [.iPad, .iPhone, .mac, .appleTv],
             product: .framework,

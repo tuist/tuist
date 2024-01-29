@@ -6,7 +6,7 @@ let project = Project(
         .package(path: "Packages/LocalPackage"),
     ],
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -19,7 +19,7 @@ let project = Project(
                 .package(product: "MyFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,

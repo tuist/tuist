@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "Framework",
     targets: [
-        Target(
+        .target(
             name: "Framework",
             destinations: .iOS,
             product: .staticFramework,
@@ -11,7 +11,7 @@ let project = Project(
             infoPlist: .default,
             sources: ["Sources/**"],
             coreDataModels: [
-                CoreDataModel("CoreData/Users.xcdatamodeld"),
+                .coreDataModel("CoreData/Users.xcdatamodeld"),
             ]
         ),
     ]

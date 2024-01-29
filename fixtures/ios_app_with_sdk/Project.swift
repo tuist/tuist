@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "Project",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -18,7 +18,7 @@ let project = Project(
                 .project(target: "StaticFramework", path: "Modules/StaticFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "MyTestFramework",
             destinations: .iOS,
             product: .framework,
@@ -29,7 +29,7 @@ let project = Project(
                 .xctest,
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
             destinations: .iOS,
             product: .unitTests,
@@ -41,7 +41,7 @@ let project = Project(
                 .target(name: "MyTestFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "MacFramework",
             destinations: [.mac],
             product: .framework,
@@ -53,7 +53,7 @@ let project = Project(
                 .sdk(name: "sqlite3", type: .library),
             ]
         ),
-        Target(
+        .target(
             name: "TVFramework",
             destinations: [.appleTv],
             product: .framework,

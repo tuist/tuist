@@ -17,7 +17,7 @@ let infoPlist: [String: Plist.Value] = [
 let project = Project(
     name: "Framework1",
     targets: [
-        Target(
+        .target(
             name: "Framework1",
             destinations: .iOS,
             product: .framework,
@@ -29,7 +29,7 @@ let project = Project(
                 .project(target: "Framework2-iOS", path: "../Framework2"),
             ]
         ),
-        Target(
+        .target(
             name: "Framework1Tests",
             destinations: .iOS,
             product: .unitTests,

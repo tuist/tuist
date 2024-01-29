@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "AppWithWatchApp",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -20,14 +20,14 @@ let project = Project(
                 .target(name: "Framework_a_ios"),
             ]
         ),
-        Target(
+        .target(
             name: "Framework_a_ios",
             destinations: .iOS,
             product: .framework,
             productName: "FrameworkA",
             bundleId: "io.tuist.framework.a"
         ),
-        Target(
+        .target(
             name: "Framework_a_watchos",
             destinations: [.appleWatch],
             product: .framework,
@@ -36,7 +36,7 @@ let project = Project(
         ),
         // In Xcode 14, watch application can now leverage the `.app` product type
         // rather than the previous `.watch2App` type
-        Target(
+        .target(
             name: "WatchApp",
             destinations: [.appleWatch],
             product: .app,
@@ -62,7 +62,7 @@ let project = Project(
                 ]
             )
         ),
-        Target(
+        .target(
             name: "WatchWidgetExtension",
             destinations: [.appleWatch],
             product: .appExtension,
@@ -79,7 +79,7 @@ let project = Project(
                 .target(name: "Framework_a_watchos"),
             ]
         ),
-        Target(
+        .target(
             name: "WatchAppTests",
             destinations: [.appleWatch],
             product: .unitTests,

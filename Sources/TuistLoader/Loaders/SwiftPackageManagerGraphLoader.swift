@@ -190,7 +190,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
                 packageToProject: packageToProject,
                 swiftToolsVersion: packageSettings.swiftToolsVersion
             )
-            result[Path(packageInfo.folder.pathString)] = manifest
+            result[.path(packageInfo.folder.pathString)] = manifest
         }
 
         return DependenciesGraph(

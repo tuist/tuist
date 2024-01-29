@@ -1,7 +1,7 @@
 import ProjectDescription
 
 func target(name: String) -> Target {
-    Target(
+    .target(
         name: name,
         destinations: .iOS,
         product: .app,

@@ -4,7 +4,7 @@ import ProjectDescription
 let project = Project(
     name: "Core",
     targets: [
-        Target(
+        .target(
             name: "Core",
             destinations: .iOS,
             product: .framework,
@@ -16,7 +16,7 @@ let project = Project(
                 // "Resources/**"
             ]
         ),
-        Target(
+        .target(
             name: "CoreTests",
             destinations: .iOS,
             product: .unitTests,

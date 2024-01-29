@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "StaticFramework",
     targets: [
-        Target(
+        .target(
             name: "StaticFramework",
             destinations: .iOS,
             product: .staticFramework,
@@ -12,7 +12,7 @@ let project = Project(
             sources: "Sources/**",
             dependencies: []
         ),
-        Target(
+        .target(
             name: "StaticFrameworkResources",
             destinations: .iOS,
             product: .bundle,

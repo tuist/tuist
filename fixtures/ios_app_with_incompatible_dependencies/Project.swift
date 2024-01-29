@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: [.mac],
             product: .app,
@@ -18,7 +18,7 @@ let project = Project(
                 "CODE_SIGNING_REQUIRED": "NO",
             ])
         ),
-        Target(
+        .target(
             name: "Framework",
             destinations: .iOS,
             product: .framework,

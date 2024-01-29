@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "App with SystemExtension",
     targets: [
-        Target(
+        .target(
             name: "MainApp",
             destinations: [.mac],
             product: .app,
@@ -14,7 +14,7 @@ let project = Project(
                 .target(name: "SystemExtension"),
             ]
         ),
-        Target(
+        .target(
             name: "SystemExtension",
             destinations: [.mac],
             product: .systemExtension,

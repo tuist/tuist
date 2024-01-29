@@ -6,7 +6,7 @@ let project = Project(
         developmentRegion: "fr"
     ),
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,

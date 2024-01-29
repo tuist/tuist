@@ -22,7 +22,7 @@ let project = Project(
     name: "Framework2",
     settings: settings,
     targets: [
-        Target(
+        .target(
             name: "Framework2",
             destinations: .iOS,
             product: .framework,
@@ -32,7 +32,7 @@ let project = Project(
             dependencies: [],
             settings: targetSettings
         ),
-        Target(
+        .target(
             name: "Framework2Tests",
             destinations: .iOS,
             product: .unitTests,

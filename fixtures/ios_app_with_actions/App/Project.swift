@@ -6,7 +6,7 @@ let project = Project(
         .remote(url: "https://github.com/realm/SwiftLint", requirement: .exact("0.52.4")),
     ],
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,

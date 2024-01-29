@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: [.appleTv],
             product: .app,
@@ -12,7 +12,7 @@ let project = Project(
             infoPlist: .default,
             sources: .paths([.relativeToManifest("App/Sources/**")])
         ),
-        Target(
+        .target(
             name: "AppUITests",
             destinations: [.appleTv],
             product: .uiTests,

@@ -15,14 +15,14 @@ let project = Project(
         disableSynthesizedResourceAccessors: true
     ),
     targets: [
-        Target(
+        .target(
             name: "Framework1",
             destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.Framework1",
             infoPlist: "Config/Framework1-Info.plist",
             sources: "Sources/**",
-            resources: ResourceFileElements(resources: resources)
+            resources: .resources(resources)
         ),
     ]
 )

@@ -33,7 +33,7 @@ extension TuistCore.DependenciesGraph {
     public static func testXCFramework(
         name: String = "Test",
         // swiftlint:disable:next force_try
-        path: Path = Path(AbsolutePath.root.appending(try! RelativePath(validating: "Test.xcframework")).pathString)
+        path: Path = .path(AbsolutePath.root.appending(try! RelativePath(validating: "Test.xcframework")).pathString)
     ) -> Self {
         let externalDependencies = [name: [TargetDependency.xcframework(path: path)]]
 
@@ -62,7 +62,7 @@ extension TuistCore.DependenciesGraph {
         ]
 
         let targets: [Target] = [
-            .init(
+            .target(
                 name: "Tuist",
                 destinations: destinations,
                 product: .staticFramework,
@@ -105,7 +105,7 @@ extension TuistCore.DependenciesGraph {
                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "SWIFT_DEFINE",
                 ])
             ),
-            .init(
+            .target(
                 name: "TuistKit",
                 destinations: destinations,
                 product: .staticFramework,
@@ -174,7 +174,7 @@ extension TuistCore.DependenciesGraph {
         ]
 
         let targets: [Target] = [
-            .init(
+            .target(
                 name: "ALibrary",
                 destinations: destinations,
                 product: .staticFramework,
@@ -192,7 +192,7 @@ extension TuistCore.DependenciesGraph {
                 ],
                 settings: Self.spmSettings()
             ),
-            .init(
+            .target(
                 name: "ALibraryUtils",
                 destinations: destinations,
                 product: .staticFramework,
@@ -247,7 +247,7 @@ extension TuistCore.DependenciesGraph {
         ]
 
         let targets: [Target] = [
-            .init(
+            .target(
                 name: "AnotherLibrary",
                 destinations: destinations,
                 product: .staticFramework,
@@ -302,7 +302,7 @@ extension TuistCore.DependenciesGraph {
         ]
 
         let targets: [Target] = [
-            .init(
+            .target(
                 name: "Alamofire",
                 destinations: destinations,
                 product: .staticFramework,
@@ -368,7 +368,7 @@ extension TuistCore.DependenciesGraph {
         ]
 
         let targets: [Target] = [
-            .init(
+            .target(
                 name: "GoogleAppMeasurementTarget",
                 destinations: destinations,
                 product: .staticFramework,
@@ -408,7 +408,7 @@ extension TuistCore.DependenciesGraph {
                 ],
                 settings: Self.spmSettings()
             ),
-            .init(
+            .target(
                 name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
                 destinations: destinations,
                 product: .staticFramework,
@@ -516,7 +516,7 @@ extension TuistCore.DependenciesGraph {
         ]
 
         let targets: [Target] = [
-            .init(
+            .target(
                 name: "GULAppDelegateSwizzler",
                 destinations: destinations,
                 product: customProductTypes["GULAppDelegateSwizzler"] ?? .staticFramework,
@@ -529,7 +529,7 @@ extension TuistCore.DependenciesGraph {
                 ],
                 settings: Self.spmSettings()
             ),
-            .init(
+            .target(
                 name: "GULMethodSwizzler",
                 destinations: destinations,
                 product: customProductTypes["GULMethodSwizzler"] ?? .staticFramework,
@@ -543,7 +543,7 @@ extension TuistCore.DependenciesGraph {
                 settings: Self.spmSettings()
             ),
 
-            .init(
+            .target(
                 name: "GULNSData",
                 destinations: destinations,
                 product: customProductTypes["GULNSData"] ?? .staticFramework,
@@ -556,7 +556,7 @@ extension TuistCore.DependenciesGraph {
                 ],
                 settings: Self.spmSettings()
             ),
-            .init(
+            .target(
                 name: "GULNetwork",
                 destinations: destinations,
                 product: customProductTypes["GULNetwork"] ?? .staticFramework,
@@ -611,7 +611,7 @@ extension TuistCore.DependenciesGraph {
         ]
 
         let targets: [Target] = [
-            .init(
+            .target(
                 name: "nanopb",
                 destinations: destinations,
                 product: .staticFramework,
@@ -733,7 +733,7 @@ extension DependenciesGraph {
         let platforms = destinations.platforms
         let applicableVersions = PLATFORM_TEST_VERSION.filter { platforms.contains($0.key) }
 
-        return DeploymentTargets(
+        return .deploymentTargets(
             iOS: applicableVersions[Platform.iOS],
             macOS: applicableVersions[Platform.macOS],
             watchOS: applicableVersions[Platform.watchOS],

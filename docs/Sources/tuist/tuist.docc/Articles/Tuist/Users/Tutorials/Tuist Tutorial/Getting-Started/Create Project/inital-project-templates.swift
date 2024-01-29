@@ -27,7 +27,7 @@ extension Project {
 
     /// Helper function to create a framework target and an associated unit test target
     private static func makeFrameworkTargets(name: String, destinations: Destinations) -> [Target] {
-        let sources = Target(
+        let sources = .target(
             name: name,
             destinations: destinations,
             product: .framework,
@@ -37,7 +37,7 @@ extension Project {
             resources: [],
             dependencies: []
         )
-        let tests = Target(
+        let tests = .target(
             name: "\(name)Tests",
             destinations: destinations,
             product: .unitTests,
@@ -60,7 +60,7 @@ extension Project {
             "UILaunchStoryboardName": "LaunchScreen",
         ]
 
-        let mainTarget = Target(
+        let mainTarget = .target(
             name: name,
             destinations: destinations,
             product: .app,
@@ -71,7 +71,7 @@ extension Project {
             dependencies: dependencies
         )
 
-        let testTarget = Target(
+        let testTarget = .target(
             name: "\(name)Tests",
             destinations: destinations,
             product: .unitTests,

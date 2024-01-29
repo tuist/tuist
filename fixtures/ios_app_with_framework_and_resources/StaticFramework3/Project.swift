@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "StaticFramework3",
     targets: [
-        Target(
+        .target(
             name: "StaticFramework3",
             destinations: .iOS,
             product: .staticFramework,

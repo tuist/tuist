@@ -4,7 +4,7 @@ let project = Project(
     name: "App",
     organizationName: "Tuist",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,

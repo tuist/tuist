@@ -31,8 +31,8 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let arguments = ProjectDescription.Arguments.test(
             environment: ["FOO": "BAR", "FIZ": "BUZZ"],
             launchArguments: [
-                LaunchArgument(name: "--help", isEnabled: true),
-                LaunchArgument(name: "subcommand", isEnabled: false),
+                .launchArgument(name: "--help", isEnabled: true),
+                .launchArgument(name: "subcommand", isEnabled: false),
             ]
         )
 

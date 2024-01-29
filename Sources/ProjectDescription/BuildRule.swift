@@ -29,7 +29,7 @@ public struct BuildRule: Codable, Equatable {
     /// Build rule run once per architecture.
     public var runOncePerArchitecture: Bool?
 
-    public init(
+    public static func buildRule(
         name: String? = nil,
         fileType: FileType,
         filePatterns: String? = nil,
@@ -39,15 +39,17 @@ public struct BuildRule: Codable, Equatable {
         outputFilesCompilerFlags: [String] = [],
         script: String? = nil,
         runOncePerArchitecture: Bool = false
-    ) {
-        self.name = name
-        self.fileType = fileType
-        self.filePatterns = filePatterns
-        self.compilerSpec = compilerSpec
-        self.inputFiles = inputFiles
-        self.outputFiles = outputFiles
-        self.outputFilesCompilerFlags = outputFilesCompilerFlags
-        self.script = script
-        self.runOncePerArchitecture = runOncePerArchitecture
+    ) -> Self {
+        self.init(
+            compilerSpec: compilerSpec,
+            filePatterns: filePatterns,
+            fileType: fileType,
+            name: name,
+            outputFiles: outputFiles,
+            inputFiles: inputFiles,
+            outputFilesCompilerFlags: outputFilesCompilerFlags,
+            script: script,
+            runOncePerArchitecture: runOncePerArchitecture
+        )
     }
 }

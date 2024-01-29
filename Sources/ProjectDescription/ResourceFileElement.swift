@@ -31,6 +31,6 @@ public enum ResourceFileElement: Codable, Equatable {
 
 extension ResourceFileElement: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self = .glob(pattern: Path(value))
+        self = .glob(pattern: .path(value))
     }
 }

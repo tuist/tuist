@@ -4,7 +4,7 @@ let project = Project(
     name: "App",
     organizationName: "Tuist",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -15,7 +15,7 @@ let project = Project(
                 .target(name: "AppClip1"),
             ]
         ),
-        Target(
+        .target(
             name: "Framework",
             destinations: .iOS,
             product: .framework,
@@ -24,7 +24,7 @@ let project = Project(
             sources: ["Framework/Sources/**"],
             dependencies: []
         ),
-        Target(
+        .target(
             name: "StaticFramework",
             destinations: .iOS,
             product: .staticFramework,
@@ -33,7 +33,7 @@ let project = Project(
             sources: ["StaticFramework/Sources/**"],
             dependencies: []
         ),
-        Target(
+        .target(
             name: "AppClip1",
             destinations: .iOS,
             product: .appClip,
@@ -46,7 +46,7 @@ let project = Project(
                 .target(name: "StaticFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "AppClip1Tests",
             destinations: .iOS,
             product: .unitTests,
@@ -58,7 +58,7 @@ let project = Project(
                 .target(name: "StaticFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "AppClip1UITests",
             destinations: .iOS,
             product: .uiTests,

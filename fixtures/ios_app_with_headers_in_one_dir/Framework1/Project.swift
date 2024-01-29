@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "Framework1",
     targets: [
-        Target(
+        .target(
             name: "Framework1-iOS",
             destinations: .iOS,
             product: .framework,
@@ -18,7 +18,7 @@ let project = Project(
             ),
             dependencies: []
         ),
-        Target(
+        .target(
             name: "Framework1-macOS",
             destinations: [.mac],
             product: .framework,
@@ -33,7 +33,7 @@ let project = Project(
             ),
             dependencies: []
         ),
-        Target(
+        .target(
             name: "Framework1Tests",
             destinations: .iOS,
             product: .unitTests,

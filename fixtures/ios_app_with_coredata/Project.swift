@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
             destinations: .iOS,
             product: .app,
@@ -11,9 +11,9 @@ let project = Project(
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             coreDataModels: [
-                CoreDataModel("CoreData/Users.xcdatamodeld", currentVersion: "1"),
-                CoreDataModel("CoreData/UsersAutoDetect.xcdatamodeld"),
-                CoreDataModel("CoreData/Unversioned.xcdatamodeld"),
+                .coreDataModel("CoreData/Users.xcdatamodeld", currentVersion: "1"),
+                .coreDataModel("CoreData/UsersAutoDetect.xcdatamodeld"),
+                .coreDataModel("CoreData/Unversioned.xcdatamodeld"),
             ]
         ),
     ]

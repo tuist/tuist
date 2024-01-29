@@ -3,7 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "StaticFramework",
     targets: [
-        Target(
+        .target(
             name: "StaticFramework",
             destinations: .iOS,
             product: .staticFramework,
@@ -15,7 +15,7 @@ let project = Project(
                 .sdk(name: "c++", type: .library),
             ]
         ),
-        Target(
+        .target(
             name: "StaticFrameworkTests",
             destinations: .iOS,
             product: .unitTests,

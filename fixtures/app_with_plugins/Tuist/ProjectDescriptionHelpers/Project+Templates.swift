@@ -9,7 +9,7 @@ extension Project {
         _ = LocalHelper(name: "local")
         _ = RemoteHelper(name: "remote")
 
-        let mainTarget = Target(
+        let mainTarget: Target = .target(
             name: name,
             destinations: destinations,
             product: .app,
