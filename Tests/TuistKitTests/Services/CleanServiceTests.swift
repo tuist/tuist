@@ -28,7 +28,7 @@ final class CleanServiceTests: TuistUnitTestCase {
 
     func test_run_with_category_cleans_category() throws {
         // Given
-        let cachePaths = try createFolders(["Cache", "Cache/BuildCache", "Cache/Manifests", "Cache/incremental-tests"])
+        let cachePaths = try createFolders(["Cache", "Cache/BinaryCache", "Cache/Manifests", "Cache/SelectiveTests"])
         let cachePath = cachePaths[0]
         for path in cachePaths {
             let correctlyCreated = FileManager.default.fileExists(atPath: path.pathString)
@@ -53,7 +53,7 @@ final class CleanServiceTests: TuistUnitTestCase {
 
     func test_run_without_category_cleans_all() throws {
         // Given
-        let cachePaths = try createFolders(["Cache", "Cache/BuildCache", "Cache/Manifests", "Cache/incremental-tests"])
+        let cachePaths = try createFolders(["Cache", "Cache/BinaryCache", "Cache/Manifests", "Cache/SelectiveTests"])
         let cachePath = cachePaths[0]
         for path in cachePaths {
             let correctlyCreated = FileManager.default.fileExists(atPath: path.pathString)
