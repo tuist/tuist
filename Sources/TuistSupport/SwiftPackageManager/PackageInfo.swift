@@ -259,7 +259,12 @@ extension PackageInfo.Target {
         case target(name: String, condition: PackageInfo.PackageConditionDescription?)
 
         /// A product from an external package.
-        case product(name: String, package: String, condition: PackageInfo.PackageConditionDescription?)
+        case product(
+            name: String,
+            package: String,
+            moduleAliases: [String: String]?,
+            condition: PackageInfo.PackageConditionDescription?
+        )
 
         /// A dependency to be resolved by name.
         case byName(name: String, condition: PackageInfo.PackageConditionDescription?)
@@ -524,6 +529,7 @@ extension PackageInfo.Target.Dependency: Codable {
             self = .product(
                 name: first,
                 package: try unkeyedValues.decodeIfPresent(String.self) ?? first,
+                moduleAliases: try unkeyedValues.decodeIfPresent([String: String].self),
                 condition: try unkeyedValues.decodeIfPresent(PackageInfo.PackageConditionDescription.self)
             )
         case .byName:

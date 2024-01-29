@@ -94,7 +94,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(
                             name: "Target_1",
                             dependencies: [
-                                .product(name: "Product2", package: "Package2_different_name", condition: nil),
+                                .product(
+                                    name: "Product2",
+                                    package: "Package2_different_name",
+                                    moduleAliases: nil,
+                                    condition: nil
+                                ),
                             ]
                         ),
                     ],
@@ -148,7 +153,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(
                             name: "Target_1",
                             dependencies: [
-                                .product(name: "com.example.dep-1", package: "com.example.dep-1", condition: nil),
+                                .product(
+                                    name: "com.example.dep-1",
+                                    package: "com.example.dep-1",
+                                    moduleAliases: nil,
+                                    condition: nil
+                                ),
                             ]
                         ),
                     ],
@@ -255,11 +265,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .product(
                                     name: "Product_2",
                                     package: "Package_2",
+                                    moduleAliases: nil,
                                     condition: .init(platformNames: ["ios"], config: nil)
                                 ),
                                 .product(
                                     name: "Product_3",
                                     package: "Package_2",
+                                    moduleAliases: nil,
                                     condition: .init(platformNames: ["tvos"], config: nil)
                                 ),
                             ]
@@ -1258,7 +1270,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(
                             name: "Target1",
-                            dependencies: [.product(name: "Dependency1", package: "Package2", condition: nil)]
+                            dependencies: [.product(name: "Dependency1", package: "Package2", moduleAliases: nil, condition: nil)]
                         ),
                     ],
                     platforms: [],
@@ -1273,7 +1285,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(
                             name: "Dependency1",
-                            dependencies: [.product(name: "Dependency2", package: "Package3", condition: nil)]
+                            dependencies: [.product(name: "Dependency2", package: "Package3", moduleAliases: nil, condition: nil)]
                         ),
                     ],
                     platforms: [],
@@ -2533,7 +2545,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             targets: [
                 .test(
                     name: "Target1",
-                    dependencies: [.product(name: "Product2", package: "Package2", condition: nil)]
+                    dependencies: [.product(name: "Product2", package: "Package2", moduleAliases: nil, condition: nil)]
                 ),
                 .test(name: "Dependency1"),
             ],
@@ -3035,6 +3047,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .product(
                             name: "Product2",
                             package: "Package2",
+                            moduleAliases: nil,
                             condition: .init(platformNames: ["ios"], config: nil)
                         ),
                     ]

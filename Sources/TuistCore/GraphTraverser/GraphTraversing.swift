@@ -80,41 +80,20 @@ public protocol GraphTraversing {
     /// - Parameters:
     ///   - path: Path to the directory that contains the target's project.
     ///   - name: Target name.
-    func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
+    func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
 
     /// Given a project directory and target name, it returns all its direct target dependencies present in the same project.
     /// To get **all** direct target dependencies use the method `directTargetDependencies` instead
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
-
-    /// Given a project directory and a target name, it returns all direct local dependencies with their conditions
-    /// - Parameters:
-    ///   - path: Path to the directory that contains the project.
-    ///   - name: Target name.
-    func directLocalTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(
-        GraphTarget,
-        PlatformCondition?
-    )]
-
-    /// Given a project directory and a target name, it returns all direct dependencies with their conditions
-    /// - Parameters:
-    ///   - path: Path to the directory that contains the project.
-    ///   - name: Target name.
-    func directTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, PlatformCondition?)]
+    func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
 
     /// Given a project directory and a target name, it returns all the dependencies that are extensions.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func appExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
-
-    /// Given a project directory and a target name, it returns all the dependencies that are extensions with ther condition
-    /// - Parameters:
-    ///   - path: Path to the directory that contains the project.
-    ///   - name: Target name.
-    func appExtensionDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, PlatformCondition?)]
+    func appExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
 
     /// Returns the transitive resource bundle dependencies for the given target.
     /// - Parameters:
@@ -141,13 +120,7 @@ public protocol GraphTraversing {
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func appClipDependencies(path: AbsolutePath, name: String) -> GraphTarget?
-
-    /// Given a project directory and a target name, it returns an appClips dependency with its conditions.
-    /// - Parameters:
-    ///   - path: Path to the directory that contains the project.
-    ///   - name: Target name.
-    func appClipDependenciesWithConditions(path: AbsolutePath, name: String) -> (GraphTarget, PlatformCondition?)?
+    func appClipDependencies(path: AbsolutePath, name: String) -> GraphTargetReference?
 
     /// Given a project directory and a target name, it returns the list of dependencies that need to be embedded into the target
     /// product.
@@ -225,17 +198,7 @@ public protocol GraphTraversing {
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func extensionKitExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
-
-    /// Given a project directory and a target name, it returns all the dependencies that are ExtensionKit extensions with their
-    /// conditions.
-    /// - Parameters:
-    ///   - path: Path to the directory that contains the project.
-    ///   - name: Target name.
-    func extensionKitExtensionDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(
-        GraphTarget,
-        PlatformCondition?
-    )]
+    func extensionKitExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
 
     /// Given a project and a target name, it returns all the direct target dependencies of the target that represent Swift Macro
     /// executables.
@@ -249,7 +212,7 @@ public protocol GraphTraversing {
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func directSwiftMacroTargets(path: AbsolutePath, name: String) -> Set<GraphTarget>
+    func directSwiftMacroTargets(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
 
     /// Given a project and a target name, it returns all the target dependencies that are a target representing
     /// a Swift Macro
@@ -285,7 +248,7 @@ public protocol GraphTraversing {
     ///   - path: Project path.
     ///   - name: Target name.
     /// - Returns: A set containing all the direct target dependencies that are external.
-    func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
+    func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
 
     /// It returns all the plugin executables to use for a given target. A plugin executable can represent a Swift Macro
     /// executable to resolve macros.
