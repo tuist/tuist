@@ -23,7 +23,12 @@ final class PackageInfoTests: XCTestCase {
                         dependencies: [
                             .target(name: "TuistKit", condition: nil),
                             .byName(name: "TuistSupport", condition: nil),
-                            .product(name: "ArgumentParser", package: "argument-parser", condition: nil),
+                            .product(
+                                name: "ArgumentParser",
+                                package: "argument-parser",
+                                moduleAliases: ["TuistSupport": "InternalTuistSupport"],
+                                condition: nil
+                            ),
                         ],
                         publicHeadersPath: nil,
                         type: .executable,

@@ -20,7 +20,6 @@ final class CleanService {
         let path: AbsolutePath = try self.path(path)
         let manifestLoaderFactory = ManifestLoaderFactory()
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories()
 
         for category in categories {
