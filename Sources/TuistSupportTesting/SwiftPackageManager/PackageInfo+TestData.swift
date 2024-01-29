@@ -111,6 +111,7 @@ extension PackageInfo {
                   "product" : [
                     "ALibrary",
                     "a-dependency",
+                    null,
                     {
                       "platformNames" : [
                         "ios"
@@ -225,6 +226,7 @@ extension PackageInfo {
                   "product" : [
                     "AnotherLibrary",
                     "another-dependency",
+                    null,
                     null
                   ]
                 }
@@ -378,6 +380,7 @@ extension PackageInfo {
                   "product" : [
                     "ALibrary",
                     "a-dependency",
+                    null,
                     {
                       "platformNames" : [
                         "ios"
@@ -504,6 +507,7 @@ extension PackageInfo {
                   "product" : [
                     "AnotherLibrary",
                     "another-dependency",
+                    null,
                     null
                   ]
                 }
@@ -1034,6 +1038,7 @@ extension PackageInfo {
                   "product" : [
                     "GULAppDelegateSwizzler",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1041,6 +1046,7 @@ extension PackageInfo {
                   "product" : [
                     "GULMethodSwizzler",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1048,6 +1054,7 @@ extension PackageInfo {
                   "product" : [
                     "GULNSData",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1055,6 +1062,7 @@ extension PackageInfo {
                   "product" : [
                     "GULNetwork",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1062,6 +1070,7 @@ extension PackageInfo {
                   "product" : [
                     "nanopb",
                     "nanopb",
+                    null,
                     null
                   ]
                 }
@@ -1136,6 +1145,7 @@ extension PackageInfo {
                   "product" : [
                     "GULAppDelegateSwizzler",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1143,6 +1153,7 @@ extension PackageInfo {
                   "product" : [
                     "GULMethodSwizzler",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1150,6 +1161,7 @@ extension PackageInfo {
                   "product" : [
                     "GULNSData",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1157,6 +1169,7 @@ extension PackageInfo {
                   "product" : [
                     "GULNetwork",
                     "GoogleUtilities",
+                    null,
                     null
                   ]
                 },
@@ -1164,6 +1177,7 @@ extension PackageInfo {
                   "product" : [
                     "nanopb",
                     "nanopb",
+                    null,
                     null
                   ]
                 }
