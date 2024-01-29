@@ -35,7 +35,7 @@ extension TuistGraph.Graph {
 
         let filteredTargetsAndDependencies: Set<GraphTarget> = filteredTargets.union(
             transitiveClosure(Array(filteredTargets)) { target in
-                Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name))
+                Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).map(\.graphTarget))
             }
         )
 

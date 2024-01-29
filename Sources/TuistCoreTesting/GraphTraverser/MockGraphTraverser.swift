@@ -258,9 +258,9 @@ final class MockGraphTraverser: GraphTraversing {
     )?
     var invokedDirectLocalTargetDependenciesParametersList =
         [(path: AbsolutePath, name: String)]()
-    var stubbedDirectLocalTargetDependenciesResult: Set<GraphTarget>! = []
+    var stubbedDirectLocalTargetDependenciesResult: Set<GraphTargetReference>! = []
 
-    func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+    func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference> {
         invokedDirectLocalTargetDependencies = true
         invokedDirectLocalTargetDependenciesCount += 1
         invokedDirectLocalTargetDependenciesParameters = (path, name)
@@ -275,48 +275,15 @@ final class MockGraphTraverser: GraphTraversing {
         path: AbsolutePath,
         name: String
     )?
-    // swiftlint:disable:next identifier_name
-    var invokedDirectLocalTargetDependenciesWithConditionsParametersList =
-        [(path: AbsolutePath, name: String)]()
-    var stubbedDirectLocalTargetDependenciesWithConditionsResult: [(GraphTarget, PlatformCondition?)]! = []
-
-    func directLocalTargetDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(
-        TuistGraph.GraphTarget,
-        TuistGraph.PlatformCondition?
-    )] {
-        invokedDirectLocalTargetDependenciesWithConditions = true
-        invokedDirectLocalTargetDependenciesWithConditionsCount += 1
-        invokedDirectLocalTargetDependenciesWithConditionsParameters = (path, name)
-        invokedDirectLocalTargetDependenciesWithConditionsParametersList.append((path, name))
-        return stubbedDirectLocalTargetDependenciesWithConditionsResult
-    }
-
-    var invokedDirectTargetDependenciesWithConditions = false
-
-    var invokedDirectTargetDependenciesWithConditionsCount = 0
-    var invokedDirectTargetDependenciesWithConditionsParameters: (
-        path: AbsolutePath,
-        name: String
-    )?
-    var invokedDirectTargetDependenciesWithConditionsParametersList =
-        [(path: AbsolutePath, name: String)]()
-    var stubbedDirectTargetDependenciesWithConditionsResult: [(GraphTarget, PlatformCondition?)]! = []
-    func directTargetDependenciesWithConditions(path: AbsolutePath, name: String) -> [(GraphTarget, PlatformCondition?)] {
-        invokedDirectTargetDependenciesWithConditions = true
-        invokedDirectTargetDependenciesWithConditionsCount += 1
-        invokedDirectTargetDependenciesWithConditionsParameters = (path, name)
-        invokedDirectTargetDependenciesWithConditionsParametersList.append((path, name))
-        return stubbedDirectTargetDependenciesWithConditionsResult
-    }
 
     var invokedDirectTargetDependencies = false
     var invokedDirectTargetDependenciesCount = 0
     var invokedDirectTargetDependenciesParameters: (path: AbsolutePath, name: String)?
     var invokedDirectTargetDependenciesParametersList =
         [(path: AbsolutePath, name: String)]()
-    var stubbedDirectTargetDependenciesResult: Set<GraphTarget>! = []
+    var stubbedDirectTargetDependenciesResult: Set<GraphTargetReference>! = []
 
-    func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+    func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference> {
         invokedDirectTargetDependencies = true
         invokedDirectTargetDependenciesCount += 1
         invokedDirectTargetDependenciesParameters = (path, name)
@@ -329,32 +296,14 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedAppExtensionDependenciesParameters: (path: AbsolutePath, name: String)?
     var invokedAppExtensionDependenciesParametersList =
         [(path: AbsolutePath, name: String)]()
-    var stubbedAppExtensionDependenciesResult: Set<GraphTarget>! = []
+    var stubbedAppExtensionDependenciesResult: Set<GraphTargetReference>! = []
 
-    func appExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+    func appExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference> {
         invokedAppExtensionDependencies = true
         invokedAppExtensionDependenciesCount += 1
         invokedAppExtensionDependenciesParameters = (path, name)
         invokedAppExtensionDependenciesParametersList.append((path, name))
         return stubbedAppExtensionDependenciesResult
-    }
-
-    var invokedAppExtensionDependenciesWithConditions = false
-    var invokedAppExtensionDependenciesWithConditionsCount = 0
-    var invokedAppExtensionDependenciesWithConditionsParameters: (path: AbsolutePath, name: String)?
-    var invokedAppExtensionDependenciesWithConditionsParametersList =
-        [(path: AbsolutePath, name: String)]()
-    var stubbedAppExtensionDependenciesWithConditionsResult: [(GraphTarget, PlatformCondition?)]! = []
-
-    func appExtensionDependenciesWithConditions(path: TSCBasic.AbsolutePath, name: String) -> [(
-        TuistGraph.GraphTarget,
-        TuistGraph.PlatformCondition?
-    )] {
-        invokedAppExtensionDependenciesWithConditions = true
-        invokedAppExtensionDependenciesWithConditionsCount += 1
-        invokedAppExtensionDependenciesWithConditionsParameters = (path, name)
-        invokedAppExtensionDependenciesWithConditionsParametersList.append((path, name))
-        return stubbedAppExtensionDependenciesWithConditionsResult
     }
 
     var invokedResourceBundleDependencies = false
@@ -391,9 +340,9 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedAppClipDependenciesCount = 0
     var invokedAppClipDependenciesParameters: (path: AbsolutePath, name: String)?
     var invokedAppClipDependenciesParametersList = [(path: AbsolutePath, name: String)]()
-    var stubbedAppClipDependenciesResult: GraphTarget!
+    var stubbedAppClipDependenciesResult: GraphTargetReference!
 
-    func appClipDependencies(path: AbsolutePath, name: String) -> GraphTarget? {
+    func appClipDependencies(path: AbsolutePath, name: String) -> GraphTargetReference? {
         invokedAppClipDependencies = true
         invokedAppClipDependenciesCount += 1
         invokedAppClipDependenciesParameters = (path, name)
@@ -601,9 +550,9 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedExtensionKitExtensionDependenciesParameters: (path: AbsolutePath, name: String)?
     var invokedExtensionKitExtensionDependenciesParametersList =
         [(path: AbsolutePath, name: String)]()
-    var stubbedExtensionKitExtensionDependenciesResult: Set<GraphTarget>! = []
+    var stubbedExtensionKitExtensionDependenciesResult: Set<GraphTargetReference>! = []
 
-    func extensionKitExtensionDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<TuistGraph.GraphTarget> {
+    func extensionKitExtensionDependencies(path: TSCBasic.AbsolutePath, name: String) -> Set<GraphTargetReference> {
         invokedExtensionKitExtensionDependencies = true
         invokedExtensionKitExtensionDependenciesCount += 1
         invokedExtensionKitExtensionDependenciesParameters = (path, name)
@@ -651,8 +600,8 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedDirectSwiftMacroTargetsParameters: (path: AbsolutePath, name: String)?
     var invokedDirectSwiftMacroTargetsParametersList =
         [(path: AbsolutePath, name: String)]()
-    var stubbedDirectSwiftMacroTargetsResult: Set<GraphTarget>! = []
-    func directSwiftMacroTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<GraphTarget> {
+    var stubbedDirectSwiftMacroTargetsResult: Set<GraphTargetReference>! = []
+    func directSwiftMacroTargets(path: TSCBasic.AbsolutePath, name: String) -> Set<GraphTargetReference> {
         invokedDirectSwiftMacroTargets = true
         invokedDirectSwiftMacroTargetsCount += 1
         invokedDirectSwiftMacroTargetsParameters = (path, name)
@@ -715,8 +664,8 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedDirectTargetExternalDependenciesParameters: (path: AbsolutePath, name: String)?
     var invokedDirectTargetExternalDependenciesParametersList =
         [(path: AbsolutePath, name: String)]()
-    var stubbedDirectTargetExternalDependenciesResult: Set<GraphTarget>! = []
-    func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+    var stubbedDirectTargetExternalDependenciesResult: Set<GraphTargetReference>! = []
+    func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference> {
         invokedDirectTargetExternalDependencies = true
         invokedDirectTargetExternalDependenciesCount += 1
         invokedDirectTargetExternalDependenciesParameters = (path, name)
