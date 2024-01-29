@@ -5304,8 +5304,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
 
         XCTAssertEqual(got.sorted(), [
-            "$BUILT_PRODUCTS_DIR/DirectMacro#DirectMacro",
-            "$BUILT_PRODUCTS_DIR/TransitiveMacro#TransitiveMacro",
+            "$(BUILD_DIR)/$(CONFIGURATION)/DirectMacro#DirectMacro",
+            "$(BUILD_DIR)/$(CONFIGURATION)/TransitiveMacro#TransitiveMacro",
         ])
     }
 

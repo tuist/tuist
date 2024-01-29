@@ -535,8 +535,8 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         let copyLines = executableNames.map {
             """
-            if [[ -f "$SYMROOT/$CONFIGURATION/\($0)" && ! -f "$BUILT_PRODUCTS_DIR/\($0)" ]]; then
-                cp "$SYMROOT/$CONFIGURATION/\($0)" "$BUILT_PRODUCTS_DIR/\($0)"
+            if [[ -f "$BUILD_DIR/$CONFIGURATION/\($0)" && ! -f "$BUILT_PRODUCTS_DIR/\($0)" ]]; then
+                cp "$BUILD_DIR/$CONFIGURATION/\($0)" "$BUILT_PRODUCTS_DIR/\($0)"
             fi
             """
         }
@@ -547,7 +547,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         \(copyLines.joined(separator: "\n"))
         """
 
-        copySwiftMacrosBuildPhase.inputPaths = executableNames.map { "$SYMROOT/$CONFIGURATION/\($0)" }
+        copySwiftMacrosBuildPhase.inputPaths = executableNames.map { "$BUILD_DIR/$CONFIGURATION/\($0)" }
 
         copySwiftMacrosBuildPhase.outputPaths = target.supportedPlatforms
             .filter { $0 != .macOS }
@@ -559,7 +559,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
             }
             .flatMap { sdk in
                 executableNames.map { executable in
-                    "$SYMROOT/$CONFIGURATION-\(sdk)/\(executable)"
+                    "$BUILD_DIR/$CONFIGURATION-\(sdk)/\(executable)"
                 }
             }
 
