@@ -8,6 +8,8 @@
 
 - Fix parsing of `conditon` on SPM `.product` dependencies [#5846](https://github.com/tuist/tuist/pull/5846) by [@waltflanagan](https://github.com/waltflanagan)
 - Fix missing plugin executable when the macro framework/library is not precompiled but the executable is [#5849](https://github.com/tuist/tuist/pull/5849) by [@pepicrft](https://github.com/pepicrft)
+- Fix Swift Macros unresolved by the Xcode editor [#5851](https://github.com/tuist/tuist/pull/5851) by [@pepicrft](https://github.com/pepicrft)
+- Fix false static side effect positives when the project contains Swift Macros [#5850](https://github.com/tuist/tuist/pull/5850) by [@pepicrft](https://github.com/pepicrft)
 
 ### Tuist Cloud
 
