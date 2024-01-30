@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.42.2 - 2024-01-30
+
+### Tuist
+
+#### Fixed
+
+- Fix parsing of `conditon` on SPM `.product` dependencies [#5846](https://github.com/tuist/tuist/pull/5846) by [@waltflanagan](https://github.com/waltflanagan)
+- Fix missing plugin executable when the macro framework/library is not precompiled but the executable is [#5849](https://github.com/tuist/tuist/pull/5849) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+- no changes
+
 ## 3.42.1 - 2024-01-26
 
 ### Tuist
@@ -9,6 +22,7 @@
 - Improve editing of PackageSettings in Package.swift [#5837](https://github.com/tuist/tuist/pull/5837) by [@fortmarek](https://github.com/fortmarek)
 
 #### Fixed
+
 - Not bundle Swift Macros into the parent framework [#5834](https://github.com/tuist/tuist/pull/5834) by [@pepicrft](https://github.com/pepicrft)
 
 ### Tuist Cloud
