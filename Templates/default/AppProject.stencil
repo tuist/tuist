@@ -7,8 +7,8 @@ let project = Project(
             name: "{{ name }}",
             destinations: .{{ platform }},
             product: .app,
-			bundleId: "io.tuist.{{ name }}",
-			infoPlist: .extendingDefault(
+            bundleId: "io.tuist.{{ name }}",
+            infoPlist: .extendingDefault(
                 with: [
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                 ]
