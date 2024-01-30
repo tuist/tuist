@@ -72,3 +72,15 @@ public struct DeploymentTargets: Hashable, Codable {
         DeploymentTargets(visionOS: version)
     }
 }
+
+extension DeploymentTargets: ExpressibleByDictionaryLiteral {
+    public init(dictionaryLiteral elements: (Platform, String)...) {
+        let dictionary = Dictionary(uniqueKeysWithValues: elements)
+             
+        self.init(iOS: dictionary[.iOS],
+                  macOS: dictionary[.macOS],
+                  watchOS: dictionary[.watchOS],
+                  tvOS: dictionary[.tvOS],
+                  visionOS: dictionary[.visionOS])
+    }
+}
