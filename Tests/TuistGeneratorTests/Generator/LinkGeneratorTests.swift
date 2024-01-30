@@ -1019,16 +1019,16 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertNotNil(buildPhase)
 
         let expectedScript =
-            "if [[ -f \"$SYMROOT/$CONFIGURATION/\(macroExecutable.productName)\" && ! -f \"$BUILT_PRODUCTS_DIR/\(macroExecutable.productName)\" ]]; then\n    cp \"$SYMROOT/$CONFIGURATION/\(macroExecutable.productName)\" \"$BUILT_PRODUCTS_DIR/\(macroExecutable.productName)\"\nfi"
+            "if [[ -f \"$BUILD_DIR/$CONFIGURATION/macro\" && ! -f \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\" ]]; then\n    mkdir -p \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\"\n    cp \"$BUILD_DIR/$CONFIGURATION/macro\" \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\"\nfi"
         XCTAssertTrue(buildPhase?.shellScript?.contains(expectedScript) == true)
-        XCTAssertTrue(buildPhase?.inputPaths.contains("$SYMROOT/$CONFIGURATION/\(macroExecutable.productName)") == true)
+        XCTAssertTrue(buildPhase?.inputPaths.contains("$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)") == true)
         XCTAssertTrue(
             buildPhase?.outputPaths
-                .contains("$SYMROOT/$CONFIGURATION-iphonesimulator/\(macroExecutable.productName)") == true
+                .contains("$BUILD_DIR/Debug-iphonesimulator/\(macroExecutable.productName)") == true
         )
         XCTAssertTrue(
             buildPhase?.outputPaths
-                .contains("$SYMROOT/$CONFIGURATION-iphoneos/\(macroExecutable.productName)") == true
+                .contains("$BUILD_DIR/Debug-iphoneos/\(macroExecutable.productName)") == true
         )
     }
 
