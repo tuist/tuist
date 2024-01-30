@@ -17,10 +17,6 @@ let template = Template(
             templatePath: "AppProject.stencil"
         ),
         .file(
-            path: projectPath + "/Tuist/Package.swift",
-            templatePath: "Package.stencil"
-        ),
-        .file(
             path: appPath + "/Sources/\(nameAttribute)App.swift",
             templatePath: "app.stencil"
         ),
