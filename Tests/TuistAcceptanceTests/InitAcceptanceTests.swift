@@ -27,14 +27,6 @@ final class InitAcceptanceTestiOSApp: TuistAcceptanceTestCase {
 //    }
 // }
 
-// TODO: Fix
-// final class InitAcceptanceTestSwiftUtvOSApp: TuistAcceptanceTestCase {
-//    func test_init_swift_ui_tvos_app() async throws {
-//        try run(InitCommand.self, "--platform", "tvos", "--name", "MyApp", "--template", "swiftui")
-//        try await run(BuildCommand.self)
-//    }
-// }
-
 final class InitAcceptanceTestCLIProjectWithTemplateInADifferentRepository: TuistAcceptanceTestCase {
     func test_cli_project_with_template_in_a_different_repository() async throws {
         try run(InitCommand.self, "--template", "https://github.com/tuist/ExampleTuistTemplate-Tuist4.git", "--name", "MyApp")

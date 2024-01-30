@@ -30,14 +30,14 @@ public struct InitCommand: ParsableCommand, HasTrackableParameters {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the folder where the project will be generated (Default: Current directory)",
+        help: "The path to the folder where the project will be generated. (Default: Current directory)",
         completion: .directory
     )
     var path: String?
 
     @Option(
         name: .shortAndLong,
-        help: "The name of the project. If it's not passed (Default: Name of the current directory)"
+        help: "The name of the project. (Default: Name of the current directory)"
     )
     var name: String?
 
