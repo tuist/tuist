@@ -1,3 +1,4 @@
+import Difference
 import Foundation
 import TSCBasic
 import XCTest
@@ -165,6 +166,26 @@ open class TuistTestCase: XCTestCase {
             try fileHandler.createFolder(path)
         }
         return paths
+    }
+
+    public func XCTAssertBetterEqual<T: Equatable>(
+        _ expected: @autoclosure () throws -> T,
+        _ received: @autoclosure () throws -> T,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        do {
+            let expected = try expected()
+            let received = try received()
+            XCTAssertTrue(
+                expected == received,
+                "Found difference for \n" + diff(expected, received).joined(separator: ", "),
+                file: file,
+                line: line
+            )
+        } catch {
+            XCTFail("Caught error while testing: \(error)", file: file, line: line)
+        }
     }
 
     public func XCTAssertPrinterOutputContains(_ expected: String, file: StaticString = #file, line: UInt = #line) {

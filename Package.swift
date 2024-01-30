@@ -1,4 +1,4 @@
-// swift-tools-version:5.7
+// swift-tools-version:5.9
 
 import PackageDescription
 
@@ -117,6 +117,7 @@ var targets: [Target] = [
             "TuistSupport",
             "TuistGraph",
             swiftToolsSupportDependency,
+            "Difference",
         ],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
@@ -354,6 +355,7 @@ let package = Package(
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
         .package(url: "https://github.com/tuist/XcodeProj", exact: "8.15.0"),
         .package(url: "https://github.com/cpisciotta/xcbeautify", from: "1.4.0"),
+        .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
     ],
     targets: targets
 )

@@ -24,7 +24,7 @@
 ///
 /// let config = Config(
 ///     compatibleXcodeVersions: ["14.2"],
-///     swiftVersion: "5.7.0"
+///     swiftVersion: "5.9.0"
 /// )
 /// ```
 public struct Config: Codable, Equatable {
