@@ -5,10 +5,6 @@ let platformAttribute: Template.Attribute = .optional("platform", default: "iOS"
 let projectPath = "."
 let appPath = "./\(nameAttribute)"
 
-func templatePath(_ path: String) -> Path {
-    "../\(path)"
-}
-
 let template = Template(
     description: "Default template",
     attributes: [
@@ -18,7 +14,11 @@ let template = Template(
     items: [
         .file(
             path: projectPath + "/Project.swift",
-            templatePath: templatePath("AppProject.stencil")
+            templatePath: "AppProject.stencil"
+        ),
+        .file(
+            path: projectPath + "/Tuist/Package.swift",
+            templatePath: "Package.stencil"
         ),
         .file(
             path: appPath + "/Sources/\(nameAttribute)App.swift",
@@ -38,15 +38,15 @@ let template = Template(
         ),
         .file(
             path: appPath + "/Tests/\(nameAttribute)Tests.swift",
-            templatePath: templatePath("AppTests.stencil")
+            templatePath: "AppTests.stencil"
         ),
         .file(
             path: ".gitignore",
-            templatePath: templatePath("Gitignore.stencil")
+            templatePath: "Gitignore.stencil"
         ),
         .file(
             path: appPath + "/Resources/LaunchScreen.storyboard",
-            templatePath: templatePath("LaunchScreen+\(platformAttribute).stencil")
+            templatePath: "LaunchScreen+\(platformAttribute).stencil"
         ),
     ]
 )
