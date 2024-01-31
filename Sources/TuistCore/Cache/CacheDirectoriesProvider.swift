@@ -5,16 +5,16 @@ import TuistSupport
 
 public protocol CacheDirectoriesProviding {
     /// Returns the cache directory for a cache category
-    func cacheDirectory(for category: CacheCategory) -> AbsolutePath
+    func cacheDirectory(for category: CacheCategory) throws -> AbsolutePath
 }
 
 public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
     public init() {}
 
-    public func cacheDirectory(for category: CacheCategory) -> AbsolutePath {
+    public func cacheDirectory(for category: CacheCategory) throws -> AbsolutePath {
         let directory: AbsolutePath
         if let xdgCacheHome = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"] {
-            directory = (try! AbsolutePath(validating: xdgCacheHome)).appending(component: "tuist")
+            directory = (try AbsolutePath(validating: xdgCacheHome)).appending(component: "tuist")
         } else {
             directory = FileHandler.shared.homeDirectory.appending(components: ".cache", "tuist")
         }

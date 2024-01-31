@@ -49,7 +49,7 @@ final class CleanService {
         _ cacheCategory: CacheCategory,
         cacheDirectoryProvider: CacheDirectoriesProviding
     ) throws {
-        let directory = cacheDirectoryProvider.cacheDirectory(for: cacheCategory)
+        let directory = try cacheDirectoryProvider.cacheDirectory(for: cacheCategory)
         if FileHandler.shared.exists(directory) {
             try FileHandler.shared.delete(directory)
             logger.info("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)

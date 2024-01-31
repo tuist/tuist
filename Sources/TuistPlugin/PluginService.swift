@@ -240,7 +240,7 @@ public final class PluginService: PluginServicing {
         config _: Config
     ) throws -> AbsolutePath {
         let cacheDirectories = try cacheDirectoryProviderFactory.cacheDirectories()
-        let cacheDirectory = cacheDirectories.cacheDirectory(for: .plugins)
+        let cacheDirectory = try cacheDirectories.cacheDirectory(for: .plugins)
         let fingerprint = "\(url)-\(gitId)".md5
         return cacheDirectory
             .appending(component: fingerprint)

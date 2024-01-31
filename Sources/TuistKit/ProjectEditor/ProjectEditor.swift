@@ -133,7 +133,7 @@ final class ProjectEditor: ProjectEditing {
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
         let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories()
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
-            cacheDirectory: cacheDirectory.cacheDirectory(for: .projectDescriptionHelpers)
+            cacheDirectory: try cacheDirectory.cacheDirectory(for: .projectDescriptionHelpers)
         )
         let packageManifestPath = manifestFilesLocator.locatePackageManifest(at: editingPath)
 
