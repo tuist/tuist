@@ -20,8 +20,9 @@ warn() {
   printf "${tty_red}Warning${tty_reset}: %s\n" "$(chomp "$1")"
 }
 
-# The line below extracts the version from the list of tags in the Tuist repository.
-LATEST_VERSION=$(git ls-remote -t --sort=v:refname https://github.com/tuist/tuist.git | sed -ne '$s/.*tags\/\(.*\)/\1/p')
+# The line below extracts the latest 3.x version from the list of tags in the Tuist repository.
+# Tuist v3 is the last major to provide tuistenv.
+LATEST_VERSION=$(git ls-remote -t --sort=v:refname https://github.com/tuist/tuist.git | grep 'tags/3\.' | sed -ne '$s/.*tags\/\(.*\)/\1/p')
 ohai "Downloading tuistenv..."
 [ -f /tmp/tuistenv.zip ] && rm /tmp/tuistenv.zip
 [ -f /tmp/tuistenv ] && rm /tmp/tuistenv
