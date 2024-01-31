@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.0.0-beta-1 - 2024-01-31
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Changed
+
+- Add --no-selective-testing flag, rename --no-cache to --no-binary-cache by [@fortmarek](https://github.com/fortmarek)
+
 ## 3.42.2 - 2024-01-30
 
 ### Tuist
