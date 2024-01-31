@@ -24,7 +24,7 @@ extension Target {
         default:
             rootFolder = "Sources"
         }
-        return Target(
+        return .target(
             name: name,
             destinations: [.mac],
             product: product,

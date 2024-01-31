@@ -476,20 +476,20 @@ let acceptanceTests: [(target: Target, scheme: Scheme)] = ["", "Build", "Depende
                 .external(name: "SystemPackage"),
             ]
         ),
-        scheme: Scheme(
+        scheme: .scheme(
             name: "Tuist\($0)AcceptanceTests",
-            buildAction: BuildAction(targets: ["Tuist\($0)AcceptanceTests"]),
+            buildAction: .buildAction(targets: ["Tuist\($0)AcceptanceTests"]),
             testAction: .targets(
                 [
-                    TestableTarget(
-                        target: "Tuist\($0)AcceptanceTests",
-                        parallelizable: true,
-                        randomExecutionOrdering: true
+                    .testableTarget(
+                        target: .target("Tuist\($0)AcceptanceTests"),
+                        isParallelizable: true,
+                        isRandomExecutionOrdering: true
                     ),
                 ]
             ),
             runAction: .runAction(
-                arguments: Arguments(
+                arguments: .arguments(
                     environmentVariables: [
                         "TUIST_CONFIG_SRCROOT": "$(SRCROOT)",
                         "TUIST_FRAMEWORK_SEARCH_PATHS": "$(FRAMEWORK_SEARCH_PATHS)",
