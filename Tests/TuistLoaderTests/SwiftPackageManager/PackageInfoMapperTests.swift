@@ -466,7 +466,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSources: .custom(.init(
+                        customSources: .custom(.sourceFilesList(
                             globs: [
                                 basePath
                                     .appending(try RelativePath(validating: "Package/\(alternativeDefaultSource)/Target1/**"))
