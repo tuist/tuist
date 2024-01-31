@@ -14,12 +14,12 @@ import XCTest
 
 @testable import TuistKit
 
-final class FetchServiceTests: TuistUnitTestCase {
+final class InstallServiceTests: TuistUnitTestCase {
     private var pluginService: MockPluginService!
     private var configLoader: MockConfigLoader!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
 
-    private var subject: FetchService!
+    private var subject: InstallService!
 
     override func setUp() {
         super.setUp()
@@ -28,7 +28,7 @@ final class FetchServiceTests: TuistUnitTestCase {
         configLoader = MockConfigLoader()
         swiftPackageManagerController = MockSwiftPackageManagerController()
 
-        subject = FetchService(
+        subject = InstallService(
             pluginService: pluginService,
             configLoader: configLoader,
             swiftPackageManagerController: swiftPackageManagerController
@@ -73,7 +73,7 @@ final class FetchServiceTests: TuistUnitTestCase {
         XCTAssertFalse(swiftPackageManagerController.invokedResolve)
     }
 
-    func test_run_when_fetching_plugins() async throws {
+    func test_run_when_installing_plugins() async throws {
         // Given
         let config = Config.test(
             plugins: [
@@ -99,7 +99,7 @@ final class FetchServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedConfig, config)
     }
 
-    func test_run_when_fetching_dependencies() async throws {
+    func test_run_when_installing_dependencies() async throws {
         // Given
         let stubbedPath = try temporaryPath()
 
@@ -125,7 +125,7 @@ final class FetchServiceTests: TuistUnitTestCase {
         XCTAssertFalse(swiftPackageManagerController.invokedUpdate)
     }
 
-    func test_fetch_when_from_a_tuist_project_directory() async throws {
+    func test_install_when_from_a_tuist_project_directory() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
         let expectedFoundPackageLocation = temporaryDirectory.appending(

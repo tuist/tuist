@@ -2,18 +2,13 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-enum FetchCategory: String, CaseIterable, RawRepresentable, ExpressibleByArgument {
-    case dependencies
-    case plugins
-}
-
-/// A command to fetch any remote content necessary to interact with the project.
-public struct FetchCommand: AsyncParsableCommand {
+/// A command to install the remote content the project depends on.
+public struct InstallCommand: AsyncParsableCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "fetch",
-            abstract: "Fetches any remote content necessary to interact with the project."
+            commandName: "install",
+            abstract: "Installs any remote content (e.g. dependencies) necessary to interact with the project."
         )
     }
 
@@ -26,12 +21,12 @@ public struct FetchCommand: AsyncParsableCommand {
 
     @Flag(
         name: .shortAndLong,
-        help: "Instead of simple fetch, update external content when available."
+        help: "Instead of simple install, update external content when available."
     )
     var update: Bool = false
 
     public func run() async throws {
-        try await FetchService().run(
+        try await InstallService().run(
             path: path,
             update: update
         )
