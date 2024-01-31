@@ -41,10 +41,6 @@ extension TuistGraph.Cloud {
 extension TuistGraph.Cloud.Option {
     static func from(manifest: ProjectDescription.Cloud.Option) -> TuistGraph.Cloud.Option? {
         switch manifest {
-        case .analytics:
-            return nil
-        case .disableAnalytics:
-            return .disableAnalytics
         case .optional:
             return .optional
         }

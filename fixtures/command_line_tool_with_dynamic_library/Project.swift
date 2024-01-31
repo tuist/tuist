@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "CommandLineTool",
     targets: [
-        Target(
+        .target(
             name: "CommandLineTool",
-            platform: .macOS,
+            destinations: [.mac],
             product: .commandLineTool,
             bundleId: "com.example.commandlinetool",
             infoPlist: .default,
@@ -14,9 +14,9 @@ let project = Project(
                 .target(name: "DynamicLib"),
             ]
         ),
-        Target(
+        .target(
             name: "DynamicLib",
-            platform: .macOS,
+            destinations: [.mac],
             product: .dynamicLibrary,
             bundleId: "com.example.dynamiclib",
             infoPlist: .default,

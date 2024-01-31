@@ -7,9 +7,9 @@ let project = Project(
         .remote(url: "https://github.com/pointfreeco/swift-composable-architecture", requirement: .exact("1.4.0")),
     ],
     targets: [
-        Target(
+        .target(
             name: "Framework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.FrameworkWithSwiftMacro",
             sources: ["Sources/**/*"],

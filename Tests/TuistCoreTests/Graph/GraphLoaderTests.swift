@@ -216,7 +216,6 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     bcsymbolmapPaths: [],
                     linking: .dynamic,
                     architectures: [.arm64],
-                    isCarthage: false,
                     status: .required
                 ),
             ]),
@@ -228,7 +227,6 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     bcsymbolmapPaths: [],
                     linking: .static,
                     architectures: [.x8664],
-                    isCarthage: false,
                     status: .required
                 ),
             ]),
@@ -270,7 +268,6 @@ final class GraphLoaderTests: TuistUnitTestCase {
             bcsymbolmapPaths: [],
             linking: .dynamic,
             architectures: [.arm64],
-            isCarthage: false,
             status: .required
         )
         XCTAssertEqual(graph.dependencies, [
@@ -696,7 +693,6 @@ final class GraphLoaderTests: TuistUnitTestCase {
                 bcsymbolmapPaths: [],
                 linking: metadata.linkage,
                 architectures: metadata.architectures,
-                isCarthage: false,
                 status: .required
             )
         }

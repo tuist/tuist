@@ -266,7 +266,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
                 ".",
             ],
             schemes: [
-                Scheme(name: "CustomWorkspaceScheme"),
+                .scheme(name: "CustomWorkspaceScheme"),
             ]
         )
 

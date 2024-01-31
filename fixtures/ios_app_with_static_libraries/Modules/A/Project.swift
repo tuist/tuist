@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "A",
     targets: [
-        Target(
+        .target(
             name: "A",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticLibrary,
             bundleId: "io.tuist.A",
             infoPlist: nil,
@@ -21,9 +21,9 @@ let project = Project(
 
             settings: .settings(base: ["HEADER_SEARCH_PATHS": "$(SRCROOT)/CustomHeaders"])
         ),
-        Target(
+        .target(
             name: "ATests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.ATests",
             infoPlist: nil,

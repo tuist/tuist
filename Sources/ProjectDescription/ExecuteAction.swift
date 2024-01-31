@@ -9,10 +9,17 @@ public struct ExecutionAction: Equatable, Codable {
     /// The path to the shell which shall execute this script. if it is nil, Xcode will use default value.
     public var shellPath: String?
 
-    public init(title: String = "Run Script", scriptText: String, target: TargetReference? = nil, shellPath: String? = nil) {
-        self.title = title
-        self.scriptText = scriptText
-        self.target = target
-        self.shellPath = shellPath
+    public static func executionAction(
+        title: String = "Run Script",
+        scriptText: String,
+        target: TargetReference? = nil,
+        shellPath: String? = nil
+    ) -> Self {
+        self.init(
+            title: title,
+            scriptText: scriptText,
+            target: target,
+            shellPath: shellPath
+        )
     }
 }

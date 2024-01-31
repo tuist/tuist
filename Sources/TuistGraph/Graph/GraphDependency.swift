@@ -60,7 +60,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         bcsymbolmapPaths: [AbsolutePath],
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
-        isCarthage: Bool,
         status: FrameworkStatus
     )
 
@@ -94,7 +93,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             hasher.combine(path)
         case let .xcframework(xcframework):
             hasher.combine(xcframework)
-        case let .framework(path, _, _, _, _, _, _, _):
+        case let .framework(path, _, _, _, _, _, _):
             hasher.combine("framework")
             hasher.combine(path)
         case let .library(path, _, _, _, _):
@@ -142,7 +141,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case .macro: return false
         case let .xcframework(xcframework):
             return xcframework.linking == .static
-        case let .framework(_, _, _, _, linking, _, _, _),
+        case let .framework(_, _, _, _, linking, _, _),
              let .library(_, _, linking, _, _): return linking == .static
         case .bundle: return false
         case .packageProduct: return false
@@ -159,7 +158,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case .macro: return false
         case let .xcframework(xcframework):
             return xcframework.linking == .dynamic
-        case let .framework(_, _, _, _, linking, _, _, _),
+        case let .framework(_, _, _, _, linking, _, _),
              let .library(_, _, linking, _, _): return linking == .dynamic
         case .bundle: return false
         case .packageProduct: return false
@@ -212,7 +211,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case .macro: return false
         case let .xcframework(xcframework):
             return xcframework.linking == .dynamic
-        case let .framework(_, _, _, _, linking, _, _, _),
+        case let .framework(_, _, _, _, linking, _, _),
              let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
             return linking == .dynamic
         case .bundle: return false
@@ -262,7 +261,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             return path.basename
         case let .xcframework(xcframework):
             return xcframework.path.basename
-        case let .framework(path, _, _, _, _, _, _, _):
+        case let .framework(path, _, _, _, _, _, _):
             return path.basename
         case let .library(path, _, _, _, _):
             return path.basename

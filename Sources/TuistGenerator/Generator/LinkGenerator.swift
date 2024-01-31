@@ -430,7 +430,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         for dependency in linkableDependencies {
             switch dependency {
-            case let .framework(path, _, _, _, _, _, _, _, status, condition):
+            case let .framework(path, _, _, _, _, _, _, status, condition):
                 try addBuildFile(path, condition: condition, status: status)
             case let .library(path, _, _, _, condition):
                 try addBuildFile(path, condition: condition)
@@ -588,7 +588,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 files.append(buildFile)
-            case let .framework(path: path, _, _, _, _, _, _, _, _, condition),
+            case let .framework(path: path, _, _, _, _, _, _, _, condition),
                  let .library(path: path, _, _, _, condition):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)

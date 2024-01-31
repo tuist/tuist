@@ -6,9 +6,9 @@ let project = Project(
         .package(path: "../Packages/PackageA"),
     ],
     targets: [
-        Target(
+        .target(
             name: "PrebuiltStaticFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.PrebuiltStaticFramework",
             infoPlist: "Config/Info.plist",

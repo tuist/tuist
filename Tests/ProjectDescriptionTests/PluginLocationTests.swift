@@ -3,7 +3,7 @@ import XCTest
 
 final class PluginLocationTests: XCTestCase {
     func test_codable_local() throws {
-        let subject = PluginLocation.local(path: .init("/some/path"))
+        let subject = PluginLocation.local(path: .path("/some/path"))
         XCTAssertCodable(subject)
     }
 

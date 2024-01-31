@@ -1,6 +1,6 @@
 import ProjectDescription
 
-let customAppScheme = Scheme(
+let customAppScheme: Scheme = .scheme(
     name: "Workspace-App",
     shared: true,
     buildAction: .buildAction(
@@ -9,14 +9,14 @@ let customAppScheme = Scheme(
             .project(path: "Frameworks/Framework1", target: "Framework1"),
         ],
         preActions: [
-            ExecutionAction(
+            .executionAction(
                 scriptText: "echo \"pre-action in $SHELL\"",
                 target: .project(path: "App", target: "App"),
                 shellPath: "/bin/zsh"
             ),
         ],
         postActions: [
-            ExecutionAction(
+            .executionAction(
                 scriptText: "echo \"post-action in $SHELL\"",
                 target: .project(path: "Frameworks/Framework1", target: "Framework1"),
                 shellPath: "/bin/zsh"
@@ -25,12 +25,12 @@ let customAppScheme = Scheme(
     ),
     testAction: TestAction.targets(
         [
-            TestableTarget(target: .project(path: "App", target: "AppTests")),
-            TestableTarget(target: .project(
+            .testableTarget(target: .project(path: "App", target: "AppTests")),
+            .testableTarget(target: .project(
                 path: "Frameworks/Framework1",
                 target: "Framework1Tests"
             )),
-            TestableTarget(target: .project(
+            .testableTarget(target: .project(
                 path: "Frameworks/Framework2",
                 target: "Framework2Tests"
             )),
@@ -39,7 +39,7 @@ let customAppScheme = Scheme(
     ),
     runAction: .runAction(
         executable: .project(path: "App", target: "App"),
-        arguments: Arguments(environment: ["path": "$(SRCROOT)"], launchArguments: []),
+        arguments: .arguments(environmentVariables: ["path": "$(SRCROOT)"], launchArguments: []),
         options: .options(
             storeKitConfigurationPath: "App/Config/ProjectStoreKitConfig.storekit"
         ),
@@ -48,7 +48,7 @@ let customAppScheme = Scheme(
     archiveAction: .archiveAction(configuration: "Debug", customArchiveName: "Something2")
 )
 
-let customAppSchemeWithTestPlans = Scheme(
+let customAppSchemeWithTestPlans: Scheme = .scheme(
     name: "Workspace-App-With-TestPlans",
     shared: true,
     buildAction: .buildAction(
@@ -66,7 +66,7 @@ let customAppSchemeWithTestPlans = Scheme(
     archiveAction: .archiveAction(configuration: "Debug", customArchiveName: "Something2")
 )
 
-let customFrameworkScheme = Scheme(
+let customFrameworkScheme: Scheme = .scheme(
     name: "Workspace-Framework",
     shared: true,
     buildAction: .buildAction(
@@ -74,7 +74,7 @@ let customFrameworkScheme = Scheme(
         preActions: []
     ),
     testAction: TestAction
-        .targets([TestableTarget(target: .project(
+        .targets([.testableTarget(target: .project(
             path: "Frameworks/Framework1",
             target: "Framework1Tests"
         ))]),

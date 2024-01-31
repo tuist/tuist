@@ -4,9 +4,9 @@ let project = Project(
     name: "App",
     organizationName: "Tuist",
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: .default,
@@ -15,27 +15,27 @@ let project = Project(
                 .target(name: "AppClip1"),
             ]
         ),
-        Target(
+        .target(
             name: "Framework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.Framework",
             infoPlist: .default,
             sources: ["Framework/Sources/**"],
             dependencies: []
         ),
-        Target(
+        .target(
             name: "StaticFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.StaticFramework",
             infoPlist: .default,
             sources: ["StaticFramework/Sources/**"],
             dependencies: []
         ),
-        Target(
+        .target(
             name: "AppClip1",
-            platform: .iOS,
+            destinations: .iOS,
             product: .appClip,
             bundleId: "io.tuist.App.Clip",
             infoPlist: .default,
@@ -46,9 +46,9 @@ let project = Project(
                 .target(name: "StaticFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "AppClip1Tests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppClip1Tests",
             infoPlist: .default,
@@ -58,9 +58,9 @@ let project = Project(
                 .target(name: "StaticFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "AppClip1UITests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .uiTests,
             bundleId: "io.tuist.AppClip1UITests",
             infoPlist: .default,

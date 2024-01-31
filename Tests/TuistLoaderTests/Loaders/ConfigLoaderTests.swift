@@ -29,7 +29,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         }
         manifestLoader.loadConfigStub = { [weak self] path in
             guard let self,
-                  let config = self.registeredConfigs[path]
+                  let config = registeredConfigs[path]
             else {
                 throw ManifestLoaderError.manifestNotFound(.config, path)
             }
@@ -74,7 +74,6 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(result, TuistGraph.Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
-            cache: nil,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),
@@ -115,7 +114,6 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(result, TuistGraph.Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
-            cache: nil,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),

@@ -1,6 +1,7 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -10,7 +11,8 @@ extension TuistGraph.PackageSettings {
     /// instance.
     static func from(
         manifest: ProjectDescription.PackageSettings,
-        generatorPaths: GeneratorPaths
+        generatorPaths: GeneratorPaths,
+        swiftToolsVersion: TSCUtility.Version
     ) throws -> Self {
         let productTypes = manifest.productTypes.mapValues { TuistGraph.Product.from(manifest: $0) }
         let baseSettings = try TuistGraph.Settings.from(manifest: manifest.baseSettings, generatorPaths: generatorPaths)
@@ -25,6 +27,7 @@ extension TuistGraph.PackageSettings {
             baseSettings: baseSettings,
             targetSettings: targetSettings,
             projectOptions: projectOptions,
+            swiftToolsVersion: swiftToolsVersion,
             platforms: platforms
         )
     }

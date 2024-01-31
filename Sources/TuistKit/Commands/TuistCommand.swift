@@ -22,18 +22,11 @@ public struct TuistCommand: AsyncParsableCommand {
                 PluginCommand.self,
                 RunCommand.self,
                 ScaffoldCommand.self,
-                SigningCommand.self,
                 TestCommand.self,
                 VersionCommand.self,
             ]
         )
     }
-
-    @Flag(
-        name: [.customLong("help-env")],
-        help: "Display subcommands to manage the environment tuist versions."
-    )
-    var isTuistEnvHelp: Bool = false
 
     public static func main(
         _ arguments: [String]? = nil,

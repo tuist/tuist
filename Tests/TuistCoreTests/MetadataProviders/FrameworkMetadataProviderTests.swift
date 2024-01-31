@@ -34,7 +34,6 @@ final class FrameworkMetadataProviderTests: XCTestCase {
             bcsymbolmapPaths: [],
             linking: .dynamic,
             architectures: [.x8664, .arm64],
-            isCarthage: false,
             status: .required
         ))
     }

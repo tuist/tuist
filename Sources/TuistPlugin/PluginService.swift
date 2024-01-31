@@ -237,9 +237,9 @@ public final class PluginService: PluginServicing {
     private func pluginCacheDirectory(
         url: String,
         gitId: String,
-        config: Config
+        config _: Config
     ) throws -> AbsolutePath {
-        let cacheDirectories = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
+        let cacheDirectories = try cacheDirectoryProviderFactory.cacheDirectories()
         let cacheDirectory = cacheDirectories.cacheDirectory(for: .plugins)
         let fingerprint = "\(url)-\(gitId)".md5
         return cacheDirectory
@@ -271,7 +271,7 @@ public final class PluginService: PluginServicing {
         let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
         // If `Package.swift` exists for the plugin, a Github release should for the given `gitTag` should also exist
         guard FileHandler.shared
-            .exists(pluginRepositoryDirectory.appending(component: Constants.DependenciesDirectory.packageSwiftName))
+            .exists(pluginRepositoryDirectory.appending(component: Constants.SwiftPackageManager.packageSwiftName))
         else { return }
 
         let pluginReleaseDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.release)

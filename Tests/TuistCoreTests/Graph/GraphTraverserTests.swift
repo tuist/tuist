@@ -1321,8 +1321,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let graph = Graph.test(
             projects: [project.path: project],
@@ -1507,8 +1506,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: target.name, path: project.path): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
@@ -1544,8 +1542,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 dsymPath: nil,
                 bcsymbolmapPaths: [],
                 linking: .static,
-                architectures: [.arm64],
-                isCarthage: false
+                architectures: [.arm64]
             )),
         ]
         let graph = Graph.test(
@@ -1690,8 +1687,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: target.name, path: project.path): Set(),
@@ -1781,8 +1777,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(arrayLiteral: precompiledDependency),
@@ -1914,8 +1909,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: target.name, path: project.path): Set(arrayLiteral: precompiledDependency),
@@ -1949,8 +1943,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .static,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let dependencyPrecompiledStaticBinaryA = GraphDependency.testFramework(
             path: "/test/StaticFrameworkA.framework",
@@ -1958,8 +1951,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .static,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -2005,8 +1997,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let dependencyPrecompiledDynamicBinaryA = GraphDependency.testFramework(
             path: "/test/DynamicFrameworkA.framework",
@@ -2014,8 +2005,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -2064,8 +2054,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let dependencyPrecompiledStaticBinaryA = GraphDependency.testFramework(
             path: "/test/StaticFrameworkA.framework",
@@ -2073,8 +2062,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .static,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -2122,8 +2110,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .static,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let dependencyPrecompiledDynamicBinaryA = GraphDependency.testFramework(
             path: "/test/DynamicFrameworkA.framework",
@@ -2131,8 +2118,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
@@ -2787,7 +2773,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
             bcsymbolmapPaths: [],
             linking: .dynamic,
             architectures: [.arm64],
-            isCarthage: false,
             status: .required
         )
         let project = Project.test(path: "/path/project", targets: [app, staticFramework])
@@ -2819,7 +2804,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .framework(
                 path: "/path/to/frameworks/precompiled.framework",
                 binaryPath: "/path/to/frameworks/precompiled.framework/precompiled",
-                isCarthage: false,
                 dsymPath: nil,
                 bcsymbolmapPaths: [],
                 linking: .dynamic,
@@ -2842,7 +2826,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
             bcsymbolmapPaths: [],
             linking: .dynamic,
             architectures: [.arm64],
-            isCarthage: false,
             status: .required
         )
         let project = Project.test(path: "/path/project", targets: [app, framework])
@@ -2887,7 +2870,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
             bcsymbolmapPaths: [],
             linking: .dynamic,
             architectures: [.arm64],
-            isCarthage: false,
             status: .required
         )
         let project = Project.test(path: "/path/project", targets: [app, staticFramework, framework])
@@ -3259,8 +3241,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let graph = Graph.test(
             projects: [project.path: project],
@@ -3292,8 +3273,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .static,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: target.name, path: project.path): [
@@ -3811,8 +3791,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let precompiledBDependency = GraphDependency.testFramework(
             path: "/test/testb.famework",
@@ -3820,8 +3799,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let graph = Graph.test(
             projects: [project.path: project],
@@ -3857,8 +3835,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .dynamic,
-            architectures: [.arm64],
-            isCarthage: false
+            architectures: [.arm64]
         )
         let graph = Graph.test(
             projects: [project.path: project],
@@ -4091,7 +4068,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
             bcsymbolmapPaths: [],
             linking: .static,
             architectures: [.arm64],
-            isCarthage: false,
             status: .required
         )
         let directFrameworkTarget = GraphDependency.target(name: staticFramework.name, path: project.path)

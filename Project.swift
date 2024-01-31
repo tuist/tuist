@@ -16,13 +16,6 @@ func releaseSettings() -> SettingsDictionary {
 func targets() -> [Target] {
     let executableTargets = [
         Target.target(
-            name: "tuistenv",
-            product: .commandLineTool,
-            dependencies: [
-                .target(name: "TuistEnvKit"),
-            ]
-        ),
-        Target.target(
             name: "tuist",
             product: .commandLineTool,
             dependencies: [
@@ -93,6 +86,7 @@ func targets() -> [Target] {
                 .external(name: "Logging"),
                 .external(name: "ZIPFoundation"),
                 .external(name: "Swifter"),
+                .external(name: "Difference"),
             ],
             testingDependencies: [
                 .target(name: "TuistCore"),
@@ -111,7 +105,6 @@ func targets() -> [Target] {
                 .target(name: "ProjectAutomation"),
                 .target(name: "TuistLoader"),
                 .target(name: "TuistScaffold"),
-                .target(name: "TuistSigning"),
                 .target(name: "TuistDependencies"),
                 .target(name: "TuistMigration"),
                 .target(name: "TuistAsyncQueue"),
@@ -134,8 +127,6 @@ func targets() -> [Target] {
                 .target(name: "TuistGeneratorTesting"),
                 .target(name: "TuistScaffoldTesting"),
                 .target(name: "TuistAutomationTesting"),
-                .target(name: "TuistSigningTesting"),
-                .target(name: "TuistDependenciesTesting"),
                 .target(name: "TuistMigrationTesting"),
                 .target(name: "TuistAsyncQueueTesting"),
                 .target(name: "TuistGraphTesting"),
@@ -153,19 +144,6 @@ func targets() -> [Target] {
                 .target(name: "TuistLoaderTesting"),
                 .target(name: "TuistGraphTesting"),
                 .external(name: "XcodeProj"),
-            ]
-        ),
-        Target.module(
-            name: "TuistEnvKit",
-            hasTesting: false,
-            dependencies: [
-                .target(name: "TuistSupport"),
-                .external(name: "ArgumentParser"),
-                .external(name: "SwiftToolsSupport"),
-                .external(name: "SystemPackage"),
-            ],
-            testDependencies: [
-                .target(name: "TuistSupportTesting"),
             ]
         ),
         Target.module(
@@ -248,7 +226,6 @@ func targets() -> [Target] {
                 .target(name: "TuistCoreTesting"),
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistGraphTesting"),
-                .target(name: "TuistSigningTesting"),
                 .external(name: "XcodeProj"),
             ]
         ),
@@ -371,26 +348,6 @@ func targets() -> [Target] {
             dependencies: []
         ),
         Target.module(
-            name: "TuistSigning",
-            hasIntegrationTests: false,
-            dependencies: [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
-                .external(name: "CryptoSwift"),
-                .external(name: "SwiftToolsSupport"),
-                .external(name: "SystemPackage"),
-            ],
-            testDependencies: [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
-            ],
-            testingDependencies: [
-                .target(name: "TuistGraphTesting"),
-            ]
-        ),
-        Target.module(
             name: "TuistAnalytics",
             hasTests: false,
             hasTesting: false,
@@ -438,6 +395,7 @@ func targets() -> [Target] {
         ),
         Target.module(
             name: "TuistDependencies",
+            hasTesting: false,
             dependencies: [
                 .target(name: "ProjectDescription"),
                 .target(name: "TuistCore"),

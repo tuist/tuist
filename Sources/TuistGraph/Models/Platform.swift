@@ -137,14 +137,4 @@ extension Platform {
             return "Platforms/XROS.platform/Developer/Library"
         }
     }
-
-    /// Returns the directory name whose Carthage uses to save frameworks.
-    public var carthageDirectory: String {
-        switch self {
-        case .iOS, .watchOS, .tvOS, .visionOS:
-            return caseValue
-        case .macOS:
-            return "Mac"
-        }
-    }
 }

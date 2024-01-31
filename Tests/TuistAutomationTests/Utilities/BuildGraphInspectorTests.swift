@@ -685,8 +685,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 name: "WorkspaceName",
                 schemes: [
                     .test(name: "WorkspaceName"),
-                    .test(name: "WorkspaceName-Workspace-iOS"),
-                    .test(name: "WorkspaceName-Workspace-macOS"),
+                    .test(name: "WorkspaceName-Workspace"),
                 ]
             )
         )
@@ -699,8 +698,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         XCTAssertEqual(
             got,
             [
-                .test(name: "WorkspaceName-Workspace-iOS"),
-                .test(name: "WorkspaceName-Workspace-macOS"),
+                .test(name: "WorkspaceName-Workspace"),
             ]
         )
     }

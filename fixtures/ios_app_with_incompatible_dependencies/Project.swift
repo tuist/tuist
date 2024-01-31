@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .macOS,
+            destinations: [.mac],
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Info.plist",
@@ -18,9 +18,9 @@ let project = Project(
                 "CODE_SIGNING_REQUIRED": "NO",
             ])
         ),
-        Target(
+        .target(
             name: "Framework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.Framework",
             infoPlist: "Framework.plist",

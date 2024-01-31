@@ -3,17 +3,17 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.app",
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             coreDataModels: [
-                CoreDataModel("CoreData/Users.xcdatamodeld", currentVersion: "1"),
-                CoreDataModel("CoreData/UsersAutoDetect.xcdatamodeld"),
-                CoreDataModel("CoreData/Unversioned.xcdatamodeld"),
+                .coreDataModel("CoreData/Users.xcdatamodeld", currentVersion: "1"),
+                .coreDataModel("CoreData/UsersAutoDetect.xcdatamodeld"),
+                .coreDataModel("CoreData/Unversioned.xcdatamodeld"),
             ]
         ),
     ]

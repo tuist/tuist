@@ -6,9 +6,9 @@ let project = Project(
         .package(path: "Packages/LibraryA"),
     ],
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Support/App-Info.plist",
@@ -24,7 +24,7 @@ let project = Project(
                 .package(product: "LibraryA"),
             ]
         ),
-        Target(
+        .target(
             name: "WatchApp",
             platform: .watchOS,
             product: .watch2App,
@@ -35,7 +35,7 @@ let project = Project(
                 .target(name: "WatchAppExtension"),
             ]
         ),
-        Target(
+        .target(
             name: "WatchAppExtension",
             platform: .watchOS,
             product: .watch2Extension,
@@ -50,7 +50,7 @@ let project = Project(
                 .target(name: "WatchAppWidgetExtension"),
             ]
         ),
-        Target(
+        .target(
             name: "WatchAppWidgetExtension",
             platform: .watchOS,
             product: .appExtension,
@@ -67,7 +67,7 @@ let project = Project(
                 .sdk(name: "SwiftUI", type: .framework, status: .required),
             ]
         ),
-        Target(
+        .target(
             name: "WatchAppUITests",
             platform: .watchOS,
             product: .uiTests,

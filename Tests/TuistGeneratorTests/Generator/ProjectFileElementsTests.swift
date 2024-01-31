@@ -814,14 +814,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
-        let frameworkPath = try temporaryPath().appending(component: CacheCategory.builds.directoryName)
+        let frameworkPath = try temporaryPath().appending(component: CacheCategory.binaries.directoryName)
             .appending(component: "Test.framework")
         let binaryPath = frameworkPath.appending(component: "Test")
 
         let frameworkDependency = GraphDependencyReference.framework(
             path: frameworkPath,
             binaryPath: binaryPath,
-            isCarthage: false,
             dsymPath: nil,
             bcsymbolmapPaths: [],
             linking: .static,

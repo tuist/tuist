@@ -20,9 +20,7 @@ final class CleanService {
         let path: AbsolutePath = try self.path(path)
         let manifestLoaderFactory = ManifestLoaderFactory()
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
-        let config = try configLoader.loadConfig(path: path)
-        let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
+        let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories()
 
         for category in categories {
             switch category {
@@ -59,18 +57,15 @@ final class CleanService {
     }
 
     private func cleanDependencies(at path: AbsolutePath) throws {
-        let dependenciesPath = path.appending(components: [Constants.tuistDirectoryName, Constants.DependenciesDirectory.name])
-        if FileHandler.shared.exists(dependenciesPath) {
-            let carthagePath = dependenciesPath.appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-            if FileHandler.shared.exists(carthagePath) {
-                try FileHandler.shared.delete(carthagePath)
-            }
-
-            let spmPath = dependenciesPath.appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
-            if FileHandler.shared.exists(spmPath) {
-                try FileHandler.shared.delete(spmPath)
-            }
+        let swiftPackageManagerBuildPath = path.appending(
+            components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageBuildDirectoryName
+        )
+        if FileHandler.shared.exists(swiftPackageManagerBuildPath) {
+            try FileHandler.shared.delete(swiftPackageManagerBuildPath)
         }
-        logger.info("Successfully cleaned dependencies at path \(dependenciesPath.pathString)", metadata: .success)
+        logger.info(
+            "Successfully cleaned Swift Package Manager dependencies at path \(swiftPackageManagerBuildPath.pathString)",
+            metadata: .success
+        )
     }
 }

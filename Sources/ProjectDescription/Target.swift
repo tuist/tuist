@@ -70,7 +70,7 @@ public struct Target: Codable, Equatable {
     /// Specifies whether if the target can be merged as part of another binary or not
     public var mergeable: Bool
 
-    public init(
+    public static func target(
         name: String,
         destinations: Destinations,
         product: Product,
@@ -93,259 +93,30 @@ public struct Target: Codable, Equatable {
         buildRules: [BuildRule] = [],
         mergedBinaryType: MergedBinaryType = .disabled,
         mergeable: Bool = false
-    ) {
-        self.name = name
-        self.destinations = destinations
-        self.bundleId = bundleId
-        self.productName = productName
-        self.product = product
-        self.infoPlist = infoPlist
-        self.entitlements = entitlements
-        self.dependencies = dependencies
-        self.settings = settings
-        self.sources = sources
-        self.resources = resources
-        self.copyFiles = copyFiles
-        self.headers = headers
-        self.scripts = scripts
-        self.coreDataModels = coreDataModels
-        self.environmentVariables = environmentVariables
-        self.launchArguments = launchArguments
-        self.deploymentTargets = deploymentTargets
-        self.additionalFiles = additionalFiles
-        self.buildRules = buildRules
-        self.mergedBinaryType = mergedBinaryType
-        self.mergeable = mergeable
-    }
-
-    @available(
-        *,
-        deprecated,
-        message: "Use `Destinations` and `DeploymentTargets` to configure deployment devices and minimum platform versions."
-    )
-    public init(
-        name: String,
-        platform: Platform,
-        product: Product,
-        productName: String? = nil,
-        bundleId: String,
-        deploymentTarget: DeploymentTarget? = nil,
-        infoPlist: InfoPlist? = .default,
-        sources: SourceFilesList? = nil,
-        resources: ResourceFileElements? = nil,
-        copyFiles: [CopyFilesAction]? = nil,
-        headers: Headers? = nil,
-        entitlements: Entitlements? = nil,
-        scripts: [TargetScript] = [],
-        dependencies: [TargetDependency] = [],
-        settings: Settings? = nil,
-        coreDataModels: [CoreDataModel] = [],
-        environmentVariables: [String: EnvironmentVariable] = [:],
-        launchArguments: [LaunchArgument] = [],
-        additionalFiles: [FileElement] = [],
-        buildRules: [BuildRule] = [],
-        mergedBinaryType: MergedBinaryType = .disabled,
-        mergeable: Bool = false
-    ) {
-        self.name = name
-        destinations = Destinations.from(platform: platform, deploymentTarget: deploymentTarget)
-        self.bundleId = bundleId
-        self.productName = productName
-        self.product = product
-        self.infoPlist = infoPlist
-        self.entitlements = entitlements
-        self.dependencies = dependencies
-        self.settings = settings
-        self.sources = sources
-        self.resources = resources
-        self.copyFiles = copyFiles
-        self.headers = headers
-        self.scripts = scripts
-        self.coreDataModels = coreDataModels
-        self.environmentVariables = environmentVariables
-        self.launchArguments = launchArguments
-        deploymentTargets = DeploymentTargets.from(manifest: deploymentTarget)
-        self.additionalFiles = additionalFiles
-        self.buildRules = buildRules
-        self.mergedBinaryType = mergedBinaryType
-        self.mergeable = mergeable
-    }
-
-    @available(*, deprecated, message: "please use environmentVariables instead")
-    public init(
-        name: String,
-        platform: Platform,
-        product: Product,
-        productName: String? = nil,
-        bundleId: String,
-        deploymentTarget: DeploymentTarget? = nil,
-        infoPlist: InfoPlist? = .default,
-        sources: SourceFilesList? = nil,
-        resources: ResourceFileElements? = nil,
-        copyFiles: [CopyFilesAction]? = nil,
-        headers: Headers? = nil,
-        entitlements: Entitlements? = nil,
-        scripts: [TargetScript] = [],
-        dependencies: [TargetDependency] = [],
-        settings: Settings? = nil,
-        coreDataModels: [CoreDataModel] = [],
-        environment: [String: String],
-        launchArguments: [LaunchArgument] = [],
-        additionalFiles: [FileElement] = [],
-        buildRules: [BuildRule] = [],
-        mergedBinaryType: MergedBinaryType = .disabled,
-        mergeable: Bool = false
-    ) {
-        self.name = name
-        destinations = Destinations.from(platform: platform, deploymentTarget: deploymentTarget)
-        self.bundleId = bundleId
-        self.productName = productName
-        self.product = product
-        self.infoPlist = infoPlist
-        self.entitlements = entitlements
-        self.dependencies = dependencies
-        self.settings = settings
-        self.sources = sources
-        self.resources = resources
-        self.copyFiles = copyFiles
-        self.headers = headers
-        self.scripts = scripts
-        self.coreDataModels = coreDataModels
-        environmentVariables = environment.mapValues { value in
-            EnvironmentVariable(value: value, isEnabled: true)
-        }
-        self.launchArguments = launchArguments
-        deploymentTargets = DeploymentTargets.from(manifest: deploymentTarget)
-        self.additionalFiles = additionalFiles
-        self.buildRules = buildRules
-        self.mergedBinaryType = mergedBinaryType
-        self.mergeable = mergeable
-    }
-}
-
-extension Target {
-    @available(*, deprecated, renamed: "Destinations", message: "Targets are no longer constrained to a single platform")
-    var platform: Platform {
-        destinations.platforms.first ?? .iOS
-    }
-
-    @available(
-        *,
-        deprecated,
-        renamed: "DeploymentTargets",
-        message: "Device support is now defined in `Destinations`. Minimum Deployment Version is defined in `DeploymentTargets`"
-    )
-    var deploymentTarget: DeploymentTarget? {
-        switch platform {
-        case .iOS:
-            guard let version = deploymentTargets?.iOS else { return nil }
-            var devices = DeploymentDevice()
-
-            if destinations.contains(.iPhone) {
-                devices.insert(.iphone)
-            }
-
-            if destinations.contains(.iPad) {
-                devices.insert(.ipad)
-            }
-
-            if destinations.contains(.macCatalyst) {
-                devices.insert(.mac)
-            }
-
-            if destinations.contains(.appleVisionWithiPadDesign) {
-                devices.insert(.vision)
-            }
-
-            return .iOS(
-                targetVersion: version,
-                devices: devices,
-                supportsMacDesignedForIOS: destinations.contains(.macWithiPadDesign)
-            )
-        case .macOS:
-            guard let version = deploymentTargets?.macOS else { return nil }
-            return .macOS(targetVersion: version)
-        case .watchOS:
-            guard let version = deploymentTargets?.watchOS else { return nil }
-            return .watchOS(targetVersion: version)
-        case .tvOS:
-            guard let version = deploymentTargets?.tvOS else { return nil }
-            return .tvOS(targetVersion: version)
-        case .visionOS:
-            guard let version = deploymentTargets?.visionOS else { return nil }
-            return .visionOS(targetVersion: version)
-        }
-    }
-}
-
-extension Destinations {
-    /// Maps a ProjectDescription.Package instance into a TuistGraph.Package model.
-    /// - Parameters:
-    ///   - manifest: Manifest representation of Package.
-    ///   - generatorPaths: Generator paths.
-    fileprivate static func from(
-        platform: Platform,
-        deploymentTarget: DeploymentTarget?
-    ) -> Destinations {
-        switch (platform, deploymentTarget) {
-        case (.macOS, _):
-            return [.mac]
-        case let (.iOS, .some(.iOS(_, devices, supportsMacDesignedForIOS: supportsMacDesignedForIOS))):
-            var destinations: [Destination] = []
-
-            if devices.contains(.iphone) {
-                destinations.append(.iPhone)
-            }
-
-            if devices.contains(.ipad) {
-                destinations.append(.iPad)
-            }
-
-            if devices.contains(.mac) {
-                destinations.append(.macCatalyst)
-            }
-
-            if devices.contains(.vision) {
-                destinations.append(.appleVisionWithiPadDesign)
-            }
-
-            if supportsMacDesignedForIOS {
-                destinations.append(.macWithiPadDesign)
-            }
-
-            return Set(destinations)
-        case (.iOS, _): // an iOS platform, but `nil` deployment target.
-            return .iOS
-        case (.tvOS, _):
-            return .tvOS
-        case (.watchOS, _):
-            return .watchOS
-        case (.visionOS, _):
-            return .visionOS
-        }
-    }
-}
-
-extension DeploymentTargets {
-    /// Maps a ProjectDescription.DeploymentTarget instance into a TuistGraph.DeploymentTarget instance.
-    /// - Parameters:
-    ///   - manifest: Manifest representation of deployment target model.
-    static func from(manifest: DeploymentTarget?) -> DeploymentTargets {
-        if let manifest {
-            switch manifest {
-            case let .iOS(version, _, _):
-                return .iOS(version)
-            case let .macOS(version):
-                return .macOS(version)
-            case let .watchOS(version):
-                return .watchOS(version)
-            case let .tvOS(version):
-                return .tvOS(version)
-            case let .visionOS(version):
-                return .visionOS(version)
-            }
-        } else {
-            return DeploymentTargets()
-        }
+    ) -> Self {
+        self.init(
+            name: name,
+            destinations: destinations,
+            product: product,
+            productName: productName,
+            bundleId: bundleId,
+            deploymentTargets: deploymentTargets,
+            infoPlist: infoPlist,
+            sources: sources,
+            resources: resources,
+            copyFiles: copyFiles,
+            headers: headers,
+            entitlements: entitlements,
+            scripts: scripts,
+            dependencies: dependencies,
+            settings: settings,
+            coreDataModels: coreDataModels,
+            environmentVariables: environmentVariables,
+            launchArguments: launchArguments,
+            additionalFiles: additionalFiles,
+            buildRules: buildRules,
+            mergedBinaryType: mergedBinaryType,
+            mergeable: mergeable
+        )
     }
 }

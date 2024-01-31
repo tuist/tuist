@@ -32,7 +32,7 @@ public enum FileElement: Codable, Equatable {
 
 extension FileElement: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self = .glob(pattern: Path(value))
+        self = .glob(pattern: .path(value))
     }
 }
 
@@ -48,6 +48,6 @@ extension [FileElement]: ExpressibleByStringLiteral {
     public typealias StringLiteralType = String
 
     public init(stringLiteral value: String) {
-        self = [.glob(pattern: Path(value))]
+        self = [.glob(pattern: .path(value))]
     }
 }

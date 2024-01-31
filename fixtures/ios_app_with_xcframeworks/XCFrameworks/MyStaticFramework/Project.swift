@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "MyStaticFramework",
     targets: [
-        Target(
+        .target(
             name: "MyStaticFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.MyStaticFramework",
             infoPlist: "Info.plist",

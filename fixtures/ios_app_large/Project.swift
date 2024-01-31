@@ -1,9 +1,9 @@
 import ProjectDescription
 
 func target(name: String) -> Target {
-    Target(
+    .target(
         name: name,
-        platform: .iOS,
+        destinations: .iOS,
         product: .app,
         bundleId: "io.tuist.\(name)",
         infoPlist: .file(path: .relativeToManifest("Info.plist")),

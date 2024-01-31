@@ -225,7 +225,7 @@ class ProjectFileElements {
                     group: filesGroup,
                     sourceRootPath: sourceRootPath
                 )
-            case let .framework(path, _, _, _, _, _, _, _, _, _):
+            case let .framework(path, _, _, _, _, _, _, _, _):
                 try generatePrecompiledDependency(
                     path,
                     groups: groups,
@@ -274,7 +274,7 @@ class ProjectFileElements {
         sourceRootPath: AbsolutePath
     ) throws {
         // Pre-compiled artifact from the cache
-        if path.pathString.contains(CacheCategory.builds.directoryName) {
+        if path.pathString.contains(CacheCategory.binaries.directoryName) {
             guard compiled[path] == nil else {
                 return
             }

@@ -75,6 +75,81 @@ final class ManifestLoaderTests: TuistTestCase {
         XCTAssertEqual(got.name, "tuist")
     }
 
+    func test_loadPackage() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let content = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        #if TUIST
+        import ProjectDescription
+
+        let packageSettings = PackageSettings(
+            platforms: [.iOS, .watchOS]
+        )
+
+        #endif
+
+        let package = Package(
+            name: "PackageName",
+            products: [
+                .executable(name: "tuist", targets: ["tuist"]),
+            ],
+            dependencies: [],
+            targets: [
+                .target(
+                    name: "tuist",
+                    dependencies: []
+                ),
+            ]
+        )
+
+        """
+
+        let manifestPath = temporaryPath.appending(
+            components: [
+                Constants.tuistDirectoryName,
+                Manifest.package.fileName(temporaryPath),
+            ]
+        )
+        try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
+        try content.write(
+            to: manifestPath.url,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        // When
+        let got = try subject.loadPackage(at: manifestPath.parentDirectory)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            .test(
+                products: [
+                    PackageInfo.Product(name: "tuist", type: .executable, targets: ["tuist"]),
+                ],
+                targets: [
+                    PackageInfo.Target(
+                        name: "tuist",
+                        path: nil,
+                        url: nil,
+                        sources: nil,
+                        resources: [],
+                        exclude: [],
+                        dependencies: [],
+                        publicHeadersPath: nil,
+                        type: .regular,
+                        settings: [],
+                        checksum: nil,
+                        packageAccess: true
+                    ),
+                ]
+            )
+        )
+    }
+
     func test_loadPackageSettings() throws {
         // Given
         let temporaryPath = try temporaryPath()

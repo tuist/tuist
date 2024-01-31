@@ -33,7 +33,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
         cacheDirectoriesProvider.cacheDirectoryStub = try! temporaryPath()
         cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
-        cacheDirectoryProviderFactory.cacheDirectoriesStub = { _ in mockCacheDirectoriesProvider }
+        cacheDirectoryProviderFactory.cacheDirectoriesStub = { mockCacheDirectoriesProvider }
         fileUnarchiver = MockFileUnarchiver()
         let fileArchivingFactory = MockFileArchivingFactory()
         fileArchivingFactory.stubbedMakeFileUnarchiverResult = fileUnarchiver
@@ -212,7 +212,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         cacheDirectoriesProvider.cacheDirectoryStub = temporaryDirectory
         try fileHandler.touch(
             pluginDirectory
-                .appending(components: PluginServiceConstants.repository, Constants.DependenciesDirectory.packageSwiftName)
+                .appending(components: PluginServiceConstants.repository, Constants.SwiftPackageManager.packageSwiftName)
         )
         let commandPath = pluginDirectory.appending(components: PluginServiceConstants.release, "tuist-command")
         try fileHandler.touch(commandPath)
@@ -428,7 +428,6 @@ final class PluginServiceTests: TuistUnitTestCase {
         Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
-            cache: nil,
             swiftVersion: nil,
             plugins: plugins,
             generationOptions: .test(),

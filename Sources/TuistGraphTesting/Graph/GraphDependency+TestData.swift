@@ -13,7 +13,6 @@ extension GraphDependency {
         bcsymbolmapPaths: [AbsolutePath] = [],
         linking: BinaryLinking = .dynamic,
         architectures: [BinaryArchitecture] = [.armv7],
-        isCarthage: Bool = false,
         status: FrameworkStatus = .required
     ) -> GraphDependency {
         GraphDependency.framework(
@@ -23,7 +22,6 @@ extension GraphDependency {
             bcsymbolmapPaths: bcsymbolmapPaths,
             linking: linking,
             architectures: architectures,
-            isCarthage: isCarthage,
             status: status
         )
     }

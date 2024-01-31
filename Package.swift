@@ -1,4 +1,4 @@
-// swift-tools-version:5.7
+// swift-tools-version:5.9
 
 import PackageDescription
 
@@ -75,7 +75,6 @@ var targets: [Target] = [
             "ProjectAutomation",
             "TuistLoader",
             "TuistScaffold",
-            "TuistSigning",
             "TuistDependencies",
             "GraphViz",
             "TuistMigration",
@@ -91,20 +90,6 @@ var targets: [Target] = [
             "TuistKit",
             "ProjectDescription",
             "ProjectAutomation",
-        ]
-    ),
-    .target(
-        name: "TuistEnvKit",
-        dependencies: [
-            argumentParserDependency,
-            swiftToolsSupportDependency,
-            "TuistSupport",
-        ]
-    ),
-    .executableTarget(
-        name: "tuistenv",
-        dependencies: [
-            "TuistEnvKit",
         ]
     ),
     .target(
@@ -132,6 +117,7 @@ var targets: [Target] = [
             "TuistSupport",
             "TuistGraph",
             swiftToolsSupportDependency,
+            "Difference",
         ],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
@@ -188,16 +174,6 @@ var targets: [Target] = [
             "TuistCore",
             "TuistGraph",
             "TuistSupport",
-        ]
-    ),
-    .target(
-        name: "TuistSigning",
-        dependencies: [
-            "TuistCore",
-            "TuistGraph",
-            "TuistSupport",
-            "CryptoSwift",
-            swiftToolsSupportDependency,
         ]
     ),
     .target(
@@ -285,7 +261,6 @@ let package = Package(
         .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
         .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
         .executable(name: "tuist", targets: ["tuist"]),
-        .executable(name: "tuistenv", targets: ["tuistenv"]),
         .library(
             name: "ProjectDescription",
             type: .dynamic,
@@ -341,10 +316,6 @@ let package = Package(
             targets: ["TuistAutomation"]
         ),
         .library(
-            name: "TuistSigning",
-            targets: ["TuistSigning"]
-        ),
-        .library(
             name: "TuistDependencies",
             targets: ["TuistDependencies"]
         ),
@@ -378,13 +349,13 @@ let package = Package(
         .package(url: "https://github.com/weichsel/ZIPFoundation", from: "0.9.17"),
         .package(url: "https://github.com/httpswift/swifter.git", revision: "1e4f51c92d7ca486242d8bf0722b99de2c3531aa"),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess", from: "4.2.2"),
-        .package(url: "https://github.com/krzyzanowskim/CryptoSwift", from: "1.8.0"),
         .package(url: "https://github.com/stencilproject/Stencil", exact: "0.15.1"),
         .package(url: "https://github.com/SwiftDocOrg/GraphViz", exact: "0.2.0"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
         .package(url: "https://github.com/tuist/XcodeProj", exact: "8.15.0"),
         .package(url: "https://github.com/cpisciotta/xcbeautify", from: "1.4.0"),
+        .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
     ],
     targets: targets
 )

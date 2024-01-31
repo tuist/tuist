@@ -60,8 +60,7 @@ public class CachedManifestLoader: ManifestLoading {
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
         try load(manifest: .config, at: path) {
             let projectDescriptionConfig = try manifestLoader.loadConfig(at: path)
-            let config = try TuistGraph.Config.from(manifest: projectDescriptionConfig, at: path)
-            cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: config).cacheDirectory(for: .manifests)
+            cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories().cacheDirectory(for: .manifests)
             return projectDescriptionConfig
         }
     }
@@ -90,12 +89,16 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadDependencies(at path: AbsolutePath) throws -> Dependencies {
-        try manifestLoader.loadDependencies(at: path)
+    public func loadPackageSettings(at path: AbsolutePath) throws -> PackageSettings {
+        try load(manifest: .packageSettings, at: path.appending(components: Constants.tuistDirectoryName)) {
+            try manifestLoader.loadPackageSettings(at: path)
+        }
     }
 
-    public func loadPackageSettings(at path: AbsolutePath) throws -> PackageSettings {
-        try manifestLoader.loadPackageSettings(at: path)
+    public func loadPackage(at path: AbsolutePath) throws -> PackageInfo {
+        try load(manifest: .package, at: path) {
+            try manifestLoader.loadPackage(at: path)
+        }
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
@@ -115,7 +118,7 @@ public class CachedManifestLoader: ManifestLoading {
 
     private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, loader: () throws -> T) throws -> T {
         if cacheDirectory == nil {
-            cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil).cacheDirectory(for: .manifests)
+            cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories().cacheDirectory(for: .manifests)
         }
 
         let manifestPath = path.appending(component: manifest.fileName(path))

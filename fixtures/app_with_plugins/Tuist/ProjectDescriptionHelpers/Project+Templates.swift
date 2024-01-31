@@ -4,14 +4,14 @@ import ProjectDescription
 
 extension Project {
     /// Helper function to create the Project for this ExampleApp
-    public static func app(name: String, platform: Platform, additionalTargets _: [String]) -> Project {
+    public static func app(name: String, destinations: Destinations, additionalTargets _: [String]) -> Project {
         // Note: Testing importing of plugins in local helpers
         _ = LocalHelper(name: "local")
         _ = RemoteHelper(name: "remote")
 
-        let mainTarget = Target(
+        let mainTarget: Target = .target(
             name: name,
-            platform: platform,
+            destinations: destinations,
             product: .app,
             bundleId: "io.tuist.\(name)",
             infoPlist: .default,
