@@ -9,18 +9,15 @@ public protocol CacheDirectoriesProviding {
 }
 
 public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
-    // swiftlint:disable:next force_try
-    private static let defaultDirectory = try! AbsolutePath(validating: URL(fileURLWithPath: NSHomeDirectory()).path)
-        .appending(component: ".tuist")
-    private static var forcedCacheDirectory: AbsolutePath? {
-        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.forceConfigCacheDirectory]
-            .map { try! AbsolutePath(validating: $0) } // swiftlint:disable:this force_try
-    }
-
     public init() {}
 
     public func cacheDirectory(for category: CacheCategory) -> AbsolutePath {
-        let cacheDirectory = CacheDirectoriesProvider.defaultDirectory.appending(component: "Cache")
-        return (Self.forcedCacheDirectory ?? cacheDirectory).appending(component: category.directoryName)
+        let directory: AbsolutePath
+        if let xdgCacheHome = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"] {
+            directory = (try! AbsolutePath(validating: xdgCacheHome)).appending(component: "tuist")
+        } else {
+            directory = FileHandler.shared.homeDirectory.appending(components: ".cache", "tuist")
+        }
+        return directory.appending(component: category.directoryName)
     }
 }

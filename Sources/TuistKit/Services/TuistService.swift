@@ -57,9 +57,6 @@ final class TuistService: NSObject {
             verbose: Environment.shared.isVerbose,
             environment: [
                 Constants.EnvironmentVariables.tuistBinaryPath: tuistBinaryPath,
-                Constants.EnvironmentVariables.forceConfigCacheDirectory: Environment.shared.tuistConfigVariables[
-                    Constants.EnvironmentVariables.forceConfigCacheDirectory
-                ] ?? "",
             ].merging(System.shared.env) { tuistEnv, _ in tuistEnv }
         )
     }
