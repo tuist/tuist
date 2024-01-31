@@ -29,7 +29,7 @@ enum PluginServiceError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .missingRemotePlugins(plugins):
-            return "Remote plugins \(plugins.joined(separator: ", ")) have not been fetched. Try running tuist fetch."
+            return "Remote plugins \(plugins.joined(separator: ", ")) have not been fetched. Try running 'tuist install'."
         case let .invalidURL(url):
             return "Invalid URL for the plugin's Github repository: \(url)."
         }

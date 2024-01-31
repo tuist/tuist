@@ -22,9 +22,9 @@ If you want to learn more about the commands, you can run `tuist help` to get a 
 **We recommend editing the manifest files using Xcode** because it provides a better experience than editing them using a text editor. For instance, Xcode provides syntax highlighting, code completion, and more.
 
 
-### Fetch
+### Install
 
-`tuist fetch` is the command that you use to fetch the Package dependencies (<doc:dependencies>) in the `Package.swift` file. It resolves the dependencies using the Swift Package Manager and generates the `Package.resolved` file. When your Xcode projects are generated, Tuist generates Xcode projects for the dependencies and links them to the Xcode projects of your project.
+`tuist install` is the command that you use to fetch the Package dependencies (<doc:dependencies>) in the `Package.swift` file. It resolves the dependencies using the Swift Package Manager and generates the `Package.resolved` file. When your Xcode projects are generated, Tuist generates Xcode projects for the dependencies and links them to the Xcode projects of your project.
 
 ### Build
 
