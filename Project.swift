@@ -87,6 +87,7 @@ func targets() -> [Target] {
                 .external(name: "ZIPFoundation"),
                 .external(name: "Swifter"),
                 .external(name: "Difference"),
+                .external(name: "Mockable")
             ],
             testingDependencies: [
                 .target(name: "TuistCore"),

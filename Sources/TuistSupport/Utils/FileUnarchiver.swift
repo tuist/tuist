@@ -1,7 +1,8 @@
 import Foundation
 import TSCBasic
+import Mockable
 
-/// An interface to unarchive files from a zip file.
+@Mockable
 public protocol FileUnarchiving {
     /// Unarchives the files into a temporary directory and returns the path to that directory.
     func unzip() throws -> AbsolutePath

@@ -6,14 +6,19 @@ public enum TargetType {
 }
 
 extension Target {
+
     public static func target(
         name: String,
         product: Product,
         dependencies: [TargetDependency],
-        settings _: Settings = .settings(
+        settings: Settings = .settings(
             configurations: [
-                .debug(name: "Debug", settings: [:], xcconfig: nil),
-                .release(name: "Release", settings: [:], xcconfig: nil),
+                .debug(name: "Debug", 
+                       settings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"],
+                       xcconfig: nil),
+                .release(name: "Release", 
+                         settings: [:],
+                         xcconfig: nil),
             ]
         )
     ) -> Target {
@@ -28,11 +33,12 @@ extension Target {
             name: name,
             destinations: [.mac],
             product: product,
-            bundleId: "io.tuist.\(name)",
+            bundleId: "io.tuist.\(name)", 
             deploymentTargets: .macOS("12.0"),
             infoPlist: .default,
             sources: ["\(rootFolder)/\(name)/**/*.swift"],
-            dependencies: dependencies
+            dependencies: dependencies,
+            settings: settings
         )
     }
 

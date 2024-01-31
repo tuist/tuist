@@ -373,6 +373,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/XcodeProj", exact: "8.15.0"),
         .package(url: "https://github.com/cpisciotta/xcbeautify", from: "1.4.0"),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
+        .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.2")
     ],
     targets: targets
 )
