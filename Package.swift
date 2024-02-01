@@ -254,6 +254,23 @@ var targets: [Target] = [
     ),
 ]
 
+#if TUIST
+    import struct ProjectDescription.PackageSettings
+
+    let packageSettings = PackageSettings(
+        productTypes: [
+            "SystemPackage": .staticFramework,
+            "TSCBasic": .staticFramework,
+            "TSCUtility": .staticFramework,
+            "TSCclibc": .staticFramework,
+            "TSCLibc": .staticFramework,
+            "ArgumentParser": .staticFramework,
+        ],
+        platforms: [.macOS]
+    )
+
+#endif
+
 let package = Package(
     name: "tuist",
     platforms: [.macOS(.v12)],
