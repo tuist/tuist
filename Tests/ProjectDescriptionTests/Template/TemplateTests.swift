@@ -9,8 +9,8 @@ class TemplateTests: XCTestCase {
             description: "",
             attributes: [
                 .required("name"),
-                .optional("aName", default: .string("defaultName")),
-                .optional("bName", default: .string("")),
+                .optional("aName", default: "defaultName"),
+                .optional("bName", default: ""),
             ],
             items: [
                 .string(path: "static.swift", contents: "content"),

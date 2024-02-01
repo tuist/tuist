@@ -2,7 +2,7 @@
 import ProjectDescription
 
 let nameAttributeThree: Template.Attribute = .required("name")
-let platformAttributeThree: Template.Attribute = .optional("platform", default: .string("IOS"))
+let platformAttributeThree: Template.Attribute = .optional("platform", default: "IOS")
 
 let testContentsThree = """
 // this is test \(nameAttributeThree) content

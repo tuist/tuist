@@ -1,9 +1,9 @@
 import ProjectDescription
 
 let supportingPlatforms: [String: Template.Attribute.Value] = [
-    "iOS": .boolean(true),
-    "macOS": .boolean(true),
-    "watchOS": .boolean(false),
+    "iOS": true,
+    "macOS": true,
+    "watchOS": false,
 ]
 
 let nameAttribute: Template.Attribute = .required("name")
