@@ -1,5 +1,23 @@
 # Changelog
 
+## 4.0.0-beta.2 - 2024-02-01
+
+### Tuist
+
+#### Fixed
+- Fix install script [#5858](https://github.com/tuist/tuist/pull/5858) by [@svenmuennich](https://github.com/svenmuennich)
+
+#### Changed
+- Change Package.swift directory from Tuist to root [#5862](https://github.com/tuist/tuist/pull/5862) by [@fortmarek](https://github.com/fortmarek)
+- Rename `fetch` to `install` [#5857](https://github.com/tuist/tuist/pull/5857) by [@pepicrft](https://github.com/pepicrft)
+- Align the cache directory with the UNIX XDG Base Directory Specification [#5855](https://github.com/tuist/tuist/pull/5855) by [@pepicrft](https://github.com/pepicrft)
+
+### Tuist Cloud
+
+#### Changed
+
+- no changes
+
 ## 4.0.0-beta-1 - 2024-01-31
 
 ### Tuist
