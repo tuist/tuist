@@ -1,7 +1,13 @@
 import ProjectDescription
 
+let supportingPlatforms: [String: Template.Attribute.Value] = [
+    "iOS": .boolean(true),
+    "macOS": .boolean(true),
+    "watchOS": .boolean(false),
+]
+
 let nameAttribute: Template.Attribute = .required("name")
-let platformAttribute: Template.Attribute = .optional("platform", default: .string("ios"))
+let platformAttribute: Template.Attribute = .optional("platforms", default: .dictionary(supportingPlatforms))
 
 let testContents = """
 // this is test \(nameAttribute) content

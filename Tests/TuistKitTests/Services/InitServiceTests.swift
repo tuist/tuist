@@ -60,8 +60,11 @@ final class InitServiceTests: TuistUnitTestCase {
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
         }
-        let expectedAttributes = ["name": "Name", "platform": "macOS"]
-        var generatorAttributes: [String: AnyHashable] = [:]
+        let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+            "name": .string("Name"),
+            "platform": .string("macOS"),
+        ]
+        var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
@@ -79,8 +82,11 @@ final class InitServiceTests: TuistUnitTestCase {
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [defaultTemplatePath]
         }
-        let expectedAttributes = ["name": "Name", "platform": "iOS"]
-        var generatorAttributes: [String: AnyHashable] = [:]
+        let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+            "name": .string("Name"),
+            "platform": .string("iOS"),
+        ]
+        var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
@@ -99,18 +105,18 @@ final class InitServiceTests: TuistUnitTestCase {
                 description: "test",
                 attributes: [
                     .required("required"),
-                    .optional("optional", default: "optionalValue"),
+                    .optional("optional", default: .string("optionalValue")),
                 ],
                 items: []
             )
         }
-        let expectedAttributes = [
-            "name": "Name",
-            "platform": "macOS",
-            "required": "requiredValue",
-            "optional": "optionalValue",
+        let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+            "name": .string("Name"),
+            "platform": .string("macOS"),
+            "required": .string("requiredValue"),
+            "optional": .string("optionalValue"),
         ]
-        var generatorAttributes: [String: AnyHashable] = [:]
+        var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
@@ -131,17 +137,10 @@ final class InitServiceTests: TuistUnitTestCase {
 
     func test_optional_dictionary_attribute_is_taken_from_template() async throws {
         // Given
-        struct Env: Hashable {
-            let key: String
-            let value: String
-        }
-
-        let context = [
-            "envs": [
-                Env(key: "key1", value: "value1"),
-                Env(key: "key2", value: "value2"),
-            ],
-        ]
+        let context: TuistGraph.Template.Attribute.Value = .dictionary([
+            "key1": .string("value1"),
+            "key2": .string("value2"),
+        ])
 
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [
@@ -154,13 +153,13 @@ final class InitServiceTests: TuistUnitTestCase {
             [defaultTemplatePath]
         }
 
-        let expectedAttributes: [String: AnyHashable] = [
-            "name": "Name",
-            "platform": "iOS",
+        let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+            "name": .string("Name"),
+            "platform": .string("iOS"),
             "optional": context,
         ]
 
-        var generatorAttributes: [String: AnyHashable] = [:]
+        var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
@@ -174,7 +173,7 @@ final class InitServiceTests: TuistUnitTestCase {
 
     func test_optional_integer_attribute_is_taken_from_template() async throws {
         // Given
-        let defaultIntegerValue = 999
+        let defaultIntegerValue: TuistGraph.Template.Attribute.Value = .integer(999)
 
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [
@@ -187,13 +186,13 @@ final class InitServiceTests: TuistUnitTestCase {
             [defaultTemplatePath]
         }
 
-        let expectedAttributes: [String: AnyHashable] = [
-            "name": "Name",
-            "platform": "iOS",
+        let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+            "name": .string("Name"),
+            "platform": .string("iOS"),
             "optional": defaultIntegerValue,
         ]
 
-        var generatorAttributes: [String: AnyHashable] = [:]
+        var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generatorAttributes = attributes
         }
