@@ -11,7 +11,7 @@ public struct TuistCommand: AsyncParsableCommand {
             abstract: "Generate, build and test your Xcode projects.",
             subcommands: [
                 BuildCommand.self,
-                CleanCommand.self,
+                CleanCommand<TuistCleanCategory>.self,
                 DumpCommand.self,
                 EditCommand.self,
                 InstallCommand.self,

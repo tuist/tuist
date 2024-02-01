@@ -4,20 +4,36 @@ import TuistGraph
 import TuistSupport
 
 public protocol CacheDirectoriesProviding {
-    /// Returns the cache directory for a cache category
-    func cacheDirectory(for category: CacheCategory) throws -> AbsolutePath
+    /// Returns the cache directory for a Tuist cache category
+    func tuistCacheDirectory(for category: CacheCategory) throws -> AbsolutePath
+
+    func cacheDirectory() throws -> AbsolutePath
 }
 
 public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
-    public init() {}
+    private let fileHandler: FileHandling
 
-    public func cacheDirectory(for category: CacheCategory) throws -> AbsolutePath {
-        let directory: AbsolutePath
+    init(fileHandler: FileHandling) {
+        self.fileHandler = fileHandler
+    }
+
+    public convenience init() {
+        self.init(fileHandler: FileHandler.shared)
+    }
+
+    public func tuistCacheDirectory(for category: CacheCategory) throws -> AbsolutePath {
+        return CacheDirectoriesProvider.tuistCacheDirectory(for: category, cacheDirectory: try cacheDirectory())
+    }
+
+    public static func tuistCacheDirectory(for category: CacheCategory, cacheDirectory: AbsolutePath) -> AbsolutePath {
+        return cacheDirectory.appending(components: ["tuist", category.directoryName])
+    }
+
+    public func cacheDirectory() throws -> TSCBasic.AbsolutePath {
         if let xdgCacheHome = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"] {
-            directory = (try AbsolutePath(validating: xdgCacheHome)).appending(component: "tuist")
+            return try AbsolutePath(validating: xdgCacheHome)
         } else {
-            directory = FileHandler.shared.homeDirectory.appending(components: ".cache", "tuist")
+            return FileHandler.shared.homeDirectory.appending(components: ".cache")
         }
-        return directory.appending(component: category.directoryName)
     }
 }

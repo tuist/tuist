@@ -40,11 +40,16 @@ class ProjectFileElements {
     var products: [String: PBXFileReference] = [:]
     var compiled: [AbsolutePath: PBXFileReference] = [:]
     var knownRegions: Set<String> = Set([])
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
 
     // MARK: - Init
 
-    init(_ elements: [AbsolutePath: PBXFileElement] = [:]) {
+    init(
+        _ elements: [AbsolutePath: PBXFileElement] = [:],
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider()
+    ) {
         self.elements = elements
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
     }
 
     func generateProjectFiles(
@@ -274,7 +279,8 @@ class ProjectFileElements {
         sourceRootPath: AbsolutePath
     ) throws {
         // Pre-compiled artifact from the cache
-        if path.pathString.contains(CacheCategory.binaries.directoryName) {
+        let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory()
+        if path.pathString.contains(cacheDirectory.pathString) {
             guard compiled[path] == nil else {
                 return
             }

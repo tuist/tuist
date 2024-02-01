@@ -60,7 +60,7 @@ public class CachedManifestLoader: ManifestLoading {
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
         try load(manifest: .config, at: path) {
             let projectDescriptionConfig = try manifestLoader.loadConfig(at: path)
-            cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories().cacheDirectory(for: .manifests)
+            cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories().tuistCacheDirectory(for: .manifests)
             return projectDescriptionConfig
         }
     }
@@ -118,7 +118,7 @@ public class CachedManifestLoader: ManifestLoading {
 
     private func load<T: Codable>(manifest: Manifest, at path: AbsolutePath, loader: () throws -> T) throws -> T {
         if cacheDirectory == nil {
-            cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories().cacheDirectory(for: .manifests)
+            cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories().tuistCacheDirectory(for: .manifests)
         }
 
         let manifestPath = path.appending(component: manifest.fileName(path))
