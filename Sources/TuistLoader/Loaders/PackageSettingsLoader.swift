@@ -39,7 +39,7 @@ public final class PackageSettingsLoader: PackageSettingsLoading {
         let manifest = try manifestLoader.loadPackageSettings(at: path)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let swiftToolsVersion = try swiftPackageManagerController.getToolsVersion(
-            at: path.appending(component: Constants.tuistDirectoryName)
+            at: path
         )
 
         return try TuistGraph.PackageSettings.from(
