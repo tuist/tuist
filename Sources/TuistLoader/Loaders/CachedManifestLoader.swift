@@ -90,7 +90,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     public func loadPackageSettings(at path: AbsolutePath) throws -> PackageSettings {
-        try load(manifest: .packageSettings, at: path.appending(components: Constants.tuistDirectoryName)) {
+        try load(manifest: .packageSettings, at: path) {
             try manifestLoader.loadPackageSettings(at: path)
         }
     }

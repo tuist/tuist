@@ -108,10 +108,7 @@ final class ManifestLoaderTests: TuistTestCase {
         """
 
         let manifestPath = temporaryPath.appending(
-            components: [
-                Constants.tuistDirectoryName,
-                Manifest.package.fileName(temporaryPath),
-            ]
+            component: Manifest.package.fileName(temporaryPath)
         )
         try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
         try content.write(
@@ -176,10 +173,7 @@ final class ManifestLoaderTests: TuistTestCase {
         """
 
         let manifestPath = temporaryPath.appending(
-            components: [
-                Constants.tuistDirectoryName,
-                Manifest.package.fileName(temporaryPath),
-            ]
+            component: Manifest.package.fileName(temporaryPath)
         )
         try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
         try content.write(
@@ -213,10 +207,7 @@ final class ManifestLoaderTests: TuistTestCase {
         """
 
         let manifestPath = temporaryPath.appending(
-            components: [
-                Constants.tuistDirectoryName,
-                Manifest.package.fileName(temporaryPath),
-            ]
+            component: Manifest.package.fileName(temporaryPath)
         )
         try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
         try content.write(

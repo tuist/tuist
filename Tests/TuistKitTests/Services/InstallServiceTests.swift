@@ -58,7 +58,7 @@ final class InstallServiceTests: TuistUnitTestCase {
 
         try fileHandler.touch(
             stubbedPath.appending(
-                components: Constants.tuistDirectoryName, Manifest.package.fileName(stubbedPath)
+                component: Manifest.package.fileName(stubbedPath)
             )
         )
 
@@ -110,7 +110,7 @@ final class InstallServiceTests: TuistUnitTestCase {
 
         try fileHandler.touch(
             stubbedPath.appending(
-                components: Constants.tuistDirectoryName, Manifest.package.fileName(stubbedPath)
+                component: Manifest.package.fileName(stubbedPath)
             )
         )
 

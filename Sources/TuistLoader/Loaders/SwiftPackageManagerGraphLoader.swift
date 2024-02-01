@@ -81,7 +81,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         plugins: Plugins
     ) throws -> TuistCore.DependenciesGraph {
         guard fileHandler.exists(
-            path.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            path.appending(component: Constants.SwiftPackageManager.packageSwiftName)
         ) else {
             return .none
         }
@@ -89,10 +89,7 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         let packageSettings = try packageSettingsLoader.loadPackageSettings(at: path, with: plugins)
 
         let path = path.appending(
-            components: [
-                Constants.tuistDirectoryName,
-                Constants.SwiftPackageManager.packageBuildDirectoryName,
-            ]
+            component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")

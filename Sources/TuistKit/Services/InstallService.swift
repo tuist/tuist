@@ -56,8 +56,7 @@ final class InstallService {
 
     private func fetchDependencies(path: AbsolutePath, update: Bool) throws {
         let packageManifestPath = path.appending(
-            components: Constants.tuistDirectoryName,
-            Constants.SwiftPackageManager.packageSwiftName
+            component: Constants.SwiftPackageManager.packageSwiftName
         )
 
         guard fileHandler.exists(packageManifestPath) else {
@@ -67,11 +66,11 @@ final class InstallService {
         if update {
             logger.info("Updating dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.update(at: packageManifestPath.parentDirectory, printOutput: true)
+            try swiftPackageManagerController.update(at: path, printOutput: true)
         } else {
             logger.info("Resolving and fetching dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.resolve(at: packageManifestPath.parentDirectory, printOutput: true)
+            try swiftPackageManagerController.resolve(at: path, printOutput: true)
         }
     }
 }

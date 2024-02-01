@@ -270,8 +270,7 @@ final class DumpServiceTests: TuistTestCase {
         try fileHandler.createFolder(tmpDir.appending(component: Constants.tuistDirectoryName))
         try config.write(
             toFile: tmpDir.appending(
-                components: Constants.tuistDirectoryName,
-                Constants.SwiftPackageManager.packageSwiftName
+                component: Constants.SwiftPackageManager.packageSwiftName
             ).pathString,
             atomically: true,
             encoding: .utf8
@@ -331,8 +330,7 @@ final class DumpServiceTests: TuistTestCase {
         try fileHandler.createFolder(tmpDir.appending(component: Constants.tuistDirectoryName))
         try config.write(
             toFile: tmpDir.appending(
-                components: Constants.tuistDirectoryName,
-                Constants.SwiftPackageManager.packageSwiftName
+                component: Constants.SwiftPackageManager.packageSwiftName
             ).pathString,
             atomically: true,
             encoding: .utf8
