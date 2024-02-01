@@ -132,13 +132,13 @@ final class ScaffoldService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
-    ) throws -> [String: AnyHashable] {
+    ) throws -> [String: TuistGraph.Template.Attribute.Value] {
         try template.attributes.reduce(into: [:]) { attributesDictionary, attribute in
             switch attribute {
             case let .required(name):
                 guard let option = requiredTemplateOptions[name]
                 else { throw ScaffoldServiceError.attributeNotProvided(name) }
-                attributesDictionary[name] = option
+                attributesDictionary[name] = .string(option)
             case let .optional(name, default: defaultValue):
                 guard let unwrappedOption = optionalTemplateOptions[name],
                       let option = unwrappedOption
@@ -146,7 +146,7 @@ final class ScaffoldService {
                     attributesDictionary[name] = defaultValue
                     return
                 }
-                attributesDictionary[name] = option
+                attributesDictionary[name] = .string(option)
             }
         }
     }

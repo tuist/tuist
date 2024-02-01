@@ -6,9 +6,13 @@ import TuistGraph
 @testable import TuistScaffold
 
 public final class MockTemplateGenerator: TemplateGenerating {
-    public var generateStub: ((Template, AbsolutePath, [String: AnyHashable]) throws -> Void)?
+    public var generateStub: ((Template, AbsolutePath, [String: TuistGraph.Template.Attribute.Value]) throws -> Void)?
 
-    public func generate(template: Template, to destinationPath: AbsolutePath, attributes: [String: AnyHashable]) throws {
+    public func generate(
+        template: Template,
+        to destinationPath: AbsolutePath,
+        attributes: [String: TuistGraph.Template.Attribute.Value]
+    ) throws {
         try generateStub?(template, destinationPath, attributes)
     }
 }

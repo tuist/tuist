@@ -48,7 +48,25 @@ public struct Template: Codable, Equatable {
         /// Required attribute with a given name
         case required(String)
         /// Optional attribute with a given name and a default value used when attribute not provided by user
-        case optional(String, default: String)
+        case optional(String, default: Value)
+    }
+}
+
+extension Template.Attribute {
+    /// This represents the default value type of Attribute
+    public indirect enum Value: Codable, Equatable {
+        /// It represents a string value.
+        case string(String)
+        /// It represents an integer value.
+        case integer(Int)
+        /// It represents a floating value.
+        case real(Double)
+        /// It represents a boolean value.
+        case boolean(Bool)
+        /// It represents a dictionary value.
+        case dictionary([String: Value])
+        /// It represents an array value.
+        case array([Value])
     }
 }
 
