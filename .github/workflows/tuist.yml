@@ -116,7 +116,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Run acceptance tests
-        run: tuist test --xcframeworks --result-bundle-path /tmp/tuist/test-${{ matrix.feature }} ${{ matrix.feature }}
+        run: tuist test --result-bundle-path /tmp/tuist/test-${{ matrix.feature }} ${{ matrix.feature }}
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
