@@ -74,15 +74,15 @@ final class CleanService {
 
     func run(
         categories: [some CleanCategory],
-        path _: String?
+        path: String?
     ) throws {
-        let path = if let path {
+        let resolvedPath = if let path {
             try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             FileHandler.shared.currentPath
         }
 
-        let rootDirectory = rootDirectoryLocator.locate(from: path)
+        let rootDirectory = rootDirectoryLocator.locate(from: resolvedPath)
         let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory()
 
         for category in categories {
