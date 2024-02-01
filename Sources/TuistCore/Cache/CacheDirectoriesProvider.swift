@@ -4,23 +4,36 @@ import TuistGraph
 import TuistSupport
 
 public protocol CacheDirectoriesProviding {
-    /// Returns the cache directory for a cache category
-    func cacheDirectory(for category: CacheCategory) -> AbsolutePath
+    /// Returns the cache directory for a Tuist cache category
+    func tuistCacheDirectory(for category: CacheCategory) throws -> AbsolutePath
+
+    func cacheDirectory() throws -> AbsolutePath
 }
 
 public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
-    // swiftlint:disable:next force_try
-    private static let defaultDirectory = try! AbsolutePath(validating: URL(fileURLWithPath: NSHomeDirectory()).path)
-        .appending(component: ".tuist")
-    private static var forcedCacheDirectory: AbsolutePath? {
-        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.forceConfigCacheDirectory]
-            .map { try! AbsolutePath(validating: $0) } // swiftlint:disable:this force_try
+    private let fileHandler: FileHandling
+
+    init(fileHandler: FileHandling) {
+        self.fileHandler = fileHandler
     }
 
-    public init() {}
+    public convenience init() {
+        self.init(fileHandler: FileHandler.shared)
+    }
 
-    public func cacheDirectory(for category: CacheCategory) -> AbsolutePath {
-        let cacheDirectory = CacheDirectoriesProvider.defaultDirectory.appending(component: "Cache")
-        return (Self.forcedCacheDirectory ?? cacheDirectory).appending(component: category.directoryName)
+    public func tuistCacheDirectory(for category: CacheCategory) throws -> AbsolutePath {
+        return CacheDirectoriesProvider.tuistCacheDirectory(for: category, cacheDirectory: try cacheDirectory())
+    }
+
+    public static func tuistCacheDirectory(for category: CacheCategory, cacheDirectory: AbsolutePath) -> AbsolutePath {
+        return cacheDirectory.appending(components: ["tuist", category.directoryName])
+    }
+
+    public func cacheDirectory() throws -> TSCBasic.AbsolutePath {
+        if let xdgCacheHome = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"] {
+            return try AbsolutePath(validating: xdgCacheHome)
+        } else {
+            return FileHandler.shared.homeDirectory.appending(components: ".cache")
+        }
     }
 }

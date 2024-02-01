@@ -3,12 +3,6 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// The plugins cache.
     case plugins
 
-    /// The binary cache
-    case binaries
-
-    /// The selective tests cache
-    case selectiveTests
-
     /// The projects generated for automation tasks cache
     case generatedAutomationProjects
 
@@ -22,10 +16,6 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
         switch self {
         case .plugins:
             return "Plugins"
-        case .binaries:
-            return "BinaryCache"
-        case .selectiveTests:
-            return "SelectiveTests"
         case .generatedAutomationProjects:
             return "Projects"
         case .projectDescriptionHelpers:

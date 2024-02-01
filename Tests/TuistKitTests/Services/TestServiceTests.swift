@@ -395,9 +395,9 @@ final class TestServiceTests: TuistUnitTestCase {
                 "ProjectScheme",
             ]
         )
-        XCTAssertFalse(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .selectiveTests).appending(component: "A"))
-        )
+//        XCTAssertFalse(
+//            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .selectiveTests).appending(component: "A"))
+//        )
     }
 
     func test_run_tests_when_no_project_schemes_present() async throws {

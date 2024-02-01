@@ -13,19 +13,22 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     var subject: ProjectFileElements!
     var groups: ProjectGroups!
     var pbxproj: PBXProj!
+    var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
 
-    override func setUp() {
+    override func setUpWithError() throws {
         super.setUp()
+        cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
         pbxproj = PBXProj()
         groups = ProjectGroups.generate(
             project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
             pbxproj: pbxproj
         )
 
-        subject = ProjectFileElements()
+        subject = ProjectFileElements(cacheDirectoriesProvider: cacheDirectoriesProvider)
     }
 
     override func tearDown() {
+        cacheDirectoriesProvider = nil
         pbxproj = nil
         groups = nil
         subject = nil
@@ -814,8 +817,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
-        let frameworkPath = try temporaryPath().appending(component: CacheCategory.binaries.directoryName)
-            .appending(component: "Test.framework")
+        let frameworkPath = try cacheDirectoriesProvider.cacheDirectory().appending(component: "Test.framework")
         let binaryPath = frameworkPath.appending(component: "Test")
 
         let frameworkDependency = GraphDependencyReference.framework(
