@@ -44,15 +44,20 @@ public protocol ManifestFilesLocating: AnyObject {
 public final class ManifestFilesLocator: ManifestFilesLocating {
     /// Utility to locate the root directory of the project
     let rootDirectoryLocator: RootDirectoryLocating
+    let fileHandler: FileHandling
 
-    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+    public init(
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+        fileHandler: FileHandling = FileHandler.shared
+    ) {
         self.rootDirectoryLocator = rootDirectoryLocator
+        self.fileHandler = fileHandler
     }
 
     public func locateManifests(at locatingPath: AbsolutePath) -> [(Manifest, AbsolutePath)] {
         Manifest.allCases.compactMap { manifest in
             let path = locatingPath.appending(component: manifest.fileName(locatingPath))
-            if FileHandler.shared.exists(path) { return (manifest, path) }
+            if fileHandler.exists(path) { return (manifest, path) }
             return nil
         }
     }
@@ -66,7 +71,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             let pluginPath = locatingPath.appending(
                 component: Manifest.plugin.fileName(locatingPath)
             )
-            guard FileHandler.shared.exists(pluginPath) else { return [] }
+            guard fileHandler.exists(pluginPath) else { return [] }
             return [pluginPath]
         } else {
             let path = rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
@@ -96,7 +101,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             Manifest.workspace.fileName(path),
             Manifest.plugin.fileName(path),
         ]
-        let tuistManifestsFilePaths = FileHandler.shared.glob(path, glob: "**/*.swift")
+        let tuistManifestsFilePaths = fileHandler.glob(path, glob: "**/*.swift")
             .filter { fileNamesCandidates.contains($0.basename) }
             .filter { hasValidManifestContent($0) }
         let cachedTuistManifestsFilePaths = Set(tuistManifestsFilePaths)
@@ -105,7 +110,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
     }
 
     private func hasValidManifestContent(_ path: AbsolutePath) -> Bool {
-        guard let content = try? FileHandler.shared.readTextFile(path) else { return false }
+        guard let content = try? fileHandler.readTextFile(path) else { return false }
 
         let tuistManifestSignature = "import ProjectDescription"
         return content.contains(tuistManifestSignature) || content.isEmpty
@@ -145,7 +150,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
                     )
                 ),
             ]
-            .filter { FileHandler.shared.exists($0.path) }
+            .filter { fileHandler.exists($0.path) }
         } else {
             let path = rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
 
@@ -175,24 +180,30 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
     }
 
     public func locateConfig(at locatingPath: AbsolutePath) -> AbsolutePath? {
-        // swiftlint:disable:next force_try
-        let subPath = try! RelativePath(validating: "\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(locatingPath))")
-        return traverseAndLocate(at: locatingPath, appending: subPath)
+        guard let tuistDirectory = traverseAndLocateTuistDirectory(at: locatingPath) else { return nil }
+        let configSwiftPath = tuistDirectory.appending(component: Manifest.config.fileName(locatingPath))
+        if fileHandler.exists(configSwiftPath) { return configSwiftPath }
+        return nil
     }
 
     public func locatePackageManifest(at locatingPath: AbsolutePath) -> AbsolutePath? {
-        let subPath =
-            // swiftlint:disable:next force_try
-            try! RelativePath(validating: "\(Constants.tuistDirectoryName)/Package.swift")
-        return traverseAndLocate(at: locatingPath, appending: subPath)
+        guard let tuistDirectory = traverseAndLocateTuistDirectory(at: locatingPath) else { return nil }
+        let packageSwiftPath = tuistDirectory.parentDirectory.appending(component: Constants.SwiftPackageManager.packageSwiftName)
+        if fileHandler.exists(packageSwiftPath) { return packageSwiftPath }
+        return nil
     }
 
     // MARK: - Helpers
 
+    private func traverseAndLocateTuistDirectory(at locatingPath: AbsolutePath) -> AbsolutePath? {
+        // swiftlint:disable:next force_try
+        return traverseAndLocate(at: locatingPath, appending: try! RelativePath(validating: Constants.tuistDirectoryName))
+    }
+
     private func traverseAndLocate(at locatingPath: AbsolutePath, appending subpath: RelativePath) -> AbsolutePath? {
         let manifestPath = locatingPath.appending(subpath)
 
-        if FileHandler.shared.exists(manifestPath) {
+        if fileHandler.exists(manifestPath) {
             return manifestPath
         } else if locatingPath != .root {
             return traverseAndLocate(at: locatingPath.parentDirectory, appending: subpath)
