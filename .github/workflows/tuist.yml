@@ -49,7 +49,7 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Test
-        run: tuist test --xcframeworks --skip-test-targets TuistBuildAcceptanceTests TuistDependenciesAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-${{ matrix.feature }}
+        run: tuist test --skip-test-targets TuistBuildAcceptanceTests TuistDependenciesAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-${{ matrix.feature }}
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
@@ -76,9 +76,9 @@ jobs:
       - name: Fetch dependencies
         run: tuist fetch
       - name: Print hashes
-        run: tuist cache print-hashes --xcframeworks
+        run: tuist cache --print-hashes
       - name: Cache warm
-        run: tuist cache warm --xcframeworks
+        run: tuist cache
 
   acceptance_tests:
     name: Run ${{ matrix.feature }}
