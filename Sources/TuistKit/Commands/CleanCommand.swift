@@ -13,7 +13,7 @@ public struct CleanCommand<T: CleanCategory>: ParsableCommand {
     }
 
     @Argument(help: "The cache and artifact categories to be cleaned. If no category is specified, everything is cleaned.")
-    var cleanCategories: [T]
+    var cleanCategories: [T] = T.allCases.map { $0 }
 
     @Option(
         name: .shortAndLong,
