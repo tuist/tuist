@@ -7,7 +7,7 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 
-final class FetchService {
+final class InstallService {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
     private let swiftPackageManagerController: SwiftPackageManagerControlling

@@ -90,7 +90,7 @@ final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMeth
 final class BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives: TuistAcceptanceTestCase {
     func test_framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
         try setUpFixture(.frameworkWithNativeSwiftMacro)
-        try await run(FetchCommand.self)
+        try await run(InstallCommand.self)
         try await run(BuildCommand.self, "Framework", "--platform", "macos")
         try await run(BuildCommand.self, "Framework", "--platform", "ios")
     }
@@ -107,7 +107,7 @@ final class BuildAcceptanceTestMultiplatformAppWithExtensions: TuistAcceptanceTe
 final class BuildAcceptanceTestMultiplatformAppWithSDK: TuistAcceptanceTestCase {
     func test() async throws {
         try setUpFixture(.multiplatformAppWithSdk)
-        try await run(FetchCommand.self)
+        try await run(InstallCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "macos")
         try await run(BuildCommand.self, "App", "--platform", "ios")
     }
@@ -116,7 +116,7 @@ final class BuildAcceptanceTestMultiplatformAppWithSDK: TuistAcceptanceTestCase 
 final class BuildAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test() async throws {
         try setUpFixture(.appWithSpmDependencies)
-        try await run(FetchCommand.self)
+        try await run(InstallCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")
     }
 }

@@ -24,14 +24,14 @@
 
     @Section(title: "Fetching package dependencies") {
         @ContentAndMedia {
-            Unlike Xcode's default integration, which resolves the dependencies at launch time or whenever Xcode thinks resolution is necessary, we resolve them through the `tuist fetch` command.
+            Unlike Xcode's default integration, which resolves the dependencies at launch time or whenever Xcode thinks resolution is necessary, we resolve them through the `tuist install` command.
         }
         
         @Steps {
             @Step {
-                Run `tuist fetch` to resolve the dependencies using the Swift Package Manager under `Tuist/Dependencies`. The generated workspace will contain projects and targets for them.
+                Run `tuist install` to resolve the dependencies using the Swift Package Manager under `Tuist/Dependencies`. The generated workspace will contain projects and targets for them.
                 
-                @Code(name: "Console", file: "tuist-fetch.sh", reset: true)
+                @Code(name: "Console", file: "tuist-install.sh", reset: true)
             }
             
             @Step {
