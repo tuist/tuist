@@ -499,6 +499,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
             "File01.swift",
             "File02.swift",
+            "Tuist/Config.swift",
             "Package.swift",
         ])
 
