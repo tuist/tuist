@@ -183,7 +183,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
     public func locatePackageManifest(at locatingPath: AbsolutePath) -> AbsolutePath? {
         let subPath =
             // swiftlint:disable:next force_try
-            try! RelativePath(validating: "\(Constants.tuistDirectoryName)/Package.swift")
+            try! RelativePath(validating: Constants.SwiftPackageManager.packageSwiftName)
         return traverseAndLocate(at: locatingPath, appending: subPath)
     }
 
