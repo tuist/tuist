@@ -72,7 +72,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         let projectPath = try temporaryPath()
         rootDirectoryLocator.locateStub = projectPath
         let swiftPackageManagerBuildPath = projectPath.appending(
-            components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageBuildDirectoryName
+            components: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
         try fileHandler.createFolder(swiftPackageManagerBuildPath)
 
