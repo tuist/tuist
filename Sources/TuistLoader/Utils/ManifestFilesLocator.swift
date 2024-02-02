@@ -101,9 +101,21 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             Manifest.workspace.fileName(path),
             Manifest.plugin.fileName(path),
         ]
-        let tuistManifestsFilePaths = fileHandler.glob(path, glob: "**/*.swift")
-            .filter { fileNamesCandidates.contains($0.basename) }
-            .filter { hasValidManifestContent($0) }
+        
+        var tuistManifestsFilePaths = [AbsolutePath]()
+        
+        let enumerator = FileManager.default.enumerator(atPath: path.pathString)
+        while let candidatePath = enumerator?.nextObject() as? String {
+            let candidateURL = URL(fileURLWithPath: candidatePath)
+            if fileNamesCandidates.contains(candidateURL.lastPathComponent) {
+                let path = candidateURL.absoluteString.replacingOccurrences(of: "file://", with: "")
+                let absolutePath = AbsolutePath(stringLiteral: path)
+                if hasValidManifestContent(absolutePath) {
+                    tuistManifestsFilePaths.append(absolutePath)
+                }
+            }
+        }
+        
         let cachedTuistManifestsFilePaths = Set(tuistManifestsFilePaths)
         cacheTuistManifestsFilePaths[path] = cachedTuistManifestsFilePaths
         return cachedTuistManifestsFilePaths
