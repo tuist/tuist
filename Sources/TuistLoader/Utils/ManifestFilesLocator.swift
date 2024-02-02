@@ -104,16 +104,23 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
 
         var tuistManifestsFilePaths = [AbsolutePath]()
 
-        let enumerator = FileManager.default.enumerator(atPath: path.pathString)
-        while let candidatePath = enumerator?.nextObject() as? String {
-            if candidatePath.hasSuffix(".swift") {
-                let candidateURL = URL(fileURLWithPath: path.pathString).appendingPathComponent(candidatePath)
-                if fileNamesCandidates.contains(candidateURL.lastPathComponent) {
-                    let absolutePath = AbsolutePath(stringLiteral: candidateURL.path)
-                    if hasValidManifestContent(absolutePath) {
-                        tuistManifestsFilePaths.append(absolutePath)
-                    }
-                }
+        let enumerator = FileManager.default.enumerator(
+            at: path.url,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        )
+
+        while let candidateURL = enumerator?.nextObject() as? URL {
+            guard candidateURL.pathExtension == "swift",
+                  fileNamesCandidates.contains(candidateURL.lastPathComponent)
+            else {
+                continue
+            }
+            // Symlinks need to be resolved for resulting absolute URLs to point to the right place.
+            let url = candidateURL.resolvingSymlinksInPath()
+            let absolutePath = AbsolutePath(stringLiteral: url.path)
+            if hasValidManifestContent(absolutePath) {
+                tuistManifestsFilePaths.append(absolutePath)
             }
         }
 
