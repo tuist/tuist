@@ -101,9 +101,9 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             Manifest.workspace.fileName(path),
             Manifest.plugin.fileName(path),
         ]
-        
+
         var tuistManifestsFilePaths = [AbsolutePath]()
-        
+
         let enumerator = FileManager.default.enumerator(atPath: path.pathString)
         while let candidatePath = enumerator?.nextObject() as? String {
             let candidateURL = URL(fileURLWithPath: candidatePath)
@@ -115,7 +115,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
                 }
             }
         }
-        
+
         let cachedTuistManifestsFilePaths = Set(tuistManifestsFilePaths)
         cacheTuistManifestsFilePaths[path] = cachedTuistManifestsFilePaths
         return cachedTuistManifestsFilePaths
