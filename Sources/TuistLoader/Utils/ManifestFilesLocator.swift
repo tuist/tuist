@@ -103,11 +103,11 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
         ]
 
         var tuistManifestsFilePaths = [AbsolutePath]()
-
+        
         let enumerator = FileManager.default.enumerator(atPath: path.pathString)
         while let candidatePath = enumerator?.nextObject() as? String {
             if candidatePath.hasSuffix(".swift") {
-                let candidateURL = URL(fileURLWithPath: candidatePath)
+                let candidateURL = URL(fileURLWithPath: path.pathString).appendingPathComponent(candidatePath)
                 if fileNamesCandidates.contains(candidateURL.lastPathComponent) {
                     let absolutePath = AbsolutePath(stringLiteral: candidateURL.path)
                     if hasValidManifestContent(absolutePath) {
