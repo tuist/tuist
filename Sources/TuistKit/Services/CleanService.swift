@@ -42,10 +42,9 @@ public enum TuistCleanCategory: CleanCategory {
         case let .global(category):
             return CacheDirectoriesProvider.tuistCacheDirectory(for: category, cacheDirectory: cacheDirectory)
         case .dependencies:
-            return rootDirectory?.appending(components: [
-                Constants.tuistDirectoryName,
-                Constants.SwiftPackageManager.packageBuildDirectoryName,
-            ])
+            return rootDirectory?.appending(
+                component: Constants.SwiftPackageManager.packageBuildDirectoryName
+            )
         }
     }
 }

@@ -48,6 +48,20 @@ final class CleanServiceTests: TuistUnitTestCase {
         XCTAssertTrue(FileHandler.shared.exists(cachePaths[1]))
     }
 
+    func test_run_with_dependencies_cleans_dependencies() throws {
+        // Given
+        let localPaths = try createFolders([".build", "Tuist/ProjectDescriptionHelpers"])
+
+        rootDirectoryLocator.locateStub = localPaths[0].parentDirectory
+
+        // When
+        try subject.run(categories: [TuistCleanCategory.dependencies], path: nil)
+
+        // Then
+        XCTAssertFalse(FileHandler.shared.exists(localPaths[0]))
+        XCTAssertTrue(FileHandler.shared.exists(localPaths[1]))
+    }
+
     func test_run_without_category_cleans_all() throws {
         // Given
         let cachePaths = try createFolders(["tuist/Manifests"])
