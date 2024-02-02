@@ -225,4 +225,39 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
             expectingTargets.map(\.name).sorted()
         )
     }
+
+    func test_map_when_included_targets_do_not_exist() throws {
+        // Given
+        let targetNames = ["foo", "bar", "baz"]
+        let aTarget = Target.test(name: targetNames[0])
+        let aTestTarget = Target.test(name: targetNames[0] + "Tests", product: .unitTests)
+        let cTarget = Target.test(name: targetNames[2])
+        let subject = FocusTargetsGraphMappers(includedTargets: [aTarget.name, "bar"])
+        let path = try temporaryPath()
+        let project = Project.test(path: path)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                path: [
+                    aTestTarget.name: aTestTarget,
+                    aTarget.name: aTarget,
+                    cTarget.name: cTarget,
+                ],
+            ],
+            dependencies: [
+                .target(name: aTestTarget.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+                .target(name: cTarget.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+            ]
+        )
+
+        // When
+        XCTAssertThrowsSpecific(
+            try subject.map(graph: graph),
+            FocusTargetsGraphMappersError.targetsNotFound(["bar"])
+        )
+    }
 }
