@@ -72,7 +72,8 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                     disableBundleAccessors: true,
                     disableShowEnvironmentVarsInScriptPhases: true,
                     disableSynthesizedResourceAccessors: true,
-                    textSettings: .init(usesTabs: true, indentWidth: 1, tabWidth: 2, wrapsLines: true)
+                    textSettings: .init(usesTabs: true, indentWidth: 1, tabWidth: 2, wrapsLines: true),
+                    localPackagesGroupName: nil
                 ),
                 settings: .default,
                 filesGroup: .group(name: "Project"),

@@ -18,18 +18,23 @@ extension Project {
         /// Text settings to override user ones for current project
         public let textSettings: TextSettings
 
+        /// Group name used for grouping local packages
+        public let localPackagesGroupName: String?
+
         public init(
             automaticSchemesOptions: AutomaticSchemesOptions,
             disableBundleAccessors: Bool,
             disableShowEnvironmentVarsInScriptPhases: Bool,
             disableSynthesizedResourceAccessors: Bool,
-            textSettings: TextSettings
+            textSettings: TextSettings,
+            localPackagesGroupName: String?
         ) {
             self.automaticSchemesOptions = automaticSchemesOptions
             self.disableBundleAccessors = disableBundleAccessors
             self.disableShowEnvironmentVarsInScriptPhases = disableShowEnvironmentVarsInScriptPhases
             self.disableSynthesizedResourceAccessors = disableSynthesizedResourceAccessors
             self.textSettings = textSettings
+            self.localPackagesGroupName = localPackagesGroupName
         }
     }
 }

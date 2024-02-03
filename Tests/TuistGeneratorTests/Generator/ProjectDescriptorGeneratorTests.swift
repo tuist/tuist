@@ -335,6 +335,53 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(pbxProject.developmentRegion, "de")
     }
 
+    func test_localPackages_areAddedToGroup_whenGroupNameIsSpecified() throws {
+        // Given
+        let project = Project.test(
+            options: .test(localPackagesGroupName: "Packages"),
+            packages: [
+                .local(path: try AbsolutePath(validating: "/Packages/LocalPackageA")),
+                .local(path: try AbsolutePath(validating: "/Packages/LocalPackageB")),
+            ]
+        )
+
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxproj = got.xcodeProj.pbxproj
+        let rootGroup = try XCTUnwrap(pbxproj.rootGroup())
+        let packagesGroup = rootGroup.group(named: "Packages")
+        let packages = try XCTUnwrap(packagesGroup?.children)
+        XCTAssertEqual(packages.map(\.name), ["LocalPackageA", "LocalPackageB"])
+    }
+
+    func test_localPackages_areNotAddedToGroup_whenGroupNameIsNotSpecified() throws {
+        // Given
+        let project = Project.test(
+            options: .test(localPackagesGroupName: nil),
+            packages: [
+                .local(path: try AbsolutePath(validating: "/Packages/LocalPackageA")),
+                .local(path: try AbsolutePath(validating: "/Packages/LocalPackageB")),
+            ]
+        )
+
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxproj = got.xcodeProj.pbxproj
+        let rootGroup = try XCTUnwrap(pbxproj.rootGroup())
+        let packages = rootGroup.children.filter { $0.name?.contains("LocalPackage") ?? false }
+        XCTAssertEqual(packages.map(\.name), ["LocalPackageA", "LocalPackageB"])
+    }
+
     func test_generate_localSwiftPackagePaths() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")

@@ -344,7 +344,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 disableBundleAccessors: true,
                 disableShowEnvironmentVarsInScriptPhases: false,
                 disableSynthesizedResourceAccessors: true,
-                textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil),
+                localPackagesGroupName: nil
             ),
             settings: projectSettings,
             filesGroup: manifestsFilesGroup,
@@ -435,7 +436,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 disableBundleAccessors: true,
                 disableShowEnvironmentVarsInScriptPhases: false,
                 disableSynthesizedResourceAccessors: true,
-                textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil),
+                localPackagesGroupName: nil
             ),
             settings: projectSettings,
             filesGroup: pluginsFilesGroup,

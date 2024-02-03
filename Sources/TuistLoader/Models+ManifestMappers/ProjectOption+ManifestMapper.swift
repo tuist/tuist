@@ -16,7 +16,8 @@ extension TuistGraph.Project.Options {
                 indentWidth: manifest.textSettings.indentWidth,
                 tabWidth: manifest.textSettings.tabWidth,
                 wrapsLines: manifest.textSettings.wrapsLines
-            )
+            ),
+            localPackagesGroupName: manifest.localPackagesGroupName
         )
     }
 }

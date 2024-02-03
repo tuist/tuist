@@ -24,6 +24,9 @@ extension Project {
         /// Configures text settings.
         public var textSettings: TextSettings
 
+        /// Specifies a group name used to group local SPM packages.
+        public var localPackagesGroupName: String?
+
         /// Configures the name of the generated .xcodeproj.
         public var xcodeProjectName: String?
 
@@ -35,6 +38,7 @@ extension Project {
             disableShowEnvironmentVarsInScriptPhases: Bool = false,
             disableSynthesizedResourceAccessors: Bool = false,
             textSettings: TextSettings = .textSettings(),
+            localPackagesGroupName: String? = nil,
             xcodeProjectName: String? = nil
         ) -> Self {
             self.init(
@@ -45,6 +49,7 @@ extension Project {
                 disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
                 disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
                 textSettings: textSettings,
+                localPackagesGroupName: localPackagesGroupName,
                 xcodeProjectName: xcodeProjectName
             )
         }
