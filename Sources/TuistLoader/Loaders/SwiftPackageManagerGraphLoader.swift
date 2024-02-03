@@ -13,12 +13,16 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     case unsupportedDependencyKind(String)
     /// Thrown when `SwiftPackageManagerWorkspaceState.packageRef.path` is not present in a local swift package.
     case missingPathInLocalSwiftPackage(String)
+    /// Thrown when dependencies were not installed before loading the graph SwiftPackageManagerGraph
+    case installRequired
 
     /// Error type.
     var type: ErrorType {
         switch self {
         case .unsupportedDependencyKind, .missingPathInLocalSwiftPackage:
             return .bug
+        case .installRequired:
+            return .abort
         }
     }
 
@@ -29,6 +33,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
             return "The dependency kind \(name) is not supported."
         case let .missingPathInLocalSwiftPackage(name):
             return "The local package \(name) does not contain the path in the generated `workspace-state.json` file."
+        case .installRequired:
+            return "We could not find external dependencies. Run `tuist install` before you continue."
         }
     }
 }
@@ -94,8 +100,12 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")
 
+        if !fileHandler.exists(workspacePath) {
+            throw SwiftPackageManagerGraphGeneratorError.installRequired
+        }
+
         let workspaceState = try JSONDecoder()
-            .decode(SwiftPackageManagerWorkspaceState.self, from: try FileHandler.shared.readFile(workspacePath))
+            .decode(SwiftPackageManagerWorkspaceState.self, from: try fileHandler.readFile(workspacePath))
         let packageInfos: [
             // swiftlint:disable:next large_tuple
             (id: String, name: String, folder: AbsolutePath, targetToArtifactPaths: [String: AbsolutePath], info: PackageInfo)

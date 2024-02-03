@@ -13,3 +13,19 @@ final class DependenciesAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTes
         try await run(BuildCommand.self, "App")
     }
 }
+
+final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: TuistAcceptanceTestCase {
+    func test() async throws {
+        try setUpFixture(.appWithSpmDependencies)
+        do {
+            try await run(GenerateCommand.self)
+        } catch {
+            XCTAssertEqual(
+                (error as? FatalError)?.description,
+                "We could not find external dependencies. Run `tuist install` before you continue."
+            )
+            return
+        }
+        XCTFail("Generate should have failed.")
+    }
+}
