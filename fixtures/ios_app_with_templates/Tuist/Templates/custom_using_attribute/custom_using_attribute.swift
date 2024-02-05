@@ -7,7 +7,7 @@ let supportingPlatforms: [String: Template.Attribute.Value] = [
 ]
 
 let nameAttribute: Template.Attribute = .required("name")
-let platformAttribute: Template.Attribute = .optional("platforms", default: .dictionary(supportingPlatforms))
+let platformAttribute: Template.Attribute = .optional("platforms", default: supportingPlatforms)
 
 let testContents = """
 // this is test \(nameAttribute) content
