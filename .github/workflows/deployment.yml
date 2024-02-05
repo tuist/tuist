@@ -48,7 +48,7 @@ jobs:
         with:
           repository: tuist/tuist-cloud
           token: ${{ secrets.TUIST_CLOUD_TOKEN }}
-      - uses: asdf-vm/actions/install@v2
+      - uses: jdx/mise-action@v2
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v3

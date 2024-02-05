@@ -10,7 +10,6 @@ on:
 env:
   RAILS_ENV: test
   RAILS_MASTER_KEY: 09a0926fc36e14a27bcc96e7f9323d05
-  RUBY_VERSION: 3.2.2
   NODE_VERSION: 16.17.0
 
 concurrency:
@@ -38,16 +37,13 @@ jobs:
         image: redis:7.2.1
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: jdx/mise-action@v2
       - uses: actions/cache@v3
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('project/cloud/Gemfile.lock') }}
+          key: ${{ runner.os }}-gems-${{ hashFiles('project/cloud/Gemfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
+            ${{ runner.os }}-gems-
       - name: Install dependencies
         run: |
           gem install bundler
@@ -68,19 +64,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: jdx/mise-action@v2
       - uses: actions/cache@v3
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
+          key: ${{ runner.os }}-gems-${{ hashFiles('Gemfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
-      - uses: actions/setup-node@v3
-        with:
-          node-version: ${{ env.NODE_VERSION }}
+            ${{ runner.os }}-gems-
       - name: Install dependencies
         run: |
           gem install bundler
@@ -94,16 +84,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: jdx/mise-action@v2
       - uses: actions/cache@v3
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
+          key: ${{ runner.os }}-gems-${{ hashFiles('Gemfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
+            ${{ runner.os }}-gems-
       - name: Install dependencies
         run: |
           gem install bundler
@@ -117,16 +104,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: jdx/mise-action@v2
       - uses: actions/cache@v3
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
+          key: ${{ runner.os }}-gems-${{ hashFiles('Gemfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
+            ${{ runner.os }}-gems-
       - name: Install dependencies
         run: |
           gem install bundler
