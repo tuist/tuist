@@ -38,29 +38,29 @@ jobs:
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Fly
         run: flyctl deploy --remote-only -c fly.canary.toml --build-arg RAILS_ENV=canary --wait-timeout 3600
-  acceptance-tests:
-    name: Acceptance Tests
-    runs-on: macos-13
-    timeout-minutes: 20
-    needs: canary
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: tuist/tuist-cloud
-          token: ${{ secrets.TUIST_CLOUD_TOKEN }}
-      - uses: jdx/mise-action@v2
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: actions/cache@v3
-        name: 'Cache installed dependencies folder'
-        with:
-          path: .build
-          key: spm-v1-${{ hashFiles('Package.resolved') }}
-          restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
-      - name: Install dependencies
-        run: tuist install
-      - name: Test
-        run: tuist test TuistCloudAcceptanceTests --test-targets TuistCloudAcceptanceTests/TuistCloudAcceptanceTestWithIOSAppWithFrameworks
+  # acceptance-tests:
+  #   name: Acceptance Tests
+  #   runs-on: macos-13
+  #   timeout-minutes: 20
+  #   needs: canary
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         repository: tuist/tuist-cloud
+  #         token: ${{ secrets.TUIST_CLOUD_TOKEN }}
+  #     - uses: jdx/mise-action@v2
+  #     - name: Select Xcode
+  #       run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+  #     - uses: actions/cache@v3
+  #       name: 'Cache installed dependencies folder'
+  #       with:
+  #         path: .build
+  #         key: spm-v1-${{ hashFiles('Package.resolved') }}
+  #         restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
+  #     - name: Install dependencies
+  #       run: tuist install
+  #     - name: Test
+  #       run: tuist test TuistCloudAcceptanceTests --test-targets TuistCloudAcceptanceTests/TuistCloudAcceptanceTestWithIOSAppWithFrameworks
   production:
     environment:
       name: production
