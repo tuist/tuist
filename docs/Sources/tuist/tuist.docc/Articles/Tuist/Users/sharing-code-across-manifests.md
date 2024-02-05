@@ -16,10 +16,7 @@ Reusing code across manifest files is possible in Tuist thanks to the concept of
 
 ### Definition
 
-Project description helpers are Swift files that get compiled into a framework, `ProjectDescriptionHelpers`, that manifest files can import.
-
-> Structure:
-Tuist is not opinionated about the files structure and the content in them, so it's up to you to give them a structure that makes sense for your project.
+Project description helpers are Swift files that get compiled into a module, `ProjectDescriptionHelpers`, that manifest files can import. The module is compiled by gathering all the files in the `Tuist/ProjectDescriptionHelpers` directory.
 
 You can import them into your manifest file by adding an import statement at the top of the file:
 
@@ -29,9 +26,10 @@ import ProjectDescription
 import ProjectDescriptionHelpers
 ```
 
-### Location
-
-Tuist traverses up the directory hierarchy until it finds a `Tuist` directory. Then it builds the helpers module including all the files under the `ProjectDescriptionHelpers` directory in the `Tuist` directory.
+`ProjectDescriptionHelpers` are available in:
+- [Project.swift](project)
+- [Package.swift](dependencies) (only behind the `#TUIST` compiler flag)
+- [Workspace.swift](workspace)
 
 ### Example
 
