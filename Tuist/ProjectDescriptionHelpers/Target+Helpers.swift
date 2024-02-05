@@ -62,7 +62,9 @@ extension Target {
             .target(
                 name: name,
                 product: product,
-                dependencies: dependencies
+                dependencies: dependencies + [
+                    .external(name: "Mockable"),
+                ]
             ),
         ]
         var testTargets: [Target] = []
@@ -75,6 +77,7 @@ extension Target {
                         .target(name: name),
                         .external(name: "SwiftToolsSupport"),
                         .external(name: "SystemPackage"),
+                        .external(name: "MockableTest"),
                     ]
                         + (hasTesting ? [.target(name: "\(name)Testing")] : [])
                 )

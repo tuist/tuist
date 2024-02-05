@@ -87,7 +87,6 @@ func targets() -> [Target] {
                 .external(name: "ZIPFoundation"),
                 .external(name: "Swifter"),
                 .external(name: "Difference"),
-                .external(name: "Mockable"),
             ],
             testingDependencies: [
                 .target(name: "TuistCore"),
@@ -136,7 +135,6 @@ func targets() -> [Target] {
                 .external(name: "ArgumentParser"),
                 .external(name: "GraphViz"),
                 .external(name: "AnyCodable"),
-                .external(name: "MockableTest"),
             ],
             integrationTestsDependencies: [
                 .target(name: "TuistCoreTesting"),
@@ -328,7 +326,6 @@ func targets() -> [Target] {
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistScaffoldTesting"),
                 .target(name: "TuistCoreTesting"),
-                .external(name: "MockableTest"),
             ],
             testingDependencies: [
                 .target(name: "TuistGraph"),

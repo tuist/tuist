@@ -265,6 +265,8 @@ var targets: [Target] = [
             "TSCclibc": .staticFramework,
             "TSCLibc": .staticFramework,
             "ArgumentParser": .staticFramework,
+            "Mockable": .staticFramework,
+            "MockableTest": .staticFramework,
         ],
         targetSettings: [
             "Mockable": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
