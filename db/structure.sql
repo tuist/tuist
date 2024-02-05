@@ -152,6 +152,36 @@ $$;
 
 
 --
+-- Name: que_scheduler_check_job_exists(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.que_scheduler_check_job_exists() RETURNS boolean
+    LANGUAGE sql
+    AS $$
+SELECT EXISTS(SELECT * FROM que_jobs WHERE job_class = 'Que::Scheduler::SchedulerJob');
+$$;
+
+
+--
+-- Name: que_scheduler_prevent_job_deletion(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.que_scheduler_prevent_job_deletion() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+BEGIN
+    IF OLD.job_class = 'Que::Scheduler::SchedulerJob' THEN
+        IF NOT que_scheduler_check_job_exists() THEN
+            raise exception 'Deletion of que_scheduler job prevented. Deleting the que_scheduler job is almost certainly a mistake.';
+        END IF;
+    END IF;
+    RETURN OLD;
+END;
+$$;
+
+
+--
 -- Name: que_state_notify(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -232,7 +262,9 @@ CREATE TABLE public.accounts (
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
     customer_id character varying,
-    plan integer
+    plan integer,
+    cache_upload_event_count integer DEFAULT 0,
+    cache_download_event_count integer DEFAULT 0
 );
 
 
@@ -479,6 +511,38 @@ CREATE UNLOGGED TABLE public.que_lockers (
     job_schema_version integer DEFAULT 1,
     CONSTRAINT valid_queues CHECK (((array_ndims(queues) = 1) AND (array_length(queues, 1) IS NOT NULL))),
     CONSTRAINT valid_worker_priorities CHECK (((array_ndims(worker_priorities) = 1) AND (array_length(worker_priorities, 1) IS NOT NULL)))
+);
+
+
+--
+-- Name: que_scheduler_audit; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.que_scheduler_audit (
+    scheduler_job_id bigint NOT NULL,
+    executed_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: TABLE que_scheduler_audit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.que_scheduler_audit IS '7';
+
+
+--
+-- Name: que_scheduler_audit_enqueued; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.que_scheduler_audit_enqueued (
+    scheduler_job_id bigint NOT NULL,
+    job_class character varying(255) NOT NULL,
+    queue character varying(255),
+    priority integer,
+    args jsonb NOT NULL,
+    job_id bigint,
+    run_at timestamp with time zone
 );
 
 
@@ -776,6 +840,14 @@ ALTER TABLE ONLY public.que_lockers
 
 
 --
+-- Name: que_scheduler_audit que_scheduler_audit_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.que_scheduler_audit
+    ADD CONSTRAINT que_scheduler_audit_pkey PRIMARY KEY (scheduler_job_id);
+
+
+--
 -- Name: que_values que_values_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1019,10 +1091,45 @@ CREATE INDEX que_poll_idx ON public.que_jobs USING btree (job_schema_version, qu
 
 
 --
+-- Name: que_scheduler_audit_enqueued_args; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX que_scheduler_audit_enqueued_args ON public.que_scheduler_audit_enqueued USING btree (args);
+
+
+--
+-- Name: que_scheduler_audit_enqueued_job_class; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX que_scheduler_audit_enqueued_job_class ON public.que_scheduler_audit_enqueued USING btree (job_class);
+
+
+--
+-- Name: que_scheduler_audit_enqueued_job_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX que_scheduler_audit_enqueued_job_id ON public.que_scheduler_audit_enqueued USING btree (job_id);
+
+
+--
+-- Name: que_scheduler_job_in_que_jobs_unique_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX que_scheduler_job_in_que_jobs_unique_index ON public.que_jobs USING btree (job_class) WHERE (job_class = 'Que::Scheduler::SchedulerJob'::text);
+
+
+--
 -- Name: que_jobs que_job_notify; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER que_job_notify AFTER INSERT ON public.que_jobs FOR EACH ROW WHEN ((NOT (COALESCE(current_setting('que.skip_notify'::text, true), ''::text) = 'true'::text))) EXECUTE FUNCTION public.que_job_notify();
+
+
+--
+-- Name: que_jobs que_scheduler_prevent_job_deletion_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER que_scheduler_prevent_job_deletion_trigger AFTER DELETE OR UPDATE ON public.que_jobs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.que_scheduler_prevent_job_deletion();
 
 
 --
@@ -1057,12 +1164,22 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: que_scheduler_audit_enqueued que_scheduler_audit_enqueued_scheduler_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.que_scheduler_audit_enqueued
+    ADD CONSTRAINT que_scheduler_audit_enqueued_scheduler_job_id_fkey FOREIGN KEY (scheduler_job_id) REFERENCES public.que_scheduler_audit(scheduler_job_id);
+
+
+--
 -- PostgreSQL database dump complete
 --
 
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20240108223110'),
+('20240108084302'),
 ('20231113224031'),
 ('20231014204217'),
 ('20230919143930'),

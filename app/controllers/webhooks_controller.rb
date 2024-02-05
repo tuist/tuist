@@ -23,7 +23,7 @@ class WebhooksController < ActionController::Base
 
     # Handle the event
     case event.type
-    when 'customer.subscription.updated'
+    when 'customer.subscription.updated', 'customer.subscription.created', 'customer.subscription.deleted'
       subscription = event.data.object # contains a Stripe::PaymentIntent
       StripeUpdateSubscriptionService.call(subscription: subscription)
     else

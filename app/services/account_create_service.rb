@@ -38,6 +38,14 @@ class AccountCreateService < ApplicationService
         name: name,
         owner: owner,
       )
+
+      if Environment.stripe_configured?
+        customer = Stripe::Customer.create({
+          name: name,
+        })
+        account.update(customer_id: customer.id)
+      end
+
       account
     end
   end

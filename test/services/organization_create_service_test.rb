@@ -5,6 +5,12 @@ require "test_helper"
 class OrganizationCreateServiceTest < ActiveSupport::TestCase
   Customer = Struct.new(:id)
 
+  setup do
+    Stripe::Customer.expects(:create)
+      .with { |param| param[:name] == "Tuist" }
+      .returns(Customer.new(id: "1"))
+  end
+
   test "creates the organization and adds the creator as an admin" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))

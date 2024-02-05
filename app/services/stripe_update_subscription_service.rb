@@ -11,7 +11,7 @@ class StripeUpdateSubscriptionService < ApplicationService
   def call
     account = Account.find_by!(customer_id: subscription.customer)
     if subscription.status == 'active' || subscription.status == 'trialing'
-      account.update!(plan: :team)
+      account.update!(plan: :enterprise)
     else
       account.update!(plan: nil)
     end
