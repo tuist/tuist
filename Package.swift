@@ -30,6 +30,7 @@ var targets: [Target] = [
             swiftToolsSupportDependency,
             "AnyCodable",
             "TuistSupport",
+            "Mockable"
         ]
     ),
     .target(
@@ -50,6 +51,7 @@ var targets: [Target] = [
             "TuistSupport",
             "TuistGraph",
             "XcodeProj",
+            "Mockable"
         ]
     ),
     .target(
@@ -82,6 +84,7 @@ var targets: [Target] = [
             "TuistAnalytics",
             "TuistPlugin",
             "TuistGraph",
+            "Mockable"
         ]
     ),
     .executableTarget(
@@ -109,6 +112,7 @@ var targets: [Target] = [
             swifterDependency,
             "ZIPFoundation",
             "ProjectDescription",
+            "Mockable"
         ]
     ),
     .target(
@@ -144,6 +148,7 @@ var targets: [Target] = [
             "GraphViz",
             swiftGenKitDependency,
             "StencilSwiftKit",
+            "Mockable"
         ]
     ),
     .target(
@@ -163,6 +168,7 @@ var targets: [Target] = [
             "TuistSupport",
             "StencilSwiftKit",
             "Stencil",
+            "Mockable"
         ]
     ),
     .target(
@@ -174,6 +180,7 @@ var targets: [Target] = [
             "TuistCore",
             "TuistGraph",
             "TuistSupport",
+            "Mockable"
         ]
     ),
     .target(
@@ -184,6 +191,7 @@ var targets: [Target] = [
             "TuistGraph",
             "TuistSupport",
             "TuistPlugin",
+            "Mockable",
             swiftToolsSupportDependency,
         ]
     ),
@@ -194,6 +202,7 @@ var targets: [Target] = [
             "TuistGraph",
             "TuistSupport",
             "XcodeProj",
+            "Mockable",
             swiftToolsSupportDependency,
         ]
     ),
@@ -204,6 +213,7 @@ var targets: [Target] = [
             "TuistGraph",
             "TuistSupport",
             "XcodeProj",
+            "Mockable",
             swiftToolsSupportDependency,
             "Queuer",
         ]
@@ -216,6 +226,7 @@ var targets: [Target] = [
             "TuistCore",
             "TuistGraph",
             "TuistSupport",
+            "Mockable",
             "ProjectDescription",
         ]
     ),
@@ -239,6 +250,7 @@ var targets: [Target] = [
             "TuistCore",
             "TuistGraph",
             "TuistLoader",
+            "Mockable",
             swiftToolsSupportDependency,
         ]
     ),
@@ -249,6 +261,7 @@ var targets: [Target] = [
             "TuistLoader",
             "TuistSupport",
             "TuistScaffold",
+            "Mockable",
             swiftToolsSupportDependency,
         ]
     ),
@@ -265,6 +278,13 @@ var targets: [Target] = [
             "TSCclibc": .staticFramework,
             "TSCLibc": .staticFramework,
             "ArgumentParser": .staticFramework,
+            "Mockable": .staticFramework,
+            "MockableTest": .staticFramework,
+        ],
+        // To revert once we release Tuist 4
+        targetSettings: [
+            "Mockable": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
+            "MockableTest": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
         ],
         platforms: [.macOS]
     )
@@ -370,9 +390,10 @@ let package = Package(
         .package(url: "https://github.com/SwiftDocOrg/GraphViz", exact: "0.2.0"),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit", exact: "2.10.1"),
         .package(url: "https://github.com/SwiftGen/SwiftGen", exact: "6.6.2"),
-        .package(url: "https://github.com/tuist/XcodeProj", exact: "8.15.0"),
+        .package(url: "https://github.com/tuist/XcodeProj", exact: "8.18.0"),
         .package(url: "https://github.com/cpisciotta/xcbeautify", from: "1.4.0"),
         .package(url: "https://github.com/krzysztofzablocki/Difference.git", from: "1.0.2"),
+        .package(url: "https://github.com/Kolos65/Mockable.git", from: "0.0.2"),
     ],
     targets: targets
 )

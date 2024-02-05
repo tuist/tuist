@@ -10,10 +10,19 @@ extension Target {
         name: String,
         product: Product,
         dependencies: [TargetDependency],
-        settings _: Settings = .settings(
+        settings: Settings = .settings(
             configurations: [
-                .debug(name: "Debug", settings: [:], xcconfig: nil),
-                .release(name: "Release", settings: [:], xcconfig: nil),
+                .debug(
+                    name: "Debug",
+                    settings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"],
+                    xcconfig: nil
+                ),
+                .release(
+                    name: "Release",
+
+                    settings: [:],
+                    xcconfig: nil
+                ),
             ]
         )
     ) -> Target {
@@ -32,7 +41,8 @@ extension Target {
             deploymentTargets: .macOS("12.0"),
             infoPlist: .default,
             sources: ["\(rootFolder)/\(name)/**/*.swift"],
-            dependencies: dependencies
+            dependencies: dependencies,
+            settings: settings
         )
     }
 
@@ -47,11 +57,15 @@ extension Target {
         testingDependencies: [TargetDependency] = [],
         integrationTestsDependencies: [TargetDependency] = []
     ) -> [Target] {
+        let isStaticProduct = product == .staticLibrary || product == .staticFramework
+
         var targets: [Target] = [
             .target(
                 name: name,
                 product: product,
-                dependencies: dependencies
+                dependencies: dependencies + (isStaticProduct ? [
+                    .external(name: "Mockable"),
+                ] : [])
             ),
         ]
         var testTargets: [Target] = []
@@ -66,6 +80,7 @@ extension Target {
                         .external(name: "SystemPackage"),
                     ]
                         + (hasTesting ? [.target(name: "\(name)Testing")] : [])
+                        + (isStaticProduct ? [.external(name: "MockableTest")] : [])
                 )
             )
         }
