@@ -23,6 +23,7 @@
   },
   "rubyLsp.formatter": "auto",
   "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "sorbet.enabled": true,
   "files.exclude": {
     "**/node_modules": true,
     "**/sorbet": true
@@ -32,5 +33,7 @@
     "**/sorbet": true,
     "node_modules/**": true,
     "sorbet/**": true
-  }
+  },
+  "rubyLsp.rubyVersionManager": "custom",
+  "rubyLsp.customRubyCommand": "eval \"$(mise env -s zsh)\""
 }

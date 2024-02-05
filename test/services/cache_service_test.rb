@@ -311,4 +311,103 @@ class CacheServiceTest < ActiveSupport::TestCase
     # Then
     assert_equal true, got
   end
+
+  test "multipart_upload_start creates the upload using the Aws::S3::Client" do
+    # Given
+    organization = Organization.create!
+    Account.create!(owner: organization, name: "tuist", plan: :team)
+    project = Project.create!(
+      name: "my-project",
+      account_id: organization.account.id,
+      token: Devise.friendly_token.first(8),
+      remote_cache_storage: @s3_bucket,
+    )
+    subject = CacheService.new(
+      project_slug: project.full_name,
+      hash: "artifact-hash",
+      name: "MyFramework",
+      subject: project,
+      cache_category: "builds",
+    )
+    s3_client = mock('Aws::S3::Client').responds_like_instance_of(Aws::S3::Client)
+    S3ClientService.expects(:call).with(s3_bucket: project.remote_cache_storage).returns(s3_client)
+    s3_client.expects(:create_multipart_upload).with({
+      bucket: project.remote_cache_storage.name,
+      key: subject.object_key,
+    }).returns(Struct.new(:upload_id).new(upload_id: "upload_id"))
+
+    # When
+    got = subject.multipart_upload_start
+
+    # Then
+    assert_equal "upload_id", got
+  end
+
+  test "multipart_generate_url generates the URL using the Aws::S3::Client" do
+    # Given
+    organization = Organization.create!
+    Account.create!(owner: organization, name: "tuist", plan: :team)
+    project = Project.create!(
+      name: "my-project",
+      account_id: organization.account.id,
+      token: Devise.friendly_token.first(8),
+      remote_cache_storage: @s3_bucket,
+    )
+    subject = CacheService.new(
+      project_slug: project.full_name,
+      hash: "artifact-hash",
+      name: "MyFramework",
+      subject: project,
+      cache_category: "builds",
+    )
+    s3_client = mock('Aws::S3::Client').responds_like_instance_of(Aws::S3::Client)
+    presigner = mock('Aws::S3::Presigner').responds_like_instance_of(Aws::S3::Presigner)
+    S3ClientService.expects(:call).with(s3_bucket: project.remote_cache_storage).returns(s3_client)
+    Aws::S3::Presigner.expects(:new).returns(presigner)
+    upload_url = "https://test.upload.com/"
+    presigner.expects(:presigned_url).with(:upload_part, {
+      bucket: project.remote_cache_storage.name,
+      key: subject.object_key,
+      upload_id: "upload_id",
+      part_number: 1,
+    }).returns(upload_url)
+
+    # When
+    got = subject.multipart_generate_url(upload_id: "upload_id", part_number: 1)
+
+    # Then
+    assert_equal upload_url, got
+  end
+
+  test "multipart_upload_complete completes the upload using the Aws::S3::Client" do
+    # Given
+    organization = Organization.create!
+    Account.create!(owner: organization, name: "tuist", plan: :team)
+    project = Project.create!(
+      name: "my-project",
+      account_id: organization.account.id,
+      token: Devise.friendly_token.first(8),
+      remote_cache_storage: @s3_bucket,
+    )
+    subject = CacheService.new(
+      project_slug: project.full_name,
+      hash: "artifact-hash",
+      name: "MyFramework",
+      subject: project,
+      cache_category: "builds",
+    )
+    s3_client = mock('Aws::S3::Client').responds_like_instance_of(Aws::S3::Client)
+    S3ClientService.expects(:call).with(s3_bucket: project.remote_cache_storage).returns(s3_client)
+    s3_client.expects(:complete_multipart_upload).with({
+      bucket: project.remote_cache_storage.name,
+      key: subject.object_key,
+      upload_id: "upload_id",
+      multipart_upload: {
+        parts: [{ part_number: 1, etag: "etag" }],
+      },
+    })
+
+    # When/Then
+    subject.multipart_upload_complete(upload_id: "upload_id", parts: [{ part_number: 1, etag: "etag" }])
+  end
 end

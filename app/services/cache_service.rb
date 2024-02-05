@@ -1,59 +1,110 @@
+# typed: strict
 # frozen_string_literal: true
 
 class CacheService < ApplicationService
+  extend T::Sig
+
   module Error
     class S3BucketForbidden < CloudError
+      extend T::Sig
+
+      sig { returns(String) }
       def message
         "Ensure your secret access key is set correctly, following the instructions here: https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html."
       end
 
+      sig { returns(Symbol) }
       def status_code
         :bad_request
       end
     end
 
     class Unauthorized < CloudError
+      extend T::Sig
+
+      sig { returns(String) }
       def message
         "You do not have a permission to clear this S3 bucket."
       end
 
+      sig { returns(Symbol) }
       def status_code
         :unauthorized
       end
     end
 
     class PaymentRequired < CloudError
+      extend T::Sig
+
+      sig { returns(String) }
       def message
         url = URI.parse(Environment.app_url).tap { |uri| uri.path = '/get-started' }.to_s
 
         "To use remote cache, you need to upgrade your plan. Please, visit #{url} to manage your subscription."
       end
 
+      sig { returns(Symbol) }
       def status_code
         :payment_required
       end
     end
   end
 
-  attr_reader :account_name, :project_name, :project_slug, :hash, :name, :object_key, :subject, :cache_category
+  sig { returns(String) }
+  attr_reader :account_name
 
-  def initialize(project_slug:, cache_category: nil, hash:, name:, subject:)
+  sig { returns(String) }
+  attr_reader :project_name
+
+  sig { returns(String) }
+  attr_reader :project_slug
+
+  sig { returns(String) }
+  attr_reader :hash
+
+  sig { returns(String) }
+  attr_reader :name
+
+  sig { returns(T.any(User, Organization, Project)) }
+  attr_reader :subject
+
+  sig { returns(T.nilable(String)) }
+  attr_reader :cache_category
+
+  sig { returns(String) }
+  attr_reader :object_key
+
+  sig do
+    params(
+      project_slug: String,
+      hash: String,
+      name: String,
+      subject: T.any(User, Organization, Project),
+      cache_category: T.nilable(String),
+    ).void
+  end
+  def initialize(project_slug:, hash:, name:, subject:, cache_category: nil)
     super()
     split_project_slug = project_slug.split("/")
-    @account_name = split_project_slug.first
-    @project_name = split_project_slug.last
+    @account_name = T.let(T.must(T.let(split_project_slug.first, T.nilable(String))), String)
+    @project_name = T.let(T.must(T.let(split_project_slug.last, T.nilable(String))), String)
     @project_slug = project_slug
     @hash = hash
-    @object_key = if cache_category.nil? || cache_category.empty?
-      "#{project_slug}/#{hash}/#{name}"
-    else
-      "#{project_slug}/#{cache_category}/#{hash}/#{name}"
-    end
+    @cache_category = T.let(cache_category, T.nilable(String))
+    @object_key = T.let(
+      if cache_category.nil? || cache_category.empty?
+        T.let("#{project_slug}/#{hash}/#{name}", String)
+      else
+        T.let("#{project_slug}/#{cache_category}/#{hash}/#{name}", String)
+      end,
+      String,
+    )
 
     @name = name
     @subject = subject
   end
 
+  sig { returns(T::Boolean) }
   def object_exists?
     s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
     begin
@@ -71,6 +122,7 @@ class CacheService < ApplicationService
     end
   end
 
+  sig { returns(String) }
   def fetch
     s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
     signer = Aws::S3::Presigner.new(client: s3_client)
@@ -91,6 +143,7 @@ class CacheService < ApplicationService
     url
   end
 
+  sig { returns(String) }
   def upload
     s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
     s3_client.put_object(
@@ -106,6 +159,43 @@ class CacheService < ApplicationService
     url
   end
 
+  sig { returns(String) }
+  def multipart_upload_start
+    s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
+    upload = s3_client.create_multipart_upload({
+      bucket: project.remote_cache_storage.name,
+      key: object_key,
+    })
+    upload.upload_id
+  end
+
+  sig { params(upload_id: String, part_number: Integer).returns(String) }
+  def multipart_generate_url(upload_id:, part_number:)
+    s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
+    presigner = Aws::S3::Presigner.new(client: s3_client)
+
+    presigner.presigned_url(:upload_part, {
+      bucket: project.remote_cache_storage.name,
+      key: object_key,
+      upload_id: upload_id,
+      part_number: part_number,
+    })
+  end
+
+  sig { params(upload_id: String, parts: T::Array[{ part_number: Integer, etag: String }]).returns(NilClass) }
+  def multipart_upload_complete(upload_id:, parts:)
+    s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
+    s3_client.complete_multipart_upload({
+      bucket: project.remote_cache_storage.name,
+      key: object_key,
+      upload_id: upload_id,
+      multipart_upload: {
+        parts: parts,
+      },
+    })
+  end
+
+  sig { returns(Integer) }
   def verify_upload
     s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
     object = s3_client.get_object(
@@ -121,11 +211,15 @@ class CacheService < ApplicationService
     object.content_length
   end
 
+  sig { returns(Project) }
   def project
-    @project ||= ProjectFetchService.new.fetch_by_name(
-      name: project_name,
-      account_name: account_name,
-      subject: subject,
+    @project ||= T.let(
+      ProjectFetchService.new.fetch_by_name(
+        name: project_name,
+        account_name: account_name,
+        subject: subject,
+      ),
+      T.nilable(Project),
     )
     # Disabled for now
     # if Environment.stripe_configured? && @project.account.owner.is_a?(Organization) && @project.account.plan.nil?

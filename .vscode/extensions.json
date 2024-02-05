@@ -1,5 +1,7 @@
 {
   "recommendations": [
-    "esbenp.prettier-vscode"
+    "esbenp.prettier-vscode",
+    "sorbet.sorbet-vscode-extension",
+    "Shopify.ruby-lsp"
   ],
 }

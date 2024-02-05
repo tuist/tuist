@@ -12,11 +12,14 @@ Rails.application.routes.draw do
     delete '/organizations/:organization_name/invitations', to: 'invitations#destroy'
     delete '/organizations/:organization_name/members/:username', to: 'members#destroy'
     get '/projects/:account_name/:project_name', to: 'projects#show'
+    post "/analytics", to: "analytics#analytics"
     get "/cache", to: "cache#show"
     get "/cache/exists", to: "cache#exists"
-    post "/analytics", to: "analytics#analytics"
     post "/cache", to: "cache#upload_cache_artifact"
     post "/cache/verify_upload", to: "cache#verify_upload"
+    post "/cache/multipart/start", to: "cache#multipart_upload_cache_artifact_start"
+    post "/cache/multipart/generate-url", to: "cache#multipart_upload_cache_artifact_generate_url"
+    post "/cache/multipart/complete", to: "cache#multipart_upload_cache_artifact_complete"
     put '/organizations/:organization_name/members/:username', to: 'members#update'
     put "/projects/:account_name/:project_name/cache/clean", to: "cache#clean"
     resources :invitations, path: '/organizations/:organization_name/invitations', only: [:create]
