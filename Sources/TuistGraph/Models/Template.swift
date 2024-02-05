@@ -149,39 +149,3 @@ extension Template.Attribute.Value: RawRepresentable {
         }
     }
 }
-
-extension Template.Attribute.Value: ExpressibleByStringLiteral {
-    public init(stringLiteral value: String) {
-        self = .string(value)
-    }
-}
-
-extension Template.Attribute.Value: ExpressibleByIntegerLiteral {
-    public init(integerLiteral value: Int) {
-        self = .integer(value)
-    }
-}
-
-extension Template.Attribute.Value: ExpressibleByFloatLiteral {
-    public init(floatLiteral value: Double) {
-        self = .real(value)
-    }
-}
-
-extension Template.Attribute.Value: ExpressibleByBooleanLiteral {
-    public init(booleanLiteral value: Bool) {
-        self = .boolean(value)
-    }
-}
-
-extension Template.Attribute.Value: ExpressibleByDictionaryLiteral {
-    public init(dictionaryLiteral elements: (String, Template.Attribute.Value)...) {
-        self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
-    }
-}
-
-extension Template.Attribute.Value: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: Template.Attribute.Value...) {
-        self = .array(elements)
-    }
-}

@@ -71,9 +71,9 @@ final class TemplateGeneratorTests: TuistTestCase {
             template: template,
             to: destinationPath,
             attributes: [
-                "name": "Test_Name",
-                "aName": "test",
-                "bName": "nested_dir",
+                "name": .string("Test_Name"),
+                "aName": .string("test"),
+                "bName": .string("nested_dir"),
             ]
         )
 
@@ -221,7 +221,7 @@ final class TemplateGeneratorTests: TuistTestCase {
         try subject.generate(
             template: template,
             to: destinationPath,
-            attributes: ["name": "attribute name"]
+            attributes: ["name": .string("attribute name")]
         )
 
         // Then
@@ -262,7 +262,7 @@ final class TemplateGeneratorTests: TuistTestCase {
         try subject.generate(
             template: template,
             to: destinationPath,
-            attributes: ["name": "attribute name"]
+            attributes: ["name": .string("attribute name")]
         )
 
         // Then
@@ -296,7 +296,7 @@ final class TemplateGeneratorTests: TuistTestCase {
         try subject.generate(
             template: template,
             to: destinationPath,
-            attributes: ["name": "attribute name"]
+            attributes: ["name": .string("attribute name")]
         )
 
         // Then
