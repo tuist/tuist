@@ -144,7 +144,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
 
     func test_ios_app_with_templates_custom_using_attribute() async throws {
         try setUpFixture(.iosAppWithTemplates)
-        try await run(FetchCommand.self)
+        try await run(InstallCommand.self)
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom_using_attribute",
