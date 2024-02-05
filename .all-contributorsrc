@@ -1273,6 +1273,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "anlaital-oura",
+      "name": "Antti Laitala",
+      "avatar_url": "https://avatars.githubusercontent.com/u/133648611?v=4",
+      "profile": "https://github.com/anlaital-oura",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
