@@ -433,6 +433,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "TSCTestSupport", // https://github.com/apple/swift-tools-support-core
                     "ViewInspector", // https://github.com/nalexn/ViewInspector
                     "XCTVapor", // https://github.com/vapor/vapor
+                    "Mockable", // https://github.com/Kolos65/Mockable.git
+                    "MockableTest", // https://github.com/Kolos65/Mockable.git
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }

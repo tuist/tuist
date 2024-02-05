@@ -1,3 +1,4 @@
+import MockableTest
 import ProjectDescription
 import TSCBasic
 import TuistCore
@@ -21,7 +22,7 @@ final class PluginServiceTests: TuistUnitTestCase {
     private var subject: PluginService!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
     private var cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory!
-    private var fileUnarchiver: MockFileUnarchiver!
+    private var fileUnarchiver: MockFileUnarchiving!
     private var fileClient: MockFileClient!
 
     override func setUp() {
@@ -34,9 +35,9 @@ final class PluginServiceTests: TuistUnitTestCase {
         cacheDirectoriesProvider.cacheDirectoryStub = try! temporaryPath()
         cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
         cacheDirectoryProviderFactory.cacheDirectoriesStub = { mockCacheDirectoriesProvider }
-        fileUnarchiver = MockFileUnarchiver()
-        let fileArchivingFactory = MockFileArchivingFactory()
-        fileArchivingFactory.stubbedMakeFileUnarchiverResult = fileUnarchiver
+        fileUnarchiver = MockFileUnarchiving()
+        let fileArchivingFactory = MockFileArchivingFactorying()
+        given(fileArchivingFactory).makeFileUnarchiver(for: .any).willReturn(fileUnarchiver)
         fileClient = MockFileClient()
         subject = PluginService(
             manifestLoader: manifestLoader,

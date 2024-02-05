@@ -10,10 +10,20 @@ extension Target {
         name: String,
         product: Product,
         dependencies: [TargetDependency],
-        settings _: Settings = .settings(
+        settings: Settings = .settings(
             configurations: [
-                .debug(name: "Debug", settings: [:], xcconfig: nil),
-                .release(name: "Release", settings: [:], xcconfig: nil),
+                .debug(
+                    name: "Debug",
+
+                    settings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"],
+                    xcconfig: nil
+                ),
+                .release(
+                    name: "Release",
+
+                    settings: [:],
+                    xcconfig: nil
+                ),
             ]
         )
     ) -> Target {
@@ -32,7 +42,8 @@ extension Target {
             deploymentTargets: .macOS("12.0"),
             infoPlist: .default,
             sources: ["\(rootFolder)/\(name)/**/*.swift"],
-            dependencies: dependencies
+            dependencies: dependencies,
+            settings: settings
         )
     }
 
@@ -51,7 +62,9 @@ extension Target {
             .target(
                 name: name,
                 product: product,
-                dependencies: dependencies
+                dependencies: dependencies + [
+                    .external(name: "Mockable"),
+                ]
             ),
         ]
         var testTargets: [Target] = []
@@ -64,6 +77,7 @@ extension Target {
                         .target(name: name),
                         .external(name: "SwiftToolsSupport"),
                         .external(name: "SystemPackage"),
+                        .external(name: "MockableTest"),
                     ]
                         + (hasTesting ? [.target(name: "\(name)Testing")] : [])
                 )
