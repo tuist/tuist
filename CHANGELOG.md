@@ -1,13 +1,43 @@
 # Changelog
 
+## 4.0.0-beta.3 - 2024-02-05
+
+### Tuist
+
+#### Changed
+
+- Rename `fetch` to `install` [#5857](https://github.com/tuist/tuist/pull/5857) by [@pepicrft](https://github.com/pepicrft)
+- Change Package.swift directory from Tuist to root [#5862](https://github.com/tuist/tuist/pull/5862) by [@fortmarek](https://github.com/fortmarek)
+- Align the cache directory with the UNIX XDG Base Directory Specification [#5855](https://github.com/tuist/tuist/pull/5855) by [@pepicrft](https://github.com/pepicrft)
+- Improve performance of resolving manifest file paths [#5871](https://github.com/tuist/tuist/pull/5871) by [@anlaital-oura](https://github.com/anlaital-oura)
+
+#### Fixed
+
+- Fix running tuist clean without a specific category [#5868](https://github.com/tuist/tuist/pull/5868) by [@fortmarek](https://github.com/fortmarek)
+- Fix tuist clean dependencies [#5872](https://github.com/tuist/tuist/pull/5872) by [@fortmarek](https://github.com/fortmarek)
+- Throw an error when focusing on a non-existent target [#5874](https://github.com/tuist/tuist/pull/5874) by [@fortmarek](https://github.com/fortmarek)
+- Fix error message on missing dependencies [#5875](https://github.com/tuist/tuist/pull/5875) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+#### Changed
+
+- Fix tuist clean, remove --skip-cache by [@fortmarek](https://github.com/fortmarek)
+
+#### Fixed
+
+- Fixed binary-caching of macOS targets might fail due to missing destinations by [@fortmarek](https://github.com/fortmarek)
+
 ## 4.0.0-beta.2 - 2024-02-01
 
 ### Tuist
 
 #### Fixed
+
 - Fix install script [#5858](https://github.com/tuist/tuist/pull/5858) by [@svenmuennich](https://github.com/svenmuennich)
 
 #### Changed
+
 - Change Package.swift directory from Tuist to root [#5862](https://github.com/tuist/tuist/pull/5862) by [@fortmarek](https://github.com/fortmarek)
 - Rename `fetch` to `install` [#5857](https://github.com/tuist/tuist/pull/5857) by [@pepicrft](https://github.com/pepicrft)
 - Align the cache directory with the UNIX XDG Base Directory Specification [#5855](https://github.com/tuist/tuist/pull/5855) by [@pepicrft](https://github.com/pepicrft)
