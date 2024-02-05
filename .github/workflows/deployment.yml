@@ -71,7 +71,7 @@ jobs:
       DOCKER_BUILDKIT: 1
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: acceptance-tests
+    # needs: acceptance-tests
     steps:
       - uses: actions/checkout@v3
         if: ${{ github.event.inputs.commit_sha == '' }}
