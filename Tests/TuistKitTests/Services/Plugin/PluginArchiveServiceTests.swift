@@ -1,22 +1,22 @@
+import MockableTest
 import TSCBasic
+import TuistLoaderTesting
 import TuistSupport
 import TuistSupportTesting
 import XCTest
-
-import TuistLoaderTesting
 @testable import TuistKit
 
 final class PluginArchiveServiceTests: TuistUnitTestCase {
     private var subject: PluginArchiveService!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
     private var manifestLoader: MockManifestLoader!
-    private var fileArchiverFactory: MockFileArchivingFactory!
+    private var fileArchiverFactory: MockFileArchivingFactorying!
 
     override func setUp() {
         super.setUp()
         swiftPackageManagerController = MockSwiftPackageManagerController()
         manifestLoader = MockManifestLoader()
-        fileArchiverFactory = MockFileArchivingFactory()
+        fileArchiverFactory = MockFileArchivingFactorying()
         subject = PluginArchiveService(
             swiftPackageManagerController: swiftPackageManagerController,
             manifestLoader: manifestLoader,
@@ -96,10 +96,10 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         swiftPackageManagerController.loadBuildFatReleaseBinaryStub = { _, product, _, _ in
             builtProducts.append(product)
         }
-        let fileArchiver = MockFileArchiver()
-        fileArchiverFactory.stubbedMakeFileArchiverResult = fileArchiver
+        let fileArchiver = MockFileArchiving()
+        given(fileArchiverFactory).makeFileArchiver(for: .any).willReturn(fileArchiver)
         let zipPath = path.appending(components: "test-zip")
-        fileArchiver.stubbedZipResult = zipPath
+        given(fileArchiver).zip(name: .any).willReturn(zipPath)
         try fileHandler.createFolder(zipPath)
 
         // When
@@ -108,7 +108,9 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(invokedPackagePath, path)
         XCTAssertEqual(builtProducts, ["tuist-one", "tuist-two"])
-        XCTAssertEqual(fileArchiver.invokedZipParameters?.name, "TestPlugin.tuist-plugin.zip")
+
+        _ = verify(fileArchiver).zip(name: .value("TestPlugin.tuist-plugin.zip"))
+
         XCTAssertTrue(
             fileHandler.isFolder(
                 path.appending(component: "TestPlugin.tuist-plugin.zip")

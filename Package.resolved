@@ -82,6 +82,15 @@
       }
     },
     {
+      "identity" : "mockable",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Kolos65/Mockable.git",
+      "state" : {
+        "revision" : "7af00c08880d375f2742ca55705abd69837fe6c3",
+        "version" : "0.0.2"
+      }
+    },
+    {
       "identity" : "packageconfig",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/shibapm/PackageConfig.git",
@@ -163,6 +172,15 @@
       }
     },
     {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-syntax.git",
+      "state" : {
+        "revision" : "64889f0c732f210a935a0ad7cda38f77f876262d",
+        "version" : "509.1.1"
+      }
+    },
+    {
       "identity" : "swift-system",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-system.git",
@@ -211,8 +229,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
-        "revision" : "f251a26b0922e44d8b1642c2095ff27ca57232d4",
-        "version" : "8.15.0"
+        "revision" : "e29e0db843062f5157f77d5b68f237eb5aa43f12",
+        "version" : "8.18.0"
       }
     },
     {

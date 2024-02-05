@@ -1,6 +1,6 @@
 import Foundation
-import TSCBasic
 import Mockable
+import TSCBasic
 
 @Mockable
 public protocol FileUnarchiving {
