@@ -30,6 +30,7 @@ var targets: [Target] = [
             swiftToolsSupportDependency,
             "AnyCodable",
             "TuistSupport",
+            "Mockable"
         ]
     ),
     .target(
@@ -50,6 +51,7 @@ var targets: [Target] = [
             "TuistSupport",
             "TuistGraph",
             "XcodeProj",
+            "Mockable"
         ]
     ),
     .target(
@@ -82,6 +84,7 @@ var targets: [Target] = [
             "TuistAnalytics",
             "TuistPlugin",
             "TuistGraph",
+            "Mockable"
         ]
     ),
     .executableTarget(
@@ -109,6 +112,7 @@ var targets: [Target] = [
             swifterDependency,
             "ZIPFoundation",
             "ProjectDescription",
+            "Mockable"
         ]
     ),
     .target(
@@ -144,6 +148,7 @@ var targets: [Target] = [
             "GraphViz",
             swiftGenKitDependency,
             "StencilSwiftKit",
+            "Mockable"
         ]
     ),
     .target(
@@ -163,6 +168,7 @@ var targets: [Target] = [
             "TuistSupport",
             "StencilSwiftKit",
             "Stencil",
+            "Mockable"
         ]
     ),
     .target(
@@ -174,6 +180,7 @@ var targets: [Target] = [
             "TuistCore",
             "TuistGraph",
             "TuistSupport",
+            "Mockable"
         ]
     ),
     .target(
@@ -184,6 +191,7 @@ var targets: [Target] = [
             "TuistGraph",
             "TuistSupport",
             "TuistPlugin",
+            "Mockable",
             swiftToolsSupportDependency,
         ]
     ),
@@ -194,6 +202,7 @@ var targets: [Target] = [
             "TuistGraph",
             "TuistSupport",
             "XcodeProj",
+            "Mockable",
             swiftToolsSupportDependency,
         ]
     ),
@@ -204,6 +213,7 @@ var targets: [Target] = [
             "TuistGraph",
             "TuistSupport",
             "XcodeProj",
+            "Mockable",
             swiftToolsSupportDependency,
             "Queuer",
         ]
@@ -216,6 +226,7 @@ var targets: [Target] = [
             "TuistCore",
             "TuistGraph",
             "TuistSupport",
+            "Mockable",
             "ProjectDescription",
         ]
     ),
@@ -239,6 +250,7 @@ var targets: [Target] = [
             "TuistCore",
             "TuistGraph",
             "TuistLoader",
+            "Mockable",
             swiftToolsSupportDependency,
         ]
     ),
@@ -249,6 +261,7 @@ var targets: [Target] = [
             "TuistLoader",
             "TuistSupport",
             "TuistScaffold",
+            "Mockable",
             swiftToolsSupportDependency,
         ]
     ),
