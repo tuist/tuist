@@ -30,7 +30,10 @@ var targets: [Target] = [
             swiftToolsSupportDependency,
             "AnyCodable",
             "TuistSupport",
-            "Mockable"
+            "Mockable",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -51,7 +54,10 @@ var targets: [Target] = [
             "TuistSupport",
             "TuistGraph",
             "XcodeProj",
-            "Mockable"
+            "Mockable",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -84,7 +90,10 @@ var targets: [Target] = [
             "TuistAnalytics",
             "TuistPlugin",
             "TuistGraph",
-            "Mockable"
+            "Mockable",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .executableTarget(
@@ -112,7 +121,10 @@ var targets: [Target] = [
             swifterDependency,
             "ZIPFoundation",
             "ProjectDescription",
-            "Mockable"
+            "Mockable",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -148,7 +160,10 @@ var targets: [Target] = [
             "GraphViz",
             swiftGenKitDependency,
             "StencilSwiftKit",
-            "Mockable"
+            "Mockable",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -168,7 +183,10 @@ var targets: [Target] = [
             "TuistSupport",
             "StencilSwiftKit",
             "Stencil",
-            "Mockable"
+            "Mockable",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -180,7 +198,10 @@ var targets: [Target] = [
             "TuistCore",
             "TuistGraph",
             "TuistSupport",
-            "Mockable"
+            "Mockable",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -193,6 +214,9 @@ var targets: [Target] = [
             "TuistPlugin",
             "Mockable",
             swiftToolsSupportDependency,
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -204,6 +228,9 @@ var targets: [Target] = [
             "XcodeProj",
             "Mockable",
             swiftToolsSupportDependency,
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -216,6 +243,9 @@ var targets: [Target] = [
             "Mockable",
             swiftToolsSupportDependency,
             "Queuer",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -228,6 +258,9 @@ var targets: [Target] = [
             "TuistSupport",
             "Mockable",
             "ProjectDescription",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -252,6 +285,9 @@ var targets: [Target] = [
             "TuistLoader",
             "Mockable",
             swiftToolsSupportDependency,
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -263,6 +299,9 @@ var targets: [Target] = [
             "TuistScaffold",
             "Mockable",
             swiftToolsSupportDependency,
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
 ]
