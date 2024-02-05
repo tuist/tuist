@@ -53,7 +53,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
                 description: "test",
                 attributes: [
                     .required("required"),
-                    .optional("optional", default: .string("")),
+                    .optional("optional", default: ""),
                 ],
                 items: []
             )
@@ -83,7 +83,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
                 description: "test",
                 attributes: [
                     .required("required"),
-                    .optional("optional", default: .string("")),
+                    .optional("optional", default: ""),
                 ],
                 items: []
             )
@@ -139,7 +139,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
     func test_optional_attribute_is_taken_from_template() async throws {
         // Given
         templateLoader.loadTemplateStub = { _ in
-            Template.test(attributes: [.optional("optional", default: .string("optionalValue"))])
+            Template.test(attributes: [.optional("optional", default: "optionalValue")])
         }
 
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
@@ -156,7 +156,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            ["optional": .string("optionalValue")],
+            ["optional": "optionalValue"],
             generateAttributes
         )
     }
@@ -164,8 +164,8 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
     func test_optional_dictionary_attribute_is_taken_from_template() async throws {
         // Given
         let context: Template.Attribute.Value = .dictionary([
-            "key1": .string("value1"),
-            "key2": .string("value2"),
+            "key1": "value1",
+            "key2": "value2",
         ])
 
         templateLoader.loadTemplateStub = { _ in
@@ -193,7 +193,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
     func test_optional_integer_attribute_is_taken_from_template() async throws {
         // Given
-        let defaultIntegerValue: Template.Attribute.Value = .integer(999)
+        let defaultIntegerValue: Template.Attribute.Value = 999
 
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [.optional("optional", default: defaultIntegerValue)])
@@ -222,7 +222,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         // Given
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [
-                .optional("optional", default: .string("")),
+                .optional("optional", default: ""),
                 .required("required"),
             ])
         }
@@ -245,8 +245,8 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             [
-                "optional": .string("optionalValue"),
-                "required": .string("requiredValue"),
+                "optional": "optionalValue",
+                "required": "requiredValue",
             ],
             generateAttributes
         )

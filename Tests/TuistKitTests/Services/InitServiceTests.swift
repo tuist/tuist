@@ -61,8 +61,8 @@ final class InitServiceTests: TuistUnitTestCase {
             [defaultTemplatePath]
         }
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
-            "name": .string("Name"),
-            "platform": .string("macOS"),
+            "name": "Name",
+            "platform": "macOS",
         ]
         var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
@@ -83,8 +83,8 @@ final class InitServiceTests: TuistUnitTestCase {
             [defaultTemplatePath]
         }
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
-            "name": .string("Name"),
-            "platform": .string("iOS"),
+            "name": "Name",
+            "platform": "iOS",
         ]
         var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
@@ -105,16 +105,16 @@ final class InitServiceTests: TuistUnitTestCase {
                 description: "test",
                 attributes: [
                     .required("required"),
-                    .optional("optional", default: .string("optionalValue")),
+                    .optional("optional", default: "optionalValue"),
                 ],
                 items: []
             )
         }
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
-            "name": .string("Name"),
-            "platform": .string("macOS"),
-            "required": .string("requiredValue"),
-            "optional": .string("optionalValue"),
+            "name": "Name",
+            "platform": "macOS",
+            "required": "requiredValue",
+            "optional": "optionalValue",
         ]
         var generatorAttributes: [String: TuistGraph.Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
@@ -138,8 +138,8 @@ final class InitServiceTests: TuistUnitTestCase {
     func test_optional_dictionary_attribute_is_taken_from_template() async throws {
         // Given
         let context: TuistGraph.Template.Attribute.Value = .dictionary([
-            "key1": .string("value1"),
-            "key2": .string("value2"),
+            "key1": "value1",
+            "key2": "value2",
         ])
 
         templateLoader.loadTemplateStub = { _ in
@@ -154,8 +154,8 @@ final class InitServiceTests: TuistUnitTestCase {
         }
 
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
-            "name": .string("Name"),
-            "platform": .string("iOS"),
+            "name": "Name",
+            "platform": "iOS",
             "optional": context,
         ]
 
@@ -173,7 +173,7 @@ final class InitServiceTests: TuistUnitTestCase {
 
     func test_optional_integer_attribute_is_taken_from_template() async throws {
         // Given
-        let defaultIntegerValue: TuistGraph.Template.Attribute.Value = .integer(999)
+        let defaultIntegerValue: TuistGraph.Template.Attribute.Value = 999
 
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [
@@ -187,8 +187,8 @@ final class InitServiceTests: TuistUnitTestCase {
         }
 
         let expectedAttributes: [String: TuistGraph.Template.Attribute.Value] = [
-            "name": .string("Name"),
-            "platform": .string("iOS"),
+            "name": "Name",
+            "platform": "iOS",
             "optional": defaultIntegerValue,
         ]
 
