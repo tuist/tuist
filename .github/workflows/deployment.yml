@@ -52,13 +52,13 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v3
-        name: 'Cache fetched dependencies folder'
+        name: 'Cache installed dependencies folder'
         with:
-          path: Tuist/Dependencies/SwiftPackageManager/.build
+          path: .build
           key: spm-v1-${{ hashFiles('Package.resolved') }}
           restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
-      - name: Fetch dependencies
-        run: tuist fetch
+      - name: Install dependencies
+        run: tuist install
       - name: Test
         run: tuist test TuistCloudAcceptanceTests --test-targets TuistCloudAcceptanceTests/TuistCloudAcceptanceTestWithIOSAppWithFrameworks
   production:
