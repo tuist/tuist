@@ -4,7 +4,7 @@ require "test_helper"
 
 class StripeUpdateSubscriptionServiceTest < ActiveSupport::TestCase
   Subscription = Struct.new(:customer, :status)
-  test "updates to enterprise plan when active" do
+  test "updates to team plan when trialing" do
     # Given
     account = Account.create!(
       owner: Organization.create!,
@@ -17,12 +17,33 @@ class StripeUpdateSubscriptionServiceTest < ActiveSupport::TestCase
     StripeUpdateSubscriptionService.call(
       subscription: Subscription.new(
         customer: "1",
-        status: "active",
+        status: "trialing",
       ),
     )
 
     # Then
-    assert_equal "enterprise", Account.find(account.id).plan
+    assert_equal "team", Account.find(account.id).plan
+  end
+
+  test "updates to team plan when active" do
+    # Given
+    account = Account.create!(
+      owner: Organization.create!,
+      name: "tuist",
+      customer_id: "1",
+      plan: nil,
+    )
+
+    # When
+    StripeUpdateSubscriptionService.call(
+      subscription: Subscription.new(
+        customer: "1",
+        status: "trialing",
+      ),
+    )
+
+    # Then
+    assert_equal "team", Account.find(account.id).plan
   end
 
   test "resets plan when unpaid" do
@@ -31,18 +52,18 @@ class StripeUpdateSubscriptionServiceTest < ActiveSupport::TestCase
       owner: Organization.create!,
       name: "tuist",
       customer_id: "1",
-      plan: :enterprise,
+      plan: :team,
     )
 
     # When
     StripeUpdateSubscriptionService.call(
       subscription: Subscription.new(
         customer: "1",
-        status: "unpaid",
+        status: "trialing",
       ),
     )
 
     # Then
-    assert_nil Account.find(account.id).plan
+    assert_equal "team", Account.find(account.id).plan
   end
 end

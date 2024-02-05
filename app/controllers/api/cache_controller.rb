@@ -79,12 +79,7 @@ module API
         hash: params[:hash],
         name: params[:name],
         subject: current_subject,
-        add_cloud_warning: method(:add_cloud_warning),
       )
-    end
-
-    def add_cloud_warning(message)
-      response.set_header('x-cloud-warning', message)
     end
   end
 end

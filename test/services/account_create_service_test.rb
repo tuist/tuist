@@ -4,12 +4,6 @@ require "test_helper"
 
 class AccountCreateServiceTest < ActiveSupport::TestCase
   Customer = Struct.new(:id)
-  setup do
-    Stripe::Customer.expects(:create)
-      .with { |param| param[:name] == "tuist" }
-      .returns(Customer.new(id: "1"))
-  end
-
   def test_create_an_account
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
@@ -31,7 +25,6 @@ class AccountCreateServiceTest < ActiveSupport::TestCase
 
     # Then
     assert_equal "tuist", account.name
-    assert_nil account.plan
   end
 
   def test_raises_an_error_when_account_already_exists

@@ -21,7 +21,6 @@ gem "tailwindcss-rails", "~> 2.0"
 gem "sassc-rails", "~> 2.1"
 gem "stripe-rails", "~> 2.4"
 gem "que", "~> 2.2"
-gem "que-scheduler", "~> 4.4"
 gem "httpx", "~> 1.2.0"
 gem 'sorbet-static-and-runtime'
 gem 'tapioca', require: false, :group => :development

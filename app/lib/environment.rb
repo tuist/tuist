@@ -151,6 +151,10 @@ module Environment
       fetch(:stripe, :endpoint_secret)
     end
 
+    def stripe_plan_id
+      fetch(:stripe, :plan_id)
+    end
+
     def precompiling_assets?(env: ENV)
       truthy?(env['SECRET_KEY_BASE_DUMMY'])
     end
@@ -176,7 +180,8 @@ module Environment
     def stripe_configured?
       stripe_api_key.present? &&
         stripe_publishable_key.present? &&
-        stripe_endpoint_secret.present?
+        stripe_endpoint_secret.present? &&
+        stripe_plan_id.present?
     end
 
     def smpt_configured?
@@ -216,7 +221,7 @@ module Environment
       errors << "Application URL is not configured" unless app_url_configured?
       errors << "Database is not configured" unless database_configured?
       errors << "Secret key base is not configured" unless secret_key_base_configured?
-      unless Environment.self_hosted?
+      if !Environment.self_hosted? && !Rails.env.production?
         errors << "Stripe is not configured" unless stripe_configured?
       end
 

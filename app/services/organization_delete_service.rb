@@ -27,6 +27,7 @@ class OrganizationDeleteService < ApplicationService
     raise Error::Unauthorized unless OrganizationPolicy.new(deleter, organization).update?
 
     ActiveRecord::Base.transaction do
+      organization.account.customer_id
       organization.destroy
     end
   end

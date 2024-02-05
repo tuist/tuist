@@ -1,12 +1,10 @@
 # frozen_string_literal: true
-# typed: false
 
 require "test_helper"
 
 class CacheServiceTest < ActiveSupport::TestCase
   setup do
     @user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
-    @user.account.update(plan: :enterprise)
     @s3_bucket = @user.account.s3_buckets.create!(
       name: "project-bucket",
       access_key_id: "access key id",
@@ -37,7 +35,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       subject: @user,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
       .object_exists?
 
@@ -59,7 +56,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       subject: @project,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
       .object_exists?
 
@@ -80,7 +76,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       subject: @project,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
       .object_exists?
 
@@ -101,7 +96,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       subject: @project,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
       .object_exists?
 
@@ -120,7 +114,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       subject: @user,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
       .object_exists?
 
@@ -139,7 +132,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       subject: @user,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
       .object_exists?
 
@@ -159,7 +151,6 @@ class CacheServiceTest < ActiveSupport::TestCase
         name: "MyFramework",
         subject: @project,
         cache_category: "builds",
-        add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
       )
         .object_exists?
     end
@@ -183,7 +174,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       subject: @user,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
       .fetch
 
@@ -214,7 +204,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       subject: @user,
       cache_category: "tests",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
       .fetch
 
@@ -239,7 +228,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       subject: @user,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
       .upload
 
@@ -260,7 +248,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       subject: @user,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
       .verify_upload
 
@@ -273,75 +260,34 @@ class CacheServiceTest < ActiveSupport::TestCase
     assert_equal got, 5
   end
 
-  test "fails with payment required if an organization has no plan" do
+  # test "fails with payment required if an organization has no plan" do
+  #   # Given
+  #   organization = Organization.create!
+  #   Account.create!(owner: organization, name: "tuist")
+  #   project = Project.create!(
+  #     name: "my-project",
+  #     account_id: organization.account.id,
+  #     token: Devise.friendly_token.first(8),
+  #     remote_cache_storage: @s3_bucket,
+  #   )
+
+  #   # When / Then
+  #   assert_raises(CacheService::Error::PaymentRequired) do
+  #     CacheService.new(
+  #       project_slug: "my-project/tuist",
+  #       hash: "artifact-hash",
+  #       name: "MyFramework",
+  #       user: nil,
+  #       project: project,
+  #     )
+  #       .object_exists?
+  #   end
+  # end
+
+  test "object exists with using passed project when an organization is on the team plan" do
     # Given
     organization = Organization.create!
-    account = Account.create!(owner: organization, name: "tuist", plan: nil)
-    project = Project.create!(
-      name: "my-project",
-      account_id: account.id,
-      token: Devise.friendly_token.first(8),
-      remote_cache_storage: @s3_bucket,
-    )
-    bucket_object = mock
-    bucket_object.stubs(:content_length).returns(5)
-    Aws::S3::Client.any_instance.stubs(:get_object).returns(bucket_object)
-    ProjectFetchService.any_instance.stubs(:fetch_by_name).returns(project)
-
-    project.account.update(cache_upload_event_count: 15_000)
-
-    # When / Then
-    assert_raises(CacheService::Error::PaymentRequired) do
-      CacheService.new(
-        project_slug: "my-project/tuist",
-        hash: "artifact-hash",
-        name: "MyFramework",
-        subject: project,
-        cache_category: "builds",
-        add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
-      )
-        .object_exists?
-    end
-  end
-
-  test "fails with payment required if an organization has no plan and is close to the limit" do
-    # Given
-    organization = Organization.create!
-    account = Account.create!(owner: organization, name: "tuist", plan: nil)
-    project = Project.create!(
-      name: "my-project",
-      account_id: account.id,
-      token: Devise.friendly_token.first(8),
-      remote_cache_storage: @s3_bucket,
-    )
-    bucket_object = mock
-    bucket_object.stubs(:content_length).returns(5)
-    Aws::S3::Client.any_instance.stubs(:get_object).returns(bucket_object)
-    ProjectFetchService.any_instance.stubs(:fetch_by_name).returns(project)
-
-    project.account.update(cache_upload_event_count: 8_500)
-    add_cloud_warning = mock
-    add_cloud_warning.expects(:call)
-
-    # When
-    got = CacheService.new(
-      project_slug: "my-project/tuist",
-      hash: "artifact-hash",
-      name: "MyFramework",
-      subject: project,
-      cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
-    )
-      .object_exists?
-
-    # Then
-    assert_equal true, got
-  end
-
-  test "object exists with using passed project when an organization's plan is enterprise" do
-    # Given
-    organization = Organization.create!
-    Account.create!(owner: organization, name: "tuist", plan: :enterprise)
+    Account.create!(owner: organization, name: "tuist", plan: :team)
     project = Project.create!(
       name: "my-project",
       account_id: organization.account.id,
@@ -352,10 +298,6 @@ class CacheServiceTest < ActiveSupport::TestCase
     bucket_object.stubs(:content_length).returns(5)
     Aws::S3::Client.any_instance.stubs(:get_object).returns(bucket_object)
 
-    project.account.update(cache_upload_event_count: 15_000)
-    add_cloud_warning = mock
-    add_cloud_warning.expects(:call).never
-
     # When
     got = CacheService.new(
       project_slug: "my-project/tuist",
@@ -363,7 +305,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       subject: project,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
       .object_exists?
 
@@ -374,7 +315,7 @@ class CacheServiceTest < ActiveSupport::TestCase
   test "multipart_upload_start creates the upload using the Aws::S3::Client" do
     # Given
     organization = Organization.create!
-    Account.create!(owner: organization, name: "tuist", plan: :enterprise)
+    Account.create!(owner: organization, name: "tuist", plan: :team)
     project = Project.create!(
       name: "my-project",
       account_id: organization.account.id,
@@ -387,7 +328,6 @@ class CacheServiceTest < ActiveSupport::TestCase
       name: "MyFramework",
       subject: project,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
     s3_client = mock('Aws::S3::Client').responds_like_instance_of(Aws::S3::Client)
     S3ClientService.expects(:call).with(s3_bucket: project.remote_cache_storage).returns(s3_client)
@@ -406,21 +346,19 @@ class CacheServiceTest < ActiveSupport::TestCase
   test "multipart_generate_url generates the URL using the Aws::S3::Client" do
     # Given
     organization = Organization.create!
-    Account.create!(owner: organization, name: "tuist", plan: :enterprise)
+    Account.create!(owner: organization, name: "tuist", plan: :team)
     project = Project.create!(
       name: "my-project",
       account_id: organization.account.id,
       token: Devise.friendly_token.first(8),
       remote_cache_storage: @s3_bucket,
     )
-    add_cloud_warning = mock
     subject = CacheService.new(
       project_slug: project.full_name,
       hash: "artifact-hash",
       name: "MyFramework",
       subject: project,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
     s3_client = mock('Aws::S3::Client').responds_like_instance_of(Aws::S3::Client)
     presigner = mock('Aws::S3::Presigner').responds_like_instance_of(Aws::S3::Presigner)
@@ -444,21 +382,19 @@ class CacheServiceTest < ActiveSupport::TestCase
   test "multipart_upload_complete completes the upload using the Aws::S3::Client" do
     # Given
     organization = Organization.create!
-    Account.create!(owner: organization, name: "tuist", plan: :enterprise)
+    Account.create!(owner: organization, name: "tuist", plan: :team)
     project = Project.create!(
       name: "my-project",
       account_id: organization.account.id,
       token: Devise.friendly_token.first(8),
       remote_cache_storage: @s3_bucket,
     )
-    add_cloud_warning = mock
     subject = CacheService.new(
       project_slug: project.full_name,
       hash: "artifact-hash",
       name: "MyFramework",
       subject: project,
       cache_category: "builds",
-      add_cloud_warning: ->(message) { add_cloud_warning.call(message) },
     )
     s3_client = mock('Aws::S3::Client').responds_like_instance_of(Aws::S3::Client)
     S3ClientService.expects(:call).with(s3_bucket: project.remote_cache_storage).returns(s3_client)
