@@ -14,7 +14,6 @@ extension Target {
             configurations: [
                 .debug(
                     name: "Debug",
-
                     settings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING"],
                     xcconfig: nil
                 ),
@@ -58,13 +57,15 @@ extension Target {
         testingDependencies: [TargetDependency] = [],
         integrationTestsDependencies: [TargetDependency] = []
     ) -> [Target] {
+        let isStaticProduct = product == .staticLibrary || product == .staticFramework
+
         var targets: [Target] = [
             .target(
                 name: name,
                 product: product,
-                dependencies: dependencies + [
+                dependencies: dependencies + (isStaticProduct ? [
                     .external(name: "Mockable"),
-                ]
+                ] : [])
             ),
         ]
         var testTargets: [Target] = []
@@ -77,9 +78,9 @@ extension Target {
                         .target(name: name),
                         .external(name: "SwiftToolsSupport"),
                         .external(name: "SystemPackage"),
-                        .external(name: "MockableTest"),
                     ]
                         + (hasTesting ? [.target(name: "\(name)Testing")] : [])
+                        + (isStaticProduct ? [.external(name: "MockableTest")] : [])
                 )
             )
         }
