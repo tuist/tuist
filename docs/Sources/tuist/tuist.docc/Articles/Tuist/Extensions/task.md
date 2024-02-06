@@ -26,14 +26,16 @@ let package = Package(
     products: [
         .executable(name: "my-cli", targets: ["my-cli"]),
     ],
-    dependencies: [
-        .package(url: "https://github.com/tuist/ProjectAutomation", .upToNextMajor(from: "x.y.z")), // Add ProjectAutomation as a package
-    ],
     targets: [
+        .binaryTarget(
+            name: "ProjectAutomation",
+            url: "https://github.com/tuist/tuist/releases/download/x.y.z/ProjectAutomation.framework.zip", // replace x.y.z with your desired version
+            checksum: "5e5360217d0c362d89d8532a9a52b87ee1fbe3546d422d13b82c0ccf71cfbd5e" // You can get the checksum from https://github.com/tuist/tuist/releases/download/x.y.z/SHASUMS256.txt
+        ),
         .target(
             name: "my-cli",
             dependencies: [
-                .product(name: "ProjectAutomation", package: "ProjectAutomation") // Integrate ProjectAutomation framework
+                .target(name: "ProjectAutomation") // Integrate ProjectAutomation framework
             ]
         ),
     ]

@@ -2,8 +2,6 @@
 
 Learn how to create plugins for Tuist.
 
-## Overview
-
 A plugin to Tuist is a directory with a `Plugin.swift` manifest. This manifest is used to define specific attributes of a plugin.
 
 ### Plugin.swift manifest
@@ -76,7 +74,7 @@ For easier development and help with publishing your plugin, use `tuist plugin` 
 
 To publish a plugin with tasks, you will need to run `tuist plugin archive` and then create a Github release with the created `.zip` as an artifact.
 
-## ResourceSynthesizers
+### ResourceSynthesizers
 
 ResourceSynthesizer plugins are for sharing & reusing templates for [synthesizing resources](synthesized-files). If you want to use one of the predefined resource synthesizers, the template must also adhere to a specific naming.
 

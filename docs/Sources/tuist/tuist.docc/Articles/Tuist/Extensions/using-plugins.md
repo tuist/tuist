@@ -2,8 +2,6 @@
 
 Learn how to extend Tuist with plugins.
 
-### Plugins
-
 Plugins are meant to be separate and isolated directories, each containing code used to extend existing Tuist functionality.
 You may use plugins that exist at a path local to your machine or at a git source URL to enable sharing and version control across multiple projects. They are fetched by running `tuist install`. If you add plugin to your project you can not generate it without fetching.
 
@@ -45,6 +43,8 @@ Remote plugins are stored on a remote server and can be downloaded by Tuist and 
 
 A common place to store plugins is in a git repository which is uploaded to a remote server. You can specify where to download the plugin as well as what version of the plugin to take.
 This allows you to version your plugins and share them with others.
+
+> The git repository for sharing plugins currently needs to be a public repository.
 
 Optionally, you can also specify a directory where the plugin is located, in case it's not at the root of the repository.
 
