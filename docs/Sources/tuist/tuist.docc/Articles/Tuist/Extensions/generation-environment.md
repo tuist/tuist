@@ -2,7 +2,7 @@
 
 Learn how to leverage environment variables that can be read from the manifest files.
 
-There are certain scenarios where you might need to customize the projects at generation time. For example, if you are building a white-label app, you might want to use the same project structure, but adjust some attributes in a per-app basis. For example, the name of the app.
+There are certain scenarios where you might need to dynamically change the generated project's definition when invoking Tuist at generation time. For example, if you are building a white-label app, you might want to use the same project structure, but adjust some attributes in a per-app basis. For example, the name of the app.
 
 ### Using Tuist environment variables
 
@@ -35,7 +35,6 @@ Accessing variables returns an instance of type `Environment.Value?` which can t
 
 | Case       | Description                                                                                                                                                     |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.boolean` | Used when the variable represents a boolean. The values 1, true, TRUE, yes and YES are casted to `true`, and 0, false, FALSE, no, and NO are casted to `false`. |
 | `.string`  | Used when the variable represents a string.                                                                                                                     |
 
 You can also retrieve the string or boolean Environment variable using either of the helper methods defined below, these methods require a default value to be passed to ensure the user gets consistent results each time. This avoids the need to define the function appName() defined above.
