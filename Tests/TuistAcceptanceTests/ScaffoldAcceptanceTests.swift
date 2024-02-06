@@ -153,7 +153,7 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "custom", "--name", "TemplateProject")
+        try await run(ScaffoldCommand.self, "custom_using_attribute", "--name", "TemplateProject")
         let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
         XCTAssertEqual(
             try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "custom.swift")),

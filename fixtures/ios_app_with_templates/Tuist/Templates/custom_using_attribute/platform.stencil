@@ -2,6 +2,6 @@
 // Generated file with supporting platforms
 {% for key, value in platforms %}
     {% if value %}
-        // {{ key }}
+// {{ key }}
     {% endif %}
 {% endfor %}
