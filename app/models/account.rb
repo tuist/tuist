@@ -1,7 +1,9 @@
 # frozen_string_literal: true
+# typed: true
 
 class Account < ApplicationRecord
-  enum :plan, { team: 1 }
+  extend T::Sig
+  enum :plan, { enterprise: 1 }
 
   # Associations
   belongs_to :owner, polymorphic: true, optional: false

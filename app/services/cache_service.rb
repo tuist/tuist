@@ -38,9 +38,9 @@ class CacheService < ApplicationService
 
       sig { returns(String) }
       def message
-        url = URI.parse(Environment.app_url).tap { |uri| uri.path = '/get-started' }.to_s
-
-        "To use remote cache, you need to upgrade your plan. Please, visit #{url} to manage your subscription."
+        # rubocop:disable Layout/LineLength
+        "Your account is over the 30-day free limit of #{FORMATTED_THRESHOLD} cache uploads on Tuist Cloud. To continue enjoying this service, please reach out to us at support@tuist.io for a quote on a Tuist Cloud plan."
+        # rubocop:enable Layout/LineLength
       end
 
       sig { returns(Symbol) }
@@ -74,16 +74,20 @@ class CacheService < ApplicationService
   sig { returns(String) }
   attr_reader :object_key
 
+  sig { returns(T.proc.params(message: String).void) }
+  attr_reader :add_cloud_warning
+
   sig do
     params(
       project_slug: String,
       hash: String,
       name: String,
       subject: T.any(User, Organization, Project),
+      add_cloud_warning: T.proc.params(message: String).void,
       cache_category: T.nilable(String),
     ).void
   end
-  def initialize(project_slug:, hash:, name:, subject:, cache_category: nil)
+  def initialize(project_slug:, hash:, name:, subject:, add_cloud_warning:, cache_category: nil)
     super()
     split_project_slug = project_slug.split("/")
     @account_name = T.let(T.must(T.let(split_project_slug.first, T.nilable(String))), String)
@@ -102,10 +106,12 @@ class CacheService < ApplicationService
 
     @name = name
     @subject = subject
+    @add_cloud_warning = T.let(add_cloud_warning, T.proc.params(arg0: String).void)
   end
 
   sig { returns(T::Boolean) }
   def object_exists?
+    check_if_plan_valid
     s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
     begin
       object = s3_client.get_object(
@@ -221,9 +227,24 @@ class CacheService < ApplicationService
       ),
       T.nilable(Project),
     )
-    # Disabled for now
-    # if Environment.stripe_configured? && @project.account.owner.is_a?(Organization) && @project.account.plan.nil?
-    #   raise Error::PaymentRequired
-    # end
+    @project
+  end
+
+  private
+
+  THRESHOLD = T.let(10_000, Integer)
+  FORMATTED_THRESHOLD = T.let(ActiveSupport::NumberHelper.number_to_delimited(THRESHOLD), String)
+
+  sig { void }
+  def check_if_plan_valid
+    if Environment.stripe_configured? && T.must(project.account).plan.nil?
+      if T.must(T.must(project.account).cache_upload_event_count) > THRESHOLD
+        raise Error::PaymentRequired
+      elsif T.must(T.must(project.account).cache_upload_event_count) > THRESHOLD * 0.8
+        # rubocop:disable Layout/LineLength
+        add_cloud_warning.call("Your account is nearing the 30-day free limit of #{FORMATTED_THRESHOLD} cache uploads on Tuist Cloud. Once this limit is reached, you won't be able to use Tuist Cloud's remote caching feature. To continue enjoying this service, please reach out to us at support@tuist.io for a quote on a Tuist Cloud plan.")
+        # rubocop:enable Layout/LineLength
+      end
+    end
   end
 end

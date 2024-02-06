@@ -28,7 +28,7 @@
               <%= organization.admins.count + organization.users.count %>
             </p>
           </div>
-          <form method="POST" action="/create-customer-portal-session/<%= organization.account.id %>" target="_blank" class="billing-form">
+          <form action="/create-customer-portal-session/<%= organization.account.id %>" target="_blank" class="billing-form">
             <button type="submit">Manage billing</button>
           </form>
         </div>

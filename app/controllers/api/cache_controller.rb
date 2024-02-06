@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# typed: true
 
 module API
   class CacheController < APIController
@@ -79,6 +80,7 @@ module API
         hash: params[:hash],
         name: params[:name],
         subject: current_subject,
+        add_cloud_warning: ->(message) { response.set_header('x-cloud-warning', message) },
       )
     end
   end

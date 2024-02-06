@@ -31,6 +31,8 @@ Rails.application.routes.draw do
     get 'billing/plan', to: "organizations#billing_plan"
   end
 
+  get "/create-customer-portal-session/:account_id", to: "organizations#billing_plan"
+
   resources :projects, path: '/:account_name', param: :name, only: [] do
     get 'analytics', to: 'analytics#analytics'
     get 'analytics/targets', to: 'analytics#analytics_targets'
@@ -43,7 +45,6 @@ Rails.application.routes.draw do
   post '/webhooks/stripe', to: 'webhooks#stripe'
   resources :projects, path: '/:account_name', param: :project_name, only: [:show]
   get "/get-started", to: "application#get_started"
-  post "/create-customer-portal-session/:account_id", to: "organizations#billing_plan"
 
   get "/(*all)", to: "application#app"
 end
