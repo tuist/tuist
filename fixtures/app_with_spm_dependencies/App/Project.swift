@@ -30,6 +30,7 @@ let project = Project(
                 .sdk(name: "c++", type: .library, status: .required),
                 .external(name: "Alamofire"),
                 .external(name: "ComposableArchitecture"),
+                .external(name: "ZipArchive"),
             ],
             settings: .targetSettings
         ),
