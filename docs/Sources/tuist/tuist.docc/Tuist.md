@@ -87,6 +87,13 @@ The choice is yours. By adding .xcodeproj and .xcworkspace files to your .gitign
 - <doc:config>
 - <doc:workspace>
 
+### Extensions
+
+- <doc:generation-environment>
+- <doc:using-plugins>
+- <doc:creating-plugins>
+- <doc:task>
+
 ### For Tuist Cloud Users
 
 - <doc:tuist-cloud>
