@@ -141,4 +141,32 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             """
         )
     }
+
+    func test_ios_app_with_templates_custom_using_attribute() async throws {
+        try setUpFixture(.iosAppWithTemplates)
+        try await run(InstallCommand.self)
+        try await ScaffoldCommand.preprocess([
+            "scaffold",
+            "custom_using_attribute",
+            "--name",
+            "TemplateProject",
+            "--path",
+            fixturePath.pathString,
+        ])
+        try await run(ScaffoldCommand.self, "custom_using_attribute", "--name", "TemplateProject")
+        let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
+        XCTAssertEqual(
+            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "custom.swift")),
+            "// this is test TemplateProject content"
+        )
+        XCTAssertEqual(
+            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "generated.swift")),
+            """
+            // Generated file name: TemplateProject
+            // Generated file with supporting platforms
+            // iOS
+
+            """
+        )
+    }
 }
