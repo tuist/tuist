@@ -39,7 +39,7 @@ class CacheService < ApplicationService
       sig { returns(String) }
       def message
         # rubocop:disable Layout/LineLength
-        "Your account is over the 30-day free limit of #{FORMATTED_THRESHOLD} cache uploads on Tuist Cloud. To continue enjoying this service, please reach out to us at support@tuist.io for a quote on a Tuist Cloud plan."
+        "Your account is over the 30-day free limit of #{FORMATTED_THRESHOLD} cache uploads on Tuist Cloud. To continue enjoying this service, please reach out to us at help@tuist.io for a quote on a Tuist Cloud plan."
         # rubocop:enable Layout/LineLength
       end
 
@@ -242,7 +242,7 @@ class CacheService < ApplicationService
         raise Error::PaymentRequired
       elsif T.must(T.must(project.account).cache_upload_event_count) > THRESHOLD * 0.8
         # rubocop:disable Layout/LineLength
-        add_cloud_warning.call("Your account is nearing the 30-day free limit of #{FORMATTED_THRESHOLD} cache uploads on Tuist Cloud. Once this limit is reached, you won't be able to use Tuist Cloud's remote caching feature. To continue enjoying this service, please reach out to us at support@tuist.io for a quote on a Tuist Cloud plan.")
+        add_cloud_warning.call("Your account is nearing the 30-day free limit of #{FORMATTED_THRESHOLD} cache uploads on Tuist Cloud. Once this limit is reached, you won't be able to use Tuist Cloud's remote caching feature. To continue enjoying this service, please reach out to us at help@tuist.io for a quote on a Tuist Cloud plan.")
         # rubocop:enable Layout/LineLength
       end
     end
