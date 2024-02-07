@@ -33,7 +33,7 @@ public struct TestAction: Equatable, Codable {
     public var options: TestActionOptions
 
     /// List of diagnostics options to set to the action.
-    public var diagnosticsOptions: [SchemeDiagnosticsOption]
+    public var diagnosticsOptions: SchemeDiagnosticsOptions
 
     /// List of testIdentifiers to skip to the test
     public var skippedTests: [String]?
@@ -48,7 +48,7 @@ public struct TestAction: Equatable, Codable {
         preActions: [ExecutionAction],
         postActions: [ExecutionAction],
         options: TestActionOptions,
-        diagnosticsOptions: [SchemeDiagnosticsOption],
+        diagnosticsOptions: SchemeDiagnosticsOptions,
         skippedTests: [String]?
     ) {
         self.testPlans = testPlans
@@ -86,7 +86,7 @@ public struct TestAction: Equatable, Codable {
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
         options: TestActionOptions = .options(),
-        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
+        diagnosticsOptions: SchemeDiagnosticsOptions = .options(mainThreadCheckerEnabled: true),
         skippedTests: [String] = []
     ) -> Self {
         Self(
@@ -129,7 +129,7 @@ public struct TestAction: Equatable, Codable {
             preActions: preActions,
             postActions: postActions,
             options: .options(),
-            diagnosticsOptions: [],
+            diagnosticsOptions: .options(),
             skippedTests: nil
         )
     }

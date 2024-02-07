@@ -19,7 +19,7 @@ extension TuistGraph.TestAction {
         let coverage: Bool
         let codeCoverageTargets: [TuistGraph.TargetReference]
         let expandVariablesFromTarget: TuistGraph.TargetReference?
-        let diagnosticsOptions: Set<TuistGraph.SchemeDiagnosticsOption>
+        let diagnosticsOptions: TuistGraph.SchemeDiagnosticsOptions
         let language: SchemeLanguage?
         let region: String?
         let preferredScreenCaptureFormat: TuistGraph.ScreenCaptureFormat?
@@ -38,7 +38,7 @@ extension TuistGraph.TestAction {
             coverage = false
             codeCoverageTargets = []
             expandVariablesFromTarget = nil
-            diagnosticsOptions = []
+            diagnosticsOptions = .init()
             language = nil
             region = nil
             preferredScreenCaptureFormat = nil
@@ -60,8 +60,7 @@ extension TuistGraph.TestAction {
                     name: $0.targetName
                 )
             }
-
-            diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistGraph.SchemeDiagnosticsOption.from(manifest: $0) })
+            diagnosticsOptions = TuistGraph.SchemeDiagnosticsOptions.from(manifest: manifest.diagnosticsOptions)
             language = manifest.options.language
             region = manifest.options.region
             preferredScreenCaptureFormat = manifest.options.preferredScreenCaptureFormat
