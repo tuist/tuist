@@ -733,7 +733,7 @@ extension DependenciesGraph {
         let platforms = destinations.platforms
         let applicableVersions = PLATFORM_TEST_VERSION.filter { platforms.contains($0.key) }
 
-        return .deploymentTargets(
+        return .multiplatform(
             iOS: applicableVersions[Platform.iOS],
             macOS: applicableVersions[Platform.macOS],
             watchOS: applicableVersions[Platform.watchOS],

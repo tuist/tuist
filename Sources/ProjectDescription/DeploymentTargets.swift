@@ -15,7 +15,8 @@ public struct DeploymentTargets: Hashable, Codable {
     /// Minimum deployment version for visionOS
     public var visionOS: String?
 
-    public static func deploymentTargets(
+    /// Multiplatform deployment target
+    public static func multiplatform(
         iOS: String? = nil,
         macOS: String? = nil,
         watchOS: String? = nil,
