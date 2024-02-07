@@ -291,7 +291,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             }
         }
 
-        pbxProject.packages = packageReferences.sorted { $0.key < $1.key }.map { $1 }
+        pbxProject.remotePackages = packageReferences.sorted { $0.key < $1.key }.map { $1 }
     }
 
     private func generateAttributes(project: Project) -> [String: Any] {

@@ -75,6 +75,7 @@ The choice is yours. By adding .xcodeproj and .xcworkspace files to your .gitign
 - <doc:project-structure>
 - <doc:command-line-interface>
 - <doc:dependencies>
+- <doc:sharing-code-across-manifests>
 - <doc:synthesized-files>
 - <doc:extensions>
 - <doc:migration-guidelines>
@@ -85,6 +86,13 @@ The choice is yours. By adding .xcodeproj and .xcworkspace files to your .gitign
 - <doc:project>
 - <doc:config>
 - <doc:workspace>
+
+### Extensions
+
+- <doc:generation-environment>
+- <doc:using-plugins>
+- <doc:creating-plugins>
+- <doc:task>
 
 ### For Tuist Cloud Users
 

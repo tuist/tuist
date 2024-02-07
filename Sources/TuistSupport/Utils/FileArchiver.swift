@@ -1,7 +1,9 @@
 import Foundation
+import Mockable
 import TSCBasic
 
 /// An interface to archive files in a zip file.
+@Mockable
 public protocol FileArchiving {
     /// Zips files and outputs them in a zip file with the given name.
     /// - Parameter name: Name of the output zip file.
