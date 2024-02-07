@@ -61,7 +61,6 @@ class ProjectCreateService < ApplicationService
         project = Project.create!(
           name: name,
           account_id: organization.account.id,
-          token: Devise.friendly_token.first(8),
         )
       end
       project

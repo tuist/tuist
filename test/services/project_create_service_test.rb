@@ -22,6 +22,8 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
     assert_equal project_name, got.name
     assert_equal account, got.account
     assert_equal "tuist-debug", got.remote_cache_storage.name
+    assert_not_nil got.token
+    assert_not_equal got.token, ""
   end
 
   test "returns an error if a project with same slug already exists" do
