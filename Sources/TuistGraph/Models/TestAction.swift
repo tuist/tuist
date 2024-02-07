@@ -14,7 +14,7 @@ public struct TestAction: Equatable, Codable {
     public var expandVariableFromTarget: TargetReference?
     public var preActions: [ExecutionAction]
     public var postActions: [ExecutionAction]
-    public var diagnosticsOptions: Set<SchemeDiagnosticsOption>
+    public var diagnosticsOptions: SchemeDiagnosticsOptions
     public var language: String?
     public var region: String?
     public var preferredScreenCaptureFormat: ScreenCaptureFormat?
@@ -32,7 +32,7 @@ public struct TestAction: Equatable, Codable {
         expandVariableFromTarget: TargetReference?,
         preActions: [ExecutionAction],
         postActions: [ExecutionAction],
-        diagnosticsOptions: Set<SchemeDiagnosticsOption>,
+        diagnosticsOptions: SchemeDiagnosticsOptions,
         language: String? = nil,
         region: String? = nil,
         preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,

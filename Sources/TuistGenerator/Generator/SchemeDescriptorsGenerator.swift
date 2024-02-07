@@ -373,13 +373,13 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let onlyGenerateCoverageForSpecifiedTargets = codeCoverageTargets.count > 0 ? true : nil
 
-        let enableAddressSanitizer = testAction.diagnosticsOptions.contains(.enableAddressSanitizer)
+        let enableAddressSanitizer = testAction.diagnosticsOptions.addressSanitizerEnabled
         var enableASanStackUseAfterReturn = false
         if enableAddressSanitizer {
-            enableASanStackUseAfterReturn = testAction.diagnosticsOptions.contains(.enableASanStackUseAfterReturn)
+            enableASanStackUseAfterReturn = testAction.diagnosticsOptions.detectStackUseAfterReturnEnabled
         }
-        let enableThreadSanitizer = testAction.diagnosticsOptions.contains(.enableThreadSanitizer)
-        let disableMainThreadChecker = !testAction.diagnosticsOptions.contains(.mainThreadChecker)
+        let enableThreadSanitizer = testAction.diagnosticsOptions.threadSanitizerEnabled
+        let disableMainThreadChecker = !testAction.diagnosticsOptions.mainThreadCheckerEnabled
         let shouldUseLaunchSchemeArgsEnv: Bool = args == nil && environments == nil
         let language = testAction.language
         let region = testAction.region
@@ -506,15 +506,15 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
 
         let buildConfiguration = scheme.runAction?.configurationName ?? defaultBuildConfiguration
-        let enableAddressSanitizer = scheme.runAction?.diagnosticsOptions.contains(.enableAddressSanitizer) ?? false
+        let enableAddressSanitizer = scheme.runAction?.diagnosticsOptions.addressSanitizerEnabled ?? false
         var enableASanStackUseAfterReturn = false
         if enableAddressSanitizer == true {
-            enableASanStackUseAfterReturn = scheme.runAction?.diagnosticsOptions.contains(.enableASanStackUseAfterReturn) ?? false
+            enableASanStackUseAfterReturn = scheme.runAction?.diagnosticsOptions.detectStackUseAfterReturnEnabled ?? false
         }
-        let enableThreadSanitizer = scheme.runAction?.diagnosticsOptions.contains(.enableThreadSanitizer) ?? false
-        let disableMainThreadChecker = scheme.runAction?.diagnosticsOptions.contains(.mainThreadChecker) == false
+        let enableThreadSanitizer = scheme.runAction?.diagnosticsOptions.threadSanitizerEnabled ?? false
+        let disableMainThreadChecker = scheme.runAction?.diagnosticsOptions.mainThreadCheckerEnabled == false
         let disablePerformanceAntipatternChecker = scheme.runAction?.diagnosticsOptions
-            .contains(.performanceAntipatternChecker) == false
+            .performanceAntipatternCheckerEnabled == false
 
         let launchActionConstants: Constants.LaunchAction
         let launcherIdentifier: String
@@ -997,7 +997,7 @@ extension TestAction {
             expandVariableFromTarget: nil,
             preActions: [],
             postActions: [],
-            diagnosticsOptions: [],
+            diagnosticsOptions: SchemeDiagnosticsOptions(),
             language: nil,
             region: nil,
             preferredScreenCaptureFormat: nil,

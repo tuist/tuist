@@ -115,7 +115,7 @@ class SchemeLinterTests: TuistTestCase {
                         expandVariableFromTarget: nil,
                         preActions: [],
                         postActions: [],
-                        diagnosticsOptions: []
+                        diagnosticsOptions: SchemeDiagnosticsOptions()
                     )
                 ),
             ]

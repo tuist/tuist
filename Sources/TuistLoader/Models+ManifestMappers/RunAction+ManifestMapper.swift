@@ -45,7 +45,7 @@ extension TuistGraph.RunAction {
 
         let options = try TuistGraph.RunActionOptions.from(manifest: manifest.options, generatorPaths: generatorPaths)
 
-        let diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistGraph.SchemeDiagnosticsOption.from(manifest: $0) })
+        let diagnosticsOptions = TuistGraph.SchemeDiagnosticsOptions.from(manifest: manifest.diagnosticsOptions)
 
         let expandVariablesFromTarget: TuistGraph.TargetReference?
         expandVariablesFromTarget = try manifest.expandVariableFromTarget.map {

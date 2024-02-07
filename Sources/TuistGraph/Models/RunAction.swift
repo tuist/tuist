@@ -13,7 +13,7 @@ public struct RunAction: Equatable, Codable {
     public let filePath: AbsolutePath?
     public let arguments: Arguments?
     public let options: RunActionOptions
-    public let diagnosticsOptions: Set<SchemeDiagnosticsOption>
+    public let diagnosticsOptions: SchemeDiagnosticsOptions
     public let expandVariableFromTarget: TargetReference?
     public let launchStyle: LaunchStyle
 
@@ -29,7 +29,7 @@ public struct RunAction: Equatable, Codable {
         filePath: AbsolutePath?,
         arguments: Arguments?,
         options: RunActionOptions = .init(),
-        diagnosticsOptions: Set<SchemeDiagnosticsOption>,
+        diagnosticsOptions: SchemeDiagnosticsOptions,
         expandVariableFromTarget: TargetReference? = nil,
         launchStyle: LaunchStyle = .automatically
     ) {
