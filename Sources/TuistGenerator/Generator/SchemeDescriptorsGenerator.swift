@@ -376,7 +376,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let enableAddressSanitizer = testAction.diagnosticsOptions.addressSanitizerEnabled
         var enableASanStackUseAfterReturn = false
         if enableAddressSanitizer {
-            enableASanStackUseAfterReturn = testAction.diagnosticsOptions.addressSanitizerEnabled
+            enableASanStackUseAfterReturn = testAction.diagnosticsOptions.detectStackUseAfterReturnEnabled
         }
         let enableThreadSanitizer = testAction.diagnosticsOptions.threadSanitizerEnabled
         let disableMainThreadChecker = !testAction.diagnosticsOptions.mainThreadCheckerEnabled
@@ -509,7 +509,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let enableAddressSanitizer = scheme.runAction?.diagnosticsOptions.addressSanitizerEnabled ?? false
         var enableASanStackUseAfterReturn = false
         if enableAddressSanitizer == true {
-            enableASanStackUseAfterReturn = scheme.runAction?.diagnosticsOptions.addressSanitizerEnabled ?? false
+            enableASanStackUseAfterReturn = scheme.runAction?.diagnosticsOptions.detectStackUseAfterReturnEnabled ?? false
         }
         let enableThreadSanitizer = scheme.runAction?.diagnosticsOptions.threadSanitizerEnabled ?? false
         let disableMainThreadChecker = scheme.runAction?.diagnosticsOptions.mainThreadCheckerEnabled == false

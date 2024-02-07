@@ -21,8 +21,8 @@ public struct SchemeDiagnosticsOptions: Equatable, Codable {
         addressSanitizerEnabled: Bool = false,
         detectStackUseAfterReturnEnabled: Bool = false,
         threadSanitizerEnabled: Bool = false,
-        mainThreadCheckerEnabled: Bool = false,
-        performanceAntipatternCheckerEnabled: Bool = false
+        mainThreadCheckerEnabled: Bool = true,
+        performanceAntipatternCheckerEnabled: Bool = true
     ) -> SchemeDiagnosticsOptions {
         return SchemeDiagnosticsOptions(
             addressSanitizerEnabled: addressSanitizerEnabled,

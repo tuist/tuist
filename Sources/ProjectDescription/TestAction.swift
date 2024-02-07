@@ -86,7 +86,7 @@ public struct TestAction: Equatable, Codable {
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
         options: TestActionOptions = .options(),
-        diagnosticsOptions: SchemeDiagnosticsOptions = .options(mainThreadCheckerEnabled: true),
+        diagnosticsOptions: SchemeDiagnosticsOptions = .options(),
         skippedTests: [String] = []
     ) -> Self {
         Self(

@@ -86,10 +86,7 @@ public struct RunAction: Equatable, Codable {
         executable: TargetReference? = nil,
         arguments: Arguments? = nil,
         options: RunActionOptions = .options(),
-        diagnosticsOptions: SchemeDiagnosticsOptions = .options(
-            mainThreadCheckerEnabled: true,
-            performanceAntipatternCheckerEnabled: true
-        ),
+        diagnosticsOptions: SchemeDiagnosticsOptions = .options(),
         expandVariableFromTarget: TargetReference? = nil,
         launchStyle: LaunchStyle = .automatically
     ) -> RunAction {
