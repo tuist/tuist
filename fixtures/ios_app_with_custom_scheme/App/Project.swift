@@ -18,7 +18,7 @@ let debugScheme: Scheme = .scheme(
             simulatedLocation: .johannesburg,
             enableGPUFrameCaptureMode: .metal
         ),
-        diagnosticsOptions: [.mainThreadChecker]
+        diagnosticsOptions: .options(mainThreadCheckerEnabled: true)
     )
 )
 
@@ -34,7 +34,7 @@ let releaseScheme: Scheme = .scheme(
             simulatedLocation: .custom(gpxFile: "Resources/Grand Canyon.gpx"),
             enableGPUFrameCaptureMode: .disabled
         ),
-        diagnosticsOptions: [.mainThreadChecker]
+        diagnosticsOptions: .options(mainThreadCheckerEnabled: true)
     )
 )
 
