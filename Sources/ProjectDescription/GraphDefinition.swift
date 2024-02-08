@@ -55,7 +55,7 @@ public struct GraphDefinition: Hashable, Equatable, CustomStringConvertible, Cus
     /// default value. Defaults to nil.
     ///   - strokeWidth: The width of the stroke for borders. Defaults to nil.
     ///   - shape: The shape used to draw the node in the graph.
-    public static func graph(
+    public static func graphDefinition(
         fillColor: GraphDefinition.Color,
         textColor: GraphDefinition.Color? = nil,
         strokeWidth: Double? = nil,
