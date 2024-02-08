@@ -19,15 +19,6 @@ class Project < ApplicationRecord
     "#{account.name}/#{name}"
   end
 
-  def remote_cache_storage
-    remote_cache_storage_id = self["remote_cache_storage_id"]
-    if remote_cache_storage_id.nil?
-      DefaultS3Bucket.new
-    else
-      S3Bucket.find(remote_cache_storage_id)
-    end
-  end
-
   def as_json(options = {})
     super(options.merge(only: [:id, :token])).merge({ full_name: full_name })
   end
@@ -49,44 +40,5 @@ class Project < ApplicationRecord
         project
       end
     end
-  end
-end
-
-class DefaultS3Bucket
-  def name
-    if Environment.tuist_hosted?
-      case Rails.env
-      when "production"
-        "tuist-cloud-production"
-      when "staging"
-        "tuist-cloud-staging"
-      when "canary"
-        "tuist-cloud-canary"
-      else
-        "tuist-debug"
-      end
-    else
-      Environment.aws_bucket_name
-    end
-  end
-
-  def access_key_id
-    Environment.aws_access_key_id
-  end
-
-  def secret_access_key
-    Environment.aws_secret_access_key
-  end
-
-  def region
-    Environment.aws_region
-  end
-
-  def account_id
-    nil
-  end
-
-  def iv
-    nil
   end
 end

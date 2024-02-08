@@ -58,28 +58,36 @@ module Environment
       fetch(:database_url, with_prefix: false)
     end
 
-    def aws_access_key_id
-      fetch(:aws, :access_key_id)
+    def s3_access_key_id
+      # :aws is deprecated. We keep it for backwards compatibility
+      fetch(:aws, :access_key_id) || fetch(:s3, :access_key_id)
     end
 
-    def aws_secret_access_key
-      fetch(:aws, :secret_access_key)
+    def s3_secret_access_key
+      # :aws is deprecated. We keep it for backwards compatibility
+      fetch(:aws, :secret_access_key) || fetch(:s3, :secret_access_key)
     end
 
-    def aws_region
-      fetch(:aws, :region)
+    def s3_region
+      # :aws is deprecated. We keep it for backwards compatibility
+
+      fetch(:aws, :region) || fetch(:s3, :region) || 'auto'
     end
 
-    def aws_endpoint
-      fetch(:aws, :endpoint)
+    def s3_endpoint
+      # :aws is deprecated. We keep it for backwards compatibility
+
+      fetch(:aws, :endpoint) || fetch(:s3, :endpoint)
     end
 
-    def aws_bucket_name
-      fetch(:aws, :bucket_name)
+    def s3_bucket_name
+      # :aws is deprecated. We keep it for backwards compatibility
+
+      fetch(:aws, :bucket_name) || fetch(:s3, :bucket_name)
     end
 
     def storage_configured?
-      aws_configured?
+      s3_configured?
     end
 
     def blocklisted_slug_keywords
@@ -191,9 +199,9 @@ module Environment
       github_oauth_id.present? && github_oauth_secret.present?
     end
 
-    def aws_configured?
-      aws_access_key_id.present? && aws_secret_access_key.present? && aws_region.present? &&
-        (tuist_hosted? || aws_bucket_name.present?)
+    def s3_configured?
+      s3_access_key_id.present? && s3_secret_access_key.present? && s3_region.present? &&
+        (tuist_hosted? || s3_bucket_name.present?)
     end
 
     def app_url_configured?
@@ -209,7 +217,7 @@ module Environment
     end
 
     def ensure_configured!
-      return if Rails.env.test? || Rails.env.development? || precompiling_assets?
+      return if Rails.env.test? || Rails.env.development? || precompiling_assets? || ENV['EDITOR']
 
       errors = []
       errors << "Storage is not configured" unless storage_configured?

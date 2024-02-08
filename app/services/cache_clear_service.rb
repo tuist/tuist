@@ -26,25 +26,19 @@ class CacheClearService < ApplicationService
       slug: project_slug,
       subject: subject,
     )
-    s3_bucket = project.remote_cache_storage
     raise Error::Unauthorized unless ProjectPolicy.new(subject, project).update?
 
-    s3_client = S3ClientService.call(s3_bucket: s3_bucket)
+    s3_client, bucket_name = S3ClientService.call
     delete_objects(
+      bucket_name: bucket_name,
       s3_client: s3_client,
       project: project,
     )
-
-    if s3_bucket.is_a?(DefaultS3Bucket)
-      nil
-    else
-      s3_bucket
-    end
   end
 
-  def delete_objects(s3_client:, project:, marker: nil)
+  def delete_objects(s3_client:, bucket_name:, project:, marker: nil)
     objects_list = s3_client.list_objects(
-      bucket: project.remote_cache_storage.name,
+      bucket: bucket_name,
       prefix: "#{project_slug}/",
     )
     if objects_list.contents.empty?
@@ -52,7 +46,7 @@ class CacheClearService < ApplicationService
     end
 
     s3_client.delete_objects(
-      bucket: project.remote_cache_storage.name,
+      bucket: bucket_name,
       delete: {
         objects: objects_list.contents.map { |object| { key: object.key } },
       },

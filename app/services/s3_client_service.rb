@@ -1,39 +1,31 @@
 # frozen_string_literal: true
 
 class S3ClientService < ApplicationService
-  attr_reader :s3_bucket
-
-  def initialize(s3_bucket:)
-    super()
-    @s3_bucket = s3_bucket
-  end
-
   def call
-    secret_access_key = if s3_bucket.iv.nil?
-      s3_bucket.secret_access_key
-    else
-      DecipherService.call(
-        key: Base64.decode64(s3_bucket.secret_access_key),
-        iv: Base64.decode64(s3_bucket.iv),
-      )
-    end
-    Aws::S3::Client.new(
-      region: s3_bucket.region,
-      access_key_id: s3_bucket.access_key_id,
+    client = Aws::S3::Client.new(
+      region: region,
+      access_key_id: access_key_id,
       secret_access_key: secret_access_key,
-      endpoint_provider: TuistCloudEndpointProvider.new,
+      endpoint: Environment.s3_endpoint,
     )
+    [client, bucket_name]
   end
-end
 
-class TuistCloudEndpointProvider < Aws::S3::EndpointProvider
-  def resolve_endpoint(parameters)
-    if Environment.aws_endpoint.present?
-      endpoint = super
-      endpoint.instance_variable_set(:@url, Environment.aws_endpoint)
-      endpoint
-    else
-      super
-    end
+  private
+
+  def bucket_name
+    Environment.s3_bucket_name
+  end
+
+  def region
+    Environment.s3_region
+  end
+
+  def access_key_id
+    Environment.s3_access_key_id
+  end
+
+  def secret_access_key
+    Environment.s3_secret_access_key
   end
 end

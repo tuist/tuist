@@ -112,10 +112,10 @@ class CacheService < ApplicationService
   sig { returns(T::Boolean) }
   def object_exists?
     check_if_plan_valid
-    s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
+    s3_client, bucket_name = S3ClientService.call
     begin
       object = s3_client.get_object(
-        bucket: project.remote_cache_storage.name,
+        bucket: bucket_name,
         key: object_key,
       )
       object.content_length > 0
@@ -130,11 +130,11 @@ class CacheService < ApplicationService
 
   sig { returns(String) }
   def fetch
-    s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
+    s3_client, bucket_name = S3ClientService.call
     signer = Aws::S3::Presigner.new(client: s3_client)
     url = signer.presigned_url(
       :get_object,
-      bucket: project.remote_cache_storage.name,
+      bucket: bucket_name,
       key: object_key,
     )
     upload_event = CacheEvent.where(name: object_key, event_type: :upload).first
@@ -151,15 +151,15 @@ class CacheService < ApplicationService
 
   sig { returns(String) }
   def upload
-    s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
+    s3_client, bucket_name = S3ClientService.call
     s3_client.put_object(
-      bucket: project.remote_cache_storage.name,
+      bucket: bucket_name,
       key: object_key,
     )
     signer = Aws::S3::Presigner.new(client: s3_client)
     url = signer.presigned_url(
       :put_object,
-      bucket: project.remote_cache_storage.name,
+      bucket: bucket_name,
       key: object_key,
     )
     url
@@ -167,9 +167,9 @@ class CacheService < ApplicationService
 
   sig { returns(String) }
   def multipart_upload_start
-    s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
+    s3_client, bucket_name = S3ClientService.call
     upload = s3_client.create_multipart_upload({
-      bucket: project.remote_cache_storage.name,
+      bucket: bucket_name,
       key: object_key,
     })
     upload.upload_id
@@ -177,11 +177,11 @@ class CacheService < ApplicationService
 
   sig { params(upload_id: String, part_number: Integer).returns(String) }
   def multipart_generate_url(upload_id:, part_number:)
-    s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
+    s3_client, bucket_name = S3ClientService.call
     presigner = Aws::S3::Presigner.new(client: s3_client)
 
     presigner.presigned_url(:upload_part, {
-      bucket: project.remote_cache_storage.name,
+      bucket: bucket_name,
       key: object_key,
       upload_id: upload_id,
       part_number: part_number,
@@ -190,9 +190,9 @@ class CacheService < ApplicationService
 
   sig { params(upload_id: String, parts: T::Array[{ part_number: Integer, etag: String }]).returns(NilClass) }
   def multipart_upload_complete(upload_id:, parts:)
-    s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
+    s3_client, bucket_name = S3ClientService.call
     s3_client.complete_multipart_upload({
-      bucket: project.remote_cache_storage.name,
+      bucket: bucket_name,
       key: object_key,
       upload_id: upload_id,
       multipart_upload: {
@@ -203,9 +203,9 @@ class CacheService < ApplicationService
 
   sig { returns(Integer) }
   def verify_upload
-    s3_client = S3ClientService.call(s3_bucket: project.remote_cache_storage)
+    s3_client, bucket_name = S3ClientService.call
     object = s3_client.get_object(
-      bucket: project.remote_cache_storage.name,
+      bucket: bucket_name,
       key: object_key,
     )
     CacheEvent.create!(

@@ -21,7 +21,6 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
     # Then
     assert_equal project_name, got.name
     assert_equal account, got.account
-    assert_equal "tuist-debug", got.remote_cache_storage.name
     assert_not_nil got.token
     assert_not_equal got.token, ""
   end

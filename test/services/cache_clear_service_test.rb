@@ -34,23 +34,21 @@ class CacheClearServiceTest < ActiveSupport::TestCase
 
   test "cache is cleared with project slug" do
     # Given
-    Aws::S3::Client.any_instance.stubs(:delete_objects)
-    Aws::S3::Client.any_instance.stubs(:list_objects).returns(ContentsMock.new)
+    client = mock("s3-client").responds_like_instance_of(Aws::S3::Client)
+    S3ClientService.expects(:call).returns([client, "bucket"])
+    client.expects(:delete_objects)
+    client.expects(:list_objects).returns(ContentsMock.new)
     project = Project.create!(
       name: "tuist-project",
       account_id: @user.account.id,
       token: Devise.friendly_token.first(16),
     )
-    project.remote_cache_storage = @s3_bucket
     ProjectFetchService.any_instance.stubs(:fetch_by_slug).returns(project)
 
-    # When
-    got = CacheClearService.call(
+    # When/then
+    CacheClearService.call(
       project_slug: "project/slug",
       subject: @user,
     )
-
-    # Then
-    assert_equal @s3_bucket, got
   end
 end
