@@ -339,8 +339,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Given
         let project = Project.test(
             packages: [
-                .local(path: try AbsolutePath(validating: "/Packages/LocalPackageA")),
-                .local(path: try AbsolutePath(validating: "/Packages/LocalPackageB")),
+                .local(path: try AbsolutePath(validating: "/LocalPackages/LocalPackageA")),
+                .local(path: try AbsolutePath(validating: "/LocalPackages/LocalPackageB")),
             ]
         )
 
@@ -361,7 +361,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
     func test_generate_localSwiftPackagePaths() throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
-        let localPackagePath = try AbsolutePath(validating: "/Packages/LocalPackageA")
+        let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
         let project = Project.test(
             path: projectPath,
             sourceRootPath: projectPath,
@@ -401,7 +401,7 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let packageGroup = try XCTUnwrap(rootGroup.group(named: "Packages"))
         let paths = packageGroup.children.compactMap(\.path)
         XCTAssertEqual(paths, [
-            "../Packages/LocalPackageA",
+            "../LocalPackages/LocalPackageA",
         ])
     }
 
