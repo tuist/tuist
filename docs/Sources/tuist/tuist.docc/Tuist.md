@@ -97,6 +97,7 @@ The choice is yours. By adding .xcodeproj and .xcworkspace files to your .gitign
 ### For Tuist Cloud Users
 
 - <doc:tuist-cloud>
+- <doc:tuist-cloud-get-started>
 - <doc:binary-caching>
 - <doc:selective-testing>
 - <doc:tuist-cloud-tutorials>
