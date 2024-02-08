@@ -64,6 +64,13 @@ extension TuistTestCase {
             file: file,
             line: line
         )
+        
+        XCTAssertEqual(
+            target.graphDefinition,
+            manifest.graphDefinition.map(TuistGraph.GraphDefinition.from),
+            file: file,
+            line: line)
+        
         try assert(
             coreDataModels: target.coreDataModels,
             matches: manifest.coreDataModels,

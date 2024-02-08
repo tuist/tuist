@@ -74,7 +74,8 @@ extension Target {
         dependencies: [TargetDependency] = [],
         settings: Settings? = nil,
         coreDataModels: [CoreDataModel] = [],
-        environment: [String: String] = [:]
+        environment: [String: String] = [:],
+        graphDefinition: GraphDefinition? = nil
     ) -> Target {
         .target(
             name: name,
@@ -91,7 +92,8 @@ extension Target {
             dependencies: dependencies,
             settings: settings,
             coreDataModels: coreDataModels,
-            environmentVariables: environment.mapValues { .init(stringLiteral: $0) }
+            environmentVariables: environment.mapValues { .init(stringLiteral: $0) },
+            graphDefinition: graphDefinition
         )
     }
 }

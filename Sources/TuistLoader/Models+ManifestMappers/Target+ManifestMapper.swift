@@ -98,6 +98,8 @@ extension TuistGraph.Target {
         let buildRules = manifest.buildRules.map {
             TuistGraph.BuildRule.from(manifest: $0)
         }
+        
+        let graphDefinition = manifest.graphDefinition?.graphValue
 
         return TuistGraph.Target(
             name: name,
@@ -123,7 +125,8 @@ extension TuistGraph.Target {
             additionalFiles: additionalFiles,
             buildRules: buildRules,
             mergedBinaryType: mergedBinaryType,
-            mergeable: manifest.mergeable
+            mergeable: manifest.mergeable,
+            graphDefinition: graphDefinition
         )
     }
 

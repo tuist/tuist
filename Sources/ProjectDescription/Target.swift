@@ -70,6 +70,8 @@ public struct Target: Codable, Equatable {
     /// Specifies whether if the target can be merged as part of another binary or not
     public var mergeable: Bool
 
+    public var graphDefinition: GraphDefinition?
+    
     public static func target(
         name: String,
         destinations: Destinations,
@@ -92,7 +94,8 @@ public struct Target: Codable, Equatable {
         additionalFiles: [FileElement] = [],
         buildRules: [BuildRule] = [],
         mergedBinaryType: MergedBinaryType = .disabled,
-        mergeable: Bool = false
+        mergeable: Bool = false,
+        graphDefinition: GraphDefinition? = nil
     ) -> Self {
         self.init(
             name: name,
@@ -116,7 +119,9 @@ public struct Target: Codable, Equatable {
             additionalFiles: additionalFiles,
             buildRules: buildRules,
             mergedBinaryType: mergedBinaryType,
-            mergeable: mergeable
+            mergeable: mergeable,
+            graphDefinition: graphDefinition
+            
         )
     }
 }

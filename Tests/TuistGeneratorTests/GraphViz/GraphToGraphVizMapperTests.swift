@@ -157,11 +157,13 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let rxSwift = GraphViz.Node("RxSwift")
         let xcodeProj = GraphViz.Node("XcodeProj")
         let core = GraphViz.Node("Core")
+        let styled = GraphViz.Node("Styled")
         let coreTests = GraphViz.Node("CoreTests")
         let watchOS = GraphViz.Node("Tuist watchOS")
         let externalDependency = GraphViz.Node("External dependency")
 
-        graph.append(contentsOf: [tuist, core])
+        graph.append(contentsOf: [tuist, core, styled])
+        graph.append(GraphViz.Edge(from: styled, to: core))
         if !onlyiOS {
             graph.append(watchOS)
         }
@@ -206,6 +208,14 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             path: coreProject.path,
             target: Target.test(name: "Core")
         )
+        
+        let graphDefinition = GraphDefinition(fillColor: "#FFCC00", shape: "octagon")
+        
+        let styled = GraphTarget.test(
+            path: coreProject.path,
+            target: Target.test(name: "Styled", graphDefinition: graphDefinition)
+        )
+        
         let coreDependency = GraphDependency.target(name: core.target.name, path: core.path)
         let coreTests = GraphTarget.test(
             path: coreProject.path,
@@ -238,6 +248,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 ],
                 coreProject.path: [
                     core.target.name: core.target,
+                    styled.target.name: styled.target,
                     coreTests.target.name: coreTests.target,
                 ],
                 externalProject.path: [
@@ -251,6 +262,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                     sdk,
                     externalDependency,
                 ],
+                .target(name: styled.target.name, path: styled.path): [coreDependency],
                 .target(name: coreTests.target.name, path: coreTests.path): [coreDependency],
                 .target(name: iOSApp.target.name, path: iOSApp.path): [coreDependency],
                 .target(name: watchApp.target.name, path: watchApp.path): [coreDependency],

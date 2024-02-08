@@ -30,7 +30,8 @@ extension Target {
         additionalFiles: [FileElement] = [],
         prune: Bool = false,
         mergedBinaryType: MergedBinaryType = .disabled,
-        mergeable: Bool = false
+        mergeable: Bool = false,
+        graphDefinition: GraphDefinition? = nil
     ) -> Target {
         Target(
             name: name,
@@ -57,7 +58,8 @@ extension Target {
             additionalFiles: additionalFiles,
             prune: prune,
             mergedBinaryType: mergedBinaryType,
-            mergeable: mergeable
+            mergeable: mergeable,
+            graphDefinition: graphDefinition
         )
     }
 

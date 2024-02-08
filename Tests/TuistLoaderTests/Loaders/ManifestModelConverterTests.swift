@@ -98,6 +98,51 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             generatorPaths: generatorPaths
         )
     }
+    
+    func test_loadProject_withStyledTargets() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let graphDefinitionA = GraphDefinition(fillColor: "#FFCC00", shape: .octagon)
+        let graphDefinitionB = GraphDefinition(fillColor: "#33CD40", shape: .square)
+        let targetA = TargetManifest.test(name: "A", sources: [], resources: [], graphDefinition: graphDefinitionA)
+        let targetB = TargetManifest.test(name: "B", sources: [], resources: [], graphDefinition: graphDefinitionB)
+        let manifest = ProjectManifest.test(
+            name: "Project",
+            targets: [
+                targetA,
+                targetB,
+            ]
+        )
+        let manifestLoader = makeManifestLoader(with: [
+            temporaryPath: manifest,
+        ])
+        let subject = makeSubject(with: manifestLoader)
+
+        // When
+        let model = try subject.convert(
+            manifest: manifest,
+            path: temporaryPath,
+            plugins: .none,
+            externalDependencies: [:],
+            isExternal: false
+        )
+
+        // Then
+        XCTAssertEqual(model.targets.count, 2)
+        try XCTAssertTargetMatchesManifest(
+            target: model.targets[0],
+            matches: targetA,
+            at: temporaryPath,
+            generatorPaths: generatorPaths
+        )
+        try XCTAssertTargetMatchesManifest(
+            target: model.targets[1],
+            matches: targetB,
+            at: temporaryPath,
+            generatorPaths: generatorPaths
+        )
+    }
 
     func test_loadProject_withAdditionalFiles() throws {
         // Given

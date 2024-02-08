@@ -1,6 +1,5 @@
 import Foundation
 import TSCBasic
-
 // swiftlint:disable:next type_body_length
 public struct Target: Equatable, Hashable, Comparable, Codable {
     // MARK: - Static
@@ -46,7 +45,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var prune: Bool
     public let mergedBinaryType: MergedBinaryType
     public let mergeable: Bool
-
+    public let graphDefinition: GraphDefinition?
+    
     // MARK: - Init
 
     public init(
@@ -75,7 +75,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         buildRules: [BuildRule] = [],
         prune: Bool = false,
         mergedBinaryType: MergedBinaryType = .disabled,
-        mergeable: Bool = false
+        mergeable: Bool = false,
+        graphDefinition: GraphDefinition? = nil
     ) {
         self.name = name
         self.product = product
@@ -103,6 +104,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         self.prune = prune
         self.mergedBinaryType = mergedBinaryType
         self.mergeable = mergeable
+        self.graphDefinition = graphDefinition
     }
 
     /// Target can be included in the link phase of other targets
