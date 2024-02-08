@@ -14,7 +14,7 @@ extension TestAction {
         expandVariableFromTarget: TargetReference? = nil,
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
-        diagnosticsOptions: Set<SchemeDiagnosticsOption> = [.mainThreadChecker],
+        diagnosticsOptions: SchemeDiagnosticsOptions = SchemeDiagnosticsOptions(mainThreadCheckerEnabled: true),
         language: String? = nil,
         region: String? = nil,
         preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,

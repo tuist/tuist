@@ -4,14 +4,15 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 
-extension TuistGraph.SchemeDiagnosticsOption {
-    static func from(manifest: ProjectDescription.SchemeDiagnosticsOption) -> TuistGraph.SchemeDiagnosticsOption {
-        switch manifest {
-        case .enableAddressSanitizer: return .enableAddressSanitizer
-        case .enableDetectStackUseAfterReturn: return .enableASanStackUseAfterReturn
-        case .enableThreadSanitizer: return .enableThreadSanitizer
-        case .mainThreadChecker: return .mainThreadChecker
-        case .performanceAntipatternChecker: return .performanceAntipatternChecker
-        }
+extension TuistGraph.SchemeDiagnosticsOptions {
+    static func from(manifest: ProjectDescription.SchemeDiagnosticsOptions) -> TuistGraph.SchemeDiagnosticsOptions {
+        return TuistGraph.SchemeDiagnosticsOptions(
+            addressSanitizerEnabled: manifest.addressSanitizerEnabled,
+            detectStackUseAfterReturnEnabled: manifest.detectStackUseAfterReturnEnabled,
+            threadSanitizerEnabled: manifest.threadSanitizerEnabled,
+            mainThreadCheckerEnabled: manifest.mainThreadCheckerEnabled,
+            performanceAntipatternCheckerEnabled: manifest
+                .performanceAntipatternCheckerEnabled
+        )
     }
 }
