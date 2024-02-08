@@ -59,7 +59,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
         if config.generationOptions.enforceExplicitDependencies {
             mappers.append(ExplicitDependencyGraphMapper())
         }
-        mappers.append(ModuleMapGraphMapper())
+//        mappers.append(ModuleMapGraphMapper())
         return mappers
     }
 }

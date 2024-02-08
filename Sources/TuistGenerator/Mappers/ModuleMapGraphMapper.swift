@@ -21,25 +21,25 @@ public struct ModuleMapGraphMapper: GraphMapping {
                 let (newSideEffects, newImpartedSettings) = mapExternal(target, graphTraverser: graphTraverser)
                 sideEffects.append(contentsOf: newSideEffects)
                 impartedSettings[target.target] = newImpartedSettings
-            } else {
-                for dependency in graphTraverser.directTargetDependencies(path: target.path, name: target.target.name) {
-                    guard let dependencyImpartedSettings = impartedSettings[dependency.target] else { continue }
-                    if let targetImpartedSettings = impartedSettings[target.target] {
-                        impartedSettings[target.target] = targetImpartedSettings
-                            .merging(
-                                dependencyImpartedSettings,
-                                uniquingKeysWith: {
-                                    switch ($0, $1) {
-                                    case let (.array(leftArray), .array(rightArray)):
-                                        return SettingValue.array(leftArray + rightArray)
-                                    default:
-                                        return $1
-                                    }
+            }
+            
+            for dependency in graphTraverser.directTargetDependencies(path: target.path, name: target.target.name) {
+                guard let dependencyImpartedSettings = impartedSettings[dependency.target] else { continue }
+                if let targetImpartedSettings = impartedSettings[target.target] {
+                    impartedSettings[target.target] = targetImpartedSettings
+                        .merging(
+                            dependencyImpartedSettings,
+                            uniquingKeysWith: {
+                                switch ($0, $1) {
+                                case let (.array(leftArray), .array(rightArray)):
+                                    return SettingValue.array(leftArray + rightArray)
+                                default:
+                                    return $1
                                 }
-                            )
-                    } else {
-                        impartedSettings[target.target] = dependencyImpartedSettings
-                    }
+                            }
+                        )
+                } else {
+                    impartedSettings[target.target] = dependencyImpartedSettings
                 }
             }
         }
@@ -67,7 +67,7 @@ public struct ModuleMapGraphMapper: GraphMapping {
         
         let umbrellaHeaderPath: AbsolutePath
         if
-            let defaultUmbrellaHeader = publicHeaders.first(where: { $0.parentDirectory.basename == "include" && $0.basename == "\(target.name).h" }) {
+            let defaultUmbrellaHeader = publicHeaders.first(where: { $0.basename == "\(target.name).h" }) {
             umbrellaHeaderPath = defaultUmbrellaHeader
         } else {
             return ([], [:])
@@ -103,7 +103,18 @@ public struct ModuleMapGraphMapper: GraphMapping {
         return (
             [moduleMapSideEffect], 
             [
-                "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-Xcc", "-fmodule-map-file=\(moduleMapPath.pathString)"]),
+                "OTHER_SWIFT_FLAGS": .array(
+                    [
+                        "$(inherited)",
+                        "-Xcc", "-fmodule-map-file=\(moduleMapPath.pathString)",
+                    ]
+                ),
+                "HEADER_SEARCH_PATHS": .array(
+                    [
+                        "$(inherited)",
+                        umbrellaHeaderPath.parentDirectory.parentDirectory.pathString,
+                    ]
+                )
             ]
         )
     }

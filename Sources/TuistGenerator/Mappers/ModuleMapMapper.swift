@@ -50,6 +50,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
     private static let modulemapFileSetting = "MODULEMAP_FILE"
     private static let otherCFlagsSetting = "OTHER_CFLAGS"
     private static let otherSwiftFlagsSetting = "OTHER_SWIFT_FLAGS"
+    private static let headerSearchPaths = "HEADER_SEARCH_PATHS"
 
     private struct TargetID: Hashable {
         let projectPath: AbsolutePath
@@ -103,6 +104,14 @@ public final class ModuleMapMapper: WorkspaceMapping {
                     targetToModuleMaps: targetToModuleMaps
                 ) {
                     mappedSettingsDictionary[Self.otherCFlagsSetting] = updatedOtherCFlags
+                }
+                
+                if let updatedHeaderSearchPaths = Self.updatedHeaderSearchPaths(
+                    targetID: targetID,
+                    oldHeaderSearchPaths: mappedSettingsDictionary[Self.headerSearchPaths],
+                    targetToModuleMaps: targetToModuleMaps
+                ) {
+                    mappedSettingsDictionary[Self.headerSearchPaths] = updatedHeaderSearchPaths
                 }
 
                 let targetSettings = mappedTarget.settings ?? Settings(
@@ -212,6 +221,30 @@ public final class ModuleMapMapper: WorkspaceMapping {
         targetToModuleMaps[targetID] = dependenciesModuleMaps
     }
 
+    private static func updatedHeaderSearchPaths(
+        targetID: TargetID,
+        oldHeaderSearchPaths: SettingsDictionary.Value?,
+        targetToModuleMaps: [TargetID: Set<AbsolutePath>]
+    ) -> SettingsDictionary.Value? {
+        guard let dependenciesModuleMaps = targetToModuleMaps[targetID], !dependenciesModuleMaps.isEmpty else { return nil }
+
+        var mappedHeaderSearchPaths: [String]
+        switch oldHeaderSearchPaths ?? .array(["$(inherited)"]) {
+        case let .array(values):
+            mappedHeaderSearchPaths = values
+        case let .string(value):
+            mappedHeaderSearchPaths = value.split(separator: " ").map(String.init)
+        }
+
+        for moduleMap in dependenciesModuleMaps.sorted() {
+            mappedHeaderSearchPaths.append(
+                "$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath).appending(components: "..", ".."))"
+            )
+        }
+
+        return .array(mappedHeaderSearchPaths)
+    }
+    
     private static func updatedOtherSwiftFlags(
         targetID: TargetID,
         oldOtherSwiftFlags: SettingsDictionary.Value?,
