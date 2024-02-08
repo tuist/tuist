@@ -98,7 +98,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             generatorPaths: generatorPaths
         )
     }
-    
+
     func test_loadProject_withStyledTargets() throws {
         // Given
         let temporaryPath = try temporaryPath()

@@ -16,7 +16,6 @@ extension GraphViz.Node {
 }
 
 struct NodeStyleAttributes {
-    
     let fillColor: GraphViz.Color?
     var textColor: GraphViz.Color?
     let strokeWidth: Double?
@@ -33,11 +32,14 @@ struct NodeStyleAttributes {
         self.strokeWidth = strokeWidth
         self.shape = shape
     }
-    
-    internal init(fillColor: Color? = nil, 
-                  textColor: Color? = nil,
-                  strokeWidth: Double? = nil,
-                  shape: Node.Shape? = nil) {
+
+    init(
+        fillColor: Color? = nil,
+
+        textColor: Color? = nil,
+        strokeWidth: Double? = nil,
+        shape: Node.Shape? = nil
+    ) {
         self.fillColor = fillColor
         self.textColor = textColor
         self.strokeWidth = strokeWidth
@@ -51,11 +53,14 @@ extension GraphTarget {
         guard let customAttributes = target.graphDefinition?.styleAttributes else {
             return defaultAttributes
         }
-        return .init(fillColor: customAttributes.fillColor ?? defaultAttributes.fillColor,
-                     textColor: customAttributes.textColor ?? defaultAttributes.textColor,
-                     strokeWidth: customAttributes.strokeWidth ?? defaultAttributes.strokeWidth,
-                     shape: customAttributes.shape ?? defaultAttributes.shape)
+        return .init(
+            fillColor: customAttributes.fillColor ?? defaultAttributes.fillColor,
+            textColor: customAttributes.textColor ?? defaultAttributes.textColor,
+            strokeWidth: customAttributes.strokeWidth ?? defaultAttributes.strokeWidth,
+            shape: customAttributes.shape ?? defaultAttributes.shape
+        )
     }
+
     private var defaultStyleAttributes: NodeStyleAttributes {
         switch target.product {
         case .app, .watch2App, .commandLineTool, .macro, .appClip, .xpc, .systemExtension:
@@ -108,17 +113,21 @@ extension GraphDependency {
 
 extension GraphDefinition {
     var styleAttributes: NodeStyleAttributes {
-        .init(fillColor: fillColor.graphViz,
-              textColor: textColor?.graphViz,
-              strokeWidth: strokeWidth,
-              shape: shape.graphViz)
+        .init(
+            fillColor: fillColor.graphViz,
+            textColor: textColor?.graphViz,
+            strokeWidth: strokeWidth,
+            shape: shape.graphViz
+        )
     }
 }
+
 extension GraphDefinition.Color {
     var graphViz: GraphViz.Color {
         .custom(description)
     }
 }
+
 extension GraphDefinition.Shape {
     var graphViz: GraphViz.Node.Shape? {
         .init(rawValue: description)

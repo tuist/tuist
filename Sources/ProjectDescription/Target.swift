@@ -71,7 +71,7 @@ public struct Target: Codable, Equatable {
     public var mergeable: Bool
 
     public var graphDefinition: GraphDefinition?
-    
+
     public static func target(
         name: String,
         destinations: Destinations,
@@ -121,7 +121,6 @@ public struct Target: Codable, Equatable {
             mergedBinaryType: mergedBinaryType,
             mergeable: mergeable,
             graphDefinition: graphDefinition
-            
         )
     }
 }

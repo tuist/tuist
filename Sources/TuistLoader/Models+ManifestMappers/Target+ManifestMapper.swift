@@ -98,7 +98,7 @@ extension TuistGraph.Target {
         let buildRules = manifest.buildRules.map {
             TuistGraph.BuildRule.from(manifest: $0)
         }
-        
+
         let graphDefinition = manifest.graphDefinition?.graphValue
 
         return TuistGraph.Target(

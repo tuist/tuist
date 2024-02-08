@@ -208,14 +208,14 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             path: coreProject.path,
             target: Target.test(name: "Core")
         )
-        
+
         let graphDefinition = GraphDefinition(fillColor: "#FFCC00", shape: "octagon")
-        
+
         let styled = GraphTarget.test(
             path: coreProject.path,
             target: Target.test(name: "Styled", graphDefinition: graphDefinition)
         )
-        
+
         let coreDependency = GraphDependency.target(name: core.target.name, path: core.path)
         let coreTests = GraphTarget.test(
             path: coreProject.path,

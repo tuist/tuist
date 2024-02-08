@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+
 // swiftlint:disable:next type_body_length
 public struct Target: Equatable, Hashable, Comparable, Codable {
     // MARK: - Static
@@ -46,7 +47,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public let mergedBinaryType: MergedBinaryType
     public let mergeable: Bool
     public let graphDefinition: GraphDefinition?
-    
+
     // MARK: - Init
 
     public init(
