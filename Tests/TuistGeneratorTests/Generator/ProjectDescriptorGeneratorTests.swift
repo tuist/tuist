@@ -335,10 +335,9 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(pbxProject.developmentRegion, "de")
     }
 
-    func test_localPackages_areAddedToGroup_whenGroupNameIsSpecified() throws {
+    func test_generate_localSwiftPackageGroup() throws {
         // Given
         let project = Project.test(
-            options: .test(localPackagesGroupName: "Packages"),
             packages: [
                 .local(path: try AbsolutePath(validating: "/Packages/LocalPackageA")),
                 .local(path: try AbsolutePath(validating: "/Packages/LocalPackageB")),
@@ -356,29 +355,6 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let rootGroup = try XCTUnwrap(pbxproj.rootGroup())
         let packagesGroup = rootGroup.group(named: "Packages")
         let packages = try XCTUnwrap(packagesGroup?.children)
-        XCTAssertEqual(packages.map(\.name), ["LocalPackageA", "LocalPackageB"])
-    }
-
-    func test_localPackages_areNotAddedToGroup_whenGroupNameIsNotSpecified() throws {
-        // Given
-        let project = Project.test(
-            options: .test(localPackagesGroupName: nil),
-            packages: [
-                .local(path: try AbsolutePath(validating: "/Packages/LocalPackageA")),
-                .local(path: try AbsolutePath(validating: "/Packages/LocalPackageB")),
-            ]
-        )
-
-        let graph = Graph.test(projects: [project.path: project])
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // When
-        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
-
-        // Then
-        let pbxproj = got.xcodeProj.pbxproj
-        let rootGroup = try XCTUnwrap(pbxproj.rootGroup())
-        let packages = rootGroup.children.filter { $0.name?.contains("LocalPackage") ?? false }
         XCTAssertEqual(packages.map(\.name), ["LocalPackageA", "LocalPackageB"])
     }
 
@@ -422,7 +398,8 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Then
         let pbxproj = got.xcodeProj.pbxproj
         let rootGroup = try XCTUnwrap(pbxproj.rootGroup())
-        let paths = rootGroup.children.compactMap(\.path)
+        let packageGroup = try XCTUnwrap(rootGroup.group(named: "Packages"))
+        let paths = packageGroup.children.compactMap(\.path)
         XCTAssertEqual(paths, [
             "../Packages/LocalPackageA",
         ])

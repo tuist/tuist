@@ -15,16 +15,14 @@ extension Project.Options {
         disableBundleAccessors: Bool = false,
         disableShowEnvironmentVarsInScriptPhases: Bool = false,
         disableSynthesizedResourceAccessors: Bool = false,
-        textSettings: TextSettings = .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil),
-        localPackagesGroupName: String? = nil
+        textSettings: TextSettings = .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
     ) -> Self {
         .init(
             automaticSchemesOptions: automaticSchemesOptions,
             disableBundleAccessors: disableBundleAccessors,
             disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
             disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
-            textSettings: textSettings,
-            localPackagesGroupName: localPackagesGroupName
+            textSettings: textSettings
         )
     }
 }
