@@ -273,7 +273,8 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 if let existingPackageGroup = try pbxproj.rootGroup()?.group(named: "Packages") {
                     existingPackageGroup.children.append(reference)
                 } else {
-                    try pbxproj.rootGroup()?.addGroup(named: "Packages", options: .withoutFolder).first?.children.append(reference)
+                    let packageGroup = try pbxproj.rootGroup()?.addGroup(named: "Packages", options: .withoutFolder)
+                    packageGroup?.first?.children.append(reference)
                 }
 
             case let .remote(url: url, requirement: requirement):
