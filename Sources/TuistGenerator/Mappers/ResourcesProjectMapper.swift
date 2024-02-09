@@ -15,6 +15,8 @@ public class ResourcesProjectMapper: ProjectMapping {
         guard !project.options.disableBundleAccessors else {
             return (project, [])
         }
+        logger.debug("Transforming project \(project.name): Generating bundles for libraries'")
+
         var sideEffects: [SideEffectDescriptor] = []
         var targets: [Target] = []
 

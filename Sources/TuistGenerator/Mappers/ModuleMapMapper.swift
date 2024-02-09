@@ -60,6 +60,11 @@ public final class ModuleMapMapper: WorkspaceMapping {
 
     // swiftlint:disable function_body_length
     public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+        logger
+            .debug(
+                "Transforming workspace \(workspace.workspace.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
+            )
+
         let (projectsByPath, targetsByName) = Self.makeProjectsByPathWithTargetsByName(workspace: workspace)
         var targetToModuleMaps: [TargetID: Set<AbsolutePath>] = [:]
         for project in workspace.projects {

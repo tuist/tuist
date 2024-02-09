@@ -7,6 +7,11 @@ public final class TargetActionDisableShowEnvVarsProjectMapper: ProjectMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+        logger
+            .debug(
+                "Transforming project \(project.name): Configuring 'disable show environment vars in script' in project targets' script phases"
+            )
+
         var project = project
         project.targets = project.targets.map { target in
             var mappedTarget = target
