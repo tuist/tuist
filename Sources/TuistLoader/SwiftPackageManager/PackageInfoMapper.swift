@@ -922,7 +922,7 @@ extension ProjectDescription.Headers {
                     [
                         .glob(
                             .path(path.parentDirectory.appending(component: "\(path.basenameWithoutExt).h").pathString)
-                        )
+                        ),
                     ]
                 )
             )
@@ -933,13 +933,13 @@ extension ProjectDescription.Headers {
             return .headers(public: .list(list))
         case let .custom(_, umbrellaHeaderPath: umbrellaHeaderPath):
             guard let umbrellaHeaderPath else { return nil }
-            
+
             return .headers(
                 public: .list(
                     [
                         .glob(
                             .path(umbrellaHeaderPath.pathString)
-                        )
+                        ),
                     ]
                 )
             )

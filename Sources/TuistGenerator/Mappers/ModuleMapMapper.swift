@@ -105,7 +105,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 ) {
                     mappedSettingsDictionary[Self.otherCFlagsSetting] = updatedOtherCFlags
                 }
-                
+
                 if let updatedHeaderSearchPaths = Self.updatedHeaderSearchPaths(
                     targetID: targetID,
                     oldHeaderSearchPaths: mappedSettingsDictionary[Self.headerSearchPaths],
@@ -244,7 +244,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
 
         return .array(mappedHeaderSearchPaths)
     }
-    
+
     private static func updatedOtherSwiftFlags(
         targetID: TargetID,
         oldOtherSwiftFlags: SettingsDictionary.Value?,

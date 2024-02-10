@@ -94,7 +94,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                     "-Xcc",
                     "-fmodule-map-file=$(SRCROOT)/../B/B2/B2.module",
                 ]),
-                "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B1", "$(SRCROOT)/../B/B2"])
+                "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B1", "$(SRCROOT)/../B/B2"]),
             ]),
             dependencies: [
                 .project(target: "B1", path: projectBPath),
@@ -204,7 +204,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                         "-Xcc",
                         "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
                     ]),
-                    "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B"])
+                    "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B"]),
                 ],
                 configurations: [:],
                 defaultSettings: .recommended

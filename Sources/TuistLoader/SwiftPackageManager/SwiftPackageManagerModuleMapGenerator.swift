@@ -51,7 +51,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         let nestedUmbrellaHeaderPath = publicHeadersPath.appending(component: moduleName).appending(component: moduleName + ".h")
         let sanitizedModuleName = moduleName.replacingOccurrences(of: "-", with: "_")
         let customModuleMapPath = try Self.customModuleMapPath(publicHeadersPath: publicHeadersPath)
-        
+
         if FileHandler.shared.exists(umbrellaHeaderPath) {
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: umbrellaHeaderPath)
@@ -78,7 +78,8 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             // User defined modulemap exists, use it
             return .custom(customModuleMapPath, umbrellaHeaderPath: nil)
         } else if FileHandler.shared.exists(publicHeadersPath) {
-            // We move the umbrella headers directory to a different location for CocoaLumberjack. Somehow, the one used by default is not properly recognized even if the path in the `modulemap` is correct.
+            // We move the umbrella headers directory to a different location for CocoaLumberjack. Somehow, the one used by
+            // default is not properly recognized even if the path in the `modulemap` is correct.
             // If the directory is copied to a different location, it works.
             if sanitizedModuleName == "CocoaLumberjack" {
                 let copiedPublicHeadersPath = publicHeadersPath.parentDirectory.appending(component: "tuist-public-headers")

@@ -1,38 +1,38 @@
 import Alamofire
-import ComposableArchitecture
-import ZipArchive
-import GoogleSignIn
-import Yams
-import Sentry
-import RealmSwift
 import CocoaLumberjackSwift
+import ComposableArchitecture
+import GoogleSignIn
 import Realm
+import RealmSwift
+import Sentry
+import Yams
+import ZipArchive
 
 public enum AppKit {
     public static func start() {
         // Use Alamofire to make sure it links fine
         _ = AF.download("http://www.tuist.io")
-        
+
         // Use ComposableArchitecture to make sure it links fine
         _ = EmptyReducer<Never, Never>()
-        
+
         // Use ZipArchive
         _ = SSZipArchive.createZipFile(atPath: #file + "/ss.zip", withFilesAtPaths: [])
-        
+
         // Use Yams
         _ = YAMLEncoder()
-        
+
         // Use GoogleSignIn
         _ = GIDSignIn.sharedInstance.configuration
-        
+
         // Use Sentry
         SentrySDK.startSession()
-        
+
         // Use CocoaLumberjack
-        let _ = CocoaLumberjackSwift.DDLogInfo("Log")
-        
+        _ = CocoaLumberjackSwift.DDLogInfo("Log")
+
         // Use Realm
-        let _ = Realm.Configuration()
+        _ = Realm.Configuration()
     }
 }
 
