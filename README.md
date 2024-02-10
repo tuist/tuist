@@ -16,7 +16,7 @@
 
 ## 🕺 What's Tuist
 
-Tuist is a command line tool that helps you **_generate_**, **_maintain_** and **_interact_** with Xcode projects.
+Tuist is a command line tool that leverages _** to abstract intricacies of Xcode projects, and uses it as a foundation to help teams **_maintain_** and **_optimize_** their large modular projects.
 
 It's open source and written in Swift.
 
