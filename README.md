@@ -47,13 +47,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
 ### 🥇 Gold Sponsors
 
 <table>
-  <colgroup>
-    <col span="1" style="width: 30%;">
-    <col span="1">
-  </colgroup>
   <tbody>
     <tr>
-      <td>
+      <td width="30%">
         <div>
           <a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
             <picture>
@@ -65,7 +61,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td><a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist">Monday.com</a> is a cloud-based work operating system (Work OS) that empowers teams to run projects and workflows with confidence. It's a versatile platform that combines features of project management, workflow automation, and team collaboration to streamline the way teams work together.</td>
     </tr>
     <tr>
-      <td>
+      <td width="30%">
         <div>
           <a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
             <picture>
@@ -82,13 +78,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
 ### 🥈 Silver sponsors
 
 <table>
-  <colgroup>
-    <col span="1" style="width: 30%;">
-    <col span="1">
-  </colgroup>
   <tbody>
     <tr>
-      <td>
+      <td width="30%">
         <div>
           <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
             <picture>
@@ -103,7 +95,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td><a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist">Stream</a> helps build scalable in-app chat or activity feeds in days. Product teams trust Stream to launch faster, iterate more often, and ship a better user experience.</td>
     </tr>
     <tr>
-      <td>
+      <td width="30%">
         <div>
           <a href="https://runway.team?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
             <picture>
@@ -118,7 +110,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td><a href="https://www.runway.team">Runway</a> streamlines collaboration and automation for mobile app releases, from kickoff to rollout.</td>
     </tr>
     <tr>
-      <td>
+      <td width="30%">
         <div>
           <a href="https://www.emergetools.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
             <picture>
@@ -133,7 +125,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td><a href="https://www.emergetools.com">Emerge Tools</a> is a suite of revolutionary products designed to supercharge mobile apps and the teams that build them.</td>
     </tr>
     <tr>
-      <td>
+      <td width="30%">
         <div>
           <a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
             <picture>
@@ -149,14 +141,10 @@ The financial sustainability of the project is possible thanks to the ongoing co
 
 ### 🥉 Bronze sponsors
 
-<table style="width: 30%;">
-  <colgroup>
-    <col span="1" style="width: 50%;">
-    <col span="1">
-  </colgroup>
+<table width="40%">
   <tbody>
     <tr>
-      <td>
+      <td width="50%">
         <div>
           <a href="https://macpaw.com" target="_blank">
             <picture>
@@ -165,7 +153,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td>
+      <td width="50%">
         <div>
           <a href="https://asana.com" target="_blank">
             <picture>
@@ -183,7 +171,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
 <table>
   <tbody>
     <tr>
-      <td>
+      <td width="12.5%">
         <div>
           <a href="https://play.tv2.no" target="_blank">
             <picture>
@@ -192,7 +180,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td>
+      <td width="12.5%">
         <div>
           <a href="https://www.depop.com" target="_blank">
             <picture>
@@ -201,7 +189,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td>
+      <td width="12.5%">
         <div>
           <a href="https://bendingspoons.com" target="_blank">
             <picture>
@@ -210,7 +198,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td>
+      <td width="12.5%">
         <div>
           <a href="https://globekeeper.com" target="_blank">
             <picture>
@@ -219,7 +207,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td>
+      <td width="12.5%">
         <div>
           <a href="https://getyourguide.com" target="_blank">
             <picture>
@@ -228,7 +216,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td>
+      <td width="12.5%">
         <div>
           <a href="https://emplate.it" target="_blank">
             <picture>
@@ -237,7 +225,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td>
+      <td width="12.5%">
         <div>
           <a href="https://hh.ru" target="_blank">
             <picture>
@@ -246,7 +234,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td>
+      <td width="12.5%">
         <div>
           <a href="https://www.trendyol.com" target="_blank">
             <picture>
