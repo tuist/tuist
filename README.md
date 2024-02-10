@@ -122,23 +122,23 @@ The financial sustainability of the project is possible thanks to the ongoing co
     <tr>
       <td width="50%" align="center">
         <a href="https://macpaw.com" target="_blank">
-          <img src="assets/companies/macpaw.png" alt="macpaw_logo" width="100"/>
+          <img src="assets/companies/macpaw.png" alt="macpaw_logo"/>
         </a>
       </td>
       <td width="50%" align="center">
         <a href="https://asana.com" target="_blank">
-          <img src="assets/companies/asana.png" alt="asana_logo" width="100"/>
+          <img src="assets/companies/asana.png" alt="asana_logo"/>
         </a>
       </td>
     </tr>
   </tbody>
 </table>
 
-## 🙇‍♂️ Companies using Tuist
+## 💪 Companies using Tuist
 
 <table>
   <tbody>
-    <tr height="20">
+    <tr>
       <td width="20%" align="center">
         <a href="https://play.tv2.no" target="_blank">
           <img src="assets/companies/tv2.svg" alt="tv2_logo"/>
