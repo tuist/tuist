@@ -180,74 +180,84 @@ The financial sustainability of the project is possible thanks to the ongoing co
 
 ## 🙇‍♂️ Companies using Tuist
 
-<div align="center" style="background-color: white">
-  <a href="https://play.tv2.no/" target="_blank">
-    <img src="assets/companies/TV2_Logo.svg" style="width: 20px" hspace="8"/>
-  </a>
-  <a href="https://www.depop.com/" target="_blank">
-      <img src="assets/companies/Depop Logo.svg" style="width: 100px;" hspace="8"/>
-  </a>
-  <a href="https://bendingspoons.com/" target="_blank">
-    <img src="assets/companies/BendingSpoons-black.png" style="width: 100px;" hspace="8"/>
-  </a>
-  <a href="https://globekeeper.com/" target="_blank">
-    <img src="assets/companies/globekeeper.png" style="width: 130px;" hspace="8"/>
-  </a>
-  <a href="https://getyourguide.com" target="_blank">
-    <img src="assets/companies/GetYourGuide.svg" style="width: 40px;" hspace="8"/>
-  </a>
-  <a href="https://emplate.it/" target="_blank">
-    <img src="assets/companies/emplate_logo_full_black.svg" style="width: 120px;" hspace="8"/>
-  </a>
-  <a href="https://hh.ru/" target="_blank">
-    <img src="assets/companies/hh mono.svg" style="width: 40px;" hspace="8"/>
-  </a>
-  <a href="https://www.trendyol.com/" target="_blank">
-    <img src="assets/companies/Trendyol_online.png" style="width: 120px;" hspace="8"/>
-  </a>
-  <a href="https://angrynerds.co" target="_blank">
-    <img src="assets/companies/angry_nerds_logo_black.svg" style="width: 110px;" hspace="8"/>
-  </a>
-  <a href="https://www.compass.com" target="_blank">
-    <img src="assets/companies/Compass Black Logo.png" style="width: 110px;" hspace="8"/>
-  </a>
-  <a href="https://www.wefox.com" target="_blank">
-    <img src="assets/companies/Wefox_2021.png" style="width: 110px;" hspace="8"/>
-  </a>
-  <a href="https://www.hedvig.com" target="_blank">
-    <img src="assets/companies/Hedvig.svg" style="width: 110px;" hspace="8"/>
-  </a>
-  <a href="https://www.takeoutcentral.com" target="_blank">
-    <img src="assets/companies/takeout_central.svg" style="width: 110px;" hspace="8"/>
-  </a>
-  <a href="https://www.olx.com.br" target="_blank">
-    <img src="assets/companies/olx.svg" style="width: 60px;" hspace="8"/>
-  </a>
-  <a href="https://www.justeattakeaway.com/" target="_blank">
-    <img src="assets/companies/justeattakeaway.svg" style="width: 110px;" hspace="8"/>
-  </a>
-  <a href="https://www.dodopizza.com/" target="_blank">
-    <img src="assets/companies/DodoPizzaLogo.svg" style="width: 50px;" hspace="8"/>
-  </a>
-    <a href="https://www.olimp.bet/" target="_blank">
-    <img src="assets/companies/OlimpBet Logo.svg" style="width: 50px;" hspace="8"/>
-  </a>
-  <a href="https://vk.company/" target="_blank">
-    <img src="assets/companies/VK_logo.svg" style="width: 50px;" hspace="8"/>
-  </a>
-  <a href="https://hd.kinopoisk.ru/" target="_blank">
-    <img src="assets/companies/kinopoisk_logo.svg" style="width: 120px;" hspace="8"/>
-  </a>
-  <a href="https://qnips.io/" target="_blank">
-    <img src="assets/companies/qnips.svg" style="width: 90px;" hspace="8"/>
-  </a>
-  <a href="https://telepass.com/" target="_blank">
-    <img src="assets/companies/telepass.svg" style="width: 112px;" hspace="8"/>
-  </a>
-  <a href="https://crunchyroll.com/" target="_blank">
-    <img src="assets/companies/crunchyroll_logo_vertical.svg" style="width: 50px;" hspace="8"/>
-  </a>
-</div>
+<table>
+  <tbody>
+    <tr>
+      <td>
+        <div>
+          <a href="https://play.tv2.no" target="_blank">
+            <picture>
+              <img src="assets/companies/TV2_Logo.svg" alt="tv2_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td>
+        <div>
+          <a href="https://www.depop.com" target="_blank">
+            <picture>
+              <img src="assets/companies/Depop Logo.svg" alt="depop_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td>
+        <div>
+          <a href="https://bendingspoons.com" target="_blank">
+            <picture>
+              <img src="assets/companies/BendingSpoons-black.png" alt="bendingspoons_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td>
+        <div>
+          <a href="https://globekeeper.com" target="_blank">
+            <picture>
+              <img src="assets/companies/globekeeper.png" alt="globekeeper_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td>
+        <div>
+          <a href="https://getyourguide.com" target="_blank">
+            <picture>
+              <img src="assets/companies/GetYourGuide.svg" alt="getyourguide_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td>
+        <div>
+          <a href="https://emplate.it" target="_blank">
+            <picture>
+              <img src="assets/companies/emplate_logo_full_black.svg" alt="emplate_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td>
+        <div>
+          <a href="https://hh.ru" target="_blank">
+            <picture>
+              <img src="assets/companies/hh mono.svg" alt="hh_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td>
+        <div>
+          <a href="https://www.trendyol.com" target="_blank">
+            <picture>
+              <img src="assets/companies/Trendyol_online.png" alt="trendyol_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 ## 📝 Documentation
 
