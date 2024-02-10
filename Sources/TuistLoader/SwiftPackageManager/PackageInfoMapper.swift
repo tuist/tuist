@@ -937,14 +937,14 @@ extension ProjectDescription.Headers {
                 )
             )
         case let .directory(moduleMapPath: _, umbrellaDirectory: umbrellaDirectory):
-            return .none
-//            return .headers(
-//                public: .list(
-//                    [
-//                        .glob("\(umbrellaDirectory.pathString)/**/*.h"),
-//                    ]
-//                )
-//            )
+//            return .none
+            return .headers(
+                public: .list(
+                    [
+                        .glob("\(umbrellaDirectory.pathString)/**/*.h"),
+                    ]
+                )
+            )
         case .none:
 //            if publicHeadersPath == (try! AbsolutePath(validating: "/Users/marekfort/Developer/tuist/fixtures/app_with_spm_dependencies/.build/checkouts/realm-swift/include")) {
 //                return .headers(

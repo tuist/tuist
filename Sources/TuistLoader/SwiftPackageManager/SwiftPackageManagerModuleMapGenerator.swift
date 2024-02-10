@@ -104,12 +104,12 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             let generatedModuleMapContent =
                 """
                 module \(sanitizedModuleName) {
-                    umbrella "\(publicHeadersPath.basename)"
+                    umbrella "\(publicHeadersPath.pathString)"
                     export *
                 }
 
                 """
-            let generatedModuleMapPath = publicHeadersPath.parentDirectory.appending(component: "\(moduleName).modulemap")
+            let generatedModuleMapPath = publicHeadersPath.appending(component: "\(moduleName).modulemap")
             try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
             return .directory(moduleMapPath: generatedModuleMapPath, umbrellaDirectory: publicHeadersPath)
         } else {

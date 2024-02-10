@@ -18,7 +18,7 @@ public enum AppKit {
         //        _ = EmptyReducer<Never, Never>()
         
         // Use ZipArchive
-        _ = SSZipArchive.createZipFile(atPath: "", withFilesAtPaths: [])
+        _ = SSZipArchive.createZipFile(atPath: #file + "/ss.zip", withFilesAtPaths: [])
         
         // Use Yams
         _ = YAMLEncoder()
