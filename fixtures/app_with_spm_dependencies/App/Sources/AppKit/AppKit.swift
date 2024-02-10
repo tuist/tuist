@@ -7,7 +7,7 @@ import Amplitude
 import Sentry
 import CleverTapSDK
 import RealmSwift
-// import CocoaLumberjackSwift
+import CocoaLumberjackSwift
 
 public enum AppKit {
     public static func start() {
@@ -27,7 +27,7 @@ public enum AppKit {
         
         SentrySDK.startSession()
         
-//        let _ = DDFileLogger()
+        let _ = CocoaLumberjackSwift.DDLogInfo("Log")
     }
 }
 //
