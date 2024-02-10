@@ -37,7 +37,7 @@ let project = Project(
                 .external(name: "Sentry"),
                 .external(name: "CleverTapSDK"),
                 .external(name: "RealmSwift"),
-                .external(name: "CocoaLumberjackSwift"),
+                // .external(name: "CocoaLumberjackSwift"),
             ],
             settings: .targetSettings
         ),
