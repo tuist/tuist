@@ -78,6 +78,23 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             // User defined modulemap exists, use it
             return .custom(customModuleMapPath, umbrellaHeaderPath: nil)
         } else if FileHandler.shared.exists(publicHeadersPath) {
+            if sanitizedModuleName == "CocoaLumberjack" {
+                let copiedPublicHeadersPath = publicHeadersPath.parentDirectory.appending(component: "tuist-public-headers")
+                if !FileHandler.shared.exists(copiedPublicHeadersPath) {
+                    try FileHandler.shared.copy(from: publicHeadersPath, to: copiedPublicHeadersPath)
+                }
+                let generatedModuleMapContent =
+                    """
+                    module \(sanitizedModuleName) {
+                        umbrella "\(copiedPublicHeadersPath.basename)"
+                        export *
+                    }
+
+                    """
+                let generatedModuleMapPath = publicHeadersPath.parentDirectory.appending(component: "\(moduleName).modulemap")
+                try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
+                return .directory(moduleMapPath: generatedModuleMapPath, umbrellaDirectory: publicHeadersPath)
+            }
 //            let copiedPublicHeadersPath = try AbsolutePath(validating: "/Users/marekfort/Developer/tuist/fixtures/app_with_spm_dependencies/.build/tuist/ModuleMaps")
 //                .appending(components: sanitizedModuleName, publicHeadersPath.basename)
 //            try FileHandler.shared.createFolder(copiedPublicHeadersPath.parentDirectory)
@@ -93,7 +110,6 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
 
                 """
             let generatedModuleMapPath = publicHeadersPath.parentDirectory.appending(component: "\(moduleName).modulemap")
-//            let generatedModuleMapPath = copiedPublicHeadersPath.parentDirectory.appending(component: "\(moduleName).modulemap")
             try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
             return .directory(moduleMapPath: generatedModuleMapPath, umbrellaDirectory: publicHeadersPath)
         } else {
