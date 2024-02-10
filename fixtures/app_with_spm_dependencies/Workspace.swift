@@ -4,6 +4,6 @@ let workspace = Workspace(
     name: "TuistPlayground",
     projects: [
         "App",
-        // "Features/FeatureOne",
+        "Features/FeatureOne",
     ]
 )

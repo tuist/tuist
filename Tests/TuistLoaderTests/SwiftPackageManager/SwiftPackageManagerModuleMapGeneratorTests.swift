@@ -22,11 +22,11 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     }
 
     func test_generate_when_custom_module_map() throws {
-        try test_generate(for: .custom("/Absolute/Public/Headers/Path/module.modulemap"))
+        try test_generate(for: .custom("/Absolute/Public/Headers/Path/module.modulemap", umbrellaHeaderPath: nil))
     }
 
     func test_generate_when_umbrella_header() throws {
-        try test_generate(for: .header)
+        try test_generate(for: .header(moduleMapPath: "/Absolute/Public/Headers/Path/Module.modulemap"))
     }
 
     func test_generate_when_nested_umbrella_header() throws {
@@ -54,9 +54,9 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             case "/Absolute/Public/Headers/Path":
                 return moduleMap != .none
             case "/Absolute/Public/Headers/Path/module.modulemap":
-                return moduleMap == .custom("/Absolute/Public/Headers/Path/module.modulemap")
+                return moduleMap == .custom("/Absolute/Public/Headers/Path/module.modulemap", umbrellaHeaderPath: nil)
             case "/Absolute/Public/Headers/Path/Module.h":
-                return moduleMap == .header
+                return moduleMap == .header(moduleMapPath: AbsolutePath("/Absolute/Public/Headers/Path/Module.modulemap"))
             case "/Absolute/Public/Headers/Path/Module/Module.h":
                 return moduleMap == .nestedHeader
             default:
@@ -68,9 +68,18 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             writeCalled = true
             let expectedContent: String
             switch moduleMap {
-            case .none, .custom, .header:
+            case .none, .custom:
                 XCTFail("FileHandler.write should not be called")
                 return
+            case .header:
+                expectedContent = """
+                framework module Module {
+                  umbrella header "/Absolute/Public/Headers/Path/Module.h"
+
+                  export *
+                  module * { export * }
+                }
+                """
             case .nestedHeader:
                 expectedContent = """
                 module Module {
@@ -95,9 +104,9 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
         let got = try subject.generate(moduleName: "Module", publicHeadersPath: "/Absolute/Public/Headers/Path")
         XCTAssertEqual(got, moduleMap)
         switch moduleMap {
-        case .none, .custom, .header, .nestedHeader:
+        case .none, .custom, .nestedHeader:
             XCTAssertFalse(writeCalled)
-        case .directory:
+        case .directory, .header:
             XCTAssertTrue(writeCalled)
         }
     }

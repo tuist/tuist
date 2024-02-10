@@ -1160,7 +1160,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -1168,9 +1168,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        headers: .headers(public: [nestedHeaderPath.pathString, topHeaderPath.pathString]),
+                        headers: .headers(public: [topHeaderPath.pathString]),
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/include"],
+                            "MODULEMAP_FILE": .string("$(SRCROOT)/Sources/Target1/include/Target1.modulemap"),
                         ]
                     ),
                 ]
@@ -1449,7 +1450,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ]
         )
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -1465,6 +1466,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Dependency1",
                         basePath: basePath,
+                        headers: .headers(
+                            public: .list(
+                                [.glob(.path("\(dependencyHeadersPath.pathString)/**/*.h"))]
+                            )
+                        ),
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Dependency1/include"],
                         ],

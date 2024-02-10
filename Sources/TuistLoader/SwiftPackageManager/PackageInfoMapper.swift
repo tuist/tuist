@@ -917,8 +917,15 @@ extension ProjectDescription.Headers {
         case let .header(path):
             let publicHeaders = try FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
                 .filter { $0.extension == "h" }
-            let list: [FileListGlob] = publicHeaders.map { .glob(.path($0.pathString)) }
-            return .headers(public: .list([.glob(.path(path.parentDirectory.appending(component: "\(path.basenameWithoutExt).h").pathString))]))
+            return .headers(
+                public: .list(
+                    [
+                        .glob(
+                            .path(path.parentDirectory.appending(component: "\(path.basenameWithoutExt).h").pathString)
+                        )
+                    ]
+                )
+            )
         case .nestedHeader:
             let publicHeaders = try FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
                 .filter { $0.extension == "h" }
@@ -937,7 +944,6 @@ extension ProjectDescription.Headers {
                 )
             )
         case let .directory(moduleMapPath: _, umbrellaDirectory: umbrellaDirectory):
-//            return .none
             return .headers(
                 public: .list(
                     [
@@ -946,17 +952,6 @@ extension ProjectDescription.Headers {
                 )
             )
         case .none:
-//            if publicHeadersPath == (try! AbsolutePath(validating: "/Users/marekfort/Developer/tuist/fixtures/app_with_spm_dependencies/.build/checkouts/realm-swift/include")) {
-//                return .headers(
-//                    public: .list(
-//                        [
-//                            .glob(
-//                                .path(try! AbsolutePath(validating: "/Users/marekfort/Developer/tuist/fixtures/app_with_spm_dependencies/.build/checkouts/realm-swift/include/Realm/Realm.h").pathString)
-//                            )
-//                        ]
-//                    )
-//                )
-//            }
             return nil
         }
     }

@@ -329,17 +329,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         var copy = self
         if let oldSettings = copy.settings {
             copy.settings = Settings(
-                base: oldSettings.base.merging(
-                    additionalSettings, 
-                    uniquingKeysWith: {
-                        switch ($0, $1) {
-                        case let (.array(leftArray), .array(rightArray)):
-                            return SettingValue.array(leftArray + rightArray)
-                        default:
-                            return $1
-                        }
-                    }
-                ),
+                base: oldSettings.base.merging(additionalSettings, uniquingKeysWith: { $1 }),
                 configurations: oldSettings.configurations,
                 defaultSettings: oldSettings.defaultSettings
             )

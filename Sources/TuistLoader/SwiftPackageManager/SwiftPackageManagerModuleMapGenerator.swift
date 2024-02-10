@@ -8,7 +8,7 @@ public enum ModuleMap: Equatable {
     /// Custom modulemap file provided in SPM package
     case custom(AbsolutePath, umbrellaHeaderPath: AbsolutePath?)
     /// Umbrella header provided in SPM package
-    case header(AbsolutePath)
+    case header(moduleMapPath: AbsolutePath)
     /// Nested umbrella header provided in SPM package
     case nestedHeader
     /// No umbrella header provided in SPM package, define umbrella directory
@@ -18,7 +18,7 @@ public enum ModuleMap: Equatable {
         switch self {
         case let .custom(path, umbrellaHeaderPath: _):
             return path
-        case let .header(path):
+        case let .header(moduleMapPath: path):
             return path
         case let .directory(moduleMapPath: path, umbrellaDirectory: _):
             return path
@@ -53,6 +53,9 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         let customModuleMapPath = try Self.customModuleMapPath(publicHeadersPath: publicHeadersPath)
         
         if FileHandler.shared.exists(umbrellaHeaderPath) {
+            if let customModuleMapPath {
+                return .custom(customModuleMapPath, umbrellaHeaderPath: umbrellaHeaderPath)
+            }
             let moduleMapContent = """
             framework module \(sanitizedModuleName) {
               umbrella header "\(umbrellaHeaderPath.pathString)"
@@ -63,11 +66,8 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             """
             let moduleMapPath = umbrellaHeaderPath.parentDirectory.appending(component: "\(moduleName).modulemap")
             try FileHandler.shared.write(moduleMapContent, path: moduleMapPath, atomically: true)
-            if let customModuleMapPath {
-                return .custom(customModuleMapPath, umbrellaHeaderPath: umbrellaHeaderPath)
-            }
             // If 'PublicHeadersDir/ModuleName.h' exists, then use it as the umbrella header.
-            return .header(moduleMapPath)
+            return .header(moduleMapPath: moduleMapPath)
         } else if FileHandler.shared.exists(nestedUmbrellaHeaderPath) {
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: nestedUmbrellaHeaderPath)
@@ -78,6 +78,8 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             // User defined modulemap exists, use it
             return .custom(customModuleMapPath, umbrellaHeaderPath: nil)
         } else if FileHandler.shared.exists(publicHeadersPath) {
+            // We move the umbrella headers directory to a different location for CocoaLumberjack. Somehow, the one used by default is not properly recognized even if the path in the `modulemap` is correct.
+            // If the directory is copied to a different location, it works.
             if sanitizedModuleName == "CocoaLumberjack" {
                 let copiedPublicHeadersPath = publicHeadersPath.parentDirectory.appending(component: "tuist-public-headers")
                 if !FileHandler.shared.exists(copiedPublicHeadersPath) {
@@ -89,17 +91,12 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                         umbrella "\(copiedPublicHeadersPath.basename)"
                         export *
                     }
-
                     """
-                let generatedModuleMapPath = publicHeadersPath.parentDirectory.appending(component: "\(moduleName).modulemap")
+                let generatedModuleMapPath = publicHeadersPath.appending(component: "\(moduleName).modulemap")
                 try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
                 return .directory(moduleMapPath: generatedModuleMapPath, umbrellaDirectory: publicHeadersPath)
             }
-//            let copiedPublicHeadersPath = try AbsolutePath(validating: "/Users/marekfort/Developer/tuist/fixtures/app_with_spm_dependencies/.build/tuist/ModuleMaps")
-//                .appending(components: sanitizedModuleName, publicHeadersPath.basename)
-//            try FileHandler.shared.createFolder(copiedPublicHeadersPath.parentDirectory)
-//            try FileHandler.shared.copy(from: publicHeadersPath, to: copiedPublicHeadersPath)
-            
+
             // Otherwise, consider the public headers folder as umbrella directory
             let generatedModuleMapContent =
                 """
@@ -107,7 +104,6 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                     umbrella "\(publicHeadersPath.pathString)"
                     export *
                 }
-
                 """
             let generatedModuleMapPath = publicHeadersPath.appending(component: "\(moduleName).modulemap")
             try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
