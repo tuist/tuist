@@ -141,7 +141,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
     <tr>
       <td width="20%" align="center">
         <a href="https://play.tv2.no" target="_blank">
-          <img src="assets/companies/tv2.svg" alt="tv2_logo"/>
+          <img src="assets/companies/tv2.svg" alt="tv2_logo" height="75"/>
         </a>
       </td>
       <td width="20%" align="center">
@@ -178,7 +178,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       </td>
       <td width="20%" align="center">
         <a href="https://hh.ru" target="_blank">
-          <img src="assets/companies/hh.svg" alt="hh_logo"/>
+          <img src="assets/companies/hh.svg" alt="hh_logo" height="75"/>
         </a>
       </td>
       <td width="20%" align="center">
@@ -227,17 +227,17 @@ The financial sustainability of the project is possible thanks to the ongoing co
     <tr>
       <td width="20%" align="center">
         <a href="https://www.dodopizza.com" target="_blank">
-          <img src="assets/companies/dodopizza.svg" alt="dodopizza_logo"/>
+          <img src="assets/companies/dodopizza.svg" alt="dodopizza_logo" height="75"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://www.olimp.bet" target="_blank">
-          <img src="assets/companies/olimpbet.svg" alt="olimpbet_logo"/>
+          <img src="assets/companies/olimpbet.svg" alt="olimpbet_logo" height="75"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://www.vk.company" target="_blank">
-          <img src="assets/companies/vk.svg" alt="vk_logo"/>
+          <img src="assets/companies/vk.svg" alt="vk_logo" height="75"/>
         </a>
       </td>
       <td width="20%" align="center">
@@ -259,7 +259,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       </td>
       <td width="20%" align="center">
         <a href="https://www.crunchyroll.com" target="_blank">
-          <img src="assets/companies/crunchyroll.svg" alt="crunchyroll_logo"/>
+          <img src="assets/companies/crunchyroll.svg" alt="crunchyroll_logo" height="75"/>
         </a>
       </td>
     </tr>
@@ -280,7 +280,7 @@ Great companies support the project by giving us access to their service through
   <tbody>
     <tr>
       <td width="25%" align="center">
-        <img src="assets/1Password.png" alt="1password_logo"/>
+        <img src="assets/1Password.png" alt="1password_logo" height="75"/>
       </td>
       <td width="25%" align="center">
         <img src="https://images.typeform.com/images/QKuaAssrFCq7/image/default" alt="bugsnag_logo"/>
