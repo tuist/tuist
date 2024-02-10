@@ -32,7 +32,12 @@ let project = Project(
                 // .external(name: "ComposableArchitecture"),
                 .external(name: "ZipArchive"),
                 .external(name: "Yams"),
-                // .external(name: "GoogleSignIn"),
+                .external(name: "GoogleSignIn"),
+                .external(name: "Amplitude"),
+                .external(name: "Sentry"),
+                .external(name: "CleverTapSDK"),
+                .external(name: "RealmSwift"),
+                .external(name: "CocoaLumberjackSwift"),
             ],
             settings: .targetSettings
         ),

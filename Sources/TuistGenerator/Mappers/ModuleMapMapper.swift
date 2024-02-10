@@ -238,7 +238,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
 
         for moduleMap in dependenciesModuleMaps.sorted() {
             mappedHeaderSearchPaths.append(
-                "$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath).appending(components: "..", ".."))"
+                "$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath).appending(components: ".."))"
             )
         }
 
