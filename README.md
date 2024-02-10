@@ -49,7 +49,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
 <table>
   <tbody>
     <tr>
-      <td width="30%">
+      <td width="30%" align="center">
         <div>
           <a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
             <picture>
@@ -61,7 +61,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td><a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist">Monday.com</a> is a cloud-based work operating system (Work OS) that empowers teams to run projects and workflows with confidence. It's a versatile platform that combines features of project management, workflow automation, and team collaboration to streamline the way teams work together.</td>
     </tr>
     <tr>
-      <td width="30%">
+      <td width="30%" align="center">
         <div>
           <a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
             <picture>
@@ -80,7 +80,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
 <table>
   <tbody>
     <tr>
-      <td width="30%">
+      <td width="30%" align="center">
         <div>
           <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
             <picture>
@@ -95,7 +95,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td><a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist">Stream</a> helps build scalable in-app chat or activity feeds in days. Product teams trust Stream to launch faster, iterate more often, and ship a better user experience.</td>
     </tr>
     <tr>
-      <td width="30%">
+      <td width="30%" align="center">
         <div>
           <a href="https://runway.team?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
             <picture>
@@ -110,7 +110,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td><a href="https://www.runway.team">Runway</a> streamlines collaboration and automation for mobile app releases, from kickoff to rollout.</td>
     </tr>
     <tr>
-      <td width="30%">
+      <td width="30%" align="center">
         <div>
           <a href="https://www.emergetools.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
             <picture>
@@ -125,7 +125,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       <td><a href="https://www.emergetools.com">Emerge Tools</a> is a suite of revolutionary products designed to supercharge mobile apps and the teams that build them.</td>
     </tr>
     <tr>
-      <td width="30%">
+      <td width="30%" align="center">
         <div>
           <a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
             <picture>
@@ -141,10 +141,10 @@ The financial sustainability of the project is possible thanks to the ongoing co
 
 ### 🥉 Bronze sponsors
 
-<table width="40%">
+<table>
   <tbody>
     <tr>
-      <td width="50%">
+      <td width="50%" align="center">
         <div>
           <a href="https://macpaw.com" target="_blank">
             <picture>
@@ -153,7 +153,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td width="50%">
+      <td width="50%" align="center">
         <div>
           <a href="https://asana.com" target="_blank">
             <picture>
@@ -170,8 +170,8 @@ The financial sustainability of the project is possible thanks to the ongoing co
 
 <table>
   <tbody>
-    <tr>
-      <td width="12.5%">
+    <tr height="20">
+      <td width="20%" align="center">
         <div>
           <a href="https://play.tv2.no" target="_blank">
             <picture>
@@ -180,7 +180,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td width="12.5%">
+      <td width="20%" align="center">
         <div>
           <a href="https://www.depop.com" target="_blank">
             <picture>
@@ -189,7 +189,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td width="12.5%">
+      <td width="20%" align="center">
         <div>
           <a href="https://bendingspoons.com" target="_blank">
             <picture>
@@ -198,7 +198,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td width="12.5%">
+      <td width="20%" align="center">
         <div>
           <a href="https://globekeeper.com" target="_blank">
             <picture>
@@ -207,7 +207,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td width="12.5%">
+      <td width="20%" align="center">
         <div>
           <a href="https://getyourguide.com" target="_blank">
             <picture>
@@ -216,7 +216,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td width="12.5%">
+    </tr>
+    <tr>
+      <td width="20%" align="center">
         <div>
           <a href="https://emplate.it" target="_blank">
             <picture>
@@ -225,7 +227,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td width="12.5%">
+      <td width="20%" align="center">
         <div>
           <a href="https://hh.ru" target="_blank">
             <picture>
@@ -234,11 +236,143 @@ The financial sustainability of the project is possible thanks to the ongoing co
           </a>
         </div>
       </td>
-      <td width="12.5%">
+      <td width="20%" align="center">
         <div>
           <a href="https://www.trendyol.com" target="_blank">
             <picture>
               <img src="assets/companies/Trendyol_online.png" alt="trendyol_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://angrynerds.co" target="_blank">
+            <picture>
+              <img src="assets/companies/angry_nerds_logo_black.svg" alt="angrynerds_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://www.compass.com" target="_blank">
+            <picture>
+              <img src="assets/companies/Compass Black Logo.png" alt="compass_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://www.wefox.com" target="_blank">
+            <picture>
+              <img src="assets/companies/Wefox_2021.png" alt="wefox_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://www.hedvig.com" target="_blank">
+            <picture>
+              <img src="assets/companies/Hedvig.svg" alt="hedvig_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://www.takeoutcentral.com" target="_blank">
+            <picture>
+              <img src="assets/companies/takeout_central.svg" alt="takeoutcentral_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://www.olx.com.br" target="_blank">
+            <picture>
+              <img src="assets/companies/olx.svg" alt="olx_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://www.justeattakeaway.com" target="_blank">
+            <picture>
+              <img src="assets/companies/justeattakeaway.svg" alt="justeat_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://www.dodopizza.com" target="_blank">
+            <picture>
+              <img src="assets/companies/DodoPizzaLogo.svg" alt="dodopizza_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://www.olimp.bet" target="_blank">
+            <picture>
+              <img src="assets/companies/OlimpBet Logo.svg" alt="olimp_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://www.vk.company" target="_blank">
+            <picture>
+              <img src="assets/companies/VK_logo.svg" alt="vk_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://hd.kinopoisk.ru" target="_blank">
+            <picture>
+              <img src="assets/companies/kinopoisk_logo.svg" alt="kinopoisk_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://qnips.io" target="_blank">
+            <picture>
+              <img src="assets/companies/qnips.svg" alt="qnips_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://www.telepass.com" target="_blank">
+            <picture>
+              <img src="assets/companies/telepass.svg" alt="telepass_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td width="20%" align="center">
+        <div>
+          <a href="https://www.crunchyroll.com" target="_blank">
+            <picture>
+              <img src="assets/companies/crunchyroll_logo_vertical.svg" alt="crunchyroll_logo"/>
             </picture>
           </a>
         </div>
@@ -255,14 +389,26 @@ You can check out [the project documentation](https://docs.tuist.io/documentatio
 
 ## 🙇‍ ️Supported by great companies
 
-1Password, Bugsgnag, Cal.com, and CodeMagic support the project by giving us access to their service through an open-source program.
+Great companies support the project by giving us access to their service through an open-source program.
 
-<div align="center">
-  <img width="70" src="assets/1Password.png" hspace="10" alt="1password_logo"/>
-  <img width="180" src="https://images.typeform.com/images/QKuaAssrFCq7/image/default" hspace="10" alt="bugsnag_logo">
-  <img width="160" src="assets/cal-com.svg" hspace="7" alt="calcom_logo">
-  <img width="200" src="assets/companies/codemagic-logo.svg" alt="codemagic_logo"/>
-</div>
+<table>
+  <tbody>
+    <tr>
+      <td width="25%" align="center">
+        <img src="assets/1Password.png" alt="1password_logo"/>
+      </td>
+      <td width="25%" align="center">
+        <img src="https://images.typeform.com/images/QKuaAssrFCq7/image/default" alt="bugsnag_logo"/>
+      </td>
+      <td width="25%" align="center">
+        <img src="assets/cal-com.svg" alt="calcom_logo"/>
+      </td>
+      <td width="25%" align="center">
+        <img src="assets/companies/codemagic-logo.svg" alt="codemagic_logo"/>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 ## 🧑‍💻 Want to contribute?
 
