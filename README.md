@@ -47,117 +47,135 @@ The financial sustainability of the project is possible thanks to the ongoing co
 ### 🥇 Gold Sponsors
 
 <table>
-  <tr>
-    <td>
-      <div>
-        <a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
-          <picture>
-            <img width="300" src="assets/companies/monday.com.svg" alt="mondaycom_logo"/>
-          </picture>
-        </a>
-      </div>
-    </td>
-    <td><a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist">Monday.com</a> is a cloud-based work operating system (Work OS) that empowers teams to run projects and workflows with confidence. It's a versatile platform that combines features of project management, workflow automation, and team collaboration to streamline the way teams work together.</td>
-  </tr>
-  <tr>
-    <td>
-      <div>
-        <a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
-          <picture>
-            <img width="200" src="assets/companies/lapse.svg" alt="lapse_logo"/>
-          </picture>
-        </a>
-      </div>
-    </td>
-    <td><a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist">Lapse</a> is an app designed to reclaim how we take and share memories. A camera for living in the moment and a private photo journal for friends, not followers.</td>
-  </tr>
+  <colgroup>
+    <col span="1" style="width: 30%;">
+    <col span="1">
+  </colgroup>
+  <tbody>
+    <tr>
+      <td>
+        <div>
+          <a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
+            <picture>
+              <img width="300" src="assets/companies/monday.com.svg" alt="mondaycom_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td><a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist">Monday.com</a> is a cloud-based work operating system (Work OS) that empowers teams to run projects and workflows with confidence. It's a versatile platform that combines features of project management, workflow automation, and team collaboration to streamline the way teams work together.</td>
+    </tr>
+    <tr>
+      <td>
+        <div>
+          <a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
+            <picture>
+              <img width="200" src="assets/companies/lapse.svg" alt="lapse_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td><a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist">Lapse</a> is an app designed to reclaim how we take and share memories. A camera for living in the moment and a private photo journal for friends, not followers.</td>
+    </tr>
+  </tbody>
 </table>
 
 ### 🥈 Silver sponsors
 
 <table>
-  <tr>
-    <td>
-      <div>
-        <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
-          <picture>
-            <source 
-            srcset="assets/companies/stream-white.png" 
-            media="(prefers-color-scheme: dark)">
-            <img src="assets/companies/stream.png" alt="stream_logo"/>
-          </picture>
-        </a>
-      </div>
-    </td>
-    <td><a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist">Stream</a> helps build scalable in-app chat or activity feeds in days. Product teams trust Stream to launch faster, iterate more often, and ship a better user experience.</td>
-  </tr>
-  <tr>
-    <td>
-      <div>
-        <a href="https://runway.team?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-          <picture>
-            <source 
-            srcset="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" 
-            media="(prefers-color-scheme: dark)">
-            <img width="140" src="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" alt="runway_logo"/>
-          </picture>
-        </a>
-      </div>
-    </td>
-    <td><a href="https://www.runway.team">Runway</a> streamlines collaboration and automation for mobile app releases, from kickoff to rollout.</td>
-  </tr>
-  <tr>
-    <td>
-      <div>
-        <a href="https://www.emergetools.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-          <picture>
-            <source 
-              srcset="assets/companies/emerge-tools-vertical-white.svg" 
+  <colgroup>
+    <col span="1" style="width: 30%;">
+    <col span="1">
+  </colgroup>
+  <tbody>
+    <tr>
+      <td>
+        <div>
+          <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
+            <picture>
+              <source 
+              srcset="assets/companies/stream-white.png" 
               media="(prefers-color-scheme: dark)">
-            <img width="140" src="assets/companies/emerge-tools-vertical-black.svg" alt="emerge_logo"/>
-          </picture>
-        </a>
-      </div>
-    </td>
-    <td><a href="https://www.emergetools.com">Emerge Tools</a> is a suite of revolutionary products designed to supercharge mobile apps and the teams that build them.</td>
-  </tr>
-  <tr>
-    <td>
-      <div>
-        <a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-          <picture>
-            <img width="140" src="assets/companies/codemagic-logo.svg" alt="codemagic_logo"/>
-          </picture>
-        </a>
-      </div>
-    </td>
-    <td><a href="https://codemagic.io">Codemagic</a> is a CI/CD tool for building world-class mobile apps.</td>
-  </tr>
+              <img src="assets/companies/stream.png" alt="stream_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td><a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist">Stream</a> helps build scalable in-app chat or activity feeds in days. Product teams trust Stream to launch faster, iterate more often, and ship a better user experience.</td>
+    </tr>
+    <tr>
+      <td>
+        <div>
+          <a href="https://runway.team?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
+            <picture>
+              <source 
+              srcset="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" 
+              media="(prefers-color-scheme: dark)">
+              <img width="140" src="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" alt="runway_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td><a href="https://www.runway.team">Runway</a> streamlines collaboration and automation for mobile app releases, from kickoff to rollout.</td>
+    </tr>
+    <tr>
+      <td>
+        <div>
+          <a href="https://www.emergetools.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
+            <picture>
+              <source 
+                srcset="assets/companies/emerge-tools-vertical-white.svg" 
+                media="(prefers-color-scheme: dark)">
+              <img width="140" src="assets/companies/emerge-tools-vertical-black.svg" alt="emerge_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td><a href="https://www.emergetools.com">Emerge Tools</a> is a suite of revolutionary products designed to supercharge mobile apps and the teams that build them.</td>
+    </tr>
+    <tr>
+      <td>
+        <div>
+          <a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
+            <picture>
+              <img width="140" src="assets/companies/codemagic-logo.svg" alt="codemagic_logo"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td><a href="https://codemagic.io">Codemagic</a> is a CI/CD tool for building world-class mobile apps.</td>
+    </tr>
+  </tbody>
 </table>
 
 ### 🥉 Bronze sponsors
 
-<table>
-  <tr>
-    <td>
-      <div>
-        <a href="https://macpaw.com" target="_blank">
-          <picture>
-            <img src="assets/companies/macpaw.png" alt="macpaw_logo" width="100"/>
-          </picture>
-        </a>
-      </div>
-    </td>
-    <td>
-      <div>
-        <a href="https://asana.com" target="_blank">
-          <picture>
-            <img src="assets/companies/Asana.png" alt="asana_logo" width="100"/>
-          </picture>
-        </a>
-      </div>
-    </td>
-  </tr>
+<table style="width: 30%;">
+  <colgroup>
+    <col span="1" style="width: 50%;">
+    <col span="1">
+  </colgroup>
+  <tbody>
+    <tr>
+      <td>
+        <div>
+          <a href="https://macpaw.com" target="_blank">
+            <picture>
+              <img src="assets/companies/macpaw.png" alt="macpaw_logo" width="100"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+      <td>
+        <div>
+          <a href="https://asana.com" target="_blank">
+            <picture>
+              <img src="assets/companies/Asana.png" alt="asana_logo" width="100"/>
+            </picture>
+          </a>
+        </div>
+      </td>
+    </tr>
+  </tbody>
 </table>
 
 ## 🙇‍♂️ Companies using Tuist
