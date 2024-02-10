@@ -215,7 +215,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       </td>
       <td width="20%" align="center">
         <a href="https://www.olx.com.br" target="_blank">
-          <img src="assets/companies/olx.svg" alt="olx_logo"/>
+          <img src="assets/companies/olx.png" alt="olx_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
