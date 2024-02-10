@@ -166,7 +166,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       </td>
       <td width="20%" align="center">
         <a href="https://getyourguide.com" target="_blank">
-          <img src="assets/companies/getyourguide.svg" alt="getyourguide_logo"/>
+          <img src="assets/companies/getyourguide.png" alt="getyourguide_logo"/>
         </a>
       </td>
     </tr>
