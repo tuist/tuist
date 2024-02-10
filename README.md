@@ -35,7 +35,13 @@ tuist build # Builds your project
 
 Check out [the project "Get Started" guide](https://docs.tuist.io/documentation/tuist) to learn more about Tuist and all its features.
 
-## 🔬 Sample projects
+## 📝 Documentation
+
+Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point?
+
+You can check out [the project documentation](https://docs.tuist.io/documentation/tuist/).
+
+### 🔬 Sample projects
 
 You can find some sample projects in the [fixtures folder](fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
 
@@ -265,12 +271,6 @@ The financial sustainability of the project is possible thanks to the ongoing co
     </tr>
   </tbody>
 </table>
-
-## 📝 Documentation
-
-Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point?
-
-You can check out [the project documentation](https://docs.tuist.io/documentation/tuist/).
 
 ## 🙇‍ ️Supported by great companies
 
