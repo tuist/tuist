@@ -16,7 +16,7 @@
 
 ## 🕺 What's Tuist
 
-Tuist is a command line tool that leverages _** to abstract intricacies of Xcode projects, and uses it as a foundation to help teams **_maintain_** and **_optimize_** their large modular projects.
+Tuist is a command line tool that leverages **_project generation_** to abstract intricacies of Xcode projects, and uses it as a foundation to help teams **_maintain_** and **_optimize_** their large modular projects.
 
 It's open source and written in Swift.
 
@@ -30,6 +30,7 @@ You can check out [the documentation](https://docs.tuist.io/documentation/tuist/
 
 ```bash
 tuist init --platform ios
+tuist edit # Customize your project manifest
 tuist generate # Generates Xcode project & workspace
 tuist build # Builds your project
 ```
@@ -73,27 +74,21 @@ The financial sustainability of the project is possible thanks to the ongoing co
   <tbody>
     <tr>
       <td width="30%" align="center">
-          <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
-            <picture>
-              <source 
-              srcset="assets/companies/stream-white.png" 
-              media="(prefers-color-scheme: dark)">
-              <img src="assets/companies/stream.png" alt="stream_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
+          <picture>
+            <source 
+            srcset="assets/companies/stream-darkmode.png" 
+            media="(prefers-color-scheme: dark)">
+            <img src="assets/companies/stream.png" alt="stream_logo"/>
+          </picture>
+        </a>
       </td>
       <td><a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist">Stream</a> helps build scalable in-app chat or activity feeds in days. Product teams trust Stream to launch faster, iterate more often, and ship a better user experience.</td>
     </tr>
     <tr>
       <td width="30%" align="center">
         <a href="https://runway.team?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-          <picture>
-            <source 
-            srcset="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" 
-            media="(prefers-color-scheme: dark)">
-            <img width="140" src="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" alt="runway_logo"/>
-          </picture>
+          <img width="140" src="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" alt="runway_logo"/>
         </a>
       </td>
       <td><a href="https://www.runway.team">Runway</a> streamlines collaboration and automation for mobile app releases, from kickoff to rollout.</td>
@@ -103,9 +98,9 @@ The financial sustainability of the project is possible thanks to the ongoing co
         <a href="https://www.emergetools.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
           <picture>
             <source 
-              srcset="assets/companies/emerge-tools-vertical-white.svg" 
+              srcset="assets/companies/emergetools-darkmode.svg" 
               media="(prefers-color-scheme: dark)">
-            <img width="140" src="assets/companies/emerge-tools-vertical-black.svg" alt="emerge_logo"/>
+            <img width="140" src="assets/companies/emergetools.svg" alt="emerge_logo"/>
           </picture>
         </a>
       </td>
@@ -114,9 +109,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
     <tr>
       <td width="30%" align="center">
         <a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-          <picture>
-            <img width="140" src="assets/companies/codemagic-logo.svg" alt="codemagic_logo"/>
-          </picture>
+          <img width="140" src="assets/companies/codemagic.svg" alt="codemagic_logo"/>
         </a>
       </td>
       <td><a href="https://codemagic.io">Codemagic</a> is a CI/CD tool for building world-class mobile apps.</td>
@@ -136,7 +129,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       </td>
       <td width="50%" align="center">
         <a href="https://asana.com" target="_blank">
-          <img src="assets/companies/Asana.png" alt="asana_logo" width="100"/>
+          <img src="assets/companies/asana.png" alt="asana_logo" width="100"/>
         </a>
       </td>
     </tr>
@@ -150,21 +143,21 @@ The financial sustainability of the project is possible thanks to the ongoing co
     <tr height="20">
       <td width="20%" align="center">
         <a href="https://play.tv2.no" target="_blank">
-          <img src="assets/companies/TV2_Logo.svg" alt="tv2_logo"/>
+          <img src="assets/companies/tv2.svg" alt="tv2_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://www.depop.com" target="_blank">
-          <img src="assets/companies/Depop Logo.svg" alt="depop_logo"/>
+          <img src="assets/companies/depop.svg" alt="depop_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://bendingspoons.com" target="_blank">
           <picture>
             <source 
-              srcset="assets/companies/BendingSpoons-white.png" 
+              srcset="assets/companies/bendingspoons-darkmode.png" 
               media="(prefers-color-scheme: dark)">
-            <img src="assets/companies/BendingSpoons-black.png" alt="bendingspoons_logo"/>
+            <img src="assets/companies/bendingspoons.png" alt="bendingspoons_logo"/>
           </picture>
         </a>
       </td>
@@ -175,51 +168,51 @@ The financial sustainability of the project is possible thanks to the ongoing co
       </td>
       <td width="20%" align="center">
         <a href="https://getyourguide.com" target="_blank">
-          <img src="assets/companies/GetYourGuide.svg" alt="getyourguide_logo"/>
+          <img src="assets/companies/getyourguide.svg" alt="getyourguide_logo"/>
         </a>
       </td>
     </tr>
     <tr>
       <td width="20%" align="center">
         <a href="https://emplate.it" target="_blank">
-          <img src="assets/companies/emplate_logo_full_black.svg" alt="emplate_logo"/>
+          <img src="assets/companies/emplate.svg" alt="emplate_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://hh.ru" target="_blank">
-          <img src="assets/companies/hh mono.svg" alt="hh_logo"/>
+          <img src="assets/companies/hh.svg" alt="hh_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://www.trendyol.com" target="_blank">
-          <img src="assets/companies/Trendyol_online.png" alt="trendyol_logo"/>
+          <img src="assets/companies/Trendyol.png" alt="trendyol_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://angrynerds.co" target="_blank">
-          <img src="assets/companies/angry_nerds_logo_black.svg" alt="angrynerds_logo"/>
+          <img src="assets/companies/angrynerds.svg" alt="angrynerds_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://www.compass.com" target="_blank">
-          <img src="assets/companies/Compass Black Logo.png" alt="compass_logo"/>
+          <img src="assets/companies/compass.png" alt="compass_logo"/>
         </a>
       </td>
     </tr>
     <tr>
       <td width="20%" align="center">
         <a href="https://www.wefox.com" target="_blank">
-          <img src="assets/companies/Wefox_2021.png" alt="wefox_logo"/>
+          <img src="assets/companies/wefox.png" alt="wefox_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://www.hedvig.com" target="_blank">
-            <img src="assets/companies/Hedvig.svg" alt="hedvig_logo"/>
+            <img src="assets/companies/hedvig.svg" alt="hedvig_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://www.takeoutcentral.com" target="_blank">
-          <img src="assets/companies/takeout_central.svg" alt="takeoutcentral_logo"/>
+          <img src="assets/companies/takeoutcentral.svg" alt="takeoutcentral_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
@@ -229,29 +222,29 @@ The financial sustainability of the project is possible thanks to the ongoing co
       </td>
       <td width="20%" align="center">
         <a href="https://www.justeattakeaway.com" target="_blank">
-          <img src="assets/companies/justeattakeaway.svg" alt="justeat_logo"/>
+          <img src="assets/companies/justeattakeaway.svg" alt="justeattakeaway_logo"/>
         </a>
       </td>
     </tr>
     <tr>
       <td width="20%" align="center">
         <a href="https://www.dodopizza.com" target="_blank">
-          <img src="assets/companies/DodoPizzaLogo.svg" alt="dodopizza_logo"/>
+          <img src="assets/companies/dodopizza.svg" alt="dodopizza_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://www.olimp.bet" target="_blank">
-          <img src="assets/companies/OlimpBet Logo.svg" alt="olimp_logo"/>
+          <img src="assets/companies/olimpbet.svg" alt="olimpbet_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://www.vk.company" target="_blank">
-          <img src="assets/companies/VK_logo.svg" alt="vk_logo"/>
+          <img src="assets/companies/vk.svg" alt="vk_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
         <a href="https://hd.kinopoisk.ru" target="_blank">
-          <img src="assets/companies/kinopoisk_logo.svg" alt="kinopoisk_logo"/>
+          <img src="assets/companies/kinopoisk.svg" alt="kinopoisk_logo"/>
         </a>
       </td>
       <td width="20%" align="center">
@@ -268,7 +261,7 @@ The financial sustainability of the project is possible thanks to the ongoing co
       </td>
       <td width="20%" align="center">
         <a href="https://www.crunchyroll.com" target="_blank">
-          <img src="assets/companies/crunchyroll_logo_vertical.svg" alt="crunchyroll_logo"/>
+          <img src="assets/companies/crunchyroll.svg" alt="crunchyroll_logo"/>
         </a>
       </td>
     </tr>
@@ -298,7 +291,7 @@ Great companies support the project by giving us access to their service through
         <img src="assets/cal-com.svg" alt="calcom_logo"/>
       </td>
       <td width="25%" align="center">
-        <img src="assets/companies/codemagic-logo.svg" alt="codemagic_logo"/>
+        <img src="assets/companies/codemagic.svg" alt="codemagic_logo"/>
       </td>
     </tr>
   </tbody>
