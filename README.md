@@ -50,25 +50,17 @@ The financial sustainability of the project is possible thanks to the ongoing co
   <tbody>
     <tr>
       <td width="30%" align="center">
-        <div>
-          <a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
-            <picture>
-              <img width="300" src="assets/companies/monday.com.svg" alt="mondaycom_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
+          <img width="300" src="assets/companies/monday.com.svg" alt="mondaycom_logo"/>
+        </a>
       </td>
       <td><a href="https://monday.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist">Monday.com</a> is a cloud-based work operating system (Work OS) that empowers teams to run projects and workflows with confidence. It's a versatile platform that combines features of project management, workflow automation, and team collaboration to streamline the way teams work together.</td>
     </tr>
     <tr>
       <td width="30%" align="center">
-        <div>
-          <a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
-            <picture>
-              <img width="200" src="assets/companies/lapse.svg" alt="lapse_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist" target="_blank">
+          <img width="200" src="assets/companies/lapse.svg" alt="lapse_logo"/>
+        </a>
       </td>
       <td><a href="https://lapse.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&&utm_term=tuist">Lapse</a> is an app designed to reclaim how we take and share memories. A camera for living in the moment and a private photo journal for friends, not followers.</td>
     </tr>
@@ -81,7 +73,6 @@ The financial sustainability of the project is possible thanks to the ongoing co
   <tbody>
     <tr>
       <td width="30%" align="center">
-        <div>
           <a href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist" target="_blank">
             <picture>
               <source 
@@ -96,43 +87,37 @@ The financial sustainability of the project is possible thanks to the ongoing co
     </tr>
     <tr>
       <td width="30%" align="center">
-        <div>
-          <a href="https://runway.team?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-            <picture>
-              <source 
-              srcset="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" 
-              media="(prefers-color-scheme: dark)">
-              <img width="140" src="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" alt="runway_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://runway.team?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
+          <picture>
+            <source 
+            srcset="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" 
+            media="(prefers-color-scheme: dark)">
+            <img width="140" src="https://global-uploads.webflow.com/5edfa38a1bd219267bdf69b7/60959952ed332b8e9613a0c4_wordmark-runway-black.svg" alt="runway_logo"/>
+          </picture>
+        </a>
       </td>
       <td><a href="https://www.runway.team">Runway</a> streamlines collaboration and automation for mobile app releases, from kickoff to rollout.</td>
     </tr>
     <tr>
       <td width="30%" align="center">
-        <div>
-          <a href="https://www.emergetools.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-            <picture>
-              <source 
-                srcset="assets/companies/emerge-tools-vertical-white.svg" 
-                media="(prefers-color-scheme: dark)">
-              <img width="140" src="assets/companies/emerge-tools-vertical-black.svg" alt="emerge_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.emergetools.com?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
+          <picture>
+            <source 
+              srcset="assets/companies/emerge-tools-vertical-white.svg" 
+              media="(prefers-color-scheme: dark)">
+            <img width="140" src="assets/companies/emerge-tools-vertical-black.svg" alt="emerge_logo"/>
+          </picture>
+        </a>
       </td>
       <td><a href="https://www.emergetools.com">Emerge Tools</a> is a suite of revolutionary products designed to supercharge mobile apps and the teams that build them.</td>
     </tr>
     <tr>
       <td width="30%" align="center">
-        <div>
-          <a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
-            <picture>
-              <img width="140" src="assets/companies/codemagic-logo.svg" alt="codemagic_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.codemagic.io?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_term=tuist" target="_blank">
+          <picture>
+            <img width="140" src="assets/companies/codemagic-logo.svg" alt="codemagic_logo"/>
+          </picture>
+        </a>
       </td>
       <td><a href="https://codemagic.io">Codemagic</a> is a CI/CD tool for building world-class mobile apps.</td>
     </tr>
@@ -145,22 +130,14 @@ The financial sustainability of the project is possible thanks to the ongoing co
   <tbody>
     <tr>
       <td width="50%" align="center">
-        <div>
-          <a href="https://macpaw.com" target="_blank">
-            <picture>
-              <img src="assets/companies/macpaw.png" alt="macpaw_logo" width="100"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://macpaw.com" target="_blank">
+          <img src="assets/companies/macpaw.png" alt="macpaw_logo" width="100"/>
+        </a>
       </td>
       <td width="50%" align="center">
-        <div>
-          <a href="https://asana.com" target="_blank">
-            <picture>
-              <img src="assets/companies/Asana.png" alt="asana_logo" width="100"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://asana.com" target="_blank">
+          <img src="assets/companies/Asana.png" alt="asana_logo" width="100"/>
+        </a>
       </td>
     </tr>
   </tbody>
@@ -172,210 +149,127 @@ The financial sustainability of the project is possible thanks to the ongoing co
   <tbody>
     <tr height="20">
       <td width="20%" align="center">
-        <div>
-          <a href="https://play.tv2.no" target="_blank">
-            <picture>
-              <img src="assets/companies/TV2_Logo.svg" alt="tv2_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://play.tv2.no" target="_blank">
+          <img src="assets/companies/TV2_Logo.svg" alt="tv2_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.depop.com" target="_blank">
-            <picture>
-              <img src="assets/companies/Depop Logo.svg" alt="depop_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.depop.com" target="_blank">
+          <img src="assets/companies/Depop Logo.svg" alt="depop_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://bendingspoons.com" target="_blank">
-            <picture>
-              <img src="assets/companies/BendingSpoons-black.png" alt="bendingspoons_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://bendingspoons.com" target="_blank">
+          <picture>
+            <source 
+              srcset="assets/companies/BendingSpoons-white.png" 
+              media="(prefers-color-scheme: dark)">
+            <img src="assets/companies/BendingSpoons-black.png" alt="bendingspoons_logo"/>
+          </picture>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://globekeeper.com" target="_blank">
-            <picture>
-              <img src="assets/companies/globekeeper.png" alt="globekeeper_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://globekeeper.com" target="_blank">
+          <img src="assets/companies/globekeeper.png" alt="globekeeper_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://getyourguide.com" target="_blank">
-            <picture>
-              <img src="assets/companies/GetYourGuide.svg" alt="getyourguide_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://getyourguide.com" target="_blank">
+          <img src="assets/companies/GetYourGuide.svg" alt="getyourguide_logo"/>
+        </a>
       </td>
     </tr>
     <tr>
       <td width="20%" align="center">
-        <div>
-          <a href="https://emplate.it" target="_blank">
-            <picture>
-              <img src="assets/companies/emplate_logo_full_black.svg" alt="emplate_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://emplate.it" target="_blank">
+          <img src="assets/companies/emplate_logo_full_black.svg" alt="emplate_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://hh.ru" target="_blank">
-            <picture>
-              <img src="assets/companies/hh mono.svg" alt="hh_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://hh.ru" target="_blank">
+          <img src="assets/companies/hh mono.svg" alt="hh_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.trendyol.com" target="_blank">
-            <picture>
-              <img src="assets/companies/Trendyol_online.png" alt="trendyol_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.trendyol.com" target="_blank">
+          <img src="assets/companies/Trendyol_online.png" alt="trendyol_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://angrynerds.co" target="_blank">
-            <picture>
-              <img src="assets/companies/angry_nerds_logo_black.svg" alt="angrynerds_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://angrynerds.co" target="_blank">
+          <img src="assets/companies/angry_nerds_logo_black.svg" alt="angrynerds_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.compass.com" target="_blank">
-            <picture>
-              <img src="assets/companies/Compass Black Logo.png" alt="compass_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.compass.com" target="_blank">
+          <img src="assets/companies/Compass Black Logo.png" alt="compass_logo"/>
+        </a>
       </td>
     </tr>
     <tr>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.wefox.com" target="_blank">
-            <picture>
-              <img src="assets/companies/Wefox_2021.png" alt="wefox_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.wefox.com" target="_blank">
+          <img src="assets/companies/Wefox_2021.png" alt="wefox_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.hedvig.com" target="_blank">
-            <picture>
-              <img src="assets/companies/Hedvig.svg" alt="hedvig_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.hedvig.com" target="_blank">
+            <img src="assets/companies/Hedvig.svg" alt="hedvig_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.takeoutcentral.com" target="_blank">
-            <picture>
-              <img src="assets/companies/takeout_central.svg" alt="takeoutcentral_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.takeoutcentral.com" target="_blank">
+          <img src="assets/companies/takeout_central.svg" alt="takeoutcentral_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.olx.com.br" target="_blank">
-            <picture>
-              <img src="assets/companies/olx.svg" alt="olx_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.olx.com.br" target="_blank">
+          <img src="assets/companies/olx.svg" alt="olx_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.justeattakeaway.com" target="_blank">
-            <picture>
-              <img src="assets/companies/justeattakeaway.svg" alt="justeat_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.justeattakeaway.com" target="_blank">
+          <img src="assets/companies/justeattakeaway.svg" alt="justeat_logo"/>
+        </a>
       </td>
     </tr>
     <tr>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.dodopizza.com" target="_blank">
-            <picture>
-              <img src="assets/companies/DodoPizzaLogo.svg" alt="dodopizza_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.dodopizza.com" target="_blank">
+          <img src="assets/companies/DodoPizzaLogo.svg" alt="dodopizza_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.olimp.bet" target="_blank">
-            <picture>
-              <img src="assets/companies/OlimpBet Logo.svg" alt="olimp_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.olimp.bet" target="_blank">
+          <img src="assets/companies/OlimpBet Logo.svg" alt="olimp_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.vk.company" target="_blank">
-            <picture>
-              <img src="assets/companies/VK_logo.svg" alt="vk_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.vk.company" target="_blank">
+          <img src="assets/companies/VK_logo.svg" alt="vk_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://hd.kinopoisk.ru" target="_blank">
-            <picture>
-              <img src="assets/companies/kinopoisk_logo.svg" alt="kinopoisk_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://hd.kinopoisk.ru" target="_blank">
+          <img src="assets/companies/kinopoisk_logo.svg" alt="kinopoisk_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://qnips.io" target="_blank">
-            <picture>
-              <img src="assets/companies/qnips.svg" alt="qnips_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://qnips.io" target="_blank">
+          <img src="assets/companies/qnips.svg" alt="qnips_logo"/>
+        </a>
       </td>
     </tr>
     <tr>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.telepass.com" target="_blank">
-            <picture>
-              <img src="assets/companies/telepass.svg" alt="telepass_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.telepass.com" target="_blank">
+          <img src="assets/companies/telepass.svg" alt="telepass_logo"/>
+        </a>
       </td>
       <td width="20%" align="center">
-        <div>
-          <a href="https://www.crunchyroll.com" target="_blank">
-            <picture>
-              <img src="assets/companies/crunchyroll_logo_vertical.svg" alt="crunchyroll_logo"/>
-            </picture>
-          </a>
-        </div>
+        <a href="https://www.crunchyroll.com" target="_blank">
+          <img src="assets/companies/crunchyroll_logo_vertical.svg" alt="crunchyroll_logo"/>
+        </a>
       </td>
     </tr>
   </tbody>
