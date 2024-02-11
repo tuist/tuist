@@ -945,7 +945,7 @@ extension ProjectDescription.Headers {
             return .headers(
                 public: .list(
                     [
-                        .glob("\(umbrellaDirectory.pathString)/**/*.h"),
+                        .glob("\(umbrellaDirectory.pathString)/*.h"),
                     ]
                 )
             )

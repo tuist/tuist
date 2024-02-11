@@ -1468,7 +1468,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath: basePath,
                         headers: .headers(
                             public: .list(
-                                [.glob(.path("\(dependencyHeadersPath.pathString)/**/*.h"))]
+                                [.glob(.path("\(dependencyHeadersPath.pathString)/*.h"))]
                             )
                         ),
                         customSettings: [
