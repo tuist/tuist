@@ -28,10 +28,10 @@ final class RunActionTests: TuistUnitTestCase {
                 ]
             ),
             options: .init(),
-            diagnosticsOptions: [
-                .mainThreadChecker,
-                .performanceAntipatternChecker,
-            ]
+            diagnosticsOptions: SchemeDiagnosticsOptions(
+                mainThreadCheckerEnabled: true,
+                performanceAntipatternCheckerEnabled: true
+            )
         )
 
         // Then

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/header.gif"/><br>
+  <img src="assets/header.jpg"/><br>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
   <img src="https://img.shields.io/github/v/release/tuist/tuist?include_prereleases&style=flat-square" alt="Latest Version">
   <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square" alt="Commit Activity">
@@ -461,6 +461,7 @@ Thanks goes to these wonderful people:
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/anlaital-oura"><img src="https://avatars.githubusercontent.com/u/133648611?v=4" width="100px;" alt=""/><br /><sub><b>Antti Laitala</b></sub></a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/PushedCrayon"><img src="https://avatars.githubusercontent.com/u/37077444?v=4" width="100px;" alt=""/><br /><sub><b>PushedCrayon</b></sub></a></td>
     </tr>
   </tbody>
 </table>

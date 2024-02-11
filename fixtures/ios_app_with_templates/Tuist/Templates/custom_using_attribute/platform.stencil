@@ -1,0 +1,7 @@
+// Generated file name: {{ name }}
+// Generated file with supporting platforms
+{% for key, value in platforms %}
+    {% if value %}
+// {{ key }}
+    {% endif %}
+{% endfor %}
