@@ -915,8 +915,6 @@ extension ProjectDescription.Headers {
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
         switch moduleMap {
         case let .header(path):
-            let publicHeaders = try FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
-                .filter { $0.extension == "h" }
             return .headers(
                 public: .list(
                     [

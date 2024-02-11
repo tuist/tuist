@@ -89,11 +89,11 @@ jobs:
       matrix:
         feature:
           [
-            # 'TuistAcceptanceTests',
-            # 'TuistBuildAcceptanceTests',
+            'TuistAcceptanceTests',
+            'TuistBuildAcceptanceTests',
             'TuistDependenciesAcceptanceTests',
-            # 'TuistGenerateAcceptanceTests',
-            # 'TuistTestAcceptanceTests',
+            'TuistGenerateAcceptanceTests',
+            'TuistTestAcceptanceTests',
           ]
     steps:
       - uses: actions/checkout@v4
