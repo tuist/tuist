@@ -12,6 +12,8 @@ public final class SourceRootPathProjectMapper: ProjectMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+        logger.debug("Transforming project \(project.name): Setting $SRCROOT to \(project.name)")
+
         var project = project
         var base = project.settings.base
         // Keep the value if defined by user

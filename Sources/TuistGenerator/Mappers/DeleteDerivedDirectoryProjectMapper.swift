@@ -14,7 +14,8 @@ public final class DeleteDerivedDirectoryProjectMapper: ProjectMapping {
     // MARK: - ProjectMapping
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        logger.debug("Determining the /Derived directories that should be deleted within \(project.path)")
+        logger.debug("Transforming project \(project.name): Deleting /Derived directory")
+
         let derivedDirectoryPath = project.path.appending(component: derivedDirectoryName)
         let directoryDescriptor = DirectoryDescriptor(path: derivedDirectoryPath, state: .absent)
 

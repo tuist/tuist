@@ -50,6 +50,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         guard !project.options.disableSynthesizedResourceAccessors else {
             return (project, [])
         }
+        logger.debug("Transforming project \(project.name): Synthesizing resource accessors")
 
         let mappings = try project.targets
             .map { try mapTarget($0, project: project) }
