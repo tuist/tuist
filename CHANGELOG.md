@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.1.0 - 2024-02-12
+
+### Tuist
+
+#### Changed
+
+- Improve verbose logging by logging the workspace, project, and workspace transformations [#5905](https://github.com/tuist/tuist/pull/5905) by [@pepicrft](https://github.com/pepicrft)
+
+#### Added
+
+- Support visionOS from the default templates to synthesize resources [#5892](https://github.com/tuist/tuist/pull/5892) by [@PushedCrayon](https://github.com/PushedCrayon)
+
+#### Fixed
+
+- Fix integration of Objective C dependencies [#5887](https://github.com/tuist/tuist/pull/5887) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.0.0-beta.4 - 2024-02-05
 
 ### Tuist
