@@ -122,15 +122,3 @@ jobs:
           name: test-${{ matrix.feature }}
           path: |
             /tmp/tuist/**
-  lint:
-    name: Lint
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v3
-      - uses: jdx/mise-action@v2
-        with:
-          experimental: true
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Run
-        run: mise run lint

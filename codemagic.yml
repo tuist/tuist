@@ -1,0 +1,32 @@
+workflows:
+  lint:
+    name: Lint
+    max_build_duration: 60
+    environment:
+      xcode: 15.2
+    scripts:
+      - name: Install Mise
+        script: |
+          curl https://mise.run | sh
+          mise install
+      - name: Lint
+        script: mise run lint
+    triggering: &triggering
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: '*'
+          include: true
+      cancel_previous_builds: true
+    when: &when
+      changeset:
+        includes:
+          - Tuist/**
+          - Package.resolved
+          - Package.swift
+          - Project.swift
+          - Sources/**
+          - Tests/**
+          - fixtures/**
+          - codemagic.yaml
