@@ -201,6 +201,48 @@ final class GenerateAcceptanceTestiOSAppWithCustomResourceParserOptions: TuistAc
     }
 }
 
+final class GenerateAcceptanceTestIosAppWithInfoPlist: TuistAcceptanceTestCase {
+    func test_ios_app_with_multiline_string_value_infoplist() async throws {
+        try setUpFixture(.iosAppWithInfoplist)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        for resource in ["Test1.plist", "Test2.plist", "Test3.plist"] {
+            try await XCTAssertProductWithDestinationContainsResource(
+                "App.app",
+                destination: "Debug-iphonesimulator",
+                resource: resource
+            )
+        }
+
+        XCTAssertTrue(
+            try FileHandler.shared.readTextFile(
+                fixturePath.appending(components: "Derived", "Sources", "TuistPlists+App.swift")
+            )
+            .contains(
+                #"public static let items: [String] = ["A\\n"]"#
+            )
+        )
+
+        XCTAssertTrue(
+            try FileHandler.shared.readTextFile(
+                fixturePath.appending(components: "Derived", "Sources", "TuistPlists+App.swift")
+            )
+            .contains(
+                #"public static let items: [String] = ["BC"]"#
+            )
+        )
+
+        XCTAssertTrue(
+            try FileHandler.shared.readTextFile(
+                fixturePath.appending(components: "Derived", "Sources", "TuistPlists+App.swift")
+            )
+            .contains(
+                #"public static let items: [String] = ["D\n"]"#
+            )
+        )
+    }
+}
+
 final class GenerateAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework: TuistAcceptanceTestCase {
     func test_ios_app_with_framework_linking_static_framework() async throws {
         try setUpFixture(.iosAppWithFrameworkLinkingStaticFramework)
