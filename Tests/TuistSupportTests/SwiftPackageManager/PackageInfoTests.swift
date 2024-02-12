@@ -29,6 +29,12 @@ final class PackageInfoTests: XCTestCase {
                                 moduleAliases: ["TuistSupport": "InternalTuistSupport"],
                                 condition: nil
                             ),
+                            .product(
+                                name: "ArgumentParser",
+                                package: "argument-parser",
+                                moduleAliases: nil,
+                                condition: PackageInfo.PackageConditionDescription(platformNames: ["macOS"], config: nil)
+                            ),
                         ],
                         publicHeadersPath: nil,
                         type: .executable,
