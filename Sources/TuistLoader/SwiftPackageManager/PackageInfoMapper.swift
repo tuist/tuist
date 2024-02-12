@@ -1036,6 +1036,15 @@ extension ProjectDescription.Settings {
             settingsDictionary["MODULEMAP_FILE"] = .string("$(SRCROOT)/\(moduleMapPath.relative(to: packageFolder))")
         }
 
+        if let moduleMap {
+            switch moduleMap {
+            case .directory, .custom(_, umbrellaHeaderPath: nil):
+                settingsDictionary["DEFINES_MODULE"] = "NO"
+            case .header, .nestedHeader, .none, .custom:
+                break
+            }
+        }
+
         var mappedSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)
 
         if let settingsToOverride = targetSettings[target.name] {

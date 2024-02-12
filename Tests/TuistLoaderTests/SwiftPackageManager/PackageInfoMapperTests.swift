@@ -460,23 +460,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ]
             )
 
-            let test = Project.testWithDefaultConfigs(
-                name: "Package",
-                targets: [
-                    .test(
-                        "Target1",
-                        basePath: basePath,
-                        customSources: .custom(.sourceFilesList(
-                            globs: [
-                                basePath
-                                    .appending(try RelativePath(validating: "Package/\(alternativeDefaultSource)/Target1/**"))
-                                    .pathString,
-                            ]
-                        ))
-                    ),
-                ]
-            )
-
             XCTAssertBetterEqual(
                 project,
                 .testWithDefaultConfigs(
@@ -1042,6 +1025,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath: basePath,
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/include"],
+                            "DEFINES_MODULE": "NO",
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
                     ),
@@ -1080,7 +1064,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             platforms: [.iOS]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             project,
             .testWithDefaultConfigs(
                 name: "Package",
@@ -1089,6 +1073,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         customSources: .custom(nil),
+                        customSettings: [
+                            "DEFINES_MODULE": "NO",
+                        ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/module.modulemap"
                     ),
                 ]
@@ -1235,6 +1222,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 "$(SRCROOT)/Sources/Dependency1/include",
                                 "$(SRCROOT)/Sources/Dependency2/include",
                             ],
+                            "DEFINES_MODULE": "NO",
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
                     ),
@@ -1247,6 +1235,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 "$(SRCROOT)/Sources/Dependency1/include",
                                 "$(SRCROOT)/Sources/Dependency2/include",
                             ],
+                            "DEFINES_MODULE": "NO",
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Dependency1/include/module.modulemap"
                     ),
@@ -1255,6 +1244,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         basePath: basePath,
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Dependency2/include"],
+                            "DEFINES_MODULE": "NO",
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Dependency2/include/module.modulemap"
                     ),
@@ -1343,6 +1333,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 "$(SRCROOT)/../Package2/Sources/Dependency1/include",
                                 "$(SRCROOT)/../Package3/Sources/Dependency2/include",
                             ],
+                            "DEFINES_MODULE": "NO",
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
                     ),
@@ -1414,6 +1405,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Headers"],
+                            "DEFINES_MODULE": "NO",
                         ],
                         moduleMap: "$(SRCROOT)/Custom/Headers/module.modulemap"
                     ),
@@ -1473,6 +1465,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Dependency1/include"],
+                            "DEFINES_MODULE": "NO",
                         ],
                         moduleMap: "$(SRCROOT)/Sources/Dependency1/include/Dependency1.modulemap"
                     ),
