@@ -63,11 +63,12 @@ public final class SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoadi
         manifestLoader: ManifestLoading
     ) {
         self.init(
+            manifestLoader: manifestLoader,
             packageSettingsLoader: PackageSettingsLoader(manifestLoader: manifestLoader)
         )
     }
 
-    public init(
+    init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader(),
