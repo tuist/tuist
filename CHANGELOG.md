@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.43.0 - 2024-02-12
+
+### Changed
+
+- Support visionOS from the default templates to synthesize resources [#5892](https://github.com/tuist/tuist/pull/5892) by [@PushedCrayon](https://github.com/PushedCrayon)
+
 ## 3.42.2 - 2024-01-30
 
 ### Tuist
