@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.1.1 - 2024-02-12
+
+### Tuist
+
+#### Fixed
+
+- Fix caching package manifests [#5914](https://github.com/tuist/tuist/pull/5914) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+- no changes
+
 ## 4.1.0 - 2024-02-12
 
 ### Tuist
