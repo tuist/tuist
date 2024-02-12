@@ -315,7 +315,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         )
                     }
 
-                    result[target.name] = ModuleMap.custom(moduleMapPath)
+                    result[target.name] = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
                 case .regular:
                     result[target.name] = try moduleMapGenerator.generate(
                         moduleName: target.name,
@@ -914,12 +914,42 @@ extension ProjectDescription.Headers {
         // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
         switch moduleMap {
-        case .header, .nestedHeader:
+        case let .header(path):
+            return .headers(
+                public: .list(
+                    [
+                        .glob(
+                            .path(path.parentDirectory.appending(component: "\(path.basenameWithoutExt).h").pathString)
+                        ),
+                    ]
+                )
+            )
+        case .nestedHeader:
             let publicHeaders = try FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
                 .filter { $0.extension == "h" }
             let list: [FileListGlob] = publicHeaders.map { .glob(.path($0.pathString)) }
             return .headers(public: .list(list))
-        case .none, .custom, .directory:
+        case let .custom(_, umbrellaHeaderPath: umbrellaHeaderPath):
+            guard let umbrellaHeaderPath else { return nil }
+
+            return .headers(
+                public: .list(
+                    [
+                        .glob(
+                            .path(umbrellaHeaderPath.pathString)
+                        ),
+                    ]
+                )
+            )
+        case let .directory(moduleMapPath: _, umbrellaDirectory: umbrellaDirectory):
+            return .headers(
+                public: .list(
+                    [
+                        .glob("\(umbrellaDirectory.pathString)/*.h"),
+                    ]
+                )
+            )
+        case .none:
             return nil
         }
     }
@@ -1002,8 +1032,17 @@ extension ProjectDescription.Settings {
 
         settingsDictionary.merge(resolvedSettings) { $1 }
 
-        if let moduleMapPath = moduleMap?.path {
+        if let moduleMapPath = moduleMap?.moduleMapPath {
             settingsDictionary["MODULEMAP_FILE"] = .string("$(SRCROOT)/\(moduleMapPath.relative(to: packageFolder))")
+        }
+
+        if let moduleMap {
+            switch moduleMap {
+            case .directory, .custom(_, umbrellaHeaderPath: nil):
+                settingsDictionary["DEFINES_MODULE"] = "NO"
+            case .header, .nestedHeader, .none, .custom:
+                break
+            }
         }
 
         var mappedSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)

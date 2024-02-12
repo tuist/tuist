@@ -30,6 +30,12 @@ let project = Project(
                 .sdk(name: "c++", type: .library, status: .required),
                 .external(name: "Alamofire"),
                 .external(name: "ComposableArchitecture"),
+                .external(name: "ZipArchive"),
+                .external(name: "Yams"),
+                .external(name: "GoogleSignIn"),
+                .external(name: "Sentry"),
+                .external(name: "RealmSwift"),
+                .external(name: "CocoaLumberjackSwift"),
             ],
             settings: .targetSettings
         ),
