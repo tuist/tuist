@@ -6,7 +6,6 @@ let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsS
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
 let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
-let swifterDependency: Target.Dependency = .product(name: "Swifter", package: "swifter")
 let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
 
 var targets: [Target] = [
@@ -118,7 +117,6 @@ var targets: [Target] = [
             swiftToolsSupportDependency,
             loggingDependency,
             "KeychainAccess",
-            swifterDependency,
             "ZIPFoundation",
             "ProjectDescription",
             "Mockable",
@@ -423,7 +421,6 @@ let package = Package(
         .package(url: "https://github.com/FabrizioBrancati/Queuer", from: "2.1.1"),
         .package(url: "https://github.com/Flight-School/AnyCodable", from: "0.6.7"),
         .package(url: "https://github.com/weichsel/ZIPFoundation", from: "0.9.17"),
-        .package(url: "https://github.com/httpswift/swifter.git", revision: "1e4f51c92d7ca486242d8bf0722b99de2c3531aa"),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess", from: "4.2.2"),
         .package(url: "https://github.com/stencilproject/Stencil", exact: "0.15.1"),
         .package(url: "https://github.com/SwiftDocOrg/GraphViz", exact: "0.2.0"),

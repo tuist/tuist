@@ -85,7 +85,6 @@ func targets() -> [Target] {
                 .external(name: "CombineExt"),
                 .external(name: "Logging"),
                 .external(name: "ZIPFoundation"),
-                .external(name: "Swifter"),
                 .external(name: "Difference"),
             ],
             testingDependencies: [
