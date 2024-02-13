@@ -70,15 +70,15 @@
                 
         Tuist Cloud needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist Cloud to operate effectively.
 
-        #### AWS
+        #### S3-Compliant storages
 
         | Environment variable | Description | Required | Default | Example |
         | --- | --- | --- | --- | --- |
-        | TUIST_AWS_ACCESS_KEY_ID | The access key identifier | Yes | | `AKIAA2LQP3CCOZ6WT6CF` |
-        | TUIST_AWS_SECRET_ACCESS_KEY | The access key secret | Yes | | `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` |
-        | TUIST_AWS_BUCKET_NAME | Name of the AWS bucket | Yes | | `my-bucket` |
-        | TUIST_AWS_REGION | The bucket's AWS region | No | `eu-west-1` | `us-east-1` |
-        | TUIST_AWS_ENDPOINT | Custom AWS endpoint | No | `https://amazonaws.com` | `https://custom-domain.com` |
+        | TUIST_S3_ACCESS_KEY_ID | The access key identifier | Yes | | `AKIAA2LQP3CCOZ6WT6CF` |
+        | TUIST_S3_SECRET_ACCESS_KEY | The access key secret | Yes | | `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` |
+        | TUIST_S3_BUCKET_NAME | Name of the bucket | Yes | | `my-bucket` |
+        | TUIST_S3_REGION | The bucket's region | No | `eu-west-1` | `us-east-1` |
+        | TUIST_S3_ENDPOINT | Custom endpoint | No | `https://amazonaws.com` | `https://custom-domain.com` |
     }
     
 
