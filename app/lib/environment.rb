@@ -54,6 +54,10 @@ module Environment
 
     # Getters
 
+    def better_stack_api_key
+      fetch(:better_stack, :api_key)
+    end
+
     def database_url
       fetch(:database_url, with_prefix: false)
     end

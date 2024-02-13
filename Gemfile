@@ -14,7 +14,6 @@ gem "rails", "~> 7.1.0"
 gem "redis", "~> 4.0"
 gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 gem "faker", "~> 3.0"
-gem "appsignal", "~> 3.4"
 gem "aws-sdk-s3", "~> 1.112"
 gem "groupdate", "~> 6.1"
 gem "tailwindcss-rails", "~> 2.0"
@@ -36,6 +35,10 @@ gem "rubocop-rails_config", "~> 1.7"
 gem "omniauth", "~> 2.0"
 gem "omniauth-github", "~> 2.0"
 gem "omniauth-okta", "~> 2.0"
+
+# Telemetry
+gem "logtail-rails", "~> 0.2.6"
+gem "appsignal", "~> 3.4"
 
 group :development, :test do
   gem "foreman", "~> 0.87.2"
