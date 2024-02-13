@@ -240,6 +240,15 @@ final class GenerateAcceptanceTestIosAppWithInfoPlist: TuistAcceptanceTestCase {
                 #"public static let items: [String] = ["D\n"]"#
             )
         )
+        
+        XCTAssertTrue(
+            try FileHandler.shared.readTextFile(
+                fixturePath.appending(components: "Derived", "Sources", "TuistPlists+App.swift")
+            )
+            .contains(
+                #"public static let items: [String] = ["E F"]"#
+            )
+        )
     }
 }
 
