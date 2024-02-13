@@ -1,7 +1,10 @@
 import Foundation
 import TuistGraph
+import TuistSupport
 
-struct UnspecifiedPlatformError: Error, CustomStringConvertible {
+struct UnspecifiedPlatformError: FatalError, CustomStringConvertible {
+    var type: TuistSupport.ErrorType = .abort
+
     let target: Target
     var description: String {
         "Only single platform targets supported. The target \(target.name) specifies multiple supported platforms (\(target.supportedPlatforms.map(\.rawValue).joined(separator: ", ")))."
