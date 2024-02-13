@@ -26,6 +26,7 @@ let package = Package(
         .package(url: "https://github.com/getsentry/sentry-cocoa", .upToNextMajor(from: "8.20.0")),
         .package(url: "https://github.com/realm/realm-swift", .upToNextMajor(from: "10.46.0")),
         .package(url: "https://github.com/CocoaLumberjack/CocoaLumberjack", .upToNextMajor(from: "3.8.4")),
+        .package(url: "https://github.com/facebook/zstd", exact: "1.5.5"),
         .package(path: "LocalSwiftPackage"),
         .package(path: "StringifyMacro"),
     ]

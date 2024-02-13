@@ -1038,7 +1038,7 @@ extension ProjectDescription.Settings {
 
         if let moduleMap {
             switch moduleMap {
-            case .directory, .custom(_, umbrellaHeaderPath: nil):
+            case .directory:
                 settingsDictionary["DEFINES_MODULE"] = "NO"
             case .header, .nestedHeader, .none, .custom:
                 break
