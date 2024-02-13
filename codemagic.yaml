@@ -1,3 +1,7 @@
+environment:
+  vars:
+    MISE_EXPERIMENTAL: "1"
+    
 workflows:
   lint:
     name: Lint
