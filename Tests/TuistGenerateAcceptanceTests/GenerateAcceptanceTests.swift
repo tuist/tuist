@@ -228,7 +228,7 @@ final class GenerateAcceptanceTestIosAppWithInfoPlist: TuistAcceptanceTestCase {
                 fixturePath.appending(components: "Derived", "Sources", "TuistPlists+App.swift")
             )
             .contains(
-                #"public static let items: [String] = ["BC"]"#
+                #"public static let items: [String] = ["B C"]"#
             )
         )
 
@@ -246,7 +246,7 @@ final class GenerateAcceptanceTestIosAppWithInfoPlist: TuistAcceptanceTestCase {
                 fixturePath.appending(components: "Derived", "Sources", "TuistPlists+App.swift")
             )
             .contains(
-                #"public static let items: [String] = ["E F"]"#
+                #"public static let items: [String] = ["E F   "]"#
             )
         )
     }
