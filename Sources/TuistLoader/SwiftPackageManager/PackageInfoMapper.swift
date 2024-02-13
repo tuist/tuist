@@ -846,19 +846,17 @@ extension ResourceFileElements {
 
     // These files are automatically added as resource if they are inside targets directory.
     // Check https://developer.apple.com/documentation/swift_packages/bundling_resources_with_a_swift_package
-    private static let defaultSpmResourceFileExtensions = [
+    private static let defaultSpmResourceFileExtensions = Set([
         "xib",
         "storyboard",
         "xcdatamodeld",
         "xcmappingmodel",
         "xcassets",
         "strings",
-    ]
+    ])
 
     private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
-        ResourceFileElements.defaultSpmResourceFileExtensions.flatMap {
-            FileHandler.shared.glob(path, glob: "**/*.\($0)")
-        }
+        Array(FileHandler.shared.files(in: path, nameFilter: nil, extensionFilter: defaultSpmResourceFileExtensions))
     }
 }
 

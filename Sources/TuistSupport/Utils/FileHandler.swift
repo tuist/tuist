@@ -62,6 +62,7 @@ public protocol FileHandling: AnyObject {
     func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
     func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath?
     func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) throws -> AbsolutePath?
+    func files(in path: AbsolutePath, nameFilter: Set<String>?, extensionFilter: Set<String>?) -> Set<AbsolutePath>
     func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath]
     func throwingGlob(_ path: AbsolutePath, glob: String) throws -> [AbsolutePath]
     func linkFile(atPath: AbsolutePath, toPath: AbsolutePath) throws
@@ -208,6 +209,46 @@ public class FileHandler: FileHandling {
         } else {
             return nil
         }
+    }
+
+    public func files(
+        in path: AbsolutePath,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<AbsolutePath> {
+        var results = Set<AbsolutePath>()
+
+        let enumerator = fileManager.enumerator(
+            at: path.url,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        )
+
+        func filter(candidateURL: URL) -> Bool {
+            if let extensionFilter {
+                guard extensionFilter.contains(candidateURL.pathExtension) else {
+                    return false
+                }
+            }
+            if let nameFilter {
+                guard nameFilter.contains(candidateURL.lastPathComponent) else {
+                    return false
+                }
+            }
+            return true
+        }
+
+        while let candidateURL = enumerator?.nextObject() as? Foundation.URL {
+            guard filter(candidateURL: candidateURL) else {
+                continue
+            }
+            // Symlinks need to be resolved for resulting absolute URLs to point to the right place.
+            let url = candidateURL.resolvingSymlinksInPath()
+            let absolutePath = AbsolutePath(stringLiteral: url.path)
+            results.insert(absolutePath)
+        }
+
+        return results
     }
 
     public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
