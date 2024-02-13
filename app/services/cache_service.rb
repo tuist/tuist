@@ -199,6 +199,7 @@ class CacheService < ApplicationService
         parts: parts,
       },
     })
+    nil
   end
 
   sig { returns(Integer) }
