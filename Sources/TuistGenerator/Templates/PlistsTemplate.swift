@@ -44,7 +44,7 @@ extension SynthesizedResourceInterfaceTemplates {
     {% endmacro %}
     {% macro valueBlock value metadata %}
       {%- if metadata.type == "String" -%}
-        "{{ value|removeNewlines: "leading" }}"
+        "{{ value|replace: "\\n", " ", "regex" }}"
       {%- elif metadata.type == "Date" -%}
         Date(timeIntervalSinceReferenceDate: {{ value.timeIntervalSinceReferenceDate }})
       {%- elif metadata.type == "Optional" -%}
