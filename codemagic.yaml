@@ -3,7 +3,7 @@ environment:
     MISE_EXPERIMENTAL: "1"
   groups:
     - cloud
-    
+
 workflows:
   lint:
     name: Lint
@@ -25,14 +25,3 @@ workflows:
         - pattern: '*'
           include: true
       cancel_previous_builds: true
-    when: &when
-      changeset:
-        includes:
-          - Tuist/**
-          - Package.resolved
-          - Package.swift
-          - Project.swift
-          - Sources/**
-          - Tests/**
-          - fixtures/**
-          - codemagic.yaml
