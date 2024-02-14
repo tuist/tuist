@@ -23,7 +23,7 @@ public enum AppKit {
         _ = YAMLEncoder()
 
         // Use GoogleSignIn
-        _ = GIDSignIn.sharedInstance.configuration
+        _ = GIDSignIn.sharedInstance.hasPreviousSignIn()
 
         // Use Sentry
         SentrySDK.startSession()
