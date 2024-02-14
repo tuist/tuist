@@ -1,5 +1,28 @@
 # Changelog
 
+## 4.2.0 - 2024-02-14
+
+### Tuist
+
+#### Changed
+
+- Improve the error when users try to build or test multi-platform targets [#5919](https://github.com/tuist/tuist/pull/5919) by [@pepicrft](https://github.com/pepicrft)
+- Remove Mockable from the list of targets that depend on XCTest [#5923](https://github.com/tuist/tuist/pull/5923) by [@pepicrft](https://github.com/pepicrft)
+- Improve performance by replacing globing with FileManager when finding resource files [#5922](https://github.com/tuist/tuist/pull/5922) by [@anlaital-oura](https://github.com/anlaital-oura)
+- Automatically group local packages to `Packages` group [#5876](https://github.com/tuist/tuist/pull/5876) by [@Lommelun](https://github.com/Lommelun)
+
+#### Fixed
+
+- Fix runtime crash when using Obj-C dependencies [#5929](https://github.com/tuist/tuist/pull/5929) by [@fortmarek](https://github.com/fortmarek)
+- Fix external platform narrowing when there is a dependency platform condition [#5931](https://github.com/tuist/tuist/pull/5931) by [@fortmarek](https://github.com/fortmarek)
+- Fix integration of Objective C dependencies with resources [#5932](https://github.com/tuist/tuist/pull/5932) by [@fortmarek](https://github.com/fortmarek)
+
+### Tuist Cloud
+
+#### Fixed
+
+- Do not skip a whole target if only a suite is passed by [@fortmarek](https://github.com/fortmarek)
+
 ## 4.1.2 - 2024-02-13
 
 ### Tuist
