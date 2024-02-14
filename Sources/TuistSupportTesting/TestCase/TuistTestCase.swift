@@ -91,6 +91,14 @@ public final class MockFileHandler: FileHandler {
         try closure(temporaryDirectory())
     }
 
+    public var stubFiles: ((AbsolutePath, Set<String>?, Set<String>?) -> Set<AbsolutePath>)?
+    override public func files(in path: AbsolutePath, nameFilter: Set<String>?, extensionFilter: Set<String>?) -> Set<AbsolutePath> {
+        guard let stubFiles else {
+            return super.files(in: path, nameFilter: nameFilter, extensionFilter: extensionFilter)
+        }
+        return stubFiles(path, nameFilter, extensionFilter)
+    }
+
     public var stubGlob: ((AbsolutePath, String) -> [AbsolutePath])?
     override public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
         guard let stubGlob else {
