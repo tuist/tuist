@@ -46,6 +46,7 @@ final class GraphService {
         open: Bool,
         platformToFilter: Platform?,
         targetsToFilter: [String],
+        excludeTargetsContaining: [String],
         path: AbsolutePath,
         outputPath: AbsolutePath
     ) async throws {
@@ -61,7 +62,8 @@ final class GraphService {
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
             platformToFilter: platformToFilter,
-            targetsToFilter: targetsToFilter
+            targetsToFilter: targetsToFilter,
+            excludeTargetsContaining: excludeTargetsContaining
         )
 
         switch format {

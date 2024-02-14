@@ -21,6 +21,12 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
         )
     }
 
+    @Option(
+        name: [.customShort("x"), .customLong("exclude-targets-containing")],
+        help: "Exclude targets that contain the specified string from the graph rendering."
+    )
+    var excludeTargetsContaining: [String]
+    
     @Flag(
         name: [.customShort("t"), .long],
         help: "Skip Test targets during graph rendering."
@@ -80,6 +86,7 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
                 "algorithm": AnyCodable(layoutAlgorithm.rawValue),
                 "skip_external_dependencies": AnyCodable(skipExternalDependencies),
                 "skip_test_targets": AnyCodable(skipExternalDependencies),
+                "exclude_string": AnyCodable(excludeTargetsContaining)
             ]
         )
         try await GraphService().run(
@@ -90,6 +97,7 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
             open: !noOpen,
             platformToFilter: platform,
             targetsToFilter: targets,
+            excludeTargetsContaining: excludeTargetsContaining,
             path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath,
             outputPath: outputPath
                 .map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared

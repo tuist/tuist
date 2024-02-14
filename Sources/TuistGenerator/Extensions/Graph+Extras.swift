@@ -11,7 +11,8 @@ extension TuistGraph.Graph {
         skipTestTargets: Bool,
         skipExternalDependencies: Bool,
         platformToFilter: Platform?,
-        targetsToFilter: [String]
+        targetsToFilter: [String],
+        excludeTargetsContaining: [String]
     ) -> [GraphTarget: Set<GraphDependency>] {
         let graphTraverser = GraphTraverser(graph: self)
 
@@ -30,12 +31,29 @@ extension TuistGraph.Graph {
                 return false
             }
 
+            for excludeTargetString in excludeTargetsContaining {
+                if target.target.name.lowercased().contains(excludeTargetString.lowercased()) {
+                    return false
+                }
+            }
+            
             return true
         }
 
         let filteredTargetsAndDependencies: Set<GraphTarget> = filteredTargets.union(
             transitiveClosure(Array(filteredTargets)) { target in
-                Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).map(\.graphTarget))
+                Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name)
+                    .compactMap { dependency in
+                        let dependencyTarget = dependency.graphTarget
+                        
+                        for excludeTargetString in excludeTargetsContaining {
+                            if dependencyTarget.target.name.lowercased().contains(excludeTargetString.lowercased()) {
+                                return nil
+                            }
+                        }
+                        return dependencyTarget
+                    }
+                )
             }
         )
 
@@ -47,6 +65,12 @@ extension TuistGraph.Graph {
 
             result[target] = targetDependencies
                 .filter { dependency in
+                    for excludeTargetString in excludeTargetsContaining {
+                        if dependency.name.lowercased().contains(excludeTargetString.lowercased()) {
+                            return false
+                        }
+                    }
+                    
                     if skipExternalDependencies, dependency.isExternal(projects) { return false }
                     return true
                 }
