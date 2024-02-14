@@ -36,23 +36,24 @@ extension TuistGraph.Graph {
                     return false
                 }
             }
-            
+
             return true
         }
 
         let filteredTargetsAndDependencies: Set<GraphTarget> = filteredTargets.union(
             transitiveClosure(Array(filteredTargets)) { target in
-                Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name)
-                    .compactMap { dependency in
-                        let dependencyTarget = dependency.graphTarget
-                        
-                        for excludeTargetString in excludeTargetsContaining {
-                            if dependencyTarget.target.name.lowercased().contains(excludeTargetString.lowercased()) {
-                                return nil
+                Array(
+                    graphTraverser.directTargetDependencies(path: target.path, name: target.target.name)
+                        .compactMap { dependency in
+                            let dependencyTarget = dependency.graphTarget
+
+                            for excludeTargetString in excludeTargetsContaining {
+                                if dependencyTarget.target.name.lowercased().contains(excludeTargetString.lowercased()) {
+                                    return nil
+                                }
                             }
+                            return dependencyTarget
                         }
-                        return dependencyTarget
-                    }
                 )
             }
         )
@@ -70,7 +71,7 @@ extension TuistGraph.Graph {
                             return false
                         }
                     }
-                    
+
                     if skipExternalDependencies, dependency.isExternal(projects) { return false }
                     return true
                 }

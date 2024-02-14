@@ -26,7 +26,7 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
         help: "Exclude targets that contain the specified string from the graph rendering."
     )
     var excludeTargetsContaining: [String]
-    
+
     @Flag(
         name: [.customShort("t"), .long],
         help: "Skip Test targets during graph rendering."
@@ -86,7 +86,7 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
                 "algorithm": AnyCodable(layoutAlgorithm.rawValue),
                 "skip_external_dependencies": AnyCodable(skipExternalDependencies),
                 "skip_test_targets": AnyCodable(skipExternalDependencies),
-                "exclude_string": AnyCodable(excludeTargetsContaining)
+                "exclude_string": AnyCodable(excludeTargetsContaining),
             ]
         )
         try await GraphService().run(

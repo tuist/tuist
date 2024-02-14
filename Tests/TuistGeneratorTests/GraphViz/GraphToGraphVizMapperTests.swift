@@ -44,12 +44,12 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         XCTAssertEqual(gotNodeIds, expectedNodeIds)
         XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
     }
-    
+
     func test_map_excluding_targets_containing_strings() throws {
         // Given
         let graph = try makeGivenGraph()
         let excludeTargetsContaining = ["External", "rx"]
-        
+
         // When
         let got = subject.map(
             graph: graph,
@@ -61,18 +61,18 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 excludeTargetsContaining: excludeTargetsContaining
             )
         )
-        
+
         // Then
         let expected = makeExpectedGraphViz(excludeTargetsContaining: excludeTargetsContaining)
         let gotNodeIds = got.nodes.map(\.id).sorted()
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
         let gotEdgeIds = got.edges.map { "\($0.from) -> \($0.to)" }.sorted()
         let expectedEdgeIds = expected.edges.map { "\($0.from) -> \($0.to)" }.sorted()
-        
+
         XCTAssertEqual(gotNodeIds, expectedNodeIds)
         XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
     }
-    
+
     func test_map_skipping_external_dependencies() throws {
         // Given
         let graph = try makeGivenGraph()
@@ -173,7 +173,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
         let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
         let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
-        
+
         XCTAssertEqual(gotNodeIds, expectedNodeIds)
         XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
     }
@@ -225,7 +225,11 @@ final class GraphToGraphVizMapperTests: XCTestCase {
             !excludeTargetsContaining.contains(where: { node.id.lowercased().contains($0.lowercased()) })
         }
         edges = edges.filter { edge in
-            !(excludeTargetsContaining.contains(where: { edge.from.lowercased().contains($0.lowercased()) }) || excludeTargetsContaining.contains(where: { edge.to.lowercased().contains($0.lowercased()) }))
+            !(
+                excludeTargetsContaining
+                    .contains(where: { edge.from.lowercased().contains($0.lowercased()) }) || excludeTargetsContaining
+                    .contains(where: { edge.to.lowercased().contains($0.lowercased()) })
+            )
         }
 
         var graph = GraphViz.Graph(directed: true)
@@ -233,7 +237,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         for edge in edges {
             graph.append(edge)
         }
-        
+
         return graph
     }
 
