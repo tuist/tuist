@@ -936,13 +936,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
         let defaultResourcePath = sourcesPath.appending(try RelativePath(validating: "Resources/file.xib"))
         try fileHandler.createFolder(sourcesPath)
-        fileHandler.stubGlob = { path, glob in
-            XCTAssertEqual(path, sourcesPath)
-            if glob == "**/*.xib" {
-                return [defaultResourcePath]
-            } else {
-                return []
-            }
+        fileHandler.stubFiles = { _, _, _ in
+            return [defaultResourcePath]
         }
 
         let project = try subject.map(

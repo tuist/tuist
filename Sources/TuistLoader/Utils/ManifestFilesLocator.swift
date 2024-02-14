@@ -102,31 +102,17 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             Manifest.plugin.fileName(path),
         ]
 
-        var tuistManifestsFilePaths = [AbsolutePath]()
-
-        let enumerator = FileManager.default.enumerator(
-            at: path.url,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
-        )
-
-        while let candidateURL = enumerator?.nextObject() as? URL {
-            guard candidateURL.pathExtension == "swift",
-                  fileNamesCandidates.contains(candidateURL.lastPathComponent)
-            else {
-                continue
-            }
-            // Symlinks need to be resolved for resulting absolute URLs to point to the right place.
-            let url = candidateURL.resolvingSymlinksInPath()
-            let absolutePath = AbsolutePath(stringLiteral: url.path)
-            if hasValidManifestContent(absolutePath) {
-                tuistManifestsFilePaths.append(absolutePath)
-            }
+        let tuistManifestsFilePaths = FileHandler.shared.files(
+            in: path,
+            nameFilter: fileNamesCandidates,
+            extensionFilter: ["swift"]
+        ).filter {
+            hasValidManifestContent($0)
         }
 
-        let cachedTuistManifestsFilePaths = Set(tuistManifestsFilePaths)
-        cacheTuistManifestsFilePaths[path] = cachedTuistManifestsFilePaths
-        return cachedTuistManifestsFilePaths
+        cacheTuistManifestsFilePaths[path] = tuistManifestsFilePaths
+
+        return tuistManifestsFilePaths
     }
 
     private func hasValidManifestContent(_ path: AbsolutePath) -> Bool {
