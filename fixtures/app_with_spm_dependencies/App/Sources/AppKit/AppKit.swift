@@ -29,7 +29,7 @@ public enum AppKit {
         SentrySDK.startSession()
 
         // Use CocoaLumberjack
-        _ = CocoaLumberjackSwift.DDLogInfo("Log")
+        _ = DDOSLogger.sharedInstance
 
         // Use Realm
         _ = Realm.Configuration()

@@ -78,27 +78,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             // User defined modulemap exists, use it
             return .custom(customModuleMapPath, umbrellaHeaderPath: nil)
         } else if FileHandler.shared.exists(publicHeadersPath) {
-            // We move the umbrella headers directory to a different location for CocoaLumberjack. Somehow, the one used by
-            // default is not properly recognized even if the path in the `modulemap` is correct.
-            // If the directory is copied to a different location, it works.
-            if sanitizedModuleName == "CocoaLumberjack" {
-                let copiedPublicHeadersPath = publicHeadersPath.parentDirectory.appending(component: "tuist-public-headers")
-                if !FileHandler.shared.exists(copiedPublicHeadersPath) {
-                    try FileHandler.shared.copy(from: publicHeadersPath, to: copiedPublicHeadersPath)
-                }
-                let generatedModuleMapContent =
-                    """
-                    module \(sanitizedModuleName) {
-                        umbrella "\(copiedPublicHeadersPath.pathString)"
-                        export *
-                    }
-                    """
-                let generatedModuleMapPath = publicHeadersPath.appending(component: "\(moduleName).modulemap")
-                try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
-                return .directory(moduleMapPath: generatedModuleMapPath, umbrellaDirectory: copiedPublicHeadersPath)
-            }
-
-            // Otherwise, consider the public headers folder as umbrella directory
+            // Consider the public headers folder as umbrella directory
             let generatedModuleMapContent =
                 """
                 module \(sanitizedModuleName) {
