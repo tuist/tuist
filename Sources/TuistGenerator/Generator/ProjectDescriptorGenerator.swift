@@ -269,7 +269,13 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 )
 
                 pbxproj.add(object: reference)
-                try pbxproj.rootGroup()?.children.append(reference)
+
+                if let existingPackageGroup = try pbxproj.rootGroup()?.group(named: "Packages") {
+                    existingPackageGroup.children.append(reference)
+                } else {
+                    let packageGroup = try pbxproj.rootGroup()?.addGroup(named: "Packages", options: .withoutFolder)
+                    packageGroup?.first?.children.append(reference)
+                }
 
             case let .remote(url: url, requirement: requirement):
                 let packageReference = XCRemoteSwiftPackageReference(
