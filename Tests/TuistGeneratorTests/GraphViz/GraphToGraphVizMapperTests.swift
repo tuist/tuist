@@ -32,7 +32,8 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 skipTestTargets: false,
                 skipExternalDependencies: false,
                 platformToFilter: nil,
-                targetsToFilter: []
+                targetsToFilter: [],
+                excludeTargetsContaining: []
             )
         )
         let expected = makeExpectedGraphViz()
@@ -43,7 +44,35 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         XCTAssertEqual(gotNodeIds, expectedNodeIds)
         XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
     }
-
+    
+    func test_map_excluding_targets_containing_strings() throws {
+        // Given
+        let graph = try makeGivenGraph()
+        let excludeTargetsContaining = ["External", "rx"]
+        
+        // When
+        let got = subject.map(
+            graph: graph,
+            targetsAndDependencies: graph.filter(
+                skipTestTargets: false,
+                skipExternalDependencies: false,
+                platformToFilter: nil,
+                targetsToFilter: [],
+                excludeTargetsContaining: excludeTargetsContaining
+            )
+        )
+        
+        // Then
+        let expected = makeExpectedGraphViz(excludeTargetsContaining: excludeTargetsContaining)
+        let gotNodeIds = got.nodes.map(\.id).sorted()
+        let expectedNodeIds = expected.nodes.map(\.id).sorted()
+        let gotEdgeIds = got.edges.map { "\($0.from) -> \($0.to)" }.sorted()
+        let expectedEdgeIds = expected.edges.map { "\($0.from) -> \($0.to)" }.sorted()
+        
+        XCTAssertEqual(gotNodeIds, expectedNodeIds)
+        XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
+    }
+    
     func test_map_skipping_external_dependencies() throws {
         // Given
         let graph = try makeGivenGraph()
@@ -55,7 +84,8 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 skipTestTargets: false,
                 skipExternalDependencies: true,
                 platformToFilter: nil,
-                targetsToFilter: []
+                targetsToFilter: [],
+                excludeTargetsContaining: []
             )
         )
         let expected = makeExpectedGraphViz(includeExternalDependencies: false)
@@ -79,7 +109,8 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 skipTestTargets: true,
                 skipExternalDependencies: false,
                 platformToFilter: nil,
-                targetsToFilter: []
+                targetsToFilter: [],
+                excludeTargetsContaining: []
             )
         )
         let expected = makeExpectedGraphViz(includeTests: false)
@@ -103,7 +134,8 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 skipTestTargets: false,
                 skipExternalDependencies: false,
                 platformToFilter: .iOS,
-                targetsToFilter: []
+                targetsToFilter: [],
+                excludeTargetsContaining: []
             )
         )
         let expected = makeExpectedGraphViz(onlyiOS: true)
@@ -131,7 +163,8 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 skipTestTargets: false,
                 skipExternalDependencies: true,
                 platformToFilter: nil,
-                targetsToFilter: ["Tuist iOS"]
+                targetsToFilter: ["Tuist iOS"],
+                excludeTargetsContaining: []
             )
         )
 
@@ -140,7 +173,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
         let gotEdgeIds = got.edges.map { $0.from + " -> " + $0.to }.sorted()
         let expectedEdgeIds = expected.edges.map { $0.from + " -> " + $0.to }.sorted()
-
+        
         XCTAssertEqual(gotNodeIds, expectedNodeIds)
         XCTAssertEqual(gotEdgeIds, expectedEdgeIds)
     }
@@ -148,9 +181,11 @@ final class GraphToGraphVizMapperTests: XCTestCase {
     private func makeExpectedGraphViz(
         includeExternalDependencies: Bool = true,
         includeTests: Bool = true,
-        onlyiOS: Bool = false
+        onlyiOS: Bool = false,
+        excludeTargetsContaining: [String] = []
     ) -> GraphViz.Graph {
-        var graph = GraphViz.Graph(directed: true, strict: false)
+        var nodes = [GraphViz.Node]()
+        var edges = [GraphViz.Edge]()
 
         let tuist = GraphViz.Node("Tuist iOS")
         let coreData = GraphViz.Node("CoreData")
@@ -161,22 +196,19 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let watchOS = GraphViz.Node("Tuist watchOS")
         let externalDependency = GraphViz.Node("External dependency")
 
-        graph.append(contentsOf: [tuist, core])
+        nodes.append(contentsOf: [tuist, core])
         if !onlyiOS {
-            graph.append(watchOS)
+            nodes.append(watchOS)
         }
-        graph.append(GraphViz.Edge(from: tuist, to: core))
+
+        edges.append(GraphViz.Edge(from: tuist, to: core))
         if !onlyiOS {
-            graph.append(GraphViz.Edge(from: watchOS, to: core))
+            edges.append(GraphViz.Edge(from: watchOS, to: core))
         }
 
         if includeExternalDependencies {
-            graph.append(
-                contentsOf: [
-                    coreData, rxSwift, xcodeProj, externalDependency,
-                ]
-            )
-            graph.append(contentsOf: [
+            nodes.append(contentsOf: [coreData, rxSwift, xcodeProj, externalDependency])
+            edges.append(contentsOf: [
                 GraphViz.Edge(from: core, to: xcodeProj),
                 GraphViz.Edge(from: core, to: rxSwift),
                 GraphViz.Edge(from: core, to: coreData),
@@ -185,12 +217,23 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         }
 
         if includeTests {
-            graph.append(coreTests)
-            graph.append(
-                GraphViz.Edge(from: coreTests, to: core)
-            )
+            nodes.append(coreTests)
+            edges.append(GraphViz.Edge(from: coreTests, to: core))
         }
 
+        nodes = nodes.filter { node in
+            !excludeTargetsContaining.contains(where: { node.id.lowercased().contains($0.lowercased()) })
+        }
+        edges = edges.filter { edge in
+            !(excludeTargetsContaining.contains(where: { edge.from.lowercased().contains($0.lowercased()) }) || excludeTargetsContaining.contains(where: { edge.to.lowercased().contains($0.lowercased()) }))
+        }
+
+        var graph = GraphViz.Graph(directed: true)
+        graph.append(contentsOf: nodes)
+        for edge in edges {
+            graph.append(edge)
+        }
+        
         return graph
     }
 

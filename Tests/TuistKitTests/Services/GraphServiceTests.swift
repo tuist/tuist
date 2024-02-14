@@ -56,6 +56,7 @@ final class GraphServiceTests: TuistUnitTestCase {
             open: false,
             platformToFilter: nil,
             targetsToFilter: [],
+            excludeTargetsContaining: [],
             path: temporaryPath,
             outputPath: temporaryPath
         )
@@ -87,6 +88,7 @@ final class GraphServiceTests: TuistUnitTestCase {
             open: false,
             platformToFilter: nil,
             targetsToFilter: [],
+            excludeTargetsContaining: [],
             path: temporaryPath,
             outputPath: temporaryPath
         )
