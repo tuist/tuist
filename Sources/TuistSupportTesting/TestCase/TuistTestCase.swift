@@ -92,7 +92,11 @@ public final class MockFileHandler: FileHandler {
     }
 
     public var stubFiles: ((AbsolutePath, Set<String>?, Set<String>?) -> Set<AbsolutePath>)?
-    override public func files(in path: AbsolutePath, nameFilter: Set<String>?, extensionFilter: Set<String>?) -> Set<AbsolutePath> {
+    override public func files(
+        in path: AbsolutePath,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<AbsolutePath> {
         guard let stubFiles else {
             return super.files(in: path, nameFilter: nameFilter, extensionFilter: extensionFilter)
         }
