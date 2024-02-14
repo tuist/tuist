@@ -827,8 +827,8 @@ public class GraphTraverser: GraphTraversing {
 
             for dependencyTargetReference in dependencies {
                 var platformsToInsert: Set<Platform>?
-
                 let dependencyTarget = dependencyTargetReference.graphTarget
+                let inheritedPlatforms = dependencyTarget.target.product == .macro ? Set<Platform>([.macOS]) : parentPlatforms
                 if let dependencyCondition = dependencyTargetReference.condition,
                    let platformIntersection = PlatformCondition.when(target.target.dependencyPlatformFilters)?
                    .intersection(dependencyCondition)
@@ -838,13 +838,16 @@ public class GraphTraverser: GraphTraversing {
                         break
                     case let .condition(condition):
                         if let condition {
-                            let dependencyPlatforms: [Platform] = condition.platformFilters.map(\.platform).filter { $0 != nil }
-                                .map { $0! }
-                            platformsToInsert = Set(dependencyPlatforms)
+                            let dependencyPlatforms = Set(
+                                condition.platformFilters.map(\.platform)
+                                    .filter { $0 != nil }
+                                    .map { $0! }
+                            )
+                            .intersection(inheritedPlatforms)
+                            platformsToInsert = dependencyPlatforms
                         }
                     }
                 } else {
-                    let inheritedPlatforms = dependencyTarget.target.product == .macro ? Set<Platform>([.macOS]) : parentPlatforms
                     platformsToInsert = inheritedPlatforms.intersection(dependencyTarget.target.supportedPlatforms)
                 }
 
