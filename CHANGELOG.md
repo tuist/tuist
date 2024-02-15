@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.2.2 - 2024-02-15
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix runtime network error due to unlimited connections when persisting cache artifacts by [@pepicrft](https://github.com/pepicrft)
+
 ## 4.2.1 - 2024-02-15
 
 ### Tuist
