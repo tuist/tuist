@@ -4,7 +4,6 @@ import TuistGraphTesting
 import XCTest
 
 @testable import TuistDependencies
-@testable import TuistDependenciesTesting
 @testable import TuistSupportTesting
 
 final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase {

@@ -11,30 +11,30 @@ let project = Project(
         )
     ),
     targets: [
-        Target(
+        .target(
             name: "AppCore",
-            platform: .iOS,
+            destinations: [.iPhone],
             product: .framework,
             bundleId: "io.tuist.AppCore",
-            deploymentTarget: .iOS(targetVersion: "12.0", devices: .iphone),
+            deploymentTargets: .iOS("12.0"),
             infoPlist: .default,
             sources: .paths([.relativeToManifest("AppCore/Sources/**")])
         ),
-        Target(
+        .target(
             name: "AppCoreTests",
-            platform: .iOS,
+            destinations: [.iPhone],
             product: .unitTests,
             bundleId: "io.tuist.AppCoreTests",
-            deploymentTarget: .iOS(targetVersion: "12.0", devices: .iphone),
+            deploymentTargets: .iOS("12.0"),
             infoPlist: "Tests.plist",
             sources: "AppCore/Tests/**",
             dependencies: [
                 .target(name: "AppCore"),
             ]
         ),
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
@@ -47,9 +47,9 @@ let project = Project(
                 "CODE_SIGNING_REQUIRED": "NO",
             ])
         ),
-        Target(
+        .target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: "Tests.plist",
@@ -62,12 +62,12 @@ let project = Project(
                 "CODE_SIGNING_REQUIRED": "NO",
             ])
         ),
-        Target(
+        .target(
             name: "MacFramework",
-            platform: .macOS,
+            destinations: [.mac],
             product: .framework,
             bundleId: "io.tuist.MacFramework",
-            deploymentTarget: .macOS(targetVersion: "10.15"),
+            deploymentTargets: .macOS("10.15"),
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
             sources: .paths([.relativeToManifest("MacFramework/Sources/**")]),
             settings: .settings(base: [
@@ -75,12 +75,12 @@ let project = Project(
                 "CODE_SIGNING_REQUIRED": "NO",
             ])
         ),
-        Target(
+        .target(
             name: "MacFrameworkTests",
-            platform: .macOS,
+            destinations: [.mac],
             product: .unitTests,
             bundleId: "io.tuist.MacFrameworkTests",
-            deploymentTarget: .macOS(targetVersion: "10.15"),
+            deploymentTargets: .macOS("10.15"),
             infoPlist: "Tests.plist",
             sources: "MacFramework/Tests/**",
             dependencies: [
@@ -91,9 +91,9 @@ let project = Project(
                 "CODE_SIGNING_REQUIRED": "NO",
             ])
         ),
-        Target(
+        .target(
             name: "AppUITests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .uiTests,
             bundleId: "io.tuist.AppUITests",
             infoPlist: "Tests.plist",
@@ -102,9 +102,9 @@ let project = Project(
                 .target(name: "App"),
             ]
         ),
-        Target(
+        .target(
             name: "App-dash",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.AppDash",
             infoPlist: "Info.plist",
@@ -118,9 +118,9 @@ let project = Project(
                 "CODE_SIGNING_REQUIRED": "NO",
             ])
         ),
-        Target(
+        .target(
             name: "App-dashUITests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .uiTests,
             bundleId: "io.tuist.AppDashUITests",
             infoPlist: "Tests.plist",

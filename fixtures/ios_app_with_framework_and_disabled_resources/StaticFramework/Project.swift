@@ -7,18 +7,18 @@ let project = Project(
         disableSynthesizedResourceAccessors: true
     ),
     targets: [
-        Target(
+        .target(
             name: "StaticFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.StaticFramework",
             infoPlist: "Config/StaticFramework-Info.plist",
             sources: "Sources/**",
             dependencies: []
         ),
-        Target(
+        .target(
             name: "StaticFrameworkResources",
-            platform: .iOS,
+            destinations: .iOS,
             product: .bundle,
             bundleId: "io.tuist.StaticFrameworkResources",
             infoPlist: .default,

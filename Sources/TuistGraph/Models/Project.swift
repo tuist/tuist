@@ -56,7 +56,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// The version in which a check happened related to recommended settings after updating Xcode.
     public var lastUpgradeCheck: Version?
 
-    /// Indicates whether the project is imported through `Dependencies.swift`.
+    /// Indicates whether the project is imported through `Package.swift`.
     public let isExternal: Bool
 
     // MARK: - Init
@@ -82,7 +82,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///   - additionalFiles: The additional files to include in the project
     ///   - resourceSynthesizers: `ResourceSynthesizers` that will be applied on individual target's resources
     ///   - lastUpgradeCheck: The version in which a check happened related to recommended settings after updating Xcode.
-    ///   - isExternal: Indicates whether the project is imported through `Dependencies.swift`.
+    ///   - isExternal: Indicates whether the project is imported through `Package.swift`.
     public init(
         path: AbsolutePath,
         sourceRootPath: AbsolutePath,

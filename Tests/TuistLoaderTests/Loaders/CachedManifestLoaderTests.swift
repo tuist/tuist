@@ -35,7 +35,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
             cacheDirectory = try temporaryPath().appending(components: "tuist", "Cache", "Manifests")
             cacheDirectoriesProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
-            cacheDirectoriesProvider.cacheDirectoryStub = cacheDirectory.parentDirectory
+            cacheDirectoriesProvider.tuistCacheDirectoryStub = cacheDirectory.parentDirectory
         } catch {
             XCTFail("Failed to create temporary directory")
         }

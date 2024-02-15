@@ -2,37 +2,7 @@ import ArgumentParser
 import Foundation
 import TuistCore
 
-/// Category that can be cleaned
-enum CleanCategory: ExpressibleByArgument {
-    static let allCases = CacheCategory.allCases.map { .global($0) } + [Self.dependencies]
-
-    /// The global cache
-    case global(CacheCategory)
-
-    /// The local dependencies cache
-    case dependencies
-
-    var defaultValueDescription: String {
-        switch self {
-        case let .global(cacheCategory):
-            return cacheCategory.rawValue
-        case .dependencies:
-            return "dependencies"
-        }
-    }
-
-    init?(argument: String) {
-        if let cacheCategory = CacheCategory(rawValue: argument) {
-            self = .global(cacheCategory)
-        } else if argument == "dependencies" {
-            self = .dependencies
-        } else {
-            return nil
-        }
-    }
-}
-
-public struct CleanCommand: ParsableCommand {
+public struct CleanCommand<T: CleanCategory>: ParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -43,7 +13,7 @@ public struct CleanCommand: ParsableCommand {
     }
 
     @Argument(help: "The cache and artifact categories to be cleaned. If no category is specified, everything is cleaned.")
-    var cleanCategories: [CleanCategory] = CleanCategory.allCases
+    var cleanCategories: [T] = T.allCases.map { $0 }
 
     @Option(
         name: .shortAndLong,

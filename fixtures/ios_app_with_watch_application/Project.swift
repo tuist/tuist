@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "AppWithWatchApp",
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: .default,
@@ -20,25 +20,25 @@ let project = Project(
                 .target(name: "Framework_a_ios"),
             ]
         ),
-        Target(
+        .target(
             name: "Framework_a_ios",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             productName: "FrameworkA",
             bundleId: "io.tuist.framework.a"
         ),
-        Target(
+        .target(
             name: "Framework_a_watchos",
-            platform: .watchOS,
+            destinations: [.appleWatch],
             product: .framework,
             productName: "FrameworkA",
             bundleId: "io.tuist.framework.a"
         ),
         // In Xcode 14, watch application can now leverage the `.app` product type
         // rather than the previous `.watch2App` type
-        Target(
+        .target(
             name: "WatchApp",
-            platform: .watchOS,
+            destinations: [.appleWatch],
             product: .app,
             bundleId: "io.tuist.App.watchkitapp",
             infoPlist: nil,
@@ -62,9 +62,9 @@ let project = Project(
                 ]
             )
         ),
-        Target(
+        .target(
             name: "WatchWidgetExtension",
-            platform: .watchOS,
+            destinations: [.appleWatch],
             product: .appExtension,
             bundleId: "io.tuist.App.watchkitapp.widgetExtension",
             infoPlist: .extendingDefault(with: [
@@ -79,9 +79,9 @@ let project = Project(
                 .target(name: "Framework_a_watchos"),
             ]
         ),
-        Target(
+        .target(
             name: "WatchAppTests",
-            platform: .watchOS,
+            destinations: [.appleWatch],
             product: .unitTests,
             bundleId: "io.tuist.App.watchkitapptests",
             infoPlist: .default,

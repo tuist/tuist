@@ -7,9 +7,9 @@ let project = Project(
         developmentRegion: "en-GB"
     ),
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.app",
             infoPlist: .default,

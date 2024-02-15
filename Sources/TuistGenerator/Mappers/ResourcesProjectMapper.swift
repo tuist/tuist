@@ -15,6 +15,8 @@ public class ResourcesProjectMapper: ProjectMapping {
         guard !project.options.disableBundleAccessors else {
             return (project, [])
         }
+        logger.debug("Transforming project \(project.name): Generating bundles for libraries'")
+
         var sideEffects: [SideEffectDescriptor] = []
         var targets: [Target] = []
 
@@ -29,6 +31,7 @@ public class ResourcesProjectMapper: ProjectMapping {
 
     public func mapTarget(_ target: Target, project: Project) throws -> ([Target], [SideEffectDescriptor]) {
         if target.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
+
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
 
@@ -61,7 +64,7 @@ public class ResourcesProjectMapper: ProjectMapping {
             additionalTargets.append(resourcesTarget)
         }
 
-        if target.supportsSources {
+        if target.supportsSources, target.sources.contains(where: { $0.path.extension == "swift" }) {
             let (filePath, data) = synthesizedFile(bundleName: bundleName, target: target, project: project)
 
             let hash = try data.map(contentHasher.hash)

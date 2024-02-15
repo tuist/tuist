@@ -1,7 +1,7 @@
 import ProjectDescription
 
-let debugAction = ExecutionAction(scriptText: "echo Debug", target: "App")
-let debugScheme = Scheme(
+let debugAction: ExecutionAction = .executionAction(scriptText: "echo Debug", target: "App")
+let debugScheme: Scheme = .scheme(
     name: "App-Debug",
     shared: true,
     buildAction: .buildAction(
@@ -18,12 +18,12 @@ let debugScheme = Scheme(
             simulatedLocation: .johannesburg,
             enableGPUFrameCaptureMode: .metal
         ),
-        diagnosticsOptions: [.mainThreadChecker]
+        diagnosticsOptions: .options(mainThreadCheckerEnabled: true)
     )
 )
 
-let releaseAction = ExecutionAction(scriptText: "echo Release", target: "App")
-let releaseScheme = Scheme(
+let releaseAction: ExecutionAction = .executionAction(scriptText: "echo Release", target: "App")
+let releaseScheme: Scheme = .scheme(
     name: "App-Release",
     shared: true,
     buildAction: .buildAction(targets: ["App"], preActions: [releaseAction]),
@@ -34,11 +34,11 @@ let releaseScheme = Scheme(
             simulatedLocation: .custom(gpxFile: "Resources/Grand Canyon.gpx"),
             enableGPUFrameCaptureMode: .disabled
         ),
-        diagnosticsOptions: [.mainThreadChecker]
+        diagnosticsOptions: .options(mainThreadCheckerEnabled: true)
     )
 )
 
-let userScheme = Scheme(
+let userScheme: Scheme = .scheme(
     name: "App-Local",
     shared: false,
     buildAction: .buildAction(targets: ["App"], preActions: [debugAction]),
@@ -49,9 +49,9 @@ let userScheme = Scheme(
 let project = Project(
     name: "MainApp",
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Config/App-Info.plist",
@@ -61,9 +61,9 @@ let project = Project(
                 .project(target: "Framework2", path: "../Frameworks/Framework2"),
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: "Config/AppTests-Info.plist",

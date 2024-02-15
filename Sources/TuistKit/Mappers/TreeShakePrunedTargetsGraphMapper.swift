@@ -7,6 +7,7 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
     public init() {}
 
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+        logger.debug("Transforming graph \(graph.name): Tree-shaking nodes")
         let sourceTargets: Set<TargetReference> = Set(graph.targets.flatMap { projectPath, targets -> [TargetReference] in
             guard graph.projects[projectPath] != nil else { return [] }
             return targets.compactMap { _, target -> TargetReference? in

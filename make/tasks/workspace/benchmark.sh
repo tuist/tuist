@@ -35,10 +35,9 @@ FIXTURES_JSON=$(jq -n --argjson arr "$(printf '%s\n' "${FIXTURES_LIST[@]}" | jq 
 
 echo $FIXTURES_JSON > $FIXTURES_JSON_PATH
 
-echo "$(format_section "Building tuist and tuistenv")"
+echo "$(format_section "Building tuist")"
 swift build --package-path $ROOT_DIR --product tuist -c release
-swift build --package-path $ROOT_DIR --product tuistenv -c release
 swift build --package-path $ROOT_DIR --product ProjectDescription -c release
 
 echo "$(format_section "Benchmarking")"
-$ROOT_DIR/.build/release/tuistbenchmark benchmark -b $ROOT_DIR/.build/release/tuist -r $ROOT_DIR/.build/release/tuistenv --fixture-list $FIXTURES_JSON_PATH --format markdown
+$ROOT_DIR/.build/release/tuistbenchmark benchmark -b $ROOT_DIR/.build/release/tuist --fixture-list $FIXTURES_JSON_PATH --format markdown

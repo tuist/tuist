@@ -5,17 +5,26 @@ import TuistSupport
 
 public final class MockCacheDirectoriesProvider: CacheDirectoriesProviding {
     private let directory: TemporaryDirectory
-    public var cacheDirectoryStub: AbsolutePath?
-
-    private var cacheDirectory: AbsolutePath {
-        cacheDirectoryStub ?? directory.path.appending(component: "Cache")
-    }
-
-    public func cacheDirectory(for category: CacheCategory) -> AbsolutePath {
-        cacheDirectory.appending(component: category.directoryName)
-    }
 
     public init() throws {
         directory = try TemporaryDirectory(removeTreeOnDeinit: true)
+    }
+
+    private var _tuistCacheDirectory: AbsolutePath {
+        tuistCacheDirectoryStub ?? directory.path.appending(component: "TuistCache")
+    }
+
+    private var _cacheDirectory: AbsolutePath {
+        cacheDirectoryStub ?? directory.path
+    }
+
+    public var tuistCacheDirectoryStub: AbsolutePath?
+    public func tuistCacheDirectory(for category: TuistCore.CacheCategory) throws -> TSCBasic.AbsolutePath {
+        _tuistCacheDirectory.appending(component: category.directoryName)
+    }
+
+    public var cacheDirectoryStub: AbsolutePath?
+    public func cacheDirectory() throws -> AbsolutePath {
+        return _cacheDirectory
     }
 }

@@ -44,7 +44,7 @@ final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        let targetRef = ProjectDescription.TargetReference(projectPath: nil, target: "Target")
+        let targetRef = ProjectDescription.TargetReference.target("Target")
         let manifest = Manifest.targets([targetRef])
 
         // When

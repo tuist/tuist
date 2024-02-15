@@ -11,7 +11,7 @@ let settings: Settings = .settings(
     ]
 )
 
-let betaScheme = Scheme(
+let betaScheme: Scheme = .scheme(
     name: "App-Beta",
     shared: true,
     buildAction: .buildAction(targets: ["App"]),
@@ -25,9 +25,9 @@ let project = Project(
     name: "MainApp",
     settings: settings,
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Support/App-Info.plist",
@@ -37,9 +37,9 @@ let project = Project(
                 .project(target: "Framework2", path: "../Framework2"),
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: "Support/AppTests-Info.plist",

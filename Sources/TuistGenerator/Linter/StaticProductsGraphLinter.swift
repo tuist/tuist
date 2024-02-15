@@ -160,7 +160,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         switch dependency {
         case let .xcframework(xcframework):
             return xcframework.linking == .static
-        case let .framework(_, _, _, _, linking, _, _, _):
+        case let .framework(_, _, _, _, linking, _, _):
             return linking == .static
         case let .library(_, _, linking, _, _):
             return linking == .static
@@ -176,7 +176,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         case let .target(name, path):
             guard let target = graphTraverser.target(path: path, name: name) else { return false }
             return target.target.product.isStatic
-        case .sdk:
+        case .sdk, .macro:
             return false
         }
     }
@@ -227,6 +227,10 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         case (.app, .systemExtension):
             // System Extension can safely link the same static products as apps
             // as they are an independent product
+            return false
+        case (_, .macro):
+            // Macro executables can safely link the same static products as the targets
+            // depending on the executable's parent target (e.g. framework or library).
             return false
         default:
             return true

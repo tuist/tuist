@@ -33,7 +33,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func test_map_when_a_target_that_has_resources_and_doesnt_supports_them() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .staticLibrary, resources: resources)
+        let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.swift"], resources: resources)
         project = Project.test(targets: [target])
 
         // Got
@@ -61,9 +61,9 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.name, target.name)
         XCTAssertEqual(gotTarget.product, target.product)
         XCTAssertEqual(gotTarget.resources.count, 0)
-        XCTAssertEqual(gotTarget.sources.count, 1)
-        XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
-        XCTAssertNotNil(gotTarget.sources.first?.contentHash)
+        XCTAssertEqual(gotTarget.sources.count, 2)
+        XCTAssertEqual(gotTarget.sources.last?.path, expectedPath)
+        XCTAssertNotNil(gotTarget.sources.last?.contentHash)
         XCTAssertEqual(gotTarget.dependencies.count, 1)
         XCTAssertEqual(
             gotTarget.dependencies.first,
@@ -102,12 +102,48 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotSideEffects, [])
     }
 
+    func testMap_whenNoSwiftSources() throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.m"], resources: resources)
+        project = Project.test(
+            targets: [target]
+        )
+
+        // Got
+        let (gotProject, gotSideEffects) = try subject.map(project: project)
+
+        // Then: Side effects
+        XCTAssertEqual(gotSideEffects, [])
+        XCTAssertEqual(gotProject.targets.count, 2)
+
+        let gotTarget = try XCTUnwrap(gotProject.targets.first)
+        XCTAssertEqual(gotTarget.name, target.name)
+        XCTAssertEqual(gotTarget.product, target.product)
+        XCTAssertEqual(gotTarget.resources.count, 0)
+        XCTAssertEqual(gotTarget.sources.count, 1)
+        XCTAssertEqual(gotTarget.dependencies.count, 1)
+        XCTAssertEqual(
+            gotTarget.dependencies.first,
+            TargetDependency.target(name: "\(project.name)_\(target.name)", condition: .when([.ios]))
+        )
+
+        let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
+        XCTAssertEqual(resourcesTarget.name, "\(project.name)_\(target.name)")
+        XCTAssertEqual(resourcesTarget.product, .bundle)
+        XCTAssertEqual(resourcesTarget.destinations, target.destinations)
+        XCTAssertEqual(resourcesTarget.bundleId, "\(target.bundleId).resources")
+        XCTAssertEqual(resourcesTarget.deploymentTargets, target.deploymentTargets)
+        XCTAssertEqual(resourcesTarget.filesGroup, target.filesGroup)
+        XCTAssertEqual(resourcesTarget.resources, resources)
+    }
+
     func test_map_when_a_target_that_has_core_data_models_and_doesnt_supports_them() throws {
         // Given
 
         let coreDataModels: [CoreDataModel] =
             [CoreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
-        let target = Target.test(product: .staticLibrary, coreDataModels: coreDataModels)
+        let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.swift"], coreDataModels: coreDataModels)
         project = Project.test(targets: [target])
 
         // Got
@@ -135,9 +171,9 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.name, target.name)
         XCTAssertEqual(gotTarget.product, target.product)
         XCTAssertEqual(gotTarget.resources.count, 0)
-        XCTAssertEqual(gotTarget.sources.count, 1)
-        XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
-        XCTAssertNotNil(gotTarget.sources.first?.contentHash)
+        XCTAssertEqual(gotTarget.sources.count, 2)
+        XCTAssertEqual(gotTarget.sources.last?.path, expectedPath)
+        XCTAssertNotNil(gotTarget.sources.last?.contentHash)
         XCTAssertEqual(gotTarget.dependencies.count, 1)
         XCTAssertEqual(
             gotTarget.dependencies.first,
@@ -157,7 +193,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func test_map_when_a_target_that_has_resources_and_supports_them() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .framework, resources: resources)
+        let target = Target.test(product: .framework, sources: ["/Absolute/File.swift"], resources: resources)
         project = Project.test(targets: [target])
 
         // Got
@@ -185,9 +221,9 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.name, target.name)
         XCTAssertEqual(gotTarget.product, target.product)
         XCTAssertEqual(gotTarget.resources, resources)
-        XCTAssertEqual(gotTarget.sources.count, 1)
-        XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
-        XCTAssertNotNil(gotTarget.sources.first?.contentHash)
+        XCTAssertEqual(gotTarget.sources.count, 2)
+        XCTAssertEqual(gotTarget.sources.last?.path, expectedPath)
+        XCTAssertNotNil(gotTarget.sources.last?.contentHash)
         XCTAssertEqual(gotTarget.dependencies.count, 0)
     }
 
@@ -195,7 +231,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         // Given
         let coreDataModels: [CoreDataModel] =
             [CoreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
-        let target = Target.test(product: .framework, coreDataModels: coreDataModels)
+        let target = Target.test(product: .framework, sources: ["/Absolute/File.swift"], coreDataModels: coreDataModels)
         project = Project.test(targets: [target])
 
         // Got
@@ -223,9 +259,9 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.name, target.name)
         XCTAssertEqual(gotTarget.product, target.product)
         XCTAssertEqual(gotTarget.coreDataModels, coreDataModels)
-        XCTAssertEqual(gotTarget.sources.count, 1)
-        XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
-        XCTAssertNotNil(gotTarget.sources.first?.contentHash)
+        XCTAssertEqual(gotTarget.sources.count, 2)
+        XCTAssertEqual(gotTarget.sources.last?.path, expectedPath)
+        XCTAssertNotNil(gotTarget.sources.last?.contentHash)
         XCTAssertEqual(gotTarget.dependencies.count, 0)
     }
 
@@ -263,7 +299,12 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func test_map_when_a_target_that_has_name_with_hyphen() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(name: "test-tuist", product: .staticLibrary, resources: resources)
+        let target = Target.test(
+            name: "test-tuist",
+            product: .staticLibrary,
+            sources: ["/Absolute/File.swift"],
+            resources: resources
+        )
         project = Project.test(targets: [target])
 
         // Got

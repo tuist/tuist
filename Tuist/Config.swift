@@ -6,6 +6,5 @@ let config = Config(
         url: "https://cloud.tuist.io",
         options: [.optional]
     ),
-    swiftVersion: .init("5.8"),
-    generationOptions: .options()
+    swiftVersion: .init("5.9")
 )

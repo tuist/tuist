@@ -149,7 +149,14 @@ class InitService {
             )
         }
 
-        logger.notice("Project generated at path \(path.pathString).", metadata: .success)
+        logger.notice(
+            "Project generated at path \(path.pathString). Run `tuist generate` to generate the project and open it in Xcode. Use `tuist edit` to easily update the Tuist project definition.",
+            metadata: .success
+        )
+        logger
+            .info(
+                "To learn more about tuist features, such as how to add external dependencies or how to use our ProjectDescription helpers, head to our tutorials page: https://docs.tuist.io/tutorials/tuist-tutorials"
+            )
     }
 
     // MARK: - Helpers
@@ -173,8 +180,11 @@ class InitService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?],
         template: Template
-    ) throws -> [String: String] {
-        let defaultAttributes = ["name": name, "platform": platform.caseValue]
+    ) throws -> [String: TuistGraph.Template.Attribute.Value] {
+        let defaultAttributes: [String: TuistGraph.Template.Attribute.Value] = [
+            "name": .string(name),
+            "platform": .string(platform.caseValue),
+        ]
         return try template.attributes.reduce(into: defaultAttributes) { attributesDictionary, attribute in
             if attribute.name == "name" || attribute.name == "platform" {
                 return
@@ -183,7 +193,7 @@ class InitService {
             case let .required(name):
                 guard let option = requiredTemplateOptions[name]
                 else { throw ScaffoldServiceError.attributeNotProvided(name) }
-                attributesDictionary[name] = option
+                attributesDictionary[name] = .string(option)
             case let .optional(name, default: defaultValue):
                 guard let unwrappedOption = optionalTemplateOptions[name],
                       let option = unwrappedOption
@@ -191,7 +201,7 @@ class InitService {
                     attributesDictionary[name] = defaultValue
                     return
                 }
-                attributesDictionary[name] = option
+                attributesDictionary[name] = .string(option)
             }
         }
     }

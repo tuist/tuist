@@ -36,6 +36,11 @@ public enum XcodeBuildControllerCreateXCFrameworkArgument {
     case library(path: AbsolutePath, headers: AbsolutePath)
 
     /**
+     It passes the -debug-symbol argument when creating frameworks.
+     */
+    case debugSymbols(path: AbsolutePath)
+
+    /**
      Returns the arguments that represent his argument when invoking xcodebuild.
      */
     public var xcodebuildArguments: [String] {
@@ -51,6 +56,8 @@ public enum XcodeBuildControllerCreateXCFrameworkArgument {
             return ["-archive", sanitizedPath(archivePath), "-framework", framework]
         case let .library(libraryPath, headers):
             return ["-library", sanitizedPath(libraryPath), "-headers", sanitizedPath(headers)]
+        case let .debugSymbols(path):
+            return ["-debug-symbols", sanitizedPath(path)]
         }
     }
 }

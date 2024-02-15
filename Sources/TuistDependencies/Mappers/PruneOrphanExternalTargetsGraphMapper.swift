@@ -11,6 +11,8 @@ public struct PruneOrphanExternalTargetsGraphMapper: GraphMapping {
     public init() {}
 
     public func map(graph: TuistGraph.Graph) async throws -> (TuistGraph.Graph, [TuistCore.SideEffectDescriptor]) {
+        logger.debug("Transforming graph \(graph.name): Tree-shaking orphan external targets (e.g. test targets)")
+
         let graphTraverser = GraphTraverser(graph: graph)
         let orphanExternalTargets = graphTraverser.allOrphanExternalTargets()
 

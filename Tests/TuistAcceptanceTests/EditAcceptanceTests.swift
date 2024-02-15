@@ -24,7 +24,7 @@ final class EditAcceptanceTestPlugin: TuistAcceptanceTestCase {
 final class EditAcceptanceTestAppWithPlugins: TuistAcceptanceTestCase {
     func test_app_with_plugins() async throws {
         try setUpFixture(.appWithPlugins)
-        try await run(FetchCommand.self)
+        try await run(InstallCommand.self)
         try await run(EditCommand.self)
         try build(scheme: "Manifests")
         try build(scheme: "Plugins")

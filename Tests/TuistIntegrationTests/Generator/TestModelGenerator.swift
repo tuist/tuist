@@ -332,7 +332,7 @@ final class TestModelGenerator {
                     expandVariableFromTarget: nil,
                     preActions: createExecutionActions(),
                     postActions: createExecutionActions(),
-                    diagnosticsOptions: []
+                    diagnosticsOptions: SchemeDiagnosticsOptions()
                 ),
                 runAction: RunAction(
                     configurationName: "Debug",
@@ -341,7 +341,7 @@ final class TestModelGenerator {
                     executable: nil,
                     filePath: nil,
                     arguments: createArguments(),
-                    diagnosticsOptions: []
+                    diagnosticsOptions: SchemeDiagnosticsOptions()
                 ),
                 archiveAction: ArchiveAction(
                     configurationName: "Debug",

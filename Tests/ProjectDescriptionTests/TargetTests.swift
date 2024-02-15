@@ -6,13 +6,13 @@ import XCTest
 
 final class TargetTests: XCTestCase {
     func test_toJSON() {
-        let subject = Target(
+        let subject: Target = .target(
             name: "name",
-            platform: .iOS,
+            destinations: [.iPhone, .iPad],
             product: .app,
             productName: "product_name",
             bundleId: "bundle_id",
-            deploymentTarget: .iOS(targetVersion: "13.1", devices: [.iphone, .ipad]),
+            deploymentTargets: .iOS("13.1"),
             infoPlist: "info.plist",
             sources: "sources/*",
             resources: "resources/*",
@@ -36,16 +36,16 @@ final class TargetTests: XCTestCase {
                 debug: ["a": .string("b")],
                 release: ["a": .string("b")]
             ),
-            coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
+            coreDataModels: [.coreDataModel("pat", currentVersion: "version")],
             environmentVariables: ["a": "b"]
         )
         XCTAssertCodable(subject)
     }
 
     func test_toJSON_withFileList() {
-        let subject = Target(
+        let subject: Target = .target(
             name: "name",
-            platform: .iOS,
+            destinations: [.iPhone, .iPad, .macWithiPadDesign],
             product: .app,
             productName: "product_name",
             bundleId: "bundle_id",
@@ -85,7 +85,7 @@ final class TargetTests: XCTestCase {
                     .debug(name: .release, settings: ["a": .string("release")], xcconfig: "debug.xcconfig"),
                 ]
             ),
-            coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
+            coreDataModels: [.coreDataModel("pat", currentVersion: "version")],
             environmentVariables: ["a": "b"]
         )
         XCTAssertCodable(subject)

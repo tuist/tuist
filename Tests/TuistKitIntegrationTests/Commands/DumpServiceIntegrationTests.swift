@@ -149,7 +149,6 @@ final class DumpServiceTests: TuistTestCase {
         let config = Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
-            cache: nil,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .options()
@@ -247,31 +246,130 @@ final class DumpServiceTests: TuistTestCase {
         XCTAssertPrinterOutputContains(expected)
     }
 
-    func test_prints_the_manifest_when_dependencies_manifest() async throws {
+    func test_prints_the_manifest_when_package_manifest() async throws {
         let tmpDir = try temporaryPath()
         let config = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        #if TUIST
         import ProjectDescription
 
-        let dependencies = Dependencies(
-            carthage: nil,
-            swiftPackageManager: nil,
-            platforms: []
+        let packageSettings = PackageSettings(
+            platforms: [.iOS, .watchOS]
         )
+
+        #endif
+
+        let package = Package(
+            name: "PackageName",
+            dependencies: []
+        )
+
         """
-        try fileHandler.createFolder(tmpDir.appending(component: "Tuist"))
+        try fileHandler.createFolder(tmpDir.appending(component: Constants.tuistDirectoryName))
         try config.write(
-            toFile: tmpDir.appending(components: "Tuist", "Dependencies.swift").pathString,
+            toFile: tmpDir.appending(
+                component: Constants.SwiftPackageManager.packageSwiftName
+            ).pathString,
             atomically: true,
             encoding: .utf8
         )
-        try await subject.run(path: tmpDir.pathString, manifest: .dependencies)
+        try await subject.run(path: tmpDir.pathString, manifest: .package)
         let expected = """
         {
-          "platforms": [
+          "baseSettings": {
+            "base": {
 
-          ]
-        }
+            },
+            "configurations": [
+              {
+                "name": {
+                  "rawValue": "Debug"
+                },
+                "settings": {
 
+                },
+                "variant": "debug"
+              },
+              {
+                "name": {
+                  "rawValue": "Release"
+                },
+                "settings": {
+
+                },
+                "variant": "release"
+              }
+            ],
+            "defaultSettings": {
+              "recommended": {
+                "excluding": [
+
+                ]
+              }
+            }
+          },
+        """
+
+        XCTAssertPrinterOutputContains(expected)
+    }
+
+    func test_prints_the_manifest_when_package_manifest_without_package_settings() async throws {
+        let tmpDir = try temporaryPath()
+        let config = """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        let package = Package(
+            name: "PackageName",
+            dependencies: []
+        )
+
+        """
+        try fileHandler.createFolder(tmpDir.appending(component: Constants.tuistDirectoryName))
+        try config.write(
+            toFile: tmpDir.appending(
+                component: Constants.SwiftPackageManager.packageSwiftName
+            ).pathString,
+            atomically: true,
+            encoding: .utf8
+        )
+        try await subject.run(path: tmpDir.pathString, manifest: .package)
+        let expected = """
+        {
+          "baseSettings": {
+            "base": {
+
+            },
+            "configurations": [
+              {
+                "name": {
+                  "rawValue": "Debug"
+                },
+                "settings": {
+
+                },
+                "variant": "debug"
+              },
+              {
+                "name": {
+                  "rawValue": "Release"
+                },
+                "settings": {
+
+                },
+                "variant": "release"
+              }
+            ],
+            "defaultSettings": {
+              "recommended": {
+                "excluding": [
+
+                ]
+              }
+            }
+          },
         """
 
         XCTAssertPrinterOutputContains(expected)
@@ -291,10 +389,6 @@ final class DumpServiceTests: TuistTestCase {
 
     func test_run_throws_when_template_and_file_doesnt_exist() async throws {
         try await assertLoadingRaisesWhenManifestNotFound(manifest: .template)
-    }
-
-    func test_run_throws_when_dependencies_and_file_doesnt_exist() async throws {
-        try await assertLoadingRaisesWhenManifestNotFound(manifest: .dependencies)
     }
 
     func test_run_throws_when_plugin_and_file_doesnt_exist() async throws {
@@ -323,7 +417,7 @@ final class DumpServiceTests: TuistTestCase {
     private func assertLoadingRaisesWhenManifestNotFound(manifest: DumpableManifest) async throws {
         try await fileHandler.inTemporaryDirectory { tmpDir in
             var expectedDirectory = tmpDir
-            if manifest == .config || manifest == .dependencies {
+            if manifest == .config {
                 expectedDirectory = expectedDirectory.appending(component: Constants.tuistDirectoryName)
                 if !self.fileHandler.exists(expectedDirectory) {
                     try self.fileHandler.createFolder(expectedDirectory)
@@ -348,10 +442,10 @@ extension DumpableManifest {
             return .config
         case .template:
             return .template
-        case .dependencies:
-            return .dependencies
         case .plugin:
             return .plugin
+        case .package:
+            return .packageSettings
         }
     }
 }

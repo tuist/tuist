@@ -38,9 +38,8 @@ public struct Template: Codable, Equatable {
         public let path: String
         public let contents: Contents
 
-        public init(path: String, contents: Contents) {
-            self.path = path
-            self.contents = contents
+        public static func item(path: String, contents: Contents) -> Self {
+            self.init(path: path, contents: contents)
         }
     }
 
@@ -49,7 +48,61 @@ public struct Template: Codable, Equatable {
         /// Required attribute with a given name
         case required(String)
         /// Optional attribute with a given name and a default value used when attribute not provided by user
-        case optional(String, default: String)
+        case optional(String, default: Value)
+    }
+}
+
+extension Template.Attribute {
+    /// This represents the default value type of Attribute
+    public indirect enum Value: Codable, Equatable {
+        /// It represents a string value.
+        case string(String)
+        /// It represents an integer value.
+        case integer(Int)
+        /// It represents a floating value.
+        case real(Double)
+        /// It represents a boolean value.
+        case boolean(Bool)
+        /// It represents a dictionary value.
+        case dictionary([String: Value])
+        /// It represents an array value.
+        case array([Value])
+    }
+}
+
+extension Template.Attribute.Value: ExpressibleByStringLiteral {
+    public init(stringLiteral value: String) {
+        self = .string(value)
+    }
+}
+
+extension Template.Attribute.Value: ExpressibleByIntegerLiteral {
+    public init(integerLiteral value: Int) {
+        self = .integer(value)
+    }
+}
+
+extension Template.Attribute.Value: ExpressibleByFloatLiteral {
+    public init(floatLiteral value: Double) {
+        self = .real(value)
+    }
+}
+
+extension Template.Attribute.Value: ExpressibleByBooleanLiteral {
+    public init(booleanLiteral value: Bool) {
+        self = .boolean(value)
+    }
+}
+
+extension Template.Attribute.Value: ExpressibleByDictionaryLiteral {
+    public init(dictionaryLiteral elements: (String, Template.Attribute.Value)...) {
+        self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
+    }
+}
+
+extension Template.Attribute.Value: ExpressibleByArrayLiteral {
+    public init(arrayLiteral elements: Template.Attribute.Value...) {
+        self = .array(elements)
     }
 }
 

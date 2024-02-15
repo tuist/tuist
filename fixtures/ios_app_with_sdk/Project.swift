@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "Project",
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Support/App-Info.plist",
@@ -18,9 +18,9 @@ let project = Project(
                 .project(target: "StaticFramework", path: "Modules/StaticFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "MyTestFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.MyTestFramework",
             infoPlist: .default,
@@ -29,9 +29,9 @@ let project = Project(
                 .xctest,
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: "Support/Tests.plist",
@@ -41,9 +41,9 @@ let project = Project(
                 .target(name: "MyTestFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "MacFramework",
-            platform: .macOS,
+            destinations: [.mac],
             product: .framework,
             bundleId: "io.tuist.MacFramework",
             infoPlist: "Support/Framework-Info.plist",
@@ -53,9 +53,9 @@ let project = Project(
                 .sdk(name: "sqlite3", type: .library),
             ]
         ),
-        Target(
+        .target(
             name: "TVFramework",
-            platform: .tvOS,
+            destinations: [.appleTv],
             product: .framework,
             bundleId: "io.tuist.MacFramework",
             infoPlist: "Support/Framework-Info.plist",

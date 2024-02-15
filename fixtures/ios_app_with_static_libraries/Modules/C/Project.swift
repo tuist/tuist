@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "C",
     targets: [
-        Target(
+        .target(
             name: "C",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticLibrary,
             bundleId: "io.tuist.C",
             infoPlist: "Info.plist",
@@ -16,9 +16,9 @@ let project = Project(
             ],
             settings: .settings(base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"])
         ),
-        Target(
+        .target(
             name: "CTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.BTests",
             infoPlist: "Tests.plist",

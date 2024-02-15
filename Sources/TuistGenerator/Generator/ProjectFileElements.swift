@@ -40,11 +40,16 @@ class ProjectFileElements {
     var products: [String: PBXFileReference] = [:]
     var compiled: [AbsolutePath: PBXFileReference] = [:]
     var knownRegions: Set<String> = Set([])
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
 
     // MARK: - Init
 
-    init(_ elements: [AbsolutePath: PBXFileElement] = [:]) {
+    init(
+        _ elements: [AbsolutePath: PBXFileElement] = [:],
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider()
+    ) {
         self.elements = elements
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
     }
 
     func generateProjectFiles(
@@ -209,6 +214,14 @@ class ProjectFileElements {
     ) throws {
         for dependency in dependencyReferences.sorted() {
             switch dependency {
+            case let .macro(path):
+                try generatePrecompiledDependency(
+                    path,
+                    groups: groups,
+                    pbxproj: pbxproj,
+                    group: filesGroup,
+                    sourceRootPath: sourceRootPath
+                )
             case let .xcframework(path, _, _, _, _, _):
                 try generatePrecompiledDependency(
                     path,
@@ -217,7 +230,7 @@ class ProjectFileElements {
                     group: filesGroup,
                     sourceRootPath: sourceRootPath
                 )
-            case let .framework(path, _, _, _, _, _, _, _, _, _):
+            case let .framework(path, _, _, _, _, _, _, _, _):
                 try generatePrecompiledDependency(
                     path,
                     groups: groups,
@@ -244,7 +257,7 @@ class ProjectFileElements {
             case let .sdk(sdkNodePath, _, _, _):
                 generateSDKFileElement(
                     sdkNodePath: sdkNodePath,
-                    toGroup: groups.compiled,
+                    toGroup: groups.frameworks,
                     pbxproj: pbxproj
                 )
             case let .product(target: target, productName: productName, _):
@@ -266,7 +279,8 @@ class ProjectFileElements {
         sourceRootPath: AbsolutePath
     ) throws {
         // Pre-compiled artifact from the cache
-        if path.pathString.contains(CacheCategory.builds.directoryName) {
+        let cacheDirectory = try cacheDirectoriesProvider.cacheDirectory()
+        if path.pathString.contains(cacheDirectory.pathString) {
             guard compiled[path] == nil else {
                 return
             }
@@ -274,7 +288,7 @@ class ProjectFileElements {
                 from: sourceRootPath,
                 fileAbsolutePath: path,
                 name: path.basename,
-                toGroup: groups.compiled,
+                toGroup: groups.frameworks,
                 pbxproj: pbxproj
             )
             compiled[path] = fileElement

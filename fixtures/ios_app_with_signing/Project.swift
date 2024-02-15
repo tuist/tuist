@@ -8,9 +8,9 @@ let project = Project(
     name: "SignApp",
     settings: settings,
     targets: [
-        Target(
+        .target(
             name: "SignApp",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "$(PRODUCT_BUNDLE_IDENTIFIER)",
             infoPlist: "Info.plist",
@@ -21,9 +21,9 @@ let project = Project(
                 .release(name: "Release", xcconfig: "ConfigurationFiles/Release.xcconfig"),
             ])
         ),
-        Target(
+        .target(
             name: "AppA",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.test.appA",
             infoPlist: "Info.plist",
@@ -33,9 +33,9 @@ let project = Project(
                 .debug(name: "Debug", settings: ["PRODUCT_BUNDLE_IDENTIFIER": .string("io.tuist.test.appA")]),
             ])
         ),
-        Target(
+        .target(
             name: "AppB",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.test.appB",
             infoPlist: "Info.plist",

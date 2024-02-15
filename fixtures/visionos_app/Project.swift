@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .visionOS,
+            destinations: [.appleVision],
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Support/Info.plist",
@@ -15,9 +15,9 @@ let project = Project(
                 // "Resources/**"
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
-            platform: .visionOS,
+            destinations: [.appleVision],
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: "Support/Tests.plist",

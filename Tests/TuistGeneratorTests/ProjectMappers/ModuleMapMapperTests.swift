@@ -94,6 +94,8 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                     "-Xcc",
                     "-fmodule-map-file=$(SRCROOT)/../B/B2/B2.module",
                 ]),
+                "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B1", "$(SRCROOT)/../B/B2"]),
+                "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"]),
             ]),
             dependencies: [
                 .project(target: "B1", path: projectBPath),
@@ -112,6 +114,8 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             settings: .test(base: [
                 "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-map-file=$(SRCROOT)/B2/B2.module"]),
                 "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-Xcc", "-fmodule-map-file=$(SRCROOT)/B2/B2.module"]),
+                "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/B2"]),
+                "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"]),
             ]),
             dependencies: [
                 .target(name: "B2"),
@@ -129,7 +133,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             ]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             gotWorkspaceWithProjects,
             WorkspaceWithProjects(
                 workspace: workspace,
@@ -202,6 +206,8 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                         "-Xcc",
                         "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
                     ]),
+                    "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B"]),
+                    "OTHER_LDFLAGS": .array(["$(inherited)", "-ObjC"]),
                 ],
                 configurations: [:],
                 defaultSettings: .recommended
@@ -230,7 +236,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             ]
         )
 
-        XCTAssertEqual(
+        XCTAssertBetterEqual(
             gotWorkspaceWithProjects,
             WorkspaceWithProjects(
                 workspace: workspace,

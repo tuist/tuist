@@ -1,5 +1,12 @@
 import Alamofire
+import CocoaLumberjackSwift
 import ComposableArchitecture
+import GoogleSignIn
+import Realm
+import RealmSwift
+import Sentry
+import Yams
+import ZipArchive
 
 public enum AppKit {
     public static func start() {
@@ -8,6 +15,24 @@ public enum AppKit {
 
         // Use ComposableArchitecture to make sure it links fine
         _ = EmptyReducer<Never, Never>()
+
+        // Use ZipArchive
+        _ = SSZipArchive.createZipFile(atPath: #file + "/ss.zip", withFilesAtPaths: [])
+
+        // Use Yams
+        _ = YAMLEncoder()
+
+        // Use GoogleSignIn
+        _ = GIDSignIn.sharedInstance.hasPreviousSignIn()
+
+        // Use Sentry
+        SentrySDK.startSession()
+
+        // Use CocoaLumberjack
+        _ = DDOSLogger.sharedInstance
+
+        // Use Realm
+        _ = Realm.Configuration()
     }
 }
 

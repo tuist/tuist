@@ -6,6 +6,11 @@ public struct PlatformCondition: Codable, Hashable, Equatable, Comparable {
         lhs.platformFilters < rhs.platformFilters
     }
 
+    public static func < (lhs: PlatformCondition, rhs: PlatformCondition?) -> Bool {
+        guard let rhsFilters = rhs?.platformFilters else { return false }
+        return lhs.platformFilters < rhsFilters
+    }
+
     public let platformFilters: PlatformFilters
     private init(platformFilters: PlatformFilters) {
         self.platformFilters = platformFilters

@@ -204,6 +204,7 @@ final class GenerateAcceptanceTestiOSAppWithCustomResourceParserOptions: TuistAc
 final class GenerateAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework: TuistAcceptanceTestCase {
     func test_ios_app_with_framework_linking_static_framework() async throws {
         try setUpFixture(.iosAppWithFrameworkLinkingStaticFramework)
+        try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
 
         try await XCTAssertProductWithDestinationContainsResource(
@@ -229,6 +230,7 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkLinkingStaticFramework: Tui
 final class GenerateAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTestCase {
     func test_ios_app_with_custom_scheme() async throws {
         try setUpFixture(.iosAppWithCustomScheme)
+        try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await run(BuildCommand.self, "App-Debug")
         try await run(BuildCommand.self, "App-Release")
@@ -239,6 +241,7 @@ final class GenerateAcceptanceTestsiOSAppWithCustomScheme: TuistAcceptanceTestCa
 final class GenerateAcceptanceTestiOSAppWithLocalSwiftPackage: TuistAcceptanceTestCase {
     func test_ios_app_with_local_swift_package() async throws {
         try setUpFixture(.iosAppWithLocalSwiftPackage)
+        try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
 }
@@ -734,6 +737,7 @@ final class GenerateAcceptanceTestmacOSAppWithExtensions: TuistAcceptanceTestCas
 final class GenerateAcceptanceTestiOSAppWithImplicitDependencies: TuistAcceptanceTestCase {
     func test_ios_app_with_implicit_dependencies() async throws {
         try setUpFixture(.iosAppWithImplicitDependencies)
+        try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "FrameworkC")
         do {
             try await run(BuildCommand.self, "App")

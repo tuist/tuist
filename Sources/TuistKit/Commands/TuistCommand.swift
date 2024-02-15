@@ -11,10 +11,10 @@ public struct TuistCommand: AsyncParsableCommand {
             abstract: "Generate, build and test your Xcode projects.",
             subcommands: [
                 BuildCommand.self,
-                CleanCommand.self,
+                CleanCommand<TuistCleanCategory>.self,
                 DumpCommand.self,
                 EditCommand.self,
-                FetchCommand.self,
+                InstallCommand.self,
                 GenerateCommand.self,
                 GraphCommand.self,
                 InitCommand.self,
@@ -22,18 +22,11 @@ public struct TuistCommand: AsyncParsableCommand {
                 PluginCommand.self,
                 RunCommand.self,
                 ScaffoldCommand.self,
-                SigningCommand.self,
                 TestCommand.self,
                 VersionCommand.self,
             ]
         )
     }
-
-    @Flag(
-        name: [.customLong("help-env")],
-        help: "Display subcommands to manage the environment tuist versions."
-    )
-    var isTuistEnvHelp: Bool = false
 
     public static func main(
         _ arguments: [String]? = nil,

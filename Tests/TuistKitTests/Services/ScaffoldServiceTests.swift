@@ -53,7 +53,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
                 description: "test",
                 attributes: [
                     .required("required"),
-                    .optional("optional", default: ""),
+                    .optional("optional", default: .string("")),
                 ],
                 items: []
             )
@@ -83,7 +83,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
                 description: "test",
                 attributes: [
                     .required("required"),
-                    .optional("optional", default: ""),
+                    .optional("optional", default: .string("")),
                 ],
                 items: []
             )
@@ -139,14 +139,14 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
     func test_optional_attribute_is_taken_from_template() async throws {
         // Given
         templateLoader.loadTemplateStub = { _ in
-            Template.test(attributes: [.optional("optional", default: "optionalValue")])
+            Template.test(attributes: [.optional("optional", default: .string("optionalValue"))])
         }
 
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             [try self.temporaryPath().appending(component: "template")]
         }
 
-        var generateAttributes: [String: String] = [:]
+        var generateAttributes: [String: Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generateAttributes = attributes
         }
@@ -156,7 +156,64 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            ["optional": "optionalValue"],
+            ["optional": .string("optionalValue")],
+            generateAttributes
+        )
+    }
+
+    func test_optional_dictionary_attribute_is_taken_from_template() async throws {
+        // Given
+        let context: Template.Attribute.Value = .dictionary([
+            "key1": .string("value1"),
+            "key2": .string("value2"),
+        ])
+
+        templateLoader.loadTemplateStub = { _ in
+            Template.test(attributes: [.optional("optional", default: context)])
+        }
+
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
+            [try self.temporaryPath().appending(component: "template")]
+        }
+
+        var generateAttributes: [String: Template.Attribute.Value] = [:]
+        templateGenerator.generateStub = { _, _, attributes in
+            generateAttributes = attributes
+        }
+
+        // When
+        try await subject.testRun()
+
+        // Then
+        XCTAssertEqual(
+            ["optional": context],
+            generateAttributes
+        )
+    }
+
+    func test_optional_integer_attribute_is_taken_from_template() async throws {
+        // Given
+        let defaultIntegerValue: Template.Attribute.Value = .integer(999)
+
+        templateLoader.loadTemplateStub = { _ in
+            Template.test(attributes: [.optional("optional", default: defaultIntegerValue)])
+        }
+
+        templatesDirectoryLocator.templateDirectoriesStub = { _ in
+            [try self.temporaryPath().appending(component: "template")]
+        }
+
+        var generateAttributes: [String: Template.Attribute.Value] = [:]
+        templateGenerator.generateStub = { _, _, attributes in
+            generateAttributes = attributes
+        }
+
+        // When
+        try await subject.testRun()
+
+        // Then
+        XCTAssertEqual(
+            ["optional": defaultIntegerValue],
             generateAttributes
         )
     }
@@ -165,7 +222,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         // Given
         templateLoader.loadTemplateStub = { _ in
             Template.test(attributes: [
-                .optional("optional", default: ""),
+                .optional("optional", default: .string("")),
                 .required("required"),
             ])
         }
@@ -174,7 +231,7 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
             [try self.temporaryPath().appending(component: "template")]
         }
 
-        var generateAttributes: [String: String] = [:]
+        var generateAttributes: [String: Template.Attribute.Value] = [:]
         templateGenerator.generateStub = { _, _, attributes in
             generateAttributes = attributes
         }
@@ -188,8 +245,8 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             [
-                "optional": "optionalValue",
-                "required": "requiredValue",
+                "optional": .string("optionalValue"),
+                "required": .string("requiredValue"),
             ],
             generateAttributes
         )

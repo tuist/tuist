@@ -122,7 +122,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
          Target -> MyMacro (Static framework) -> MyMacro (Executable)
 
          The executable is compiled transitively through the static library, and we place it inside the framework to make it available to the target depending on the framework
-         to point it with the `-load-plugin-executable $BUILT_PRODUCTS_DIR/ExecutableName\#ExecutableName` build setting.
+         to point it with the `-load-plugin-executable $(BUILD_DIR)/$(CONFIGURATION)/ExecutableName\#ExecutableName` build setting.
          */
         let directSwiftMacroExecutables = graphTraverser.directSwiftMacroExecutables(path: path, name: target.name).sorted()
         try generateCopySwiftMacroExecutableScriptBuildPhase(
@@ -255,7 +255,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
-            case .library, .bundle, .sdk:
+            case .library, .bundle, .sdk, .macro:
                 // Do nothing
                 break
             }
@@ -430,13 +430,13 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
         for dependency in linkableDependencies {
             switch dependency {
-            case let .framework(path, _, _, _, _, _, _, _, status, condition):
+            case let .framework(path, _, _, _, _, _, _, status, condition):
                 try addBuildFile(path, condition: condition, status: status)
             case let .library(path, _, _, _, condition):
                 try addBuildFile(path, condition: condition)
             case let .xcframework(path, _, _, _, status, condition):
                 try addBuildFile(path, condition: condition, status: status)
-            case .bundle:
+            case .bundle, .macro:
                 break
             case let .product(dependencyTarget, _, condition):
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
@@ -515,27 +515,54 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
 
     func generateCopySwiftMacroExecutableScriptBuildPhase(
         directSwiftMacroExecutables: [GraphDependencyReference],
-        target _: Target,
+        target: Target,
         pbxTarget: PBXTarget,
         pbxproj: PBXProj,
         fileElements _: ProjectFileElements
     ) throws {
         if directSwiftMacroExecutables.isEmpty { return }
 
-        let copySwiftMacrosBuildPhase = PBXShellScriptBuildPhase(name: "Copy Swift Macro executable into /Macros")
+        let copySwiftMacrosBuildPhase = PBXShellScriptBuildPhase(name: "Copy Swift Macro executable into $BUILT_PRODUCT_DIR")
 
-        let filesToCopy = directSwiftMacroExecutables.compactMap {
+        let executableNames = directSwiftMacroExecutables.compactMap {
             switch $0 {
             case let .product(_, productName, _):
                 return productName
             default:
                 return nil
             }
-        }.map { ("$SYMROOT/$CONFIGURATION/\($0)", "$BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME/Macros/\($0)") }
+        }
 
-        copySwiftMacrosBuildPhase.shellScript = filesToCopy.map { "cp \"\($0.0)\" \"\($0.1)\"" }.joined(separator: "\n")
-        copySwiftMacrosBuildPhase.inputPaths = filesToCopy.map(\.0)
-        copySwiftMacrosBuildPhase.outputPaths = filesToCopy.map(\.1)
+        let copyLines = executableNames.map {
+            """
+            if [[ -f "$BUILD_DIR/$CONFIGURATION/\($0)" && ! -f "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\($0)" ]]; then
+                mkdir -p "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/"
+                cp "$BUILD_DIR/$CONFIGURATION/\($0)" "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\($0)"
+            fi
+            """
+        }
+        copySwiftMacrosBuildPhase.shellScript = """
+        #  This build phase serves two purposes:
+        #  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
+        #  - Place the artifacts in the "Debug" directory where the built artifacts for the active destination live. We default to "Debug" because otherwise the Xcode editor fails to resolve the macro references.
+        \(copyLines.joined(separator: "\n"))
+        """
+
+        copySwiftMacrosBuildPhase.inputPaths = executableNames.map { "$BUILD_DIR/$CONFIGURATION/\($0)" }
+
+        copySwiftMacrosBuildPhase.outputPaths = target.supportedPlatforms
+            .filter { $0 != .macOS }
+            .flatMap { platform in
+                var sdks: [String] = []
+                sdks.append(platform.xcodeDeviceSDK)
+                if let simulatorSDK = platform.xcodeSimulatorSDK { sdks.append(simulatorSDK) }
+                return sdks
+            }
+            .flatMap { sdk in
+                executableNames.map { executable in
+                    "$BUILD_DIR/Debug-\(sdk)/\(executable)"
+                }
+            }
 
         pbxproj.add(object: copySwiftMacrosBuildPhase)
         pbxTarget.buildPhases.append(copySwiftMacrosBuildPhase)
@@ -561,7 +588,7 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 files.append(buildFile)
-            case let .framework(path: path, _, _, _, _, _, _, _, _, condition),
+            case let .framework(path: path, _, _, _, _, _, _, _, condition),
                  let .library(path: path, _, _, _, condition):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)

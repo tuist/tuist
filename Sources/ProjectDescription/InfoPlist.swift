@@ -41,13 +41,6 @@ public enum InfoPlist: Codable, Equatable {
 
 extension InfoPlist: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self = .file(path: Path(value))
+        self = .file(path: .path(value))
     }
-}
-
-// MARK: - InfoPlist API compatibility
-
-extension InfoPlist {
-    @available(*, deprecated, message: "InfoPlist.Value was renamed to Plist.Value")
-    public typealias Value = Plist.Value
 }

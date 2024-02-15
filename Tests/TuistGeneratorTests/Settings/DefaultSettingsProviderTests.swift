@@ -56,7 +56,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
     private let appTargetEssentialDebugSettings: [String: SettingValue] = [
         "SDKROOT": "iphoneos",
         "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks"],
-        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG",
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["$(inherited)", "DEBUG"]),
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         "TARGETED_DEVICE_FAMILY": "1,2",
@@ -75,7 +75,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
     ]
 
     private let frameworkTargetEssentialDebugSettings: [String: SettingValue] = [
-        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG",
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["$(inherited)", "DEBUG"]),
         "SKIP_INSTALL": "YES",
         "CODE_SIGN_IDENTITY": "",
         "VERSIONING_SYSTEM": "apple-generic",
@@ -116,7 +116,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
     private let testTargetEssentialDebugSettings: [String: SettingValue] = [
         "SDKROOT": "iphoneos",
         "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"],
-        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG",
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["$(inherited)", "DEBUG"]),
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         "TARGETED_DEVICE_FAMILY": "1,2",
@@ -124,7 +124,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
     ]
 
     private let multiplatformFrameworkTargetEssentialDebugSettings: [String: SettingValue] = [
-        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG",
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["$(inherited)", "DEBUG"]),
         "SKIP_INSTALL": "YES",
         "VERSIONING_SYSTEM": "apple-generic",
         "DYLIB_CURRENT_VERSION": "1",
@@ -864,7 +864,7 @@ final class DefaultSettingsProvider_MacosTests: TuistUnitTestCase {
     private var subject: DefaultSettingsProvider!
 
     private let macroTargetEssentialDebugSettings: [String: SettingValue] = [
-        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG",
+        "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["$(inherited)", "DEBUG"]),
         "SKIP_INSTALL": "YES",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         "SWIFT_VERSION": "5.0",

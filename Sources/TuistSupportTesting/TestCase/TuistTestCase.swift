@@ -1,3 +1,4 @@
+import Difference
 import Foundation
 import TSCBasic
 import XCTest
@@ -90,6 +91,18 @@ public final class MockFileHandler: FileHandler {
         try closure(temporaryDirectory())
     }
 
+    public var stubFiles: ((AbsolutePath, Set<String>?, Set<String>?) -> Set<AbsolutePath>)?
+    override public func files(
+        in path: AbsolutePath,
+        nameFilter: Set<String>?,
+        extensionFilter: Set<String>?
+    ) -> Set<AbsolutePath> {
+        guard let stubFiles else {
+            return super.files(in: path, nameFilter: nameFilter, extensionFilter: extensionFilter)
+        }
+        return stubFiles(path, nameFilter, extensionFilter)
+    }
+
     public var stubGlob: ((AbsolutePath, String) -> [AbsolutePath])?
     override public func glob(_ path: AbsolutePath, glob: String) -> [AbsolutePath] {
         guard let stubGlob else {
@@ -165,6 +178,26 @@ open class TuistTestCase: XCTestCase {
             try fileHandler.createFolder(path)
         }
         return paths
+    }
+
+    public func XCTAssertBetterEqual<T: Equatable>(
+        _ expected: @autoclosure () throws -> T,
+        _ received: @autoclosure () throws -> T,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        do {
+            let expected = try expected()
+            let received = try received()
+            XCTAssertTrue(
+                expected == received,
+                "Found difference for \n" + diff(expected, received).joined(separator: ", "),
+                file: file,
+                line: line
+            )
+        } catch {
+            XCTFail("Caught error while testing: \(error)", file: file, line: line)
+        }
     }
 
     public func XCTAssertPrinterOutputContains(_ expected: String, file: StaticString = #file, line: UInt = #line) {

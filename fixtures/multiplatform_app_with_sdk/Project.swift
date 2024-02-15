@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "Project",
     targets: [
-        Target(
+        .target(
             name: "MyTestFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: "io.tuist.MyTestFramework",
             infoPlist: .default,
@@ -14,9 +14,9 @@ let project = Project(
                 .xctest,
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: "Support/Tests.plist",
@@ -26,7 +26,7 @@ let project = Project(
                 .target(name: "MyTestFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "App",
             destinations: [.iPhone, .iPad, .mac],
             product: .app,
@@ -41,7 +41,7 @@ let project = Project(
                 .sdk(name: "MobileCoreServices", type: .framework, status: .required, condition: .when([.ios])),
             ]
         ),
-        Target(
+        .target(
             name: "MultiPlatformFramework",
             destinations: [.iPad, .iPhone, .mac, .appleTv],
             product: .framework,

@@ -12,7 +12,6 @@ protocol ProjectEditorMapping: AnyObject {
         sourceRootPath: AbsolutePath,
         destinationDirectory: AbsolutePath,
         configPath: AbsolutePath?,
-        dependenciesPath: AbsolutePath?,
         packageManifestPath: AbsolutePath?,
         projectManifests: [AbsolutePath],
         editablePluginManifests: [EditablePluginManifest],
@@ -43,7 +42,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         sourceRootPath: AbsolutePath,
         destinationDirectory: AbsolutePath,
         configPath: AbsolutePath?,
-        dependenciesPath: AbsolutePath?,
         packageManifestPath: AbsolutePath?,
         projectManifests: [AbsolutePath],
         editablePluginManifests: [EditablePluginManifest],
@@ -55,6 +53,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
     ) throws -> Graph {
+        logger.info("Building the editable project graph")
         let swiftVersion = try System.shared.swiftVersion()
 
         let pluginsProject = mapPluginsProject(
@@ -79,7 +78,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             resourceSynthesizers: resourceSynthesizers,
             stencils: stencils,
             configPath: configPath,
-            dependenciesPath: dependenciesPath,
             packageManifestPath: packageManifestPath,
             editablePluginTargets: editablePluginManifests.map(\.name),
             pluginProjectDescriptionHelpersModule: pluginProjectDescriptionHelpersModule
@@ -156,7 +154,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         resourceSynthesizers: [AbsolutePath],
         stencils: [AbsolutePath],
         configPath: AbsolutePath?,
-        dependenciesPath: AbsolutePath?,
         packageManifestPath: AbsolutePath?,
         editablePluginTargets: [String],
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule]
@@ -247,40 +244,52 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
 
-        let dependenciesTarget: Target? = {
-            guard let dependenciesPath else { return nil }
-            return editorHelperTarget(
-                name: "Dependencies",
-                filesGroup: manifestsFilesGroup,
-                targetSettings: targetWithLinkedPluginsSettings,
-                sourcePaths: [dependenciesPath],
-                dependencies: helperAndPluginDependencies
-            )
-        }()
-
         let packagesTarget: Target? = try {
             guard let packageManifestPath,
                   let xcode = try XcodeController.shared.selected()
             else { return nil }
             let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
 
+            var packagesSettings = targetBaseSettings(
+                projectFrameworkPath: projectDescriptionPath,
+                pluginHelperLibraryPaths: pluginProjectDescriptionHelpersModule.map(\.path),
+                swiftVersion: swiftVersion
+            )
+            packagesSettings.merge(
+                [
+                    "OTHER_SWIFT_FLAGS": .array([
+                        "-package-description-version",
+                        packageVersion.description,
+                        "-D", "TUIST",
+                    ]),
+                    "SWIFT_INCLUDE_PATHS": .array([
+                        "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
+                    ]),
+                ],
+                uniquingKeysWith: {
+                    switch ($0, $1) {
+                    case let (.array(leftArray), .array(rightArray)):
+                        return SettingValue.array(leftArray + rightArray)
+                    default:
+                        return $1
+                    }
+                }
+            )
+
+            let dependencies: [TargetDependency] = helpersTarget == nil ? [] : [
+                .target(name: "ProjectDescriptionHelpers"),
+            ]
+
             return editorHelperTarget(
                 name: "Packages",
                 filesGroup: manifestsFilesGroup,
                 targetSettings: Settings(
-                    base: [
-                        "OTHER_SWIFT_FLAGS": .array([
-                            "-package-description-version",
-                            packageVersion.description,
-                        ]),
-                        "SWIFT_INCLUDE_PATHS": .array([
-                            "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI",
-                        ]),
-                    ],
+                    base: packagesSettings,
                     configurations: Settings.default.configurations,
                     defaultSettings: .recommended
                 ),
-                sourcePaths: [packageManifestPath]
+                sourcePaths: [packageManifestPath],
+                dependencies: dependencies
             )
         }()
 
@@ -300,7 +309,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             resourceSynthesizersTarget,
             stencilsTarget,
             configTarget,
-            dependenciesTarget,
             packagesTarget,
         ]
         .compactMap { $0 }
@@ -315,7 +323,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             executable: nil,
             filePath: tuistPath,
             arguments: arguments,
-            diagnosticsOptions: []
+            diagnosticsOptions: SchemeDiagnosticsOptions()
         )
         let scheme = Scheme(name: projectName, shared: true, buildAction: buildAction, runAction: runAction)
         let projectSettings = Settings(

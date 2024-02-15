@@ -21,10 +21,10 @@ extension Project {
 
             // Second criteria: Most dependent targets first.
             let secondDependencies = graphTraverser.directTargetDependencies(path: self.path, name: second.name)
-                .filter { $0.path == self.path }
+                .filter { $0.graphTarget.path == self.path }
                 .map(\.target.name)
             let firstDependencies = graphTraverser.directTargetDependencies(path: self.path, name: first.name)
-                .filter { $0.path == self.path }
+                .filter { $0.graphTarget.path == self.path }
                 .map(\.target.name)
 
             if secondDependencies.contains(first.name) {

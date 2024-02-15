@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "Embedded App",
     targets: [
-        Target(
+        .target(
             name: "MainApp",
-            platform: .macOS,
+            destinations: [.mac],
             product: .app,
             bundleId: "io.tuist.MainApp",
             infoPlist: "MainApp/Info.plist",
@@ -18,17 +18,17 @@ let project = Project(
                 .target(name: "InnerCLI"),
             ]
         ),
-        Target(
+        .target(
             name: "InnerApp",
-            platform: .macOS,
+            destinations: [.mac],
             product: .app,
             bundleId: "io.tuist.InnerApp",
             infoPlist: "InnerApp/Info.plist",
             sources: ["InnerApp/Sources/**"]
         ),
-        Target(
+        .target(
             name: "InnerCLI",
-            platform: .macOS,
+            destinations: [.mac],
             product: .commandLineTool,
             bundleId: "io.tuist.InnerCLI",
             sources: ["InnerCLI/**"]

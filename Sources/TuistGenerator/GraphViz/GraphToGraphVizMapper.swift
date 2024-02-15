@@ -76,7 +76,6 @@ extension GraphDependency {
             bcsymbolmapPaths: _,
             linking: _,
             architectures: _,
-            isCarthage: _,
             status: _
         ):
             return path.basenameWithoutExt
@@ -101,6 +100,8 @@ extension GraphDependency {
             source: _
         ):
             return String(name.split(separator: ".").first ?? "")
+        case let .macro(path):
+            return path.basename
         }
     }
 }

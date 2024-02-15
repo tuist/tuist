@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Info.plist",
@@ -20,9 +20,9 @@ let project = Project(
         // We need a separate app to test out Message Extensions
         // as having both stickers pack and message extensions in one app
         // doesn't seem to be supported.
-        Target(
+        .target(
             name: "AppWithMessagesExtension",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App2",
             infoPlist: "Info.plist",
@@ -32,9 +32,9 @@ let project = Project(
                 .target(name: "NotificationServiceExtension"),
             ]
         ),
-        Target(
+        .target(
             name: "StickersPackExtension",
-            platform: .iOS,
+            destinations: .iOS,
             product: .stickerPackExtension,
             bundleId: "io.tuist.App.StickersPackExtension",
             infoPlist: .extendingDefault(with: [
@@ -49,9 +49,9 @@ let project = Project(
             dependencies: [
             ]
         ),
-        Target(
+        .target(
             name: "NotificationServiceExtension",
-            platform: .iOS,
+            destinations: .iOS,
             product: .appExtension,
             bundleId: "io.tuist.App.NotificationServiceExtension",
             infoPlist: .extendingDefault(with: [
@@ -65,9 +65,9 @@ let project = Project(
             dependencies: [
             ]
         ),
-        Target(
+        .target(
             name: "MessageExtension",
-            platform: .iOS,
+            destinations: .iOS,
             product: .messagesExtension,
             bundleId: "io.tuist.App2.MessageExtension",
             infoPlist: .extendingDefault(with: [
@@ -82,9 +82,9 @@ let project = Project(
             dependencies: [
             ]
         ),
-        Target(
+        .target(
             name: "WidgetExtension",
-            platform: .iOS,
+            destinations: .iOS,
             product: .appExtension,
             bundleId: "io.tuist.App.WidgetExtension",
             infoPlist: .extendingDefault(with: [
@@ -99,17 +99,17 @@ let project = Project(
                 .target(name: "StaticFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "StaticFramework",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.App.StaticFramework",
             infoPlist: .default,
             sources: "StaticFramework/Sources/**"
         ),
-        Target(
+        .target(
             name: "AppIntentExtension",
-            platform: .iOS,
+            destinations: .iOS,
             product: .extensionKitExtension,
             bundleId: "io.tuist.App.AppIntentExtension",
             infoPlist: .extendingDefault(with: [

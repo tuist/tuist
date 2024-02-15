@@ -59,7 +59,31 @@ extension TuistGraph.Template.Attribute {
         case let .required(name):
             return .required(name)
         case let .optional(name, default: defaultValue):
-            return .optional(name, default: defaultValue)
+            return .optional(name, default: try Self.Value.from(value: defaultValue))
+        }
+    }
+}
+
+extension TuistGraph.Template.Attribute.Value {
+    static func from(value: ProjectDescription.Template.Attribute.Value) throws -> TuistGraph.Template.Attribute.Value {
+        switch value {
+        case let .string(string):
+            return .string(string)
+        case let .integer(integer):
+            return .integer(integer)
+        case let .real(real):
+            return .real(real)
+        case let .boolean(boolean):
+            return .boolean(boolean)
+        case let .dictionary(dictionary):
+            var newDictionary: [String: TuistGraph.Template.Attribute.Value] = [:]
+            for (key, value) in dictionary {
+                newDictionary[key] = try from(value: value)
+            }
+            return .dictionary(newDictionary)
+        case let .array(array):
+            let newArray: [TuistGraph.Template.Attribute.Value] = try array.map { try from(value: $0) }
+            return .array(newArray)
         }
     }
 }

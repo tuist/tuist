@@ -4,9 +4,9 @@ import ProjectDescription
 let project = Project(
     name: "Core",
     targets: [
-        Target(
+        .target(
             name: "Core",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: .bundleId(for: "Core"),
             infoPlist: "Info.plist",
@@ -16,9 +16,9 @@ let project = Project(
                 // "Resources/**"
             ]
         ),
-        Target(
+        .target(
             name: "CoreTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: .bundleId(for: "CoreTests"),
             infoPlist: "Tests.plist",

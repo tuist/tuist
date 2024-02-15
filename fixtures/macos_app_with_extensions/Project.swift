@@ -15,18 +15,18 @@ let workflowExtensionSettings: SettingsDictionary = [
 let project = Project(
     name: "App",
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .macOS,
+            destinations: [.mac],
             product: .app,
             bundleId: "io.tuist.app",
             infoPlist: .default,
             sources: "App/**",
             dependencies: [.target(name: "Workflow")]
         ),
-        Target(
+        .target(
             name: "Workflow",
-            platform: .macOS,
+            destinations: [.mac],
             product: .appExtension,
             bundleId: "io.tuist.app.workflow",
             infoPlist: .extendingDefault(with: [

@@ -7,9 +7,9 @@ let project = Project(
         disableSynthesizedResourceAccessors: true
     ),
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Config/App-Info.plist",

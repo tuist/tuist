@@ -6,9 +6,9 @@ let project = Project(
         .package(path: "Packages/PackageA"),
     ],
     targets: [
-        Target(
+        .target(
             name: "App",
-            platform: .iOS,
+            destinations: .iOS,
             product: .app,
             bundleId: "io.tuist.App",
             infoPlist: "Support/Info.plist",
@@ -22,9 +22,9 @@ let project = Project(
                 .package(product: "LibraryA"),
             ]
         ),
-        Target(
+        .target(
             name: "AppTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.AppTests",
             infoPlist: "Support/Tests.plist",

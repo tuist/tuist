@@ -750,7 +750,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             targetSettingsResult,
             .array([
                 "-load-plugin-executable",
-                "$BUILT_PRODUCTS_DIR/\(macroFramework.productNameWithExtension)/Macros/\(macroExecutable.productName)#\(macroExecutable.productName)",
+                "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)#\(macroExecutable.productName)",
             ])
         )
     }

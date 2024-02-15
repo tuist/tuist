@@ -318,8 +318,9 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         XCTAssertTrue(debug.contains("GCC_PREPROCESSOR_DEFINITIONS", "DEBUG=1"))
         XCTAssertTrue(customDebug.contains("GCC_PREPROCESSOR_DEFINITIONS", "DEBUG=1"))
 
-        XCTAssertTrue(debug.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
-        XCTAssertTrue(customDebug.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
+        // These include a prefix space because $(inherited)
+        XCTAssertTrue(debug.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", " DEBUG"))
+        XCTAssertTrue(customDebug.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", " DEBUG"))
         XCTAssertFalse(release.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
         XCTAssertFalse(customRelease.contains("SWIFT_ACTIVE_COMPILATION_CONDITIONS", "DEBUG"))
 
@@ -376,7 +377,6 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
-            cache: .default,
             swiftVersion: nil,
             plugins: [],
             generationOptions: .test(),

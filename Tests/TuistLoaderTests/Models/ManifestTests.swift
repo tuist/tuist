@@ -11,7 +11,8 @@ final class ManifestTests: TuistUnitTestCase {
         XCTAssertEqual(Manifest.project.fileName(temporaryPath), "Project.swift")
         XCTAssertEqual(Manifest.workspace.fileName(temporaryPath), "Workspace.swift")
         XCTAssertEqual(Manifest.config.fileName(temporaryPath), "Config.swift")
-        XCTAssertEqual(Manifest.dependencies.fileName(temporaryPath), "Dependencies.swift")
+        XCTAssertEqual(Manifest.package.fileName(temporaryPath), "Package.swift")
+        XCTAssertEqual(Manifest.packageSettings.fileName(temporaryPath), "Package.swift")
         XCTAssertEqual(Manifest.plugin.fileName(temporaryPath), "Plugin.swift")
         XCTAssertEqual(Manifest.template.fileName(temporaryPath), "folder.swift")
     }

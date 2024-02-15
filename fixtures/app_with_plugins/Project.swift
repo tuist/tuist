@@ -10,6 +10,6 @@ let remoteHelper = RemoteHelper(name: "RemotePlugin")
 
 let project = Project.app(
     name: "TuistPluginTest",
-    platform: .iOS,
+    destinations: .iOS,
     additionalTargets: ["TuistPluginTestKit", "TuistPluginTestUI"]
 )

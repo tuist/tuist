@@ -4,9 +4,9 @@ import ProjectDescription
 let project = Project(
     name: "FrameworkA",
     targets: [
-        Target(
+        .target(
             name: "FrameworkA",
-            platform: .iOS,
+            destinations: .iOS,
             product: .framework,
             bundleId: .bundleId(for: "FrameworkA"),
             infoPlist: "Info.plist",
@@ -24,9 +24,9 @@ let project = Project(
                 .project(target: "UIComponents", path: "../UIComponentsFramework"),
             ]
         ),
-        Target(
+        .target(
             name: "FrameworkATests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: .bundleId(for: "FrameworkATests"),
             infoPlist: "Tests.plist",

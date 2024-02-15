@@ -3,9 +3,9 @@ import ProjectDescription
 let project = Project(
     name: "C",
     targets: [
-        Target(
+        .target(
             name: "C",
-            platform: .iOS,
+            destinations: .iOS,
             product: .staticFramework,
             bundleId: "io.tuist.C",
             infoPlist: "Info.plist",
@@ -17,9 +17,9 @@ let project = Project(
                 .project(target: "D", path: "../D"),
             ]
         ),
-        Target(
+        .target(
             name: "CTests",
-            platform: .iOS,
+            destinations: .iOS,
             product: .unitTests,
             bundleId: "io.tuist.CTests",
             infoPlist: "Tests.plist",

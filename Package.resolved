@@ -37,12 +37,12 @@
       }
     },
     {
-      "identity" : "cryptoswift",
+      "identity" : "difference",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/krzyzanowskim/CryptoSwift.git",
+      "location" : "https://github.com/krzysztofzablocki/Difference.git",
       "state" : {
-        "revision" : "db51c407d3be4a051484a141bf0bff36c43d3b1e",
-        "version" : "1.8.0"
+        "revision" : "f627d00718033c3d7888acd5f4e3524a843db1cf",
+        "version" : "1.0.2"
       }
     },
     {
@@ -79,6 +79,15 @@
       "state" : {
         "revision" : "90b087b1e39069684b1ff4bf915c2aae594f2d60",
         "version" : "1.1.3"
+      }
+    },
+    {
+      "identity" : "mockable",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Kolos65/Mockable.git",
+      "state" : {
+        "revision" : "7af00c08880d375f2742ca55705abd69837fe6c3",
+        "version" : "0.0.2"
       }
     },
     {
@@ -154,30 +163,21 @@
       }
     },
     {
-      "identity" : "swift-docc-plugin",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-docc-plugin.git",
-      "state" : {
-        "revision" : "26ac5758409154cc448d7ab82389c520fa8a8247",
-        "version" : "1.3.0"
-      }
-    },
-    {
-      "identity" : "swift-docc-symbolkit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-docc-symbolkit",
-      "state" : {
-        "revision" : "b45d1f2ed151d057b54504d653e0da5552844e34",
-        "version" : "1.0.0"
-      }
-    },
-    {
       "identity" : "swift-log",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
         "revision" : "532d8b529501fb73a2455b179e0bbb6d49b652ed",
         "version" : "1.5.3"
+      }
+    },
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-syntax.git",
+      "state" : {
+        "revision" : "64889f0c732f210a935a0ad7cda38f77f876262d",
+        "version" : "509.1.1"
       }
     },
     {
@@ -196,14 +196,6 @@
       "state" : {
         "revision" : "3b13e439a341bbbfe0f710c7d1be37221745ef1a",
         "version" : "0.6.1"
-      }
-    },
-    {
-      "identity" : "swifter",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/httpswift/swifter.git",
-      "state" : {
-        "revision" : "1e4f51c92d7ca486242d8bf0722b99de2c3531aa"
       }
     },
     {
@@ -229,8 +221,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
-        "revision" : "3797181813ee963fe305d939232bc576d23ddbb0",
-        "version" : "8.15.0"
+        "revision" : "e29e0db843062f5157f77d5b68f237eb5aa43f12",
+        "version" : "8.18.0"
       }
     },
     {

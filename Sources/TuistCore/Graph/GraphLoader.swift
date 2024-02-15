@@ -214,7 +214,6 @@ public final class GraphLoader: GraphLoading {
             bcsymbolmapPaths: metadata.bcsymbolmapPaths,
             linking: metadata.linking,
             architectures: metadata.architectures,
-            isCarthage: metadata.isCarthage,
             status: metadata.status
         )
         cache.add(framework: framework, at: path)

@@ -57,7 +57,6 @@ public final class FrameworkLoader: FrameworkLoading {
             bcsymbolmapPaths: metadata.bcsymbolmapPaths,
             linking: metadata.linking,
             architectures: metadata.architectures,
-            isCarthage: metadata.isCarthage,
             status: metadata.status
         )
     }

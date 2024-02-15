@@ -3,62 +3,6 @@ import TSCBasic
 import TuistGraph
 
 extension DependenciesGraph {
-    /// A snapshot of `graph.json` file.
-    public static var testJson: String {
-        """
-        {
-          "externalDependencies": {
-              "RxSwift": [
-                {
-                  "xcframework": {
-                    "path": "/Tuist/Dependencies/Carthage/RxSwift.xcframework",
-                    "platformFilters": [
-                            {
-                              "catalyst" : { }
-                            },
-                            {
-                              "watchos" : { }
-                            },
-                            {
-                              "ios" : { }
-                            },
-                            {
-                              "driverkit" : { }
-                            },
-                            {
-                              "tvos" : { }
-                            },
-                            {
-                              "macos" : { }
-                            },
-                            {
-                              "visionos" : { }
-                            }
-                    ],
-                    "status": "required"
-                  }
-                }
-              ]
-            },
-          "externalProjects": []
-        }
-        """
-    }
-
-    /// A snapshot of `Dependencies.swift` file.
-    public static var testDependenciesFile: String {
-        """
-        import ProjectDescription
-
-        let dependencies = Dependencies(
-            carthage: [
-                .github(path: "RxSwift/RxSwift", requirement: .exact("5.0.4")),
-            ],
-            platforms: [.iOS]
-        )
-        """
-    }
-
     public static func test(
         externalDependencies: [String: [TargetDependency]] = [:],
         externalProjects: [AbsolutePath: Project] = [:]

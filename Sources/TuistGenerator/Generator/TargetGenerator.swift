@@ -146,16 +146,16 @@ final class TargetGenerator: TargetGenerating {
         graphTraverser: GraphTraversing
     ) throws {
         for targetSpec in targets {
-            let dependenciesAndConditions = graphTraverser.directLocalTargetDependenciesWithConditions(
+            let dependenciesAndConditions = graphTraverser.directLocalTargetDependencies(
                 path: path,
                 name: targetSpec.name
-            )
+            ).sorted()
 
-            for (dependency, condition) in dependenciesAndConditions {
+            for dependency in dependenciesAndConditions {
                 let nativeTarget = nativeTargets[targetSpec.name]!
                 let nativeDependency = nativeTargets[dependency.target.name]!
                 let pbxTargetDependency = try nativeTarget.addDependency(target: nativeDependency)
-                pbxTargetDependency?.applyCondition(condition, applicableTo: targetSpec)
+                pbxTargetDependency?.applyCondition(dependency.condition, applicableTo: targetSpec)
             }
         }
     }
