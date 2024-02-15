@@ -49,7 +49,7 @@ jobs:
       - name: Install dependencies
         run: tuist install
       - name: Test
-        run: tuist test --skip-test-targets TuistBuildAcceptanceTests TuistDependenciesAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-${{ matrix.feature }}
+        run: tuist test --verbose --skip-test-targets TuistBuildAcceptanceTests TuistDependenciesAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-${{ matrix.feature }}
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
@@ -116,7 +116,7 @@ jobs:
       - name: Install dependencies
         run: tuist install
       - name: Run acceptance tests
-        run: tuist test --result-bundle-path /tmp/tuist/test-${{ matrix.feature }} ${{ matrix.feature }}
+        run: tuist test --result-bundle-path /tmp/tuist/test-${{ matrix.feature }} ${{ matrix.feature }} --verbose
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
