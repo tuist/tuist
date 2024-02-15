@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.2.3 - 2024-02-15
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Changed
+
+- Only show the progress bar when we fetch and store remote artifacts by [@pepicrft](https://github.com/pepicrft)
+
+#### Fixed
+
+- Reduce the network concurrency and add automatic retries when interacting with the network by [@pepicrft](https://github.com/pepicrft)
+
 ## 4.2.2 - 2024-02-15
 
 ### Tuist
