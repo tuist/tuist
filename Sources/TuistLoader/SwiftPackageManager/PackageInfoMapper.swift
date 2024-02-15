@@ -911,33 +911,11 @@ extension ProjectDescription.Headers {
         // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
         switch moduleMap {
-        case let .header(path):
-            return .headers(
-                public: .list(
-                    [
-                        .glob(
-                            .path(path.parentDirectory.appending(component: "\(path.basenameWithoutExt).h").pathString)
-                        ),
-                    ]
-                )
-            )
         case .nestedHeader:
             let publicHeaders = try FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
                 .filter { $0.extension == "h" }
             let list: [FileListGlob] = publicHeaders.map { .glob(.path($0.pathString)) }
             return .headers(public: .list(list))
-        case let .custom(_, umbrellaHeaderPath: umbrellaHeaderPath):
-            guard let umbrellaHeaderPath else { return nil }
-
-            return .headers(
-                public: .list(
-                    [
-                        .glob(
-                            .path(umbrellaHeaderPath.pathString)
-                        ),
-                    ]
-                )
-            )
         case let .directory(moduleMapPath: _, umbrellaDirectory: umbrellaDirectory):
             return .headers(
                 public: .list(
@@ -946,7 +924,7 @@ extension ProjectDescription.Headers {
                     ]
                 )
             )
-        case .none:
+        case .none, .header, .custom:
             return nil
         }
     }
@@ -1035,9 +1013,9 @@ extension ProjectDescription.Settings {
 
         if let moduleMap {
             switch moduleMap {
-            case .directory:
+            case .directory, .header:
                 settingsDictionary["DEFINES_MODULE"] = "NO"
-            case .header, .nestedHeader, .none, .custom:
+            case .none, .nestedHeader, .custom:
                 break
             }
         }

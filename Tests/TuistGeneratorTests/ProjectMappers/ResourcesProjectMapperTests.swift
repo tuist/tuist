@@ -101,7 +101,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project, gotProject)
         XCTAssertEqual(gotSideEffects, [])
     }
-    
+
     func testMap_whenNoSwiftSources() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
@@ -116,7 +116,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         // Then: Side effects
         XCTAssertEqual(gotSideEffects, [])
         XCTAssertEqual(gotProject.targets.count, 2)
-        
+
         let gotTarget = try XCTUnwrap(gotProject.targets.first)
         XCTAssertEqual(gotTarget.name, target.name)
         XCTAssertEqual(gotTarget.product, target.product)
@@ -128,7 +128,6 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             TargetDependency.target(name: "\(project.name)_\(target.name)", condition: .when([.ios]))
         )
 
-        
         let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
         XCTAssertEqual(resourcesTarget.name, "\(project.name)_\(target.name)")
         XCTAssertEqual(resourcesTarget.product, .bundle)
@@ -300,7 +299,12 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func test_map_when_a_target_that_has_name_with_hyphen() throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(name: "test-tuist", product: .staticLibrary, sources: ["/Absolute/File.swift"], resources: resources)
+        let target = Target.test(
+            name: "test-tuist",
+            product: .staticLibrary,
+            sources: ["/Absolute/File.swift"],
+            resources: resources
+        )
         project = Project.test(targets: [target])
 
         // Got
