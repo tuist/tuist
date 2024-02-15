@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.2.1 - 2024-02-15
+
+### Tuist
+
+- no changes
+
+### Tuist Cloud
+
+#### Fixed
+
+- Fix generation with targets absent in the cache by [@pepicrft](https://github.com/pepicrft)
+
 ## 4.2.0 - 2024-02-14
 
 ### Tuist
