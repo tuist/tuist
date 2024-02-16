@@ -65,7 +65,7 @@ workflows:
         script: |
           mise install node@latest
           mise install npm:wrangler
-          mise x wrangler pages deploy --branch main --commit-hash $CM_COMMIT --branch $CM_BRANCH --project-name tuist-docs .build/documentation
+          mise x wrangler -- wrangler pages deploy --branch main --commit-hash $CM_COMMIT --branch $CM_BRANCH --project-name tuist-docs .build/documentation
     triggering:
       events:
         - push
