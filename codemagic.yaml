@@ -1,6 +1,4 @@
 environment:
-  vars:
-    MISE_EXPERIMENTAL: "1"
   groups:
     - cloud
 
@@ -11,6 +9,9 @@ workflows:
     environment:
       xcode: 15.2
     scripts:
+      - name: Set environment variables
+        script: | 
+          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
       - name: Install Mise
         script: |
           curl https://mise.run | sh
