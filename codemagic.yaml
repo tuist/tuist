@@ -1,7 +1,3 @@
-environment:
-  groups:
-    - tuist
-
 workflows:
   lint:
     name: Lint
@@ -31,6 +27,8 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 15.2
+      groups:
+        - tuist
     scripts:
       - name: Set environment variables
         script: | 
@@ -48,6 +46,8 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 15.2
+      groups:
+        - tuist
     cache:
       cache_paths:
         - $CM_BUILD_DIR/.build
@@ -67,44 +67,6 @@ workflows:
         script: mise x -- tuist test --skip-test-targets TuistBuildAcceptanceTests TuistDependenciesAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-result-bundle
     triggering:
       << : *branch_triggering
-  acceptance_tests:
-    name: Acceptance tests
-    max_build_duration: 60
-    environment:
-      xcode: 15.2
-    cache:
-      cache_paths:
-        - $CM_BUILD_DIR/.build
-    artifacts:
-      - /tmp/tuist/**
-    scripts:
-      - name: Set environment variables
-        script: | 
-          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
-      - name: Install Mise
-        script: |
-          curl https://mise.run | sh
-          mise install
-      - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-      - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
-      - name: Install Tuist dependencies
-        script: mise x -- tuist install
-      # - name: Run tests
-      #   script: mise x -- tuist test --skip-test-targets TuistBuildAcceptanceTests TuistDependenciesAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-result-bundle
-    triggering:
-      << : *branch_triggering
-
-              # run: tuist test --result-bundle-path /tmp/tuist/test-${{ matrix.feature }} ${{ matrix.feature }}
-
-          # [
-          #   'TuistAcceptanceTests',
-          #   'TuistBuildAcceptanceTests',
-          #   'TuistDependenciesAcceptanceTests',
-          #   'TuistGenerateAcceptanceTests',
-          #   'TuistTestAcceptanceTests',
-          # ]
   cache:
     name: Cache
     max_build_duration: 60
@@ -161,3 +123,159 @@ workflows:
         - pattern: 'main'
           include: true
       cancel_previous_builds: true
+  tuist_acceptance_tests:
+    name: Tuist acceptance tests
+    max_build_duration: 60
+    environment:
+      xcode: 15.2
+      groups:
+        - tuist
+    cache:
+      cache_paths:
+        - $CM_BUILD_DIR/.build
+    artifacts:
+      - /tmp/tuist/**
+    scripts:
+      - name: Set environment variables
+        script: | 
+          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
+      - name: Install Mise
+        script: |
+          curl https://mise.run | sh
+          mise install
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+      - name: Install Tuist dependencies
+        script: mise x -- tuist install
+      - name: Run tests
+        script: mise x -- tuist test --result-bundle-path /tmp/tuist/tuist-acceptance-test-result-bundle TuistAcceptanceTests
+    triggering:
+      << : *branch_triggering
+    
+  # FIXME: Merge all the schemes into one and remove all of the following workflows
+  
+  tuist_build_acceptance_tests:
+    name: Tuist build acceptance tests
+    max_build_duration: 60
+    environment:
+      xcode: 15.2
+      groups:
+        - tuist
+    cache:
+      cache_paths:
+        - $CM_BUILD_DIR/.build
+    artifacts:
+      - /tmp/tuist/**
+    scripts:
+      - name: Set environment variables
+        script: | 
+          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
+      - name: Install Mise
+        script: |
+          curl https://mise.run | sh
+          mise install
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+      - name: Install Tuist dependencies
+        script: mise x -- tuist install
+      - name: Run tests
+        script: mise x -- tuist test --result-bundle-path /tmp/tuist/build-acceptance-test-result-bundle TuistBuildAcceptanceTests
+    triggering:
+      << : *branch_triggering
+  
+  tuist_dependencies_acceptance_tests:
+    name: Tuist dependencies acceptance tests
+    max_build_duration: 60
+    environment:
+      xcode: 15.2
+      groups:
+        - tuist
+    cache:
+      cache_paths:
+        - $CM_BUILD_DIR/.build
+    artifacts:
+      - /tmp/tuist/**
+    scripts:
+      - name: Set environment variables
+        script: | 
+          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
+      - name: Install Mise
+        script: |
+          curl https://mise.run | sh
+          mise install
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+      - name: Install Tuist dependencies
+        script: mise x -- tuist install
+      - name: Run tests
+        script: mise x -- tuist test --result-bundle-path /tmp/tuist/dependencies-acceptance-test-result-bundle TuistDependenciesAcceptanceTests
+    triggering:
+      << : *branch_triggering
+
+  tuist_generate_acceptance_tests:
+    name: Tuist generate acceptance tests
+    max_build_duration: 60
+    environment:
+      xcode: 15.2
+      groups:
+        - tuist
+    cache:
+      cache_paths:
+        - $CM_BUILD_DIR/.build
+    artifacts:
+      - /tmp/tuist/**
+    scripts:
+      - name: Set environment variables
+        script: | 
+          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
+      - name: Install Mise
+        script: |
+          curl https://mise.run | sh
+          mise install
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+      - name: Install Tuist dependencies
+        script: mise x -- tuist install
+      - name: Run tests
+        script: mise x -- tuist test --result-bundle-path /tmp/tuist/generate-acceptance-test-result-bundle TuistGenerateAcceptanceTests
+    triggering:
+      << : *branch_triggering
+
+  tuist_test_acceptance_tests:
+    name: Tuist test acceptance tests
+    max_build_duration: 60
+    environment:
+      xcode: 15.2
+      groups:
+        - tuist
+    cache:
+      cache_paths:
+        - $CM_BUILD_DIR/.build
+    artifacts:
+      - /tmp/tuist/**
+    scripts:
+      - name: Set environment variables
+        script: | 
+          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
+      - name: Install Mise
+        script: |
+          curl https://mise.run | sh
+          mise install
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+      - name: Install Tuist dependencies
+        script: mise x -- tuist install
+      - name: Run tests
+        script: mise x -- tuist test --result-bundle-path /tmp/tuist/test-acceptance-test-result-bundle TuistTestAcceptanceTests
+    triggering:
+      << : *branch_triggering
