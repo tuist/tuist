@@ -89,7 +89,7 @@ workflows:
         script: mise x -- tuist install
       - name: Print hashes
         script: mise x -- tuist cache --print-hashes
-      - name: Run tests
+      - name: Cache
         script: mise x -- tuist cache
     triggering:
       << : *branch_triggering
