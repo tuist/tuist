@@ -87,8 +87,10 @@ final class FileHandlerTests: TuistUnitTestCase {
 
     func test_changeExtension() throws {
         // Given
-        let testZippedFrameworkPath = fixturePath(path: try RelativePath(validating: "uUI.xcframework.zip"))
-
+        let temporaryDirectory = try temporaryPath()
+        let testZippedFrameworkPath = temporaryDirectory.appending(component: "uUI.xcframework.zip")
+        try FileHandler.shared.copy(from: fixturePath(path: try RelativePath(validating: "uUI.xcframework.zip")), to: testZippedFrameworkPath)
+                
         // When
         let result = try subject.changeExtension(path: testZippedFrameworkPath, to: "txt")
 
