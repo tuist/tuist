@@ -10,6 +10,7 @@ final class BuildAcceptanceTestWithTemplates: TuistAcceptanceTestCase {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await run(BuildCommand.self, "MyApp")
+
         try await run(BuildCommand.self, "MyApp", "--configuration", "Debug")
     }
 }
@@ -20,6 +21,7 @@ final class BuildAcceptanceTestAppWithFrameworkAndTests: TuistAcceptanceTestCase
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await run(BuildCommand.self, "App")
+        
         try await run(BuildCommand.self, "AppCustomScheme")
         try await run(BuildCommand.self, "App-Workspace")
     }
