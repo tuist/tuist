@@ -26,6 +26,23 @@ workflows:
         - pattern: '*'
           include: true
       cancel_previous_builds: true
+  build_docs:
+    name: Build Documentation
+    max_build_duration: 60
+    environment:
+      xcode: 15.2
+    scripts:
+      - name: Set environment variables
+        script: | 
+          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
+      - name: Install Mise
+        script: |
+          curl https://mise.run | sh
+          mise install
+      - name: Build
+        script: bash ./make/tasks/github/build-docc.sh
+    triggering:
+      << : *branch_triggering
   deploy_docs:
     name: Deploy Documentation
     max_build_duration: 60
