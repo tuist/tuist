@@ -42,6 +42,7 @@ final class GenerateService {
         let path = try self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let generator = generatorFactory.default(config: config)
+
         let workspacePath = try await generator.generate(path: path)
         if !noOpen {
             try opener.open(path: workspacePath)

@@ -91,7 +91,7 @@ public struct TuistCommand: AsyncParsableCommand {
     private static func handleParseError(_ error: Error) -> Never {
         let exitCode = exitCode(for: error).rawValue
         if exitCode == 0 {
-            logger.info("\(fullMessage(for: error))")
+            logger.notice("\(fullMessage(for: error))")
         } else {
             logger.error("\(fullMessage(for: error))")
         }

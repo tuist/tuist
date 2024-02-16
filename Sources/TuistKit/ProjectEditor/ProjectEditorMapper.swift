@@ -53,7 +53,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         stencils: [AbsolutePath],
         projectDescriptionSearchPath: AbsolutePath
     ) throws -> Graph {
-        logger.info("Building the editable project graph")
+        logger.notice("Building the editable project graph")
         let swiftVersion = try System.shared.swiftVersion()
 
         let pluginsProject = mapPluginsProject(

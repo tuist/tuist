@@ -89,9 +89,9 @@ final class CleanService {
                fileHandler.exists(directory)
             {
                 try FileHandler.shared.delete(directory)
-                logger.info("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
+                logger.notice("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
             } else {
-                logger.info("There's nothing to clean for \(category.defaultValueDescription)")
+                logger.notice("There's nothing to clean for \(category.defaultValueDescription)")
             }
         }
     }
