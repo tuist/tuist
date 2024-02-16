@@ -58,7 +58,7 @@ final class ListServiceTests: TuistUnitTestCase {
         try await subject.run(path: nil, outputFormat: .table)
 
         // Then
-        XCTAssertPrinterContains(expectedOutput, at: .info, ==)
+        XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
     }
 
     func test_lists_available_templates_json_format() async throws {
@@ -120,6 +120,6 @@ final class ListServiceTests: TuistUnitTestCase {
         try await subject.run(path: nil, outputFormat: .table)
 
         // Then
-        XCTAssertPrinterContains(expectedOutput, at: .info, ==)
+        XCTAssertPrinterContains(expectedOutput, at: .notice, ==)
     }
 }
