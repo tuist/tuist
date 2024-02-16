@@ -31,10 +31,8 @@ extension TuistGraph.Graph {
                 return false
             }
 
-            for excludeTargetString in excludeTargetsContaining {
-                if target.target.name.lowercased().contains(excludeTargetString.lowercased()) {
-                    return false
-                }
+            if target.target.name.matchesAnyPattern(excludeTargetsContaining) {
+                return false
             }
 
             return true
@@ -47,10 +45,8 @@ extension TuistGraph.Graph {
                         .compactMap { dependency in
                             let dependencyTarget = dependency.graphTarget
 
-                            for excludeTargetString in excludeTargetsContaining {
-                                if dependencyTarget.target.name.lowercased().contains(excludeTargetString.lowercased()) {
-                                    return nil
-                                }
+                            if dependencyTarget.target.name.matchesAnyPattern(excludeTargetsContaining) {
+                                return nil
                             }
                             return dependencyTarget
                         }
@@ -66,10 +62,8 @@ extension TuistGraph.Graph {
 
             result[target] = targetDependencies
                 .filter { dependency in
-                    for excludeTargetString in excludeTargetsContaining {
-                        if dependency.name.lowercased().contains(excludeTargetString.lowercased()) {
-                            return false
-                        }
+                    if dependency.name.matchesAnyPattern(excludeTargetsContaining) {
+                        return false
                     }
 
                     if skipExternalDependencies, dependency.isExternal(projects) { return false }
@@ -87,5 +81,19 @@ extension GraphDependency {
         case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk, .macro:
             return true
         }
+    }
+}
+
+extension String {
+    fileprivate func matchesAnyPattern(_ patterns: [String]) -> Bool {
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                let range = NSRange(startIndex..., in: self)
+                if regex.firstMatch(in: self, options: [], range: range) != nil {
+                    return true
+                }
+            }
+        }
+        return false
     }
 }
