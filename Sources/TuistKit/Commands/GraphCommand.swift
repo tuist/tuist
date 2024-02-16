@@ -22,7 +22,7 @@ public struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     }
 
     @Option(
-        name: [.customShort("x"), .customLong("exclude-targets-containing")],
+        name: [.customShort("x"), .customLong("exclude")],
         help: "Exclude targets that contain the specified string from the graph rendering."
     )
     var excludeTargetsContaining: [String]
