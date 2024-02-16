@@ -43,6 +43,42 @@ workflows:
         script: bash ./make/tasks/github/build-docc.sh
     triggering:
       << : *branch_triggering
+  unit_tests:
+    name: Unit tests
+    max_build_duration: 60
+    environment:
+      xcode: 15.2
+    scripts:
+      - name: Set environment variables
+        script: | 
+          echo "MISE_EXPERIMENTAL=1" >> $CM_ENV
+      - name: Install Mise
+        script: |
+          curl https://mise.run | sh
+          mise install
+      - name: Build
+        script: bash ./make/tasks/github/build-docc.sh
+    triggering:
+      << : *branch_triggering
+
+
+    #   - uses: actions/cache@v3
+    #     name: 'Cache fetched dependencies folder'
+    #     with:
+    #       path: Tuist/Dependencies/SwiftPackageManager/.build
+    #       key: spm-v1-${{ hashFiles('Package.resolved') }}
+    #       restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
+    #   - name: Install dependencies
+    #     run: tuist install
+    #   - name: Test
+    #     run: tuist test --skip-test-targets TuistBuildAcceptanceTests TuistDependenciesAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-${{ matrix.feature }}
+    #   - uses: actions/upload-artifact@v4
+    #     if: ${{ always() }}
+    #     with:
+    #       name: test-${{ matrix.feature }}
+    #       path: |
+    #         /tmp/tuist/**
+
   deploy_docs:
     name: Deploy Documentation
     max_build_duration: 60
@@ -65,7 +101,7 @@ workflows:
         script: |
           mise install node@latest
           mise install npm:wrangler
-          mise x wrangler -- wrangler pages deploy --branch main --commit-hash $CM_COMMIT --branch $CM_BRANCH --project-name tuist-docs .build/documentation
+          mise x npm:wrangler -- wrangler pages deploy --branch main --commit-hash $CM_COMMIT --branch $CM_BRANCH --project-name tuist-docs .build/documentation
     triggering:
       events:
         - push
