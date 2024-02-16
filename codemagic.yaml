@@ -144,9 +144,9 @@ workflows:
           curl https://mise.run | sh
           mise install
       - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+        script: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+        script: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
@@ -177,9 +177,9 @@ workflows:
           curl https://mise.run | sh
           mise install
       - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+        script: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+        script: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
@@ -208,9 +208,9 @@ workflows:
           curl https://mise.run | sh
           mise install
       - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+        script: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+        script: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
@@ -239,9 +239,9 @@ workflows:
           curl https://mise.run | sh
           mise install
       - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+        script: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+        script: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
@@ -270,9 +270,9 @@ workflows:
           curl https://mise.run | sh
           mise install
       - name: Skip Xcode Macro Fingerprint Validation
-        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+        script: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+        script: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
       - name: Install Tuist dependencies
         script: mise x -- tuist install
       - name: Run tests
