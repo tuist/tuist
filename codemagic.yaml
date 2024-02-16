@@ -48,6 +48,11 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: 15.2
+    cache:
+      cache_paths:
+        - $CM_BUILD_DIR/.build
+    artifacts:
+      - /tmp/tuist/**
     scripts:
       - name: Set environment variables
         script: | 
@@ -56,28 +61,12 @@ workflows:
         script: |
           curl https://mise.run | sh
           mise install
-      - name: Build
-        script: bash ./make/tasks/github/build-docc.sh
+      - name: Install Tuist dependencies
+        script: mise x -- tuist install
+      - name: Run tests
+        script: mise x -- tuist test --skip-test-targets TuistBuildAcceptanceTests TuistDependenciesAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-result-bundle
     triggering:
       << : *branch_triggering
-
-
-    #   - uses: actions/cache@v3
-    #     name: 'Cache fetched dependencies folder'
-    #     with:
-    #       path: Tuist/Dependencies/SwiftPackageManager/.build
-    #       key: spm-v1-${{ hashFiles('Package.resolved') }}
-    #       restore-keys: spm-v1-${{ hashFiles('Package.resolved') }}
-    #   - name: Install dependencies
-    #     run: tuist install
-    #   - name: Test
-    #     run: tuist test --skip-test-targets TuistBuildAcceptanceTests TuistDependenciesAcceptanceTests TuistGenerateAcceptanceTests TuistTestAcceptanceTests TuistAcceptanceTests --result-bundle-path /tmp/tuist/test-${{ matrix.feature }}
-    #   - uses: actions/upload-artifact@v4
-    #     if: ${{ always() }}
-    #     with:
-    #       name: test-${{ matrix.feature }}
-    #       path: |
-    #         /tmp/tuist/**
 
   deploy_docs:
     name: Deploy Documentation
@@ -100,8 +89,7 @@ workflows:
       - name: Deploy to Cloudflare Pages
         script: |
           mise install node@latest
-          mise install npm:wrangler
-          mise x npm:wrangler -- wrangler pages deploy --branch main --commit-hash $CM_COMMIT --branch $CM_BRANCH --project-name tuist-docs .build/documentation
+          mise x npm:wrangler@latest -- wrangler pages deploy --branch main --commit-hash $CM_COMMIT --branch $CM_BRANCH --project-name tuist-docs .build/documentation
     triggering:
       events:
         - push
