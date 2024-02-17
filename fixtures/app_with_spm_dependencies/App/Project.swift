@@ -36,6 +36,9 @@ let project = Project(
                 .external(name: "Sentry"),
                 .external(name: "RealmSwift"),
                 .external(name: "CocoaLumberjackSwift"),
+                .external(name: "AppCenterAnalytics"),
+                .external(name: "AppCenterCrashes"),
+                .external(name: "libzstd"),
             ],
             settings: .targetSettings
         ),

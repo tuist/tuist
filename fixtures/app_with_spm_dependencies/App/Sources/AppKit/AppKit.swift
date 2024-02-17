@@ -1,7 +1,12 @@
 import Alamofire
+import AppCenter
+import AppCenterAnalytics
+import AppCenterCrashes
 import CocoaLumberjackSwift
 import ComposableArchitecture
+import CrashReporter
 import GoogleSignIn
+import libzstd
 import Realm
 import RealmSwift
 import Sentry
@@ -33,6 +38,12 @@ public enum AppKit {
 
         // Use Realm
         _ = Realm.Configuration()
+
+        // Use AppCenter
+        AppCenter.start(withAppSecret: "{Your App Secret}", services: [Analytics.self, Crashes.self])
+
+        // Use libzstd
+        _ = ZDICT_isError(0)
     }
 }
 

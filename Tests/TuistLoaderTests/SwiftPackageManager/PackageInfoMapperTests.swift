@@ -1146,10 +1146,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        headers: .headers(public: [topHeaderPath.pathString]),
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/include"],
                             "MODULEMAP_FILE": .string("$(SRCROOT)/Sources/Target1/include/Target1.modulemap"),
+                            "DEFINES_MODULE": "NO",
                         ]
                     ),
                 ]
