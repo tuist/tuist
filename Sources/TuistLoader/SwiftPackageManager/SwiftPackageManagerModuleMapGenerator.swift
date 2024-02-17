@@ -8,7 +8,7 @@ public enum ModuleMap: Equatable {
     /// Custom modulemap file provided in SPM package
     case custom(AbsolutePath, umbrellaHeaderPath: AbsolutePath?)
     /// Umbrella header provided in SPM package
-    case header(AbsolutePath, moduleMapPath: AbsolutePath)
+    case header(moduleMapPath: AbsolutePath)
     /// Nested umbrella header provided in SPM package
     case nestedHeader
     /// No umbrella header provided in SPM package, define umbrella directory
@@ -18,7 +18,7 @@ public enum ModuleMap: Equatable {
         switch self {
         case let .custom(path, umbrellaHeaderPath: _):
             return path
-        case let .header(_, moduleMapPath: path):
+        case let .header(moduleMapPath: path):
             return path
         case let .directory(moduleMapPath: path, umbrellaDirectory: _):
             return path
@@ -83,7 +83,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             """
             try FileHandler.shared.write(moduleMapContent, path: generatedModuleMapPath, atomically: true)
             // If 'PublicHeadersDir/ModuleName.h' exists, then use it as the umbrella header.
-            return .header(umbrellaHeaderPath, moduleMapPath: generatedModuleMapPath)
+            return .header(moduleMapPath: generatedModuleMapPath)
         } else if FileHandler.shared.exists(nestedUmbrellaHeaderPath) {
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: nestedUmbrellaHeaderPath)

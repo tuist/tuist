@@ -234,12 +234,24 @@ public final class ModuleMapMapper: WorkspaceMapping {
             }
             
             
-            let headerSearchPaths: [String]
+            var headerSearchPaths: [String]
             switch dependentTarget.settings?.base[Self.headerSearchPaths] ?? .array([]) {
             case let .array(values):
                 headerSearchPaths = values
-            case let .string(values):
-                headerSearchPaths = [values]
+            case let .string(value):
+                headerSearchPaths = [value]
+            }
+            
+            headerSearchPaths = headerSearchPaths.map {
+                let pathString = dependentProject.path.pathString
+                return (
+                    try? AbsolutePath(
+                        validating: $0
+                            .replacingOccurrences(of: "$(PROJECT_DIR)", with: pathString)
+                            .replacingOccurrences(of: "$(SRCROOT)", with: pathString)
+                            .replacingOccurrences(of: "$(SOURCE_ROOT)", with: pathString)
+                    ).pathString
+                ) ?? $0
             }
 
             // indirect dependency module maps
@@ -277,9 +289,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
             mappedHeaderSearchPaths = value.split(separator: " ").map(String.init)
         }
 
-        for headerSearchPaths in dependenciesHeaderSearchPaths.sorted() {
+        for headerSearchPath in dependenciesHeaderSearchPaths.sorted() {
             mappedHeaderSearchPaths.append(
-                headerSearchPaths
+                headerSearchPath
             )
         }
 

@@ -101,7 +101,11 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             XCTAssertEqual(path, "/Absolute/Public/Headers/Path/Module.modulemap")
             XCTAssertTrue(atomically)
         }
-        let got = try subject.generate(moduleName: "Module", publicHeadersPath: "/Absolute/Public/Headers/Path")
+        let got = try subject.generate(
+            packageDirectory: "/Absolute/PackageDire",
+            moduleName: "Module",
+            publicHeadersPath: "/Absolute/Public/Headers/Path"
+        )
         XCTAssertEqual(got, moduleMap)
         switch moduleMap {
         case .none, .custom, .nestedHeader:
