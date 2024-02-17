@@ -5,6 +5,7 @@ import TuistGenerator
 import TuistGraph
 import TuistLoader
 import TuistSupport
+import TuistDependencies
 
 /// The protocol describes an interface for getting project mappers.
 protocol ProjectMapperFactorying {
@@ -62,6 +63,9 @@ public final class ProjectMapperFactory: ProjectMapperFactorying {
 
         // Support for resources in libraries
         mappers.append(ResourcesProjectMapper(contentHasher: ContentHasher()))
+        
+        // Support for resources in SPM packages
+        mappers.append(ExternalResourcesProjectMapper())
 
         // Auto-generation of schemes
         // This mapper should follow the ResourcesProjectMapper in order to create schemes for bundles and cache them.
