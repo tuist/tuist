@@ -70,8 +70,6 @@ You can follow the <doc:external-dependencies> tutorial to learn more about how 
 
 > Note: The **product type** defaults to static framework when none is specified.
 
-> Note: The **module maps** are not automatically generated for packages containing Objective-C code. You can override the `HEADER_SEARCH_PATHS` build setting to point to the headers directory ([details](https://github.com/tuist/tuist/issues/4180)).
-
 #### Xcode's default integration
 
 If you want to use Xcode's default integration mechanism, you can pass the list `packages` when instantiating a project:
