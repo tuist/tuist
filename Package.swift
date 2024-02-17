@@ -320,7 +320,6 @@ var targets: [Target] = [
         ],
         // To revert once we release Tuist 4
         targetSettings: [
-            "Mockable": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
             "MockableTest": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
         ],
         platforms: [.macOS]

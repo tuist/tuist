@@ -42,7 +42,7 @@ class ListService {
         }
 
         let output = try string(for: templates, in: format)
-        logger.info("\(output)")
+        logger.notice("\(output)")
     }
 
     // MARK: - Helpers

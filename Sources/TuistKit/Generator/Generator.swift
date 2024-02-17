@@ -80,7 +80,11 @@ public class Generator: Generating {
     }
 
     func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor]) {
+        logger.notice("Loading and constructing the graph", metadata: .section)
+        logger.notice("It might take a while if the cache is empty")
+
         let (graph, sideEffectDescriptors, issues) = try await manifestGraphLoader.load(path: path)
+
         lintingIssues.append(contentsOf: issues)
         return (graph, sideEffectDescriptors)
     }
