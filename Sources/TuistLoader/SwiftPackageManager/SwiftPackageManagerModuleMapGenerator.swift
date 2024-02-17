@@ -8,7 +8,7 @@ public enum ModuleMap: Equatable {
     /// Custom modulemap file provided in SPM package
     case custom(AbsolutePath, umbrellaHeaderPath: AbsolutePath?)
     /// Umbrella header provided in SPM package
-    case header(moduleMapPath: AbsolutePath)
+    case header(AbsolutePath, moduleMapPath: AbsolutePath)
     /// Nested umbrella header provided in SPM package
     case nestedHeader
     /// No umbrella header provided in SPM package, define umbrella directory
@@ -18,7 +18,7 @@ public enum ModuleMap: Equatable {
         switch self {
         case let .custom(path, umbrellaHeaderPath: _):
             return path
-        case let .header(moduleMapPath: path):
+        case let .header(_, moduleMapPath: path):
             return path
         case let .directory(moduleMapPath: path, umbrellaDirectory: _):
             return path
@@ -37,13 +37,18 @@ public enum ModuleMap: Equatable {
 /// and
 /// [implemented here](https://github.com/apple/swift-package-manager/blob/main/Sources/PackageLoading/ModuleMapGenerator.swift).
 public protocol SwiftPackageManagerModuleMapGenerating {
-    func generate(moduleName: String, publicHeadersPath: AbsolutePath) throws -> ModuleMap
+    func generate(
+        packageDirectory: AbsolutePath,
+        moduleName: String,
+        publicHeadersPath: AbsolutePath
+    ) throws -> ModuleMap
 }
 
 public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
     public init() {}
 
     public func generate(
+        packageDirectory: AbsolutePath,
         moduleName: String,
         publicHeadersPath: AbsolutePath
     ) throws -> ModuleMap {
@@ -51,6 +56,18 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         let nestedUmbrellaHeaderPath = publicHeadersPath.appending(component: moduleName).appending(component: moduleName + ".h")
         let sanitizedModuleName = moduleName.replacingOccurrences(of: "-", with: "_")
         let customModuleMapPath = try Self.customModuleMapPath(publicHeadersPath: publicHeadersPath)
+        let generatedModuleMapPath: AbsolutePath
+        
+        if publicHeadersPath.pathString.contains("\(Constants.SwiftPackageManager.packageBuildDirectoryName)/checkouts") {
+            generatedModuleMapPath = packageDirectory
+                .parentDirectory
+                .parentDirectory
+                .appending(components: Constants.DerivedDirectory.dependenciesDerivedDirectory, moduleName, "\(moduleName).modulemap")
+        } else {
+            generatedModuleMapPath = packageDirectory.appending(
+                components: Constants.DerivedDirectory.name, "\(moduleName).modulemap"
+            )
+        }
 
         if FileHandler.shared.exists(umbrellaHeaderPath) {
             if let customModuleMapPath {
@@ -64,10 +81,9 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
               module * { export * }
             }
             """
-            let moduleMapPath = umbrellaHeaderPath.parentDirectory.appending(component: "\(moduleName).modulemap")
-            try FileHandler.shared.write(moduleMapContent, path: moduleMapPath, atomically: true)
+            try FileHandler.shared.write(moduleMapContent, path: generatedModuleMapPath, atomically: true)
             // If 'PublicHeadersDir/ModuleName.h' exists, then use it as the umbrella header.
-            return .header(moduleMapPath: moduleMapPath)
+            return .header(umbrellaHeaderPath, moduleMapPath: generatedModuleMapPath)
         } else if FileHandler.shared.exists(nestedUmbrellaHeaderPath) {
             if let customModuleMapPath {
                 return .custom(customModuleMapPath, umbrellaHeaderPath: nestedUmbrellaHeaderPath)
@@ -86,7 +102,6 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                     export *
                 }
                 """
-            let generatedModuleMapPath = publicHeadersPath.appending(component: "\(moduleName).modulemap")
             try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
             return .directory(moduleMapPath: generatedModuleMapPath, umbrellaDirectory: publicHeadersPath)
         } else {

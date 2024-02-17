@@ -130,8 +130,10 @@ private class DirectoryStructure {
 
     private func isDependencyProject(_ node: Node) -> Bool {
         switch node {
-        case let .project(path): return path.pathString.contains(".build/checkouts")
-        case .directory, .file, .folderReference, .virtualGroup: return false
+        case let .project(path): 
+            return path.pathString.contains("\(Constants.SwiftPackageManager.packageBuildDirectoryName)/\(Constants.DerivedDirectory.dependenciesDerivedDirectory)")
+        case .directory, .file, .folderReference, .virtualGroup: 
+            return false
         }
     }
 

@@ -318,6 +318,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     result[target.name] = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
                 case .regular:
                     result[target.name] = try moduleMapGenerator.generate(
+                        packageDirectory: packageToFolder[packageInfo.key]!,
                         moduleName: target.name,
                         publicHeadersPath: target.publicHeadersPath(packageFolder: packageToFolder[packageInfo.key]!)
                     )
