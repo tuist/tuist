@@ -1013,9 +1013,17 @@ extension ProjectDescription.Settings {
 
         if let moduleMap {
             switch moduleMap {
-            case .directory, .header:
+            case .directory, .header, .custom:
                 settingsDictionary["DEFINES_MODULE"] = "NO"
-            case .none, .nestedHeader, .custom:
+                switch settingsDictionary["OTHER_CFLAGS"] ?? .array(["$(inherited)"]) {
+                case let .array(values):
+                    settingsDictionary["OTHER_CFLAGS"] = .array(values + ["-fmodule-name=\(target.name)"])
+                case let .string(value):
+                    settingsDictionary["OTHER_CFLAGS"] = .array(
+                        value.split(separator: " ").map(String.init) + ["-fmodule-name=\(target.name)"]
+                    )
+                }
+            case .none, .nestedHeader:
                 break
             }
         }
